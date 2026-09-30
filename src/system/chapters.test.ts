@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { enemyDef } from "../data/enemies";
 import { ARC, HEAL } from "../data/tuning";
 import { isBossDepth } from "./boss";
-import { chapterAheadLines, chapterBossKey, chapterOf, finalBossKey, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, isFinalDepth, skipsFloorLord } from "./chapters";
+import { chapterAheadLines, chapterBossKey, chapterOf, finalBossKey, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, isFinalDepth, nextPeakOf, skipsFloorLord } from "./chapters";
 
 /** 章立て（system/chapters.ts） */
 
@@ -89,5 +89,16 @@ describe("最深の間", () => {
     expect(chapterAheadLines(6)).toHaveLength(1);
     expect(chapterAheadLines(16)).toHaveLength(2);
     expect(chapterAheadLines(7)).toEqual([]);
+  });
+});
+
+describe("次の山（nextPeakOf）", () => {
+  it("1〜5 は 5、6〜10 は 10、20 は 20、21 は 21、22 以降は null", () => {
+    for (const d of [1, 3, 5]) expect(nextPeakOf(d), `深度 ${d}`).toEqual({ depth: 5, key: ARC.chapters[0]?.boss });
+    for (const d of [6, 10]) expect(nextPeakOf(d)?.depth, `深度 ${d}`).toBe(10);
+    expect(nextPeakOf(20)).toEqual({ depth: 20, key: ARC.chapters[3]?.boss });
+    expect(nextPeakOf(21)).toEqual({ depth: 21, key: ARC.finalBoss });
+    expect(nextPeakOf(22)).toBeNull();
+    expect(nextPeakOf(40)).toBeNull();
   });
 });

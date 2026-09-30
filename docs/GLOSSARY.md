@@ -421,6 +421,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
+| 死因 / 次の山 / 前回比 | `killer` / `nextPeakOf` / `previousComparable` | 死亡画面の 3 行。死因 = 最後に受けた傷の出どころ（敵なら「{敵名}の一撃 / 射撃 / 爆発 / 余波」と倒された回数）、次の山 = 力尽きた階から先で最初の章の主か最深の主、前回比 = 前の探索との到達の階・被弾・見切りの差。撃ち手の消えた敵弾は「流れ弾」、出どころの無い爆風は「余波」、ランイベントの落石は「落下物」 | `meta/deathReport.ts`、`system/deathCause.ts` |
+| 仇 / 仇の気配 / 仇討ち | nemesis | 直近の探索で力尽きた相手が、次の探索で眠った陣に 1 体だけ混ざる（名札「仇・」、精鋭の性質 +1・猛）。着いた階で「仇の気配」、倒すと「仇討ち」で遺物と鍵 | `system/nemesis.ts`、`meta/runMetaSetup.ts` |
 
 ## 設計上の用語（未実装を含む）
 

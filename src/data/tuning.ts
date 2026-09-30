@@ -121,6 +121,8 @@ export const ROOM = BALANCE.world.ROOM;
 export const ENEMY_AI = BALANCE.enemies.ENEMY_AI;
 export const ENEMY_TEMPO = BALANCE.enemies.ENEMY_TEMPO;
 export const ELITE = BALANCE.enemies.ELITE;
+/** 仇（前のランで力尽きた相手。system/nemesis.ts） */
+export const NEMESIS = BALANCE.enemies.NEMESIS;
 /** 敵の反応ルール（間合い取り・隙を狙う・囲む・後退射撃・離脱。system/enemyReactions.ts） */
 export const REACTION = BALANCE.enemies.REACTION;
 

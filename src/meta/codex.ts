@@ -156,6 +156,8 @@ export interface CodexSave {
   version: 1;
   enemiesSeen: string[];
   enemyKills: Record<string, number>;
+  /** 敵の key → その敵に倒された回数（段取り 9。予告の図解の開く条件。旧データには無く {} で補う） */
+  enemyDeaths: Record<string, number>;
   relics: string[];
   boons: string[];
   reactions: Record<string, number>;
@@ -178,6 +180,7 @@ export function createCodexSave(): CodexSave {
     version: 1,
     enemiesSeen: [],
     enemyKills: {},
+    enemyDeaths: {},
     relics: [],
     boons: [],
     reactions: {},
@@ -275,6 +278,12 @@ function addFirstSeen(save: CodexSave, firstDepth: ReadonlyMap<string, number>, 
     added += 1;
   }
   return added;
+}
+
+/** 倒された回数を 1 足す（main.ts の recordMeta が死因の key で呼ぶ）。敵の key だけ数え、null・未知（状態異常・地形など）は何もしない */
+export function recordDefeat(save: CodexSave, key: string | null): void {
+  if (key === null || !isEnemyKey(key)) return;
+  save.enemyDeaths[key] = (save.enemyDeaths[key] ?? 0) + 1;
 }
 
 /**

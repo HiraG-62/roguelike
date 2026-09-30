@@ -3,6 +3,7 @@ import { STASH_CAPACITY } from "../data/tuning";
 import { type UltimateDef, defaultUltimate, isUltimateKey, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { migrateItem } from "./migrate";
+import { isHurtKind } from "../core/hurt";
 import {
   type AffixRoll,
   type BudChoice,
@@ -12,6 +13,8 @@ import {
   type Profile,
   type ProfileMeta,
   type Provenance,
+  type HistoryGrudge,
+  type HistoryKiller,
   type RunHistoryEntry,
   type Slot,
   SLOTS,
@@ -263,7 +266,58 @@ function sanitizeHistoryEntry(v: unknown): RunHistoryEntry | null {
   if (cause !== undefined && typeof cause !== "string") return null;
   const entry: RunHistoryEntry = { date, seedText, depth, kills, score, bestCombo, durationSec };
   if (typeof cause === "string") entry.cause = cause;
-  return entry;
+  return { ...entry, ...sanitizeHistoryExtras(v) };
+}
+
+/** 履歴に残す修飾子の上限（主 + 添え） */
+const HISTORY_ELITES_MAX = 2;
+/** 見習い（既定のジョブ）は書かない */
+const DEFAULT_JOB = "none";
+type HistoryExtras = Pick<RunHistoryEntry, "killer" | "grudge" | "avenged" | "tier" | "job" | "hurts" | "justDodges" | "counters" | "noHurtFloors">;
+
+/**
+ * 段取り 9 の任意項目（死因・仇の種・位階・前回比の回数）。壊れた欄は黙って捨て、0・空は書かない（hurts だけは 0 も残す）。
+ * 敵や修飾子の key の実在は読む側（meta/runMetaSetup.ts・meta/deathReport.ts）が確かめる
+ */
+function sanitizeHistoryExtras(v: Record<string, unknown>): HistoryExtras {
+  const out: HistoryExtras = {};
+  const killer = sanitizeKiller(v.killer);
+  if (killer) out.killer = killer;
+  const grudge = sanitizeGrudge(v.grudge);
+  if (grudge) out.grudge = grudge;
+  if (v.avenged === true) out.avenged = true;
+  if (typeof v.job === "string" && v.job.length > 0 && v.job !== DEFAULT_JOB) out.job = v.job;
+  for (const key of ["tier", "justDodges", "counters", "noHurtFloors"] as const) {
+    const n = positiveCount(v[key]);
+    if (n > 0) out[key] = n;
+  }
+  // 被弾の回数は 0 でも残す（前回比の相手になれる段取り 9 以降の行の印。meta/deathReport.ts の previousComparable）
+  if (typeof v.hurts === "number" && Number.isFinite(v.hurts) && v.hurts >= 0) out.hurts = Math.floor(v.hurts);
+  return out;
+}
+
+/** 0 以上の整数（壊れた値は 0） */
+function positiveCount(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+function sanitizeEliteList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0))].slice(0, HISTORY_ELITES_MAX);
+}
+
+function sanitizeKiller(v: unknown): HistoryKiller | null {
+  if (!isRecord(v) || !isHurtKind(v.kind) || typeof v.key !== "string") return null;
+  const killer: HistoryKiller = { kind: v.kind, key: v.key };
+  const elites = sanitizeEliteList(v.elites);
+  if (elites.length > 0) killer.elites = elites;
+  if (v.nemesis === true) killer.nemesis = true;
+  return killer;
+}
+
+function sanitizeGrudge(v: unknown): HistoryGrudge | null {
+  if (!isRecord(v) || typeof v.key !== "string" || v.key.length === 0) return null;
+  return { key: v.key, elites: sanitizeEliteList(v.elites) };
 }
 
 function sanitizeHistory(v: unknown): RunHistoryEntry[] {
@@ -283,7 +337,13 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   const totalKills = typeof v.totalKills === "number" ? v.totalKills : 0;
   const bestScore = typeof v.bestScore === "number" ? v.bestScore : 0;
   const history = sanitizeHistory(v.history);
-  return { runs, bestDepth, totalKills, bestScore, history };
+  const meta: ProfileMeta = { runs, bestDepth, totalKills, bestScore, history };
+  // 踏破の回数と最高位階（段取り 9 の任意項目。無し・壊れた値・0 は書かない）
+  const clears = positiveCount(v.clears);
+  if (clears > 0) meta.clears = clears;
+  const bestClearTier = positiveCount(v.bestClearTier);
+  if (clears > 0 && bestClearTier > 0) meta.bestClearTier = bestClearTier;
+  return meta;
 }
 
 function isMovesetKey(v: string): v is MovesetKey {
@@ -443,6 +503,14 @@ export function recordRun(profile: Profile, result: RunResult): void {
   meta.bestDepth = Math.max(meta.bestDepth, result.depth);
   meta.totalKills += result.kills;
   meta.bestScore = Math.max(meta.bestScore, result.score);
+}
+
+/** 踏破を数え、踏破した最高位階を更新する（main.ts の endRun が status === "cleared" のとき 1 回） */
+export function recordClear(profile: Profile, tier: number): void {
+  const meta = profile.meta;
+  meta.clears = (meta.clears ?? 0) + 1;
+  const clean = positiveCount(tier);
+  if (clean > (meta.bestClearTier ?? 0)) meta.bestClearTier = clean;
 }
 
 /** ラン履歴の先頭に 1 件追加し、最新 HISTORY_LIMIT 件だけ残す */

@@ -37,6 +37,7 @@ import {
   sanitizeStartDepth,
 } from "../system/runSetup";
 import { type JobKey, sanitizeJob } from "../data/jobs";
+import { type RunMetaSetup, isEmptyRunMeta, sanitizeRunMeta } from "../system/runMeta";
 import type { MovesetKey } from "../data/weapons";
 import { clampHitstopScale } from "../ui/settings";
 
@@ -141,6 +142,8 @@ export interface ReplayData {
   lockedRelics?: string[];
   /** 開始深度（QA 専用。無ければ 1。1 のときは書かない） */
   startDepth?: number;
+  /** ランの外から持ち込んだ中身（仇・封じ・位階の見返り。system/runMeta.ts）。無ければ空。空のときは書かない（版は据え置き） */
+  runMeta?: RunMetaSetup;
   /** ラン開始時点のヒットストップの強度（0..HITSTOP_SCALE_MAX）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る。ラン中の変更は events の hitstopScale で記録する */
   hitstopScale?: number;
   /**
@@ -626,6 +629,7 @@ export class ReplayRecorder {
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
       ...startDepthField(this.options.setup?.startDepth),
+      ...runMetaField(this.options.setup?.runMeta),
       ...hitstopScaleField(this.options.hitstopScale),
       ...snapshotAfterStartField(this.snapshotAfterStart),
       balance: BALANCE_HASH,
@@ -688,6 +692,7 @@ export function createReplaySession(data: ReplayData): ReplaySession {
     job: sanitizeJob(data.job),
     lockedRelics: sanitizeLockedRelics(data.lockedRelics),
     startDepth: sanitizeStartDepth(data.startDepth),
+    runMeta: sanitizeRunMeta(data.runMeta),
   };
   const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, sanitizeHitstopScale(data.hitstopScale));
   if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
@@ -875,6 +880,11 @@ function startDepthField(depth: number | undefined): Pick<ReplayData, "startDept
   return clean !== undefined ? { startDepth: clean } : {};
 }
 
+/** 空の runMeta は書かない。旧データと同じ形を保つ */
+function runMetaField(meta: Readonly<RunMetaSetup> | undefined): Pick<ReplayData, "runMeta"> {
+  return meta !== undefined && !isEmptyRunMeta(meta) ? { runMeta: structuredClone(meta) } : {};
+}
+
 /** 既定の 1 は書かない。旧データと同じ形を保つ */
 function hitstopScaleField(scale: number | undefined): Pick<ReplayData, "hitstopScale"> {
   return scale !== undefined && scale !== 1 ? { hitstopScale: clampHitstopScale(scale) } : {};
@@ -928,6 +938,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
     ...startDepthField(sanitizeStartDepth(v.startDepth)),
+    ...runMetaField(sanitizeRunMeta(v.runMeta)),
     ...hitstopScaleField(typeof v.hitstopScale === "number" ? v.hitstopScale : undefined),
     ...snapshotAfterStartField(v.snapshotAfterStart === true),
     ...balanceField(typeof v.balance === "string" ? v.balance : undefined),

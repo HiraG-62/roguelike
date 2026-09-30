@@ -85,6 +85,7 @@ import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { onRelicFloorStart } from "./namedRelics";
 import { announceChapterAhead, clearRun, updateFinale } from "./finale";
+import { placeNemesis } from "./nemesis";
 
 const START_ROOM = 0;
 /** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の部屋（陣の候補）にする */
@@ -185,6 +186,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeContainers(state);
   // 名のある遺物の階の到着（賽の目は装備しているときだけ乱数を引く。それより前の乱数消費を変えない）
   onRelicFloorStart(state);
+  // 仇は陣が揃った後に足す（仇のいないランは何もしない。それより前の乱数消費を変えない。system/nemesis.ts）
+  placeNemesis(state);
   // 出口の予告はこの階を作るためだけに使う。次の階へ持ち越さない
   state.pendingExit = null;
 }

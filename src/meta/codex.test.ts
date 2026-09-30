@@ -21,6 +21,7 @@ import {
   createCodexSave,
   noteChainStep,
   recordCodex,
+  recordDefeat,
 } from "./codex";
 import { CODEX_KEY, loadCodex, parseCodexSave, saveCodex } from "./codexStore";
 import { noteChainRecord } from "./runRecord";
@@ -220,5 +221,26 @@ describe("図鑑: 永続化", () => {
   it("段取り 7d で消えた名のある遺物は写し先へ、写し先の無いものは落とす（重なりは 1 つ）", () => {
     const parsed = parseCodexSave({ version: 1, relics: ["matedFangs", "widowmaker", "twinSerpent", "readersCirclet", 3] });
     expect(parsed?.relics).toEqual(["twinSerpent", "starReader"]);
+  });
+});
+
+describe("図鑑: 倒された回数", () => {
+  it("倒された回数を enemyDeaths に数え、未知の敵と null は数えない", () => {
+    const save = createCodexSave();
+    recordDefeat(save, "wolf");
+    recordDefeat(save, "wolf");
+    recordDefeat(save, "burn");
+    recordDefeat(save, null);
+    expect(save.enemyDeaths).toEqual({ wolf: 2 });
+  });
+
+  it("enemyDeaths は往復し、欄の無い旧データは空で読む", () => {
+    const storage = new MemoryStorage();
+    const save = createCodexSave();
+    save.enemyDeaths.slime = 3;
+    saveCodex(save, storage);
+    expect(loadCodex(storage).enemyDeaths).toEqual({ slime: 3 });
+    expect(parseCodexSave({ version: 1 })?.enemyDeaths, "旧データ").toEqual({});
+    expect(parseCodexSave({ version: 1, enemyDeaths: { slime: -1, nope: 2 } })?.enemyDeaths, "壊れた値").toEqual({});
   });
 });

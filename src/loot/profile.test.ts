@@ -7,6 +7,7 @@ import {
   equipItem,
   loadProfile,
   pushRunHistory,
+  recordClear,
   recordRun,
   returnLoaned,
   salvageItem,
@@ -413,5 +414,70 @@ describe("奥義の選択（Profile.ultimates）", () => {
     const storage = new MemoryStorage();
     saveProfile(profile, storage);
     expect(loadProfile(storage).ultimates, "選んでいなければ欄は書かれない").toBeUndefined();
+  });
+});
+
+describe("履歴の段取り 9 の任意項目と踏破の記録", () => {
+  function entry(overrides: Partial<RunHistoryEntry> = {}): RunHistoryEntry {
+    return { date: 1, seedText: "abc", depth: 4, kills: 0, score: 0, bestCombo: 0, durationSec: 0, cause: "defeated", ...overrides };
+  }
+
+  it("履歴の新しい欄が保存と読み込みで往復する", () => {
+    const storage = new MemoryStorage();
+    const profile = createEmptyProfile();
+    pushRunHistory(
+      profile,
+      entry({
+        killer: { kind: "strike", key: "wolf", elites: ["hasted"], nemesis: true },
+        grudge: { key: "wolf", elites: ["hasted"] },
+        avenged: true,
+        tier: 3,
+        job: "brawler",
+        hurts: 0,
+        justDodges: 4,
+        counters: 2,
+        noHurtFloors: 1,
+      }),
+    );
+    recordClear(profile, 3);
+    saveProfile(profile, storage);
+    expect(loadProfile(storage), "往復").toEqual(profile);
+    expect(loadProfile(storage).meta.history?.[0]?.hurts, "被弾 0 も残す").toBe(0);
+  });
+
+  it("壊れた新しい欄は捨て、欄の無い旧データも読める", () => {
+    const storage = new MemoryStorage();
+    const raw = {
+      ...createEmptyProfile(),
+      meta: {
+        runs: 1,
+        bestDepth: 2,
+        totalKills: 0,
+        bestScore: 0,
+        clears: "x",
+        bestClearTier: 5,
+        history: [
+          entry({}),
+          { ...entry({}), killer: { kind: "nope", key: "wolf" }, grudge: { key: 3 }, avenged: "yes", tier: -2, job: 7, hurts: -1, justDodges: Number.NaN },
+        ],
+      },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(raw));
+    const loaded = loadProfile(storage);
+    expect(loaded.meta.history, "旧データの行と、壊れた欄を捨てた行").toEqual([entry({}), entry({})]);
+    expect(loaded.meta.clears, "壊れた踏破の回数は無し").toBeUndefined();
+    expect(loaded.meta.bestClearTier, "踏破していなければ最高位階も無し").toBeUndefined();
+  });
+
+  it("recordClear は踏破の回数と最高位階を更新する", () => {
+    const profile = createEmptyProfile();
+    recordClear(profile, 4);
+    recordClear(profile, 2);
+    expect(profile.meta.clears).toBe(2);
+    expect(profile.meta.bestClearTier, "最高位階は下がらない").toBe(4);
+    const plain = createEmptyProfile();
+    recordClear(plain, 0);
+    expect(plain.meta.clears).toBe(1);
+    expect(plain.meta.bestClearTier, "位階 0 の踏破は書かない").toBeUndefined();
   });
 });

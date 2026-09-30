@@ -38,6 +38,9 @@ import { startJob } from "../system/jobs";
 import { createRuleRunState } from "./events";
 import { createCodexRun } from "../meta/codex";
 import { createQuestRun } from "../meta/quests";
+import { createHurtLog } from "./hurt";
+import { createNemesisRun } from "../system/nemesis";
+import { emptyRunMeta } from "../system/runMeta";
 import { HITSTOP_SCALE_MAX } from "../ui/settings";
 
 /**
@@ -100,6 +103,8 @@ export function createGame(
     corpses: [],
     boss: null,
     bossLog: [],
+    hurt: createHurtLog(),
+    nemesis: createNemesisRun(setup.runMeta?.nemesis ?? null),
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,
@@ -120,6 +125,7 @@ export function createGame(
     origin: setup.origin,
     job: setup.job ?? "none",
     lockedRelics: [...(setup.lockedRelics ?? [])],
+    runMeta: structuredClone(setup.runMeta ?? emptyRunMeta()),
     stairs: [],
     pendingExit: null,
     contracts: createContractState(),

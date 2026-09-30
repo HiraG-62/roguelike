@@ -286,6 +286,9 @@ export function shieldLeft(e: Enemy): number {
   return Math.max(0, e.hp - (e.maxHp - max));
 }
 
+/** 仇の名札の接頭辞 */
+export const NEMESIS_PREFIX = "仇・";
+
 /** 格の接頭辞（猛）を付けた名前。精鋭の接頭辞は eliteDisplayName がその外側に足す */
 export function gradedName(e: Enemy): string {
   const name = enemyDef(e.defKey).name;
@@ -293,14 +296,16 @@ export function gradedName(e: Enemy): string {
 }
 
 export function eliteDisplayName(e: Enemy): string {
+  // 仇（system/nemesis.ts）は一番外側に「仇・」
+  const nemesis = e.nemesis ? NEMESIS_PREFIX : "";
   const name = gradedName(e);
-  if (!e.elite) return name;
+  if (!e.elite) return `${nemesis}${name}`;
   // 刻限の は残り秒を名前に添える（時計が頭上に見える）
   const timer = e.elite === "timed" && !timedOut(e) ? ` ${Math.ceil(e.eliteWork?.timer ?? 0)}` : "";
   const extra = e.eliteExtra ? ELITE_PREFIX[e.eliteExtra] : "";
   // 強欲のは抱えている数を添える（追いかける価値が頭上に見える）
   const loot = carriedCount(e) > 0 ? `（${carriedCount(e)}）` : "";
-  return `${ELITE_PREFIX[e.elite]}${extra}${name}${timer}${loot}`;
+  return `${nemesis}${ELITE_PREFIX[e.elite]}${extra}${name}${timer}${loot}`;
 }
 
 /** 毎ステップ、敵の行動より前に呼ぶ: シールド破壊と Linked の HP 共有、追加の修飾子の時間経過 */

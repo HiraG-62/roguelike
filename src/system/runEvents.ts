@@ -1039,7 +1039,7 @@ const STRIKE_LIFE = 0.3;
 function landStrike(state: GameState, strike: Strike): void {
   const t = RUN_EVENT.thunder;
   const p = state.player.body;
-  if (circlesOverlap(strike.pos.x, strike.pos.y, t.radius, p.pos.x, p.pos.y, p.radius)) damagePlayer(state, t.damage, strike.pos);
+  if (circlesOverlap(strike.pos.x, strike.pos.y, t.radius, p.pos.x, p.pos.y, p.radius)) damagePlayer(state, t.damage, strike.pos, undefined, { cause: { kind: "event", key: "thunderstorm" } });
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase === "spawning") continue;
     if (!circlesOverlap(strike.pos.x, strike.pos.y, t.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
@@ -1077,7 +1077,7 @@ function tickReaperPass(state: GameState, current: ActiveRunEvent): void {
   const body = state.player.body;
   if (!pos || !circlesOverlap(pos.x, pos.y, RUN_EVENT.reaperPass.radius, body.pos.x, body.pos.y, body.radius)) return;
   current.memo = 1;
-  damagePlayer(state, RUN_EVENT.reaperPass.damage, pos);
+  damagePlayer(state, RUN_EVENT.reaperPass.damage, pos, undefined, { cause: { kind: "event", key: "reaperPass" } });
 }
 
 /** 通り過ぎた後に冥の残響が残る */

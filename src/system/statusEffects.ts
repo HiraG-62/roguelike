@@ -672,7 +672,7 @@ function flushQueued(state: GameState, e: Enemy): void {
 /** 状態異常がプレイヤーか敵に与える即時ダメージ（蒸発・焼灼など） */
 export function hurtTarget(state: GameState, target: StatusTarget, amount: number, defer = false): void {
   if (target.kind === "player") {
-    damagePlayerDot(state, Math.round(amount));
+    damagePlayerDot(state, Math.round(amount), { kind: "status", key: "reaction" });
     return;
   }
   hurtEnemy(state, target.enemy, amount, 0, defer);
@@ -934,7 +934,7 @@ function dealDot(state: GameState, target: StatusTarget, effect: StatusEffect, a
   if (whole < 1) return;
   effect.acc -= whole;
   if (target.kind === "player") {
-    damagePlayerDot(state, whole);
+    damagePlayerDot(state, whole, { kind: "status", key: effect.kind });
     return;
   }
   damageEnemy(state, target.enemy, whole, { x: 0, y: 0 }, 0, { silent: true });

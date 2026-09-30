@@ -4,6 +4,7 @@ import type { BoonAction } from "../core/build";
 import type { Modifier, Rule } from "../core/rules";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
+import type { HurtKind } from "../core/hurt";
 import { ATTR, ECONOMY, MANA } from "../data/tuning";
 import type { MovesetKey } from "../data/weapons";
 
@@ -284,6 +285,34 @@ export interface RunHistoryEntry {
   durationSec: number;
   /** "defeated"（死亡）/ "abandoned"（R や Restart で中断） */
   cause?: string;
+  // ---- 以下は段取り 9 の任意項目（docs/ideas/meta-impl.md 2-2）。0・空は書かない。旧データには無い ----
+  /** 力尽きたときの最後の被弾（死因） */
+  killer?: HistoryKiller;
+  /** 仇の種（力尽きたときだけ。次のランの仇） */
+  grudge?: HistoryGrudge;
+  /** このランで仇を討った */
+  avenged?: true;
+  /** 位階（縛りの点の合計。0 は書かない） */
+  tier?: number;
+  /** ジョブの key（見習いは書かない） */
+  job?: string;
+  /** 被弾・見切り・カウンター・無傷の階の回数（前回比） */
+  hurts?: number;
+  justDodges?: number;
+  counters?: number;
+  noHurtFloors?: number;
+}
+
+export interface HistoryKiller {
+  kind: HurtKind;
+  key: string;
+  elites?: string[];
+  nemesis?: true;
+}
+
+export interface HistoryGrudge {
+  key: string;
+  elites: string[];
 }
 
 export interface ProfileMeta {
@@ -293,6 +322,9 @@ export interface ProfileMeta {
   bestScore: number;
   /** 追加フィールド。version は変えず、欠けていても loadProfile 側で補う */
   history?: RunHistoryEntry[];
+  /** 踏破の回数と、踏破した最高位階（履歴は 20 件で切れるので別に持つ。0 / 無しは書かない） */
+  clears?: number;
+  bestClearTier?: number;
 }
 
 export interface Profile {

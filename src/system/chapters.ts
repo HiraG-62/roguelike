@@ -63,6 +63,22 @@ export function heartChanceOf(depth: number): number {
   return table[chapterOf(depth) - FIRST_CHAPTER] ?? table[table.length - 1] ?? 0;
 }
 
+/**
+ * 次の山（死亡画面。docs/ideas/meta-impl.md 2-2）: depth 以上で最初の章ボスの階か最深の間と、その主の key。
+ * 最深の間より深い（深み）なら null
+ */
+export function nextPeakOf(depth: number): { depth: number; key: string } | null {
+  const final = lastChapterFloor() + 1;
+  if (depth > final) return null;
+  const floors = Math.max(1, ARC.floorsPerChapter);
+  const bossDepth = Math.ceil(Math.max(1, depth) / floors) * floors;
+  if (bossDepth <= lastChapterFloor()) {
+    const key = chapterBossKey(bossDepth);
+    if (key !== null) return { depth: bossDepth, key };
+  }
+  return { depth: final, key: ARC.finalBoss };
+}
+
 function bossLabel(key: string): string {
   const def = enemyDef(key);
   return def.bossTitle ?? def.name;

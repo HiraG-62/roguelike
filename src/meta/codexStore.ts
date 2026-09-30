@@ -26,6 +26,7 @@ export function parseCodexSave(parsed: unknown): CodexSave | null {
     version: CURRENT_VERSION,
     enemiesSeen: sanitizeKeyList(parsed.enemiesSeen, isEnemyKey),
     enemyKills: sanitizeCountMap(parsed.enemyKills, isEnemyKey),
+    enemyDeaths: sanitizeCountMap(parsed.enemyDeaths, isEnemyKey),
     relics: sanitizeKeyList(migrateRelicKeys(parsed.relics), isRelicKey),
     boons: sanitizeKeyList(parsed.boons, isBoonKeyString),
     reactions: sanitizeCountMap(parsed.reactions, isReactionKeyString),

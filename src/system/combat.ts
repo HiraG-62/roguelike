@@ -1,5 +1,7 @@
 import { type DamageKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
+import type { HurtCause } from "../core/hurt";
+import { noteHurt } from "./deathCause";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { behaviorOf } from "./behaviors/registry";
 import { ACTION, BOON_LINEAGE, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
@@ -505,6 +507,8 @@ export type PlayerHitResult = "hit" | "dodged" | "ignored" | "parried";
 export interface DamagePlayerOptions {
   /** true なら無敵中でも JUST 回避（スロー・ゲージ）を発生させない。単に "ignored" 扱い（Reaper の常時接触が稼ぎ場にならないように） */
   noJust?: boolean;
+  /** 被弾の出どころ（死因の元。system/deathCause.ts）。省略は attacker から推定（いれば一撃、いなければ余波） */
+  cause?: HurtCause;
 }
 
 /** armor の被ダメ軽減率（PoE 風の逓減式）。0..ARMOR_MAX_REDUCTION */
@@ -556,6 +560,7 @@ export function damagePlayer(
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = relicPayWithCoins(state, mitigate(state, raw, enemyAttackOf(attacker)));
   p.hp = Math.max(0, p.hp - takeNowOrDefer(state, taken));
+  noteHurt(state, attacker, opts.cause);
   spillCoins(state, fromPos);
   addRegain(state, taken);
   onPlayerHurtStatus(state);
@@ -598,10 +603,11 @@ function playerTakenMul(state: GameState): number {
  * 状態異常の継続ダメージ（燃焼・毒・出血・蒸発）。無敵・ノックバック・コンボ切れ・リゲインを起こさない。
  * 0 になったら倒れる
  */
-export function damagePlayerDot(state: GameState, amount: number): void {
+export function damagePlayerDot(state: GameState, amount: number, cause?: HurtCause): void {
   const p = state.player;
   if (state.status !== "playing" || amount <= 0) return;
   p.hp = Math.max(0, p.hp - amount);
+  noteHurt(state, undefined, cause);
   if (p.hp > 0) return;
   killPlayer(state);
 }
@@ -642,7 +648,7 @@ function payDeferredDamage(state: GameState): void {
   if (due <= 0) return;
   p.deferredDamage = list.filter((d) => d.due > state.time);
   addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE);
-  damagePlayerDot(state, due);
+  damagePlayerDot(state, due, { kind: "deferred", key: "" });
 }
 
 /**

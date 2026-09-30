@@ -1,6 +1,7 @@
 import type { GameState } from "../core/state";
 import type { JobKey } from "../data/jobs";
 import type { QuestKey } from "../meta/quests";
+import type { RunMetaSetup } from "./runMeta";
 import { ORIGIN, RUN_MOD } from "../data/tuning";
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
 import { computeStats } from "../loot/stats";
@@ -151,6 +152,11 @@ export interface RunSetup {
    * UI には出さず、リプレイに記録する。省略は 1
    */
   startDepth?: number;
+  /**
+   * ランの外から持ち込む中身（仇・解放の封じ・位階の見返り。system/runMeta.ts）。main.ts がラン開始時に保存データから作り、
+   * リプレイに記録する。省略は空（今と同じ乱数消費）
+   */
+  runMeta?: RunMetaSetup;
 }
 
 /** 開始深度の上限。壊れた保存データが巨大な深度で始まらないための保険 */

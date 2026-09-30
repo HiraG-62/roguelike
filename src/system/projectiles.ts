@@ -403,7 +403,7 @@ function hitPlayer(state: GameState, pr: Projectile): void {
   const p = state.player.body;
   if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, p.pos.x, p.pos.y, p.radius)) return;
   const attacker = pr.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === pr.sourceId);
-  const result = damagePlayer(state, pr.damage, pr.pos, attacker);
+  const result = damagePlayer(state, pr.damage, pr.pos, attacker, { cause: { kind: "shot" } });
   if (result === "hit") inflictOnPlayer(state, attacker, "bullet");
   // 被弾したか回避したら弾は消える。被弾後無敵中はすり抜ける
   if (result === "ignored") return;

@@ -124,7 +124,7 @@ function touch(state: GameState, pos: Vec, radius: number): void {
   const p = state.player.body;
   if (!circlesOverlap(pos.x, pos.y, radius, p.pos.x, p.pos.y, p.radius)) return;
   // 死神は無敵で常に接触するため、ジャスト回避を成立させない
-  damagePlayer(state, REAPER.damage, pos, undefined, { noJust: true });
+  damagePlayer(state, REAPER.damage, pos, undefined, { noJust: true, cause: { kind: "reaper", key: "reaper" } });
 }
 
 /** 鎖の死神: interval ごとに charge 秒の予告線を出して止まり、鎖を投げる。当たると引き寄せる */
@@ -155,7 +155,7 @@ function throwChain(state: GameState, r: Reaper): void {
   pushSfx(state, "chainThrow");
   const p = state.player;
   if (!segmentCircleHit(r.pos, aim, c.width / 2, p.body.pos, p.body.radius)) return;
-  if (damagePlayer(state, c.damage, r.pos, undefined, { noJust: true }) !== "hit") return;
+  if (damagePlayer(state, c.damage, r.pos, undefined, { noJust: true, cause: { kind: "reaper", key: "reaper" } }) !== "hit") return;
   p.knock = scale(normalize(sub(r.pos, p.body.pos)), c.pull);
 }
 

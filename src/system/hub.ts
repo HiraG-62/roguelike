@@ -34,6 +34,8 @@ import { applyStats, createPlayer, updatePlayer } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { createRunEventState } from "./runEvents";
 import { defaultRunSetup, refreshRunStats } from "./runSetup";
+import { emptyRunMeta } from "./runMeta";
+import { createHurtLog } from "../core/hurt";
 import { createSkillRunState } from "./skills";
 import { DUMMY_KEY } from "./specialRooms";
 import { updateStatusEffects } from "./statusEffects";
@@ -141,6 +143,8 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     corpses: [],
     boss: null,
     bossLog: [],
+    hurt: createHurtLog(),
+    nemesis: null,
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,
@@ -160,6 +164,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     origin: setup.origin,
     job: "none",
     lockedRelics: [],
+    runMeta: emptyRunMeta(),
     stairs: [],
     pendingExit: null,
     contracts: createContractState(),

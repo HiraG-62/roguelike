@@ -373,6 +373,23 @@ function spawnMember(state: GameState, jin: Jin, member: MemberPlan, pos: Vec): 
   return e;
 }
 
+/**
+ * 置き終えた陣に 1 人足す（仇。system/nemesis.ts）。want の近くの空きに置き、置けなければ null。
+ * 格・精鋭・群勢は呼び元が決める（ここは生成 → 陣の生命の揺らぎ → 生成のフック → push だけ）
+ */
+export function addJinMember(state: GameState, jin: Jin, def: EnemyDef, want: Vec): Enemy | null {
+  const room = state.rooms[jin.roomIndex];
+  if (!room) return null;
+  const pos = freeSpotNear(state, want, def.radius, roomArea(state, room));
+  if (!pos) return null;
+  const e = createEnemy(state, def, pos, jin.roomIndex, false);
+  e.jinId = jin.id;
+  applyHpMul(e, jin.hpMul);
+  onRunEnemySpawned(state, e);
+  state.enemies.push(e);
+  return e;
+}
+
 function applyGrade(state: GameState, e: Enemy, member: MemberPlan): void {
   if (member.grade === "strong") makeStrong(e);
   // ランの縛り・反転層で既に精鋭になっていれば重ねない。大将は格に関わらず精鋭を 1 つ持つ（解禁前の深度では付かない）

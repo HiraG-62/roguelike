@@ -1,4 +1,3 @@
-import { actionKeyLabel } from "../core/input";
 import { kingSlimeAirTime } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import { type BossState, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
@@ -124,8 +123,6 @@ const COMBO_MULT_GAP = 10;
 /** 死亡画面のレイアウト */
 const DEATH_TITLE_RISE = 24;
 const DEATH_STAT_LINE = 16;
-const DEATH_HINT_GAP = 24;
-const COLOR_DEATH_HINT = "#a0a0a0";
 /** 浮遊文字のドット倍率の上限（クリティカルの弾みで巨大化しすぎないように） */
 const FLOAT_TEXT_MAX_M = 3;
 
@@ -3213,7 +3210,6 @@ export class Renderer {
     drawText(ctx, cleared ? "踏破" : "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, cleared ? ARC.surfaceColor : COLOR_HP, "center");
     drawText(ctx, summary, cx, cy, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
-    drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード`, cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
   }
 }
 

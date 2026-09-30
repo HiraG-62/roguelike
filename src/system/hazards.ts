@@ -188,7 +188,7 @@ function hazardDamage(state: GameState, h: Hazard): number {
 
 /** プレイヤーへの被弾。当たれば付与元の状態異常も付ける */
 function hitPlayerBy(state: GameState, h: Hazard, on: EnemyAttackKind): ReturnType<typeof damagePlayer> {
-  const result = damagePlayer(state, hazardDamage(state, h), h.pos);
+  const result = damagePlayer(state, hazardDamage(state, h), h.pos, undefined, { cause: { kind: "hazard", key: h.sourceKey } });
   if (result === "hit") inflictOnPlayer(state, hazardSource(h), on);
   return result;
 }
@@ -209,7 +209,7 @@ export function explodeHostile(
   const p = state.player.body;
   if (dist(p.pos, pos) >= radius + p.radius) return;
   const mul = blastMulAt(pos, radius, p.pos, p.radius);
-  if (damagePlayer(state, damage * mul, pos) === "hit") inflictOnPlayer(state, source, "bomb");
+  if (damagePlayer(state, damage * mul, pos, undefined, { cause: { kind: "blast", key: source?.defKey } }) === "hit") inflictOnPlayer(state, source, "bomb");
 }
 
 /** 線分 a-b（太さ halfWidth*2）と円の当たり判定 */

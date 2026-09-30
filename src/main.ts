@@ -27,7 +27,7 @@ import {
 import { hashSeed } from "./core/rng";
 import { type GameState, pushLog, runOver } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
-import { loadProfile, pushRunHistory, returnLoaned, saveProfile } from "./loot/profile";
+import { loadProfile, pushRunHistory, recordClear, returnLoaned, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
@@ -46,6 +46,9 @@ import {
 } from "./render/titleUi";
 import { loadSkillProfileWithNotice, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
+import { killerOf } from "./system/deathCause";
+import { deathReportLines as buildDeathReportLines, historyExtras, previousComparable } from "./meta/deathReport";
+import { buildRunMeta } from "./meta/runMetaSetup";
 import {
   KEYBINDS_ROWS,
   PADBINDS_ROWS,
@@ -117,10 +120,10 @@ import {
   pointOriginRow,
   type OriginScreen,
 } from "./ui/origin";
-import { type RunSetup, defaultRunSetup } from "./system/runSetup";
+import { type RunSetup, defaultRunSetup, runTier } from "./system/runSetup";
 import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
-import { recordCodex } from "./meta/codex";
+import { recordCodex, recordDefeat } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
 import { seedKnownLinks } from "./meta/links";
 import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
@@ -233,6 +236,11 @@ function startGame(seedText: string): GameState {
 /** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
 function withLockedRelics(setup: RunSetup): RunSetup {
   return { ...setup, lockedRelics: lockedRelicKeys(questSave) };
+}
+
+/** ラン開始時に仇などの持ち込みを保存データから確定させる（やり直しでも作り直す = 直前の死が新しい仇になる。記録器と createGame が同じ値を見る） */
+function withRunMeta(setup: RunSetup, seedText: string): RunSetup {
+  return { ...setup, runMeta: buildRunMeta({ history: profile.meta.history ?? [], daily: isDailySeedText(seedText) }) };
 }
 
 const input = new PlayerInput();
@@ -417,7 +425,7 @@ function beginRun(seedText: string): void {
   // 拠点の state はランに持ち込まない（試した誓約も消える）。次に拠点へ入るとき作り直す
   hub = null;
   inventoryUi.open = false;
-  runSetup = withLockedRelics(runSetup);
+  runSetup = withRunMeta(withLockedRelics(runSetup), seedText);
   runStartedAt = Date.now();
   loadoutDirty = false;
   state = startGame(seedText);
@@ -431,6 +439,7 @@ function beginRun(seedText: string): void {
   // 連携の発見: 図鑑の既知を写す（初発見の表示・手がかり枠・発見の依頼が読む。ゲーム進行には効かない）
   seedKnownLinks(state.codexRun.links, codexSave);
   deathMetaLines = [];
+  deathReportLines = [];
   committedSeedText = seedText;
   seedInput.text = seedText;
   bossesDefeated = 0;
@@ -446,11 +455,15 @@ function endRun(current: GameState): void {
   historyRecordedState = current;
   // 履歴エントリの date とリプレイの endedAt を同じ値にして紐付ける
   const now = Date.now();
-  pushRunHistory(current.profile, buildHistoryEntry(current, now));
+  const entry = { ...buildHistoryEntry(current, now), ...historyExtras(current) };
+  pushRunHistory(current.profile, entry);
+  if (current.status === "cleared") recordClear(current.profile, runTier(current.modifiers));
   // 武器掛けの借り物はランが終わると消える（saveProfile も書かないが、手元の profile からも外す）
   returnLoaned(current.profile);
   saveProfile(current.profile);
   deathMetaLines = recordMeta(current, now);
+  // 倒された回数（recordMeta の recordDefeat）と踏破の回数を数えた後に組む
+  deathReportLines = buildDeathReportLines(entry, previousComparable(current.profile.meta.history ?? [], entry), codexSave, current.profile.meta);
   // 寄進は step の中では保存せず、ラン終了のここで拠点の保存データへ足す
   if (current.economy.donated > 0) saveHub(addDonation(loadHub(), current.economy.donated));
   if (recorder) {
@@ -465,6 +478,8 @@ function endRun(current: GameState): void {
 
 /** 死亡画面に出す、ラン終了時の依頼・図鑑・実績の結果 */
 let deathMetaLines: string[] = [];
+/** 死亡画面の死因 / 次の山 / 前回比（meta/deathReport.ts） */
+let deathReportLines: string[] = [];
 let questChoiceUi: QuestChoiceScreen = createQuestChoice([]);
 let listUi: ListScreen = createListScreen();
 /** 一覧画面のタブ（開いたときと決定のたびに作り直す） */
@@ -472,6 +487,7 @@ let listTabs: ListTab[] = [];
 
 /** ラン 1 回ぶんを図鑑・依頼・実績へ畳んで保存する。戻り値は死亡画面の行 */
 function recordMeta(s: GameState, now: number): string[] {
+  recordDefeat(codexSave, killerOf(s)?.key ?? null);
   const discovered = recordCodex(s, codexSave);
   saveCodex(codexSave);
   const outcome = recordQuest(s, questSave, now);
@@ -1773,6 +1789,7 @@ startLoop(
         bestCombo: cur.combo.best,
         bossesDefeated,
         metaLines: deathMetaLines,
+        reportLines: deathReportLines,
       });
     }
     drawGamepadConnectedHint(ctx);
