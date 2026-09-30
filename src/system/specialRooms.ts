@@ -9,6 +9,7 @@ import { BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning"
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
+import { dominantTraitColor } from "../loot/colors";
 import { forkStairsTiles } from "../map/generator";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenter, rectCenterPx, setTile, toIndex } from "../map/grid";
 import { MODIFIERS } from "../skills/data";
@@ -763,11 +764,9 @@ function spawnHeart(state: GameState, pos: Vec): void {
   roomHooks.dropHeart(state, pos);
 }
 
-/** 共鳴の支配色（無ければ装備の性質で最も多い色、それも無ければ乱数） */
+/** 装備の性質で最も多い色（無ければ乱数） */
 function forgeColor(state: GameState): TraitColor {
-  const dominant = state.stats.resonance.colors[0];
-  if (dominant) return dominant;
-  return state.rng.pick(TRAIT_COLORS);
+  return dominantTraitColor(state.profile.equipment) ?? state.rng.pick(TRAIT_COLORS);
 }
 
 function useAnvil(state: GameState, prop: RoomProp): void {
@@ -1014,7 +1013,7 @@ export function clearSpecialRoom(state: GameState, room: RoomState, center: Vec)
       offerBoons(state, BOON.gradeBoostChallenge);
       return;
     case "resonance":
-      clearResonance(state, room, center);
+      clearResonance(state, center);
       return;
     case "escort":
       clearEscort(state, room, center);
@@ -1048,14 +1047,13 @@ export function inFogRoom(state: GameState): boolean {
   return state.rooms.some((room) => room.kind === "fogRoom" && !room.cleared && pxInRoom(state, room, p));
 }
 
-/** 共鳴炉: 扉の色と今の共鳴の色が合えば報酬が倍 */
-export function resonanceMatches(state: GameState, room: RoomState): boolean {
-  const color = room.special?.color;
-  return color !== null && color !== undefined && state.stats.resonance.colors.includes(color);
+/** 共鳴炉: 何かの語が共鳴していれば報酬が増える（扉の色は飾り） */
+export function resonanceMatches(state: GameState): boolean {
+  return state.boonRun.resonance.length > 0;
 }
 
-function clearResonance(state: GameState, room: RoomState, center: Vec): void {
-  if (!resonanceMatches(state, room)) return;
+function clearResonance(state: GameState, center: Vec): void {
+  if (!resonanceMatches(state)) return;
   // 共鳴炉の上乗せは確定（部屋制圧の報酬は確率になったが、こちらは条件を満たした報酬なので絞らない）
   for (let i = 0; i < ROOM_KIND.resonanceBonusDrops; i++) dropBonusReward(state, center);
   sayAt(state, "共鳴炉が起動した", TRAIT_COLOR_TEXT);

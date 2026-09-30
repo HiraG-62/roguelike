@@ -22,7 +22,9 @@ import {
 } from "./innate";
 import { migrateItem } from "./migrate";
 import { loadProfile, PROFILE_KEY } from "./profile";
-import { equipmentResonance, computeStats } from "./stats";
+import { computeStats } from "./stats";
+import { emptyProfile } from "../core/keywords";
+import { relicKeywords } from "../system/keywords";
 import { ATTR_KEYS, LOOT_SLOTS, SLOTS, createEmptyEquipment, createEmptyProfile, type AffixRoll, type AttrKey, type Item, type Slot } from "./types";
 import { SLOT_LABEL } from "../ui/inventoryLayout";
 import { ascend, descend } from "../system/floor";
@@ -257,9 +259,8 @@ describe("地金の集計と表示", () => {
     expect(collectInnate({ ...createEmptyEquipment(), armor: armorItem }, armorItem.itemLevel)).toEqual(innate);
   });
 
-  it("地金は色の配合・共鳴に数えない", () => {
-    const eq = { ...createEmptyEquipment(), armor: armorItem };
-    expect(equipmentResonance(eq).kind, "性質が無いので共鳴なし").toBe(equipmentResonance(createEmptyEquipment()).kind);
+  it("地金は色の配合・共鳴の語に数えない", () => {
+    expect(relicKeywords(armorItem), "性質が無いので語なし").toEqual(emptyProfile());
     expect(itemColorBar(armorItem.affixes), "色の配合").toEqual([]);
   });
 

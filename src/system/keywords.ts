@@ -13,12 +13,15 @@ import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMY_COMBAT, type EnemyCombatDef } from "../data/enemyCombat";
 import { enemyDefense, enemyWeaknesses } from "../data/enemyDefense";
 import { ATTR } from "../data/tuning";
+import { affixDef, isKeystoneKey } from "../loot/affixes";
+import { uniqueDef } from "../loot/named";
+import { decodeTriggerRoll } from "../loot/triggers";
 import {
   ATTR_KEYS,
+  type AffixRoll,
   DEFAULT_STATS,
+  type Item,
   type PlayerStats,
-  TRAIT_COLORS,
-  type TraitColor,
   type TraitStats,
   type TriggerCondition,
   type TriggerEffectKind,
@@ -354,41 +357,45 @@ function triggerFacts(t: Readonly<TriggeredEffect>): StatFact[] {
   return facts;
 }
 
-/** 色 → 語（性質の色と語の key は同じ名前） */
-const COLOR_KEYWORD: Readonly<Record<TraitColor, Keyword>> = {
-  crimson: "crimson",
-  azure: "azure",
-  jade: "jade",
-  gold: "gold",
-  umbra: "umbra",
-};
-
-/** 配合に入っている色は「出す」、共鳴が成立した色は「食う」（虚極は反転も食う） */
-function resonanceFacts(stats: Readonly<PlayerStats>): StatFact[] {
-  const res = stats.resonance;
-  const facts: StatFact[] = [];
-  for (const c of TRAIT_COLORS) {
-    if (res.ratios[c] > 0) facts.push({ tags: [], keywords: kw([COLOR_KEYWORD[c]]) });
-  }
-  for (const c of res.colors) facts.push({ tags: [], keywords: resonanceConsumes(c) });
-  return facts;
-}
-
-function resonanceConsumes(color: TraitColor): KeywordProfile {
-  return color === "umbra" ? kw([], ["umbra", "inverted"]) : kw([], [COLOR_KEYWORD[color]]);
-}
-
-/** 装備から成立する事実をすべて集める（表の順 → トリガー → 誓約 → proc → 共鳴。順は結果に影響しない） */
+/** 装備から成立する事実をすべて集める（表の順 → トリガー → 誓約 → proc。順は結果に影響しない） */
 function statFacts(stats: Readonly<PlayerStats>): StatFact[] {
   const facts: StatFact[] = STAT_RULES.filter((r) => r.test(stats));
   for (const t of stats.triggers) facts.push(...triggerFacts(t));
   for (const key of stats.keystones) facts.push(keystoneFact(key));
   for (const proc of stats.statusProcs) facts.push(procFact(proc));
-  facts.push(...resonanceFacts(stats));
   return facts;
 }
 
-/** 装備（stats）の語。性質・変換・誓約・トリガー・共鳴から推論する */
+/** 誓約 1 つの語（源と糧の共鳴が遺物・ラン内の誓約の出どころとして数える。system/resonance.ts） */
+export function keystoneKeywords(key: string): KeywordProfile {
+  return keystoneFact(key).keywords;
+}
+
+/**
+ * 遺物 1 つの語（源と糧の共鳴の出どころ 1 つ。system/resonance.ts）。性質・転じの定義の keywords、誓約の語、
+ * トリガーの語、名のある遺物の語の和。地金・implicit は数えない（地金の筋力で全遺物が近接を強めにならないように）。
+ * 反転した性質は効果が裏返っているので数えない
+ */
+export function relicKeywords(item: Readonly<Item>): KeywordProfile {
+  const parts: KeywordProfile[] = [];
+  for (const roll of item.affixes) {
+    if (roll.inverted === true) continue;
+    parts.push(...rollKeywords(roll));
+  }
+  const named = item.namedKey === undefined ? undefined : uniqueDef(item.namedKey);
+  if (named?.keywords) parts.push(named.keywords);
+  return mergeProfiles(emptyProfile(), ...parts);
+}
+
+function rollKeywords(roll: Readonly<AffixRoll>): KeywordProfile[] {
+  if (isKeystoneKey(roll.key)) return [keystoneKeywords(roll.key)];
+  const trigger = decodeTriggerRoll(roll);
+  if (trigger !== null) return triggerFacts(trigger).map((f) => f.keywords);
+  const def = affixDef(roll.key);
+  return def?.keywords ? [def.keywords] : [];
+}
+
+/** 装備（stats）の語。性質・変換・誓約・トリガーから推論する */
 export function statsKeywords(stats: Readonly<PlayerStats>): KeywordProfile {
   return mergeProfiles(...statFacts(stats).map((f) => f.keywords));
 }
@@ -527,10 +534,6 @@ function equipmentSources(): KeywordSource[] {
   for (const [k, f] of Object.entries(TRIGGER_EFFECT_FACTS)) list.push(src(`effect:${k}`, f.keywords));
   for (const k of Object.keys(KEYSTONE_FACTS)) list.push(src(`keystone:${k}`, keystoneFact(k).keywords));
   for (const [k, words] of Object.entries(STATUS_KEYWORDS)) list.push(src(`proc:${k}`, kw(words)));
-  for (const c of TRAIT_COLORS) {
-    list.push(src(`color:${c}`, kw([COLOR_KEYWORD[c]])));
-    list.push(src(`resonance:${c}`, resonanceConsumes(c)));
-  }
   return list;
 }
 

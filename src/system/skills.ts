@@ -82,6 +82,7 @@ import type { Element } from "../core/element";
 import { favoredMovesets } from "../data/jobs";
 import { buffMul } from "./attributes";
 import { boonGrantedModifiers, boonManaCostMul, hasBoon, onBoonSkillCast } from "./boons";
+import { refreshResonance } from "./resonance";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, damageEnemy, gainEnergy, healSustained, registerComboHit, rollOutgoing } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
@@ -440,6 +441,10 @@ export function trackDamageDealt(state: GameState): void {
 export function updateSkills(state: GameState, input: FrameInput, dt: number): void {
   const rs = state.skills;
   syncSlotModifiers(rs, boonGrantedModifiers(state));
+  // 符の移し・外し（moveRunModifier は state を持たない）・石の付け替え・改鋳の取得は、ここで次のステップに数え直す。
+  // 倍（resonanceModifiers）はすぐ効き、stats に畳む語（ダッシュ・見切りなど）は次の applyStats で追いつく
+  // （ここで stats を畳み直すと、テストや QA が直に書いた stats を装備の stats で上書きしてしまう）
+  refreshResonance(state);
   rs.clock += dt;
   syncTracking(state);
   const hurt = trackHurt(state);
@@ -1069,22 +1074,10 @@ function castStateMul(state: GameState, r: ResolvedSlot): { damage: number; pote
 }
 
 /**
- * 同調: 共鳴の色（二重・三和音ならどれか）がスキルの向きと合うか。
- * 紅 = 近接、蒼 = 射撃・移動、翠 = 防御・強化、冥 = 状態異常を付ける、金 = 会心の一撃だけ伸びる（"crit"）
+ * 同調: 色の共鳴は段取り 7d で源と糧の共鳴に置き換わり、読む色が無くなった（同調の符は 7c の H2 で消える）。それまでは合わない扱い
  */
-export function attuneMatch(state: GameState, def: Readonly<SkillDef>): boolean | "crit" {
-  const r = state.stats.resonance;
-  // 散光・共鳴なしは色が定まらないので合わない
-  if (r.kind === "scatter" || r.kind === "none") return false;
-  let gold = false;
-  for (const color of r.colors) {
-    if (color === "crimson" && def.tags.includes("melee")) return true;
-    if (color === "azure" && (def.tags.includes("projectile") || def.tags.includes("movement"))) return true;
-    if (color === "jade" && (def.tags.includes("defense") || def.tags.includes("buff"))) return true;
-    if (color === "umbra" && def.applies !== undefined) return true;
-    if (color === "gold") gold = true;
-  }
-  return gold ? "crit" : false;
+export function attuneMatch(_state: GameState, _def: Readonly<SkillDef>): boolean | "crit" {
+  return false;
 }
 
 /**
@@ -1622,6 +1615,7 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
 
   const commit = (i: number): number => {
     syncSlotModifiers(rs);
+    refreshResonance(state);
     return i;
   };
   const free = without.find((i) => usedLinks(rs, i) + cost <= slotLinks(i));

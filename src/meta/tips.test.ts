@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assignBinding, defaultKeybinds } from "../core/input";
 import glossary from "../../docs/GLOSSARY.md?raw";
-import { ATTR_LABEL } from "../loot/resonance";
-import { ATTR_KEYS } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL } from "../loot/types";
 import { TIP_CATEGORIES, tipEntries, tipsListTabs } from "./tips";
 
 describe("Tips ノート", () => {

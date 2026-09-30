@@ -1,4 +1,4 @@
-import type { KeywordProfile } from "../core/keywords";
+import { type KeywordProfile, kw } from "../core/keywords";
 import type { StatusKind } from "../core/status";
 import { FORM } from "./tuning";
 import { type MovesetDef, type MovesetKey, type WeaponWeight, MOVESETS, MOVESET_KEYS, reviveWeight } from "./weapons";
@@ -198,6 +198,8 @@ interface FormSpec {
   derived?: boolean;
   riposte: readonly RiposteSource[];
   finisher?: readonly FinisherSource[];
+  /** 共鳴の数えに使う語（源と糧の共鳴。system/resonance.ts） */
+  keywords: KeywordProfile;
 }
 
 /** 型の定義を仕上げる。放出の形を持たない骨の型は右レーンの最終段を仮の放出の段にする（溜まる出来事が無いので放出は起きない） */
@@ -219,6 +221,7 @@ function defineForm(key: FormKey, spec: FormSpec): FormDef {
     riposte: spec.riposte,
     finisher: spec.finisher ?? ["lastStep"],
     reforges: [],
+    keywords: spec.keywords,
   };
 }
 
@@ -231,6 +234,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "riposte", amount: FORM.blade.gain.riposte }],
     // 剣は右 2 段目の返し斬り、刀は居合（右の溜め）を離した振り。frenzy のような新しい key は 5b で足す
     release: { kind: "laneStep", keys: ["returnCut", "iai"] },
+    keywords: kw(["melee", "counter"], ["just"]),
     riposte: ["parry", "counter", "justDodge", "iai"],
   }),
   flurry: defineForm("flurry", {
@@ -240,6 +244,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "meleeHit", amount: FORM.flurry.gain.meleeHit }],
     // 双剣・爪・拳とも右の最終段が乱舞
     release: { kind: "laneStep", keys: ["frenzy"] },
+    keywords: kw(["melee", "finisher"], ["combo"]),
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -250,6 +255,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "chargeLevel" }],
     release: { kind: "maxCharge" },
     derived: true,
+    keywords: kw(["melee", "stagger", "finisher"], ["hurt"]),
     riposte: ["chargeEndure", "justDodge"],
     finisher: ["lastStep", "maxCharge", "release"],
   }),
@@ -259,6 +265,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     label: "狙い",
     gain: [{ kind: "still", perSec: FORM.rifle.gain.still, lossPerSec: FORM.rifle.moveLossPerSec }],
     release: { kind: "nextPrimary" },
+    keywords: kw(["ranged", "bullet", "finisher"], ["still"]),
     riposte: ["justDodge"],
     finisher: ["lastStep", "release", "aimedShot"],
   }),
@@ -272,6 +279,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "applyStatus", status: "wound" }],
     release: { kind: "laneStep", keys: ["rend"] },
     derived: true,
+    keywords: kw(["melee", "bleed"], ["counter"]),
     riposte: ["counter", "justDodge"],
   }),
   polearm: defineForm("polearm", {
@@ -281,6 +289,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "tipHit", amount: FORM.polearm.gain.tipHit }],
     // 満ちた後の最初の突きが放出で、貫く穂先の弾（FORM.polearm.cast）を撃つ
     release: { kind: "nextPrimary" },
+    keywords: kw(["melee", "finisher"], ["bullet"]),
     riposte: ["counter", "bulletCut"],
     finisher: ["lastStep", "release"],
   }),
@@ -292,6 +301,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "pullHit" }],
     release: { kind: "laneStep", keys: ["slam"] },
     derived: true,
+    keywords: kw(["melee", "area"], ["counter"]),
     riposte: ["pullInterrupt", "justDodge"],
   }),
   // ---- 5b-D2: 盾・扇・杖・投具 ----
@@ -302,6 +312,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "guardBlock", perDamage: FORM.bulwark.gain.guardBlock }],
     // 構えを離した盾押し（hold.release の派生）が放出
     release: { kind: "release" },
+    keywords: kw(["ward", "counter"], ["hurt"]),
     riposte: ["guardBlock"],
     finisher: ["lastStep", "release"],
   }),
@@ -315,6 +326,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     ],
     // 構えを離した突風（hold.release の派生）が放出
     release: { kind: "release" },
+    keywords: kw(["area", "wall"], ["bullet"]),
     riposte: ["bulletCut"],
     finisher: ["lastStep", "release"],
   }),
@@ -326,6 +338,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "cast" }],
     release: { kind: "branch" },
     derived: true,
+    keywords: kw(["ranged", "finisher"], ["combo"]),
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -337,6 +350,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "flyingShots" }],
     release: { kind: "laneStep", keys: ["recall", "ringLaunch", "ringSweep"] },
     derived: true,
+    keywords: kw(["ranged", "bullet"], ["just"]),
     riposte: ["recallCut", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -348,6 +362,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "shotFired", amount: FORM.pistol.gain.shotFired }],
     release: { kind: "reload", ...FORM.pistol.reload },
     // 応手は零距離の見切りだけ（範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
+    keywords: kw(["ranged", "bullet"], ["just"]),
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -359,6 +374,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 右の一斉起爆の段（零距離砲・起爆・蹴り飛ばし）が放出。一斉起爆した数が単位で、その一撃が終撃
     release: { kind: "laneStep", keys: detonateLaneKeys("artillery") },
     derived: true,
+    keywords: kw(["placed", "explode"], ["placed"]),
     riposte: ["justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -370,6 +386,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // スキルの命中（設置物・従魔の命中は鈴の分）で溜まり、右 1 段目の無詠唱が放出で次のスキル 1 回の気力が 0
     gain: [{ kind: "skillHit", amount: FORM.tome.gain.skillHit }],
     release: { kind: "laneStep", keys: ["freeCast"] },
+    keywords: kw(["mana"], ["mana"]),
     riposte: ["justDodge"],
   }),
   bell: defineForm("bell", {
@@ -379,6 +396,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 設置物・従魔の命中で溜まり、右 1 段目の打ち鳴らしが放出で近くの設置物を即発動し、従魔を強める
     gain: [{ kind: "minionHit", amount: FORM.bell.gain.minionHit }],
     release: { kind: "laneStep", keys: ["toll"] },
+    keywords: kw(["placed", "stagger"], ["placed"]),
     riposte: ["justDodge"],
   }),
 };

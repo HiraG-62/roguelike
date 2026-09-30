@@ -3,17 +3,17 @@ import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMIES } from "../data/enemies";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_COLOR, ATTR_TRAIT_PREFIX, formatAffix } from "./affixes";
-import { traitColorOf } from "./colors";
+import { colorWeights, traitColorOf } from "./colors";
 import { CALM_FLUX_LIMIT, WAVER_FLUX_LIMIT, fluxMagnitude } from "./flux";
 import { baseDef } from "./bases";
 import { innateAt } from "./innate";
 import { milestoneDef } from "./provenance";
 import { baseName, dominantColor } from "./names";
-import { ATTR_LABEL, colorWeights } from "./resonance";
 import { computeStats } from "./stats";
 import { profileGaps, statsKeywords } from "../system/keywords";
 import {
   ATTR_KEYS,
+  ATTR_LABEL,
   RARITY_LABEL,
   SLOTS,
   TRAIT_COLORS,
@@ -318,8 +318,6 @@ export function describeItem(item: Item, depth = 1): ItemDescription {
   if (item.inscription !== undefined) desc.inscription = item.inscription;
   return desc;
 }
-
-export { describeResonance } from "./resonance";
 
 // -----------------------------------------------------------------------------
 // 「ここに噛む」（docs/ideas/synergy-web.md 4-b）。スコアにせず、語と相手の名前だけを返す

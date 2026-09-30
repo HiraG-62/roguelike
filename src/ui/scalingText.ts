@@ -4,8 +4,7 @@ import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type 
 import { type UltimateAct, type UltimateDef, defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
-import { ATTR_LABEL } from "../loot/resonance";
-import { ATTR_KEYS, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
 import { type DamageTag, dedupeMore, moreApplies } from "../core/damage";
 import { INCREASED_LABEL, UNARMED_MORE, formatMoreMul } from "../loot/stats";
 import { SKILL, SKILL_DEFS } from "../skills/data";

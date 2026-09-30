@@ -61,7 +61,6 @@ import j_combat_STATUS_panic from "./combat/STATUS/panic.json";
 import j_combat_STATUS_lacerate from "./combat/STATUS/lacerate.json";
 import j_combat_STATUS_wound from "./combat/STATUS/wound.json";
 import j_combat_ATTR from "./combat/ATTR.json";
-import j_combat_ATTR_GAIN from "./combat/ATTR_GAIN.json";
 import j_combat_POISE from "./combat/POISE.json";
 import j_combat_PARRY from "./combat/PARRY.json";
 import j_combat_GENRE from "./combat/GENRE.json";
@@ -958,7 +957,6 @@ export const combat = {
     "wound": j_combat_STATUS_wound,
   },
   "ATTR": j_combat_ATTR,
-  "ATTR_GAIN": j_combat_ATTR_GAIN,
   "POISE": j_combat_POISE,
   "PARRY": j_combat_PARRY,
   "GENRE": j_combat_GENRE,
@@ -2042,7 +2040,6 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "boons/_index.json",
   "combat/ACTION.json",
   "combat/ATTR.json",
-  "combat/ATTR_GAIN.json",
   "combat/BLAST_FALLOFF.json",
   "combat/ELEMENT.json",
   "combat/ENERGY.json",

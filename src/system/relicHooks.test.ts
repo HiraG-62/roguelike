@@ -3,9 +3,8 @@ import { pushPlayerEvent } from "../core/events";
 import { type Modifier, type Rule, SCOPE_ANY } from "../core/rules";
 import { BOON, STATUS } from "../data/tuning";
 import { applyNamedRelics, type UniqueDef } from "../loot/named";
-import { ATTR_LABEL as RESONANCE_ATTR_LABEL } from "../loot/resonance";
 import { computeStats } from "../loot/stats";
-import { ATTR_LABEL, DEFAULT_STATS, type Item, type Slot, createEmptyEquipment } from "../loot/types";
+import { DEFAULT_STATS, type Item, type Slot, createEmptyEquipment } from "../loot/types";
 import { createBoonRunState, graceSlotsOf } from "./boons";
 import { keystoneRules } from "./keystones";
 import { countPer } from "./modifiers";
@@ -151,11 +150,5 @@ describe("重ねの上限の上乗せ（statusStackCapBonus）", () => {
     e.maxHp = 10_000;
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "burn", stacks: BIG_STACKS, duration: LONG, potency: 1 }, "player");
     expect(findStatus(e.status, "burn")?.stacks).toBe(STATUS.burnMaxStacks);
-  });
-});
-
-describe("ATTR_LABEL の移動", () => {
-  it("loot/resonance の re-export は loot/types と同じ表", () => {
-    expect(RESONANCE_ATTR_LABEL).toBe(ATTR_LABEL);
   });
 });

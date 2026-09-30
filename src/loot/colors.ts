@@ -1,7 +1,7 @@
 import type { StatusKind } from "../core/status";
 import { affixDef, isKeystoneKey, type AffixDef, type AffixTag } from "./affixes";
 import { INFLICT_COLOR, decodeTriggerRoll, inflictKindsOfColor, type TriggerShape } from "./triggers";
-import type { AffixRoll, TraitColor, TriggeredEffect } from "./types";
+import { SLOTS, TRAIT_COLORS, type AffixRoll, type Equipment, type TraitColor, type TriggeredEffect } from "./types";
 
 /**
  * 性質の色（響き）。docs/LOOT_DESIGN.md「色と共鳴」。
@@ -123,6 +123,64 @@ export function traitColorOf(roll: AffixRoll): TraitColor | undefined {
   if (roll.colorless === true) return undefined;
   if (roll.inverted === true) return "umbra";
   return roll.color ?? defaultColorOfKey(roll.key);
+}
+
+// -----------------------------------------------------------------------------
+// 色の重み（遺物 1 つの色の帯・ドロップの色。装備全体の配合で効果を決める仕組みは段取り 7d で源と糧の共鳴に置き換えた）
+// -----------------------------------------------------------------------------
+
+/** 色ごとの重み */
+export type ColorWeights = Record<TraitColor, number>;
+
+/** 反転した性質は色の重みが 2 倍（呪いは強く響く） */
+export const INVERTED_COLOR_WEIGHT = 2;
+/** 性質 1 つの重み = |value / nominal| をこの範囲に収める（強く振れた性質ほど強く響く） */
+export const TRAIT_WEIGHT_MIN = 0.25;
+export const TRAIT_WEIGHT_MAX = 3;
+/** 基準値（nominal）を持たない性質の重み */
+const DEFAULT_TRAIT_WEIGHT = 1;
+
+function emptyWeights(): ColorWeights {
+  return { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 };
+}
+
+/** 性質 1 つが色の帯に与える重み */
+export function traitWeight(roll: AffixRoll): number {
+  const nominal = roll.nominal;
+  const base =
+    nominal === undefined || nominal === 0
+      ? DEFAULT_TRAIT_WEIGHT
+      : Math.min(TRAIT_WEIGHT_MAX, Math.max(TRAIT_WEIGHT_MIN, Math.abs(roll.value / nominal)));
+  return roll.inverted === true ? base * INVERTED_COLOR_WEIGHT : base;
+}
+
+/** 色ごとの重みの合計。色を持たないもの（implicit・旧マーカー・脱色済み）は数えない */
+export function colorWeights(rolls: readonly AffixRoll[]): ColorWeights {
+  const weights = emptyWeights();
+  for (const roll of rolls) {
+    const color = traitColorOf(roll);
+    if (color !== undefined) weights[color] += traitWeight(roll);
+  }
+  return weights;
+}
+
+/**
+ * 装備中の性質の色で最も多い色（数で比べ、同数は TRAIT_COLORS 順）。性質が無ければ undefined。
+ * 金床の残響の色が読む（system/specialRooms.ts）
+ */
+export function dominantTraitColor(equipment: Readonly<Equipment>): TraitColor | undefined {
+  const counts = emptyWeights();
+  for (const slot of SLOTS) {
+    for (const roll of equipment[slot]?.affixes ?? []) {
+      const color = traitColorOf(roll);
+      if (color !== undefined) counts[color] += 1;
+    }
+  }
+  let best: TraitColor | undefined;
+  for (const c of TRAIT_COLORS) {
+    if (counts[c] > 0 && (best === undefined || counts[c] > counts[best])) best = c;
+  }
+  return best;
 }
 
 /** ベースの色の傾き。生成時、この色の性質の抽選重みが BASE_LEAN_WEIGHT 倍になる */

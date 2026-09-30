@@ -1,6 +1,6 @@
 import type { Element } from "../core/element";
 import type { EventKind } from "../core/events";
-import type { KeywordProfile } from "../core/keywords";
+import { type KeywordProfile, kw } from "../core/keywords";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { TerrainKind } from "../core/terrain";
 import { REFORGE } from "./tuning";
@@ -273,8 +273,45 @@ const BULLET_CUT: RuleCondition = { kind: "eventTag", tag: "bulletCut" };
 
 const R = REFORGE;
 
-function def(key: ReforgeKey, form: FormKey, name: string, desc: string, rest: Omit<ReforgeDef, "key" | "form" | "name" | "desc"> = {}): ReforgeDef {
-  return { key, form, name, desc, ...rest };
+/**
+ * 改鋳の語（源と糧の共鳴で改鋳 1 つを出どころ 1 と数える。system/resonance.ts）。
+ * 放出・終撃を起点にする改鋳は終撃を食い、型の放出（終撃を出す）と噛み合う
+ */
+const REFORGE_KEYWORDS: Readonly<Record<ReforgeKey, KeywordProfile>> = {
+  bladeRepel: kw(["wall", "stagger"], ["counter"]),
+  bladeWave: kw(["ranged"], ["counter"]),
+  flurryHoard: kw([], ["combo"], ["finisher"]),
+  flurryTwin: kw(["finisher"], [], ["melee"]),
+  crusherStride: kw([], [], ["finisher"]),
+  crusherQuake: kw(["area"], ["finisher"]),
+  hewerSpread: kw(["bleed", "area"], ["finisher"]),
+  hewerPass: kw(["bleed"], ["kill"]),
+  polearmLeap: kw(["dash"], ["finisher"]),
+  polearmPin: kw(["stagger"], ["melee"]),
+  chainString: kw([], [], ["area"]),
+  chainFling: kw(["area", "wall"], ["finisher"]),
+  bulwarkRound: kw(["ward"], [], ["counter"]),
+  bulwarkThrow: kw(["ranged", "area"], ["hurt"]),
+  warfanHaze: kw(["ward"], ["bullet"]),
+  warfanReturn: kw(["ranged", "bullet"], ["bullet"]),
+  rodQuad: kw(["finisher"], ["combo"]),
+  rodResidue: kw(["placed"], ["ranged"]),
+  throwerPull: kw(["dash"], ["bullet"]),
+  throwerTwin: kw(["bullet"], [], ["ranged"]),
+  pistolDash: kw([], ["dash"]),
+  pistolChain: kw(["shock"], ["finisher"]),
+  rifleStride: kw([], [], ["ranged"]),
+  rifleScatter: kw(["area", "bullet"], ["finisher"]),
+  artilleryCling: kw([], [], ["placed"]),
+  artilleryChain: kw(["explode"], ["finisher"]),
+  tomeHaste: kw([], ["finisher"], ["mana"]),
+  tomeFont: kw(["mana"]),
+  bellToll: kw(["stagger"]),
+  bellWard: kw(["ward"]),
+};
+
+function def(key: ReforgeKey, form: FormKey, name: string, desc: string, rest: Omit<ReforgeDef, "key" | "form" | "name" | "desc" | "keywords"> = {}): ReforgeDef {
+  return { key, form, name, desc, keywords: REFORGE_KEYWORDS[key], ...rest };
 }
 
 export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {

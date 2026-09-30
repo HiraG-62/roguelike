@@ -10,6 +10,8 @@ import {
   SYNERGY_COLS,
   createSynergyPanelUi,
   moveCursor,
+  resonanceLine,
+  resonanceLines,
   synergyBuild,
   synergyCellAt,
   synergyCellRect,
@@ -140,5 +142,18 @@ describe("網タブ: 入力", () => {
     const ui = createSynergyPanelUi();
     updateSynergyPanel(ui, withInput({}), 0.5);
     expect(ui.time).toBeCloseTo(0.5);
+  });
+});
+
+describe("流れタブ: 共鳴中の語", () => {
+  it("共鳴していなければ行を出さない。していれば段の高い順（同段は KEYWORDS 順）", () => {
+    const state = createGame(1);
+    state.boonRun.resonance = [];
+    expect(resonanceLines(state)).toEqual([]);
+    const burn = { keyword: "burn", step: 2, produces: 3, consumes: 2, amplifies: 1 } as const;
+    const melee = { keyword: "melee", step: 1, produces: 2, consumes: 2, amplifies: 0 } as const;
+    const chill = { keyword: "chill", step: 1, produces: 2, consumes: 2, amplifies: 0 } as const;
+    state.boonRun.resonance = [{ ...melee }, { ...burn }, { ...chill }];
+    expect(resonanceLines(state), "最も高い段が先頭").toEqual([resonanceLine(burn), resonanceLine(melee), resonanceLine(chill)]);
   });
 });

@@ -9,7 +9,9 @@ import {
   synergyBuild,
   synergyCellRect,
   synergyDetailRect,
+  synergyLegendRect,
   synergyWords,
+  resonanceLines,
 } from "../ui/synergyPanel";
 import { COLOR_BORDER, COLOR_DIM, COLOR_HOVER_BG, COLOR_SELECTED, COLOR_TEXT, TEXT_PAD_X, bodyLineH, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
@@ -46,6 +48,8 @@ const KIND_COLOR: Readonly<Record<SynergyElementKind, string>> = {
   skill: SKILL.drop.stoneColor,
   boon: "#ffd75f",
 };
+/** 共鳴中の語の行の色 */
+const COLOR_RESONANCE = "#c0a0ff";
 /** 関わっていない語の字形の不透明度 */
 const IDLE_ALPHA = 0.3;
 /** 飢えの点滅の周期（秒）と、消えている側の不透明度 */
@@ -60,7 +64,8 @@ export const WEB_HELP: readonly { text: string; color: string }[] = [
   { text: "暖色 = 溢れ（源だけで糧がない）", color: STATE_COLOR.surplus },
   { text: "寒色の点滅 = 枯れ（糧だけで源がない）", color: STATE_COLOR.hunger },
   { text: "右下の数 = 源の数 / 糧の数", color: COLOR_DIM },
-  { text: "名前の色: 遺物 / 共鳴 / スキル石 / 祝福", color: COLOR_DIM },
+  { text: "名前の色: 遺物 / 装備全体 / スキル石 / 祝福", color: COLOR_DIM },
+  { text: "グリッドの下: 共鳴している語と段", color: COLOR_DIM },
 ];
 
 export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, ui: SynergyPanelUi): void {
@@ -68,6 +73,23 @@ export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, 
   words.forEach((w, i) => drawCell(ctx, w, i, i === ui.cursor, ui.time));
   const selected = words[ui.cursor];
   if (selected) drawDetail(ctx, selected);
+  drawResonanceLines(ctx, resonanceLines(state));
+}
+
+/** グリッドの下に共鳴中の語を段の高い順に。入らない分は「ほか n 語」にまとめる。共鳴が無ければ何も出さない */
+function drawResonanceLines(ctx: CanvasRenderingContext2D, lines: readonly string[]): void {
+  if (lines.length === 0) return;
+  const r = synergyLegendRect();
+  const m = TEXT.SMALL;
+  const lineH = bodyLineH();
+  const fit = Math.max(1, Math.floor(r.h / lineH));
+  const shown = lines.length > fit ? lines.slice(0, fit - 1) : lines;
+  let y = r.y + lineH;
+  for (const text of shown) {
+    drawText(ctx, truncateText(text, r.w, m), r.x, y, m, COLOR_RESONANCE);
+    y += lineH;
+  }
+  if (shown.length < lines.length) drawText(ctx, `ほか ${lines.length - shown.length} 語`, r.x, y, m, COLOR_DIM);
 }
 
 function hungerAlpha(time: number): number {

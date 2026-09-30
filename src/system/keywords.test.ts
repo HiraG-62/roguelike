@@ -23,6 +23,7 @@ import {
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import type { SkillProfile } from "../skills/types";
 import { BOONS, BOON_KEYS, type BoonTag } from "./boonDefs";
+import { RESONANCE_EXCLUDED } from "./resonance";
 import { boonAffinityMul, equipmentTags } from "./boons";
 import { KEYSTONE_NAME, KS } from "./keystones";
 import {
@@ -225,8 +226,9 @@ describe("全要素が語を持つ", () => {
     for (const [key, p] of Object.entries(FLOOR_KEYWORDS)) expect(profileKeywords(p).length, `フロア ${key}`).toBeGreaterThan(0);
   });
 
-  it("全語に「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり）", () => {
-    const coverage = keywordCoverage(keywordSources());
+  it("全語に「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり。共鳴で数えない色・反転・無属性は除く）", () => {
+    const excluded = new Set<Keyword>(RESONANCE_EXCLUDED);
+    const coverage = keywordCoverage(keywordSources()).filter((c) => !excluded.has(c.key));
     const noProducer = coverage.filter((c) => c.produces === 0).map((c) => c.key);
     const noConsumer = coverage.filter((c) => c.consumes === 0).map((c) => c.key);
     expect(noProducer, "出す要素が無い語（どこかの要素の produces に足す）").toEqual([]);
@@ -239,7 +241,7 @@ describe("装備の語の推論", () => {
     expect(profileKeywords(statsKeywords(DEFAULT_STATS)), "基礎値").toEqual([]);
   });
 
-  it("性質・誓約・トリガー・proc・共鳴から語を読む", () => {
+  it("性質・誓約・トリガー・proc から語を読む", () => {
     const stats: PlayerStats = {
       ...DEFAULT_STATS,
       burnChance: 0.2,
@@ -247,16 +249,11 @@ describe("装備の語の推論", () => {
       keystones: [KS.blink],
       triggers: [{ trigger: "onKill", condition: "belowHalfHp", effect: "inflict", status: "poison", magnitude: 1, chance: 0.3 }],
       statusProcs: [{ kind: "bleed", chance: 0.2, stacks: 1, duration: 3, potency: 1, on: "melee", requiresCrit: true }],
-      resonance: {
-        kind: "dominant",
-        colors: ["umbra"],
-        ratios: { crimson: 0.4, azure: 0, jade: 0, gold: 0, umbra: 0.6 },
-      },
     };
     const p = statsKeywords(stats);
     const has = (list: readonly Keyword[], words: readonly Keyword[]): boolean => words.every((w) => list.includes(w));
-    expect(has(p.produces, ["burn", "explode", "poison", "bleed", "crimson", "umbra"]), `出す: ${p.produces.join(",")}`).toBe(true);
-    expect(has(p.consumes, ["hurt", "dash", "kill", "lowHp", "melee", "crit", "umbra", "inverted"]), `食う: ${p.consumes.join(",")}`).toBe(
+    expect(has(p.produces, ["burn", "explode", "poison", "bleed", "umbra"]), `出す: ${p.produces.join(",")}`).toBe(true);
+    expect(has(p.consumes, ["hurt", "dash", "kill", "lowHp", "melee", "crit"]), `食う: ${p.consumes.join(",")}`).toBe(
       true,
     );
     expect(p.amplifies.includes("dash"), "瞬歩はダッシュを強める").toBe(true);

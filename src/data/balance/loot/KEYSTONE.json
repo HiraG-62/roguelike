@@ -1,5 +1,5 @@
 {
-  "_note": "誓約（旧キーストーン）の数値（loot/affixes.ts の KEYSTONES と system/keystones.ts が読む。docs/ideas/relics-7d-plan.md 2-2）。monochrome* / colorlessTraitMul は色の共鳴（loot/resonance.ts）が消えるまで残す",
+  "_note": "誓約（旧キーストーン）の数値（loot/affixes.ts の KEYSTONES と system/keystones.ts が読む。docs/ideas/relics-7d-plan.md 2-2）",
   "_fields": {
     "mushinIdleSec": "虚心: 攻撃を当てずにこの秒がたつと、次の 1 撃が倍になる。秒",
     "mushinMul": "虚心: 溜めた 1 撃の与ダメージの倍。倍率",
@@ -34,9 +34,6 @@
   "chantSkillBonus": 0.5,
   "contagionDamageMul": 0.6,
   "contagionRadius": 60,
-  "monochromeRatio": 0.35,
-  "monochromeDamping": 0.5,
-  "colorlessTraitMul": 1.2,
   "pacifistMercyHp": 1,
   "pacifistPoiseMul": 2,
   "bladeOathRangePx": 30,

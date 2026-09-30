@@ -7,7 +7,7 @@ import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures
 import { weaponHitName } from "../audio/weaponHitNames";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
-import { colorWeights } from "../loot/resonance";
+import { colorWeights } from "../loot/colors";
 import { type ElementAffinity, dominantElement, elementShares, outgoingElement, resolveAttack } from "./elementCombat";
 import { ELITE_COLOR } from "./elites";
 

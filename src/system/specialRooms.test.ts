@@ -11,6 +11,9 @@ import { keystoneDef } from "../loot/affixes";
 import { TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
 import { BOONS } from "./boons";
+import { BOON_KEYS, type BoonKey } from "./boonDefs";
+import { RESONANCE_EXCLUDED, refreshResonance } from "./resonance";
+import { KEYWORDS } from "../core/keywords";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -333,13 +336,13 @@ describe("戦う特別な部屋", () => {
     expect(state.floorItems.some((f) => f.item.rarity === "rare" || f.item.rarity === "unique")).toBe(true);
   });
 
-  it("共鳴炉: 扉の色と共鳴の色が合えば、制圧の報酬が増える", () => {
+  it("共鳴炉: 何かの語が共鳴していれば、制圧の報酬が増える（扉の色は問わない）", () => {
     const drops = (match: boolean): number => {
       const { state, room, index } = roomOf("resonance");
-      const color = room.special?.color;
-      if (!color) throw new Error("color missing");
-      const other = TRAIT_COLORS.find((c) => c !== color) ?? color;
-      state.stats.resonance = { ...state.stats.resonance, kind: "dominant", colors: [match ? color : other] };
+      // 共鳴は毎ステップ数え直すので、源と糧の出どころ（祝福）を持たせる
+      state.boons = match ? resonatingBoons() : [];
+      refreshResonance(state);
+      expect(state.boonRun.resonance.length > 0, "前提: 共鳴").toBe(match);
       // 共鳴炉は封鎖しないので、入った瞬間に（敵がいなければ）制圧になる。入る前から数える
       const before = state.floorItems.length;
       enter(state, room);
@@ -577,3 +580,19 @@ describe("分岐路の追加と上り階段", () => {
     expect(ascendAllowed(state), "回数の上限").toBe(false);
   });
 });
+
+/** 同じ語を出すだけの祝福 2 枚と食うだけの祝福 2 枚（共鳴を 1 段立てる出どころ） */
+function resonatingBoons(): BoonKey[] {
+  for (const k of KEYWORDS) {
+    if (RESONANCE_EXCLUDED.includes(k)) continue;
+    const pure = (verb: "produces" | "consumes"): BoonKey[] =>
+      BOON_KEYS.filter((b) => {
+        const p = BOONS[b].keywords;
+        return p[verb].includes(k) && !p[verb === "produces" ? "consumes" : "produces"].includes(k);
+      });
+    const ps = pure("produces");
+    const cs = pure("consumes");
+    if (ps.length >= 2 && cs.length >= 2) return [...ps.slice(0, 2), ...cs.slice(0, 2)];
+  }
+  throw new Error("共鳴する祝福の組が無い");
+}

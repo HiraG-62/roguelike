@@ -37,9 +37,6 @@ export const STATUS = BALANCE.combat.STATUS;
  */
 export const ATTR = BALANCE.combat.ATTR;
 
-/** 色の共鳴によるステータスの加算量（docs/COMBAT_DESIGN.md A-3） */
-export const ATTR_GAIN = BALANCE.combat.ATTR_GAIN;
-
 /**
  * マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源。
  * 数値は src/data/balance/combat/ の "MANA"（変更したい場合はそこを編集する。_note に調整の経緯）
@@ -92,10 +89,7 @@ export const KEYSTONE = BALANCE.loot.KEYSTONE;
 /** 名のある遺物の固有の数値（loot/named.ts・system/namedRelics.ts。docs/ideas/relics-7d-plan.md 3 章） */
 export const RELIC = BALANCE.loot.RELIC;
 
-/**
- * 共鳴の拡張（docs/ideas/loot-expansion.md 9-2〜9-4。src/loot/resonance.ts）。
- * 陰画・拮抗は共鳴の変形、星座は 6 部位の主色の並びで成立する別の層
- */
+/** 源と糧の共鳴（system/resonance.ts。docs/ideas/relics-7d-plan.md 4 章） */
 export const RESONANCE = BALANCE.loot.RESONANCE;
 
 /** 装備ドロップ */

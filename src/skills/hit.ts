@@ -17,6 +17,7 @@ import { onManaSource } from "../system/manaSources";
 import { gainMorale } from "../system/morale";
 import { minionDamageMul } from "../system/tomeBell";
 import { TRAIT_COLORS } from "../loot/types";
+import { resonantHue } from "../system/resonance";
 import { SKILL, SKILL_DEFS, resolveCast, skillAttack } from "./data";
 import { stoneInSlot } from "./persistence";
 import type { CastParams, SkillDef } from "./types";
@@ -223,12 +224,10 @@ function nearestOther(state: GameState, from: Enemy, radius: number): Enemy | nu
   return best;
 }
 
-/** 装備の共鳴の色（支配・二重・三和音の最初の色）の番号。散光・共鳴なしは null */
+/** 共鳴している状態異常の色（system/resonance.ts の resonantHue）の番号。共鳴していなければ null */
 export function resonanceHueIndex(state: GameState): number | null {
-  const r = state.stats.resonance;
-  if (r.kind === "scatter" || r.kind === "none") return null;
-  const color = r.colors[0];
-  if (color === undefined) return null;
+  const color = resonantHue(state);
+  if (color === null) return null;
   const index = TRAIT_COLORS.indexOf(color);
   return index >= 0 ? index : null;
 }

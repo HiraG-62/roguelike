@@ -29,6 +29,7 @@ import {
   targetPos,
 } from "./statusEffects";
 import { igniteTerrainAt, placeTerrain } from "./terrain";
+import { hueResonates } from "./resonance";
 
 /**
  * 反応と昇華（docs/ideas/status-and-terrain.md 2・5 章）。statusEffects.ts の applyStatus が付与の前後に呼ぶ。
@@ -451,12 +452,12 @@ function hueColor(effect: StatusEffect): TraitColor | undefined {
   return TRAIT_COLORS[Math.round(effect.potency)];
 }
 
-/** 彩痕の色がプレイヤーの共鳴（支配・二重）の色と同じか。同じなら被ダメ ×hue.takenMul */
+/** 彩痕の色の状態異常（HUE_KEYWORD）が共鳴しているか。していれば被ダメ ×hue.takenMul */
 export function hueMatchesResonance(state: GameState, e: Enemy): boolean {
   const hue = findStatus(e.status, "hue");
   if (!hue) return false;
   const color = hueColor(hue);
-  return color !== undefined && state.stats.resonance.colors.includes(color);
+  return color !== undefined && hueResonates(state, color);
 }
 
 /** 色爆（出す側: 彩痕 / 食う側: 色に対応する状態異常）: 彩痕を消費して色ごとの小爆発 */

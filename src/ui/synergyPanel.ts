@@ -1,5 +1,5 @@
 import type { FrameInput } from "../core/input";
-import { KEYWORDS, type Keyword, type KeywordProfile, emptyProfile, kw, mergeProfiles } from "../core/keywords";
+import { KEYWORDS, KEYWORD_DEFS, type Keyword, type KeywordProfile, type ResonanceStep, emptyProfile, kw, mergeProfiles } from "../core/keywords";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import type { SynergyBuild, SynergyElement } from "../loot/describe";
@@ -10,6 +10,7 @@ import { SKILL, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "../system/boonDefs";
 import { skillKeywords, statsKeywords } from "../system/keywords";
+import { stepsByHeight } from "../system/resonance";
 import { CONTENT_BOTTOM, CONTENT_Y, PANEL_W, PANEL_X, type Rect, pointInRect } from "./inventoryLayout";
 
 /**
@@ -67,7 +68,8 @@ export interface SynergyExclude {
   skillSlot?: number;
 }
 
-const RESONANCE_NAME = "共鳴";
+/** 装備の組み合わせでだけ現れる語の要素名（源と糧の共鳴とは別。個々の遺物が持たない語） */
+const GEAR_WHOLE_NAME = "装備全体";
 
 function equipmentWithout(equipment: Readonly<Equipment>, slot: Slot | undefined): Equipment {
   const copy = { ...equipment };
@@ -98,7 +100,7 @@ function equipmentElements(state: GameState, exclude: SynergyExclude): SynergyEl
   }
   if (items.length === 0) return items;
   const rest = residual(statsKeywords(computeStats(equipment)), items.map((e) => e.keywords));
-  if (!isEmptyProfile(rest)) items.push({ kind: "resonance", name: RESONANCE_NAME, keywords: rest });
+  if (!isEmptyProfile(rest)) items.push({ kind: "resonance", name: GEAR_WHOLE_NAME, keywords: rest });
   return items;
 }
 
@@ -115,7 +117,7 @@ function skillElements(state: GameState, exclude: SynergyExclude): SynergyElemen
   return list;
 }
 
-/** 今のビルド = 装備中の遺物（+ 共鳴）+ 装着スキル石（刻印符込み）+ 取得済み祝福 */
+/** 今のビルド = 装備中の遺物（+ 装備全体でだけ現れる語）+ 装着スキル石（刻印符込み）+ 取得済み祝福 */
 export function synergyBuild(state: GameState, exclude: SynergyExclude = {}): SynergyBuild {
   const elements: SynergyElement[] = [
     ...equipmentElements(state, exclude),
@@ -139,6 +141,17 @@ export function synergyWords(build: Readonly<SynergyBuild>): SynergyWordView[] {
     const consumers = build.elements.filter((e) => e.keywords.consumes.includes(key));
     return { key, producers, consumers, state: wordState(producers.length, consumers.length) };
   });
+}
+
+/** 共鳴中の語の 1 行（「共鳴中: 燃焼 2 段（源 3・糧 2・強め 1）」。強めが無ければ省く） */
+export function resonanceLine(s: Readonly<ResonanceStep>): string {
+  const amplify = s.amplifies > 0 ? `・強め ${s.amplifies}` : "";
+  return `共鳴中: ${KEYWORD_DEFS[s.keyword].label} ${s.step} 段（源 ${s.produces}・糧 ${s.consumes}${amplify}）`;
+}
+
+/** 流れタブに出す共鳴の行（段の高い順。共鳴していなければ空） */
+export function resonanceLines(state: Readonly<GameState>): string[] {
+  return stepsByHeight(state.boonRun.resonance).map(resonanceLine);
 }
 
 // -----------------------------------------------------------------------------
@@ -173,7 +186,7 @@ export function synergyDetailRect(): Rect {
   return { x, y: CONTENT_Y, w: PANEL_X + PANEL_W - x, h: CONTENT_BOTTOM - CONTENT_Y };
 }
 
-/** グリッドの下: 凡例 */
+/** グリッドの下: 共鳴中の語の行 */
 export function synergyLegendRect(): Rect {
   const grid = synergyGridRect();
   const y = grid.y + grid.h + DETAIL_GAP;

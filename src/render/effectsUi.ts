@@ -635,7 +635,7 @@ function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, c
 export function drawPlayerAuras(ctx: CanvasRenderingContext2D, state: GameState): void {
   if (state.status === "dead") return;
   const p = state.player.body.pos;
-  drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.stats.resonance), state.time);
+  drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.boonRun.resonance), state.time);
   drawKeystoneAura(ctx, p.x, p.y, keystoneAuraColors(state.stats.keystones), state.time);
   ctx.globalAlpha = 1;
   ctx.lineWidth = 1;

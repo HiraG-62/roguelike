@@ -5,21 +5,10 @@ import { DEFAULT_MOVESET } from "../data/weapons";
 import { bulletOfBase } from "./bullets";
 import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } from "./affixes";
 import { baseDef } from "./bases";
-import {
-  adjustForResonance,
-  applyConstellation,
-  applyResonanceEffect,
-  cancelInversions,
-  computeResonance,
-  mainColors,
-  resolveConstellation,
-  resonanceRules,
-  type ResonanceRules,
-} from "./resonance";
 import { collectInnate } from "./innate";
 import { applyNamedRelics } from "./named";
 import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
-import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats, type Resonance } from "./types";
+import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
 
 /** 倍率系の下限（マイナス補正の積み重ねで 0 以下にならないように） */
 const MIN_MULTIPLIER = 0.1;
@@ -104,27 +93,6 @@ function collectRolls(equipment: Equipment): AffixRoll[] {
   return rolls;
 }
 
-/** 共鳴の判定の規則（色の誓約・橋渡し・双頭の指輪）。誓約は排他を解決した後のものだけを見る */
-function rulesOf(equipment: Equipment): ResonanceRules {
-  return resonanceRules(filterKeystoneRolls(collectRolls(equipment)));
-}
-
-/** 装備中の性質（implicit を除く）。色の配合の入力 */
-export function equippedTraits(equipment: Equipment): AffixRoll[] {
-  return SLOTS.flatMap((slot) => equipment[slot]?.affixes ?? []);
-}
-
-/** 装備全体の共鳴（computeStats と同じ判定。星座も入れる）。UI のプレビュー用 */
-export function equipmentResonance(equipment: Equipment): Resonance {
-  return withConstellation(computeResonance(equippedTraits(equipment), rulesOf(equipment)), equipment);
-}
-
-/** 星座が成立していれば共鳴に添える（成立しなければ元のまま。比較・表示に空のフィールドを増やさない） */
-function withConstellation(resonance: Resonance, equipment: Equipment): Resonance {
-  const constellation = resolveConstellation(mainColors(equipment));
-  return constellation === undefined ? resonance : { ...resonance, constellation };
-}
-
 /** DEFAULT_STATS のコピー。配列は共有しないよう複製する */
 function createBaseStats(): PlayerStats {
   return {
@@ -134,11 +102,6 @@ function createBaseStats(): PlayerStats {
     rules: [],
     keystones: [...DEFAULT_STATS.keystones],
     triggers: [...DEFAULT_STATS.triggers],
-    resonance: {
-      ...DEFAULT_STATS.resonance,
-      colors: [...DEFAULT_STATS.resonance.colors],
-      ratios: { ...DEFAULT_STATS.resonance.ratios },
-    },
     attributes: { ...DEFAULT_STATS.attributes },
     attributesEff: { ...DEFAULT_STATS.attributesEff },
     statusProcs: [...DEFAULT_STATS.statusProcs],
@@ -195,7 +158,7 @@ function finalize(stats: PlayerStats): PlayerStats {
   // 最大マナ −の性質（涸れ井戸など）で負にしない。自然回復も同様
   stats.maxMana = Math.max(0, stats.maxMana);
   stats.manaRegen = Math.max(0, stats.manaRegen);
-  // 支配の減衰（× 0.75）で端数が出る。UI は整数で見せるので集計の時点で揃える（逓減は deriveAttributes）
+  // 性質の係数で端数が出る。UI は整数で見せるので集計の時点で揃える（逓減は deriveAttributes）
   for (const key of ATTR_KEYS) stats.attributes[key] = Math.max(0, Math.round(stats.attributes[key]));
   finalizeElements(stats);
   return stats;
@@ -230,37 +193,27 @@ function applyStaged(stats: PlayerStats, rolls: readonly AffixRoll[]): void {
 /**
  * 装備から PlayerStats を畳み込む。
  * 1. 誓約（旧キーストーン）の排他を解決（同グループは装備順で後勝ち）。来歴で育つ性質は段数を掛ける
- * 2. 装備中の性質の色の配合から共鳴を決める（resonance.ts。支配 → 二重 → 三和音 → 散光 → なし。規則は色の誓約などで変わる）
- * 3. 共鳴に応じて性質の値を調整（支配: 他の色を 75% に / 冥の支配: 反転を正として扱う / 無色の誓い: 全性質 +20%）
- * 4. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
+ * 2. DEFAULT_STATS のコピーに装備全体の文脈（余白・銘・反転・異色の数）を入れ、
  *    地金（全部位。今の深度 depth で決め直す: innate.ts の innateAt）→ 装備順で implicit → 性質（trigger 含む）を段階適用（flat → scale → convert）
  *    続けて名のある遺物の固有（rules / modifiers / 加護の枠 / apply。named.ts の applyNamedRelics）を装備スロット順に
- * 5. 共鳴の効果を畳み込む。星座（6 部位の主色の並び）が成立していればその効果も（虚空は 3 の後に反転を打ち消す）
- * 6. 速さの倍率にソフトキャップ
- * 7. 誓約を apply（アイデンティティなのでソフトキャップの対象外。与ダメは倍（more）に入る。HP 倍率も flat 合算後に掛かる）
- * 8. 整数化・クランプ
+ * 3. 速さの倍率にソフトキャップ
+ * 4. 誓約を apply（アイデンティティなのでソフトキャップの対象外。与ダメは倍（more）に入る。HP 倍率も flat 合算後に掛かる）
+ * 5. 整数化・クランプ
+ * 源と糧の共鳴（system/resonance.ts）は装備の外（スキル石・祝福・流儀・型・改鋳）も数えるので、ここではなく applyStats が畳む
  *
  * depth は今いる階の深度（地金だけが使う。拠点・倉庫・ランの開始は 1）
  */
 export function computeStats(equipment: Equipment, depth = 1): PlayerStats {
   const stats = createBaseStats();
   Object.assign(stats.traits, gearContext(equipment));
-  const filtered = filterKeystoneRolls(collectRolls(equipment));
-  const rules = resonanceRules(filtered);
-  const resonance = withConstellation(computeResonance(equippedTraits(equipment), rules), equipment);
-  const constellation = resonance.constellation;
-  const adjusted = adjustForResonance(filtered, resonance, rules);
-  const rolls = constellation === "void" ? cancelInversions(adjusted) : adjusted;
-  // 地金は共鳴の調整・来歴の段数・色の配合を通さず、性質と同じ段階（flat → scale → convert）で先に畳む
+  const rolls = filterKeystoneRolls(collectRolls(equipment));
+  // 地金は来歴の段数を通さず、性質と同じ段階（flat → scale → convert）で先に畳む
   applyStaged(stats, [...collectInnate(equipment, depth), ...rolls.filter((r) => !isKeystoneKey(r.key))]);
   applyNamedRelics(stats, equipment);
-  applyResonanceEffect(stats, resonance, rules);
-  if (constellation !== undefined) applyConstellation(stats, constellation);
   applySoftCaps(stats);
   applyStaged(stats, rolls.filter((r) => isKeystoneKey(r.key)));
   // 装備全体の文脈は性質の適用の間だけ使う入力。畳み込み後は既定へ戻す（比較・表示に装備の数を紛れ込ませない）
   Object.assign(stats.traits, gearContextCleared());
-  stats.resonance = resonance;
   applyWeaponForms(stats, equipment);
   return finalize(stats);
 }

@@ -1,8 +1,7 @@
 import type { GameState } from "../core/state";
 import { JOBS } from "../data/jobs";
 import { ATTR_COLOR } from "../loot/affixes";
-import { ATTR_LABEL } from "../loot/resonance";
-import { ATTR_KEYS, TRAIT_COLOR_HEX, type AttrKey } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, TRAIT_COLOR_HEX, type AttrKey } from "../loot/types";
 import type { Rect } from "../ui/inventoryLayout";
 import { STATUS_ATTR_ROW_H, statusAttrPanelRect } from "../ui/statusTab";
 import { TEXT, drawText, truncateText } from "./pixelText";

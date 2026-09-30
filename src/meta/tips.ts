@@ -1,9 +1,8 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ECONOMY, PARRY } from "../data/tuning";
+import { ECONOMY, PARRY, RESONANCE } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
-import { ATTR_LABEL } from "../loot/resonance";
-import type { AttrKey } from "../loot/types";
+import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
 import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
@@ -149,10 +148,19 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "trait", term: "性質", category: "relic", body: "遺物に宿る 1 つの効果。それぞれが響き（色）を持つ。" },
   { key: "innate", term: "地金", category: "relic", body: "遺物に既定で宿るステータス・防御力・属性耐性。持ち込んだ遺物の地金は、今いる階の深さに合わせて伸びる。拾った時の配分と上振れはそのまま。" },
   { key: "flux", term: "揺らぎ", category: "relic", body: "性質の値の、期待値からのずれ。静・揺・荒は揺らぎの見た目の分類で、格付けではない。" },
-  { key: "inverted", term: "反転", category: "relic", body: "揺らぎが強く裏返った性質。色は冥になり、共鳴への重みが 2 倍になる。" },
-  { key: "hue", term: "響き", category: "relic", body: "性質と共鳴が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。" },
-  { key: "resonance", term: "共鳴", category: "relic", body: "装備全体の色の配合で発現する効果。同時に 1 つ。1 色が過半なら支配、2 色なら二重、3 色なら三和音。" },
-  { key: "colorless", term: "無色", category: "relic", body: "脱色した性質。共鳴の配合に数えず、支配の減衰も受けない。" },
+  { key: "inverted", term: "反転", category: "relic", body: "揺らぎが強く裏返った性質。色は冥になり、効果も裏返る。共鳴の数えには入らない。" },
+  { key: "hue", term: "響き", category: "relic", body: "性質が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。" },
+  {
+    key: "resonance",
+    term: "共鳴",
+    category: "relic",
+    body:
+      `同じ語（燃焼・近接など）の源が ${RESONANCE.minSources} つ以上、糧が ${RESONANCE.minSinks} つ以上そろうと、その語が共鳴して段が立つ。` +
+      "遺物・スキル石・祝福・流儀・武器の型・改鋳・誓約をそれぞれ 1 つと数える。" +
+      `源と糧が増えるほど、強めるものがあるほど段が上がる（上限 ${RESONANCE.maxSteps}）。` +
+      "段ごとにその語の与ダメージが伸びる（ダッシュ・見切り・気力・回復・障壁は、その性能が伸びる）。",
+  },
+  { key: "colorless", term: "無色", category: "relic", body: "旧い遺物に残る、脱色された性質。色を持たない。" },
   { key: "provenance", term: "来歴", category: "relic", body: "装備している間に起きた出来事の記録。節目に達すると芽が出る。" },
   { key: "bud", term: "芽", category: "relic", body: "来歴の節目で出る 2 択の成長。選ばなかった方は失われる。" },
   { key: "margin", term: "余白", category: "relic", body: "その遺物があと何回芽吹けるか。無くなるとそれ以上育たない。" },

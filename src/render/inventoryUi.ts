@@ -3,8 +3,8 @@ import { actionKeyLabel, skillKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
-import { type SynergyDescription, describeItem, describeResonance, describeSynergy, itemColorBar, itemKindName } from "../loot/describe";
-import { RARITY_COLOR, RARITY_LABEL, SLOTS, TRAIT_COLOR_HEX, type Item } from "../loot/types";
+import { type SynergyDescription, describeItem, describeSynergy, itemColorBar, itemKindName } from "../loot/describe";
+import { RARITY_COLOR, RARITY_LABEL, SLOTS, type Item } from "../loot/types";
 import { statsSummary } from "../loot/stats";
 import {
   MODIFIERS,
@@ -99,7 +99,6 @@ import {
   bodyLineH,
   drawColorBar,
   fillRectPx,
-  ratiosToBar,
   strokeRectPx,
   traitTipLine,
 } from "./lootUiParts";
@@ -499,7 +498,7 @@ export function summaryBelowRect(rect: Rect): Rect {
 }
 
 /**
- * 何も乗せていないとき: ジョブ → 奥義 → 近接・射撃の素性 → 共鳴。
+ * 何も乗せていないとき: ジョブ → 奥義 → 近接・射撃の素性（源と糧の共鳴は流れタブ）。
  * 詳しくでは装備の効果の一覧（statsSummary）を足す。ステータスの一覧はステータスタブ
  */
 function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect, ui: InventoryUi): void {
@@ -507,13 +506,6 @@ function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect:
   for (const text of equippedConflictLines(state)) lines.push({ text, color: COLOR_WARN });
   lines.push({ text: `奥義: ${chosenUltimate(state).name}`, color: COLOR_TEXT });
   for (const text of loadoutAttackLines(state.stats)) lines.push({ text, color: COLOR_DIM });
-  const resonance = state.stats.resonance;
-  const [headline, ...effects] = describeResonance(resonance);
-  const lead = resonance.colors[0];
-  const headColor = resonance.kind === "none" ? COLOR_DIM : lead === undefined ? COLOR_SELECTED : TRAIT_COLOR_HEX[lead];
-  lines.push({ text: headline ?? "", color: headColor });
-  lines.push({ bar: ratiosToBar(resonance.ratios) });
-  for (const text of effects) lines.push({ text, color: resonance.kind === "none" ? COLOR_DIM : COLOR_TEXT });
   const more = statsSummary(state.stats).map((text): TipLine => ({ text, color: COLOR_TEXT }));
   const formulas = summaryFormulaLines(state);
   const page = detailPageOf(ui);
