@@ -375,6 +375,22 @@ describe("盗賊王: 追い詰めで進む段階と柵", () => {
     expect(fences(state), "柵は残らない").toHaveLength(0);
     expect(state.lockedTiles.size, "壁の予約も戻る").toBe(0);
   });
+
+  it("開き直りを経ずに倒れても柵は崩れる", () => {
+    const { state, boss } = bossFloor();
+    boss.phase = "chase";
+    boss.hp = Math.floor(boss.maxHp * BOSS.thiefKing.phase2Ratio) - 1;
+    tick(state);
+    expect(boss.ai?.stage).toBe(2);
+    expect(fences(state).length).toBeGreaterThan(0);
+    boss.hp = 0;
+    tick(state);
+    expect(state.boss?.defeated, "撃破").toBe(true);
+    expect(boss.ai?.stage, "開き直っていない").toBe(2);
+    tick(state);
+    expect(fences(state), "柵は残らない").toHaveLength(0);
+    expect(state.lockedTiles.size, "壁の予約も戻る").toBe(0);
+  });
 });
 
 describe("盗賊王: 開き直りの連撃", () => {

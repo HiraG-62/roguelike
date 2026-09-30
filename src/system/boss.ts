@@ -18,7 +18,7 @@ import { oilKingTelegraph, setupOilKingRoom, updateOilKing } from "./bossOilKing
 import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
 import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, settleMirrorKnightRoom, updateMirrorKnight } from "./bossMirrorKnight";
-import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
+import { settleThiefKingRoom, setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
 import { kingSlimeTelegraph, updateKingSlime } from "./bossKingSlime";
 import { deepLordGuarded, deepLordTelegraph, settleDeepLordRoom, setupDeepLordRoom, updateDeepLord } from "./bossDeepLord";
 import { pushBossRecord } from "./bossRecord";
@@ -435,6 +435,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   bossKillFx(state, e.body.pos);
   if (e.defKey === "deepLord") settleDeepLordRoom(state, e);
   if (e.defKey === "mirrorKnight") settleMirrorKnightRoom(state, e);
+  if (e.defKey === "thiefKing") settleThiefKingRoom(state, e);
   pushBossRecord(state, e);
   if (b.major) grantBossReward(state, e.defKey, e.body.pos);
   const drops = b.major ? BOSS.rareDrops : FLOOR_LORD.drops;

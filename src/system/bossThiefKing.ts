@@ -200,6 +200,14 @@ function dropFence(state: GameState, e: Enemy): void {
   for (const h of state.hazards) if (h.kind === "boneWall" && h.sourceKey === e.defKey) h.time = 0;
 }
 
+/**
+ * 撃破の後始末（boss.ts の onBossDeath）: 柵を崩す。手下と地雷の段階から一撃で倒すと開き直りを経ないので、
+ * 柵（寿命 fenceTime）が部屋に残り続ける
+ */
+export function settleThiefKingRoom(state: GameState, e: Enemy): void {
+  dropFence(state, e);
+}
+
 /** ボス部屋に最初から手下を置く（部屋の封鎖と同時に動き出す） */
 export function setupThiefKingRoom(state: GameState, boss: Enemy): void {
   summonThieves(state, boss, BOSS.thiefKing.minions[0] ?? 0, false);
