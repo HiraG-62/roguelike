@@ -8,14 +8,14 @@ import { createEmptyProvenance, type AffixRoll, type Item } from "../loot/types"
 import { ECHO_BUTTON_COLUMNS, type EchoUi, createEchoUi, echoStep, layoutEcho, updateEchoTab } from "./echoTab";
 import { CONTENT_BOTTOM, type Rect } from "./inventoryLayout";
 
-/** 残響タブの第 2 弾の操作（脱色・呼び戻し・注ぎ・鍛え直し・張り）の画面の流れ */
+/** 残響タブの呼び戻し・注ぎの画面の流れと、操作ボタンの配置 */
 
 type State = ReturnType<typeof createGame>;
 
 const RICH = 50;
-const budA: AffixRoll = { key: "meleeDamagePct", value: 10, nominal: 10, flux: 0, color: "crimson", origin: "bud" };
-const budB: AffixRoll = { key: "maxLife", value: 10, nominal: 10, flux: 0, color: "jade", origin: "bud" };
-const crushing: AffixRoll = { key: "crushing", value: 40, value2: 10, nominal: 40, nominal2: 10, flux: 0, origin: "found" };
+const budA: AffixRoll = { key: "damageVsStaggered", value: 10, nominal: 10, flux: 0, color: "crimson", origin: "bud" };
+const budB: AffixRoll = { key: "attr_vit", value: 10, nominal: 10, flux: 0, color: "jade", origin: "bud" };
+const sturdy: AffixRoll = { key: "attr_str", value: 4, nominal: 4, flux: 0, origin: "found" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -27,7 +27,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     itemLevel: 10,
     name: "test",
     implicit: null,
-    affixes: [crushing, budA],
+    affixes: [sturdy, budA],
     foundDepth: 10,
     foundAt: 0,
     provenance: createEmptyProvenance(),
@@ -76,7 +76,7 @@ describe("操作ボタンの配置", () => {
     const { state, ui } = setup([makeItem()]);
     const layout = layoutEcho(state, ui);
     expect(layout.buttons.length).toBe(ECHO_OPS.length);
-    for (const op of ["bleach", "recall", "pour", "reforge", "tension"] as const) {
+    for (const op of ECHO_OPS) {
       expect(layout.buttons.some((b) => b.op === op), op).toBe(true);
     }
     expect(layout.execute.y + layout.execute.h).toBeLessThan(CONTENT_BOTTOM);
@@ -95,7 +95,7 @@ describe("呼び戻し", () => {
     expect(echoStep(state, ui)).toBe("ready");
     click(state, ui, layoutEcho(state, ui).execute);
     const after = stashItem(state, "item-1");
-    expect(after?.affixes.map((r) => r.key)).toEqual(["crushing", "maxLife"]);
+    expect(after?.affixes.map((r) => r.key)).toEqual(["attr_str", "attr_vit"]);
     expect(after?.buds?.[0]?.recalled).toBe(true);
     expect(ui.save.echoes.umbra).toBe(RICH - RECALL_COST);
     expect(ui.pick, "選び直してもらう").toBeNull();
@@ -120,25 +120,5 @@ describe("注ぎ", () => {
     expect(stashItem(state, "src")).toBeUndefined();
     expect(stashItem(state, "dst")?.provenance?.kills).toBe(20);
     expect(ui.targetId, "受け手が新しい対象になる").toBe("dst");
-  });
-});
-
-describe("張り・脱色", () => {
-  it("張り: 代償付きの性質を選んで実行", () => {
-    const { state, ui } = setup([makeItem()]);
-    clickRow(state, ui, "item-1");
-    clickOp(state, ui, "tension");
-    click(state, ui, layoutEcho(state, ui).traitRows[0]?.rect);
-    click(state, ui, layoutEcho(state, ui).execute);
-    expect(stashItem(state, "item-1")?.affixes[0]?.tensed).toBe(true);
-  });
-
-  it("脱色: 性質が無色になる", () => {
-    const { state, ui } = setup([makeItem()]);
-    clickRow(state, ui, "item-1");
-    clickOp(state, ui, "bleach");
-    click(state, ui, layoutEcho(state, ui).traitRows[1]?.rect);
-    click(state, ui, layoutEcho(state, ui).execute);
-    expect(stashItem(state, "item-1")?.affixes[1]?.colorless).toBe(true);
   });
 });

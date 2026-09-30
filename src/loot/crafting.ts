@@ -1,9 +1,8 @@
 import { createRng, hashSeed, type Rng } from "../core/rng";
-import { affixDef, formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
-import { baseDef, baseFamily } from "./bases";
-import { OPPOSITE_COLOR, baseLean, traitColorOf } from "./colors";
-import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, scaledNominalAt, sigmaAt } from "./flux";
-import { VESSEL_CAPACITY, refluxTrait, rollTraitOfColor, type TraitRollOptions } from "./generator";
+import { formatAffix, isConversionKey, isKeystoneKey } from "./affixes";
+import { baseLean, traitColorOf } from "./colors";
+import { fluxClassOf, inversionChance, rollFlux, rollInvertedFlux, sigmaAt } from "./flux";
+import { refluxTrait } from "./generator";
 import { PROVENANCE_COUNTERS, ensureGrowthFields } from "./migrate";
 import { nameItem } from "./names";
 import { maybeInscribe, offerNextBud } from "./provenance";
@@ -21,7 +20,7 @@ import {
  * クラフト（純ロジック）。docs/LOOT_DESIGN.md「クラフト（残響）」。
  * 原則: ランダムに性質を「足す」操作は無い。性質が増える経路は来歴（芽）だけ。
  * 通貨は色ごとの残響（紅響 / 蒼響 / 翠響 / 金響 / 冥響）。分解（砕く）で、性質の色に応じて得る。
- * 12 操作: 砕く / 染め / 鎮め / 煽り / 削ぎ / 移し / 転調 / 脱色 / 呼び戻し / 注ぎ / 鍛え直し / 張り。どれも何かを得て何かを失う。
+ * 5 操作: 砕く / 注ぎ（来歴を育てる）/ 移し / 呼び戻し / 煽り（反転を狙う）。どれも何かを得て何かを失う。
  * 乱数はゲームの state.rng ではなく専用 RNG（item.id + クラフト回数）。ゲームの決定性に影響しない。
  */
 
@@ -48,100 +47,44 @@ export const ECHO_LABEL: Readonly<Record<TraitColor, string>> = {
 // 操作とコスト
 // ---------------------------------------------------------------------------
 
-export const ECHO_OPS = [
-  "shatter",
-  "dye",
-  "calm",
-  "stir",
-  "pare",
-  "transfer",
-  "modulate",
-  // 2026-09 第 2 弾（docs/ideas/loot-expansion.md 8 章 O2〜O6）
-  "bleach",
-  "recall",
-  "pour",
-  "reforge",
-  "tension",
-] as const;
+export const ECHO_OPS = ["shatter", "pour", "transfer", "recall", "stir"] as const;
 export type EchoOp = (typeof ECHO_OPS)[number];
 
 export const ECHO_OP_LABEL: Readonly<Record<EchoOp, string>> = {
   shatter: "砕く",
-  dye: "染め",
-  calm: "鎮め",
-  stir: "煽り",
-  pare: "削ぎ",
-  transfer: "移し",
-  modulate: "転調",
-  bleach: "脱色",
-  recall: "呼び戻し",
   pour: "注ぎ",
-  reforge: "鍛え直し",
-  tension: "張り",
+  transfer: "移し",
+  recall: "呼び戻し",
+  stir: "煽り",
 };
 
 /** 操作の説明（UI のツールチップ用。動詞で語る） */
 export const ECHO_OP_HINT: Readonly<Record<EchoOp, string>> = {
   shatter: "遺物を砕き、性質の色の残響を得る",
-  dye: "性質 1 つを、残響の色の別の性質に置き換える",
-  calm: "性質 1 つの揺らぎを半分にする。余白 -1",
-  stir: "性質 1 つの揺らぎを引き直す",
-  pare: "性質 1 つを消す。余白 +1",
-  transfer: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われる",
-  modulate: "性質 1 つの色を反対色へ変える",
-  bleach: "性質 1 つを無色にする。値は 9 割",
-  recall: "過去の芽で選ばなかった方に取り直す",
   pour: "遺物を捧げ、来歴の半分を同じ部位の別の遺物へ注ぐ",
-  reforge: "性質 1 つの期待値を、来歴の最深で取り直す。余白の上限 -1",
-  tension: "代償付きの性質 1 つの利得と代償を 1.3 倍にする",
+  transfer: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われる",
+  recall: "過去の芽で選ばなかった方に取り直す",
+  stir: "性質 1 つの揺らぎを引き直す。反転することもある",
 };
 
-/** 染め: 目標色の残響 */
-export const DYE_COST = 3;
-/** 鎮め: 性質の色の残響 */
-export const CALM_COST = 2;
 /** 煽り: 冥響 */
 export const STIR_COST = 2;
-/** 削ぎ: 性質の色の残響 */
-export const PARE_COST = 1;
 /** 移し: 冥響 */
 export const TRANSFER_COST = 3;
-/** 転調: 変えた先の色（反対色）の残響 */
-export const MODULATE_COST = 3;
-/** 脱色: 翠響 / 呼び戻し: 冥響 / 鍛え直し: 性質の色の残響 / 張り: 冥響（注ぎは無料） */
-export const BLEACH_COST = 2;
+/** 呼び戻し: 冥響（注ぎは無料） */
 export const RECALL_COST = 5;
-export const REFORGE_COST = 4;
-export const TENSION_COST = 2;
-/** 脱色した性質の値の倍率 */
-export const BLEACH_VALUE_FACTOR = 0.9;
 /** 注ぎで移す来歴の割合（端数は切り捨て） */
 export const POUR_SHARE = 0.5;
-/** 張りで利得と代償に掛ける倍率 */
-export const TENSION_FACTOR = 1.3;
-/** 鍛え直しの代償（余白の上限） */
-export const REFORGE_MARGIN_COST = 1;
-/** 鎮めの代償（余白） */
-export const CALM_MARGIN_COST = 1;
-/** 削ぎで戻る余白 */
-export const PARE_MARGIN_GAIN = 1;
 /** 煽りの σ 倍率と、反転の最低確率（浅い遺物でも反転し得る） */
 export const STIR_SIGMA_SCALE = 1.2;
 export const STIR_MIN_INVERSION_CHANCE = 0.1;
-/** 鎮めは flux をこの倍率にする（0 へ寄せる） */
-export const CALM_FLUX_FACTOR = 0.5;
 /** 砕く: 性質 1 つにつきその色の残響 */
 export const SHATTER_PER_TRAIT = 1;
 /** 砕く: 性質の無い遺物はベースの傾きの色（無ければ紅）を 1 */
 export const SHATTER_EMPTY_YIELD = 1;
 const SHATTER_FALLBACK_COLOR: TraitColor = "crimson";
-/** これ以下の |flux| は 0 とみなす（鎮め済み） */
-const FLUX_EPSILON = 0.005;
 
 const UMBRA: TraitColor = "umbra";
-const JADE: TraitColor = "jade";
-/** 値の丸め（脱色・張りの掛け算で出る浮動小数の端数を落とす） */
-const VALUE_DECIMALS = 3;
 
 export interface EchoCost {
   color: TraitColor;
@@ -153,17 +96,10 @@ export type TransferWhat = { kind: "inscription" } | { kind: "bud"; traitIndex: 
 
 export type EchoRequest =
   | { op: "shatter"; item: Item }
-  | { op: "dye"; item: Item; traitIndex: number; color: TraitColor }
-  | { op: "calm"; item: Item; traitIndex: number }
-  | { op: "stir"; item: Item; traitIndex: number }
-  | { op: "pare"; item: Item; traitIndex: number }
-  | { op: "transfer"; item: Item; target: Item; what: TransferWhat }
-  | { op: "modulate"; item: Item; traitIndex: number }
-  | { op: "bleach"; item: Item; traitIndex: number }
-  | { op: "recall"; item: Item; budIndex: number }
   | { op: "pour"; item: Item; target: Item }
-  | { op: "reforge"; item: Item; traitIndex: number }
-  | { op: "tension"; item: Item; traitIndex: number };
+  | { op: "transfer"; item: Item; target: Item; what: TransferWhat }
+  | { op: "recall"; item: Item; budIndex: number }
+  | { op: "stir"; item: Item; traitIndex: number };
 
 /** 操作ごとの専用 RNG。同じ item.id / counter なら同じ結果 */
 export function craftRng(itemId: string, counter: number): Rng {
@@ -174,46 +110,18 @@ function traitAt(item: Item, index: number): AffixRoll | undefined {
   return item.affixes[index];
 }
 
-/** 費用の色に使う性質の色。脱色済みでも元の色で払う（無色だから無料、にはしない） */
-function costColorOf(roll: AffixRoll | undefined): TraitColor | undefined {
-  if (roll === undefined) return undefined;
-  return traitColorOf(roll.colorless === true ? { ...roll, colorless: false } : roll);
-}
-
-/** 性質の色の残響で払う操作の費用 */
-function traitColorCost(item: Item, index: number, amount: number): EchoCost | null {
-  const color = costColorOf(traitAt(item, index));
-  return color === undefined ? null : { color, amount };
-}
-
-/** 操作のコスト。砕く・注ぎは null（無料）。対象の性質が無い・色が無い場合も null */
+/** 操作のコスト。砕く・注ぎは null（無料） */
 export function echoCost(req: EchoRequest): EchoCost | null {
   switch (req.op) {
     case "shatter":
     case "pour":
       return null;
-    case "dye":
-      return { color: req.color, amount: DYE_COST };
-    case "calm":
-      return traitColorCost(req.item, req.traitIndex, CALM_COST);
-    case "pare":
-      return traitColorCost(req.item, req.traitIndex, PARE_COST);
-    case "reforge":
-      return traitColorCost(req.item, req.traitIndex, REFORGE_COST);
-    case "bleach":
-      return { color: JADE, amount: BLEACH_COST };
     case "recall":
       return { color: UMBRA, amount: RECALL_COST };
-    case "tension":
-      return { color: UMBRA, amount: TENSION_COST };
     case "stir":
       return { color: UMBRA, amount: STIR_COST };
     case "transfer":
       return { color: UMBRA, amount: TRANSFER_COST };
-    case "modulate": {
-      const to = modulatedColor(traitAt(req.item, req.traitIndex));
-      return to === undefined ? null : { color: to, amount: MODULATE_COST };
-    }
   }
 }
 
@@ -249,45 +157,6 @@ export function shatterYield(item: Item): EchoWallet {
   return gained;
 }
 
-function traitOptions(item: Item, origin: AffixRoll["origin"]): TraitRollOptions {
-  return { depth: item.itemLevel, foundDepth: item.foundDepth, allowInversion: false, origin: origin ?? "found" };
-}
-
-/** アイテムの右手の家系（右手以外や moveset を持たないベースは undefined） */
-function itemFamily(item: Item): "melee" | "gun" | undefined {
-  const base = baseDef(item.baseKey);
-  return base === undefined ? undefined : baseFamily(base);
-}
-
-/** 染め: index の性質を、color の別の性質に置き換える。揺らぎ（flux）は引き継ぐ */
-export function dyeTrait(item: Item, index: number, color: TraitColor, rng: Rng): Item | null {
-  const roll = traitAt(item, index);
-  if (roll === undefined || traitColorOf(roll) === color) return null;
-  // 提示中の芽の候補と重複すると、染めで作った性質を選んだ扱いになり得るので候補の key も避ける
-  const used = new Set([...item.affixes.map((r) => r.key), ...(item.budOffer?.options.map((o) => o.key) ?? [])]);
-  const fresh = rollTraitOfColor(rng, item.slot, color, used, traitOptions(item, roll.origin), itemFamily(item));
-  if (fresh === undefined) return null;
-  const carried = roll.flux === undefined || isKeystoneKey(fresh.key) ? fresh : refluxTrait(fresh, roll.flux);
-  const colored: AffixRoll = carried.inverted === true ? carried : { ...carried, color };
-  return replaceTrait(item, index, colored);
-}
-
-function hasFlux(roll: AffixRoll): boolean {
-  return Math.abs(roll.flux ?? 0) > FLUX_EPSILON;
-}
-
-/** 鎮め: 揺らぎを半分にする（反転は解ける）。余白を CALM_MARGIN_COST 払う */
-export function calmTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  if (roll === undefined || !hasFlux(roll) || isKeystoneKey(roll.key)) return null;
-  const margin = item.margin ?? 0;
-  if (margin < CALM_MARGIN_COST) return null;
-  const calmed = refluxTrait(roll, (roll.flux ?? 0) * CALM_FLUX_FACTOR);
-  const out = { ...replaceTrait(item, index, calmed), margin: margin - CALM_MARGIN_COST };
-  maybeInscribe(out);
-  return out;
-}
-
 /** 表の性質（トリガー・変換以外）なら反転し得る */
 function stirCanInvert(roll: AffixRoll): boolean {
   return !isTriggerKey(roll.key) && !isConversionKey(roll.key);
@@ -303,34 +172,6 @@ export function stirTrait(item: Item, index: number, rng: Rng): Item | null {
   const stirred = refluxTrait(roll, flux);
   if (stirred === roll) return null;
   return replaceTrait(item, index, stirred);
-}
-
-/** 削ぎ: 性質 1 つを消し、余白を 1 戻す（器の容量まで） */
-export function pareTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  if (roll === undefined) return null;
-  const margin = Math.min(VESSEL_CAPACITY, (item.margin ?? 0) + PARE_MARGIN_GAIN);
-  const affixes = item.affixes.filter((_, i) => i !== index);
-  return refreshed({ ...item, affixes, margin, marginMax: Math.max(item.marginMax ?? 0, margin) });
-}
-
-/**
- * 転調で変わる先の色。反転（色は冥に固定）・誓約（遊び方そのもの）・色の無いものは変えられない
- */
-export function modulatedColor(roll: AffixRoll | undefined): TraitColor | undefined {
-  if (roll === undefined || roll.inverted === true || isKeystoneKey(roll.key)) return undefined;
-  const color = traitColorOf(roll);
-  if (color === undefined) return undefined;
-  const to = OPPOSITE_COLOR[color];
-  return to === color ? undefined : to;
-}
-
-/** 転調: 性質 1 つの色だけを反対色へ（値・揺らぎ・出自はそのまま）。共鳴の配合を性質を失わずに動かす */
-export function modulateTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  const to = modulatedColor(roll);
-  if (roll === undefined || to === undefined) return null;
-  return replaceTrait(item, index, { ...roll, color: to });
 }
 
 /** 移し: 銘か芽吹いた性質を target へ。source は失われる（applyEchoResult が消す） */
@@ -351,39 +192,8 @@ export function transferGrowth(source: Item, target: Item, what: TransferWhat): 
 }
 
 // ---------------------------------------------------------------------------
-// 2026-09 第 2 弾の操作（脱色・呼び戻し・注ぎ・鍛え直し・張り）
+// 呼び戻し・注ぎ
 // ---------------------------------------------------------------------------
-
-function roundValue(v: number): number {
-  const scale = 10 ** VALUE_DECIMALS;
-  return Math.round(v * scale) / scale;
-}
-
-/**
- * 値と期待値を factor 倍にしたコピー（期待値も掛けるので、鎮め・煽りで揺らぎを引き直しても倍率は残る）。
- * トリガーの value2 は発動確率と持続のエンコードなので触らない
- */
-function scaleRollValues(roll: AffixRoll, factor: number): AffixRoll {
-  const out: AffixRoll = { ...roll, value: roundValue(roll.value * factor) };
-  if (roll.nominal !== undefined) out.nominal = roll.nominal * factor;
-  if (roll.value2 === undefined || affixDef(roll.key) === undefined) return out;
-  out.value2 = roundValue(roll.value2 * factor);
-  if (roll.nominal2 !== undefined) out.nominal2 = roll.nominal2 * factor;
-  return out;
-}
-
-/** 脱色できるか: 色を持つ（無色でない）・反転していない・誓約でない */
-export function canBleachTrait(roll: AffixRoll | undefined): roll is AffixRoll {
-  if (roll === undefined || roll.colorless === true || roll.inverted === true || isKeystoneKey(roll.key)) return false;
-  return traitColorOf(roll) !== undefined;
-}
-
-/** 脱色: 無色にして共鳴の配合から外す。値は BLEACH_VALUE_FACTOR 倍 */
-export function bleachTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  if (!canBleachTrait(roll)) return null;
-  return replaceTrait(item, index, { ...scaleRollValues(roll, BLEACH_VALUE_FACTOR), colorless: true });
-}
 
 /** 呼び戻しをもう使ったか（1 つの遺物に 1 回） */
 export function hasRecalled(item: Item): boolean {
@@ -437,49 +247,6 @@ export function pourGrowth(source: Item, target: Item): Item | null {
   return out;
 }
 
-/** 性質の修飾（張り・脱色）の倍率。鍛え直しで期待値を取り直しても修飾は残す */
-function modifierFactor(roll: AffixRoll): number {
-  return (roll.tensed === true ? TENSION_FACTOR : 1) * (roll.colorless === true ? BLEACH_VALUE_FACTOR : 1);
-}
-
-/**
- * 鍛え直し: 期待値を来歴の最深で取り直す（揺らぎはそのまま）。余白の上限を REFORGE_MARGIN_COST 払う。
- * 期待値が上がらない（最深がまだ浅い）なら成立しない
- */
-export function reforgeTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  const def = roll === undefined ? undefined : affixDef(roll.key);
-  const marginMax = item.marginMax ?? 0;
-  if (roll === undefined || def === undefined || isKeystoneKey(roll.key) || marginMax < REFORGE_MARGIN_COST) return null;
-  const deepest = item.provenance?.deepest ?? 0;
-  const fresh = scaledNominalAt(def, deepest, !isConversionKey(def.key));
-  const factor = modifierFactor(roll);
-  const nominal = fresh.nominal * factor;
-  const current = roll.nominal ?? Math.abs(roll.value);
-  if (nominal <= current) return null;
-  const lifted: AffixRoll = { ...roll, nominal };
-  if (fresh.nominal2 !== undefined && roll.value2 !== undefined) lifted.nominal2 = fresh.nominal2 * factor;
-  const reforged = refluxTrait(lifted, roll.flux ?? 0);
-  const nextMax = marginMax - REFORGE_MARGIN_COST;
-  const out = { ...replaceTrait(item, index, reforged), marginMax: nextMax, margin: Math.min(item.margin ?? 0, nextMax) };
-  out.reforged = (item.reforged ?? 0) + 1;
-  maybeInscribe(out);
-  return out;
-}
-
-/** 張れる性質: 代償付き（tradeoff）で value2 を持ち、まだ張っていない・反転していない */
-export function canTension(roll: AffixRoll | undefined): roll is AffixRoll {
-  if (roll === undefined || roll.tensed === true || roll.inverted === true || roll.value2 === undefined) return false;
-  return affixDef(roll.key)?.tags.includes("tradeoff") === true;
-}
-
-/** 張り: 利得と代償を両方 TENSION_FACTOR 倍（期待値ごと掛けるので鎮めでは戻らない） */
-export function tensionTrait(item: Item, index: number): Item | null {
-  const roll = traitAt(item, index);
-  if (!canTension(roll)) return null;
-  return replaceTrait(item, index, { ...scaleRollValues(roll, TENSION_FACTOR), tensed: true });
-}
-
 // ---------------------------------------------------------------------------
 // 実行（通貨の確認・消費・回数の更新）
 // ---------------------------------------------------------------------------
@@ -509,17 +276,10 @@ export type EchoResult =
 
 const INVALID_MESSAGE: Readonly<Record<EchoOp, string>> = {
   shatter: "砕ける遺物がありません",
-  dye: "その性質はすでにその色か、置き換え先の性質がありません",
-  calm: "鎮める揺らぎがないか、余白が足りません",
-  stir: "煽れる性質がありません（誓約は対象外）",
-  pare: "削げる性質がありません",
-  transfer: "移せません（同じ部位の別の遺物へ。銘は無銘の遺物へ、芽は余白のある遺物へ）",
-  modulate: "転調できる性質がありません（反転した性質と誓約は対象外）",
-  bleach: "脱色できる性質がありません（反転・誓約・無色の性質は対象外）",
-  recall: "呼び戻せません（1 つの遺物に 1 回だけ。選んだ芽が残っていて、選ばなかった方が重ならない場合のみ）",
   pour: "注げません（来歴のある遺物から、同じ部位の別の遺物へ）",
-  reforge: "鍛え直せません（来歴の最深が浅く期待値が上がらないか、余白の上限が足りません）",
-  tension: "張れる性質がありません（代償付きの性質に 1 回だけ）",
+  transfer: "移せません（同じ部位の別の遺物へ。銘は無銘の遺物へ、芽は余白のある遺物へ）",
+  recall: "呼び戻せません（1 つの遺物に 1 回だけ。選んだ芽が残っていて、選ばなかった方が重ならない場合のみ）",
+  stir: "煽れる性質がありません（誓約は対象外）",
 };
 
 export function echoBlockMessage(reason: EchoRejectReason, req: EchoRequest): string {
@@ -532,28 +292,14 @@ function runEchoOp(req: EchoRequest, rng: Rng): Item | null {
   switch (req.op) {
     case "shatter":
       return null;
-    case "dye":
-      return dyeTrait(req.item, req.traitIndex, req.color, rng);
-    case "calm":
-      return calmTrait(req.item, req.traitIndex);
     case "stir":
       return stirTrait(req.item, req.traitIndex, rng);
-    case "pare":
-      return pareTrait(req.item, req.traitIndex);
     case "transfer":
       return transferGrowth(req.item, req.target, req.what);
-    case "modulate":
-      return modulateTrait(req.item, req.traitIndex);
-    case "bleach":
-      return bleachTrait(req.item, req.traitIndex);
     case "recall":
       return recallBud(req.item, req.budIndex);
     case "pour":
       return pourGrowth(req.item, req.target);
-    case "reforge":
-      return reforgeTrait(req.item, req.traitIndex);
-    case "tension":
-      return tensionTrait(req.item, req.traitIndex);
   }
 }
 
@@ -574,11 +320,7 @@ function changeNote(req: EchoRequest, after: Item): string {
       const bud = after.buds?.[req.budIndex];
       return bud === undefined ? "" : formatAffix(bud.options[bud.chosen]);
     }
-    case "pare": {
-      const before = traitAt(req.item, req.traitIndex);
-      return before === undefined ? "" : `- ${formatAffix(before)}`;
-    }
-    default: {
+    case "stir": {
       const now = traitAt(after, req.traitIndex);
       return now === undefined ? "" : formatAffix(now);
     }
