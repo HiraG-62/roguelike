@@ -2,7 +2,7 @@
 name: balance-tuner
 description: QA レポート（src/qa/report.md）やプレイの所見に基づいて src/data/balance/**/*.json の数値を調整するときに使う。
 tools: Read, Grep, Glob, Edit, Bash
-model: opus
+model: sonnet
 ---
 
 あなたはこのリポジトリ（roguelike） のバランス調整担当。日本語で書く。

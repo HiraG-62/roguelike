@@ -89,8 +89,8 @@
 
 | 段 | model | Agent | 任せる仕事 |
 | --- | --- | --- | --- |
-| 判断を伴う | opus | architect / reviewer / brainstormer / pixel-artist / balance-tuner | 設計判断、不具合の診断、決定性・性能のレビュー、ゲームデザインの発想、ドット絵、QA 結果からの数値調整 |
-| 設計済みの作業 | sonnet | implementer / qa-runner / localizer | 仕様が固まった実装、コマンド実行と報告、表記の統一 |
+| 判断を伴う | opus | architect / pixel-artist | 設計判断、不具合の診断、ドット絵 |
+| 設計済み・定型 | sonnet | implementer / qa-runner / localizer / reviewer / brainstormer / balance-tuner | 仕様が固まった実装、コマンド実行と報告、表記の統一、通常のレビュー、発想の量出し、QA 結果からの数値調整 |
 
 implementer を Sonnet で動かす前提は **設計が固まっていること**。プロンプトに次が揃っていなければ、先に architect（か統合役）で固める。
 - 所有ファイルと、最小 Edit のみ許すファイルの一覧
@@ -101,6 +101,8 @@ implementer を Sonnet で動かす前提は **設計が固まっていること
 
 - 設計が曖昧なまま実装に入らない。「なぜそうなるか分からない」「複数の層にまたがる」と分かった時点で `architect` に切り替える
 - Sonnet の implementer が詰まった（`npm run check` を 2 回直しても通らない、報告に「判断が必要」とある）ら、同じプロンプトを `model: "opus"` の上書きで再投入する。最初から難しいと分かっている実装（決定性・リプレイに触る、共有ファイルの構造を変える）は Opus で起動する
+- `reviewer` は通常 Sonnet。決定性・リプレイ・永続化・性能に触る変更のレビューは `model: "opus"` で上書きして呼ぶ
+- ブレストを大量に並列で回すときは、既定の Sonnet に Opus の `brainstormer` を数本混ぜる（`model: "opus"` で上書き。目安は 3 割）。視点の幅を出すのが目的で、Opus の案が常に良いわけではない
 - Fable は高価なので常用しない。Opus の architect で 2 回詰まった、決定性・リプレイの原因が見えない、大規模な設計の分かれ道、のような超思考が要るときだけ `model: "fable"` で上書きし、読む範囲を絞った問い（仮説・対象ファイル・期待する結論の形）にして投げる
 
 ## サブエージェントと skill の対応
