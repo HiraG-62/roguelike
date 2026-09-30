@@ -16,6 +16,7 @@ import { type Vec, dist, sub } from "../core/vec";
 import { type EnemyBehavior, enemyDef, isBossClass } from "../data/enemies";
 import { type EnemyAttackKind, enemyCombat } from "../data/enemyCombat";
 import { STATUS } from "../data/tuning";
+import { hasReach } from "../loot/reach";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
 import { dotResistMul } from "./elementCombat";
 import { onStatusAppliedFx, shake, spawnBurst, spawnBlast, spawnLine } from "./effects";
@@ -310,7 +311,8 @@ function resolveDuration(state: GameState, target: StatusTarget, apply: Readonly
 function maxStacks(state: GameState, target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
   const base = baseMaxStacks(target, bag, kind);
   if (target.kind === "player") return base;
-  return base + (state.stats.statusStackCapBonus[kind] ?? 0);
+  if (kind === "burn" && hasReach(state.stats, "burn")) return Number.POSITIVE_INFINITY;
+  return base +(state.stats.statusStackCapBonus[kind] ?? 0);
 }
 
 function baseMaxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): number {

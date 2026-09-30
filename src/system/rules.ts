@@ -38,6 +38,7 @@ import { gainMana } from "./mana";
 import { onManaSource } from "./manaSources";
 import { addMoraleAmount, releaseTerrainRadiusBonus } from "./morale";
 import type { TriggerEffectKind } from "../loot/types";
+import { hasReach } from "../loot/reach";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 import { statsBulletHas } from "../loot/bullets";
 import type { CastParams } from "../skills/types";
@@ -200,6 +201,7 @@ function revisitExceeded(state: GameState, ev: GameEvent): boolean {
 
 /** 連鎖係数を掛けた確率（1 で切る）。連鎖の源（chainCoefBonus）は係数だけを押し上げる */
 function chainedChance(state: GameState, rule: Readonly<Rule>, ev: GameEvent): number {
+  if (hasReach(state.stats, "chain")) return Math.min(1, rule.chance);
   const coef = Math.min(1, (ev.coef ?? 1) * (1 + state.stats.chainCoefBonus));
   return Math.min(1, rule.chance * coef);
 }

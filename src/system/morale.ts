@@ -5,6 +5,7 @@ import { FORM } from "../data/tuning";
 import { type FormDef, type MoraleGain, type MoraleRelease, type ReleasePerUnit, formOfKey } from "../data/weaponForms";
 import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, isGun, meleeChargeOf } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
+import { hasReach } from "../loot/reach";
 import { gatherLinked, linkedCount, woundPeak } from "./formMarks";
 import { reforgedForm } from "../data/reforges";
 import { movingAimGainMul, pullTowardShots, tickReforges } from "./reforge";
@@ -155,7 +156,7 @@ export function tickMorale(state: GameState, input: FrameInput, dt: number): boo
   if (form.morale.derived) m.value = derivedValue(state, form);
   else {
     tickStill(state, form, input, dt);
-    tickDecay(m, form, dt);
+    if (!hasReach(state.stats, "morale")) tickDecay(m, form, dt);
   }
   const max = moraleMax(state);
   m.value = Math.min(m.value, max);

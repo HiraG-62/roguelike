@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ECONOMY, META, PARRY, RESONANCE } from "../data/tuning";
+import { ECONOMY, META, PARRY, REACH, RESONANCE } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
@@ -153,6 +153,17 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "relic", term: "遺物", category: "relic", body: "装備アイテム。右手・頭・体・足・指輪・首飾りの 6 部位。" },
   { key: "trait", term: "性質", category: "relic", body: "遺物に宿る 1 つの効果。それぞれが響き（色）を持つ。" },
   { key: "innate", term: "地金", category: "relic", body: "遺物に既定で宿るステータス・防御力・属性耐性。持ち込んだ遺物の地金は、今いる階の深さに合わせて伸びる。拾った時の配分と上振れはそのまま。" },
+  {
+    key: "reach",
+    term: "到達",
+    category: "relic",
+    body:
+      "遺物の性質を同じ向きに重ね、装備だけで数えた量が閾値に届くと、その軸の決まりが 1 つ変わる。" +
+      `無尽（連鎖係数 +${Math.round(REACH.chain * PERCENT)}%）: 連鎖が衰えない。` +
+      `燎原（燃焼の重ねの上限 +${REACH.burn}）: 燃焼が際限なく重なる。` +
+      `常在（戦意の上限 +${REACH.morale}）: 戦意が冷めない。` +
+      "祝福では届かない。深い階で拾った遺物ほど性質が強い。",
+  },
   { key: "flux", term: "揺らぎ", category: "relic", body: "性質の値の、期待値からのずれ。静・揺・荒は揺らぎの見た目の分類で、格付けではない。" },
   { key: "inverted", term: "反転", category: "relic", body: "揺らぎが強く裏返った性質。色は冥になり、効果も裏返る。共鳴の数えには入らない。" },
   { key: "hue", term: "響き", category: "relic", body: "性質が持つ 5 色（紅・蒼・翠・金・冥）。反対色は紅と蒼、翠と金。遺物の色の帯や残響の色になる。共鳴には関わらない。" },
