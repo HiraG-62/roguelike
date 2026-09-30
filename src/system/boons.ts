@@ -126,6 +126,8 @@ export interface BoonRunState {
   grades: Partial<Record<BoonKey, BoonGrade>>;
   /** 次の提示で 1 回だけ使う格の下駄（試練の徒が 3 択の開いていないときに積む） */
   gradeBoost: number;
+  /** 次の階の到着時に出す錬磨の提示の回数（契約・出口の予告「錬磨」が積む。system/exits.ts が消費） */
+  temperQueued: number;
 }
 
 export function createBoonRunState(): BoonRunState {
@@ -141,12 +143,44 @@ export function createBoonRunState(): BoonRunState {
     rules: createBoonRuleState(),
     grades: {},
     gradeBoost: 0,
+    temperQueued: 0,
   };
 }
 
 export function hasBoon(state: GameState, key: BoonKey): boolean {
   return state.boons.includes(key);
 }
+
+// -----------------------------------------------------------------------------
+// 系譜の枚数と錬磨（docs/ideas/boon-impl.md 2-3・2-5）。出口の予告（system/exits.ts）が読む
+// -----------------------------------------------------------------------------
+
+/** その札がこの系譜に数えられるか（融合は 2 系譜のどちらにも数える） */
+function inLineage(def: BoonDef, lineage: LineageKey): boolean {
+  return def.lineage === lineage || (def.fusion?.includes(lineage) ?? false);
+}
+
+/** 持っている札のうち、この系譜に数えるものの枚数（昇華の条件・出口の系譜の重み） */
+export function lineageCardsOwned(state: GameState, lineage: LineageKey): number {
+  return state.boons.filter((k) => inLineage(BOONS[k], lineage)).length;
+}
+
+/** この系譜でまだ取っていない、提示に出る札（加護・摂理・研鑽）の枚数。0 の系譜は祝福の出口に出さない */
+export function lineageCardsRemaining(state: GameState, lineage: LineageKey): number {
+  return BOON_KEYS.filter((k) => {
+    const def = BOONS[k];
+    if (def.lineage !== lineage || def.legacy || def.card === "apex" || def.card === undefined) return false;
+    return !state.boons.includes(k);
+  }).length;
+}
+
+/** 錬磨で格を上げられる札を 1 枚以上持っているか（出口の予告「錬磨」を並べる条件） */
+export function canTemper(_state: GameState): boolean {
+  return false;
+}
+
+/** 錬磨の提示を開く（出口の予告「錬磨」の到着時・契約）。7a のレーン A が中身を書く */
+export function offerTemper(_state: GameState): void {}
 
 // -----------------------------------------------------------------------------
 // 装備タグと抽選
