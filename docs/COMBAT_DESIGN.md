@@ -96,12 +96,11 @@ effectiveAttr(a) =
 
 ### A-4. 集計の順序（パイプライン）
 
-実装（`applyStats`、`src/system/player.ts`）は次の順序: **振り分け → 派生 → 祝福**。
+実装（`applyStats`、`src/system/player.ts`）は次の順序: **派生 → 祝福**（ラン内の振り分けは 2026-09-30 に撤去。錬磨と改鋳に置き換えた。`docs/ideas/boon-impl.md` 2-5）。
 
 ```
 computeStats(equipment)              // 既存。性質 → PlayerStats。attributes は生の加算値（逓減前）を入れる
   └ 共鳴の効果に attributes の加算を追加（resonance.ts）
-→ addRunAttributes(stats, runAlloc)   // 新規。ラン内の振り分けを attributes に足す
 → deriveAttributes(stats)             // 新規。実効値を計算し、A-1 の差分を既存フィールドへ畳み込む
 → foldBoonStats(stats, boons, run)    // 既存。祝福
 → state.stats
