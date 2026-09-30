@@ -194,7 +194,7 @@ describe("ボスの器: 取り巻きの怯み値と記録", () => {
     const { state, boss } = bossFloor(BOSS.interval);
     announceBoss(state);
     const fight = 12;
-    state.floorTime += fight;
+    state.time += fight; // floorTime は封鎖中に止まるので、戦いの秒は state.time で数える
     for (let i = 0; i < 2; i++) {
       state.player.invulnTimer = 0;
       damagePlayer(state, 1, boss.body.pos, boss);

@@ -49,7 +49,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void {
   state.bossLog.push({
     key: e.defKey,
     depth: state.depth,
-    seconds: b.lockedAt === undefined ? 0 : Math.max(0, state.floorTime - b.lockedAt),
+    seconds: b.lockedAt === undefined ? 0 : Math.max(0, state.time - b.lockedAt),
     hits: b.hits ?? 0,
     downs: e.poise.downs + (b.selfDowns ?? 0),
   });

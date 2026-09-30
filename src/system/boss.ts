@@ -119,7 +119,7 @@ export function announceBoss(state: GameState): void {
   const b = state.boss;
   if (!b) return;
   b.introTimer = BOSS.introTime;
-  b.lockedAt = state.floorTime;
+  b.lockedAt = state.time; // floorTime は封鎖中に止まる（死神の猶予）ので、戦いの秒は state.time で数える
   shake(state, FEEL.shakeHeavy);
   state.flash = Math.max(state.flash, PHASE_FLASH);
   pushSfx(state, "roomLock");
