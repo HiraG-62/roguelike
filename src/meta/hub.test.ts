@@ -243,3 +243,13 @@ describe("ボスの間", () => {
     expect(parsed?.hall, "ボス以外・未知・挑戦 0 は捨て、撃破は挑戦を超えない・壊れた最速と被弾は捨てる").toEqual({ [chapterBoss]: { tries: 3, wins: 3 } });
   });
 });
+
+describe("踏破の碑", () => {
+  it("踏破していなければ飾らず、踏破していると回数と最高位階つきで先頭に飾る", () => {
+    expect(hubDecorations(freshSource()).some((d) => d.key === "stele"), "踏破なし").toBe(false);
+    const decor = hubDecorations({ ...freshSource(), clears: 2, bestClearTier: 6 });
+    expect(decor[0]?.key).toBe("stele");
+    expect(decor[0]?.label).toContain("2 回");
+    expect(decor[0]?.label).toContain("最高位階 6");
+  });
+});

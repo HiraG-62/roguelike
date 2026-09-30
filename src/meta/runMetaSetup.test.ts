@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 import type { RunHistoryEntry } from "../loot/types";
 import { isEmptyRunMeta } from "../system/runMeta";
-import { buildRunMeta, nemesisFromHistory } from "./runMetaSetup";
+import { ARC } from "../data/tuning";
+import { createCodexSave } from "./codex";
+import { QUEST_KEYS, createQuestSave } from "./quests";
+import { type RunMetaSources, buildRunMeta, nemesisFromHistory } from "./runMetaSetup";
 
 const DAILY_SEED = "2026-09-30";
 
 function row(partial: Partial<RunHistoryEntry>): RunHistoryEntry {
   return { date: 0, seedText: "abc", depth: 6, kills: 0, score: 0, bestCombo: 0, durationSec: 0, cause: "defeated", ...partial };
+}
+
+/** 章ボスを全部倒し、依頼を全部達成した保存データ（解放制の封じが空になる） */
+function openSources(partial: Pick<RunMetaSources, "history" | "daily">): RunMetaSources {
+  const codex = createCodexSave();
+  for (const c of ARC.chapters) codex.enemyKills[c.boss] = 1;
+  const quests = createQuestSave();
+  for (const k of QUEST_KEYS) quests.completed[k] = 1;
+  return { ...partial, codex, quests, meta: {} };
 }
 
 describe("仇の種の選び方", () => {
@@ -43,8 +55,34 @@ describe("仇の種の選び方", () => {
 
   it("デイリーの runMeta は空、通常は仇を持つ", () => {
     const history = [row({ grudge: { key: "wolf", elites: [] } })];
-    expect(isEmptyRunMeta(buildRunMeta({ history, daily: true }))).toBe(true);
-    expect(buildRunMeta({ history, daily: false }).nemesis?.key).toBe("wolf");
-    expect(isEmptyRunMeta(buildRunMeta({ history: [], daily: false })), "履歴が無ければ空").toBe(true);
+    expect(isEmptyRunMeta(buildRunMeta(openSources({ history, daily: true })))).toBe(true);
+    expect(buildRunMeta(openSources({ history, daily: false })).nemesis?.key).toBe("wolf");
+    expect(isEmptyRunMeta(buildRunMeta(openSources({ history: [], daily: false }))), "履歴が無ければ空").toBe(true);
+  });
+});
+
+describe("解放制と位階の見返りの持ち込み", () => {
+  it("空の保存データでは要素を封じ、踏破の見返りは無い（今までのセーブにも効く）", () => {
+    const meta = buildRunMeta({ history: [], daily: false, codex: createCodexSave(), quests: createQuestSave(), meta: {} });
+    expect(meta.lockedContractors.length, "契約者").toBe(6);
+    expect(meta.lockedRooms.length, "部屋").toBe(15);
+    expect(meta.lockedEvents.length, "出来事").toBe(19);
+    expect(meta.perks).toEqual([]);
+  });
+
+  it("デイリーは封じも見返りも持ち込まない", () => {
+    const meta = buildRunMeta({ history: [], daily: true, codex: createCodexSave(), quests: createQuestSave(), meta: { clears: 3, bestClearTier: 12 } });
+    expect(isEmptyRunMeta(meta)).toBe(true);
+  });
+
+  it("踏破した最高位階に応じて見返りが入る", () => {
+    const meta = buildRunMeta({ ...openSources({ history: [], daily: false }), meta: { clears: 1, bestClearTier: 10 } });
+    expect(meta.perks).toEqual(["market", "exit"]);
+  });
+
+  it("同じ保存データなら同じ runMeta になる（記録に載るので決定的）", () => {
+    const a = buildRunMeta({ history: [], daily: false, codex: createCodexSave(), quests: createQuestSave(), meta: {} });
+    const b = buildRunMeta({ history: [], daily: false, codex: createCodexSave(), quests: createQuestSave(), meta: {} });
+    expect(a).toEqual(b);
   });
 });

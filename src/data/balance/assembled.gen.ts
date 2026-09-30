@@ -876,6 +876,7 @@ import j_world_ECONOMY_donation from "./world/ECONOMY/donation.json";
 import j_world_ECONOMY_bet from "./world/ECONOMY/bet.json";
 import j_world_ECONOMY_build from "./world/ECONOMY/build.json";
 import j_world_ARC from "./world/ARC.json";
+import j_world_TIER_REWARD from "./world/TIER_REWARD.json";
 import j_world_EXIT from "./world/EXIT.json";
 
 export const boons = {
@@ -2045,6 +2046,7 @@ export const world = {
     "build": j_world_ECONOMY_build,
   },
   "ARC": j_world_ARC,
+  "TIER_REWARD": j_world_TIER_REWARD,
   "EXIT": j_world_EXIT,
 };
 
@@ -2930,5 +2932,6 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/RUN_EVENT/timedChance.json",
   "world/RUN_EVENT/vein.json",
   "world/RUN_MOD.json",
+  "world/TIER_REWARD.json",
   "world/_index.json",
 ];

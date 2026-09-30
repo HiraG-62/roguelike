@@ -165,6 +165,8 @@ export function hubProgressSource(
     hasBud: [...equipped, ...profile.stash].some(hasEverBudded),
     achievements,
     quests,
+    clears: profile.meta.clears,
+    bestClearTier: profile.meta.bestClearTier,
   };
 }
 

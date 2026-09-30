@@ -195,6 +195,9 @@ export const ECONOMY = BALANCE.world.ECONOMY;
 /** ランの章立て（src/system/chapters.ts） */
 export const ARC = BALANCE.world.ARC;
 
+/** 踏破した最高位階の見返り（src/meta/tierRewards.ts） */
+export const TIER_REWARD = BALANCE.world.TIER_REWARD;
+
 export const RUN_MOD = BALANCE.world.RUN_MOD;
 
 /** ミニマップ */

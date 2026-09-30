@@ -150,3 +150,27 @@ describe("実績: 連携の発見", () => {
     expect(availableTitles(save, ctx.quests).some((t) => t.label === "連携の読み手"), "称号として名乗れる").toBe(true);
   });
 });
+
+/** 統計の一部だけ差し替えた文脈（AchievementContext.meta は読み取り専用） */
+function contextWith(patch: Partial<AchievementContext["meta"]>): AchievementContext {
+  return { ...context(), meta: { ...createEmptyProfile().meta, ...patch } };
+}
+
+describe("実績: 踏破と仇討ち", () => {
+  it("踏破していなければ踏破の実績は解除されない（位階があっても clears が無ければ無効）", () => {
+    const unlocked = evaluateAchievements(contextWith({ bestClearTier: 20 }), createAchievementSave(), 1);
+    expect(unlocked.filter((k) => k === "clear" || k.startsWith("clearTier"))).toEqual([]);
+  });
+
+  it("位階 0 の踏破で踏破者、位階ごとに称号が開く", () => {
+    const save = createAchievementSave();
+    expect(evaluateAchievements(contextWith({ clears: 1 }), save, 1), "位階 0").toEqual(["clear"]);
+    expect(evaluateAchievements(contextWith({ clears: 2, bestClearTier: 5 }), save, 2), "位階 5").toEqual(["clearTier1", "clearTier5"]);
+    expect(evaluateAchievements(contextWith({ clears: 3, bestClearTier: 20 }), save, 3), "位階 20").toEqual(["clearTier10", "clearTier15", "clearTier20"]);
+  });
+
+  it("仇を討った履歴があれば仇討ちが解除される", () => {
+    const history = [{ date: 0, seedText: "a", depth: 3, kills: 0, score: 0, bestCombo: 0, durationSec: 0, avenged: true as const }];
+    expect(evaluateAchievements(contextWith({ history }), createAchievementSave(), 1)).toContain("avenge");
+  });
+});

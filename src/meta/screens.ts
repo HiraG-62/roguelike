@@ -13,7 +13,9 @@ import {
   questProgress,
   questRewardLabel,
   questSnapshot,
+  createQuestSave,
 } from "./quests";
+import { ROOM_UNLOCKS, type ExtraRoomKind, isUnlocked, questUnlockLabels, unlockHint } from "./unlocks";
 
 /** 図鑑・依頼の一覧・実績の各画面に並べるタブと項目（src/meta/listScreen.ts の形へ組み立てる） */
 
@@ -47,10 +49,25 @@ export function codexPagesWithMilestones(save: CodexSave, pages: CodexPages): Se
   return out;
 }
 
-export function codexListTabs(save: CodexSave, pages: CodexPages): ListTab[] {
+const ROOM_ENTRY_PREFIX = "room:";
+
+/** 未踏の追加の部屋の説明に、開く条件（章ボスの撃破）を足す。codex.ts から unlocks を import しない（輪を作らない）ためここで後付けする */
+function withUnlockHints(entries: readonly ListEntry[], save: CodexSave, quests: Readonly<QuestSave>): ListEntry[] {
+  return entries.map((e) => {
+    if (e.known || !e.key.startsWith(ROOM_ENTRY_PREFIX)) return e;
+    const kind = e.key.slice(ROOM_ENTRY_PREFIX.length);
+    if (!Object.hasOwn(ROOM_UNLOCKS, kind)) return e;
+    const cond = ROOM_UNLOCKS[kind as ExtraRoomKind];
+    const hint = isUnlocked(cond, { codex: save, quests }) ? "" : unlockHint(cond);
+    return hint === "" ? e : { ...e, detail: `${e.detail} ${hint}。` };
+  });
+}
+
+export function codexListTabs(save: CodexSave, pages: CodexPages, quests: Readonly<QuestSave> = createQuestSave()): ListTab[] {
   const allPages = codexPagesWithMilestones(save, pages);
   return CODEX_TABS.map((tab) => {
-    const entries = codexEntries(save, tab, allPages);
+    const base = codexEntries(save, tab, allPages);
+    const entries = tab === "place" ? withUnlockHints(base, save, quests) : base;
     if (tab === "link") return { label: `${CODEX_TAB_LABEL[tab]} ${discoveryCount(save)}`, entries: [linkMilestoneEntry(save), ...entries] };
     const known = entries.filter((e) => e.known).length;
     return { label: `${CODEX_TAB_LABEL[tab]} ${known}/${entries.length}`, entries };
@@ -64,7 +81,7 @@ function questEntry(key: QuestKey, done: boolean): ListEntry {
     known: !done,
     name: def.name,
     info: done ? "達成" : `目標 ${def.goal}`,
-    detail: `${def.desc} 報酬: ${questRewardLabel(def.reward)}`,
+    detail: [`${def.desc} 報酬: ${questRewardLabel(def.reward)}`, ...questUnlockLabels(key)].join(" "),
   };
 }
 

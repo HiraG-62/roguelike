@@ -15,7 +15,7 @@ import {
 } from "../core/state";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { ECONOMY } from "../data/tuning";
+import { ECONOMY, TIER_REWARD } from "../data/tuning";
 import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, tileOf } from "../map/pathing";
 import { dropChosenStone, dropCursedItem, goodDetailName, keystoneOpen, pocketStall, rollGoodKey, takeKeystoneWare } from "./blackMarket";
@@ -160,6 +160,13 @@ export function stockPlan(kind: MerchantKind): WareKind[] {
   return out;
 }
 
+/** 位階の見返り「市」: 章の市にだけ品を足す（WARE_KINDS の順。ふつうの市・旅商人・闇市は変えない） */
+function perkStock(state: GameState, kind: MerchantKind): WareKind[] {
+  if (kind !== "chapterMarket" || !state.runMeta.perks.includes("market")) return [];
+  const extra: Readonly<Partial<Record<WareKind, number>>> = TIER_REWARD.marketExtra;
+  return WARE_KINDS.flatMap((k) => Array.from({ length: extra[k] ?? 0 }, () => k));
+}
+
 /** この階に立つ商人の種類（章ボスの階は章の市） */
 export function merchantKindFor(depth: number): MerchantKind {
   return isChapterBossDepth(depth) ? "chapterMarket" : "market";
@@ -235,7 +242,7 @@ export function placeMerchants(state: GameState): void {
   state.economy.merchants = [];
   if (state.sandbox === true) return;
   const kind = merchantKindFor(state.depth);
-  const plan = stockPlan(kind);
+  const plan = [...stockPlan(kind), ...perkStock(state, kind)];
   if (plan.length === 0) return;
   const spots = findStall(state, plan.length);
   if (!spots) return;

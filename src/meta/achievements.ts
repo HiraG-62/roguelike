@@ -11,6 +11,7 @@ import { CHAIN_SEPARATOR, CODEX_ENEMIES, type CodexSave } from "./codex";
 import { discoveryCount, discoveryCountOf } from "./links";
 import { QUEST_KEYS, type QuestKey, type QuestSave, completedQuestCount, isOriginUnlocked, isQuestKey, questTitles } from "./quests";
 import { isRecord, readJson, sanitizeCount, writeJson } from "./storage";
+import { CLEAR_TITLE_TIERS, bestClearTierOf, hasCleared } from "./tierRewards";
 
 /**
  * 実績と称号（docs/ideas/meta-and-weapons.md 4-1・4-7、docs/ideas/synergy-web.md 5-f）。
@@ -78,6 +79,24 @@ function history(ctx: AchievementContext): NonNullable<ProfileMeta["history"]> {
   return ctx.meta.history ?? [];
 }
 
+/** 位階の踏破の実績名（key は clearTier{位階}。位階は CLEAR_TITLE_TIERS） */
+const CLEAR_TIER_NAME: Readonly<Record<(typeof CLEAR_TITLE_TIERS)[number], string>> = {
+  1: "縛りを越えた者",
+  5: "百戦の踏破者",
+  10: "鉄鎖の踏破者",
+  15: "羅刹の踏破者",
+  20: "極位の踏破者",
+};
+
+function clearTierAchievement(tier: (typeof CLEAR_TITLE_TIERS)[number]): AchievementDef {
+  return {
+    key: `clearTier${tier}`,
+    name: CLEAR_TIER_NAME[tier],
+    desc: `位階 ${tier} 以上の縛りで踏破する。`,
+    check: (c) => hasCleared(c.meta) && bestClearTierOf(c.meta) >= tier,
+  };
+}
+
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "firstRun", name: "初めの一歩", desc: "探索を 1 回終える。", check: (c) => c.meta.runs >= 1 },
   { key: "tenRuns", name: "常連", desc: "探索を 10 回終える。", check: (c) => c.meta.runs >= 10 },
@@ -122,6 +141,10 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "daily", name: "日課", desc: "デイリーシードに挑む。", check: (c) => history(c).some((h) => isDailySeedText(h.seedText)) },
   { key: "combo50", name: "途切れぬ手", desc: "1 回の探索で 50 コンボをつなぐ。", check: (c) => history(c).some((h) => h.bestCombo >= 50) },
   { key: "longRun", name: "長い夜", desc: "1 回の探索を 20 分以上続ける。", check: (c) => history(c).some((h) => h.durationSec >= LONG_RUN_SECONDS) },
+  // ---- 踏破と仇討ち（docs/ideas/meta-impl.md 2-6。位階の見返りは meta/tierRewards.ts）----
+  { key: "clear", name: "踏破者", desc: "踏破する。", check: (c) => hasCleared(c.meta) },
+  ...CLEAR_TITLE_TIERS.map(clearTierAchievement),
+  { key: "avenge", name: "仇討ち", desc: "仇を討つ。", check: (c) => history(c).some((h) => h.avenged === true) },
 ];
 
 const ACHIEVEMENT_KEYS: ReadonlySet<string> = new Set(ACHIEVEMENTS.map((a) => a.key));

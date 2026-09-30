@@ -415,7 +415,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 拠点 | hub | タイトルの後に歩く、敵のいない固定の 1 部屋。設備に近づいて開く。ランの記録（リプレイ）に含めない | `system/hub.ts`、`meta/hub.ts` |
 | 井戸 / 掲示板 / 鍛冶場 / 図書館 / 祭壇 / 訓練場 / 記録室 / 庭 | well / board / forge / library / altar / training / archive / garden（`FacilityKey`） | 拠点の設備。井戸 = ジョブ・起点・縛りの画面へ、掲示板 = 依頼の一覧、鍛冶場 = 残響、図書館 = スキル石、祭壇 = 誓約を試す（拠点を出ると消える）、訓練場 = 木人の区画、記録室 = 探索履歴・図鑑・実績の 3 台、庭 = 装備と芽。部屋の種類の「祭壇 / 図書館 / 鍛冶場」とは別物（拠点の中の名前） | `meta/hub.ts` FACILITY_NAME |
 | 〜が建った | `newlyBuilt` | 拠点の設備が新しく使えるようになったときのバナー。解放は既存の記録から導き、強さは変えない | `meta/hub.ts`、`render/hubUi.ts` |
-| 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
+| 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。踏破の碑（踏破したとき）、倒したボスの記念品、図鑑の埋まり具合で伸びる記録室の書架、名乗っている称号の看板 | `meta/hub.ts` |
 | 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。カードの格子で並べ、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | ボスの間 | hall（`FacilityKey` / `HubSpotKey`） | 拠点の設備（章ボスか最深の主を 1 体倒すと建つ）。倒したボスに今の装備の写し（借り物を含む）で挑み直す。祝福なし。保存するのは挑戦・撃破の回数と最速・最少の被弾だけ（`roguelike.hub.v1` の `hall`）。部屋の種類の「〜の間」（潮の間・反転の間）・最深の間とは別物 | `system/bossHall.ts`、`meta/hubStore.ts` HallRecord |
@@ -423,6 +423,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
 | 死因 / 次の山 / 前回比 | `killer` / `nextPeakOf` / `previousComparable` | 死亡画面の 3 行。死因 = 最後に受けた傷の出どころ（敵なら「{敵名}の一撃 / 射撃 / 爆発 / 余波」と倒された回数）、次の山 = 力尽きた階から先で最初の章の主か最深の主、前回比 = 前の探索との到達の階・被弾・見切りの差。撃ち手の消えた敵弾は「流れ弾」、出どころの無い爆風は「余波」、ランイベントの落石は「落下物」 | `meta/deathReport.ts`、`system/deathCause.ts` |
+| 解放 / 新しく現れる | `UnlockCondition`（`CONTRACTOR_UNLOCKS` / `ROOM_UNLOCKS` / `EVENT_UNLOCKS`） | 契約者・追加の部屋・ランイベントが探索に出るようになること。章の主の撃破（図鑑）と依頼の達成から導き、新しい保存値は持たない。死亡画面の知らせは「新しく現れる: 契約者「{名}」・部屋 n・出来事 n」、依頼の一覧は「契約者「{名}」がランに現れる」、図鑑の未踏の部屋は「{ボス名}を倒すと現れる」。依頼の報酬の「起点の解放・ジョブの解放」とは別の機構 | `meta/unlocks.ts` |
+| 位階の見返り / 踏破の碑 | `tierPerks` / `steleLabel` | 踏破した最高位階に応じた、次の探索の章の市の品 +1（位階 3）・出口 +1（位階 10）。拠点の飾り「踏破の碑（踏破 n 回・最高位階 t）」。実績は 踏破者 / 縛りを越えた者 / 百戦の踏破者 / 鉄鎖の踏破者 / 羅刹の踏破者 / 極位の踏破者 / 仇討ち | `meta/tierRewards.ts`、`meta/achievements.ts` |
 | 仇 / 仇の気配 / 仇討ち | nemesis | 直近の探索で力尽きた相手が、次の探索で眠った陣に 1 体だけ混ざる（名札「仇・」、精鋭の性質 +1・猛）。着いた階で「仇の気配」、倒すと「仇討ち」で遺物と鍵 | `system/nemesis.ts`、`meta/runMetaSetup.ts` |
 
 ## 設計上の用語（未実装を含む）
