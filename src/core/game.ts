@@ -29,7 +29,7 @@ import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { createContractState } from "../system/contractors";
-import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
+import { type RunSetup, defaultRunSetup, originKeystones, sanitizeStartDepth, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { startJob } from "../system/jobs";
 import { createRuleRunState } from "./events";
@@ -50,14 +50,16 @@ export function createGame(
   /** ヒットストップの強度（0..HITSTOP_SCALE_MAX）。settings.hitstopScale / リプレイの記録値を渡す。既定 1 */
   hitstopScale = 1,
 ): GameState {
-  const stats = computeStats(profile.equipment);
+  // 開始深度（QA 専用）。地金は今の深度で決まるので、最初の stats もその深度で畳む
+  const startDepth = sanitizeStartDepth(setup.startDepth) ?? 1;
+  const stats = computeStats(profile.equipment, startDepth);
   profile.meta.runs += 1;
   const state: GameState = {
     seed,
     seedText,
     rng: createRng(seed),
     status: "playing",
-    depth: 1,
+    depth: startDepth,
     tick: 0,
     time: 0,
     map: createMap(1, 1),

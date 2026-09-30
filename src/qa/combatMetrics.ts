@@ -1,7 +1,8 @@
-import type { EnemyPhase, GameState } from "../core/state";
+import type { EnemyPhase, FloatingText, GameState } from "../core/state";
 import { enemyDef } from "../data/enemies";
 import { FIXED_DT } from "../core/loop";
 import { isBossDriven } from "../system/boss";
+import { COLOR_HURT } from "../system/combat";
 
 /**
  * 戦闘の核を変える前の基準を測る純粋な計測部品（docs/ideas/core-synthesis.md 9 章）。
@@ -9,17 +10,32 @@ import { isBossDriven } from "../system/boss";
  * 1 対 1 / 集団の計測（combatProbe.ts）が同じ数え方を共有する。
  */
 
-/** 深度帯。深度 6 以降は観測が少ないので、帯を分けて数の薄さが見えるようにする */
-export const DEPTH_BANDS = ["1-2", "3-5", "6+"] as const;
+/**
+ * 深度帯。敵の曲線は 5 階ごとに章が変わる想定（scaling-impl.md 4d）なので 5 階刻み。
+ * 深いほど観測が少ないので、帯を分けて数の薄さが見えるようにする
+ */
+export const DEPTH_BANDS = ["1-5", "6-10", "11-15", "16-20", "21+"] as const;
 export type DepthBand = (typeof DEPTH_BANDS)[number];
 
-const BAND_MID_MIN_DEPTH = 3;
-const BAND_DEEP_MIN_DEPTH = 6;
+/** 各帯の最後の深度（21+ は上限なし）。DEPTH_BANDS と同じ並び */
+const BAND_LAST_DEPTHS: readonly number[] = [5, 10, 15, 20];
 
 export function depthBandOf(depth: number): DepthBand {
-  if (depth >= BAND_DEEP_MIN_DEPTH) return "6+";
-  if (depth >= BAND_MID_MIN_DEPTH) return "3-5";
-  return "1-2";
+  const index = BAND_LAST_DEPTHS.findIndex((last) => depth <= last);
+  return DEPTH_BANDS[index < 0 ? DEPTH_BANDS.length - 1 : index] ?? "21+";
+}
+
+const HURT_TEXT = /^-(\d+)$/;
+
+/**
+ * プレイヤーが被弾した浮き文字（damagePlayer が積む `-N`）なら受けたダメージ N、それ以外は null。
+ * HP の減少を見ると、状態異常の継続ダメージ・長居の代償の細かい削りが「被弾」に混ざって平均被ダメが薄まるので、
+ * 敵の攻撃そのものが積む文字だけを数える
+ */
+export function hurtTextDamage(text: Pick<FloatingText, "text" | "color">): number | null {
+  if (text.color !== COLOR_HURT) return null;
+  const m = HURT_TEXT.exec(text.text);
+  return m?.[1] === undefined ? null : Number(m[1]);
 }
 
 /** bot.ts の NON_ENGAGEABLE_PHASES と同じ意図（idle / spawning は交戦相手に数えない） */
@@ -80,7 +96,13 @@ function emptyBandTally(): CombatBandTally {
 }
 
 export function emptyCombatTally(): CombatTally {
-  return { "1-2": emptyBandTally(), "3-5": emptyBandTally(), "6+": emptyBandTally() };
+  return {
+    "1-5": emptyBandTally(),
+    "6-10": emptyBandTally(),
+    "11-15": emptyBandTally(),
+    "16-20": emptyBandTally(),
+    "21+": emptyBandTally(),
+  };
 }
 
 /** 全帯を足した 1 つの集計。engagementSeconds は連結する */
@@ -222,7 +244,7 @@ function seconds1(n: number): string {
 
 /**
  * 戦闘の基準の表（深度帯別 + 全体）。予備動作の完遂率・ヒットストップで止まった割合・
- * 交戦の回数と長さ・交戦中 / 非交戦の時間配分。深度 6 以降は観測が少ないので、観測時間を列に出して薄さが見えるようにする
+ * 交戦の回数と長さ・交戦中 / 非交戦の時間配分。深いほど観測が少ないので、観測時間を列に出して薄さが見えるようにする
  */
 export function buildCombatSection(tallies: readonly CombatTally[]): string[] {
   const merged = mergeCombatTallies(tallies);

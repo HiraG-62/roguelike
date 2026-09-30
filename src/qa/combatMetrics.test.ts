@@ -8,17 +8,32 @@ import {
   createCombatRecorder,
   depthBandOf,
   emptyCombatTally,
+  hurtTextDamage,
   summarizeEngagements,
 } from "./combatMetrics";
+import { COLOR_HURT } from "../system/combat";
 
 describe("深度帯", () => {
-  it("深度 1-2 / 3-5 / 6 以上に分ける", () => {
-    expect(depthBandOf(1)).toBe("1-2");
-    expect(depthBandOf(2)).toBe("1-2");
-    expect(depthBandOf(3)).toBe("3-5");
-    expect(depthBandOf(5)).toBe("3-5");
-    expect(depthBandOf(6)).toBe("6+");
-    expect(depthBandOf(13)).toBe("6+");
+  it("深度 1-5 / 6-10 / 11-15 / 16-20 / 21 以上に分ける", () => {
+    expect(depthBandOf(1)).toBe("1-5");
+    expect(depthBandOf(5)).toBe("1-5");
+    expect(depthBandOf(6)).toBe("6-10");
+    expect(depthBandOf(10)).toBe("6-10");
+    expect(depthBandOf(11)).toBe("11-15");
+    expect(depthBandOf(15)).toBe("11-15");
+    expect(depthBandOf(16)).toBe("16-20");
+    expect(depthBandOf(20)).toBe("16-20");
+    expect(depthBandOf(21)).toBe("21+");
+    expect(depthBandOf(40)).toBe("21+");
+  });
+});
+
+describe("被弾の浮き文字", () => {
+  it("被弾の色の -N だけを被ダメージとして読み、回復や別の色は読まない", () => {
+    expect(hurtTextDamage({ text: "-12", color: COLOR_HURT })).toBe(12);
+    expect(hurtTextDamage({ text: "+12", color: COLOR_HURT }), "+ は被弾でない").toBeNull();
+    expect(hurtTextDamage({ text: "-12", color: "#ffffff" }), "敵へのダメージ文字は色が違う").toBeNull();
+    expect(hurtTextDamage({ text: "見切り！", color: COLOR_HURT })).toBeNull();
   });
 });
 
@@ -37,7 +52,7 @@ describe("予備動作から攻撃への完遂", () => {
     rec.afterStep(state, FIXED_DT);
     e.phase = "chase";
     rec.afterStep(state, FIXED_DT);
-    const t = rec.tally["1-2"];
+    const t = rec.tally["1-5"];
     expect(t.windups, "予備動作の開始").toBe(2);
     expect(t.strikes, "完遂は 1 回だけ").toBe(1);
   });
@@ -51,8 +66,8 @@ describe("予備動作から攻撃への完遂", () => {
     rec.afterStep(state, FIXED_DT);
     e.phase = "recover";
     rec.afterStep(state, FIXED_DT);
-    expect(rec.tally["1-2"].windups).toBe(1);
-    expect(rec.tally["1-2"].strikes).toBe(1);
+    expect(rec.tally["1-5"].windups).toBe(1);
+    expect(rec.tally["1-5"].strikes).toBe(1);
   });
 
   it("予備動作中に倒された敵は完遂に数えない", () => {
@@ -63,8 +78,8 @@ describe("予備動作から攻撃への完遂", () => {
     rec.afterStep(state, FIXED_DT);
     state.enemies = [];
     rec.afterStep(state, FIXED_DT);
-    expect(rec.tally["1-2"].windups).toBe(1);
-    expect(rec.tally["1-2"].strikes).toBe(0);
+    expect(rec.tally["1-5"].windups).toBe(1);
+    expect(rec.tally["1-5"].strikes).toBe(0);
   });
 
   it("深度帯ごとに分けて数える", () => {
@@ -74,8 +89,8 @@ describe("予備動作から攻撃への完遂", () => {
     const rec = createCombatRecorder();
     e.phase = "windup";
     rec.afterStep(state, FIXED_DT);
-    expect(rec.tally["6+"].windups).toBe(1);
-    expect(rec.tally["1-2"].windups).toBe(0);
+    expect(rec.tally["6-10"].windups).toBe(1);
+    expect(rec.tally["1-5"].windups).toBe(0);
   });
 });
 
@@ -89,8 +104,8 @@ describe("ヒットストップで止まった step", () => {
     state.hitstop = 0;
     rec.beforeStep(state);
     rec.afterStep(state, FIXED_DT);
-    expect(rec.tally["1-2"].steps).toBe(2);
-    expect(rec.tally["1-2"].hitstopSteps).toBe(1);
+    expect(rec.tally["1-5"].steps).toBe(2);
+    expect(rec.tally["1-5"].hitstopSteps).toBe(1);
   });
 });
 
@@ -109,7 +124,7 @@ describe("交戦の区間", () => {
     state.enemies = [e];
     for (let i = 0; i < 6; i++) rec.afterStep(state, FIXED_DT);
     rec.finish();
-    const t = rec.tally["1-2"];
+    const t = rec.tally["1-5"];
     expect(t.engagementSeconds, "30 step と、途切れたあとの 6 step").toHaveLength(2);
     expect(t.engagementSeconds[0]).toBeCloseTo(30 * FIXED_DT, 5);
     expect(t.engagementSeconds[1]).toBeCloseTo(6 * FIXED_DT, 5);
@@ -123,7 +138,7 @@ describe("交戦の区間", () => {
     const rec = createCombatRecorder();
     for (let i = 0; i < 5; i++) rec.afterStep(state, FIXED_DT);
     rec.finish();
-    expect(rec.tally["1-2"].engagementSeconds).toHaveLength(1);
+    expect(rec.tally["1-5"].engagementSeconds).toHaveLength(1);
   });
 
   it("交戦の長さの要約は平均・中央値・最大を出し、空なら 0", () => {
@@ -138,11 +153,11 @@ describe("交戦の区間", () => {
 });
 
 describe("フル QA の表", () => {
-  it("戦闘の基準の表は帯 3 つと全体の行を出し、観測が無くても NaN を出さない", () => {
+  it("戦闘の基準の表は帯 5 つと全体の行を出し、観測が無くても NaN を出さない", () => {
     const lines = buildCombatSection([emptyCombatTally()]);
     const md = lines.join("\n");
     expect(md).not.toMatch(/NaN|Infinity/);
-    expect(lines.filter((l) => /^\| (1-2|3-5|6\+|全体) \|/.test(l))).toHaveLength(4);
+    expect(lines.filter((l) => /^\| (1-5|6-10|11-15|16-20|21\+|全体) \|/.test(l))).toHaveLength(6);
   });
 
   it("死因の表は深度帯ごとに件数の多い順で並べる", () => {
@@ -152,8 +167,8 @@ describe("フル QA の表", () => {
       { depth: 2, cause: "bat" },
       { depth: 8, cause: "reaper" },
     ]).join("\n");
-    expect(md).toContain("| 1-2 | 3 | bat×2, slime×1 |");
-    expect(md).toContain("| 3-5 | 0 | - |");
-    expect(md).toContain("| 6+ | 1 | reaper×1 |");
+    expect(md).toContain("| 1-5 | 3 | bat×2, slime×1 |");
+    expect(md).toContain("| 6-10 | 1 | reaper×1 |");
+    expect(md).toContain("| 11-15 | 0 | - |");
   });
 });

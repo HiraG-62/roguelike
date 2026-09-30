@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { ROAMING_ROOM } from "../core/state";
-import { buildFloorSpawnSection, emptyFloorSpawn, recordFloorSpawn } from "./jinMetrics";
+import { buildFloorSpawnSection, buildHpMulSection, emptyFloorSpawn, recordFloorSpawn } from "./jinMetrics";
 
 /** 陣の配りの計測（qa/jinMetrics.ts） */
 describe("陣の配りの計測", () => {
@@ -9,7 +9,7 @@ describe("陣の配りの計測", () => {
     const state = createGame(3);
     const t = emptyFloorSpawn();
     recordFloorSpawn(t, state);
-    expect(t.enemiesByBand["1-2"], "深度 1 は 1-2 の帯").toEqual([state.enemies.length]);
+    expect(t.enemiesByBand["1-5"], "深度 1 は 1-5 の帯").toEqual([state.enemies.length]);
     const roomJins = state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM);
     expect(t.roomJins).toEqual([roomJins.length]);
     expect(t.columns).toEqual([state.jins.length - roomJins.length]);
@@ -19,5 +19,14 @@ describe("陣の配りの計測", () => {
     const formations = Object.values(t.formations).reduce((s, n) => s + (n ?? 0), 0);
     expect(formations, "陣形の出現数の合計 = 陣の数").toBe(state.jins.length);
     expect(buildFloorSpawnSection([t]).length).toBeGreaterThan(0);
+    expect(t.hpMuls, "陣ごとに hpMul を 1 つ控える").toEqual(state.jins.map((j) => j.hpMul));
+  });
+
+  it("陣の生命の揺らぎは刻みごとに数え、観測が無くても NaN を出さない", () => {
+    const md = buildHpMulSection([0.91, 0.95, 0.951, 1.0, 1.09]).join("\n");
+    expect(md).toContain("陣 5 個");
+    expect(md).toContain("| ×0.94〜0.96 | 2 | 40% |");
+    expect(md).not.toMatch(/NaN|Infinity/);
+    expect(buildHpMulSection([]).join("\n")).not.toMatch(/NaN|Infinity/);
   });
 });

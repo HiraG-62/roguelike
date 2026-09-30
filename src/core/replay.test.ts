@@ -363,6 +363,23 @@ describe("記録 → 再生", () => {
     expect(createReplaySession({ ...data, job: undefined }).state.job, "欄の無い記録は見習い").toBe("none");
   });
 
+  it("開始深度（QA 専用）を記録し、再生でも同じ深度から始まる。1 は書かず、壊れた値は 1 に戻る", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 12 };
+    const { data, state } = recordRun("depth-replay", createEmptyProfile(), randomInputs(13, 1200), undefined, setup);
+    expect(data.startDepth, "開始深度が記録される").toBe(12);
+    expect(createReplaySession(data).state.depth, "再生の開始深度").toBe(12);
+    const replayed = playBack(data);
+    expect(fingerprint(replayed), "深い階から始めても再生が一致する").toBe(fingerprint(state));
+    expect(sanitizeReplay(JSON.parse(JSON.stringify(data)))?.startDepth, "往復で残る").toBe(12);
+    const plain = recordRun("depth-none", createEmptyProfile(), randomInputs(3, 10)).data;
+    expect("startDepth" in plain, "既定は書かない（旧データと同じ形）").toBe(false);
+    expect(createReplaySession({ ...plain, startDepth: undefined }).state.depth, "欄の無い記録は深度 1").toBe(1);
+    for (const broken of [0, -3, Number.NaN, "5", null]) {
+      const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, startDepth: broken })));
+      expect(loaded?.startDepth, `壊れた値 ${String(broken)} は捨てる`).toBeUndefined();
+    }
+  });
+
   it("起点・縛りの未知の key は sanitize で捨てる（起点は放浪者に戻る）", () => {
     const { data } = recordRun("origin-sanitize", createEmptyProfile(), randomInputs(3, 10));
     const broken = { ...data, origin: "unknownOrigin", modifiers: ["thickHide", "nope", 3] };

@@ -18,10 +18,18 @@ export interface FloorSpawnTally {
   /** 部屋の陣ごとの人数 */
   jinMembers: number[];
   formations: Partial<Record<FormationKey, number>>;
+  /** 陣ごとの生命の揺らぎ（Jin.hpMul。JIN.hpSpread の分布が狙いの幅に収まっているかを見る） */
+  hpMuls: number[];
+}
+
+function emptyBandLists(): Record<DepthBand, number[]> {
+  const out = {} as Record<DepthBand, number[]>;
+  for (const band of DEPTH_BANDS) out[band] = [];
+  return out;
 }
 
 export function emptyFloorSpawn(): FloorSpawnTally {
-  return { enemiesByBand: { "1-2": [], "3-5": [], "6+": [] }, roomJins: [], columns: [], jinMembers: [], formations: {} };
+  return { enemiesByBand: emptyBandLists(), roomJins: [], columns: [], jinMembers: [], formations: {}, hpMuls: [] };
 }
 
 /** 階に着いた直後の敵と陣を数える */
@@ -35,6 +43,7 @@ export function recordFloorSpawn(t: FloorSpawnTally, state: GameState): void {
   let columns = 0;
   for (const jin of state.jins) {
     t.formations[jin.formation] = (t.formations[jin.formation] ?? 0) + 1;
+    t.hpMuls.push(jin.hpMul);
     if (jin.roomIndex === ROAMING_ROOM) {
       columns++;
       continue;
@@ -53,6 +62,7 @@ function mergeFloorSpawn(list: readonly FloorSpawnTally[]): FloorSpawnTally {
     out.roomJins.push(...t.roomJins);
     out.columns.push(...t.columns);
     out.jinMembers.push(...t.jinMembers);
+    out.hpMuls.push(...t.hpMuls);
     for (const key of FORMATION_KEYS) {
       const n = t.formations[key];
       if (n !== undefined) out.formations[key] = (out.formations[key] ?? 0) + n;
@@ -87,6 +97,38 @@ export function buildFloorSpawnSection(list: readonly FloorSpawnTally[]): string
   lines.push(`部屋の陣 / 階: 平均 ${avg(t.roomJins)}（${range(t.roomJins)}）、長蛇 / 階: 平均 ${avg(t.columns)}、陣あたり人数: 平均 ${avg(t.jinMembers)}（${range(t.jinMembers)}）`);
   const formations = FORMATION_KEYS.filter((k) => (t.formations[k] ?? 0) > 0).map((k) => `${FORMATION_LABEL[k]} ${t.formations[k]}`);
   lines.push(`陣形の出現数: ${formations.length > 0 ? formations.join(" / ") : "-"}`);
+  lines.push("");
+  lines.push(...buildHpMulSection(t.hpMuls));
+  return lines;
+}
+
+/** 陣の生命の揺らぎを見るヒストグラムの刻み */
+const HP_MUL_BIN = 0.02;
+
+/** 陣ごとの hpMul の分布（JIN.hpSpread。docs/ideas/scaling-impl.md 2-6）。刻みごとの陣の数と平均・範囲 */
+export function buildHpMulSection(hpMuls: readonly number[]): string[] {
+  const lines: string[] = [];
+  lines.push("### 陣の生命の揺らぎ（Jin.hpMul の分布。つまみ: JIN.hpSpread）");
+  lines.push("");
+  if (hpMuls.length === 0) {
+    lines.push("観測した陣が無かった。");
+    lines.push("");
+    return lines;
+  }
+  const mean = hpMuls.reduce((s, v) => s + v, 0) / hpMuls.length;
+  lines.push(`陣 ${hpMuls.length} 個: 平均 ×${mean.toFixed(3)}、範囲 ×${Math.min(...hpMuls).toFixed(3)}〜×${Math.max(...hpMuls).toFixed(3)}`);
+  lines.push("");
+  const bins = new Map<number, number>();
+  for (const v of hpMuls) {
+    const bin = Math.floor(v / HP_MUL_BIN + 1e-9);
+    bins.set(bin, (bins.get(bin) ?? 0) + 1);
+  }
+  lines.push("| hpMul | 陣の数 | 割合 |");
+  lines.push("| --- | --- | --- |");
+  for (const bin of [...bins.keys()].sort((a, b) => a - b)) {
+    const n = bins.get(bin) ?? 0;
+    lines.push(`| ×${(bin * HP_MUL_BIN).toFixed(2)}〜${((bin + 1) * HP_MUL_BIN).toFixed(2)} | ${n} | ${pct(n, hpMuls.length)} |`);
+  }
   lines.push("");
   return lines;
 }

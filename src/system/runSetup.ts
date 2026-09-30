@@ -146,6 +146,21 @@ export interface RunSetup {
    * ラン開始時に確定させ、ラン中に依頼を達成しても変えない（決定性）。省略は []
    */
   lockedRelics?: readonly string[];
+  /**
+   * 開始深度。QA 専用（深い階から始めて踏破率・被弾で死ぬまでの回数を測る。docs/ideas/scaling-impl.md 4d）。
+   * UI には出さず、リプレイに記録する。省略は 1
+   */
+  startDepth?: number;
+}
+
+/** 開始深度の上限。壊れた保存データが巨大な深度で始まらないための保険 */
+export const MAX_START_DEPTH = 99;
+
+/** 開始深度を読む。1 以上の整数だけ通し（上限で切る）、1（既定）と壊れた値は undefined（欄を書かない・読まない） */
+export function sanitizeStartDepth(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  const depth = Math.min(MAX_START_DEPTH, Math.floor(v));
+  return depth > 1 ? depth : undefined;
 }
 
 export function defaultRunSetup(): RunSetup {

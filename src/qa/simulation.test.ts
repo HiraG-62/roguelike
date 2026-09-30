@@ -48,6 +48,19 @@ import {
   type JinSettleTally,
 } from "./jinMetrics";
 import { buildCombatSection, buildDeathCauseByBandSection, countEngagedEnemies, createCombatRecorder, createStrikerCapWatcher, type CombatTally } from "./combatMetrics";
+import { fittedEquipment } from "./gearPower";
+import {
+  buildReachSection,
+  buildScalingSection,
+  createScalingRecorder,
+  type ScalingRecorder,
+  type ScalingTally,
+} from "./scalingMetrics";
+import { defaultRunSetup } from "../system/runSetup";
+import { SCOPE_ANY, type Rule } from "../core/rules";
+import { resolveRules } from "../system/rules";
+import { arena } from "../system/testHelpers";
+import * as runRecordModule from "../meta/runRecord";
 import * as boonsModule from "../system/boons";
 import * as specialRoomsModule from "../system/specialRooms";
 import { BOON_GRADES, BOON_GRADE_LABEL, type BoonGrade, boonGradeOf, isGraded } from "../system/boonGrade";
@@ -78,7 +91,7 @@ const FULL_MAX_STEPS = 60_000;
  * rareLoadout / uniqueLoadout: 揺らぎ分類（旧レアリティ）を狙って棄却サンプリングする装備。
  * dominant/dual/scatterLoadout: 色の配合（共鳴）を狙って組み立てる装備。
  */
-type ProfileKind = "empty" | "rareLoadout" | "uniqueLoadout" | "dominantLoadout" | "dualLoadout" | "scatterLoadout";
+type ProfileKind = "empty" | "rareLoadout" | "uniqueLoadout" | "dominantLoadout" | "dualLoadout" | "scatterLoadout" | "fittedLoadout";
 const PROFILE_KINDS: readonly ProfileKind[] = [
   "empty",
   "rareLoadout",
@@ -87,6 +100,16 @@ const PROFILE_KINDS: readonly ProfileKind[] = [
   "dualLoadout",
   "scatterLoadout",
 ];
+/**
+ * 深く始めるランの型（scaling-impl.md 4d）。fittedLoadout は startDepth に見合う並の遺物 6 部位（qa/gearPower.ts）。
+ * 標準の 6 装備のループには入れず、開始深度 10 / 20 から少数の seed だけ短く回す
+ */
+const DEEP_START_DEPTHS: readonly number[] = [10, 20];
+const DEEP_START_SEED_COUNT = 3;
+const DEEP_START_MAX_STEPS = 12_000;
+const DEEP_START_SEED_BASE = 70_000;
+/** 縮小版で深く始めるランを 1 本だけ確かめる step 数 */
+const DEEP_SMOKE_STEPS = 3_000;
 const UINT32_MAX = 0xffffffff;
 
 // ---------------------------------------------------------------------------
@@ -168,9 +191,13 @@ function colorsForLoadout(kind: ProfileKind, seed: number): readonly TraitColor[
   }
 }
 
-function buildProfile(kind: ProfileKind, seed: number): Profile {
+function buildProfile(kind: ProfileKind, seed: number, startDepth = 1): Profile {
   const profile = createEmptyProfile();
   if (kind === "empty") return profile;
+  if (kind === "fittedLoadout") {
+    profile.equipment = fittedEquipment(seed, startDepth);
+    return profile;
+  }
 
   // 決定的な専用 RNG。state.rng は消費しない
   const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
@@ -379,6 +406,22 @@ vi.spyOn(combat, "damagePlayer").mockImplementation((...args: Parameters<typeof 
     activeSkillMetrics.oneVOneHits += 1;
   }
   return result;
+});
+
+/** 上と同じく runOnce がループの間だけ差し替える（与ダメの内訳と連鎖の深さ。qa/scalingMetrics.ts） */
+let activeScaling: ScalingRecorder | null = null;
+
+const originalRollOutgoing = combat.rollOutgoing;
+vi.spyOn(combat, "rollOutgoing").mockImplementation((...args: Parameters<typeof originalRollOutgoing>) => {
+  const hit = originalRollOutgoing(...args);
+  activeScaling?.noteOutgoing(hit.breakdown);
+  return hit;
+});
+
+const originalNoteChainRecord = runRecordModule.noteChainRecord;
+vi.spyOn(runRecordModule, "noteChainRecord").mockImplementation((...args: Parameters<typeof originalNoteChainRecord>) => {
+  activeScaling?.noteChain(args[2]);
+  return originalNoteChainRecord(...args);
 });
 
 const originalApplyStatus = statusEffectsModule.applyStatus;
@@ -602,6 +645,10 @@ interface RunMetrics {
   boon: BoonMetrics;
   /** 予備動作の完遂・ヒットストップで止まった step・交戦の長さと時間配分（深度帯別。combatMetrics.ts） */
   combat: CombatTally;
+  /** 開始深度（既定 1。深く始めるラン専用） */
+  startDepth: number;
+  /** 帯ごとの被弾と撃破・死亡時の与ダメの内訳・連鎖の深さ・捨てられたイベント（scalingMetrics.ts） */
+  scaling: ScalingTally;
 }
 
 /**
@@ -710,11 +757,12 @@ function guessDeathCause(state: GameState): string {
   return best ?? "unknown";
 }
 
-function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunMetrics {
-  const profile = buildProfile(profileKind, seed);
-  const state = createGame(seed, String(seed), profile, buildQaSkillProfile());
+function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, startDepth = 1): RunMetrics {
+  const profile = buildProfile(profileKind, seed, startDepth);
+  const state = createGame(seed, String(seed), profile, buildQaSkillProfile(), { ...defaultRunSetup(), startDepth });
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
   const combatRecorder = createCombatRecorder();
+  const scalingRecorder = createScalingRecorder();
 
   const metrics: RunMetrics = {
     seed,
@@ -761,6 +809,8 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     synergyEventCapHits: 0,
     boon: emptyBoonMetrics(),
     combat: combatRecorder.tally,
+    startDepth,
+    scaling: scalingRecorder.tally,
   };
 
   let depthEnterTime = state.time;
@@ -789,6 +839,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   activeDropMetrics = metrics.drop;
   activeGenreMetrics = metrics.genre;
   activeBoonMetrics = metrics.boon;
+  activeScaling = scalingRecorder;
   let prevBoons = new Set(state.boons);
 
   for (let i = 0; i < maxSteps; i++) {
@@ -816,6 +867,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     const oneVOne = engagedEnemyCountThisStep === 1;
 
     combatRecorder.beforeStep(state);
+    scalingRecorder.beforeStep(state);
     const t0 = performance.now();
     try {
       step(state, input, FIXED_DT);
@@ -826,6 +878,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
     stepTimeTotal += performance.now() - t0;
     metrics.stepsRun++;
     combatRecorder.afterStep(state, FIXED_DT);
+    scalingRecorder.afterStep(state);
 
     if (oneVOne) metrics.skill.oneVOneSeconds += FIXED_DT;
     // マナ不足の不発（src/system/skills.ts の misfire）: manaFlash が 0 から立ち上がった瞬間を数える
@@ -924,6 +977,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
       metrics.died = true;
       metrics.deathDepth = state.depth;
       metrics.deathCause = guessDeathCause(state);
+      scalingRecorder.noteDeath(state.depth);
     }
   }
 
@@ -950,6 +1004,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number): RunM
   activeDropMetrics = null;
   activeGenreMetrics = null;
   activeBoonMetrics = null;
+  activeScaling = null;
   return metrics;
 }
 
@@ -983,6 +1038,15 @@ describe("QA simulation (縮小版スモーク)", () => {
         expect(metrics.boon.takenNonCore, `seed=${seed} 芯を除く取得数は全体以下`).toBeLessThanOrEqual(metrics.boon.taken);
         expect(metrics.hiddenRoomsOpened, `seed=${seed} 開いた隠し部屋は計画された数以下`).toBeLessThanOrEqual(metrics.hiddenRoomsPlanned);
       }
+      // 深く始めるラン（RunSetup.startDepth）が通ること。深度 10 の並の遺物で短く回す
+      const deep = runOnce(10_100, "fittedLoadout", DEEP_SMOKE_STEPS, 10);
+      expect(deep.exceptions, `深く始めるランで例外: ${deep.exceptions.map((e) => `step${e.step}: ${e.message}`).join(" / ")}`).toHaveLength(0);
+      expect(deep.nanDetected, "深く始めるランで NaN 混入").toBe(false);
+      expect(deep.wallOverlapDetected, "深く始めるランで敵が壁にめり込んだ").toBe(false);
+      expect(deep.maxDepth, "開始深度から始まる").toBeGreaterThanOrEqual(10);
+      const bandSteps = Object.values(deep.scaling.bands).reduce((sum, band) => sum + band.steps, 0);
+      expect(bandSteps, "帯ごとの観測 step が数えられる").toBe(deep.stepsRun);
+      expect(deep.scaling.bands["1-5"].steps, "浅い帯は観測されない").toBe(0);
       // 祝福の計測だけを見たいとき（QA_DEBUG=1）に縮小版でも表を出す
       if (process.env.QA_DEBUG) console.log(buildBoonMetricsSection(all).join("\n"));
     },
@@ -1052,11 +1116,14 @@ function average(nums: readonly number[]): number {
   return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
 }
 
-function buildReport(allMetrics: readonly RunMetrics[]): string {
+function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly RunMetrics[]): string {
   const lines: string[] = [];
   lines.push("# QA シミュレーション結果");
   lines.push("");
-  lines.push(`生成: ${new Date().toISOString()} / ${allMetrics.length} runs (${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップ)`);
+  lines.push(
+    `生成: ${new Date().toISOString()} / ${allMetrics.length} runs (${FULL_SEED_COUNT} seed × ${PROFILE_KINDS.length} 装備パターン × ${FULL_MAX_STEPS} ステップ)` +
+      ` + 深く始める ${deepMetrics.length} runs (開始深度 ${DEEP_START_DEPTHS.join(" / ")} × ${DEEP_START_SEED_COUNT} seed × ${DEEP_START_MAX_STEPS} ステップ。下の節)`,
+  );
   lines.push("");
 
   const exceptions = allMetrics.flatMap((m) => m.exceptions.map((e) => ({ ...e, seed: m.seed, profileKind: m.profileKind })));
@@ -1245,6 +1312,23 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   lines.push(...buildCombatSection(allMetrics.map((m) => m.combat)));
   const deathRecords = allMetrics.flatMap((m) => (m.died && m.deathDepth !== null ? [{ depth: m.deathDepth, cause: m.deathCause ?? "unknown" }] : []));
   lines.push(...buildDeathCauseByBandSection(deathRecords));
+  lines.push(
+    ...buildScalingSection(
+      "数式と文法の計測（深度帯別・標準の 6 装備）",
+      "- 被弾 = 敵の攻撃を受けた回数（継続ダメージは含めない）。被弾で死ぬまで = 被弾時の最大 HP ÷ 平均被ダメ（目標: 深度 1 で 6〜8 発、10 で 5〜7、20 で 4〜6）\n" +
+        "- 死亡時の与ダメ = 死ぬ直前の与ダメ 30 発の平均。Σ増 = 増の合計、Π倍 = 倍の積、倍の出所数 = 出所ごとに畳んだ倍の数（目標: 章 2 で ×1.5〜3、章 4 で ×5〜12。この段は観測だけ）\n" +
+        "- 連鎖の深さは Rule が成立したイベントの深さ（0 = 起点のイベントで成立）。目標: 平均 1.5〜3、上限手前 1% 未満、捨てられたイベント 0",
+      allMetrics.map((m) => m.scaling),
+    ),
+  );
+  lines.push(
+    ...buildReachSection(
+      "装備パターン別の到達深度と踏破率",
+      PROFILE_KINDS,
+      allMetrics.map((m) => ({ label: m.profileKind, maxDepth: m.maxDepth })),
+    ),
+  );
+  lines.push(...buildDeepStartSection(deepMetrics));
   lines.push(...buildSkillMetricsSection(allMetrics));
   lines.push(...buildGenreMetricsSection(allMetrics));
   lines.push(...buildObservationGapsSection(allMetrics));
@@ -1263,6 +1347,39 @@ function buildReport(allMetrics: readonly RunMetrics[]): string {
   return lines.join("\n");
 }
 
+
+/**
+ * 深く始めるラン（RunSetup.startDepth）の節。開始深度ごとに、ランごとの結果と、帯ごとの被弾・死亡時の内訳・連鎖を出す。
+ * 深度に見合う並の遺物で始めるので、章 3 以降の敵に対して「装備が釣り合っているか」を bot の生存から見る
+ */
+function buildDeepStartSection(deepMetrics: readonly RunMetrics[]): string[] {
+  const lines: string[] = [];
+  lines.push("## 深く始めるラン（開始深度 10 / 20。深度に見合う並の遺物 6 部位。`RunSetup.startDepth`）");
+  lines.push("");
+  if (deepMetrics.length === 0) {
+    lines.push("深く始めるランは回さなかった。");
+    lines.push("");
+    return lines;
+  }
+  lines.push("| 開始深度 | seed | 到達 depth | 結果 | 死因 | kills | 観測 step |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  for (const m of deepMetrics) {
+    lines.push(`| ${m.startDepth} | ${m.seed} | ${m.maxDepth} | ${m.died ? "死亡" : "生存"} | ${m.deathCause ?? "-"} | ${m.kills} | ${m.stepsRun} |`);
+  }
+  lines.push("");
+  for (const startDepth of DEEP_START_DEPTHS) {
+    const group = deepMetrics.filter((m) => m.startDepth === startDepth);
+    if (group.length === 0) continue;
+    lines.push(
+      ...buildScalingSection(
+        `開始深度 ${startDepth} の帯別（${group.length} ラン）`,
+        `深度 ${startDepth} の並の遺物 6 部位で ${DEEP_START_MAX_STEPS} step まで。観測が薄いので傾向の確認だけに使う`,
+        group.map((m) => m.scaling),
+      ),
+    );
+  }
+  return lines;
+}
 
 /**
  * L6 の計測項目（docs/COMBAT_DESIGN.md B-7 / C-2 / F-2 L6 行）。
@@ -1642,6 +1759,38 @@ describe("QA 計測: 同時攻撃数の切り分け", () => {
   });
 });
 
+describe("QA 計測: 連鎖の深さと与ダメの内訳", () => {
+  it("Rule が成立した深さと、直近の与ダメの内訳が scalingRecorder に数えられる", () => {
+    const state = arena(5);
+    for (const r of state.rooms) r.locked = false;
+    state.events = [];
+    state.pendingEvents = [];
+    const rule: Rule = {
+      id: "qa:chain:0",
+      when: "onDash",
+      if: [],
+      chance: 1,
+      icd: 0,
+      scope: SCOPE_ANY,
+      owner: { kind: "boon", key: "test" },
+      then: { kind: "damageBuff", magnitude: 1 },
+      keyword: "qaChain",
+    };
+    const rec = createScalingRecorder();
+    activeScaling = rec;
+    try {
+      state.pendingEvents.push({ kind: "onDash", actor: "player", pos: { ...state.player.body.pos }, depth: 2, source: { kind: "player", key: "test" } });
+      resolveRules(state, 0, [rule]);
+      combat.rollOutgoing(state, null, 10, "melee");
+    } finally {
+      activeScaling = null;
+    }
+    expect(rec.tally.chainDepths, "深さ 2 で 1 件").toEqual([0, 0, 1]);
+    rec.noteDeath(3);
+    expect(rec.tally.death?.hits, "与ダメ 1 発の内訳を控える").toBe(1);
+  });
+});
+
 describe("QA 計測: 祝福の芯・格・取得機会", () => {
   it("提示した札の格は深度帯 2〜3 / 4〜5 / 6 以上に分けて数える", () => {
     expect(gradeBandOf(2), "深度 2").toBe("2-3");
@@ -1691,8 +1840,15 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
           allMetrics.push(runOnce(seed, kind, FULL_MAX_STEPS));
         }
       }
+      // 深く始めるランは短く・少数だけ（フル QA の所要時間を大きく伸ばさない）
+      const deepMetrics: RunMetrics[] = [];
+      for (const startDepth of DEEP_START_DEPTHS) {
+        for (let i = 0; i < DEEP_START_SEED_COUNT; i++) {
+          deepMetrics.push(runOnce(DEEP_START_SEED_BASE + i, "fittedLoadout", DEEP_START_MAX_STEPS, startDepth));
+        }
+      }
 
-      const report = buildReport(allMetrics);
+      const report = buildReport(allMetrics, deepMetrics);
       // @types/node が無くこのファイルは fs に触れられないので、標準出力に区切り付きで
       // 出す。呼び出し側 (`SIM_FULL=1 npx vitest run src/qa/simulation.test.ts`) が
       // このマーカー間を抜き出して src/qa/report.md に保存する
@@ -1701,7 +1857,7 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
       console.log(REPORT_END);
 
       // フル版でも最低限の健全性は assert する
-      const totalExceptions = allMetrics.reduce((s, m) => s + m.exceptions.length, 0);
+      const totalExceptions = [...allMetrics, ...deepMetrics].reduce((s, m) => s + m.exceptions.length, 0);
       expect(totalExceptions, `フル run で例外が ${totalExceptions} 件発生した。上の出力を参照`).toBe(0);
     },
     FULL_TIMEOUT_MS,

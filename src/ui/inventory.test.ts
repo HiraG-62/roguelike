@@ -266,7 +266,7 @@ describe("updateInventoryUi: 装備タブ", () => {
 
     expect(state.profile.equipment.mainHand?.id, "装備された").toBe("sword-1");
     expect(state.profile.stash.some((it) => it.id === "sword-1"), "倉庫から消える").toBe(false);
-    expect(computeStats).toHaveBeenCalledWith(state.profile.equipment);
+    expect(computeStats).toHaveBeenCalledWith(state.profile.equipment, state.depth);
     expect(state.stats.maxHp, "stats に反映").toBe(150);
     expect(state.player.maxHp, "プレイヤーに反映").toBe(150);
     expect(ui.message).toBe("装備した: Test Sword");

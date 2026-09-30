@@ -28,7 +28,15 @@ import { SKILL_PROFILE_KEY, ownedRunes, stoneInSlot } from "../skills/persistenc
 import { MODIFIER_KEYS, SKILL_KEYS, type RuneItem, type SkillProfile, type SkillStone } from "../skills/types";
 import { applyStats } from "../system/player";
 import { ALLOC_ORDER, allocateAttribute } from "../ui/attributeAlloc";
-import { type OriginKey, type RunModKey, type RunSetup, defaultRunSetup, sanitizeLockedRelics, sanitizeRunSetup } from "../system/runSetup";
+import {
+  type OriginKey,
+  type RunModKey,
+  type RunSetup,
+  defaultRunSetup,
+  sanitizeLockedRelics,
+  sanitizeRunSetup,
+  sanitizeStartDepth,
+} from "../system/runSetup";
 import { type JobKey, sanitizeJob } from "../data/jobs";
 import type { MovesetKey } from "../data/weapons";
 import { clampHitstopScale } from "../ui/settings";
@@ -122,6 +130,8 @@ export interface ReplayData {
   job?: JobKey;
   /** 抽選に出ない名のある遺物（依頼の報酬。無ければ []。空のときは書かない） */
   lockedRelics?: string[];
+  /** 開始深度（QA 専用。無ければ 1。1 のときは書かない） */
+  startDepth?: number;
   /** ラン開始時点のヒットストップの強度（0..HITSTOP_SCALE_MAX）。無ければ 1（既定）として読む。ステップ数に効くため決定性を保つには記録が要る。ラン中の変更は events の hitstopScale で記録する */
   hitstopScale?: number;
   /**
@@ -606,6 +616,7 @@ export class ReplayRecorder {
       modifiers: [...(this.options.setup ?? defaultRunSetup()).modifiers],
       ...lockedRelicsField(this.options.setup?.lockedRelics),
       ...jobField(this.options.setup?.job),
+      ...startDepthField(this.options.setup?.startDepth),
       ...hitstopScaleField(this.options.hitstopScale),
       ...snapshotAfterStartField(this.snapshotAfterStart),
       balance: BALANCE_HASH,
@@ -663,7 +674,12 @@ export function createReplaySession(data: ReplayData): ReplaySession {
     throw new Error(`replay: frame count mismatch (${inputs.length} vs ${data.frameCount})`);
   }
   const { profile, skillProfile } = createReplayProfiles(data.snapshot);
-  const setup = { ...sanitizeRunSetup(data.origin, data.modifiers), job: sanitizeJob(data.job), lockedRelics: sanitizeLockedRelics(data.lockedRelics) };
+  const setup: RunSetup = {
+    ...sanitizeRunSetup(data.origin, data.modifiers),
+    job: sanitizeJob(data.job),
+    lockedRelics: sanitizeLockedRelics(data.lockedRelics),
+    startDepth: sanitizeStartDepth(data.startDepth),
+  };
   const state = createGame(hashSeed(data.seedText), data.seedText, profile, skillProfile, setup, sanitizeHitstopScale(data.hitstopScale));
   if (data.snapshotAfterStart === true) syncLoadoutCounts(profile, skillProfile, data.snapshot);
   return { data, state, profile, skillProfile, inputs, cursor: 0, eventCursor: 0, lastInput: EMPTY_INPUT };
@@ -869,6 +885,12 @@ function jobField(job: JobKey | undefined): Pick<ReplayData, "job"> {
 }
 
 /** 既定の 1 は書かない。旧データと同じ形を保つ */
+function startDepthField(depth: number | undefined): Pick<ReplayData, "startDepth"> {
+  const clean = sanitizeStartDepth(depth);
+  return clean !== undefined ? { startDepth: clean } : {};
+}
+
+/** 既定の 1 は書かない。旧データと同じ形を保つ */
 function hitstopScaleField(scale: number | undefined): Pick<ReplayData, "hitstopScale"> {
   return scale !== undefined && scale !== 1 ? { hitstopScale: clampHitstopScale(scale) } : {};
 }
@@ -920,6 +942,7 @@ export function sanitizeReplay(v: unknown): ReplayData | null {
     modifiers: setup.modifiers,
     ...lockedRelicsField(sanitizeLockedRelics(v.lockedRelics)),
     ...jobField(sanitizeJob(v.job)),
+    ...startDepthField(sanitizeStartDepth(v.startDepth)),
     ...hitstopScaleField(typeof v.hitstopScale === "number" ? v.hitstopScale : undefined),
     ...snapshotAfterStartField(v.snapshotAfterStart === true),
     ...balanceField(typeof v.balance === "string" ? v.balance : undefined),
