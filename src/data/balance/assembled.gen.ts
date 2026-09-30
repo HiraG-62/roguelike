@@ -1955,6 +1955,7 @@ export const loot = {
 export const skills = {
   "_note": j_skills__index["_note"],
   "SKILL": {
+    "_fields": j_skills_SKILL__index["_fields"],
     "slots": j_skills_SKILL__index["slots"],
     "manaFlashTime": j_skills_SKILL__index["manaFlashTime"],
     "linkBurdenPenalty": j_skills_SKILL__index["linkBurdenPenalty"],
@@ -1966,6 +1967,7 @@ export const skills = {
     "notReadyTextInterval": j_skills_SKILL__index["notReadyTextInterval"],
     "stashCapacity": j_skills_SKILL__index["stashCapacity"],
     "runeCapacity": j_skills_SKILL__index["runeCapacity"],
+    "defaultCastRange": j_skills_SKILL__index["defaultCastRange"],
     "whirl": j_skills_SKILL_whirl,
     "lunge": j_skills_SKILL_lunge,
     "frag": j_skills_SKILL_frag,

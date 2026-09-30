@@ -8,7 +8,7 @@ import type { GameMap } from "../map/grid";
 import type { MovesetDef, MovesetKey } from "../data/weapons";
 import type { AttrRatio, Scaling } from "../loot/types";
 import { ART_SKILL_KEYS } from "./arts/keys";
-import type { ArtPending } from "./arts/types";
+import type { ArtActsTransform, ArtPending } from "./arts/types";
 
 /**
  * スキルシステムの共有型。docs/ideas/skills.md「6-1」「7. 最小実装の仕様」。
@@ -430,6 +430,12 @@ export interface CastParams {
   formRecoverMul: number;
 }
 
+/** 刻印符の表示上の区分 */
+export type ModifierFamily = "shape" | "cycle";
+
+/** 連動の起点。finisher = 武器の終撃 / riposte = 応手 */
+export type AutoCastTrigger = "finisher" | "riposte";
+
 export interface ModifierDef {
   key: ModifierKey;
   name: string;
@@ -458,6 +464,12 @@ export interface ModifierDef {
   linkCost?: number;
   /** 型替え符か（1 スロットに 1 枚まで） */
   reshape?: ReshapeKey;
+  /** 表示用の区分（変形 = shape / 循環 = cycle）。効き方は変えない（docs/ideas/skills-7c-plan.md 4-1） */
+  family?: ModifierFamily;
+  /** 技の行為の列を作り替える純関数。技（ArtSkillKey）にだけ付けられる。手書きのスキルには apply だけが効く */
+  transform?: ArtActsTransform;
+  /** 指定があれば、その出来事（武器の終撃 / 応手）と同時にこのスキルを撃つ */
+  autoCast?: AutoCastTrigger;
   /** def はマナ型 / CD 型で効果を読み替えるために渡す */
   apply(p: Readonly<CastParams>, def: Readonly<SkillDef>): CastParams;
   /** 統一ルール（src/core/rules.ts）。scope が any なら刺したスロットの発動が起こしたイベントだけを食う */

@@ -936,7 +936,7 @@ export function chargeStageMarks(state: GameState, index: number): number[] {
 function aimTarget(state: GameState, input: FrameInput): Vec {
   const p = state.player;
   if (input.aimScreen) return screenToWorld(state.camera, input.aimScreen);
-  return add(p.body.pos, scale(p.facing, SKILL.frag.maxRange));
+  return add(p.body.pos, scale(p.facing, SKILL.defaultCastRange));
 }
 
 /** コスト支払い（HP・コンボ燃料）を済ませた最終パラメータ */
@@ -1003,7 +1003,7 @@ export function castSlot(state: GameState, index: number, input: FrameInput, cha
   const origin = { ...p.body.pos };
   const key = r.def.key;
   // 型替え符「自己中心化」は照準地点を自分の足元にする
-  const aimed = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.frag.maxRange);
+  const aimed = clampTarget(state, origin, aimTarget(state, input), CAST_RANGE[key] ?? SKILL.defaultCastRange);
   const target = r.params.reshape === "toNova" ? { ...origin } : aimed;
   // 対象のいない消費系・影渡りは何も払わずに弾く
   const blocked = castBlock(state, key, target, r.params);

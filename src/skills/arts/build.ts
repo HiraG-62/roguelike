@@ -341,6 +341,7 @@ export function buildArtSkillDef(spec: ArtSpec, art: ArtDef): SkillDef {
     axes: spec.axes ?? defaultAxes(art.acts, hasDamage),
     ...resource,
     ...(applies ? { applies } : {}),
+    ...(spec.combos ? { combos: spec.combos } : {}),
     ...(spec.moveset ? { moveset: spec.moveset } : {}),
   };
 }

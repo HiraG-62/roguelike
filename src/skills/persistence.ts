@@ -1,6 +1,7 @@
 import { saveStorage } from "../save/backend";
 import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, maxStoneLinks, modifierLinkCost, modifiersClash } from "./data";
 import { stoneFromSeed } from "./generator";
+import { migrateSkillKey } from "./legacyKeys";
 import {
   MODIFIER_KEYS,
   SKILL_KEYS,
@@ -93,9 +94,11 @@ function wearField(wear: StoneWear | null): { wear?: StoneWear } {
 
 function sanitizeStone(v: unknown): SkillStone | null {
   if (!isRecord(v)) return null;
-  const { id, seed, skillKey, variants, links, foundDepth, foundAt, runes, wear } = v;
+  const { id, seed, variants, links, foundDepth, foundAt, runes, wear } = v;
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
+  // key を消した版のセーブを新しい key へ写してから検査する（写し先が無い石は捨てる）
+  const skillKey = typeof v.skillKey === "string" ? migrateSkillKey(v.skillKey) : null;
   if (!isSkillKey(skillKey)) return null;
   if (!Array.isArray(variants)) return null;
   if (typeof links !== "number" || !Number.isInteger(links)) return null;

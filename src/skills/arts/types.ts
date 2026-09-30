@@ -5,7 +5,7 @@ import type { TerrainKind } from "../../core/terrain";
 import type { Vec } from "../../core/vec";
 import type { MovesetKey } from "../../data/weapons";
 import type { Scaling } from "../../loot/types";
-import type { CastParams, ShotEffect, SkillTag, VariantAxis } from "../types";
+import type { CastParams, ComboKey, ShotEffect, SkillTag, VariantAxis } from "../types";
 import type { ArtSkillKey } from "./keys";
 
 /**
@@ -119,7 +119,18 @@ export interface ArtSpec {
   readonly keywords?: KeywordProfile;
   /** 拾える最初の深度（省略 1） */
   readonly minDepth?: number;
+  /** 連携: この技が「後」になる組み合わせ（SkillDef.combos と同じ。skills/combos.ts の COMBOS の key） */
+  readonly combos?: readonly ComboKey[];
 }
+
+/**
+ * 変形の数値（data/balance/skills/ART/TRANSFORM/<型>.json の 1 ファイル。areaMul / hitsAdd / damageMul など）。
+ * 型ごとに項目が違い、それを読む変形の関数（ModifierDef.transform / 型の変形表）だけが名前を知っている
+ */
+export type TransformNumbers = Readonly<Record<string, number>>;
+
+/** 技の行為の列を作り替える純関数（state も rng も読まない。同じ入力に同じ出力） */
+export type ArtActsTransform = (acts: readonly ArtAct[], n: TransformNumbers) => ArtAct[];
 
 /** 読み込み済みの技 */
 export interface ArtDef {
