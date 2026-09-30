@@ -10,6 +10,7 @@ import { STILL_PLAIN, STILL_POSED } from "../data/sprites/still";
 import { W3_BACK_KEYS } from "../data/sprites/w3back";
 import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
 import { SHALLOWS_KEYS } from "../data/sprites/shallows";
+import { ECONOMY_KEYS, ECONOMY_POSED_KEYS, ECONOMY_STILL } from "../data/sprites/economy";
 import {
   CLAWS_DIAG,
   CLAWS_SIDE,
@@ -235,6 +236,7 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
     ...HEAVY_KEYS.map((k) => [k, CANVAS_32] as const),
     ...BOSS_KEYS.map((k) => [k, CANVAS_48] as const),
     ...STILL_POSED,
+    ...ECONOMY_POSED_KEYS.map((k) => [k, CANVAS_24] as const),
   ]);
   const REDRAWN: readonly string[] = Object.keys(CANVAS_OF);
   const sizeOf = (key: string): number => CANVAS_OF[key] ?? CANVAS_24;
@@ -245,6 +247,7 @@ describe("描き直した敵（docs/ideas/graphics-style.md）", () => {
     // 状態フレームのボス（kingSlime の伸び・boneLord の杖）も同じ検査に載せる
     ...BOSS_STATE_KEYS.map((k) => [k, CANVAS_48] as const),
     ...STILL_PLAIN,
+    ...ECONOMY_STILL,
   ];
 
   it.each(STILL)("据え置き・状態フレームの %s は %i px 四方（× 密度）で 4 フレーム、最下段に接地している", (key, size) => {
@@ -518,7 +521,12 @@ function sidesOfShaftOf(frame: readonly string[]): { ul: number; dr: number } {
 
 describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
   /** 密度 1 以外を載せてよいのは敵・プレイヤー・ボスのキー（とそのポーズ）だけ。武器・タイル・UI アイコンは密度 1 のまま */
-  const ALLOWED_BASE_KEYS = new Set<string>(["player", ...ENEMIES.map((d) => d.sprite), ...BOSS_KEYS]);
+  // 経済の絵（拾い物・台座・HUD の瓶・商人の色違い）は描く側が drawFrame / 論理寸法で置くので密度 2 で描いてよい
+  const ALLOWED_BASE_KEYS = new Set<string>(["player", ...ENEMIES.map((d) => d.sprite), ...BOSS_KEYS, ...ECONOMY_KEYS]);
+
+  it("経済の絵はすべて密度 2 で登録されている", () => {
+    for (const key of ECONOMY_KEYS) expect(SPRITE_DOTS[key], key).toBe(2);
+  });
 
   it("SPRITE_DOTS のキーは SPRITES に存在し、フレームの寸法が dots の倍数", () => {
     for (const [key, dots] of Object.entries(SPRITE_DOTS)) {

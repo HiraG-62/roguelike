@@ -1,5 +1,5 @@
 import type { RecentEvent } from "../core/events";
-import { type ActiveBet, type BetKind, type BetRecord, type BetTier, type GameState, type Jin, pushLog } from "../core/state";
+import { type ActiveBet, type BetKind, type BetRecord, type BetTier, type GameState, type Jin, pushLog, pushSfx } from "../core/state";
 import { ECONOMY, SYNERGY } from "../data/tuning";
 import { chapterOf } from "./chapters";
 import { gainCoins } from "./economy";
@@ -297,11 +297,13 @@ function finish(state: GameState, kind: BetKind, tier: BetTier | null, payout: n
   }
   if (payout <= 0) {
     say(state, TEXT_LOSE);
+    pushSfx(state, "betLose");
     return;
   }
   rec.won += 1;
   rec.paid += payout;
   say(state, TEXT_WIN);
+  pushSfx(state, "betWin");
   gainCoins(state, payout, "bet");
 }
 

@@ -32,7 +32,7 @@ import { circlesOverlap, overlapsWall } from "./physics";
  */
 
 export const COIN_SOURCES: readonly CoinSource[] = ["kill", "jin", "room", "floor", "event", "contract", "container", "bet", "sell", "rule", "spill"];
-export const SPEND_KINDS: readonly SpendKind[] = ["flask", "item", "rune", "key", "reroll", "contract", "bet", "donation", "toll", "rule"];
+export const SPEND_KINDS: readonly SpendKind[] = ["flask", "item", "rune", "key", "reroll", "skill", "cursedItem", "keystone", "contract", "bet", "donation", "toll", "rule"];
 
 /** 稼ぎの倍率（coinGainMul）を掛けない源。拾い直しは元の額、賭けは張った額の払い戻し */
 const UNSCALED_SOURCES: ReadonlySet<CoinSource> = new Set<CoinSource>(["spill", "bet"]);
@@ -57,6 +57,7 @@ export function createEconomyState(): EconomyState {
     expired: 0,
     bought: {},
     outlaw: false,
+    peddlerSaved: false,
     bet: null,
     betStats: {},
     jackpotChapters: [],
@@ -102,7 +103,7 @@ export function gainCoins(state: GameState, amount: number, source: CoinSource):
   eco.coins += n;
   if (source !== "spill") eco.earned[source] += n;
   sayAtPlayer(state, `銭 +${n}`, ECONOMY.coin.color);
-  pushSfx(state, "pickup");
+  pushSfx(state, "coinPickup");
   pushEvent(state, { kind: "onCoinPickup", actor: "player", pos: { ...state.player.body.pos }, source: playerSource("coin"), amount: n, tag: source });
   return n;
 }
@@ -306,6 +307,7 @@ function scatterOwnCoins(state: GameState, pos: Vec, dir: Vec, amount: number): 
   const eco = state.economy;
   eco.coins -= amount;
   eco.spilled += amount;
+  pushSfx(state, "coinSpill");
   const s = ECONOMY.spill;
   const pieces = Math.max(1, Math.min(s.pieces, amount));
   const each = Math.floor(amount / pieces);

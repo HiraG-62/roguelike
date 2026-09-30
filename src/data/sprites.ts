@@ -15,6 +15,7 @@ import { W3_BACK_SPRITES } from "./sprites/w3back";
 import { BOSS_SPRITES } from "./sprites/bosses";
 import { PLAYER_SPRITES } from "./sprites/player";
 import { SLASH_SPRITES, WEAPON_SPRITES } from "./sprites/weapons";
+import { ECONOMY_SPRITES } from "./sprites/economy";
 
 export const PALETTE: Record<string, string> = {
   "0": "#000000",
@@ -936,4 +937,5 @@ export const SPRITES: Record<string, SpriteFrames> = {
   ...PLAYER_SPRITES,
   ...WEAPON_SPRITES,
   ...SLASH_SPRITES,
+  ...ECONOMY_SPRITES,
 };

@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "miserPerStep": "守銭: 持ち金 miserEvery につき増える与ダメの量。割合（0.01 = +1%）",
+    "miserEvery": "守銭: 与ダメが 1 段増えるのに要る持ち金。銭",
+    "miserCap": "守銭: 与ダメの増の上限。割合（0.25 = +25%）",
+    "coinGleanerPct": "拾銭: 銭を拾ったときの移動速度の増。%",
+    "coinGleanerTime": "拾銭: 移動速度の増が続く秒。秒",
+    "coinGleanerIcd": "拾銭: 続けて拾っても発動しない間隔（浮き文字が連打にならないように）。秒"
+  },
   "choiceCount": 3,
   "cursedChance": 0.4,
   "inputDelay": 0.35,
@@ -386,5 +394,11 @@
   "iceStepRadius": 14,
   "iceStepTime": 5,
   "counterBlastRatio": 0.7,
-  "counterBlastRadius": 28
+  "counterBlastRadius": 28,
+  "miserPerStep": 0.01,
+  "miserEvery": 20,
+  "miserCap": 0.25,
+  "coinGleanerPct": 20,
+  "coinGleanerTime": 2,
+  "coinGleanerIcd": 0.5
 }

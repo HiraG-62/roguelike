@@ -715,6 +715,53 @@ export const LAYERED_SFX = {
     { k: "tone", type: "sine", freq: 261.6, dur: 0.6, peak: 0.22, at: 0.1 },
     { k: "tone", type: "sine", freq: 261.6 * BELL_PARTIAL, dur: 0.4, peak: 0.09, at: 0.1 },
   ],
+
+  // ---- 銭・瓶・商人・賭け・壺と木箱（docs/ideas/economy-impl.md 4 章 6e）----
+  // 銭を拾う: 連続で鳴るので短く軽く、高い硬貨の「チリン」（非整数倍の部分音）だけ。同フレームの重複は pushSfx が、30ms 未満の連発は SfxPlayer が落とす
+  coinPickup: [
+    { k: "click", freq: 6500, peak: 0.16 },
+    { k: "metal", freq: 2637, ratios: [1, 1.5, 2.76], dur: 0.12, peak: 0.07 },
+    { k: "tone", type: "sine", freq: 3520, dur: 0.08, peak: 0.05, at: 0.03 },
+  ],
+  // 銭がこぼれる: 被弾の衝撃のあとに硬貨が床を跳ねる「ジャラッ」（粒が下がっていく crackle + 低めの金属）
+  coinSpill: [
+    { k: "noise", filter: "bandpass", from: 5500, to: 3000, dur: 0.1, q: 1.5, peak: 0.2 },
+    { k: "crackle", freq: 4200, count: 6, gap: 0.035, peak: 0.16, q: 5, at: 0.02 },
+    { k: "metal", freq: 1900, ratios: CLANG, dur: 0.25, peak: 0.05, at: 0.03 },
+  ],
+  // 瓶を飲む: 喉を鳴らす低い 2 拍の泡（blips の上昇）+ 栓の抜ける小さな破裂（回復の heal は healPlayer が重ねる）
+  flaskDrink: [
+    { k: "click", freq: 1800, peak: 0.18 },
+    { k: "blips", type: "sine", from: 220, to: 420, count: 3, note: 0.05, gap: 0.03, peak: 0.16, at: 0.02 },
+    { k: "noise", filter: "lowpass", from: 900, to: 250, dur: 0.15, peak: 0.16, at: 0.02 },
+  ],
+  // 商人が怒る: 下がる不機嫌な 2 音の唸り + 品物を叩く金属の打撃（低く暗い。可愛くしない）
+  merchantProvoked: [
+    { k: "sweep", type: "sawtooth", from: 320, to: 150, dur: 0.16, peak: 0.12 },
+    { k: "sweep", type: "triangle", from: 260, to: 110, dur: 0.2, peak: 0.16, at: 0.12 },
+    { k: "kick", from: 130, to: 55, drop: 0.06, dur: 0.14, peak: 0.3, drive: 2, at: 0.1 },
+    { k: "metal", freq: 900, ratios: CLANG, dur: 0.2, peak: 0.05, at: 0.1 },
+  ],
+  // 賭けの勝ち: 上がる 4 音 + 硬貨のきらめき。負けより長く明るい
+  betWin: [
+    { k: "arp", type: "triangle", freqs: [659.25, 830.61, 987.77, 1318.5], note: 0.06, gap: 0.012, peak: 0.2 },
+    { k: "metal", freq: 3136, ratios: [1, 1.5, 2.76], dur: 0.4, peak: 0.07, at: 0.2 },
+    { k: "crackle", freq: 5000, count: 4, gap: 0.04, peak: 0.12, q: 5, at: 0.22 },
+  ],
+  // 賭けの負け: 下がる短 2 音 + こもった低い落ち（statusFear の下降より遅く、暗くて軽い）
+  betLose: [
+    { k: "arp", type: "triangle", freqs: [392, 329.63, 261.63], note: 0.09, gap: 0.02, peak: 0.2 },
+    { k: "tone", type: "sine", freq: 98, dur: 0.3, peak: 0.28, at: 0.1 },
+    { k: "noise", filter: "lowpass", from: 700, to: 120, dur: 0.2, peak: 0.16, at: 0.1 },
+  ],
+  // 壺・木箱が割れる: 乾いた陶器の破裂（高めの click + 帯域ノイズ）+ 破片が散る粒 + 短い低い胴鳴り。壁への当たり（wallHit）より高く散らばる
+  containerBreak: [
+    { k: "click", freq: 3200, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 3500, to: 900, dur: 0.09, q: 1, peak: 0.42, drive: 2 },
+    { k: "kick", from: 170, to: 70, drop: 0.04, dur: 0.09, peak: 0.28 },
+    { k: "crackle", freq: 3800, count: 5, gap: 0.03, peak: 0.16, q: 4, at: 0.03 },
+    { k: "noise", filter: "lowpass", from: 700, to: 150, dur: 0.12, peak: 0.15, at: 0.02 },
+  ],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 
 export type LayeredSfxName = keyof typeof LAYERED_SFX;

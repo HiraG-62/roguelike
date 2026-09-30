@@ -691,7 +691,7 @@ export interface Pickup {
 /** 銭の源（QA と「稼ぐ」型の集計。表示には出さない）。spill = こぼれた銭の拾い直し（稼ぎに数えない） */
 export type CoinSource = "kill" | "jin" | "room" | "floor" | "event" | "contract" | "container" | "bet" | "sell" | "rule" | "spill";
 /** 銭の使い道（集計用） */
-export type SpendKind = "flask" | "item" | "rune" | "key" | "reroll" | "contract" | "bet" | "donation" | "toll" | "rule";
+export type SpendKind = "flask" | "item" | "rune" | "key" | "reroll" | "skill" | "cursedItem" | "keystone" | "contract" | "bet" | "donation" | "toll" | "rule";
 
 /** ラン内の通貨（src/system/economy.ts）。死ぬと state ごと消える */
 export interface EconomyState {
@@ -711,6 +711,8 @@ export interface EconomyState {
   bought: Partial<Record<WareKind, number>>;
   /** 怒らせた商人を倒した（以後このランの値段 ×ECONOMY.market.outlawPriceMul） */
   outlaw: boolean;
+  /** 旅商人（peddler）の近くで敵を倒して助けた（以後このランの値段 ×(1 − ECONOMY.market.peddlerDiscount)） */
+  peddlerSaved: boolean;
   /** 張っている賭け（1 つだけ。system/bets.ts） */
   bet: ActiveBet | null;
   /** 賭けの型ごとの記録（QA の集計。表示には出さない） */
@@ -723,8 +725,11 @@ export interface EconomyState {
   donated: number;
 }
 
-/** 商人の種類（system/merchants.ts）。market = 毎階の前室の市 / chapterMarket = 章ボス階の前室の章の市 */
-export type MerchantKind = "market" | "chapterMarket";
+/**
+ * 商人の種類（system/merchants.ts）。market = 毎階の前室の市 / chapterMarket = 章ボス階の前室の章の市 /
+ * peddler = 階を歩く旅商人 / blackMarket = 隠し部屋の闇市
+ */
+export type MerchantKind = "market" | "chapterMarket" | "peddler" | "blackMarket";
 
 /**
  * 賭けの型（system/bets.ts）。運: chohan 丁半 / longshot 大穴 / allIn 一か八か / doubleUp 倍々勝負。
@@ -767,13 +772,16 @@ export interface BetRecord {
   /** 腕の型の難しさごとの決着の数と勝ち */
   tiers: Partial<Record<BetTier, { settled: number; won: number }>>;
 }
-/** 品の種類。reroll = 仕入れ直し（売れた品を並べ直し、値段を引き直す） */
-export type WareKind = "flask" | "item" | "rune" | "key" | "reroll";
+/**
+ * 品の種類。reroll = 仕入れ直し（売れた品を並べ直し、値段を引き直す）。
+ * 闇市だけの品: skill = 未所持のスキル石 / cursedItem = 反転の遺物（反転した性質を必ず持つ）/ keystone = 誓約 1 つ
+ */
+export type WareKind = "flask" | "item" | "rune" | "key" | "reroll" | "skill" | "cursedItem" | "keystone";
 
 /** 商人の台座の品（触れて買う。contractors.ts の ContractOffer と同じ作法） */
 export interface Ware {
   kind: WareKind;
-  /** 品の細目（今は使わない。闇市のスキル石・誓約の key 用の席） */
+  /** 品の細目（闇市のスキル石は SkillKey、誓約は keystone の key。それ以外は空） */
   key: string;
   /** 今の値段（base に買った回数・無法者の倍率を掛けたもの。変わるたびに merchants.ts が書き直す） */
   price: number;
@@ -798,6 +806,14 @@ export interface Merchant {
   provoked: boolean;
   /** 仕入れ直しをした回数（その値段が rerollStep ずつ上がる） */
   rerolls: number;
+  /** false = 旅商人がまだ店を広げていない（台座を出さず、売らない）。省略 = 広げている（市・章の市・闇市） */
+  open?: boolean;
+  /** 旅商人の歩く先（spawner.ts の pickRoamTarget で選ぶ）。省略 = 歩かない */
+  roam?: Vec;
+  /** 旅商人が進めずにいる秒（ROAM.stuckTime で歩く先を選び直す） */
+  roamStuck?: number;
+  /** 旅商人が襲われて助けを求めた（一言を 1 回だけ出す） */
+  alarmed?: boolean;
 }
 
 /** 部屋の種類（src/system/roomTypes.ts）。ボス部屋は normal のまま boss.ts が管理する */

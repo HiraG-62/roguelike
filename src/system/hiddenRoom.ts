@@ -8,6 +8,7 @@ import { isBossDepth } from "./boss";
 import { pickFloorKinds } from "./biomes";
 import { spawnBurst, spawnDirectional } from "./effects";
 import { dropItem } from "./loot";
+import { placeBlackMarket } from "./merchants";
 import { overlapsTiles } from "./physics";
 
 /**
@@ -119,6 +120,8 @@ function openHiddenRoom(state: GameState, hr: HiddenRoom): void {
   state.stairs.push({ tile: hr.stairsTile, nextKind: hr.nextKind });
   const treasurePos = tileCenterPx(state.map, hr.stairsTile);
   for (let i = 0; i < HIDDEN_ROOM.items; i++) dropItem(state, treasurePos, HIDDEN_ROOM.rarityBoost);
+  // 闇市はお宝の後（開ける前の乱数消費を変えない。system/merchants.ts）
+  placeBlackMarket(state, hr);
   spawnBurst(state, tileCenterPx(state.map, hr.doorTile), HIDDEN_ROOM.color, 16, 60, 0.5, 2);
   pushSfx(state, "hiddenOpen");
   pushLog(state, "隠し部屋が開いた。", HIDDEN_ROOM.color);

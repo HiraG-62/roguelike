@@ -69,7 +69,9 @@ describe("市を立てる", () => {
   it("毎階 1 人の商人が前室（最後の部屋に近い通常の部屋、取れなければ開始部屋）に立ち、部屋にも陣にも属さない", () => {
     for (let seed = 0; seed < SEEDS; seed++) {
       const state = game(seed);
-      expect(state.economy.merchants, `seed=${seed}`).toHaveLength(1);
+      // 旅商人（peddler.chance）は市の後ろに並ぶ。前室の市は毎階ちょうど 1 人
+      const stalls = state.economy.merchants.filter((x) => x.kind !== "peddler");
+      expect(stalls, `seed=${seed}`).toHaveLength(1);
       const m = merchantIn(state);
       const body = bodyOf(state, m);
       expect(body.defKey, "体は商人").toBe(MERCHANT_KEY);
@@ -252,7 +254,7 @@ describe("商人を襲う", () => {
     body.hp = 0;
     // 殴った手応えのヒットストップが明けるまで進める
     for (let i = 0; i < HITSTOP_STEPS; i++) step(state, withInput({}), FIXED_DT);
-    expect(state.economy.merchants, "商人は去る").toHaveLength(0);
+    expect(state.economy.merchants, "商人は去る").not.toContain(m);
     expect(state.economy.outlaw, "無法者").toBe(true);
     expect(state.floorItems.length, "遺物").toBe(items + 1);
     expect(state.skills.runes.length, "刻印符").toBe(runes + 1);
@@ -271,7 +273,7 @@ describe("商人を襲う", () => {
     bodyOf(state, m).hp = 0;
     const pickups = state.pickups.length;
     step(state, withInput({}), FIXED_DT);
-    expect(state.economy.merchants).toHaveLength(0);
+    expect(state.economy.merchants).not.toContain(m);
     expect(state.economy.outlaw).toBe(false);
     expect(state.pickups.length).toBe(pickups);
   });

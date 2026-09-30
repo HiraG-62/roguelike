@@ -337,10 +337,10 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   // ---- 鏡の部屋の写し（src/system/specialRooms.ts が HP・エリート修飾子をプレイヤーの今のビルドから決める）----
   { key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } }, behavior: "charger", color: "#c0e0ff", noCorpse: true, ...N.mirrorSelf },
   // ---- 商人（src/system/merchants.ts が毎階の前室に立たせる。抽選には出ない）----
-  { key: "merchant", name: "商人", sprite: "merchant", recolor: { base: "hooded", swap: { "9": "o", A: "O", c: "y" } }, behavior: "merchant", color: "#e0b050", noCorpse: true, merchant: true, ...N.merchant },
-  // ---- 壺・木箱（src/system/containers.ts が塊の隅と通路の行き止まりに置く。抽選には出ない。絵は氷柱の再配色の仮）----
-  { key: "pot", name: "壺", sprite: "pot", recolor: { base: "icePillar", swap: { "1": "o", "2": "o", "3": "O", "4": "O" } }, behavior: "container", color: "#c07840", noCorpse: true, container: "pot", ...N.pot },
-  { key: "crate", name: "木箱", sprite: "crate", recolor: { base: "icePillar", swap: { "1": "T", "2": "T", "3": "X", "4": "X" } }, behavior: "container", color: "#a07050", noCorpse: true, container: "crate", ...N.crate },
+  { key: "merchant", name: "商人", sprite: "merchant", behavior: "merchant", color: "#e0b050", noCorpse: true, merchant: true, ...N.merchant },
+  // ---- 壺・木箱（src/system/containers.ts が塊の隅と通路の行き止まりに置く。抽選には出ない。絵は sprites/economy.ts）----
+  { key: "pot", name: "壺", sprite: "pot", behavior: "container", color: "#c07840", noCorpse: true, container: "pot", ...N.pot },
+  { key: "crate", name: "木箱", sprite: "crate", behavior: "container", color: "#a07050", noCorpse: true, container: "crate", ...N.crate },
 ];
 
 export const ENEMIES: readonly EnemyDef[] = [

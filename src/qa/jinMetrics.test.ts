@@ -13,8 +13,11 @@ describe("陣の配りの計測", () => {
     // 市の商人（def.merchant）と壺・木箱（def.container）は戦う相手に数えない
     const isFixture = (key: string): boolean => enemyDef(key).merchant === true || enemyDef(key).container !== undefined;
     const combatants = state.enemies.filter((e) => !isFixture(e.defKey));
-    expect(state.enemies.filter((e) => enemyDef(e.defKey).merchant === true), "商人が 1 人立つ").toHaveLength(1);
-    expect(combatants.length, "壺・木箱と商人は数えない").toBeLessThan(state.enemies.length - 1);
+    // 前室の市は毎階 1 人、旅商人は peddler.chance で 0〜1 人（体はどちらも商人）
+    const merchants = state.enemies.filter((e) => enemyDef(e.defKey).merchant === true).length;
+    expect(merchants, "体の数 = 商人の数").toBe(state.economy.merchants.length);
+    expect(merchants, "商人が 1〜2 人立つ").toBeGreaterThanOrEqual(1);
+    expect(combatants.length, "壺・木箱と商人は数えない").toBeLessThan(state.enemies.length - merchants);
     expect(t.enemiesByBand["1-5"], "深度 1 は 1-5 の帯").toEqual([combatants.length]);
     const roomJins = state.jins.filter((j) => j.roomIndex !== ROAMING_ROOM);
     expect(t.roomJins).toEqual([roomJins.length]);

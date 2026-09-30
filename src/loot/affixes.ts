@@ -3,7 +3,9 @@ import { type DamageTag, withMore } from "../core/damage";
 import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import { formatMeters } from "../core/units";
-import { HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
+import { ECONOMY, HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
+import type { EventSource } from "../core/events";
+import { type Modifier, ruleId } from "../core/rules";
 import { decodeTriggerRoll, formatTrigger, isTriggerKey } from "./triggers";
 import {
   ATTR_KEYS,
@@ -398,6 +400,12 @@ function defenseElementTraits(): AffixDef[] {
       },
     },
   ];
+}
+
+/** 性質「懐」の常時の増（core/rules.ts の Modifier）。持ち金が閾値以上の間だけ、与ダメ全部に掛かる */
+function purseModifier(amount: number): Modifier {
+  const owner: EventSource = { kind: "item", key: "purse" };
+  return { id: ruleId(owner, 0), kind: "increased", tag: "all", amount, if: [{ kind: "coinsAtLeast", amount: ECONOMY.build.pocketCoins }], owner, label: "懐" };
 }
 
 export const AFFIXES: readonly AffixDef[] = [
@@ -2706,6 +2714,17 @@ export const AFFIXES: readonly AffixDef[] = [
     apply: (s, v, v2) => {
       s.traits.dashIceTrail = Math.max(s.traits.dashIceTrail, v);
       s.traits.slickDamageMul += pct(v2);
+    },
+  }),
+  // ---- 通貨（持つ型の見本。docs/ideas/economy-impl.md 2-10）----
+  trait({
+    key: "purse",
+    label: `懐: 持ち金が ${ECONOMY.build.pocketCoins} 以上の間、与ダメージ +{v}%`,
+    tags: ["damage"],
+    slots: OFFENSE_SLOTS,
+    curve: curveFor("purse"),
+    apply: (s, v) => {
+      s.modifiers = [...s.modifiers, purseModifier(pct(v))];
     },
   }),
   ...defenseElementTraits(),

@@ -1,9 +1,11 @@
 import type { Pickup } from "../core/state";
+import { COIN_SPRITE_KEYS } from "../data/sprites/economy";
 import { ECONOMY } from "../data/tuning";
+import { type SpriteAtlas, drawFrame, spriteFrame } from "./sprites";
 
 /**
  * 床に落ちている銭・鍵・瓶の描画（docs/ideas/economy-impl.md 2-2）。state を読むだけで、乱数は使わない。
- * 絵（スプライト）が来るまでは、銭は金色の小さな菱形、鍵は輪と軸、瓶は小さな壺で描く。
+ * 絵は data/sprites/economy.ts（銭は額で 3 段・鍵・瓶）。アトラスが無い・絵が無いときは、銭は金色の小さな菱形、鍵は輪と軸、瓶は小さな壺で描く。
  * 心臓（heart）は従来どおり renderer.ts がスプライトで描く。
  */
 
@@ -33,6 +35,10 @@ const FLASK_W = 5;
 const FLASK_H = 6;
 const FLASK_NECK_W = 3;
 const FLASK_NECK_H = 2;
+/** 床の拾い物の絵の 1 フレームの秒数（銭が回る・照りが動く速さ） */
+const PICKUP_FRAME_TIME = 0.14;
+const KEY_SPRITE = "pickup.key";
+const FLASK_SPRITE = "pickup.flask";
 
 /** 額から大きさの段を決める */
 export function coinTier(value: number): CoinTier {
@@ -55,12 +61,27 @@ export function isBlinkHidden(life: number | undefined, blinkSec: number): boole
   return Math.floor(Math.max(0, life) / BLINK_HALF_SEC) % 2 === 1;
 }
 
-/** 床の銭・鍵・瓶を 1 つ描く（heart は呼び出し側が描く） */
-export function drawFieldPickup(ctx: CanvasRenderingContext2D, pk: Pickup): void {
+/** 床の拾い物の絵のキー（銭は額の段で変える）。絵を持たない種類は null */
+export function fieldPickupSpriteKey(pk: Pick<Pickup, "kind" | "value">): string | null {
+  switch (pk.kind) {
+    case "coin":
+      return COIN_SPRITE_KEYS[coinTier(pk.value ?? 1)];
+    case "key":
+      return KEY_SPRITE;
+    case "flask":
+      return FLASK_SPRITE;
+    default:
+      return null;
+  }
+}
+
+/** 床の銭・鍵・瓶を 1 つ描く（heart は呼び出し側が描く）。atlas に絵があれば絵で、無ければ図形で */
+export function drawFieldPickup(ctx: CanvasRenderingContext2D, pk: Pickup, atlas?: SpriteAtlas): void {
   if (isBlinkHidden(pk.life, ECONOMY.coin.blinkSec)) return;
   const x = Math.round(pk.pos.x);
   const bob = Math.round(Math.sin(pk.bobTime * BOB_SPEED) * BOB_AMOUNT);
   const y = Math.round(pk.pos.y) + bob;
+  if (drawPickupSprite(ctx, pk, atlas, x, y)) return;
   switch (pk.kind) {
     case "coin":
       drawCoin(ctx, x, y, pk.value ?? 1, Math.round(pk.pos.y));
@@ -74,6 +95,18 @@ export function drawFieldPickup(ctx: CanvasRenderingContext2D, pk: Pickup): void
     default:
       return;
   }
+}
+
+/** 絵で描く。中心を (x, y) に置き、影は揺れない足元に。絵が無ければ false */
+function drawPickupSprite(ctx: CanvasRenderingContext2D, pk: Pickup, atlas: SpriteAtlas | undefined, x: number, y: number): boolean {
+  const key = fieldPickupSpriteKey(pk);
+  const sprite = key ? atlas?.[key] : undefined;
+  if (!sprite) return false;
+  const img = sprite.frames[spriteFrame(sprite, pk.bobTime, PICKUP_FRAME_TIME)];
+  if (!img) return false;
+  drawGroundShadow(ctx, x, Math.round(pk.pos.y), sprite.h / 2);
+  drawFrame(ctx, sprite, img, x - sprite.w / 2, y - sprite.h / 2);
+  return true;
 }
 
 function drawGroundShadow(ctx: CanvasRenderingContext2D, x: number, groundY: number, half: number): void {

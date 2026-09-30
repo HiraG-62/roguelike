@@ -501,7 +501,7 @@ export function updateRooms(state: GameState, dt: number): void {
   updateShrines(state);
   updateSpecialRooms(state, dt);
   updateContractors(state, dt);
-  updateMerchants(state);
+  updateMerchants(state, dt);
   ensureForkStairs(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);

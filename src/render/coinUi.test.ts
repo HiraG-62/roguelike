@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Pickup } from "../core/state";
 import { ECONOMY } from "../data/tuning";
-import { coinHalfSize, coinTier, drawFieldPickup, isBlinkHidden } from "./coinUi";
+import { SPRITES } from "../data/sprites";
+import { COIN_SPRITE_KEYS } from "../data/sprites/economy";
+import { coinHalfSize, coinTier, drawFieldPickup, fieldPickupSpriteKey, isBlinkHidden } from "./coinUi";
+import type { Sprite, SpriteAtlas } from "./sprites";
 
 /** 描画命令の呼び出し回数だけ数える ctx（Canvas を使わずに「描いたか」を見る） */
 function countingCtx(): { ctx: CanvasRenderingContext2D; fills: () => number } {
@@ -83,5 +86,39 @@ describe("床の銭・鍵・瓶の描画", () => {
     const { ctx, fills } = countingCtx();
     drawFieldPickup(ctx, coin({ kind: "heart" }));
     expect(fills()).toBe(0);
+  });
+});
+
+describe("床の拾い物の絵", () => {
+  it("銭は額の段ごとに別の絵、鍵・瓶はそれぞれの絵を引き、心臓は絵を持たない", () => {
+    const keys = [1, 3, 8].map((value) => fieldPickupSpriteKey({ kind: "coin", value }));
+    expect(keys).toEqual([...COIN_SPRITE_KEYS]);
+    expect(fieldPickupSpriteKey({ kind: "key" })).toBe("pickup.key");
+    expect(fieldPickupSpriteKey({ kind: "flask" })).toBe("pickup.flask");
+    expect(fieldPickupSpriteKey({ kind: "heart" })).toBeNull();
+  });
+
+  it("引く絵はすべて SPRITES にある", () => {
+    for (const kind of ["coin", "key", "flask"] as const) {
+      for (const value of [1, 3, 8]) {
+        const key = fieldPickupSpriteKey({ kind, value });
+        expect(key && SPRITES[key], `${kind} ${value}`).toBeTruthy();
+      }
+    }
+  });
+
+  it("アトラスに絵があれば図形を塗らずに絵を置く", () => {
+    let images = 0;
+    const { ctx, fills } = countingCtx();
+    (ctx as unknown as Record<string, unknown>).drawImage = () => {
+      images++;
+    };
+    const img = {} as HTMLCanvasElement;
+    const sprite: Sprite = { frames: [img, img], white: [], w: 8, h: 8, dots: 2 };
+    const atlas: SpriteAtlas = { "pickup.coin.small": sprite, "pickup.coin.mid": sprite, "pickup.coin.big": sprite, "pickup.key": sprite, "pickup.flask": sprite };
+    drawFieldPickup(ctx, coin({ kind: "key" }), atlas);
+    expect(images, "絵を 1 枚置く").toBe(1);
+    // 影の楕円は塗る（fill 1 回）が、菱形・矩形の図形は描かない
+    expect(fills()).toBe(1);
   });
 });

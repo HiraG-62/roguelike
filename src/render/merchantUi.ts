@@ -1,7 +1,7 @@
 import type { GameState, Merchant } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ECONOMY, ROOM_KIND } from "../data/tuning";
-import { MERCHANT_LABEL, wareLabel } from "../system/merchants";
+import { MERCHANT_LABEL, merchantOpen, wareLabel } from "../system/merchants";
 import { TEXT, drawTextShadow } from "./pixelText";
 import { pulse } from "./renderMath";
 
@@ -64,8 +64,8 @@ function drawMerchant(ctx: CanvasRenderingContext2D, state: GameState, m: Mercha
   const color = ECONOMY.market.color;
   const near = Math.hypot(p.x - m.pos.x, p.y - m.pos.y) <= ECONOMY.market.greetRange * 2;
   if (near) drawTextShadow(ctx, MERCHANT_LABEL[m.kind], m.pos.x, m.pos.y - NAME_LIFT, TEXT.SMALL, color, COLOR_SHADOW, "center");
-  // 怒った商人は売らないので台座を出さない
-  if (m.provoked) return;
+  // 怒った商人は売らないので台座を出さない。旅商人は店を広げるまで出さない
+  if (m.provoked || !merchantOpen(m)) return;
   drawStallSpots(ctx, state, m.wares, color);
   // 台座どうしが近く名前が重なるので、いちばん近い台座の名前だけを出す
   const ware = nearestStallSpot(state, m.wares);

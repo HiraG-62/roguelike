@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VIEW_W } from "../core/view";
 import { arena } from "../system/testHelpers";
+import type { SpriteAtlas } from "./sprites";
 import { FLASK_CELLS_MAX, FLASK_CELL_GAP, FLASK_CELL_H, FLASK_CELL_W, drawFlaskHud, flaskCellCount, flaskCellFilled, flaskHudLayout } from "./flaskHud";
 import { rectsOverlap } from "./renderMath";
 
@@ -84,6 +85,29 @@ describe("瓶の HUD の描画", () => {
     const inner = fills.filter((_, i) => i % 2 === 1).map((f) => f.color);
     expect(new Set(inner).size, "満ちた枡と空の枡で色が違う").toBe(2);
     expect(inner[0], "左が満ちる").not.toBe(inner[1]);
+  });
+
+  it("アトラスに hud.flask があれば枡を絵で描き、満 / 飲んだ直後 / 空でフレームを変える", () => {
+    const state = arena(5);
+    state.player.flasks = 1;
+    const full = { id: "full" } as unknown as HTMLCanvasElement;
+    const wait = { id: "wait" } as unknown as HTMLCanvasElement;
+    const empty = { id: "empty" } as unknown as HTMLCanvasElement;
+    const atlas: SpriteAtlas = { "hud.flask": { frames: [full, wait, empty], white: [], w: FLASK_CELL_W, h: FLASK_CELL_H, dots: 2 } };
+    const drawn = (): HTMLCanvasElement[] => {
+      const imgs: HTMLCanvasElement[] = [];
+      const { ctx } = recorder();
+      (ctx as unknown as Record<string, unknown>).drawImage = (img: HTMLCanvasElement) => imgs.push(img);
+      drawFlaskHud(ctx, state, BAR_RIGHT, PIP_ROW_Y, atlas);
+      return imgs;
+    };
+    const ready = drawn();
+    expect(state.stats.flaskMax, "枡が 2 つ以上ある前提").toBeGreaterThanOrEqual(2);
+    expect(ready.length, "枡の数だけ絵").toBe(state.stats.flaskMax);
+    expect(ready[0], "持っている枡は満の絵").toBe(full);
+    expect(ready[1], "持っていない枡は空の絵").toBe(empty);
+    state.player.flaskReadyAt = state.time + 1;
+    expect(drawn()[0], "再使用待ちは飲んだ直後の絵").toBe(wait);
   });
 
   it("拠点（sandbox）では描かない", () => {

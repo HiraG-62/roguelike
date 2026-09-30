@@ -1,6 +1,6 @@
 import { pushEvent, playerSource } from "../core/events";
 import type { FrameInput } from "../core/input";
-import type { GameState } from "../core/state";
+import { type GameState, pushSfx } from "../core/state";
 import { ECONOMY } from "../data/tuning";
 import { addFloatingText } from "./effects";
 import { healPlayer } from "./combat";
@@ -48,6 +48,7 @@ export function tryDrink(state: GameState, input: FrameInput): boolean {
   const p = state.player;
   p.flasks -= 1;
   p.flaskReadyAt = state.time + ECONOMY.flask.cooldown;
+  pushSfx(state, "flaskDrink");
   const healed = healPlayer(state, p.maxHp * ECONOMY.flask.healRatio);
   addFloatingText(state, { x: p.body.pos.x, y: p.body.pos.y - TEXT_LIFT }, "瓶", ECONOMY.flask.color, TEXT_SCALE, ECONOMY.flask.textLife);
   pushEvent(state, { kind: "onFlask", actor: "player", pos: { ...p.body.pos }, source: playerSource("flask"), amount: healed });

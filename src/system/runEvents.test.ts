@@ -40,21 +40,36 @@ const WARN_STEPS = Math.ceil(RUN_EVENT.warnTime / FIXED_DT) + 2;
 /** 落雷などの単発ダメージで死なない生命（テストの敵が抽選で蝙蝠になっても耐える） */
 const STURDY_HP = 10_000;
 
-function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; index: number } {
-  const state = createGame(seed);
-  state.depth = depth;
-  buildFloor(state, "rooms");
-  quiet(state);
-  // 陣が乗った塊だけに敵がいる（陣の抽選で敵のいない塊もある）ので、敵のいる塊を選ぶ
-  const index = state.rooms.findIndex(
+/** 敵のいる塊が見つかるまで進める seed の数（階の抽選しだいで、その seed の階に敵のいる塊が無いこともある） */
+const SEED_TRIES = 20;
+
+/** 陣が乗った塊だけに敵がいる（陣の抽選で敵のいない塊もある）ので、敵のいる塊を選ぶ。無ければ -1 */
+function enemyRoomIndex(state: GameState): number {
+  return state.rooms.findIndex(
     (r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0 && state.enemies.some((e) => e.roomIndex === i),
   );
-  const room = state.rooms[index];
-  if (!room) throw new Error("room missing");
-  // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
-  room.kind = "ambush";
-  state.player.invulnTimer = 1e9;
-  return { state, room, index };
+}
+
+/** seed から順に、敵のいる塊がある階を作る（make は seed から GameState を作る） */
+function floorWithEnemyRoom(seed: number, depth: number, make: (s: number) => GameState): { state: GameState; room: RoomState; index: number } {
+  for (let s = seed; s < seed + SEED_TRIES; s++) {
+    const state = make(s);
+    state.depth = depth;
+    buildFloor(state, "rooms");
+    quiet(state);
+    const index = enemyRoomIndex(state);
+    const room = state.rooms[index];
+    if (!room) continue;
+    // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
+    room.kind = "ambush";
+    state.player.invulnTimer = 1e9;
+    return { state, room, index };
+  }
+  throw new Error("room missing");
+}
+
+function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; index: number } {
+  return floorWithEnemyRoom(seed, depth, (s) => createGame(s));
 }
 
 function quiet(state: GameState): void {
@@ -397,17 +412,7 @@ describe("縛りの効果", () => {
   });
 
   it("部屋の砂時計: 封鎖が長引くと増援が来る", () => {
-    const state = createGame(7, "7", undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] });
-    state.depth = DEPTH;
-    buildFloor(state, "rooms");
-    quiet(state);
-    const index = state.rooms.findIndex(
-      (r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0 && state.enemies.some((e) => e.roomIndex === i),
-    );
-    const room = state.rooms[index];
-    if (!room) throw new Error("room missing");
-    room.kind = "ambush";
-    state.player.invulnTimer = 1e9;
+    const { state, room, index } = floorWithEnemyRoom(7, DEPTH, (s) => createGame(s, String(s), undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] }));
     lock(state, room);
     thin(state, index, 2);
     expect(hourglassLeft(state)).not.toBeNull();

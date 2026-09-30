@@ -769,6 +769,7 @@ import j_loot_affixCurves_cv_infuseDark from "./loot/affixCurves/cv_infuseDark.j
 import j_loot_affixCurves_cv_infuseLight from "./loot/affixCurves/cv_infuseLight.json";
 import j_loot_affixCurves_cv_infuseNone from "./loot/affixCurves/cv_infuseNone.json";
 import j_loot_affixCurves_attr_def from "./loot/affixCurves/attr_def.json";
+import j_loot_affixCurves_purse from "./loot/affixCurves/purse.json";
 import j_loot_bases from "./loot/bases.json";
 import j_loot_INNATE__index from "./loot/INNATE/_index.json";
 import j_loot_INNATE_budget from "./loot/INNATE/budget.json";
@@ -1043,6 +1044,7 @@ import j_world_ECONOMY_market from "./world/ECONOMY/market.json";
 import j_world_ECONOMY_price from "./world/ECONOMY/price.json";
 import j_world_ECONOMY_donation from "./world/ECONOMY/donation.json";
 import j_world_ECONOMY_bet from "./world/ECONOMY/bet.json";
+import j_world_ECONOMY_build from "./world/ECONOMY/build.json";
 import j_world_ARC from "./world/ARC.json";
 
 export const boons = {
@@ -1902,6 +1904,7 @@ export const loot = {
     "cv_infuseLight": j_loot_affixCurves_cv_infuseLight,
     "cv_infuseNone": j_loot_affixCurves_cv_infuseNone,
     "attr_def": j_loot_affixCurves_attr_def,
+    "purse": j_loot_affixCurves_purse,
   },
   "bases": j_loot_bases,
   "INNATE": {
@@ -2372,6 +2375,7 @@ export const world = {
     "price": j_world_ECONOMY_price,
     "donation": j_world_ECONOMY_donation,
     "bet": j_world_ECONOMY_bet,
+    "build": j_world_ECONOMY_build,
   },
   "ARC": j_world_ARC,
 };
@@ -3093,6 +3097,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/procWeaken.json",
   "loot/affixCurves/projectileSpeed.json",
   "loot/affixCurves/projectiles.json",
+  "loot/affixCurves/purse.json",
   "loot/affixCurves/rangedDamageFlat.json",
   "loot/affixCurves/rangedDamagePct.json",
   "loot/affixCurves/rapidBrand.json",
@@ -3384,6 +3389,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/DISCOVERY.json",
   "world/ECONOMY/_index.json",
   "world/ECONOMY/bet.json",
+  "world/ECONOMY/build.json",
   "world/ECONOMY/coin.json",
   "world/ECONOMY/container.json",
   "world/ECONOMY/donation.json",

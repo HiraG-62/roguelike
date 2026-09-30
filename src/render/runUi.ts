@@ -130,9 +130,11 @@ export function propSpriteKey(prop: Pick<RoomProp, "kind">): string {
 
 /** 素材があれば足元を台座のタイルの下端に揃えて描く。無ければ false（呼び出し側が菱形で描く） */
 function drawPropSprite(ctx: CanvasRenderingContext2D, prop: RoomProp, atlas: SpriteAtlas | undefined): boolean {
-  const img = atlas?.[propSpriteKey(prop)]?.frames[0];
-  if (!img) return false;
-  ctx.drawImage(img, Math.round(prop.pos.x - img.width / 2), Math.round(prop.pos.y + TILE_SIZE / 2 - img.height));
+  const sprite = atlas?.[propSpriteKey(prop)];
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
+  // 論理寸法で置く（密度 2 の絵も PNG の素材と同じ大きさで並ぶ）
+  ctx.drawImage(img, Math.round(prop.pos.x - sprite.w / 2), Math.round(prop.pos.y + TILE_SIZE / 2 - sprite.h), sprite.w, sprite.h);
   return true;
 }
 

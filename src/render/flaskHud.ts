@@ -2,11 +2,12 @@ import type { GameState } from "../core/state";
 import { ECONOMY } from "../data/tuning";
 import { flaskCapacity } from "../system/flask";
 import type { HudRect } from "./renderMath";
+import { type SpriteAtlas, drawFrame } from "./sprites";
 
 /**
  * 瓶の HUD（docs/ideas/economy-impl.md 2-3）。気力バーの下、ダッシュのチャージと同じ行の右端に、
  * 上限の数だけ小さな瓶の枡を並べる（持っている本数ぶんは色付き、空は輪郭だけ）。
- * 絵が来るまでは矩形。state を読むだけで、乱数は使わない
+ * 絵は data/sprites/economy.ts の hud.flask（満 / 飲んだ直後 / 空）。アトラスが無いときは矩形。state を読むだけで、乱数は使わない
  */
 
 export const FLASK_CELL_W = 5;
@@ -18,6 +19,9 @@ export const FLASK_CELLS_MAX = 8;
 const COLOR_FLASK_WAIT = "#805060";
 const COLOR_FLASK_EDGE = "#a06070";
 const COLOR_FLASK_EMPTY_BG = "#281018";
+const FLASK_HUD_SPRITE = "hud.flask";
+/** hud.flask のフレーム（満 / 飲んだ直後 / 空） */
+const FLASK_FRAME = { full: 0, wait: 1, empty: 2 } as const;
 
 export interface FlaskHudLayout {
   /** 左から順の枡（外枠。中身は 1px 内側） */
@@ -45,15 +49,21 @@ export function flaskCellFilled(owned: number, index: number): boolean {
   return index < owned;
 }
 
-export function drawFlaskHud(ctx: CanvasRenderingContext2D, state: GameState, right: number, y: number): void {
+export function drawFlaskHud(ctx: CanvasRenderingContext2D, state: GameState, right: number, y: number, atlas?: SpriteAtlas): void {
   if (state.sandbox === true) return;
   const layout = flaskHudLayout(right, y, flaskCapacity(state));
   const waiting = state.time < state.player.flaskReadyAt;
+  const sprite = atlas?.[FLASK_HUD_SPRITE];
   layout.cells.forEach((cell, i) => {
+    const filled = flaskCellFilled(state.player.flasks, i);
+    const img = sprite?.frames[filled ? (waiting ? FLASK_FRAME.wait : FLASK_FRAME.full) : FLASK_FRAME.empty];
+    if (sprite && img) {
+      drawFrame(ctx, sprite, img, cell.x, cell.y, cell.w, cell.h);
+      return;
+    }
     ctx.fillStyle = COLOR_FLASK_EDGE;
     ctx.fillRect(cell.x, cell.y, cell.w, cell.h);
     const inner = { x: cell.x + 1, y: cell.y + 1, w: cell.w - 2, h: cell.h - 2 };
-    const filled = flaskCellFilled(state.player.flasks, i);
     ctx.fillStyle = filled ? (waiting ? COLOR_FLASK_WAIT : ECONOMY.flask.color) : COLOR_FLASK_EMPTY_BG;
     ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
   });

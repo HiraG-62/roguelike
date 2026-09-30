@@ -1,4 +1,4 @@
-import type { Enemy, GameState, Merchant } from "../core/state";
+import { type Enemy, type GameState, type Merchant, pushSfx } from "../core/state";
 import { add, scale } from "../core/vec";
 import { depthDamage } from "../data/enemies";
 import { ECONOMY } from "../data/tuning";
@@ -34,6 +34,7 @@ export function provokeMerchant(state: GameState, e: Enemy): void {
   const m = merchantOf(state, e);
   if (!m || m.provoked) return;
   m.provoked = true;
+  pushSfx(state, "merchantProvoked");
   if (e.phase === "idle") e.phase = "chase";
   addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, PROVOKED_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE);
 }

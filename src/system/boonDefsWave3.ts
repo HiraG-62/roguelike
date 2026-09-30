@@ -7,7 +7,7 @@
 
 import type { EventKind, EventSource } from "../core/events";
 import { kw } from "../core/keywords";
-import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { StatusKind } from "../core/status";
 import { formatMeters } from "../core/units";
 import { BOON, STATUS } from "../data/tuning";
@@ -34,6 +34,9 @@ export const BOON_KEYS_WAVE3 = [
   "shadowStitch",
   "iceStep",
   "counterBlast",
+  // ---- 通貨（持つ型・稼ぐ型の見本。docs/ideas/economy-impl.md 2-10）----
+  "miser",
+  "coinGleaner",
 ] as const;
 
 export type BoonKeyWave3 = (typeof BOON_KEYS_WAVE3)[number];
@@ -68,6 +71,12 @@ function rulesOf(key: BoonKeyWave3, specs: readonly RuleSpec[]): Rule[] {
     scope: SCOPE_ANY,
     owner,
   }));
+}
+
+/** 常時の増（Modifier）の組み立て。id は Rule と同じ作り（持ち主 + 添字） */
+function modifiersOf(key: BoonKeyWave3, specs: readonly Pick<Modifier, "kind" | "tag" | "amount" | "per">[]): Modifier[] {
+  const owner: EventSource = { kind: "boon", key };
+  return specs.map((s, i) => ({ ...s, id: ruleId(owner, i), if: [], owner }));
 }
 
 function targetHas(status: StatusKind): RuleCondition {
@@ -378,6 +387,36 @@ export const BOONS_WAVE3: Readonly<Record<BoonKeyWave3, BoonDef>> = {
     cursed: false,
     rules: rulesOf("counterBlast", [
       { when: "onCounter", then: { kind: "explode", magnitude: BOON.counterBlastRatio, scaleBy: "slashBase", radius: BOON.counterBlastRadius } },
+    ]),
+  },
+
+  // ---------------------------------------------------------------------------
+  // 通貨の見本（銭を「持つ」「稼ぐ」ことがビルドになる）
+  // ---------------------------------------------------------------------------
+  miser: {
+    key: "miser",
+    name: "守銭",
+    desc: `持ち金${BOON.miserEvery}につき与ダメージ+${ratioPct(BOON.miserPerStep)}%（最大+${ratioPct(BOON.miserCap)}%）。`,
+    icon: "銭",
+    rarity: "rare",
+    tags: ["loot"],
+    keywords: kw([], [], ["melee", "ranged"]),
+    cursed: false,
+    modifiers: modifiersOf("miser", [
+      { kind: "increased", tag: "all", amount: BOON.miserPerStep, per: { count: { kind: "coins" }, every: BOON.miserEvery, cap: BOON.miserCap } },
+    ]),
+  },
+  coinGleaner: {
+    key: "coinGleaner",
+    name: "拾銭",
+    desc: `銭を拾うたび${BOON.coinGleanerTime}秒間、移動速度+${BOON.coinGleanerPct}%。`,
+    icon: "拾",
+    rarity: "common",
+    tags: ["loot", "dash"],
+    keywords: kw([], [], ["dash"]),
+    cursed: false,
+    rules: rulesOf("coinGleaner", [
+      { when: "onCoinPickup", then: { kind: "speedBuff", magnitude: BOON.coinGleanerPct, duration: BOON.coinGleanerTime }, icd: BOON.coinGleanerIcd },
     ]),
   },
 };

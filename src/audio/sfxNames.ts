@@ -232,6 +232,14 @@ export const SFX_NAMES = [
   "hiddenHint",
   /** 押し当てて隠し部屋が開いた */
   "hiddenOpen",
+  // ---- 銭・瓶・商人・賭け・壺と木箱（docs/ideas/economy-impl.md 4 章 6e）----
+  "coinPickup",
+  "coinSpill",
+  "flaskDrink",
+  "merchantProvoked",
+  "betWin",
+  "betLose",
+  "containerBreak",
   // 武器種ごとの近接命中音 hitW_<武器種>_<重さ>（audio/weaponHitNames.ts が生成、層は audio/weaponHits.ts）
   ...WEAPON_HIT_NAMES,
 ] as const;

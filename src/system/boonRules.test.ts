@@ -1883,8 +1883,8 @@ describe("格を活かす祝福（第 3 弾）", () => {
     expect(gradedEffect(blast, 3).radius, "半径は伸びる").toBeGreaterThan(10);
   });
 
-  it("新しい 18 種の tags / keywords / requires が語彙の範囲に収まる（既存の網羅テストへ追加）", () => {
-    expect(BOON_KEYS_WAVE3.length, "第 3 弾は 18 種").toBe(18);
+  it("新しい 20 種の tags / keywords / requires が語彙の範囲に収まる（既存の網羅テストへ追加）", () => {
+    expect(BOON_KEYS_WAVE3.length, "第 3 弾は 20 種").toBe(20);
     const older = BOON_KEYS.filter((k) => !(BOON_KEYS_WAVE3 as readonly string[]).includes(k));
     const knownTags = new Set(older.flatMap((k) => [...BOONS[k].tags, ...(BOONS[k].gives ?? [])]));
     const words = new Set<string>(KEYWORDS);

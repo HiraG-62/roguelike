@@ -112,6 +112,7 @@ import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetA
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { drawFieldPickup } from "./coinUi";
+import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
@@ -1232,7 +1233,7 @@ export class Renderer {
     const heart = this.sprite(SPR.heart);
     for (const pk of state.pickups) {
       if (pk.kind !== "heart") {
-        drawFieldPickup(this.ctx, pk);
+        drawFieldPickup(this.ctx, pk, this.atlas);
         continue;
       }
       const bob = Math.sin(pk.bobTime * PICKUP_BOB_SPEED) * PICKUP_BOB_AMOUNT;
@@ -1400,7 +1401,10 @@ export class Renderer {
     const { ctx } = this;
     const def = enemyDef(e.defKey);
     // 予備動作・攻撃の原画があれば形でテレグラフを読ませる（無ければ歩きのまま）
-    const key = enemySpriteKey(def.sprite, e.phase, (k) => k in this.atlas);
+    // 商人は種類（市・章の市…）ごとに衣の色違いの体を使う
+    const merchantKind = def.merchant ? state.economy.merchants.find((m) => m.enemyId === e.id)?.kind : undefined;
+    const body = (merchantKind && MERCHANT_SPRITE_KEYS[merchantKind]) ?? def.sprite;
+    const key = enemySpriteKey(body, e.phase, (k) => k in this.atlas);
     const sprite = this.sprite(key);
     const cx = e.body.pos.x;
     const cy = e.body.pos.y;
@@ -2877,7 +2881,7 @@ export class Renderer {
     }
     this.drawDashPips(state);
     // 瓶の枡はダッシュのチャージと同じ行の右端（左寄せのチャージと重ならない）
-    drawFlaskHud(ctx, state, HUD_BAR_X + HUD_BAR_W, HUD_PIP_Y - 1);
+    drawFlaskHud(ctx, state, HUD_BAR_X + HUD_BAR_W, HUD_PIP_Y - 1, this.atlas);
     this.drawKeystoneHud(state);
 
     // 拠点（sandbox）はミニマップと階層・スコア・シードの欄を出さない（右上は拠点の飾りが使う）

@@ -47,7 +47,7 @@ export function containerBroken(state: GameState, enemy: Enemy): void {
   const def = enemyDef(enemy.defKey);
   const c = ECONOMY.container;
   spawnBurst(state, enemy.body.pos, def.container === "crate" ? c.crateBurstColor : c.burstColor, c.burstParticles, BURST_SPEED, BURST_LIFE, BURST_SIZE);
-  pushSfx(state, "wallHit");
+  pushSfx(state, "containerBreak");
   if (state.sandbox === true) return;
   const base = state.rng.int(c.coinsMin, c.coinsMax);
   const flask = state.rng.chance(c.flaskChance);
