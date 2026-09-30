@@ -87,7 +87,7 @@
 - **新しい敵・修飾子・部屋を足すと seed 依存のテストが落ちる**（抽選がずれる）。今回は runEvents / roomTypes / specialRooms の 4 件を「敵の生命を十分にする」「交戦フラグを解く」「台座から最も遠い隅へ離れる」の形で堅牢化した。seed を変えるより、テストの意図を守る形で直す
 - QA は必ず **隔離 worktree**（`git worktree add <scratchpad>/wt-qa <commit>` → `node_modules` は前回の worktree からコピー → `npm run qa:full`）。本体で回すと他レーンの未コミット変更が混ざる。生成された report.md は統合役が本体へコピーする
 - 統合役は `git add -A -- . ':!.gitignore'` でコミット。1 バッチ 1 コミットで CHANGELOG の `[Unreleased]` に要点を書く。docs の更新は別コミット
-- コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`。push はそのセッションの作業ブランチへ `git push -u origin <branch>`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
+- コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + セッションの指示にある `Co-Authored-By` / `Claude-Session` の行（モデル名はセッションごとに変わるので固定で書かない）。push はそのセッションの作業ブランチへ `git push -u origin <branch>`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
 - **クラウドセッション**: ユーザーの共通ルールと自動メモリは `.claude/global/`（`CLAUDE.md` が @import）。ローカルで memory を変えたら `npm run sync:claude` で写してコミットする。クラウド側で覚えるべきことが出たらこの HANDOFF に書く（memory は編集しない）
 - 事故と対処: node_modules が無ければ `npm install`。エージェントの一時ファイルが `src/` に残ったら `git status --short` で見つけて消す。`src/qa/simulation.test.ts` の差分は目視する
 
