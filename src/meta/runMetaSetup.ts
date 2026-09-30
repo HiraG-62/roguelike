@@ -27,16 +27,17 @@ export interface RunMetaSources {
 const CAUSE_DEFEATED = "defeated";
 
 /**
- * 仇の種: 新しい順に見て、デイリーの行は飛ばし、仇を討った行に当たったら null、離脱・踏破は飛ばし、
- * 最初の「力尽きた」行の grudge（無ければ null）。消えた敵・仇になれない敵・未知の修飾子は捨てる
+ * 仇の種: 新しい順に見て、デイリーの行は飛ばし、最初の「力尽きた」行の grudge（無ければ null）。
+ * それより先に仇を討った行（離脱・踏破）に当たったら null、離脱・踏破は飛ばす。
+ * 仇を討った後に力尽きたランは、討った後の死なのでその行の grudge を使う。消えた敵・仇になれない敵・未知の修飾子は捨てる
  */
 export function nemesisFromHistory(history: readonly RunHistoryEntry[]): NemesisSpec | null {
   for (const h of history) {
     if (isDailySeedText(h.seedText)) continue;
+    if (h.cause === CAUSE_DEFEATED) {
+      return h.grudge ? sanitizeNemesisSpec({ key: h.grudge.key, elites: h.grudge.elites, depth: h.depth }) : null;
+    }
     if (h.avenged === true) return null;
-    if (h.cause !== CAUSE_DEFEATED) continue;
-    if (!h.grudge) return null;
-    return sanitizeNemesisSpec({ key: h.grudge.key, elites: h.grudge.elites, depth: h.depth });
   }
   return null;
 }

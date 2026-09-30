@@ -32,6 +32,11 @@ describe("仇の種の選び方", () => {
     expect(nemesisFromHistory(history)).toBeNull();
   });
 
+  it("仇を討った後に力尽きたランは、その死の相手が次の仇になる", () => {
+    const history = [row({ avenged: true, depth: 7, grudge: { key: "slime", elites: [] } }), row({ grudge: { key: "wolf", elites: [] } })];
+    expect(nemesisFromHistory(history)).toEqual({ key: "slime", elites: [], depth: 7 });
+  });
+
   it("離脱・踏破の履歴は飛ばし、デイリーの履歴は数えない", () => {
     const history = [
       row({ cause: "abandoned" }),
