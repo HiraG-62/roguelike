@@ -77,9 +77,9 @@ describe("名のある遺物の口（applyNamedRelics）", () => {
     expect(DEFAULT_STATS.graceSlotBonus.dash, "既定は汚さない").toBeUndefined();
   });
 
-  it("今の名のある遺物は固有を持たないので、装備しても rules・枠・重ねの上限は空のまま", () => {
+  it("Rule・枠・重ねを持たない名のある遺物（六文銭）は、装備しても rules・枠・重ねの上限は空のまま", () => {
     const equipment = createEmptyEquipment();
-    equipment.mainHand = namedItem("mainHand", "widowmaker");
+    equipment.amulet = namedItem("amulet", "sixCoins");
     const stats = computeStats(equipment);
     expect(stats.rules.length).toBe(0);
     expect(stats.graceSlotBonus).toEqual({});
@@ -93,8 +93,9 @@ describe("装備・誓約の Rule を集める口（collectRules）", () => {
     expect(collectRules(state)[0]?.id, "装備の Rule が先頭").toBe("equip");
   });
 
-  it("誓約の Rule はまだ無い（今の誓約はどれも空）", () => {
-    expect(keystoneRules(["ks_glassCannon", "ks_blink", "unknown"]).length).toBe(0);
+  it("数値だけの誓約と未知の key は Rule を出さず、刹那は見切り時の Rule を出す", () => {
+    expect(keystoneRules(["ks_glassCannon", "ks_blink", "unknown"]).length, "数値だけの誓約").toBe(0);
+    expect(keystoneRules(["ks_instant"]).map((r) => r.when), "刹那").toEqual(["onJustDodge"]);
   });
 });
 

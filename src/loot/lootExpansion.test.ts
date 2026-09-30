@@ -233,7 +233,7 @@ describe("ベースの追加", () => {
 
   it("黒鉄の指輪: 装備中の反転の数だけ会心率", () => {
     const eq = createEmptyEquipment();
-    const inverted: AffixRoll = { key: "moveSpeed", value: -3, nominal: 5, flux: -1.6, inverted: true, color: "umbra" };
+    const inverted: AffixRoll = { key: "firstStrikeEdge", value: -3, nominal: 5, flux: -1.6, inverted: true, color: "umbra" };
     eq.ring = item("ring", [], { implicit: { key: "implicit.blackIronRing", value: 3 } });
     eq.boots = item("boots", [inverted]);
     expect(computeStats(eq).critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.03);

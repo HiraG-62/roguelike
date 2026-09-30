@@ -377,10 +377,8 @@ describe("段取り 7d の写し表", () => {
     expect(migrateRelicKey("twinSerpent")).toBe("twinSerpent");
   });
 
-  it("性質の写し先は、性質のレーン（I）の足すもの以外すべて AFFIXES にある", () => {
-    // I の後に足される key。統合後は missing が空になる（統合役が toEqual([]) に締める）
-    const PENDING_FROM_TRAIT_LANE = ["unmoving", "desperation", "stanceGuard"];
+  it("性質の写し先はすべて AFFIXES にある", () => {
     const missing = [...new Set(Object.values(LEGACY_AFFIX_MAP))].filter((k): k is string => k !== null && affixDef(k) === undefined);
-    expect(missing.filter((k) => !PENDING_FROM_TRAIT_LANE.includes(k))).toEqual([]);
+    expect(missing).toEqual([]);
   });
 });

@@ -15,7 +15,7 @@ import {
 } from "./resonance";
 import { scaleFlat } from "./flux";
 import { computeStats, equipmentResonance } from "./stats";
-import { TRAIT_COLORS, createEmptyEquipment, type AffixRoll, type Item, type Slot } from "./types";
+import { DEFAULT_STATS, TRAIT_COLORS, createEmptyEquipment, type AffixRoll, type Item, type Slot } from "./types";
 
 function w(partial: Partial<ColorWeights>): ColorWeights {
   return { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0, ...partial };
@@ -37,10 +37,11 @@ function makeItem(slot: Slot, affixes: AffixRoll[]): Item {
   };
 }
 
-const melee = (value = 20): AffixRoll => ({ key: "meleeDamagePct", value, nominal: value, flux: 0 });
-const ranged = (value = 20): AffixRoll => ({ key: "rangedDamagePct", value, nominal: value, flux: 0 });
-const life = (value = 20): AffixRoll => ({ key: "maxLife", value, nominal: value, flux: 0 });
-const crit = (value = 5): AffixRoll => ({ key: "critChance", value, nominal: value, flux: 0 });
+// 色ごとに 1 つ、効果が stats の 1 項目にだけ出る性質（段取り 7d の性質 71 から）
+const crimsonTrait = (value = 20): AffixRoll => ({ key: "damageVsStaggered", value, nominal: value, flux: 0 });
+const azureTrait = (value = 20): AffixRoll => ({ key: "firstStrikeEdge", value, nominal: value, flux: 0 });
+const jadeTrait = (value = 20): AffixRoll => ({ key: "siegeGuard", value, nominal: value, flux: 0 });
+const goldTrait = (value = 5): AffixRoll => ({ key: "chainSource", value, nominal: value, flux: 0 });
 
 describe("resolveResonance: 境界", () => {
   it("重みの合計が 3 未満なら共鳴しない", () => {
@@ -99,35 +100,36 @@ describe("重み", () => {
 describe("computeStats と共鳴", () => {
   it("支配: 他の色の性質は 75% に弱まり、支配の効果（灼極）が乗る", () => {
     const eq = createEmptyEquipment();
-    eq.mainHand = makeItem("mainHand", [melee(), { key: "meleeDamageFlat", value: 4, nominal: 4, flux: 0 }]);
-    eq.ring = makeItem("ring", [{ key: "attackSpeed", value: 10, nominal: 10, flux: 0 }, crit(10)]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait(), { key: "moraleCap", value: 4, nominal: 4, flux: 0 }]);
+    eq.ring = makeItem("ring", [{ key: "finisherEdge", value: 10, nominal: 10, flux: 0 }, goldTrait(10)]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("dominant");
     expect(stats.resonance.colors).toEqual(["crimson"]);
-    expect(stats.critChance).toBeCloseTo(0.05 + 0.1 * OFF_COLOR_DAMPING);
+    expect(stats.chainCoefBonus, "他の色は弱まる").toBeCloseTo(DEFAULT_STATS.chainCoefBonus + 0.1 * OFF_COLOR_DAMPING);
+    expect(stats.moraleMaxAdd, "支配の色は弱まらない").toBeCloseTo(DEFAULT_STATS.moraleMaxAdd + 4);
     // 共鳴の効果値には装備の強さの係数（FLUX.globalScale）が掛かる
-    expect(stats.increased.melee).toBeCloseTo(0.2 + scaleFlat(0.1, 4));
+    expect(stats.increased.melee).toBeCloseTo(DEFAULT_STATS.increased.melee + scaleFlat(0.1, 4));
     expect(stats.triggers.some((t) => t.trigger === "everyNthMeleeHit" && t.effect === "burnNearby")).toBe(true);
   });
 
   it("冥の支配（虚極）: 反転した性質の負の値を正として扱う", () => {
     const eq = createEmptyEquipment();
     eq.ring = makeItem("ring", [
-      { key: "maxLife", value: -30, nominal: 40, flux: -1.75, inverted: true, color: "umbra" },
+      { key: "moraleCap", value: -3, nominal: 4, flux: -1.75, inverted: true, color: "umbra" },
       { key: "ks_gambler", value: 0, color: "umbra" },
       { key: "ks_blink", value: 0, color: "umbra" },
     ]);
     const stats = computeStats(eq);
     expect(stats.resonance.colors).toEqual(["umbra"]);
-    expect(stats.maxHp).toBe(130);
+    expect(stats.moraleMaxAdd, "反転の -3 が +3 として効く").toBe(DEFAULT_STATS.moraleMaxAdd + 3);
   });
 
   it("二重: 組み合わせの効果が乗る（紅 + 翠 = 血潮で命中時 HP 回復 +1）", () => {
     const eq = createEmptyEquipment();
     // 紅 2 : 翠 2 : 蒼 1 = 40% / 40% / 20%（50% ちょうどは支配になるので 3 色目を混ぜる）
-    eq.mainHand = makeItem("mainHand", [melee(), { key: "damageVsStaggered", value: 20, nominal: 20, flux: 0 }]);
-    eq.armor = makeItem("armor", [life(), { key: "hpRegen", value: 1, nominal: 1, flux: 0 }]);
-    eq.boots = makeItem("boots", [ranged()]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait(), { key: "lockdownFury", value: 20, nominal: 20, flux: 0 }]);
+    eq.armor = makeItem("armor", [jadeTrait(), { key: "stanceGuard", value: 10, nominal: 10, flux: 0 }]);
+    eq.boots = makeItem("boots", [azureTrait()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("dual");
     expect(stats.resonance.colors).toEqual(["crimson", "jade"]);
@@ -136,10 +138,10 @@ describe("computeStats と共鳴", () => {
 
   it("散光: 主要倍率が少しずつ伸びる（支配/二重よりかなり高かったため半分に調整済み）", () => {
     const eq = createEmptyEquipment();
-    eq.mainHand = makeItem("mainHand", [melee()]);
-    eq.boots = makeItem("boots", [ranged()]);
-    eq.armor = makeItem("armor", [life()]);
-    eq.ring = makeItem("ring", [crit()]);
+    eq.mainHand = makeItem("mainHand", [crimsonTrait()]);
+    eq.boots = makeItem("boots", [azureTrait()]);
+    eq.armor = makeItem("armor", [jadeTrait()]);
+    eq.ring = makeItem("ring", [goldTrait()]);
     const stats = computeStats(eq);
     expect(stats.resonance.kind).toBe("scatter");
     expect(stats.moveSpeedMul).toBeCloseTo(1.025);
@@ -148,11 +150,11 @@ describe("computeStats と共鳴", () => {
 
   it("散光: 反転した性質の値を 0 にする（代償を打ち消すが正の効果には転じない）", () => {
     const rolls = [
-      melee(),
-      ranged(),
-      life(),
-      crit(),
-      { key: "meleeDamagePct", value: -15, nominal: 20, flux: -1.75, inverted: true, color: "umbra" as const },
+      crimsonTrait(),
+      azureTrait(),
+      jadeTrait(),
+      goldTrait(),
+      { key: "damageVsStaggered", value: -15, nominal: 20, flux: -1.75, inverted: true, color: "umbra" as const },
     ];
     const res = resolveResonance(colorWeights(rolls));
     expect(res.kind).toBe("scatter");
@@ -164,7 +166,7 @@ describe("computeStats と共鳴", () => {
   it("虚極（冥の支配）: 反転を正にする効果に加え、深度に関係なく効くエネルギー獲得ボーナスも持つ", () => {
     const eq = createEmptyEquipment();
     eq.ring = makeItem("ring", [
-      { key: "maxLife", value: -30, nominal: 40, flux: -1.75, inverted: true, color: "umbra" },
+      { key: "moraleCap", value: -3, nominal: 4, flux: -1.75, inverted: true, color: "umbra" },
       { key: "ks_gambler", value: 0, color: "umbra" },
       { key: "ks_blink", value: 0, color: "umbra" },
     ]);
@@ -174,7 +176,7 @@ describe("computeStats と共鳴", () => {
   });
 
   it("adjustForResonance は元の roll を変えない", () => {
-    const rolls = [melee(), melee(), crit(10)];
+    const rolls = [crimsonTrait(), crimsonTrait(), goldTrait(10)];
     const res = resolveResonance(colorWeights(rolls));
     const adjusted = adjustForResonance(rolls, res);
     expect(rolls[2]?.value).toBe(10);

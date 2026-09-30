@@ -147,8 +147,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "twinDaggers",
     minLevel: 6,
     flavor: "右の牙と左の牙。交互に噛むほど、毒は深く回る。",
-    // 性質（固定）twinEdge は性質のレーンが足す（統合で { key: "twinEdge" }）
-    affixes: [],
+    affixes: [{ key: "twinEdge" }],
     rules: relicRules(TWIN_SERPENT, [{ when: "onTwinStrike", then: addTallyEffect(TWIN_TALLY) }]),
     // 同じ側の命中で数えを 0 に戻すのは system/moments.ts の noteTwinStrike → namedRelics.ts の breakTwinSerpent
     modifiers: relicModifiers(TWIN_SERPENT, "双頭の蛇", [{ kind: "more", tag: "all", amount: RELIC.twinSerpent.step, per: { count: { kind: "tally", key: TWIN_TALLY } } }]),
@@ -177,8 +176,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "mallet",
     minLevel: 5,
     flavor: "振れば出る。ただし、振り切ったときだけ。",
-    // 性質（固定）finisherEdge は性質のレーンが足す（統合で { key: "finisherEdge" }）
-    affixes: [],
+    affixes: [{ key: "finisherEdge" }],
     rules: relicRules("mallet", [{ when: "onFinisher", then: { kind: "gainCoins", magnitude: RELIC.mallet.coins }, icd: RELIC.mallet.icd }]),
     keywords: kw([], ["finisher"]),
     changes: "press",
@@ -303,8 +301,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "blackIronRing",
     minLevel: 14,
     flavor: "九つまでは余韻。十で、鐘は割れるほど鳴る。",
-    // 性質（固定）finisherEdge は性質のレーンが足す（統合で { key: "finisherEdge" }）
-    affixes: [],
+    affixes: [{ key: "finisherEdge" }],
     // 並び順が効く: +1 → 一掃（数え ≥ every = この終撃が every 回目）→ 戻し。数えは同じイベントの中で即座に進む
     rules: relicRules(BELL_TONGUE, [
       { when: "onFinisher", then: addTallyEffect(BELL_TALLY) },
@@ -389,8 +386,7 @@ export const UNIQUES: readonly UniqueDef[] = [
     baseKey: "sandals",
     minLevel: 4,
     flavor: "道のりは靴底に溜まる。蹴り出す一歩のために。",
-    // 性質（固定）firstStrikeEdge は性質のレーンが足す（統合で { key: "firstStrikeEdge" }）
-    affixes: [],
+    affixes: [{ key: "firstStrikeEdge" }],
     // 距離を溜めるのは system/player.ts → namedRelics.ts の relicStride。当てた一撃（振り・弾）で使い切る
     rules: relicRules(WANDER_SHOES, [
       { when: "onSwingHit", then: resetTally(STRIDE_TALLY) },
