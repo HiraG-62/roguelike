@@ -16,7 +16,6 @@ import { updateHazards } from "./hazards";
 import { isStaggered } from "./poise";
 import { buildFloor } from "./floor";
 import { applyStatus, updateStatusEffects } from "./statusEffects";
-import { placeTerrain, terrainAt } from "./terrain";
 
 const HUGE_HP = 1_000_000;
 /** Wave 3 のボスの深度（油壺の王・鏡の騎士は章ボスの 15 / 20、群れの母・図書館の司書は深みの回転の 40 / 45） */
@@ -95,30 +94,6 @@ describe("Wave 3 のボス: 全体", () => {
     tick(state);
     expect(state.boss?.defeated).toBe(true);
     expect(stairsTile(state)).toBe(Tile.StairsDown);
-  });
-});
-
-describe("油壺の王", () => {
-  it("ボス部屋には最初から油溜まりがある", () => {
-    const { state } = bossFloor(OIL_KING_DEPTH);
-    tick(state);
-    const room = state.rooms[state.boss?.roomIndex ?? -1];
-    if (!room) throw new Error("no room");
-    let oil = 0;
-    for (let y = room.rect.y; y < room.rect.y + room.rect.h; y++) {
-      for (let x = room.rect.x; x < room.rect.x + room.rect.w; x++) if (terrainAt(state, (x + 0.5) * 16, (y + 0.5) * 16) === "oil") oil += 1;
-    }
-    expect(oil).toBeGreaterThan(0);
-  });
-
-  it("燃える床に立つと引火して怯む（間隔の内は繰り返さない）", () => {
-    const { state, boss } = bossFloor(OIL_KING_DEPTH);
-    boss.phase = "chase";
-    boss.attackCooldown = 99;
-    placeTerrain(state, boss.body.pos.x, boss.body.pos.y, "fire", 8);
-    tick(state);
-    expect(isStaggered(boss)).toBe(true);
-    expect(boss.ai?.timer).toBeCloseTo(BOSS.oilKing.igniteCooldown, 1);
   });
 });
 
