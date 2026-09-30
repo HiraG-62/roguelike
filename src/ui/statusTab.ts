@@ -10,6 +10,7 @@ import { ATTR_KEYS, type AttrKey, type PlayerStats } from "../loot/types";
 import { dashCooldownTime } from "../system/player";
 import { formatCooldown } from "../system/skills";
 import { type EffectRow, runEffectRows } from "./effectsList";
+import { reachRows } from "./reachRows";
 import { COLUMN_GAP, CONTENT_BOTTOM, CONTENT_RIGHT, CONTENT_Y, LIST_X, type Point, type Rect, clamp, pointInRect } from "./inventoryLayout";
 
 /**
@@ -226,7 +227,7 @@ export function clearStatusHover(ui: StatusTabUi): void {
   ui.hoverArrow = 0;
 }
 
-const EFFECTS_PAGE_TEXT = "効果: 状態異常・祝福・芯・一時強化（ラン中のみ）";
+const EFFECTS_PAGE_TEXT = "効果: 到達・状態異常・祝福・芯・一時強化（到達のほかはラン中のみ）";
 const STATUS_PAGE_TEXT = "ステータス";
 
 /** 効果の頁とステータスの頁を切り替える。見出しに出すメッセージを返す */
@@ -238,7 +239,7 @@ function toggleEffectsPage(ui: StatusTabUi): string {
 
 /** 効果の頁の一覧（今の state から毎回組み立てる。読むだけ） */
 export function statusTabEffectRows(state: GameState): EffectRow[] {
-  return runEffectRows(state);
+  return [...reachRows(state.stats), ...runEffectRows(state)];
 }
 
 /** 効果の頁の入力: ホイール・↑↓ でスクロールするだけ（読むだけの一覧なのでカーソルは持たない） */

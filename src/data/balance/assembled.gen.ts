@@ -536,6 +536,7 @@ import j_loot__index from "./loot/_index.json";
 import j_loot_LOOT_DROP from "./loot/LOOT_DROP.json";
 import j_loot_PICKUP from "./loot/PICKUP.json";
 import j_loot_RESONANCE from "./loot/RESONANCE.json";
+import j_loot_REACH from "./loot/REACH.json";
 import j_loot_KEYSTONE from "./loot/KEYSTONE.json";
 import j_loot_RELIC from "./loot/RELIC.json";
 import j_loot_TRIGGER from "./loot/TRIGGER.json";
@@ -1501,6 +1502,7 @@ export const loot = {
   "LOOT_DROP": j_loot_LOOT_DROP,
   "PICKUP": j_loot_PICKUP,
   "RESONANCE": j_loot_RESONANCE,
+  "REACH": j_loot_REACH,
   "KEYSTONE": j_loot_KEYSTONE,
   "RELIC": j_loot_RELIC,
   "TRIGGER": j_loot_TRIGGER,
@@ -2597,6 +2599,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/KEYSTONE.json",
   "loot/LOOT_DROP.json",
   "loot/PICKUP.json",
+  "loot/REACH.json",
   "loot/RELIC.json",
   "loot/RESONANCE.json",
   "loot/SYNERGY.json",

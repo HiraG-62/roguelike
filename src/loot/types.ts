@@ -394,6 +394,10 @@ export function uniformAttributes(value: number): Attributes {
   return { str: value, dex: value, vit: value, mnd: value, spi: value, def: value };
 }
 
+/** 厳選の到達点の軸（無尽 / 燎原 / 常在。loot/reach.ts） */
+export const REACH_KEYS = ["chain", "burn", "morale"] as const;
+export type ReachKey = (typeof REACH_KEYS)[number];
+
 /**
  * 装備から畳み込んだ派生ステータス。ゲームロジックはこれだけを見る。
  * 倍率は 1 が基準、確率は 0..1、flat は加算値。
@@ -533,6 +537,8 @@ export interface PlayerStats {
   statusStackCapBonus: Readonly<Partial<Record<StatusKind, number>>>;
   /** 加護の枠の加算（行動ごと。名のある遺物の 3 枠目。system/boons.ts の graceSlotsOf が足す） */
   graceSlotBonus: Readonly<Partial<Record<BoonAction, number>>>;
+  /** 厳選の到達点の測る量（装備だけ。computeStats が入れる。loot/reach.ts） */
+  reach: Readonly<Record<ReachKey, number>>;
 }
 
 /**
@@ -884,4 +890,5 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   flaskMax: ECONOMY.flask.max,
   statusStackCapBonus: Object.freeze({}),
   graceSlotBonus: Object.freeze({}),
+  reach: Object.freeze({ chain: 0, burn: 0, morale: 0 }),
 };

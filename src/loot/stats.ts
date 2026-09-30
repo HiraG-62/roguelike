@@ -7,6 +7,7 @@ import { APPLY_STAGES, applyRoll, isKeystoneKey, resolveKeystones, rollStage } f
 import { baseDef } from "./bases";
 import { collectInnate } from "./innate";
 import { applyNamedRelics } from "./named";
+import { reachMeasures } from "./reach";
 import { gearContext, gearContextCleared, scaleByProvenance } from "./traitContext";
 import { ATTR_KEYS, DEFAULT_STATS, SLOTS, type AffixRoll, type Equipment, type PlayerStats } from "./types";
 
@@ -110,6 +111,7 @@ function createBaseStats(): PlayerStats {
     infuse: { ...DEFAULT_STATS.infuse },
     statusStackCapBonus: { ...DEFAULT_STATS.statusStackCapBonus },
     graceSlotBonus: { ...DEFAULT_STATS.graceSlotBonus },
+    reach: { ...DEFAULT_STATS.reach },
   };
 }
 
@@ -215,7 +217,10 @@ export function computeStats(equipment: Equipment, depth = 1): PlayerStats {
   // 装備全体の文脈は性質の適用の間だけ使う入力。畳み込み後は既定へ戻す（比較・表示に装備の数を紛れ込ませない）
   Object.assign(stats.traits, gearContextCleared());
   applyWeaponForms(stats, equipment);
-  return finalize(stats);
+  const out = finalize(stats);
+  // 到達は装備だけで数える（祝福・起点・誓約の足しは applyRunStats 以降なので入らない）
+  out.reach = reachMeasures(out);
+  return out;
 }
 
 /** 右手のベースが決める武器種と弾（src/data/weapons.ts / src/loot/bullets.ts）。空きスロットや銃でないベースは既定 */

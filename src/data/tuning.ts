@@ -92,6 +92,9 @@ export const RELIC = BALANCE.loot.RELIC;
 /** 源と糧の共鳴（system/resonance.ts。docs/ideas/relics-7d-plan.md 4 章） */
 export const RESONANCE = BALANCE.loot.RESONANCE;
 
+/** 厳選の到達点の閾値（loot/reach.ts。docs/ideas/deep-impl.md 2-4） */
+export const REACH = BALANCE.loot.REACH;
+
 /** 装備ドロップ */
 export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
 
