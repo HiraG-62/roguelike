@@ -10,3 +10,4 @@
 ## 商人の品を足す（2026-09-30）
 
 商人（市・章の市）は `system/merchants.ts`。品を足すときは `WareKind`（`core/state.ts`）と `WARE_NAME` に 1 語、`src/data/balance/world/ECONOMY/market.json` の `stock` に数、`price.json` の `base` に値段、`applyWare` の switch に分岐を 1 つ。値段は章の倍率 × 揺らぎ × 買った回数 × 無法者で決まる（`warePrice`）
+- 賭場の主の台座は `system/bets.ts`（品書き `planBookieBets`）、数値は `src/data/balance/world/ECONOMY/bet.json`

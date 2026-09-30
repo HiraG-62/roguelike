@@ -44,8 +44,11 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `poise.ts` 怯みの蓄積・減衰・堅守・ダウン・処刑・背面の一撃（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。敵の攻撃のコミット（`windupCommitted` 予備動作の後半は溜まらない / `attackCommitted` / strike 中に満ちた怯みは `settlePendingStagger` で攻撃の後へ先送り。予備動作の総秒は `Enemy.windupTotal`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
 - `damageMods.ts` 与ダメの増・倍の集約（`buildContext` / `traitIncreased` / `collectMore`。`combat.ts` の `rollOutgoing` はこれだけを呼ぶ）
 - `reforge.ts` 改鋳の 3 択（5 の倍数の階のボスの後。`offerReforges` / `updateReforgeChoice`。祝福の 3 択と同じ入力経路）と flags の挙動（`tickReforges` ほか）
+- `bets.ts` 賭場の主の賭け（運: 丁半・大穴・一か八か・倍々勝負 / 腕: 無傷・速攻・凌ぎ。腕は次に起きた陣に束縛して決着で判定、凌ぎは階を離れるときに判定。章に 1 回の大穴の陣）
+- `containers.ts` 壺・木箱（生命 1 の Enemy。`containerBroken` で銭 0〜3 と 5% の瓶、撃破数・得点・コンボに数えない。`placeContainers` で塊の隅と行き止まりに）
+- `donation.ts` 寄進の祠（額の計算・納める・置き場所。章の休符の開始部屋。`floor.ts` から `placeDonationShrine`。`donated` は main.ts の endRun が HubSave へ足す）
 - `flask.ts` 瓶（`tryDrink` は step の `updatePlayer` の前。`gainFlasks` / `refillFlasks`）/ `merchants.ts` 市と商人（前室に立たせる `placeMerchants`・台座に触れて買う `updateMerchants`・値段 `warePrice`・襲って倒すと品が床へ・無法者）/ `merchantAi.ts` 商人の体の振る舞い（殴られると怒り、品を投げる）
-- `economy.ts` 銭と鍵（得る `gainCoins`・払う `spendCoins`、撃破で落ちる `dropCoins`・消える・引き寄せ `updateCoinPickups`、被弾でこぼれる `spillCoins`、陣・部屋・階・出来事の報酬、Rule の銭の効果。契約者の代価もここを通す）/ `chapters.ts` 章立て（`chapterOf` / `isChapterBossDepth` / `isChapterRest` / `chapterBossKey` / `skipsFloorLord` / `hasRestFountain` / `heartChanceOf`。章ボスの表は `src/data/balance/world/ARC.json`、深みのボスは `boss.ts` の `deepRotation`）
+- `economy.ts` 銭と鍵（得る `gainCoins`・払う `spendCoins`、撃破で落ちる `dropCoins`・消える・引き寄せ `updateCoinPickups`、被弾でこぼれる `spillCoins`、陣・部屋・階・出来事の報酬、Rule の銭の効果。契約者の代価もここを通す。床の瓶 `dropFlask` / `gainFlasks`、鍵を払う `spendKeys`）/ `chapters.ts` 章立て（`chapterOf` / `isChapterBossDepth` / `isChapterRest` / `chapterBossKey` / `skipsFloorLord` / `hasRestFountain` / `heartChanceOf`。章ボスの表は `src/data/balance/world/ARC.json`、深みのボスは `boss.ts` の `deepRotation`）
 - `dashForms.ts` 流儀のダッシュの形（陰陽師の入れ替わり swap・巫女の護り足 ward〔`wardIncomingMul`〕も。不退の差し替え・退き足の向き・詰め足の連撃の引き継ぎ・秒と無敵・始まりと通過の効果・速さ）/ `manaSources.ts` 流儀の気力の源（`onManaSource` と各フック用の `note*`、起点画面の説明）
 - `tomeBell.ts` 書・鈴の型の固有の仕組み（無詠唱 `freeCast`・書の再使用倍率 `formSkillCooldownMul`・鈴の打ち鳴らし `tollBell` と強化 `bellBuff`・`minionDamageMul`。呼び出しは `moments.ts` の `startSwingMoments` と `skills.ts`）
 - `formMarks.ts` 型の印（刃斧の傷・長柄の穂先・鎖の繋ぎ `Enemy.linked`・一蓮托生 `shareLinkedDamage`・束ね打ちの寄せ `gatherLinked`）
