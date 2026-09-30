@@ -122,12 +122,14 @@ export function jinBonusMul(state: GameState, e: Enemy, kind: JinBonusKind): num
  * 塊に乗った陣は部屋の生存者が 0 になり、同じステップの updateRooms が clearRoom（文字は「敗走」）を出す
  */
 export function routJin(state: GameState, jin: Jin): void {
-  const survivors = jinMembers(state, jin);
-  if (survivors.length === 0) return;
-  const at = centroid(survivors);
+  const members = jinMembers(state, jin);
+  if (members.length === 0) return;
+  const at = centroid(members);
+  // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）
+  const fleeing = members.filter((e) => !e.nemesis);
   const target = nearestRefuge(state, at, jin.id);
-  routTallyOf(state, jin.id).fled += survivors.length;
-  for (const e of survivors) startRout(e, jin, target);
+  routTallyOf(state, jin.id).fled += fleeing.length;
+  for (const e of fleeing) startRout(e, jin, target);
   settleJin(state, jin, "rout");
   // 塊に乗った陣の「敗走」は clearRoom が出す（二重に出さない）
   if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE);

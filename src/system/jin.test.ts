@@ -16,6 +16,7 @@ import {
   memberWeight,
   noteJinDeath,
   roomClearText,
+  routJin,
   stepRout,
   stirSleepingJin,
   stirsDue,
@@ -138,6 +139,22 @@ describe("群勢の減り", () => {
     expect(jin.routTally?.fled).toBe(1);
     expect(roomClearText(state, ROOM_A), "部屋の制圧の文字は敗走").toBe(JIN_TEXT.rout);
     expect(roomClearText(state, ROOM_B), "敗走の無い部屋は制圧").toBe(JIN_TEXT.wipe);
+  });
+
+  it("仇は敗走の対象から外れ、陣と部屋に残る（逃げ切って消えると仇討ちができない）", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const other = member(state, jin, 20);
+    const nemesis = member(state, jin, 40);
+    nemesis.nemesis = true;
+    initJinMorale(state, jin);
+    routJin(state, jin);
+    expect(jin.settledBy).toBe("rout");
+    expect(other.rout, "ほかの生き残りは敗走").toBeDefined();
+    expect(nemesis.rout, "仇は敗走しない").toBeUndefined();
+    expect(nemesis.jinId, "陣に残る").toBe(jin.id);
+    expect(nemesis.roomIndex, "部屋に残る").toBe(ROOM_A);
+    expect(jin.routTally?.fled, "敗走に数えない").toBe(1);
   });
 
   it("大将を倒すと leaderBreakRatio まで落ちて必ず敗走する", () => {
