@@ -6,7 +6,7 @@ import { JOBS } from "../data/jobs";
 import { REFORGES } from "../data/reforges";
 import { RESONANCE } from "../data/tuning";
 import { formOfKey } from "../data/weaponForms";
-import { SLOTS, TRAIT_COLORS, type PlayerStats, type TraitColor } from "../loot/types";
+import { SLOTS, TRAIT_COLORS, type Item, type PlayerStats, type TraitColor } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
@@ -95,12 +95,14 @@ function resonanceSources(state: Readonly<GameState>): KeywordProfile[] {
   const equipment = equipmentSealed(state) ? null : state.profile.equipment;
   for (const slot of SLOTS) {
     const item = equipment?.[slot];
-    if (item) out.push(relicKeywords(item));
+    if (item) out.push(cachedProfile(RELIC_PROFILES, relicSignature(item), () => relicKeywords(item)));
   }
   const rs = state.skills;
   for (let i = 0; i < rs.slots.length; i++) {
     const stone = stoneInSlot(rs.profile, i);
-    if (stone) out.push(skillKeywords(SKILL_DEFS[stone.skillKey], rs.slots[i]?.modifiers ?? []));
+    if (!stone) continue;
+    const modifiers = rs.slots[i]?.modifiers ?? [];
+    out.push(cachedProfile(SKILL_PROFILES, `${stone.skillKey}|${modifiers.join(",")}`, () => skillKeywords(SKILL_DEFS[stone.skillKey], modifiers)));
   }
   for (const key of state.boons) out.push(BOONS[key].keywords);
   out.push(JOBS[state.job].keywords);
@@ -111,8 +113,34 @@ function resonanceSources(state: Readonly<GameState>): KeywordProfile[] {
     const def = REFORGES[key];
     if (def.form === form.key && def.keywords) out.push(def.keywords);
   }
-  for (const key of state.runKeystones) out.push(keystoneKeywords(key));
+  for (const key of state.runKeystones) out.push(cachedProfile(KEYSTONE_PROFILES, key, () => keystoneKeywords(key)));
   return out;
+}
+
+/**
+ * 出どころの語の写し。遺物・石・誓約の語は key（性質の key・石と符の key・誓約の key）だけで決まるので、
+ * 同じ key には同じ参照を返す（refreshResonance が「出どころの参照が前と同じなら数え直さない」と判定できるように）。
+ * 中身は数えるときに読むだけで書き換えない。表が膨らみすぎたら捨てて作り直す
+ */
+const RELIC_PROFILES = new Map<string, KeywordProfile>();
+const SKILL_PROFILES = new Map<string, KeywordProfile>();
+const KEYSTONE_PROFILES = new Map<string, KeywordProfile>();
+const PROFILE_CACHE_MAX = 1024;
+
+function cachedProfile(cache: Map<string, KeywordProfile>, key: string, build: () => KeywordProfile): KeywordProfile {
+  const hit = cache.get(key);
+  if (hit !== undefined) return hit;
+  if (cache.size >= PROFILE_CACHE_MAX) cache.clear();
+  const built = build();
+  cache.set(key, built);
+  return built;
+}
+
+/** relicKeywords が読むもの（名のある遺物の key と、反転していない性質の key の並び） */
+function relicSignature(item: Readonly<Item>): string {
+  let sig = item.namedKey ?? "";
+  for (const roll of item.affixes) if (roll.inverted !== true) sig += `\n${roll.key}`;
+  return sig;
 }
 
 function emptyCounts(): Record<Keyword, KeywordCount> {
@@ -201,9 +229,24 @@ function sameSteps(a: readonly ResonanceStep[], b: readonly ResonanceStep[]): bo
 
 /** boonRun.resonance を数え直す。変わったら true（stats 側を畳み直す合図） */
 export function refreshResonance(state: GameState): boolean {
-  const next = resonanceSteps(countKeywords(state), resonanceEaseOf(state));
-  if (sameSteps(state.boonRun.resonance, next)) return false;
-  state.boonRun.resonance = next;
+  const sources = resonanceSources(state);
+  const ease = resonanceEaseOf(state);
+  const last = LAST_COUNT.get(state);
+  // 出どころが前と同じ参照の並びで、段の列も前に置いたままなら、数え直しても同じ段になる
+  if (last !== undefined && last.ease === ease && last.steps === state.boonRun.resonance && sameRefs(last.sources, sources)) return false;
+  const next = resonanceSteps(countProfiles(sources), ease);
+  const changed = !sameSteps(state.boonRun.resonance, next);
+  if (changed) state.boonRun.resonance = next;
+  LAST_COUNT.set(state, { sources, ease, steps: state.boonRun.resonance });
+  return changed;
+}
+
+/** 前の数えの出どころ（ランの state ごと）。毎ステップの数え直し（updateSkills）を、出どころが変わったときだけにする */
+const LAST_COUNT = new WeakMap<GameState, { sources: readonly KeywordProfile[]; ease: number; steps: readonly ResonanceStep[] }>();
+
+function sameRefs<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
 

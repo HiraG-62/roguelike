@@ -339,6 +339,45 @@ describe("源と糧の共鳴: 数え直し", () => {
     }
   });
 
+  it("出どころが変わらなければ 2 回目の数え直しは段を置き直さない（false）", () => {
+    const state = bareArena();
+    refreshResonance(state);
+    const steps = state.boonRun.resonance;
+    expect(refreshResonance(state)).toBe(false);
+    expect(state.boonRun.resonance, "段の列は同じ参照のまま").toBe(steps);
+  });
+
+  it("装備の性質を同じ配列の中で差し替えても数え直す（闇市の差し替えの形）", () => {
+    const state = bareArena();
+    const plan = COUNTED.flatMap((k) => {
+      const def = AFFIXES.find((d) => consumesOf(d, k) && d.slots.includes("ring"));
+      const filler = AFFIXES.find((d) => d.slots.includes("ring") && d.keywords !== undefined && !profileTouches(d.keywords, k));
+      const boons = def && filler ? fillWithBoons(state, k, RESONANCE.minSources, RESONANCE.minSinks - 1) : null;
+      return def && filler && boons ? [{ k, def, filler, boons }] : [];
+    })[0];
+    if (!plan) throw new Error("数えの組が見つからない");
+    state.boons = plan.boons;
+    const ring = relicWith("ring", [plan.filler]);
+    state.profile.equipment.ring = ring;
+    refreshResonance(state);
+    expect(stepOf(state, plan.k), "糧が 1 つ足りない").toBe(0);
+    ring.affixes[0] = { key: plan.def.key, value: 1 };
+    expect(refreshResonance(state), "差し替えで段が変わる").toBe(true);
+    expect(stepOf(state, plan.k)).toBe(1);
+  });
+
+  it("段の列を外から置き換えたら数え直して戻す", () => {
+    const state = bareArena();
+    const k = COUNTED.find((w) => fillWithBoons(state, w, RESONANCE.minSources, RESONANCE.minSinks) !== null);
+    if (!k) throw new Error("語が無い");
+    state.boons = fillWithBoons(state, k, RESONANCE.minSources, RESONANCE.minSinks) ?? [];
+    refreshResonance(state);
+    expect(stepOf(state, k)).toBe(1);
+    state.boonRun.resonance = [];
+    expect(refreshResonance(state)).toBe(true);
+    expect(stepOf(state, k), "置き換えた後も元の段に戻る").toBe(1);
+  });
+
   it("同じ seed・同じ操作なら同じ共鳴", () => {
     const play = (): ResonanceStep[] => {
       const state = createGame(11);
