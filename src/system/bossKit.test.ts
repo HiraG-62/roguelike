@@ -256,4 +256,16 @@ describe("章ボスの署名の技", () => {
     expect(ai.move, "借り手の技").toBe(5);
     expect(ai.stage, "借り手の段階").toBe(3);
   });
+
+  it("予告の形は借り手の ai を書き換えずに引く（描画が毎フレーム読む）", () => {
+    const { boss: host } = bossFloor(BORROWER_DEPTH, -50);
+    const ai = host.ai;
+    if (!ai) throw new Error("no ai");
+    ai.move = 5;
+    ai.stage = 3;
+    host.ai = Object.freeze({ ...ai });
+    expect(MIRROR_KNIGHT_SIGNATURE.telegraph?.(host), "剣の波の扇").toMatchObject({ kind: "cone" });
+    expect(host.ai.move).toBe(5);
+    expect(host.ai.stage).toBe(3);
+  });
 });

@@ -364,6 +364,21 @@ describe("最深の主: 後始末と決定性", () => {
     expect(isLava(state, rectCenterPx(rect)), "階段").toBe(false);
   });
 
+  it("1 回目の陥没だけで倒れても、まだ崩れていない外周は撃破の瞬間に溶岩にならない", () => {
+    const { state, boss, rect } = lordFloor();
+    breakAllPillars(state, boss);
+    tick(state, secs(K.collapseWarn) + 2);
+    expect(deepLordCollapsedTiles(state, boss), "1 回目だけ").toBe(K.ringTiles);
+    expect(isLava(state, edgeTile(rect, K.ringTiles)), "2 回目の外周はまだ床").toBe(false);
+    boss.hp = 0;
+    tick(state);
+    expect(state.boss?.defeated).toBe(true);
+    expect(isLava(state, edgeTile(rect, 0)), "崩れた外周は消えるまで溶岩").toBe(true);
+    expect(isLava(state, edgeTile(rect, K.ringTiles)), "崩れていない外周に溶岩を置かない").toBe(false);
+    tick(state, secs(K.collapseFade) + 2);
+    expect(isLava(state, edgeTile(rect, 0)), "溶岩は消える").toBe(false);
+  });
+
   it("門柱が残ったまま倒れても門柱は残らない", () => {
     const { state, boss } = lordFloor();
     engage(state, boss);

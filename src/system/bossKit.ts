@@ -268,7 +268,13 @@ export function signatureOf(key: string, move: number, h: BossHooks, telegraph?:
     tickStrike: (state, e, def, dt) => asMove(e, move, () => h.tickStrike?.(state, e, def, dt) ?? false),
   };
   if (!telegraph) return sig;
-  return { ...sig, telegraph: (e) => asMove(e, move, () => telegraph(e)) };
+  // 予告は描画（render/）が毎フレーム読むので、ai を書き換えず技と段階を差し替えた写しで引く（不変条件 1）
+  return { ...sig, telegraph: (e) => telegraph(asMoveView(e, move)) };
+}
+
+/** asMove と同じ差し替えを、元の敵を書き換えずに写しで見せる（読むだけの予告用） */
+function asMoveView(e: Enemy, move: number): Enemy {
+  return e.ai ? { ...e, ai: { ...e.ai, move, stage: SIGNATURE_STAGE } } : e;
 }
 
 function asMove<T>(e: Enemy, move: number, fn: () => T): T {

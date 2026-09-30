@@ -185,7 +185,7 @@ export function placeNemesis(state: GameState): void;          // floor.ts の b
 export function onNemesisDeath(state: GameState, e: Enemy): void; // enemyTraits.ts の onEnemyDeath の末尾
 ```
 
-- **選び方**（`meta/runMetaSetup.ts` の `nemesisFromHistory(history)`）: 履歴を新しい順に見て、デイリーの行は飛ばす。`avenged` の行に当たったら null。離脱・踏破の行は飛ばす。最初の「力尽きた」の行の `grudge` を返す（無ければ null）。深度は `entry.depth`。`nemesisEligible` と `ELITE_KINDS` で key と修飾子を濾す
+- **選び方**（`meta/runMetaSetup.ts` の `nemesisFromHistory(history)`）: 履歴を新しい順に見て、デイリーの行は飛ばす。最初の「力尽きた」の行の `grudge` を返す（無ければ null。仇を討った後に力尽きた行も、討った後の死なのでその `grudge`）。それより先に `avenged` の行（離脱・踏破）に当たったら null。離脱・踏破の行は飛ばす。深度は `entry.depth`。`nemesisEligible` と `ELITE_KINDS` で key と修飾子を濾す
 - **出る階**: `spawnDepth = max(NEMESIS.minDepth, spec.depth − NEMESIS.depthLead, def.minDepth)`。`depth ≥ spawnDepth` で、`isBossDepth` でなく、`state.sandbox` でない最初の階。**上り階段で戻った階・2 体目は出さない**（`placed` で 1 ラン 1 体）
 - **置き方**（乱数なし）: `state.jins` のうち `roomIndex !== ROAMING_ROOM` かつ `phase === "sleeping"` の陣を、陣の中心と開始地点の距離の遠い順（同じなら id の小さい順）に試し、`addJinMember(state, jin, def, jin.center)`（`jinSpawn.ts` に新設。`freeSpotNear` + `createEnemy` + `jinId` + `applyHpMul(jin.hpMul)` + `onRunEnemySpawned` + push）で置けた最初の 1 体。置けなければ次の階で再挑戦
 - **強さ**（乱数なし）: 記録の修飾子を `eliteKindsFor(def)` で濾し、0 個 → `makeElite(e, eliteKindsForRole(def, roleOf(def))[0])`、1 個 → `makeElitePair(e, main, extra)`（extra = `ELITE_PAIRS` で main と組む最初の許される相手、無ければ main 以外の最初の許される種類）、2 個 → `makeElitePair(e, a, b)` + `applyHpMul(e, NEMESIS.maxedHpMul)`。全員 `makeStrong(e)` + `applyHpMul(e, NEMESIS.hpMul)`。`e.nemesis = true`

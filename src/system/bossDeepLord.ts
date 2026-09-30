@@ -14,7 +14,7 @@ import { explodeHostile, laserEnd, spawnLanding, spawnLaser } from "./hazards";
 import { overlapsWall } from "./physics";
 import { applyStagger, isStaggered } from "./poise";
 import { inflictOnPlayer } from "./statusEffects";
-import { placeTerrain } from "./terrain";
+import { placeTerrain, terrainAt } from "./terrain";
 import { phaseShift } from "./boss";
 import { noteBossDown } from "./bossRecord";
 import { type BossHooks, type BossSignature, type PlayerRead, bossDown, lungeStep, runBossCycle, toPlayer, walkToward } from "./bossKit";
@@ -306,9 +306,11 @@ export function settleDeepLordRoom(state: GameState, e: Enemy): void {
   for (const h of state.hazards) {
     if (h.kind === "landing" && h.sourceId === undefined && inRoom(h.pos)) h.time = 0;
   }
-  const k = BOSS.deepLord;
-  for (const pos of ringCells(r, 0, k.collapseSteps * k.ringTiles)) {
-    placeTerrain(state, pos.x, pos.y, "lava", COLLAPSE_CELL_RADIUS, k.collapseFade);
+  // 崩れ終えた外周の溶岩だけを collapseFade 秒で消える溶岩に置き直す。まだ崩れていない外周（予約を取り消した所・
+  // 部屋が狭くて崩れない所）へ溶岩を新しく置くと、撃破の瞬間に足元が溶岩になる
+  for (const pos of ringCells(r, 0, deepLordCollapsedTiles(state, e))) {
+    if (terrainAt(state, pos.x, pos.y) !== "lava") continue;
+    placeTerrain(state, pos.x, pos.y, "lava", COLLAPSE_CELL_RADIUS, BOSS.deepLord.collapseFade);
   }
 }
 
