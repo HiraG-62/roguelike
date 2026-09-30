@@ -21,6 +21,7 @@
 | --- | --- |
 | `npm run dev` | 開発サーバ（Vite） |
 | `npm run check` | audit:docs → tsc → vitest → vite build。1 つでも失敗で非 0。**作業完了の判定はこれ** |
+| `npm run check:fast` | 並列レーンの途中確認用。QA シミュレーション・Electron の型検査・ビルドを省く（コミット前は `check`） |
 | `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
 | `npm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
 | `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`-- --atlas <武器種>` でその武器種だけ、`-- --only <key> --preview <dir>` で確認用 PNG だけ |
