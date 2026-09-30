@@ -36,6 +36,21 @@ export function isFinalDepth(depth: number): boolean {
   return depth === lastChapterFloor() + 1;
 }
 
+/** 深み（最深の間の次の階 = 深度 22 から）。深みの規則（敵数・変異・上限の解放・表示）はこれだけを見る */
+export function isDeepDepth(depth: number): boolean {
+  return depth > lastChapterFloor() + 1;
+}
+
+/** 深みの何層目か（深度 22 で 1）。深みでなければ 0 */
+export function deepFloorOf(depth: number): number {
+  return isDeepDepth(depth) ? depth - (lastChapterFloor() + 1) : 0;
+}
+
+/** 最深の主を倒したランか（bossLog に ARC.finalBoss がある）。踏破の数えで、深みへ降りて力尽きても踏破に数える */
+export function conqueredBy(bossLog: readonly { readonly key: string }[]): boolean {
+  return bossLog.some((record) => record.key === ARC.finalBoss);
+}
+
 /** 最深の間の主の key（ARC.finalBoss。最深の間でなければ null） */
 export function finalBossKey(depth: number): string | null {
   return isFinalDepth(depth) ? ARC.finalBoss : null;

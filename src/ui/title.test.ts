@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Item, RunHistoryEntry } from "../loot/types";
 import { REPLAY_VERSION, type ReplayData } from "../core/replay";
 import { KEYBIND_SLOTS, REBINDABLE_ACTIONS } from "../core/input";
+import { ARC } from "../data/tuning";
 import {
   type RawKeyEvent,
   KEYBINDS_ROWS,
@@ -248,6 +249,27 @@ describe("buildHistoryEntry", () => {
       3000,
     );
     expect(cleared.cause).toBe("cleared");
+  });
+
+  it("最深の主を倒した後に深みで力尽きたランは、履歴の終わり方が踏破になる", () => {
+    const entry = buildHistoryEntry(
+      { seedText: "abc", depth: 25, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "dead" as const, bossLog: [{ key: ARC.finalBoss }] },
+      3000,
+    );
+    expect(entry.cause).toBe("cleared");
+    const left = buildHistoryEntry(
+      { seedText: "abc", depth: 25, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "playing" as const, bossLog: [{ key: ARC.finalBoss }] },
+      3000,
+    );
+    expect(left.cause, "深みで離脱しても踏破").toBe("cleared");
+  });
+
+  it("最深の主を倒していない力尽きたランは defeated のまま", () => {
+    const entry = buildHistoryEntry(
+      { seedText: "abc", depth: 20, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "dead" as const, bossLog: [{ key: "mirrorKnight" }] },
+      3000,
+    );
+    expect(entry.cause).toBe("defeated");
   });
 });
 

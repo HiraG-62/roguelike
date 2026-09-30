@@ -1008,12 +1008,12 @@ function gradeColorOf(grade: BoonGrade): string | null {
 // 数値系: stats への畳み込み
 // -----------------------------------------------------------------------------
 
-/** 装備由来の stats に祝福を畳み込む（元の stats は変更しない） */
-export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly BoonKey[], run: Readonly<BoonRunState>): PlayerStats {
+/** 装備由来の stats に祝福を畳み込む（元の stats は変更しない）。uncapped は深みで研鑽の上限を外す */
+export function foldBoonStats(stats: Readonly<PlayerStats>, boons: readonly BoonKey[], run: Readonly<BoonRunState>, uncapped = false): PlayerStats {
   const out: PlayerStats = { ...stats };
   Object.assign(out, foldCoreStats(out, boons));
   foldAddStats(out, boons);
-  foldTemperStats(out, boons, run.tallies);
+  foldTemperStats(out, boons, run.tallies, uncapped);
   // 最終段で下限を掛ける。0 だと capManaCost がコストを 0 に切り詰めて撃ち放題になる
   out.maxMana = Math.max(MANA.maxMin, out.maxMana);
   return out;
@@ -1029,11 +1029,11 @@ function foldAddStats(out: PlayerStats, boons: readonly BoonKey[]): void {
 }
 
 /** 研鑽の stats への効き（BoonDef.temperStat）を取得順に足す */
-function foldTemperStats(out: PlayerStats, boons: readonly BoonKey[], tallies: Readonly<Record<string, number>>): void {
+function foldTemperStats(out: PlayerStats, boons: readonly BoonKey[], tallies: Readonly<Record<string, number>>, uncapped: boolean): void {
   for (const key of boons) {
     const t = BOONS[key].temperStat;
     if (t === undefined) continue;
-    out[t.stat] += temperAmount(t, tallies[t.tally] ?? 0);
+    out[t.stat] += temperAmount(t, tallies[t.tally] ?? 0, uncapped);
   }
 }
 
@@ -1042,10 +1042,10 @@ function temperSteps(t: Readonly<TemperStat>, value: number): number {
   return Math.floor(value / Math.max(1, t.every));
 }
 
-/** 研鑽が足す量: per × 段。cap があればそこで止める */
-export function temperAmount(t: Readonly<TemperStat>, value: number): number {
+/** 研鑽が足す量: per × 段。cap があればそこで止める（uncapped = 深みでは止めない） */
+export function temperAmount(t: Readonly<TemperStat>, value: number, uncapped = false): number {
   const amount = t.per * temperSteps(t, value);
-  return t.cap === undefined ? amount : Math.min(t.cap, amount);
+  return t.cap === undefined || uncapped ? amount : Math.min(t.cap, amount);
 }
 
 /**

@@ -878,6 +878,7 @@ import j_world_ECONOMY_donation from "./world/ECONOMY/donation.json";
 import j_world_ECONOMY_bet from "./world/ECONOMY/bet.json";
 import j_world_ECONOMY_build from "./world/ECONOMY/build.json";
 import j_world_ARC from "./world/ARC.json";
+import j_world_DEEP from "./world/DEEP.json";
 import j_world_TIER_REWARD from "./world/TIER_REWARD.json";
 import j_world_EXIT from "./world/EXIT.json";
 
@@ -2050,6 +2051,7 @@ export const world = {
     "build": j_world_ECONOMY_build,
   },
   "ARC": j_world_ARC,
+  "DEEP": j_world_DEEP,
   "TIER_REWARD": j_world_TIER_REWARD,
   "EXIT": j_world_EXIT,
 };
@@ -2892,6 +2894,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/BOSS_HALL.json",
   "world/CAVE.json",
   "world/CONTRACT.json",
+  "world/DEEP.json",
   "world/DISCOVERY.json",
   "world/ECONOMY/_index.json",
   "world/ECONOMY/bet.json",

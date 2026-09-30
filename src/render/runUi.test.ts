@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
-import { FLOOR_KIND } from "../data/tuning";
+import { ARC, FLOOR_KIND } from "../data/tuning";
 import { buildFloor } from "../system/floor";
 import { standContractor } from "../system/contractors";
 import { nearestOffer, runSetupParts } from "./runUi";
@@ -15,6 +15,12 @@ describe("ラン構造の HUD", () => {
     state.depth = FLOOR_KIND.invertedDepth;
     state.runEvents.strata.revisit = true;
     expect(runSetupParts(state)).toEqual(["銭 4 · 鍵 1", "反転層", "帰還"]);
+  });
+
+  it("深みでは右上に「深み n 層」を出し、反転層は出さない", () => {
+    const state = createGame(3);
+    state.depth = ARC.floorsPerChapter * ARC.maxChapter + 3;
+    expect(runSetupParts(state)).toEqual(["銭 0 · 鍵 0", "深み 2 層"]);
   });
 
   it("契約者の台座は、名前を読める距離でいちばん近いものだけ名前を出す", () => {

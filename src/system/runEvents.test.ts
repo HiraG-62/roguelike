@@ -3,7 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { ELEMENT_LABEL } from "../core/element";
-import { ECONOMY, FLOOR_KIND, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ARC, DEEP, ECONOMY, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
@@ -655,19 +655,28 @@ describe("ランイベント第 2 弾の効果", () => {
   });
 });
 
-describe("無限の深み（変異）", () => {
-  it("深みより浅ければ変異なし、深いほど積み上がる", () => {
-    expect(mutationsFor(FLOOR_KIND.deepDepth - 1)).toEqual([]);
-    expect(mutationsFor(FLOOR_KIND.deepDepth).length).toBe(1);
-    expect(mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery).length).toBe(2);
-    for (const key of mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 10)) expect(RUN_EVENTS[key].scope, key).toBe("floor");
+describe("深み（変異）", () => {
+  /** 深み n 層目の深度（最深の間の次の階が 1 層目） */
+  const deepDepthOf = (layer: number): number => ARC.floorsPerChapter * ARC.maxChapter + 1 + layer;
+
+  it("深みより浅ければ変異なし、深み 1 層目で 1 つ、DEEP.mutationEvery 層ごとに 1 つ増え、全部が階の枠の出来事", () => {
+    expect(mutationsFor(deepDepthOf(0)), "最深の間").toEqual([]);
+    expect(mutationsFor(deepDepthOf(1)).length).toBe(1);
+    expect(mutationsFor(deepDepthOf(DEEP.mutationEvery)).length, "増える 1 つ手前").toBe(1);
+    expect(mutationsFor(deepDepthOf(1 + DEEP.mutationEvery)).length).toBe(2);
+    for (const key of mutationsFor(deepDepthOf(1 + DEEP.mutationEvery * 10))) expect(RUN_EVENTS[key].scope, key).toBe("floor");
+  });
+
+  it("変異に狂乱の月は入らない（予備動作を縮めない）", () => {
+    expect(mutationsFor(deepDepthOf(1 + DEEP.mutationEvery * 10))).not.toContain("frenzyMoon");
   });
 
   it("深みの階では変異が常に効き、HUD に出る", () => {
-    const { state } = setup(7, FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 2);
+    // 霧は 2 つ目の変異なので、深み 1 + mutationEvery 層で見る
+    const { state } = setup(7, deepDepthOf(1 + DEEP.mutationEvery));
     buildFloor(state, "rooms");
     quiet(state);
-    expect(state.runEvents.mutations.length).toBe(3);
+    expect(state.runEvents.mutations.length).toBe(2);
     expect(fogActive(state), "霧の変異").toBe(true);
     expect(runEventHudLines(state).some((l) => l.text.startsWith("変異")), "HUD").toBe(true);
   });

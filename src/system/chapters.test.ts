@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { enemyDef } from "../data/enemies";
-import { ARC, HEAL } from "../data/tuning";
+import { ARC, ENEMY_SCALE, HEAL } from "../data/tuning";
 import { isBossDepth } from "./boss";
-import { chapterAheadLines, chapterBossKey, chapterOf, finalBossKey, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, isFinalDepth, nextPeakOf, skipsFloorLord } from "./chapters";
+import { chapterAheadLines, chapterBossKey, chapterOf, conqueredBy, deepFloorOf, finalBossKey, hasRestFountain, heartChanceOf, isChapterBossDepth, isChapterRest, isDeepDepth, isFinalDepth, nextPeakOf, skipsFloorLord } from "./chapters";
 
 /** 章立て（system/chapters.ts） */
 
@@ -100,5 +100,33 @@ describe("次の山（nextPeakOf）", () => {
     expect(nextPeakOf(21)).toEqual({ depth: 21, key: ARC.finalBoss });
     expect(nextPeakOf(22)).toBeNull();
     expect(nextPeakOf(40)).toBeNull();
+  });
+});
+
+describe("深み", () => {
+  const final = ARC.floorsPerChapter * ARC.maxChapter + 1;
+
+  it("isDeepDepth は最深の間の次（22）から true、21 は false", () => {
+    expect(isDeepDepth(final)).toBe(false);
+    expect(isDeepDepth(final + 1)).toBe(true);
+    expect(isDeepDepth(final + 30)).toBe(true);
+    expect(isDeepDepth(0), "拠点").toBe(false);
+  });
+
+  it("deepFloorOf は 22 で 1、21 以下は 0", () => {
+    expect(deepFloorOf(final + 1)).toBe(1);
+    expect(deepFloorOf(final + 10)).toBe(10);
+    expect(deepFloorOf(final)).toBe(0);
+    expect(deepFloorOf(1)).toBe(0);
+  });
+
+  it("conqueredBy は bossLog に最深の主があるときだけ true", () => {
+    expect(conqueredBy([])).toBe(false);
+    expect(conqueredBy([{ key: "kingSlime" }, { key: "mirrorKnight" }]), "章ボスだけ").toBe(false);
+    expect(conqueredBy([{ key: "kingSlime" }, { key: ARC.finalBoss }])).toBe(true);
+  });
+
+  it("ENEMY_SCALE.deepDepth は最深の間の深度と同じ（敵の指数は深みの 1 層目から）", () => {
+    expect(ENEMY_SCALE.deepDepth).toBe(final);
   });
 });

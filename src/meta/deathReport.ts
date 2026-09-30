@@ -5,7 +5,7 @@ import { STATUS_LABEL } from "../core/status";
 import { TERRAIN_LABEL } from "../core/terrain";
 import { ENEMIES, type EnemyDef } from "../data/enemies";
 import type { HistoryKiller, ProfileMeta, RunHistoryEntry } from "../loot/types";
-import { nextPeakOf } from "../system/chapters";
+import { deepFloorOf, nextPeakOf } from "../system/chapters";
 import { grudgeOf, killerOf } from "../system/deathCause";
 import { ELITE_PREFIX, NEMESIS_PREFIX } from "../system/elites";
 import { LINGER_LABEL } from "../system/linger";
@@ -107,6 +107,13 @@ function nextPeakLine(depth: number): string | null {
   return def ? `次の山: 地下 ${peak.depth} 階 ${enemyName(def)}` : null;
 }
 
+/** 踏破の行。深みで終えたランは深みの層も足す（最深の主を倒して降りた先で力尽きた踏破） */
+function clearLine(entry: Readonly<RunHistoryEntry>, meta: Readonly<ProfileMeta>): string {
+  const base = `踏破: 位階 ${entry.tier ?? 0}（${meta.clears ?? 1} 回目）`;
+  const deep = deepFloorOf(entry.depth);
+  return deep > 0 ? `${base}・深み ${deep} 層` : base;
+}
+
 /** 符号つきの差（0 は ±0） */
 function signed(n: number): string {
   if (n > 0) return `+${n}`;
@@ -136,7 +143,7 @@ export function deathReportLines(
   if (entry.cause === CAUSE_DEFEATED) {
     lines.push(entry.killer ? killerLine(entry.killer, codex) : null, nextPeakLine(entry.depth));
   } else if (entry.cause === CAUSE_CLEARED) {
-    lines.push(`踏破: 位階 ${entry.tier ?? 0}（${meta.clears ?? 1} 回目）`, nextTierRewardLine(meta));
+    lines.push(clearLine(entry, meta), nextTierRewardLine(meta));
   } else {
     return [];
   }

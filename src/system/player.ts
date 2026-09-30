@@ -60,6 +60,7 @@ import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
 import { onTraitCounter } from "./traitHooks";
 import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
+import { isDeepDepth } from "./chapters";
 import { isAllied } from "./rules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 import {
@@ -188,7 +189,7 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   state.boonRun.baseStats = base;
   // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
   const derived = deriveAttributes(base);
-  const stats = foldBoonStats(derived, state.boons, state.boonRun);
+  const stats = foldBoonStats(derived, state.boons, state.boonRun, isDeepDepth(state.depth));
   applyResonance(state, stats);
   // 武器種が変わったら持続の奥義を終える（別の武器種の型に同じ差し替えを畳まない）
   const movesetChanged = state.stats.moveset !== stats.moveset;
