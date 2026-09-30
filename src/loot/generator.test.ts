@@ -3,7 +3,7 @@ import { createRng } from "../core/rng";
 import { affixDef, implicitDef, isConversionKey, isKeystoneKey, keystoneDef } from "./affixes";
 import { baseDef } from "./bases";
 import { COLOR_ADJECTIVE, traitColorOf } from "./colors";
-import { INVERSION_MIN_DEPTH, fluxClassOf, powerScaleAt } from "./flux";
+import { INVERSION_MIN_DEPTH, fluxClassOf } from "./flux";
 import {
   MAX_FOUND_TRAITS,
   MAX_MARGIN,
@@ -14,6 +14,7 @@ import {
   rollTraitCount,
   rollUniqueAffixes,
   rollTraitOfColor,
+  uniqueDef,
   uniquesFor,
   type GenerateOptions,
 } from "./generator";
@@ -27,7 +28,7 @@ const HIGH_LEVEL = 40;
 const SHALLOW = 3;
 const DEEP = 25;
 /** 名のある遺物の数の下限（2026-09 の拡張で 16 → 46） */
-const MIN_NAMED_COUNT = 40;
+const MIN_NAMED_COUNT = 18;
 
 function opts(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   return { itemLevel: 10, foundDepth: 5, now: NOW, ...overrides };
@@ -43,16 +44,17 @@ function generateMany(count: number, seed: number, o: Partial<GenerateOptions> =
   return items;
 }
 
-/** 涸れ井戸の指輪の器（性質は呼び出し側で差し込む） */
-function driedWellItem(): Item {
+/** 招き猫の器（性質は呼び出し側で差し込む） */
+function luckyCatItem(): Item {
   return {
-    id: "driedWell",
+    id: "luckyCat",
     seed: 0,
-    baseKey: "sapphireRing",
+    baseKey: "goldRing",
     slot: "ring",
     rarity: "unique",
     itemLevel: 10,
-    name: "涸れ井戸の指輪",
+    name: "招き猫",
+    namedKey: "luckyCat",
     implicit: null,
     affixes: [],
     foundDepth: 10,
@@ -103,7 +105,9 @@ describe("generateItem: 決定性と基本形", () => {
       expect(item.provenance).toEqual(createEmptyProvenance());
       expect(item.margin).toBeGreaterThanOrEqual(item.namedKey === undefined ? MIN_MARGIN : 1);
       // 襤褸（marginBonus）は器の容量まで余白が多い
-      expect(item.margin).toBeLessThanOrEqual(MAX_MARGIN + (baseDef(item.baseKey)?.marginBonus ?? 0));
+      // 名のある遺物は固有の余白を持てる（無地の刃）
+      const namedMargin = item.namedKey === undefined ? 0 : (uniqueDef(item.namedKey)?.margin ?? 0);
+      expect(item.margin).toBeLessThanOrEqual(Math.max(namedMargin, MAX_MARGIN + (baseDef(item.baseKey)?.marginBonus ?? 0)));
       expect(item.marginMax).toBe(item.margin);
       expect(item.milestones).toEqual([]);
       expect(item.buds).toEqual([]);
@@ -298,25 +302,22 @@ describe("名のある遺物の定義", () => {
     }
   });
 
-  it("各スロットに 2 つ以上ある", () => {
+  it("各スロットに 1 つ以上ある（段取り 7d の配り: 右手 4・首飾り 5・頭 3・指輪 3・体 2・足 1）", () => {
     for (const slot of LOOT_SLOTS) {
-      expect(UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length, slot).toBeGreaterThanOrEqual(2);
+      expect(UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === slot).length, slot).toBeGreaterThanOrEqual(1);
     }
   });
 
-  it("涸れ井戸の指輪が生成でき、最大マナが減り撃破のマナとコスト軽減が付く", () => {
-    const def = UNIQUES.find((u) => u.key === "driedWell");
-    expect(def, "driedWell が定義されている").toBeDefined();
+  it("招き猫が生成でき、固定の性質が付き、銭の倍が乗る", () => {
+    const def = UNIQUES.find((u) => u.key === "luckyCat");
+    expect(def, "luckyCat が定義されている").toBeDefined();
     if (def === undefined) return;
     const affixes = rollUniqueAffixes(createRng(7), def, def.minLevel);
-    expect(affixes.map((r) => r.key)).toEqual(["manaDrought", "manaCostPct"]);
-    const stats = computeStats({ ...createEmptyEquipment(), ring: { ...driedWellItem(), affixes } });
-    // 値は揺らぐので方向だけを見る（曲線の期待値は深度 10 で 最大マナ −31 / 撃破でマナ +10 / コスト −15%。
-    // 生成時に装備の強さの係数 powerScaleAt を掛ける）
-    expect(affixes[0]?.nominal2 ?? 0, "最大マナの期待値は −30 × 係数 前後").toBeGreaterThanOrEqual(28 * powerScaleAt(def.minLevel));
-    expect(stats.maxMana, "最大マナが基礎より減る").toBeLessThan(DEFAULT_STATS.maxMana);
-    expect(stats.manaOnKill, "撃破でマナが増える").toBeGreaterThan(0);
-    expect(stats.manaCostMul, "スキルのコストが下がる").toBeLessThan(1);
+    expect(affixes.map((r) => r.key)).toEqual(["purse"]);
+    const stats = computeStats({ ...createEmptyEquipment(), ring: { ...luckyCatItem(), affixes } });
+    expect(stats.coinGainMul, "稼ぐ銭が増える").toBeGreaterThan(DEFAULT_STATS.coinGainMul);
+    expect(stats.coinMagnetMul, "引き寄せが広がる").toBeGreaterThan(DEFAULT_STATS.coinMagnetMul);
+    expect(stats.coinSpillMul, "こぼれる銭も増える").toBeGreaterThan(DEFAULT_STATS.coinSpillMul);
   });
 
   it("uniquesFor はそのスロット・深度で解禁済みのものだけを返す", () => {

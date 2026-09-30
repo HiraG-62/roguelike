@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { WEAPON } from "../data/tuning";
 import { CONVERSION_AFFIXES, affixDef, formatAffix, isConversionKey } from "./affixes";
-import { CONVERSION_TRAIT_CHANCE, UNIQUES, generateItem } from "./generator";
+import { CONVERSION_TRAIT_CHANCE, generateItem } from "./generator";
 import { computeStats } from "./stats";
 import { DEFAULT_STATS, createEmptyEquipment, type AffixRoll, type Equipment, type Item } from "./types";
 
@@ -122,7 +122,7 @@ describe("変換の性質", () => {
     expect(leech.energyGainMul).toBeCloseTo(1 + 2 * 0.15, 5);
   });
 
-  it("抽選に変換が混ざり、1 アイテムに 1 つまで（名のある遺物を除く）。名のある遺物にも組み込まれている", () => {
+  it("抽選に変換が混ざり、1 アイテムに 1 つまで（名のある遺物を除く）", () => {
     expect(CONVERSION_TRAIT_CHANCE).toBeGreaterThan(0);
     const rng = createRng(3);
     let seen = 0;
@@ -135,6 +135,5 @@ describe("変換の性質", () => {
       for (const c of conversions) expect(c.inverted).toBeUndefined();
     }
     expect(seen).toBeGreaterThan(0);
-    expect(UNIQUES.some((u) => u.affixes.some((a) => isConversionKey(a.key)))).toBe(true);
   });
 });

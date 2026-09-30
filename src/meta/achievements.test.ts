@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JOB_KEYS } from "../data/jobs";
+import { UNIQUES } from "../loot/named";
 import { createEmptyProfile } from "../loot/types";
 import {
   ACHIEVEMENTS,
@@ -53,6 +54,17 @@ describe("実績: 判定", () => {
     expect(unlocked, "50 回はまだ").not.toContain("fiftyRuns");
     expect(save.unlocked.tenRuns, "解除の時刻").toBe(50);
     expect(evaluateAchievements(ctx, save, 60), "2 回目は無し").toEqual([]);
+  });
+
+  it("名のある遺物を 18 種そろえると「宝物庫の主」（key は旧名の relic25）", () => {
+    const withRelics = (keys: string[]): AchievementContext => {
+      const ctx = context();
+      return { ...ctx, codex: { ...ctx.codex, relics: keys } };
+    };
+    const all = UNIQUES.map((u) => u.key);
+    expect(UNIQUES.length, "名のある遺物は 18 種").toBe(18);
+    expect(evaluateAchievements(withRelics(all), createAchievementSave(), 1)).toContain("relic25");
+    expect(evaluateAchievements(withRelics(all.slice(1)), createAchievementSave(), 1), "17 種ではまだ").not.toContain("relic25");
   });
 
   it("すべての依頼を達成すると「何でも屋」と「百の出自」", () => {

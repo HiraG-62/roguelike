@@ -83,6 +83,7 @@ import { placeMerchants, updateMerchants } from "./merchants";
 import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./economy";
 import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
+import { onRelicFloorStart } from "./namedRelics";
 
 const START_ROOM = 0;
 /** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の部屋（陣の候補）にする */
@@ -181,6 +182,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   placeMerchants(state);
   // 壺・木箱は商人の台座を避けて最後に置く（それより前の乱数消費を変えない。system/containers.ts）
   placeContainers(state);
+  // 名のある遺物の階の到着（賽の目は装備しているときだけ乱数を引く。それより前の乱数消費を変えない）
+  onRelicFloorStart(state);
   // 出口の予告はこの階を作るためだけに使う。次の階へ持ち越さない
   state.pendingExit = null;
 }

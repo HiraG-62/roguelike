@@ -39,7 +39,7 @@ import {
 import { describeTrait } from "./describe";
 import { rollUniqueAffixes } from "./generator";
 import { fillProvenanceCounters } from "./migrate";
-import { UNIQUES, uniqueDef } from "./named";
+import { UNIQUES } from "./named";
 import { loadProfile, saveProfile } from "./profile";
 import { MILESTONES, bumpProvenance, makeBudOffer, milestoneDef } from "./provenance";
 import {
@@ -172,33 +172,6 @@ const NEW_BASES = [
   "caltrops",
   "seekerOrb",
   "mino",
-] as const;
-
-const NEW_UNIQUES = [
-  "emberHeart",
-  "glacierStep",
-  "thunderLash",
-  "bogMother",
-  "duskSickle",
-  "dawnCrystal",
-  "oneHueBand",
-  "plainVeil",
-  "backlashCharm",
-  "moonCleaver",
-  "mastersKatana",
-  "strayFists",
-  "matedFangs",
-  "gateHalberd",
-  "abbotsStaff",
-  "rustbreaker",
-  "thunderTrumpet",
-  "brandingKnives",
-  "demonCaltrops",
-  "circlingMoon",
-  "earthMino",
-  "rootedGeta",
-  "driftersCharm",
-  "lampOil",
 ] as const;
 
 const PERCENT = 0.01;
@@ -484,12 +457,11 @@ describe("第 2 弾のベース（10 種以上）", () => {
   });
 });
 
-describe("第 2 弾の名のある遺物（20 種以上）", () => {
+describe("名のある遺物（段取り 7d の 18）", () => {
   it("全て生成でき、ベースが実在し、銘の一文を持つ", () => {
-    expect(NEW_UNIQUES.length).toBeGreaterThanOrEqual(20);
-    for (const key of NEW_UNIQUES) {
-      const def = uniqueDef(key);
-      if (def === undefined) throw new Error(`遺物 ${key} が無い`);
+    expect(UNIQUES.length).toBeGreaterThanOrEqual(18);
+    for (const def of UNIQUES) {
+      const key = def.key;
       expect(baseDef(def.baseKey), key).toBeDefined();
       expect(def.flavor?.length ?? 0, key).toBeGreaterThan(0);
       const rolls = rollUniqueAffixes(createRng(3), def, def.minLevel);
@@ -864,11 +836,11 @@ describe("第 2 弾の来歴と節目", () => {
       length: 0,
     } as Storage;
     const profile = createEmptyProfile();
-    const a = { ...roll("meleeDamagePct", 10), origin: "bud" as const, colorless: true };
-    const b = { ...roll("crushing", 10, 5), tensed: true };
+    const a = { ...roll("damageVsStaggered", 10), origin: "bud" as const, colorless: true };
+    const b = { ...roll("burn", 10, 5), tensed: true };
     profile.stash.push(
       item("mainHand", [a, b], {
-        buds: [{ milestone: "kills:50", options: [a, roll("maxLife", 5)], chosen: 0, recalled: true }],
+        buds: [{ milestone: "kills:50", options: [a, roll("comboDamage", 5)], chosen: 0, recalled: true }],
         reforged: 2,
         provenance: { ...createEmptyProvenance(), weakHits: 4, terrainKills: 2 },
       }),

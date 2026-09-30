@@ -223,9 +223,9 @@ describe("依頼: ラン終了時の判定と報酬", () => {
     expect(again?.newlyCompleted, "2 回目は報酬なし").toBe(false);
     expect(save.completed.alchemist, "時刻は最初のまま").toBe(123);
 
-    expect(lockedRelicKeys(save), "遺物の報酬は未達成なら抽選外").toContain("unshakenScale");
+    expect(lockedRelicKeys(save), "遺物の報酬は未達成なら抽選外").toContain("herdFlute");
     save.completed.shaker = 1;
-    expect(lockedRelicKeys(save), "達成で抽選に加わる").not.toContain("unshakenScale");
+    expect(lockedRelicKeys(save), "達成で抽選に加わる").not.toContain("herdFlute");
     save.completed.steamHand = 1;
     expect(codexPages(save).has("link"), "連携の頁").toBe(true);
     save.completed.burnout = 1;

@@ -493,9 +493,9 @@ describe("部位「頭」", () => {
     expect(basesForSlot("head", 1).length, "深度 1 で出る頭").toBeGreaterThan(0);
   });
 
-  it("頭の名のある遺物が 2 つある", () => {
+  it("頭の名のある遺物が 3 つある", () => {
     const heads = UNIQUES.filter((u) => baseDef(u.baseKey)?.slot === "head").map((u) => u.key);
-    expect(heads).toEqual(expect.arrayContaining(["readersCirclet", "demonMask"]));
+    expect(heads).toEqual(expect.arrayContaining(["starReader", "jizo", "boneCrown"]));
   });
 
   it("頭の遺物が生成でき、性質も付く（体の性質を引く）", () => {

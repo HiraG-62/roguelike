@@ -9,6 +9,7 @@ import { addFloatingText } from "./effects";
 import { noteFinisherMana, onManaSource } from "./manaSources";
 import { isEngaged } from "./engagement";
 import { onFormSwing } from "./tomeBell";
+import { breakTwinSerpent } from "./namedRelics";
 import {
   type ReleaseMul,
   type ReleaseSwingSpec,
@@ -177,6 +178,8 @@ function noteFirstStrike(state: GameState, enemy: Enemy): void {
 function noteTwinStrike(state: GameState, enemy: Enemy, lane: ButtonKey): void {
   const m = state.player.moment;
   const alternated = m.lastHitLane !== null && m.lastHitLane !== lane && state.time - m.lastHitAt <= MOMENT.twinStrikeWindowSec;
+  // 同じ振りが複数の敵に当たった 2 体目以降（同じ時刻）は途切れに数えない
+  if (!alternated && state.time > m.lastHitAt) breakTwinSerpent(state);
   m.lastHitLane = lane;
   m.lastHitAt = state.time;
   if (!alternated) return;
