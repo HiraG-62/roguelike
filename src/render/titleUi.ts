@@ -32,6 +32,7 @@ import { actionKeyLabel, formatBindingCode, keyLabel, moveKeyLabel, type Keybind
 import { PAD_ACTIONS, formatPadCode, type PadAction, type PadBinds } from "../core/padBinds";
 import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
 import { APP_VERSION } from "../version";
+import { hurtLabel } from "../meta/deathReport";
 
 const COLOR_BG = "#08080c";
 const COLOR_TITLE = "#ffd75f";
@@ -400,13 +401,15 @@ export function drawHistoryScreen(ctx: CanvasRenderingContext2D, view: HistorySc
       // 行頭の印: R = リプレイあり、旧 = 保存はあるが再生不可（旧バージョン）、D = デイリー（* = その日のベスト）
       const replayMark = status === "playable" ? "R" : status === "old" ? "旧" : " ";
       const marks = `${replayMark}${daily ? (best ? "*" : "D") : " "}`;
-      const cause = entry.cause ? (CAUSE_LABEL[entry.cause] ?? entry.cause) : "";
+      const causeLabel = entry.cause ? (CAUSE_LABEL[entry.cause] ?? entry.cause) : "";
+      // 死因の短い名を添える（段取り 9 以降の行だけ。meta/deathReport.ts）
+      const cause = entry.killer ? `${causeLabel}（${hurtLabel(entry.killer)}）` : causeLabel;
       const line = `${marks} ${historyDateLabel(entry.date)}  シード:${entry.seedText}  階:${entry.depth}  撃破:${entry.kills}  スコア:${entry.score}  コンボ:${entry.bestCombo}  ${Math.round(entry.durationSec)}秒  ${cause}`;
       let color = i === cursor ? COLOR_CURSOR : COLOR_TEXT;
       if (best) color = COLOR_DAILY_BEST;
       else if (daily) color = COLOR_DAILY;
       if (status === "old") color = COLOR_DIM;
-      drawText(ctx, line, HISTORY_LEFT_X, y, m, color);
+      drawText(ctx, truncateText(line, VIEW_W - HISTORY_LEFT_X * 2, m), HISTORY_LEFT_X, y, m, color);
       y += lineH;
     });
   }
@@ -702,8 +705,13 @@ export interface DeathSummaryInfo {
   bossesDefeated: number;
   /** 依頼・図鑑・実績の結果（src/meta/。無ければ出さない） */
   metaLines?: readonly string[];
+  /** 死因 / 次の山 / 前回比（meta/deathReport.ts の deathReportLines。最大 3 行。無ければ出さない） */
+  reportLines?: readonly string[];
 }
 
+/** 死因の行の始まり（画面の中央から。スコアの行の下、拾った遺物の行の上に 3 行） */
+const DEATH_REPORT_TOP = 28;
+const COLOR_REPORT = "#ffd0a0";
 const DEATH_META_TOP = 102;
 const DEATH_META_LINE = 11;
 const COLOR_META = "#80ff80";
@@ -716,6 +724,9 @@ export function drawDeathSummary(ctx: CanvasRenderingContext2D, info: DeathSumma
   drawText(ctx, `撃破したボス: ${info.bossesDefeated}`, VIEW_W / 2, VIEW_H / 2 + 72, m, COLOR_TEXT, "center");
   drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード   T: 拠点へ`, VIEW_W / 2, VIEW_H / 2 + 90, m, COLOR_DIM, "center");
   const line = Math.max(DEATH_META_LINE, textLineHeight(m));
+  (info.reportLines ?? []).forEach((text, i) => {
+    drawText(ctx, truncateText(text, VIEW_W - SCREEN_MARGIN * 2, m), VIEW_W / 2, VIEW_H / 2 + DEATH_REPORT_TOP + i * line, m, COLOR_REPORT, "center");
+  });
   (info.metaLines ?? []).forEach((text, i) => {
     drawText(ctx, truncateText(text, VIEW_W - SCREEN_MARGIN * 2, m), VIEW_W / 2, VIEW_H / 2 + DEATH_META_TOP + i * line, m, COLOR_META, "center");
   });

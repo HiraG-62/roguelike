@@ -35,6 +35,7 @@ import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
+import { type RunMetaSetup, emptyRunMeta, isEmptyRunMeta } from "../system/runMeta";
 import { ULTIMATES } from "../data/ultimates";
 import { DEFAULT_MOVESET, MOVESET_KEYS } from "../data/weapons";
 import { chosenUltimate } from "../system/ultimates";
@@ -423,6 +424,45 @@ describe("記録 → 再生", () => {
     for (const broken of [0, -3, Number.NaN, "5", null]) {
       const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, startDepth: broken })));
       expect(loaded?.startDepth, `壊れた値 ${String(broken)} は捨てる`).toBeUndefined();
+    }
+  });
+
+  it("runMeta（仇・封じ・見返り）を記録し、再生で同じ result になる", () => {
+    const runMeta: RunMetaSetup = {
+      nemesis: { key: "wolf", elites: ["hasted"], depth: 5 },
+      lockedRooms: ["library"],
+      lockedContractors: ["ferryman"],
+      lockedEvents: ["fog"],
+      perks: ["exit"],
+    };
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 4, runMeta };
+    const { data, state } = recordRun("runmeta-replay", createEmptyProfile(), randomInputs(21, 1500), undefined, setup);
+    expect(state.nemesis?.placed, "仇が置かれた").toBe(true);
+    expect(data.runMeta, "runMeta が記録される").toEqual(runMeta);
+    expect(data.version, "版は据え置き").toBe(REPLAY_VERSION);
+    expect(createReplaySession(data).state.runMeta, "再生側にも入る").toEqual(runMeta);
+    const replayed = playBack(data);
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+    expect(replayed.nemesis?.enemyId, "同じ仇").toBe(state.nemesis?.enemyId);
+  });
+
+  it("runMeta の無い旧記録は空として再生でき、空の runMeta は書かない", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], runMeta: emptyRunMeta() };
+    const { data, state } = recordRun("runmeta-empty", createEmptyProfile(), randomInputs(22, 800), undefined, setup);
+    expect("runMeta" in data, "空は書かない（旧データと同じ形）").toBe(false);
+    const session = createReplaySession(data);
+    expect(isEmptyRunMeta(session.state.runMeta), "欄の無い記録は空").toBe(true);
+    expect(session.state.nemesis).toBeNull();
+    expect(fingerprint(playBack(data))).toBe(fingerprint(state));
+    const plain = recordRun("runmeta-empty", createEmptyProfile(), randomInputs(22, 800)).state;
+    expect(fingerprint(plain), "runMeta の有無（空）で結果が変わらない").toBe(fingerprint(state));
+  });
+
+  it("壊れた runMeta は空に落ちる", () => {
+    const { data } = recordRun("runmeta-broken", createEmptyProfile(), randomInputs(3, 10));
+    for (const broken of [3, "x", [], { nemesis: { key: "kingSlime", elites: [], depth: 5 } }, { lockedRooms: ["nope"] }]) {
+      const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, runMeta: broken })));
+      expect(loaded?.runMeta, `壊れた値 ${JSON.stringify(broken)} は書かない`).toBeUndefined();
     }
   });
 

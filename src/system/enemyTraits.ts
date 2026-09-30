@@ -12,6 +12,7 @@ import { dropDeathTerrain, onRallyDeath } from "./enemyTerrain";
 import { addPoise } from "./poise";
 import { noteJinDeath } from "./jin";
 import { noteBossMinionDeath } from "./bossRecord";
+import { onNemesisDeath } from "./nemesis";
 
 /**
  * 敵の性質（EnemyDef の任意フィールド）の処理: 死に際の置き土産・死骸・取り巻き・逃げ回り・マナの奪い合い。
@@ -130,6 +131,7 @@ export function onEnemyDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   onRallyDeath(state, e, def);
   crackEgg(state, e, def);
   noteBossMinionDeath(state, e);
+  onNemesisDeath(state, e);
 }
 
 /** 群れの母の卵を割られると、母に怯み値が入る（範囲攻撃で卵を割りながら母を崩す） */

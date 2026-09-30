@@ -170,7 +170,7 @@ function tickShadows(state: GameState, linger: LingerState, dt: number): void {
   for (const pos of shadowPositions(state)) {
     if (!circlesOverlap(pos.x, pos.y, LINGER.shadowRadius, body.pos.x, body.pos.y, body.radius)) continue;
     // 影は常に触れ得るので、無敵中の接触を JUST 回避の稼ぎ場にしない（死神と同じ）
-    damagePlayer(state, LINGER.shadowDamage, pos, undefined, { noJust: true });
+    damagePlayer(state, LINGER.shadowDamage, pos, undefined, { noJust: true, cause: { kind: "linger", key: "shadow" } });
   }
 }
 
@@ -201,7 +201,7 @@ function tickTide(state: GameState, linger: LingerState, dt: number): void {
   placeTerrain(state, linger.origin.x, linger.origin.y, "water", elapsed * LINGER.tideSpeed, 0);
   if (elapsed < LINGER.tideFullAfter) return;
   const p = state.player.body.pos;
-  if (terrainAt(state, p.x, p.y) === "water") damagePlayerDot(state, LINGER.tideDrownDps * LINGER.tideInterval);
+  if (terrainAt(state, p.x, p.y) === "water") damagePlayerDot(state, LINGER.tideDrownDps * LINGER.tideInterval, { kind: "terrain", key: "water" });
 }
 
 /** 満潮（溺れる）か */

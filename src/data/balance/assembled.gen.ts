@@ -154,6 +154,7 @@ import j_enemies_FORMATION_lookout from "./enemies/FORMATION/lookout.json";
 import j_enemies_FORMATION_arrowhead from "./enemies/FORMATION/arrowhead.json";
 import j_enemies_FORMATION_yoke from "./enemies/FORMATION/yoke.json";
 import j_enemies_REAPER from "./enemies/REAPER.json";
+import j_enemies_NEMESIS from "./enemies/NEMESIS.json";
 import j_enemies_stats__index from "./enemies/stats/_index.json";
 import j_enemies_stats_slime from "./enemies/stats/slime.json";
 import j_enemies_stats_eye from "./enemies/stats/eye.json";
@@ -1083,6 +1084,7 @@ export const enemies = {
     "yoke": j_enemies_FORMATION_yoke,
   },
   "REAPER": j_enemies_REAPER,
+  "NEMESIS": j_enemies_NEMESIS,
   "stats": {
     "_fields": j_enemies_stats__index["_fields"],
     "slime": j_enemies_stats_slime,
@@ -2199,6 +2201,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/FORMATION/lookout.json",
   "enemies/FORMATION/yoke.json",
   "enemies/JIN.json",
+  "enemies/NEMESIS.json",
   "enemies/REACTION.json",
   "enemies/REAPER.json",
   "enemies/_index.json",

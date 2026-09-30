@@ -44,7 +44,7 @@ export function updateImpacts(state: GameState, dt: number): void {
 function land(state: GameState, impact: Impact): void {
   const p = state.player.body;
   if (circlesOverlap(impact.pos.x, impact.pos.y, impact.radius, p.pos.x, p.pos.y, p.radius)) {
-    damagePlayer(state, impact.damage, impact.pos);
+    damagePlayer(state, impact.damage, impact.pos, undefined, { cause: { kind: "fall", key: "" } });
   }
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase === "spawning") continue;

@@ -502,7 +502,7 @@ function onLava(state: GameState, target: StatusTarget): void {
   if (target.kind === "player") {
     if (playerUntouchable(state)) return;
     give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);
-    damagePlayerDot(state, TERRAIN.lava.damage);
+    damagePlayerDot(state, TERRAIN.lava.damage, { kind: "terrain", key: "lava" });
     return;
   }
   give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);

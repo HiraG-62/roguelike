@@ -21,6 +21,9 @@ import type { JobKey } from "../data/jobs";
 import type { FormationKey } from "../data/formations";
 import type { CodexRun } from "../meta/codex";
 import type { QuestRun } from "../meta/quests";
+import type { HurtLog } from "./hurt";
+import type { NemesisRun } from "../system/nemesis";
+import type { RunMetaSetup } from "../system/runMeta";
 
 /** playing = 進行中 / dead = 力尽きた / cleared = 最深の主を倒して地上への道に着いた（踏破） */
 export type GameStatus = "playing" | "dead" | "cleared";
@@ -295,6 +298,8 @@ export interface Enemy {
   vault?: { kind: VaultKind; amount: number };
   /** 味方になっている間の終わりの state.time（Rule 効果 tameEnemy。system/rules.ts の isAllied）。未指定 = 敵のまま */
   allyUntil?: number;
+  /** 仇（前のランで倒された相手。system/nemesis.ts）。名札に「仇・」、倒すと仇討ち */
+  nemesis?: true;
 }
 
 /** 敵に溜める傷の種類（氷獄 = ice / 月蝕 = doom） */
@@ -1094,6 +1099,10 @@ export interface GameState {
   boss: BossState | null;
   /** このランで撃破した階層ボスの記録（古い順。system/bossRecord.ts） */
   bossLog: BossRecord[];
+  /** 最後の被弾の出どころ（死因と仇の種。system/deathCause.ts。乱数を引かない） */
+  hurt: HurtLog;
+  /** このランの仇（runMeta.nemesis があるときだけ。system/nemesis.ts） */
+  nemesis: NemesisRun | null;
   /** このフロアの隠し部屋。無ければ null（system/hiddenRoom.ts が buildFloor の末尾で毎階作り直す） */
   hiddenRoom: HiddenRoom | null;
   /** 今のフロアに入ってからの経過秒 */
@@ -1132,6 +1141,8 @@ export interface GameState {
   job: JobKey;
   /** このランで抽選に出ない名のある遺物（RunSetup.lockedRelics の写し） */
   lockedRelics: readonly string[];
+  /** ランの外から持ち込む中身（仇・封じ・位階の見返り。RunSetup.runMeta の写し。system/runMeta.ts） */
+  runMeta: RunMetaSetup;
   /** この階の階段と、降りた先のフロア種別（分岐路） */
   stairs: StairsChoice[];
   /** 降りた階段の出口の予告（system/exits.ts）。buildFloor の末尾で到着報酬を確定して消す */
