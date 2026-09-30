@@ -1,5 +1,6 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
+import { FIXED_DT } from "../core/loop";
 import type { Rng } from "../core/rng";
 import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
@@ -28,7 +29,7 @@ import { coreBlocksHearts } from "./boonCores";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
-import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
+import { circlesOverlap, isSolidTile, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
 import { deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
@@ -510,7 +511,12 @@ export function updateRooms(state: GameState, dt: number): void {
   updateFinale(state);
 }
 
+/** 封鎖中に扉の向こうへ取り残された敵がいないかを見る間隔（tick。約 1 秒。整数の tick で数えるので浮動小数の比較が無い） */
+const STRAY_CHECK_TICKS = Math.max(1, Math.round(1 / FIXED_DT));
+
 function updateLockedRoom(state: GameState, room: RoomState, index: number): void {
+  // 閉じた扉の向こう（壁すり抜けの敵が出た、塊が扉で分かれた）の敵は倒せず、制圧が永遠に終わらない。足元から届く側へ戻す
+  if (state.tick % STRAY_CHECK_TICKS === 0) pullStraysInside(state, room, index, false);
   if (roomAlive(state, index)) return;
   if (hasMoreWaves(room)) {
     startWave(state, room, () => spawnWave(state, room, index));
@@ -699,29 +705,82 @@ function roomTileIndices(state: GameState, room: RoomState): number[] {
   return out;
 }
 
-/** 寄せ先に使えるか: 部屋に収まり、壁・扉・他の生きた敵に重ならない */
-function strayTargetFree(state: GameState, room: RoomState, e: Enemy, x: number, y: number): boolean {
+/** 寄せ先に使えるか: 部屋に収まり、壁・扉に重ならない。avoidEnemies なら他の生きた敵にも重ならない */
+function strayTargetFree(state: GameState, room: RoomState, e: Enemy, x: number, y: number, avoidEnemies: boolean): boolean {
   const r = e.body.radius;
   if (!room.tiles && !rectContainsPx(room.rect, x, y, r)) return false;
   if (!circleInRoomTiles(state, room, x, y, r)) return false;
   if (overlapsWall(state, x, y, r) || circleOnDoorTiles(state, room, x, y, r)) return false;
+  if (!avoidEnemies) return true;
   return !state.enemies.some((o) => o !== e && o.hp > 0 && circlesOverlap(x, y, r, o.body.pos.x, o.body.pos.y, o.body.radius));
 }
 
+/** タイル添字の中心（px） */
+function tileCenterPx(state: GameState, t: number): { x: number; y: number } {
+  return { x: ((t % state.map.width) + 0.5) * TILE_SIZE, y: (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE };
+}
+
 /**
- * 寄せ先。部屋の床タイルの中心から、プレイヤーから一番遠い空き地点を選ぶ
+ * プレイヤーのタイルから 4 近傍で歩いて届くタイルの印（壁と封鎖中の扉は isSolidTile で塞がる）。
+ * 配列はタイル数ぶんの 1 枚だけ。プレイヤーが部屋の外、または壁・扉の上にいるとき（押し出し中など）は判定できないので null
+ */
+function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | null {
+  const map = state.map;
+  const p = state.player.body.pos;
+  // 部屋の外にいる（扉の向こうへ出た）なら「届く側」は外の世界になってしまい、部屋の敵を全員外へ寄せかねない
+  if (!insideRoom(state, room, p.x, p.y, 0)) return null;
+  const sx = Math.floor(p.x / TILE_SIZE);
+  const sy = Math.floor(p.y / TILE_SIZE);
+  if (isSolidTile(state, sx, sy)) return null;
+  const reach = new Uint8Array(map.tiles.length);
+  const queue: number[] = [toIndex(map, sx, sy)];
+  reach[queue[0] ?? 0] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head] ?? 0;
+    const x = i % map.width;
+    const y = Math.floor(i / map.width);
+    for (const c of CARDINALS) {
+      const nx = x + c.x;
+      const ny = y + c.y;
+      if (isSolidTile(state, nx, ny)) continue;
+      const ni = toIndex(map, nx, ny);
+      if (reach[ni] === 1) continue;
+      reach[ni] = 1;
+      queue.push(ni);
+    }
+  }
+  return reach;
+}
+
+/** 敵の中心のタイルに届けるか（マップ外は届かない） */
+function reachesEnemy(state: GameState, reach: Uint8Array, e: Enemy): boolean {
+  const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+  const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+  return inBounds(state.map, tx, ty) && reach[toIndex(state.map, tx, ty)] === 1;
+}
+
+/** 壁をすり抜ける敵が壁の中にいる（通り抜けの途中。寄せると毎秒瞬間移動するので見逃す） */
+function phasingInWall(state: GameState, e: Enemy): boolean {
+  if (!enemyDef(e.defKey).phasing) return false;
+  const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+  const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+  return !inBounds(state.map, tx, ty) || getTile(state.map, tx, ty) === Tile.Wall;
+}
+
+/**
+ * 寄せ先: 部屋の床タイルのうち、届くもの（reach）の中でプレイヤーから一番遠い空き地点
  * （ROAM.minSpawnDist 以上離れた点があれば必ずそれが選ばれる。目の前に湧かせないため）。
  * 空きが無ければ部屋の中心付近の空き、それも無ければ中心
  */
-function strayTarget(state: GameState, room: RoomState, e: Enemy): { x: number; y: number } {
+function strayTarget(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array | null): { x: number; y: number } {
   const p = state.player.body.pos;
   let best: { x: number; y: number } | null = null;
   let bestD = -1;
   for (const t of roomTileIndices(state, room)) {
-    const x = ((t % state.map.width) + 0.5) * TILE_SIZE;
-    const y = (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE;
+    if (reach && reach[t] !== 1) continue;
+    const { x, y } = tileCenterPx(state, t);
     const d = Math.hypot(x - p.x, y - p.y);
-    if (d <= bestD || !strayTargetFree(state, room, e, x, y)) continue;
+    if (d <= bestD || !strayTargetFree(state, room, e, x, y, true)) continue;
     best = { x, y };
     bestD = d;
     if (d >= ROAM.minSpawnDist) break;
@@ -732,16 +791,57 @@ function strayTarget(state: GameState, room: RoomState, e: Enemy): { x: number; 
 }
 
 /**
- * 封鎖の瞬間に部屋の外にいる自室の生きた敵を中へ寄せる。roomAlive は roomIndex だけで数えるので、
- * 外に出た自室の敵（追跡で出た雑魚、抱えて逃げた強欲の）が残ると閉じた扉越しに倒せず制圧できなくなる。
- * 決定性のため敵 id 順に処理し、乱数は使わない
+ * 寄せ先: 届く部屋タイルのうち、敵の元の位置に一番近いタイルの中心（同じ距離は部屋タイルの走査順で先）。
+ * まず他の敵に重ならない所、無ければ重なってよい所、それも無ければ届く最寄りのタイルの中心。届くタイルが 1 つも無ければ null
  */
-function pullStraysInside(state: GameState, room: RoomState, index: number): void {
-  const strays = state.enemies
-    .filter((e) => e.roomIndex === index && e.hp > 0 && !enemyInRoom(state, room, e))
-    .sort((a, b) => a.id - b.id);
+function nearestReachableTarget(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array): { x: number; y: number } | null {
+  const from = e.body.pos;
+  const pick = (accept: (x: number, y: number) => boolean): { x: number; y: number } | null => {
+    let best: { x: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (const t of roomTileIndices(state, room)) {
+      if (reach[t] !== 1) continue;
+      const c = tileCenterPx(state, t);
+      const d = (c.x - from.x) ** 2 + (c.y - from.y) ** 2;
+      // 近さで足切りしてから空きを調べる（空きの判定は生きた敵の全走査なので、全タイルでは呼ばない）
+      if (d >= bestD || !accept(c.x, c.y)) continue;
+      best = c;
+      bestD = d;
+    }
+    return best;
+  };
+  return (
+    pick((x, y) => strayTargetFree(state, room, e, x, y, true)) ??
+    pick((x, y) => strayTargetFree(state, room, e, x, y, false)) ??
+    pick(() => true)
+  );
+}
+
+/**
+ * 寄せる敵か。atLock（封鎖の瞬間）は部屋の外にいる自室の敵も対象。
+ * どちらでも、足元（プレイヤーのタイル）から歩いて届かない敵は対象にする（閉じた扉の向こうに残った・塊が扉で分かれた）。
+ * 壁の中を通り抜けている最中の敵は見逃す（reach が null = プレイヤーが判定できない位置なら部屋の外の判定だけ）
+ */
+function isStray(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array | null, atLock: boolean): boolean {
+  if (atLock && !enemyInRoom(state, room, e)) return true;
+  if (!reach || reachesEnemy(state, reach, e)) return false;
+  return !phasingInWall(state, e);
+}
+
+/**
+ * 自室の生きた敵のうち、封鎖の扉越しに倒せなくなったものを中へ寄せる。roomAlive は roomIndex だけで数えるので、
+ * 外に出た自室の敵（追跡で出た雑魚、抱えて逃げた強欲の）や、扉で分かれた塊の向こうの敵が残ると制圧できなくなる。
+ * 封鎖の瞬間（atLock）の外の敵はプレイヤーから遠い所へ、それ以外は元の位置に一番近い届く所へ寄せる。
+ * 決定性のため敵 id 順に処理し、乱数は使わない。扉を閉じた後（lockedTiles に入った後）に呼ぶ
+ */
+function pullStraysInside(state: GameState, room: RoomState, index: number, atLock: boolean): void {
+  const own = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+  if (own.length === 0) return;
+  const reach = reachableFromPlayer(state, room);
+  const strays = own.filter((e) => isStray(state, room, e, reach, atLock)).sort((a, b) => a.id - b.id);
   for (const e of strays) {
-    const to = strayTarget(state, room, e);
+    const outside = atLock && !enemyInRoom(state, room, e);
+    const to = (reach && !outside ? nearestReachableTarget(state, room, e, reach) : null) ?? strayTarget(state, room, e, reach);
     e.body.pos.x = to.x;
     e.body.pos.y = to.y;
   }
@@ -749,9 +849,10 @@ function pullStraysInside(state: GameState, room: RoomState, index: number): voi
 
 function lockRoom(state: GameState, room: RoomState, index: number): void {
   const rescued = pushEnemiesOffDoorTiles(state, room, index);
-  pullStraysInside(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
+  // 扉を閉じた後に寄せる（届くかどうかを閉じた扉込みで数えるため）
+  pullStraysInside(state, room, index, true);
   // 扉を閉じた後に置く（閉じる前だと扉タイルの上に落ちて、制圧まで壁の中に埋まる）
   dropGreedyLootAtPlayer(state, rescued);
   roomLockFx(state, index, room.kind === "horde");
@@ -794,6 +895,8 @@ function spawnWave(state: GameState, room: RoomState, index: number): void {
   const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * waveMul(room.kind)));
   for (let i = 0; i < count; i++) spawnGroup(state, room, index, true);
   finalizeLinks(state, index);
+  // 前の波の取り残しを次の波で放置しない（届かない敵は倒せず、この波も終われない）
+  pullStraysInside(state, room, index, false);
 }
 
 const HORDE_SHAKE = 6;
