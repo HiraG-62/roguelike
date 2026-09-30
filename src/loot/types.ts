@@ -283,7 +283,7 @@ export interface RunHistoryEntry {
   score: number;
   bestCombo: number;
   durationSec: number;
-  /** "defeated"（死亡）/ "abandoned"（R や Restart で中断） */
+  /** "defeated"（死亡）/ "cleared"（踏破。最深の主を倒したラン）/ "abandoned"（R や Restart で中断） */
   cause?: string;
   // ---- 以下は段取り 9 の任意項目（docs/ideas/meta-impl.md 2-2）。0・空は書かない。旧データには無い ----
   /** 力尽きたときの最後の被弾（死因） */

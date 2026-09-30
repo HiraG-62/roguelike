@@ -11,6 +11,7 @@
 - 転じ（旧「変換」）: `CONVERSION_AFFIXES`（key は `cv_`。12 + 属性の変換 6）。「A を B に変換する」形で、`stage: "convert"`。会心時の転じは Rule（`onCrit`）を `s.rules` へ積む
 - 誓約（旧キーストーン、表示名は「誓約」）: `KEYSTONES`（key は `ks_`、`group` = `KeystoneGroup` で排他。20 種）+ `system/keystones.ts` の `KS` / `KEYSTONE_NAME`。常時の倍は `keystoneModifiers`、「〜時: 〜」は `keystoneRules`。数値は `src/data/balance/loot/KEYSTONE.json`。共鳴の数えに使う語は `system/keywords.ts` の `KEYSTONE_FACTS`
 - 名のある遺物（旧ユニーク）: `src/loot/named.ts` の `UNIQUES`（`baseKey` / 固定の性質 / 任意で誓約 / **固有の効果**）。固有は次のどれかで書く: `rules`（「〜時: 〜」の Rule）/ `modifiers`（常時の増・倍。「〜につき」）/ `apply`（stats を直接書き換える）/ `system/namedRelics.ts` の分岐（Rule と Modifier で書けないもの。共有ファイルからは 1 行で呼ぶ）。`keywords`（共鳴の数え）と `changes`（柱 7 の審査）も書く。数値は `src/data/balance/loot/RELIC.json`（`data/tuning.ts` の `RELIC`）、数え（連打・距離・賽の目・1 階 1 回）は `boonRun.tallies["relic:<key>"]`（`relicTallyKey`。ラン内で消える）。未知 key は生成時に throw するのでテストで気付ける。旧セーブから写すなら `loot/migrate.ts` の `LEGACY_UNIQUE_MAP`
+- **到達の軸に効く性質を足したら**（段取り 10a。厳選の到達点 無尽 = 連鎖係数 / 燎原 = 燃焼の重ねの上限 / 常在 = 戦意の上限。`loot/reach.ts`）: 性質が動かす欄が `REACH_DEFS[k].measure` の読む欄（`chainCoefBonus` / `statusStackCapBonus.burn` / `moraleMaxAdd`）なら `REACH_DEFS[k].affixes`（届かせる主な性質の key。先頭が主）に 1 つ足す。QA の届き方の見積もり（`qa:probe -- --deep`）がこれを読む。閾値は `src/data/balance/loot/REACH.json`。到達は**装備だけ**で数える（装備に付いた性質・名のある遺物・誓約は入る。祝福・起点・祭壇の誓約の足しは入らない）ので、祝福側で同じ欄を動かしても届かない
 - ベース: `src/loot/bases.ts` の `BASES` + `affixes.ts` の `IMPLICITS`
 - テスト: `loot/affixes.test.ts` / `generator.test.ts` / `stats.test.ts`、名のある遺物は `loot/named.test.ts` と `system/namedRelics.test.ts`
 

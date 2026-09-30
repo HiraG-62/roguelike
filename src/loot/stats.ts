@@ -218,7 +218,7 @@ export function computeStats(equipment: Equipment, depth = 1): PlayerStats {
   Object.assign(stats.traits, gearContextCleared());
   applyWeaponForms(stats, equipment);
   const out = finalize(stats);
-  // 到達は装備だけで数える（祝福・起点・誓約の足しは applyRunStats 以降なので入らない）
+  // 到達は装備だけで数える（祝福・起点・祭壇の誓約の足しは applyRunStats 以降なので入らない）
   out.reach = reachMeasures(out);
   return out;
 }

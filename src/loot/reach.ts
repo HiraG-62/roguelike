@@ -8,7 +8,7 @@ const EPSILON = 1e-9;
 
 /**
  * 厳選の到達点（docs/ideas/deep-impl.md 2-4）。遺物の性質を同じ向きに重ね、装備だけで数えた量が閾値に届くと、
- * その軸の決まりが 1 つ変わる。測る量は computeStats が stats.reach に入れる（祝福・起点・誓約では届かない）
+ * その軸の決まりが 1 つ変わる。測る量は computeStats が stats.reach に入れる（祝福・起点・祭壇の誓約では届かない）
  */
 export interface ReachDef {
   readonly key: ReachKey;

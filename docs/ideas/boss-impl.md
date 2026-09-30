@@ -390,6 +390,15 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 10. **bot が最深の主の四門で詰まる**（無敵の本体を殴り続ける）。F の `bossArmorBlocks` の 1 行が入るまで、フル QA で深度 21 の滞在が伸びる。→ 推奨: 8b の F を E2 と同じ取り込みに入れる（F が 7e 待ちで遅れるなら、E2 の取り込み時に統合役が `qa/bot.ts` の 1 行だけ先に入れる）
 11. **7e との順序**: 8a の A・E1 は 7e の数値に依存しない（読むのはボスの JSON と ARC だけ）。ただし 7e が `balance/enemies/BOSS/**` か `world/ARC.json` を触っていれば取り込みで衝突する。→ 推奨: 8a の worktree を切る前に 7e のレーンの変更範囲を確かめ（4 章 8b の `git diff --stat`）、重なれば 7e を先に取り込む
 
+## 7. 実装とのずれ（2026-09-30。8a・8b の取り込み後）
+
+- 門柱の精鋭修飾子は 4 つ（`PILLAR_ELITES` = shielded / reflective / searing / hexing）。堅牢の・報復のは怯んだ瞬間に発動するので、怯まない門柱では何も起きず外した（2-6 の E2 が確かめる、の結果）
+- 陥没の溶岩は撃破後も残さず、`BOSS.deepLord.collapseFade` 秒で消える（6 章 8 の「残す」から変更。階段と地上への道へ歩けるように）。崩れ終えた外周だけが対象で、まだ崩れていない外周には置かない
+- `BossHooks` に `chainWindupMul`（連撃の続きの予備動作の倍をボスごとに変える）・`recoverTime`（硬直の秒）を足した。`signatureOf(key, move, hooks)`（署名の技の組み立て）と `noteBossDown`（ダウン回数を `bossLog` へ）が `bossKit.ts` / `bossRecord.ts` に入った
+- `deepLord.json` の新しい葉: `beamLength` / `collapseMinInner` / `collapseFade` / `handFall`（2-6 の一覧に無い）
+- 撃破の後始末は `settleThiefKingRoom`（柵・地雷）/ `settleMirrorKnightRoom`（写し身と姿見）/ `settleDeepLordRoom`（門柱・崩れる床の予約・借りた地雷）。残ると部屋の封鎖が解けない（レビューで見つかった不具合）
+- ボスの QA（F）と `qa/bot.ts` の `bossArmorBlocks` の 1 行は未実施（6 章 10。無敵の門柱の間は bot が本体を殴り続ける）
+
 ## 参照（絶対パス）
 
 - 仕様: `/home/user/roguelike/docs/ideas/core-synthesis.md`（3-9・3-10・3-14・9 章）、`/home/user/roguelike/docs/ideas/encounter-core.md`（1-3・7 章・12 章 Q6）、`/home/user/roguelike/docs/ideas/run-arc.md`（0 章・1-1・1-3・7 章の決定）、`/home/user/roguelike/docs/ideas/jin-impl.md`（冒頭の決定・2-4）、`/home/user/roguelike/docs/ideas/economy-impl.md`（2-8）
