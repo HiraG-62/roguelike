@@ -5,7 +5,7 @@
 //   頁   = 反った紙。回りながら飛び、ひらりと幅が縮む（めくれ）。縁は白く、面に文字の行が入る
 //   紙片 = 崩れた頁の切れ端。振り終わりに散る
 //   墨   = 弧に沿って並ぶ小さな字と、飛び散る墨の粒
-// 刃を使わない。斬撃の三日月ではなく「頁が走った跡」と「字の弧」で振りを見せ、無詠唱（freeCast）と封印の一撃は目立たせる
+// 左の 3 段だけは「文字の刃」（墨の字を縁だけの三日月・弧の帯に並べる。textBlade / textBand）。他の動きは頁と紙片で見せ、無詠唱（freeCast）と封印の一撃は目立たせる
 import { arcLine, crescent, easeSwing, ring, shards, sparkle, streakLine } from "../shapes.mjs";
 import { clamp01, dot, hash1, paint, segment, valueNoise } from "../raster.mjs";
 import { DIRS } from "../motifs.mjs";
@@ -224,86 +224,138 @@ function openBook(frame, o) {
 }
 
 // -----------------------------------------------------------------------------
-// 左の段（box reach 12〜14）: 頁が走る
+// 左の段（box reach 14 / 扇 120° reach 22）: 文字の刃
+// 開いた本（胸の前。自分から 8px = 16 ドット前）の頁から字が走り、刃になって通り道に残る。振り終わりは字がほどけて散る
 // -----------------------------------------------------------------------------
 
-/** 頁の振り（左 1・2 段）。頁が弧を走り、残像の頁と字の弧が跡を引く。振り終わりは崩れて紙片になる */
-const SWING1 = { R: 34, sweep: 120, tilt: 0, frames: 7, active: 3, hw: 9, hh: 6.5, glyphs: 6, seed: 1101 };
-const SWING2 = { R: 36, sweep: 132, tilt: 8, frames: 7, active: 3, hw: 10, hh: 7, glyphs: 7, seed: 1201 };
-
-function pageSwing(frame, f, spec) {
-  const { R, frames: N, active: A, seed } = spec;
-  const half = (spec.sweep * Math.PI) / 360;
-  const from = -half + (spec.tilt * Math.PI) / 180;
-  const sweep = half * 2;
-  const { p, k } = timing(f, A, N);
-  const head = from + sweep * (f < A ? p : 1 + 0.05 * k);
-  const tail = from + sweep * (f < A ? Math.max(0, p - 0.85) * 0.5 : Math.min(0.95, 0.4 + 0.6 * k));
-  // 面を打つ弧: 薄い紙の切れ目のような細い三日月（頁の通り道）
-  crescent(frame, { R, T: 6 * (1 - k * 0.4), head, tail, erosion: k * 0.9, bright: 0.7 - k * 0.2, seed, streak: 0.5, edge: 1.2 });
-  // 字の弧: 先端の後ろに墨の字が並ぶ
-  if (k < 0.75) glyphArc(frame, { radius: R - 8, from: tail + (head - tail) * 0.05, to: head - 0.06, n: spec.glyphs, size: 2.3, bright: 0.72 * (1 - k * 0.8), seed: seed + 5 });
-  // 先頭の頁と残像の頁
-  const ghosts = f < A ? [0, 1, 2] : [0];
-  for (const g of ghosts) {
-    const a = head - g * sweep * 0.13;
-    if (a < from - 0.02) continue;
-    const r = R - 9 - g * 1.5;
-    page(frame, {
-      x: Math.cos(a) * r,
-      y: Math.sin(a) * r,
-      rot: a + Math.PI / 2 + (f + g) * 0.35 * (f < A ? 1 : 1 + k * 2),
-      hw: spec.hw * (1 - g * 0.12),
-      hh: spec.hh * (1 - g * 0.1),
-      turn: 0.45 + 0.55 * Math.abs(Math.cos((f + g) * 1.15)),
-      curl: 1.6,
-      bright: (1 - g * 0.2) * (1 - k * 0.4),
-      erosion: g * 0.28 + k * 0.7,
-      seed: seed + g,
-    });
-  }
-  if (f >= A - 1) scrapBurst(frame, f - (A - 1), { n: 9, seed: seed + 30, speed: 3.6, x: Math.cos(head) * (R - 9), y: Math.sin(head) * (R - 9), r0: 4, center: head + 0.5, cone: 2.4, life: 4, size: 2.8 });
-  if (f === A - 1) sparkle(frame, Math.cos(head) * (R - 4), Math.sin(head) * (R - 4), 3);
-  arcLine(frame, { radius: R + 2, from: head - (head - tail) * 0.6, to: head - 0.05, bright: 0.5 * (1 - k) });
+/** 2 次ベジェ（[始点, 制御点, 終点]）の点と単位接線。u = 0..1 */
+function bezier(path, u) {
+  const [p0, c, p2] = path;
+  const v = 1 - u;
+  const x = v * v * p0[0] + 2 * v * u * c[0] + u * u * p2[0];
+  const y = v * v * p0[1] + 2 * v * u * c[1] + u * u * p2[1];
+  const tx = 2 * v * (c[0] - p0[0]) + 2 * u * (p2[0] - c[0]);
+  const ty = 2 * v * (c[1] - p0[1]) + 2 * u * (p2[1] - c[1]);
+  const len = Math.hypot(tx, ty) || 1;
+  return { x, y, tx: tx / len, ty: ty / len };
 }
 
-/** 左 3 段（終撃）: 書を閉じる。2 枚の頁が前で V 字に閉じ、閉じきった所で音の輪と紙片が弾ける（box reach 14 / size 14） */
-function bookClap(frame, f) {
+/** 刃の芯: 道筋 u0..u1 に沿う両端の尖った細い筋。先（u1）ほど明るく、erosion で縁から欠ける */
+function bladeCore(frame, path, u0, u1, o) {
+  const m = 18;
+  const pts = [];
+  for (let i = 0; i <= m; i++) pts.push(bezier(path, u0 + ((u1 - u0) * i) / m));
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const pad = o.width + 2;
+  paint(
+    frame,
+    (px, py) => {
+      let best = Infinity;
+      let bt = 0;
+      for (let i = 0; i < m; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        if (!a || !b) continue;
+        const s = segment(px, py, a.x, a.y, b.x, b.y);
+        if (s.d >= best) continue;
+        best = s.d;
+        bt = (i + s.t) / m;
+      }
+      const w = (o.width / 2) * Math.pow(Math.sin(Math.PI * bt), 0.7) + 0.35;
+      if (best > w) return -1;
+      // outline: 身を塗らず縁だけ（中の字を読ませる）
+      if (o.outline && best < w - 1.2) return -1;
+      if (!survives(px, py, o.erosion ?? 0, 1 - best / w, o.seed ?? 1)) return -1;
+      return clamp01((o.bright ?? 0.8) * (0.55 + 0.45 * bt) * (1 - 0.3 * (best / w)));
+    },
+    { bounds: { x0: Math.min(...xs) - pad, y0: Math.min(...ys) - pad, x1: Math.max(...xs) + pad, y1: Math.max(...ys) + pad }, dither: 0.02 },
+  );
+}
+
+/**
+ * 文字の刃 1 本（左 1・2 段）。字の列が道筋に沿って先頭から並び、芯の筋が切れ味を出す。
+ * 刃の腹（凹の側）に字を 2 列、外側に芯。振り終わりは字が進行方向へずれながら薄れる
+ */
+const BLADE1 = { path: [[17, -11], [46, -1], [34, 12]], rows: [{ off: 0, n: 4, size: 2.7, width: 1.1, k: 1 }], seed: 1101 };
+const BLADE2 = { path: [[19, 11], [48, 6], [37, -11]], rows: [{ off: 0, n: 4, size: 2.7, width: 1.1, k: 1 }], seed: 1201 };
+const BLADE_FRAMES = 7;
+const BLADE_ACTIVE = 3;
+
+function textBlade(frame, f, spec) {
+  const A = BLADE_ACTIVE;
+  const { p, k } = timing(f, A, BLADE_FRAMES);
+  const head = f < A ? p : 1;
+  const tail = f < A ? 0 : k * 0.85;
+  const span = Math.max(0.05, head - tail);
+  const fade = 1 - k * 0.85;
+  // 刃の身（縁だけの三日月）。中に字を並べる
+  if (head - tail > 0.02) {
+    bladeCore(frame, spec.path, tail, head, { width: 9 * (1 - k * 0.4), bright: 0.7 * fade, outline: true, erosion: k * 0.9, seed: spec.seed });
+  }
+  spec.rows.forEach((row, ri) => {
+    for (let i = 0; i < row.n; i++) {
+      const u = (i + 0.5) / row.n;
+      if (u > head || u < tail) continue;
+      const rel = (u - tail) / span;
+      const pt = bezier(spec.path, u);
+      // 法線へ寄せ（今は 0）、振り終わりは進行方向へずれていく
+      const nx = -pt.ty;
+      const ny = pt.tx;
+      const drift = k * (3 + ri * 2);
+      const x = pt.x + nx * row.off + pt.tx * drift;
+      const y = pt.y + ny * row.off + pt.ty * drift;
+      const bright = (0.62 + 0.38 * rel) * fade * row.k;
+      if (bright < 0.25) continue;
+      glyph(frame, x, y, Math.atan2(pt.ty, pt.tx), row.size, { set: Math.floor(hash1(i + ri * 5, spec.seed) * GLYPHS.length), bright, width: row.width });
+    }
+  });
+  const tip = bezier(spec.path, head);
+  if (f === A - 1) sparkle(frame, tip.x, tip.y, 3);
+  if (f >= A - 1) inkDrops(frame, f - (A - 1), { n: 6, seed: spec.seed + 30, speed: 2.8, x: tip.x, y: tip.y, r0: 2, center: Math.atan2(tip.ty, tip.tx), cone: 1.9, life: 3 });
+}
+
+/**
+ * 左 3 段（扇 120° reach 22）: 文字の帯。開いた本から 3 列の字が弧になって広がり、群れをなでる。
+ * 外側ほど字が大きく、振り終わりは字が外へほどけて散る
+ */
+const BAND_HALF = (120 * Math.PI) / 360;
+const BAND_ROWS = [
+  { r: 23, n: 6, size: 2.4 },
+  { r: 32, n: 8, size: 2.9 },
+  { r: 41, n: 10, size: 3.3 },
+];
+
+function textBand(frame, f) {
   const N = 8;
   const A = 4;
   const { p, k } = timing(f, A, N);
-  const hinge = 10;
-  const L = 15;
-  const open = (1 - p) * 1.25 + 0.1;
-  if (f < A + 2) {
-    for (const side of [-1, 1]) {
-      const a = side * open;
-      page(frame, { x: hinge + Math.cos(a) * L, y: Math.sin(a) * L, rot: a, hw: L, hh: 9, turn: 1, curl: -1.6 * side, bright: 0.95 - k * 0.3, erosion: k * 0.5, seed: 1301 + side });
+  const margin = 0.06;
+  const from = -BAND_HALF + margin;
+  const to = BAND_HALF - margin;
+  const head = from + (to - from) * (f < A ? p : 1);
+  const fade = 1 - k * 0.85;
+  // 外縁の芯（字の帯の切れ味）
+  crescent(frame, { R: 41, T: 4 * (1 - k * 0.4), head, tail: f < A ? from : from + (head - from) * k * 0.8, erosion: k * 0.9, bright: 0.55 * fade, seed: 1301, streak: 0.5, edge: 1.2 });
+  BAND_ROWS.forEach((row, ri) => {
+    // 内側の列が先に走り、外側が追う
+    const lag = (2 - ri) * 0.05;
+    for (let i = 0; i < row.n; i++) {
+      const a = from + ((to - from) * (i + 0.5)) / row.n;
+      const h = head - lag;
+      if (a > h) continue;
+      const rel = Math.max(0, 1 - (h - a) / ((to - from) * 0.9));
+      const bright = (0.35 + 0.65 * rel) * fade;
+      if (bright < 0.2) continue;
+      const drift = k * (3 + ri * 2.5);
+      const r = row.r + (hash1(i + ri * 7, 1302) - 0.5) * 1.6 + drift;
+      glyph(frame, Math.cos(a) * r, Math.sin(a) * r, a + Math.PI / 2, row.size, { set: Math.floor(hash1(i + ri * 11, 1303) * GLYPHS.length), bright, width: 1.2 + ri * 0.2 });
     }
-  } else {
-    // 閉じた後: 重なった頁がめくれてほどける
-    for (const side of [-1, 1]) {
-      const a = side * (0.1 + k * 0.5);
-      page(frame, { x: hinge + Math.cos(a) * L, y: Math.sin(a) * L, rot: a, hw: L, hh: 9 * (1 - k * 0.3), curl: -1.6 * side, bright: 0.85 - k * 0.4, erosion: 0.2 + k * 0.75, seed: 1301 + side });
-    }
-  }
-  // 閉じる勢いの空気の筋
-  if (f < A) {
-    for (let i = 0; i < 4; i++) {
-      const y = (i - 1.5) * 8;
-      streakLine(frame, { ax: hinge + 6, ay: y, bx: hinge + 6 + 22 * p, by: y * (1 - p * 0.6), width: 1, bright: 0.5 * (0.5 + p) });
-    }
-  }
-  const tipX = hinge + L * 1.85;
-  if (f >= A - 1) {
-    const age = f - (A - 1);
-    ring(frame, { ox: tipX - 4, radius: 5 + age * 5, width: 2.6 - age * 0.3, squash: 0.5, erosion: Math.min(0.9, age * 0.2), bright: 0.9 - age * 0.1, seed: 1310 });
-    if (age >= 1) ring(frame, { ox: tipX - 10, radius: 3 + age * 4.2, width: 1.6, squash: 0.5, erosion: Math.min(0.9, age * 0.22), bright: 0.65 - age * 0.06, seed: 1311 });
-    scrapBurst(frame, age, { n: 12, seed: 1312, speed: 4.2, x: tipX - 6, r0: 3, center: 0, cone: 3.4, life: 4, size: 3 });
-    inkDrops(frame, age, { n: 9, seed: 1313, speed: 3.6, x: tipX - 6, center: 0, cone: 3.2 });
-  }
-  if (f === A - 1) sparkle(frame, tipX - 3, 0, 4);
-  if (f === A) sparkle(frame, tipX - 3, 0, 3);
+  });
+  const tx = Math.cos(head) * 41;
+  const ty = Math.sin(head) * 41;
+  if (f === A - 1) sparkle(frame, tx, ty, 4);
+  if (f >= A - 1) inkDrops(frame, f - (A - 1), { n: 9, seed: 1310, speed: 3.2, x: Math.cos(to) * 36, y: Math.sin(to) * 36, r0: 3, center: to + 0.5, cone: 2.2, life: 4 });
 }
 
 // -----------------------------------------------------------------------------
@@ -616,9 +668,9 @@ function pageFizzle(frame, f) {
 const FX = {
   moveset: "book",
   motions: {
-    "l:0": { sheet: "book.l1", pivot: "self", base: 12, measure: "reach" },
-    "l:1": { sheet: "book.l2", pivot: "self", base: 12, measure: "reach" },
-    "l:2": { sheet: "book.l3", pivot: "self", base: 14, measure: "reach" },
+    "l:0": { sheet: "book.l1", pivot: "self", base: 14, measure: "reach" },
+    "l:1": { sheet: "book.l2", pivot: "self", base: 14, measure: "reach" },
+    "l:2": { sheet: "book.l3", pivot: "self", base: 22, measure: "reach" },
     dash: { sheet: "book.dash", pivot: "self", base: 36, measure: "size" },
     "r:freeCast": { sheet: "book.freeCast", pivot: "self", base: 32, measure: "size" },
     "r:pageSweep": { sheet: "book.pageSweep", pivot: "self", base: 16, measure: "reach" },
@@ -638,9 +690,9 @@ export const ATLAS = {
   key: "book",
   fx: FX,
   sheets: [
-    { key: "book.l1", dirs: DIRS, frames: SWING1.frames, active: SWING1.active, size: 100, draw: (fr, f) => pageSwing(fr, f, SWING1) },
-    { key: "book.l2", dirs: DIRS, frames: SWING2.frames, active: SWING2.active, size: 104, draw: (fr, f) => pageSwing(fr, f, SWING2) },
-    { key: "book.l3", dirs: DIRS, frames: 8, active: 4, size: 112, draw: bookClap },
+    { key: "book.l1", dirs: DIRS, frames: BLADE_FRAMES, active: BLADE_ACTIVE, size: 100, draw: (fr, f) => textBlade(fr, f, BLADE1) },
+    { key: "book.l2", dirs: DIRS, frames: BLADE_FRAMES, active: BLADE_ACTIVE, size: 104, draw: (fr, f) => textBlade(fr, f, BLADE2) },
+    { key: "book.l3", dirs: DIRS, frames: 8, active: 4, size: 112, draw: textBand },
     { key: "book.dash", dirs: DIRS, frames: 8, active: 4, size: 136, draw: pageWhirl },
     { key: "book.freeCast", dirs: 1, frames: 9, active: 4, size: 128, draw: freeCast },
     { key: "book.pageSweep", dirs: DIRS, frames: 8, active: 4, size: 112, draw: pageFan },
