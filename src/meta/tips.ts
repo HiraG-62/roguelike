@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ACTION, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, WEAPON } from "../data/tuning";
+import { ACTION, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
 import { FORMS, FORM_KEYS } from "../data/weaponForms";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
@@ -156,6 +156,12 @@ const COMBAT_TIPS: readonly TipDef[] = [
   { key: "regain", term: "リゲイン", category: "combat", body: "被弾してしばらくの間、近接を当てると失った生命を取り戻せる。" },
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },
   { key: "reaction", term: "反応", category: "combat", body: "2 つの状態異常（か地形）が出会ったときの追加効果。図鑑の連携の頁に記録される。" },
+  {
+    key: "inkMark",
+    term: "墨印",
+    category: "combat",
+    body: `書の左の 3 段が記す印（最大 ${STATUS.inkMark.maxStacks}）。射撃かスキルが当たると読まれ（読誦）、その敵を中心に重ねの数だけ広い円の中の敵すべてに当たり、気力が戻る。倒した一撃でも読む。烙印と違い、1 体ではなく周りへ広がる。`,
+  },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
   { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
   {

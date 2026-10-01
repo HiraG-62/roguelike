@@ -390,7 +390,7 @@ const HIT_FAMILY: Readonly<Record<MovesetKey, HitFamily>> = {
   flail: "blunt",
   ringBlades: "slash",
   fan: "blunt",
-  book: "blunt",
+  book: "slash",
   handbell: "blunt",
 };
 
@@ -457,6 +457,7 @@ const STATUS_SFX: Partial<Record<StatusKind, SfxName>> = {
   weaken: "statusCurse",
   silence: "statusCurse",
   brand: "statusCurse",
+  inkMark: "statusCurse",
   broken: "statusCurse",
   doom: "statusCurse",
   siphon: "statusCurse",
@@ -1045,6 +1046,7 @@ const REACTION_SFX: Readonly<Record<ReactionKey, SfxName>> = {
   conduct: "reactionSpark",
   discharge: "reactionSpark",
   manaCut: "reactionSpark",
+  recite: "reactionSpark",
   miasma: "reactionBlight",
   dissolve: "reactionBlight",
   lacerate: "reactionBlight",

@@ -79,6 +79,8 @@ const ENEMY_ONLY: ReadonlySet<StatusKind> = new Set<StatusKind>([
   "enfeeble",
   // 傷は刃斧の型の印（継続ダメージを持たず、裂きで一度に開くためだけに重ねる）
   "wound",
+  // 墨印は書の印（射撃・スキルの命中で読むためだけに重ねる）
+  "inkMark",
 ]);
 /** プレイヤーに付かないもの（操作を奪いすぎる + 敵専用） */
 const PLAYER_IMMUNE: ReadonlySet<StatusKind> = new Set<StatusKind>(["freeze", "paralyze", "fear", ...ENEMY_ONLY]);
@@ -342,6 +344,8 @@ function baseMaxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): 
       return STATUS.charged.maxStacks;
     case "wound":
       return STATUS.wound.maxStacks;
+    case "inkMark":
+      return STATUS.inkMark.maxStacks;
     default:
       return 1;
   }

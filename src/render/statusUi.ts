@@ -50,6 +50,7 @@ export const STATUS_GLYPH: Readonly<Record<StatusKind, string>> = {
   fury: "昂",
   charged: "帯",
   wound: "傷",
+  inkMark: "墨",
 };
 
 export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
@@ -88,6 +89,7 @@ export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
   fury: "#ff3030",
   charged: "#f0f080",
   wound: "#d07060",
+  inkMark: "#b090ff",
 };
 
 /** 怯みゲージを出し始める蓄積の割合（小さな蓄積で頭上をうるさくしない） */
@@ -275,6 +277,7 @@ export const STATUS_FX: Readonly<Record<StatusKind, StatusFxStyle>> = {
   fury: { motion: "rise", color: "#ff3030", tint: null },
   charged: { motion: "spark", color: "#f0f080", tint: null },
   wound: { motion: null, color: "#d07060", tint: null },
+  inkMark: { motion: "orbit", color: "#b090ff", tint: null },
 };
 
 /**
@@ -302,6 +305,7 @@ export const STATUS_FX_PRIORITY: readonly StatusKind[] = [
   "oiled",
   "corrode",
   "brand",
+  "inkMark",
   "exposed",
   "vulnerable",
   "broken",

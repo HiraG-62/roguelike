@@ -1614,7 +1614,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   book: defineMoveset({
     key: "book",
     name: "書",
-    desc: "軽く打つ 3 段。威力は低いが気力がよく戻る。持っている間はスキルの再使用が短い。右の無詠唱で次のスキルの気力が 0",
+    desc: "開いた頁から文字の刃を走らせる 3 段。左の命中で墨印を記し、スキルの命中で読むと周りの敵にも当たり気力が戻る。持っている間はスキルの再使用が短い。右の無詠唱で次のスキルの気力が 0",
     steps: reviveSteps(W.book.steps),
     dashAttack: reviveStep(W.book.dashAttack),
     attackMoveMul: W.book.attackMoveMul,

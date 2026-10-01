@@ -176,6 +176,7 @@ const STATUS_VERB: Readonly<Record<StatusKind, string>> = {
   fury: "激昂する",
   charged: "帯電する",
   wound: "傷を刻む",
+  inkMark: "墨印を記す",
 };
 
 const PROC_TRIGGER_TEXT: Readonly<Record<StatusProc["on"], string>> = {

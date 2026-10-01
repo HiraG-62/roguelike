@@ -94,6 +94,7 @@ export const STATUS_KEYWORDS: Readonly<Record<StatusKind, readonly Keyword[]>> =
   fury: ["stagger"],
   charged: ["shock"],
   wound: ["melee"],
+  inkMark: ["mana"],
 };
 
 /**

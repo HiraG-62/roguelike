@@ -60,6 +60,7 @@ import j_combat_STATUS_cauterize from "./combat/STATUS/cauterize.json";
 import j_combat_STATUS_panic from "./combat/STATUS/panic.json";
 import j_combat_STATUS_lacerate from "./combat/STATUS/lacerate.json";
 import j_combat_STATUS_wound from "./combat/STATUS/wound.json";
+import j_combat_STATUS_inkMark from "./combat/STATUS/inkMark.json";
 import j_combat_LIMITS from "./combat/LIMITS.json";
 import j_combat_ATTR from "./combat/ATTR.json";
 import j_combat_POISE from "./combat/POISE.json";
@@ -983,6 +984,7 @@ export const combat = {
     "panic": j_combat_STATUS_panic,
     "lacerate": j_combat_STATUS_lacerate,
     "wound": j_combat_STATUS_wound,
+    "inkMark": j_combat_STATUS_inkMark,
   },
   "LIMITS": j_combat_LIMITS,
   "ATTR": j_combat_ATTR,
@@ -2141,6 +2143,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "combat/STATUS/haste.json",
   "combat/STATUS/hemorrhage.json",
   "combat/STATUS/hue.json",
+  "combat/STATUS/inkMark.json",
   "combat/STATUS/kindle.json",
   "combat/STATUS/lacerate.json",
   "combat/STATUS/miasma.json",

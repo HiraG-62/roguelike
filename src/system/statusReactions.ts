@@ -30,6 +30,7 @@ import {
 } from "./statusEffects";
 import { igniteTerrainAt, placeTerrain } from "./terrain";
 import { hueResonates } from "./resonance";
+import { readInkMark } from "./inkMark";
 
 /**
  * 反応と昇華（docs/ideas/status-and-terrain.md 2・5 章）。statusEffects.ts の applyStatus が付与の前後に呼ぶ。
@@ -63,6 +64,7 @@ const REACTION_ICD: Readonly<Record<ReactionKey, number>> = {
   hueBurst: 0, // 彩痕を消費する
   manaCut: 0,
   rally: STATUS.reactionIcd,
+  recite: 0, // 墨印を全部読み切るので連打にならない
 };
 
 const REACTION_TEXT_COLOR = "#ffe8a0";
@@ -604,6 +606,8 @@ export function onEnemyDeathStatus(state: GameState, e: Enemy): void {
 
 export function onPlayerHitReactions(state: GameState, enemy: Enemy, ctx: OnHitContext): void {
   siphon(state, enemy);
+  // 墨印は倒した一撃でも読む（印の付いた敵の位置から広がる）ので、撃破の早期リターンより前
+  if (ctx.kind === "ranged" || ctx.skill === true) recite(state, enemy);
   if (enemy.hp <= 0) return;
   if (ctx.kind === "ranged" || ctx.skill === true) detonateBrand(state, enemy);
   if (ctx.kind === "melee" && ctx.skill !== true) discharge(state, enemy);
@@ -635,6 +639,14 @@ function detonateBrand(state: GameState, enemy: Enemy): void {
   spawnBurst(state, enemy.body.pos, BRAND_COLOR, SHARD_PARTICLES, 120, 0.35, 2);
   pushSfx(state, "explode");
   hurtEnemy(state, enemy, amount, poise);
+}
+
+/** 読誦（出す側: 墨印 / 食う側: 射撃・スキルの命中）: 書の墨印を読む。中身は system/inkMark.ts */
+function recite(state: GameState, enemy: Enemy): void {
+  const mark = findStatus(enemy.status, "inkMark");
+  if (!mark) return;
+  fire(state, { kind: "enemy", enemy }, "recite");
+  readInkMark(state, enemy, mark);
 }
 
 /**
