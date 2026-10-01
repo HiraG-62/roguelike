@@ -28,6 +28,7 @@
 | `npm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（1 時間超。裏で回す）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run qa:probe` | `SIM_PROBE=1` で 1 対 1 / 集団の連打計測（約 1 分）。基準値の `src/qa/probe.md` を上書き。`-- --no-write` で書き出さない。`-- --weapons`（武器種 × 敵）/ `-- --bosses`（章ボス 4 と最深の主）/ `-- --deep`（深みの曲線・到達・壊れの重さ）でその節だけ測って差し替え |
+| `npm run map:shot` | 地図の見た目の確認用 PNG（`tools/map-shot.html` を Chromium で撮る。既定 14 場面）。`-- --only <名前>` / `-- --bench`（描画の ms）/ `-- --out <dir>` |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |
 | `node scripts/bump.mjs <patch / minor / major>` | バージョンを上げてコミットとタグを作る（`/bump`） |

@@ -113,6 +113,9 @@ import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { type PitLook, pitLook } from "./pitLook";
+import { MapChunkCache, type MapView } from "./mapChunks";
+import { mapThemeFor } from "./mapTheme";
+import type { MapTheme } from "./mapTypes";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
@@ -725,6 +728,10 @@ export class Renderer {
   private rigMuzzle: { x: number; y: number; dist: number } | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
+  /** 迷宮の地図（床・壁・穴）の焼き済みチャンク。拠点は使わない（drawTilesLegacy） */
+  private readonly mapChunks = new MapChunkCache();
+  /** 地図を描く画面（ワールド座標の左上）。毎フレーム使い回す */
+  private readonly mapView: MapView = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
   private hudKeyCache = "";
   private hudKeystoneText = "";
@@ -831,8 +838,9 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
-    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, `tile.${tileBiome(state.floorKind, state.sandbox === true)}.floor` in this.atlas);
+    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, state.sandbox !== true || `tile.${tileBiome(state.floorKind, true)}.floor` in this.atlas);
     drawTerrainLayer(ctx, state, -ox, -oy, this.atlas);
+    this.drawTileOverlays(state, -ox, -oy);
     drawGroundMarks(ctx, state, this.fxSprites);
     this.drawPickups(state);
     this.drawFloorItems(state);
@@ -1084,9 +1092,39 @@ export class Renderer {
   // タイル
   // ---------------------------------------------------------------------------
 
+  /** 拠点は今の Puny のタイル、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節） */
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) {
+      this.drawTilesLegacy(state, viewX, viewY);
+      return;
+    }
+    const view = this.setMapView(viewX, viewY);
+    this.mapChunks.update(state.map, this.mapTheme(state), view, this.wipeActive);
+    this.mapChunks.drawGround(this.ctx, view);
+  }
+
+  /** 迷宮の地図のテーマ（章の様式 × バイオーム。mapThemeFor は同じ引数で同じ参照を返す） */
+  private mapTheme(state: GameState): MapTheme {
+    return mapThemeFor(state.depth, state.floorKind);
+  }
+
+  private setMapView(viewX: number, viewY: number): MapView {
+    this.mapView.x = viewX;
+    this.mapView.y = viewY;
+    return this.mapView;
+  }
+
+  /** 画面内の欲しいチャンクを予算なしで焼き上げる（撮影・ベンチ用。ゲーム中は呼ばない）。拠点は何もしない */
+  settleMap(state: GameState): void {
+    if (state.sandbox === true) return;
+    const cam = state.camera;
+    const view = this.setMapView(Math.round(cam.pos.x - cam.offset.x - VIEW_W / 2), Math.round(cam.pos.y - cam.offset.y - VIEW_H / 2));
+    this.mapChunks.settle(state.map, this.mapTheme(state), view);
+  }
+
+  /** 拠点の床と壁（タイルごとの drawImage）。階段・泉・扉の印などの上描きは drawTileOverlays */
+  private drawTilesLegacy(state: GameState, viewX: number, viewY: number): void {
     const { map } = state;
-    const { ctx } = this;
     const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
@@ -1096,10 +1134,6 @@ export class Renderer {
     const floor = this.atlas[`tile.${biome}.floor`] ?? this.sprite(SPR.floor);
     const wallFace = this.sprite(SPR.wallFace);
     const wallTop = this.sprite(SPR.wallTop);
-    const stairs = this.sprite(SPR.stairs);
-    const door = this.sprite(SPR.door);
-    const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
-    this.stairsBuf.length = 0;
     const look = pitLook(state.floorKind, isDeepDepth(state.depth));
 
     for (let y = y0; y <= y1; y++) {
@@ -1120,7 +1154,6 @@ export class Renderer {
           } else if (style === "top") {
             this.blit(wallTop, 0, px, py);
           }
-          this.drawHiddenCrack(state, x, y, px, py);
           continue;
         }
         if (tile === Tile.Pit) {
@@ -1128,6 +1161,36 @@ export class Renderer {
           continue;
         }
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
+      }
+    }
+  }
+
+  /**
+   * 焼かない上描き（伏兵の暗い床・泉・扉の印・階段・封鎖の扉・隠し部屋のひび・階段の光）。
+   * 地形の層の後に描く（拠点も同じ。docs/ideas/map-visual-impl.md 1-7 節）
+   */
+  private drawTileOverlays(state: GameState, viewX: number, viewY: number): void {
+    const { map } = state;
+    const { ctx } = this;
+    const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
+    const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
+    const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
+    const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
+    const stairs = this.sprite(SPR.stairs);
+    const door = this.sprite(SPR.door);
+    const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
+    this.stairsBuf.length = 0;
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const tile = getTile(map, x, y);
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+        if (tile === Tile.Wall) {
+          this.drawHiddenCrack(state, x, y, px, py);
+          continue;
+        }
+        if (tile === Tile.Pit) continue;
         this.drawRoomFloor(state, toIndex(map, x, y), tile, px, py);
         if (tile === Tile.StairsDown) {
           this.blit(stairs, 0, px, py);

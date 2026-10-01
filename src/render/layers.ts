@@ -27,6 +27,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawTiles",
     "drawBiomeTint",
     "drawTerrainLayer",
+    "drawTileOverlays",
     "drawGroundMarks",
     "drawPickups",
     "drawFloorItems",

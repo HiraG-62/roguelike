@@ -45,6 +45,16 @@ describe("描画の層の順", () => {
     expect(layerOf("drawSkillGround"), "スキルの設置物はワールド").toBe(layerIndex("world"));
   });
 
+  it("地図の上描き（階段・泉・扉の印・封鎖）は地形の後、床の印・拾い物・敵より前", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawTileOverlays");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "地図の床・壁より後").toBeGreaterThan(world.indexOf("drawTiles"));
+    expect(at, "地形の層より後").toBeGreaterThan(world.indexOf("drawTerrainLayer"));
+    expect(at, "床の印より前").toBeLessThan(world.indexOf("drawGroundMarks"));
+    expect(at, "敵より前").toBeLessThan(world.indexOf("drawEnemies"));
+  });
+
   it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
     const world = LAYER_CONTENTS.world;
     const at = world.indexOf("drawHubSpots");

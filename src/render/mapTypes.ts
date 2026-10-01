@@ -2,6 +2,7 @@
 // 描画の作りの定数であってバランス数値ではないので TS に置く。
 import type { GameMap } from "../map/grid";
 import { TILE_SIZE } from "../map/grid";
+import type { VertexDepth } from "./dualGrid";
 
 /** 地図の密度（1 ドット = 論理 0.5px = 画面 2px） */
 export const MAP_DOTS = 2;
@@ -138,6 +139,8 @@ export interface MapTheme {
   props: readonly { kind: MapPropKind; weight: number }[];
   decals: readonly DecalKind[];
   flags: MapThemeFlags;
+  /** 苔の石畳の床の地帯の閾値（バイオームの寄せ。無ければ見本の既定 0.42 / 0.64）。stone は土の地帯の上限、moss は苔の斑の下限 */
+  floorZone?: { stone: number; moss: number };
 }
 
 /** 光源。座標と半径は論理 px、color は CSS の色文字列 */
@@ -171,4 +174,6 @@ export interface ChunkBakeInput {
   theme: MapTheme;
   /** マスごとの「置物を置かない」印（地図と同じ並び）。段 2 の置物の配置が読む */
   exclude?: Uint8Array;
+  /** 地図の頂点の深さ。呼び出し側が地図ごとに 1 回作って共有すると速い（無ければ焼き付けの中で作る） */
+  depth?: VertexDepth;
 }
