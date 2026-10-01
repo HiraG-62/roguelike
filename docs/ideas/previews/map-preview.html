@@ -135,6 +135,32 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
   .area table { font-size: 12px; }
   .area th, .area td { padding: 4px 3px; }
 }
+.gallery {
+  margin-top: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.gallery h2 { font-family: var(--font-dot); font-weight: 400; font-size: 18px; margin: 0 0 2px; color: var(--accent); }
+.gallery .sub { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 10px; }
+@media (min-width: 900px) { .gal-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); } }
+.gal-sep { grid-column: 1 / -1; font-family: var(--font-dot); color: var(--muted); font-size: 13px; margin: 6px 0 -2px; border-top: 1px solid var(--line); padding-top: 8px; }
+button.card {
+  display: flex; flex-direction: column; gap: 4px; align-items: stretch; text-align: left;
+  padding: 8px; background: var(--panel-2); border-radius: 8px; min-width: 0; line-height: 1.45;
+}
+button.card:hover { background: var(--btn-hover); }
+.card canvas { width: 100%; height: auto; border-radius: 4px; background: var(--canvas-bg); }
+.card .nm { font-family: var(--font-dot); font-size: 14px; color: var(--text); }
+.card .play { font-size: 12.5px; color: var(--muted); }
+.card .num { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.rec-mark { color: var(--accent); margin-right: 2px; }
+.area summary { cursor: pointer; list-style-position: outside; margin-left: 1em; }
+.area summary h3 { display: inline; }
+.rec-table td, .rec-table th { text-align: left !important; }
+.rec-table td:nth-child(2) { white-space: nowrap; }
 .status { font-size: 12.5px; color: var(--faint); margin-top: 6px; min-height: 1.4em; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -144,7 +170,7 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 <main class="wrap">
   <header>
     <h1>マップ意匠の見本</h1>
-    <p>同じ seed の同じ地図を、見た目の案・章のテーマ・生成の案で描き分けます。当たりの格子はどの案も 16px のままで、変わるのは描き方だけです（生成の案だけは形そのものが変わります）。中央が旅人、周りに敵が 3 体います。</p>
+    <p>同じ seed の同じ地図を、見た目の案・章のテーマ・生成の案で描き分けます。当たりの格子はどの案も 16px のままで、変わるのは描き方だけです（生成の案だけは形そのものが変わります）。中央が旅人、周りに敵が 3 体います。生成は階の「型」が 8 種（大きな骨格が違い、seed で形が大きく変わる）と、比較用の従来 4 種。下の「型の一覧」で同じ seed の全体図を並べて見比べられます。★ = 選んだ章のおすすめ。</p>
   </header>
 
   <section class="controls" aria-label="切り替え">
@@ -158,12 +184,11 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
     <div class="group" role="group" aria-label="章のテーマ" id="themeGroup">
       <span class="group-label">章</span>
     </div>
-    <div class="group" role="group" aria-label="生成の案">
-      <span class="group-label">生成</span>
-      <button type="button" data-gen="cave">今の洞窟</button>
-      <button type="button" data-gen="skel">骨組み + 形の語彙</button>
-      <button type="button" data-gen="skelw">骨組み + 形の語彙（広め）</button>
-      <button type="button" data-gen="rooms">今の回廊</button>
+    <div class="group" role="group" aria-label="階の型" id="genGroup">
+      <span class="group-label">型</span>
+    </div>
+    <div class="group" role="group" aria-label="従来の生成（比較用）" id="genOldGroup">
+      <span class="group-label">従来</span>
     </div>
     <div class="group" role="group" aria-label="seed と視点">
       <span class="group-label">seed</span>
@@ -200,22 +225,37 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
     </aside>
   </div>
 
+  <section class="gallery" aria-labelledby="galTitle">
+    <h2 id="galTitle">型の一覧</h2>
+    <p class="sub" id="galSub"></p>
+    <div class="gal-grid" id="galGrid"></div>
+  </section>
+
   <section class="notes" aria-live="polite">
     <h2 id="vTitle"></h2>
     <ul id="vDesc"></ul>
     <p class="sub" id="tDesc"></p>
     <p class="sub" id="gDesc"></p>
     <ul class="tune" id="gTune"></ul>
-    <div class="area" id="area">
-      <h3 id="areaTitle">歩ける面積</h3>
+    <div class="area" id="recArea">
+      <h3>章との相性（★ = その章のおすすめ。選んでいる章の行に印）</h3>
+      <div class="area-scroll">
+        <table class="rec-table">
+          <thead><tr><th scope="col">章</th><th scope="col">おすすめの型</th><th scope="col">なぜ</th></tr></thead>
+          <tbody id="recBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <details class="area" id="area" open>
+      <summary><h3 id="areaTitle">歩ける面積</h3></summary>
       <div class="area-scroll">
         <table>
-          <thead><tr><th scope="col">生成</th><th scope="col">床（マス）</th><th scope="col">割合</th><th scope="col">主の道（歩）</th><th scope="col">行き止まり</th><th scope="col">最大の部屋（マス）</th></tr></thead>
+          <thead><tr><th scope="col">生成</th><th scope="col">床（マス）</th><th scope="col">割合</th><th scope="col">洞窟比</th><th scope="col">主の道（歩）</th><th scope="col">行き止まり</th><th scope="col">最大の部屋（マス）</th></tr></thead>
           <tbody id="areaBody"></tbody>
         </table>
       </div>
-      <p class="note">上 = この seed、下の小さい数 = seed 1〜20 の平均。床 = 壁でないマス（地形も含む）で、割合は地図全体 64x40 = 2560 マスに対して。主の道 = 開始 → 主の間の最短の歩数（上下左右に 1 マス = 1 歩）。今の洞窟・回廊はグラフが無いので、左端の中ほどに近い床から歩いて一番遠い床まで。行き止まり = 床を細線にした端の数（6 マス未満のひげと、開始・主の間の近くは除く）。最大の部屋 = 5x5 が丸ごと入る広がりのうち一番広いものの面積。</p>
-    </div>
+      <p class="note">上 = この seed、下の小さい数 = seed 1〜20 の平均。床 = 壁でないマス（地形も含む）で、割合は地図全体 64x40 = 2560 マスに対して。主の道 = 開始 → 主の間の最短の歩数（上下左右に 1 マス = 1 歩）。今の洞窟・回廊はグラフが無いので、左端の中ほどに近い床から歩いて一番遠い床まで。行き止まり = 床を細線にした端の数（6 マス未満のひげと、開始・主の間の近くは除く）。最大の部屋 = 5x5 が丸ごと入る広がりのうち一番広いものの面積。洞窟比 = 割合 ÷ 今の洞窟の 20 seed 平均（型は 0.7〜1.1 に収める）。川・池・奈落（穴）は通れないので床に数えない。浅瀬は床。</p>
+    </details>
     <div class="legend" id="legend"></div>
     <p class="status" id="status"></p>
   </section>
@@ -926,14 +966,1038 @@ function mapStats(m) {
   if (!bn) for (let i = 0; i < ds.length; i++) if (ds[i] > ds[goal]) goal = i;
   const dg = bfsDist(solid, goal);
   const ends = skeletonEnds(solid).filter((i) => ds[i] > END_SKIP && dg[i] > END_SKIP);
-  return { floor, ratio: floor / solid.length, path: ds[goal], deadEnds: ends.length, room: largestRoom(solid), ends };
+  return { floor, ratio: floor / solid.length, path: ds[goal], deadEnds: ends.length, room: largestRoom(solid), ends, start, goal, dg };
 }
-const GEN_FN = { cave: genCave, skel: genSkeleton, skelw: genSkeletonWide, rooms: genRooms };
+// <gen2>
+// =====================================================================
+// 階の型（8 種）。格子に並べず、型ごとに違う骨格からノードを置く。
+// 出力は { solid, ter, pit, graph }。pit = 通れない「穴」（川・池・奈落）で、solid の部分集合。
+// 深みの章では奈落、それ以外の章では深い地形（水・油・溶岩・氷・墨）として描く
+// =====================================================================
+const clampN = (v, a, b) => v < a ? a : v > b ? b : v;
+const inner = (x, y) => x >= 1 && y >= 1 && x < MAP_W - 1 && y < MAP_H - 1;
+function gridOf(v) { return new Uint8Array(MAP_W * MAP_H).fill(v); }
+// 円を彫る（v = 0 床 / 1 壁）。pit を渡すと床にした所の穴を消す
+function disc(g, cx, cy, r, v, pit) {
+  const x0 = Math.max(1, Math.floor(cx - r - 1)), x1 = Math.min(MAP_W - 2, Math.ceil(cx + r + 1));
+  const y0 = Math.max(1, Math.floor(cy - r - 1)), y1 = Math.min(MAP_H - 2, Math.ceil(cy + r + 1));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) >= r) continue;
+    g[idx(x, y)] = v;
+    if (pit && !v) pit[idx(x, y)] = 0;
+  }
+}
+function line(g, ax, ay, bx, by, r, v, pit) {
+  const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 2));
+  for (let i = 0; i <= n; i++) { const t = i / n; disc(g, ax + (bx - ax) * t, ay + (by - ay) * t, r, v, pit); }
+}
+function polyline(g, pts, r, v, pit) { for (let i = 1; i < pts.length; i++) line(g, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, r, v, pit); }
+// 曲がった道: 中点を法線方向へずらして depth 回細かくする（wig = 辺の長さに対するずれ）
+function wander(rng, a, b, wig, depth) {
+  let pts = [a, b];
+  for (let d = 0; d < depth; d++) {
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], q = pts[i];
+      const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      const off = (rng() - 0.5) * 2 * wig * len;
+      out.push({ x: (p.x + q.x) / 2 - (q.y - p.y) / len * off, y: (p.y + q.y) / 2 + (q.x - p.x) / len * off }, q);
+    }
+    pts = out;
+  }
+  return pts;
+}
+// 雑音で縁が揺れる塊（sx, sy = 楕円の伸び、ang = 向き）
+function blob(g, cx, cy, r, seed, amp, v, pit, sx, sy, ang) {
+  sx = sx || 1; sy = sy || 1; ang = ang || 0;
+  const R = r * (1 + amp) * Math.max(sx, sy) + 1, ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let y = Math.floor(cy - R); y <= cy + R; y++) for (let x = Math.floor(cx - R); x <= cx + R; x++) {
+    if (!inner(x, y)) continue;
+    const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+    const u = (dx * ca + dy * sa) / sx, w = (-dx * sa + dy * ca) / sy;
+    const rr = r * (1 + (vnoise(x, y, 3.2, seed) - 0.5) * 2 * amp);
+    if (Math.hypot(u, w) < rr) { g[idx(x, y)] = v; if (pit && !v) pit[idx(x, y)] = 0; }
+  }
+}
+// Poisson disk（投げ矢）: minD 以上離れた点を maxN 個まで
+function poisson(rng, minD, x0, y0, x1, y1, maxN, avoid) {
+  const pts = [];
+  for (let t = 0; t < 2000 && pts.length < maxN; t++) {
+    const p = { x: x0 + rng() * (x1 - x0), y: y0 + rng() * (y1 - y0) };
+    if (avoid && avoid(p)) continue;
+    if (pts.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= minD)) pts.push(p);
+  }
+  return pts;
+}
+// 力学的な緩和: 近すぎる点どうしを押し離し、枠に戻す
+function relax(pts, iters, minD, x0, y0, x1, y1) {
+  for (let it = 0; it < iters; it++) {
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const a = pts[i], b = pts[j];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+      if (d >= minD) continue;
+      const push = (minD - d) * 0.25;
+      if (!a.fixed) { a.x -= dx / d * push; a.y -= dy / d * push; }
+      if (!b.fixed) { b.x += dx / d * push; b.y += dy / d * push; }
+    }
+    for (const p of pts) { p.x = clampN(p.x, x0, x1); p.y = clampN(p.y, y0, y1); }
+  }
+}
+// 最小全域木（Prim）と、交差しない短い辺を k 本足したループ
+function mstEdges(pts) {
+  const n = pts.length, inT = new Uint8Array(n), best = new Float64Array(n).fill(1e9), from = new Int32Array(n).fill(-1);
+  const edges = [];
+  if (!n) return edges;
+  best[0] = 0;
+  for (let it = 0; it < n; it++) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!inT[i] && (u < 0 || best[i] < best[u])) u = i;
+    inT[u] = 1;
+    if (from[u] >= 0) edges.push([from[u], u]);
+    for (let v = 0; v < n; v++) {
+      if (inT[v]) continue;
+      const d = Math.hypot(pts[u].x - pts[v].x, pts[u].y - pts[v].y);
+      if (d < best[v]) { best[v] = d; from[v] = u; }
+    }
+  }
+  return edges;
+}
+function segCross(a, b, c, d) {
+  const o = (p, q, r) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+}
+function addLoops(pts, edges, k, maxLen) {
+  const has = new Set(edges.map(([a, b]) => Math.min(a, b) + "," + Math.max(a, b)));
+  const cand = [];
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    if (has.has(i + "," + j)) continue;
+    const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+    if (d <= maxLen) cand.push([d, i, j]);
+  }
+  cand.sort((a, b) => a[0] - b[0]);
+  let added = 0;
+  for (const [, i, j] of cand) {
+    if (added >= k) break;
+    if (edges.some(([a, b]) => a !== i && a !== j && b !== i && b !== j && segCross(pts[i], pts[j], pts[a], pts[b]))) continue;
+    // 短い迂回ができるだけの辺は足さない（既に 2 手で行ける）
+    edges.push([i, j]); added++;
+  }
+  return edges;
+}
+// グラフ上で一番遠い 2 点（辺の長さで Floyd）
+function farthestPair(pts, edges) {
+  const n = pts.length, D = [];
+  for (let i = 0; i < n; i++) { D.push(new Float64Array(n).fill(1e9)); D[i][i] = 0; }
+  for (const [a, b] of edges) { const d = Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y); D[a][b] = D[b][a] = Math.min(D[a][b], d); }
+  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (D[i][k] + D[k][j] < D[i][j]) D[i][j] = D[i][k] + D[k][j];
+  let bi = 0, bj = n > 1 ? 1 : 0, bd = -1;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (D[i][j] < 1e9 && D[i][j] > bd) { bd = D[i][j]; bi = i; bj = j; }
+  return [bi, bj];
+}
+// すべての床を 1 つにつなぐ: 小さな欠片は埋め、大きな島は一番近い所へ幅 2 のトンネル（穴の上なら桟道）を掘る
+function connectAll(g, pit, minKeep) {
+  const N = g.length;
+  for (let guard = 0; guard < 40; guard++) {
+    const lab = new Int32Array(N).fill(-1), sizes = [];
+    const q = new Int32Array(N);
+    for (let i = 0; i < N; i++) {
+      if (g[i] || lab[i] >= 0) continue;
+      const id = sizes.length; let qh = 0, qt = 0; q[qt++] = i; lab[i] = id;
+      while (qh < qt) {
+        const c = q[qh++], x = c % MAP_W, y = (c / MAP_W) | 0;
+        for (const [dx, dy] of N4) {
+          const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue;
+          const ni = idx(nx, ny); if (g[ni] || lab[ni] >= 0) continue;
+          lab[ni] = id; q[qt++] = ni;
+        }
+      }
+      sizes.push(qt);
+    }
+    if (sizes.length <= 1) return;
+    let main = 0;
+    for (let k = 1; k < sizes.length; k++) if (sizes[k] > sizes[main]) main = k;
+    // 一番大きくない欠片を 1 つずつ処理する
+    let other = -1;
+    for (let k = 0; k < sizes.length; k++) if (k !== main && (other < 0 || sizes[k] > sizes[other])) other = k;
+    if (sizes[other] < minKeep) {
+      for (let k = 0; k < sizes.length; k++) if (k !== main && sizes[k] < minKeep) for (let i = 0; i < N; i++) if (lab[i] === k) g[i] = 1;
+      continue;
+    }
+    const prev = new Int32Array(N).fill(-2);
+    let qh = 0, qt = 0, hit = -1;
+    for (let i = 0; i < N; i++) if (lab[i] === other) { prev[i] = -1; q[qt++] = i; }
+    while (qh < qt && hit < 0) {
+      const c = q[qh++], x = c % MAP_W, y = (c / MAP_W) | 0;
+      for (const [dx, dy] of N4) {
+        const nx = x + dx, ny = y + dy; if (!inner(nx, ny)) continue;
+        const ni = idx(nx, ny); if (prev[ni] !== -2) continue;
+        prev[ni] = c;
+        if (lab[ni] === main) { hit = ni; break; }
+        q[qt++] = ni;
+      }
+    }
+    if (hit < 0) { for (let i = 0; i < N; i++) if (lab[i] === other) g[i] = 1; continue; }
+    for (let c = prev[hit]; c >= 0; c = prev[c]) {
+      const x = c % MAP_W, y = (c / MAP_W) | 0;
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) if (inner(x + dx, y + dy)) { g[idx(x + dx, y + dy)] = 0; if (pit) pit[idx(x + dx, y + dy)] = 0; }
+    }
+  }
+}
+// Voronoi の部屋割り: 一番近い中心の部屋に入り、2 番目との差が gap 未満（境目）は壁、中心から r（雑音で揺れる）より遠い所も壁
+function voronoiCarve(g, pts, gap, seed, amp, mask, pit) {
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    if (mask && !mask(x, y)) continue;
+    let d1 = 1e9, d2 = 1e9, a = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const d = Math.hypot(x + 0.5 - pts[i].x, y + 0.5 - pts[i].y);
+      if (d < d1) { d2 = d1; d1 = d; a = i; } else if (d < d2) d2 = d;
+    }
+    if (a < 0 || d2 - d1 < gap) continue;
+    if (d1 < pts[a].r * (1 + (vnoise(x, y, 4, seed) - 0.5) * 2 * amp)) { g[idx(x, y)] = 0; if (pit) pit[idx(x, y)] = 0; }
+  }
+}
+// 床に囲まれた 1 マスの岩くずを消す（彫った跡の汚れ）
+function tidy(g) {
+  const o = g.slice();
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) if (g[idx(x, y)] && wallCount8(g, x, y) <= 1) o[idx(x, y)] = 0;
+  g.set(o);
+}
+function finishMap(g, ter, pit, nodes, edges) {
+  border(g);
+  for (let i = 0; i < g.length; i++) {
+    if (!g[i]) { pit[i] = 0; continue; }
+    ter[i] = 0;
+    if (pit[i]) g[i] = 1;
+  }
+  return { solid: g, ter, pit, graph: { nodes, edges } };
+}
+
+// ---------------------------------------------------------------------
+// 1 大洞窟: 大広間の芯（楕円 1〜2 個）と衛星の小洞を先に置き、通り道を芯として固定したまま
+// セルオートマトンで縁を育てる。広間の中に岩の島を数個（遮蔽物）
+// ---------------------------------------------------------------------
+function ellD(h, x, y) {
+  const dx = x - h.x, dy = y - h.y, ca = Math.cos(h.ang), sa = Math.sin(h.ang);
+  return Math.hypot((dx * ca + dy * sa) / h.rx, (-dx * sa + dy * ca) / h.ry);
+}
+function genCavern(seed) {
+  const rng = mulberry32(seed * 4441 + 11);
+  const N = MAP_W * MAP_H;
+  const halls = [];
+  if (rng() < 0.45) {
+    const rx = 13 + rng() * 4, ry = 8.5 + rng() * 2.5;
+    halls.push({ x: clampN(MAP_W * (0.3 + rng() * 0.4), rx * 0.8 + 3, MAP_W - rx * 0.8 - 4), y: MAP_H * (0.4 + rng() * 0.2), rx, ry, ang: (rng() - 0.5) * 0.6 });
+  } else {
+    const ang = (rng() - 0.5) * 1.4, dist = 13 + rng() * 5, cx = MAP_W / 2 + (rng() - 0.5) * 6, cy = MAP_H / 2 + (rng() - 0.5) * 4;
+    for (const sg of [-1, 1]) {
+      const rx = 8 + rng() * 3, ry = 6.5 + rng() * 2;
+      halls.push({ x: clampN(cx + sg * Math.cos(ang) * dist, rx + 2, MAP_W - rx - 3), y: clampN(cy + sg * Math.sin(ang) * dist * 0.6, ry + 2, MAP_H - ry - 3), rx, ry, ang: (rng() - 0.5) * 1.2 });
+    }
+  }
+  const sats = poisson(rng, 8, 4, 4, MAP_W - 5, MAP_H - 5, 10, (p) => halls.some((h) => ellD(h, p.x, p.y) < 1.25));
+  for (const s of sats) s.r = 3 + rng() * 2.2;
+  const prob = new Float32Array(N).fill(0.2), force = new Uint8Array(N);
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    const i = idx(x, y), wob = (vnoise(x, y, 5, seed + 1) - 0.5) * 0.4;
+    for (const h of halls) {
+      const e = ellD(h, x + 0.5, y + 0.5) + wob;
+      if (e < 0.62) force[i] = 1;
+      else if (e < 1.2) prob[i] = Math.max(prob[i], 0.64);
+    }
+    for (const s of sats) {
+      const d = Math.hypot(x + 0.5 - s.x, y + 0.5 - s.y) / s.r + wob;
+      if (d < 0.8) force[i] = 1;
+      else if (d < 1.6) prob[i] = Math.max(prob[i], 0.58);
+    }
+  }
+  // 通り道（芯）: 広間 + 衛星を最小全域木 + ループ 2 本で結ぶ
+  const pts = halls.map((h) => ({ x: h.x, y: h.y })).concat(sats);
+  const edges = addLoops(pts, mstEdges(pts), 2, 26);
+  const fpath = gridOf(1);
+  const near = gridOf(1);
+  for (const [a, b] of edges) {
+    const path = wander(rng, pts[a], pts[b], 0.18, 3);
+    polyline(fpath, path, 1.25 + rng() * 0.4, 0);
+    polyline(near, path, 3.2, 0);
+  }
+  for (let i = 0; i < N; i++) { if (!fpath[i]) force[i] = 1; else if (!near[i]) prob[i] = Math.max(prob[i], 0.5); }
+  let g = gridOf(1);
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) { const i = idx(x, y); g[i] = force[i] || rng() < prob[i] ? 0 : 1; }
+  for (let k = 0; k < 4; k++) { g = caStep(g, 5, 4); for (let i = 0; i < N; i++) if (force[i]) g[i] = 0; }
+  // 広間の中の岩の島（遮蔽物）
+  for (const h of halls) {
+    const n = 2 + Math.floor(rng() * 3);
+    for (let k = 0; k < n; k++) {
+      const a = rng() * Math.PI * 2, rr = 0.25 + rng() * 0.4;
+      blob(g, h.x + Math.cos(a) * h.rx * rr, h.y + Math.sin(a) * h.ry * rr, 1.1 + rng() * 1.1, seed + 50 + k, 0.3, 1);
+    }
+  }
+  border(g); tidy(g);
+  const pit = gridOf(0), ter = gridOf(0);
+  connectAll(g, pit, 25);
+  // 開始と主の間: 衛星どうしでグラフ上いちばん遠い 2 つ（衛星が少なければ広間も候補）
+  const [a, b] = farthestPair(pts, edges);
+  const nodes = pts.map((p, i) => ({ x: p.x, y: p.y, role: i < halls.length ? "大広間" : "小洞", kind: i < halls.length ? "main" : "branch" }));
+  nodes[a].role = "開始"; nodes[b].role = "主の間";
+  const out = finishMap(g, ter, pit, nodes, edges.map(([p, q]) => [p, q, "loop"]));
+  out.info = "大広間 " + halls.length + " つ・小洞 " + sats.length;
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 2 谷・川筋: 地図を横切る川（穴）を 1 本蛇行させ、河原を開け、両岸に部屋を Poisson で置く。
+// 橋 2〜3 本と浅瀬 1 か所でだけ渡れる
+// ---------------------------------------------------------------------
+function nearestOnPoly(pts, x, y) {
+  let best = 1e9, bt = 0, side = 1, bx = 0, by = 0, acc = 0;
+  const total = pts.reduce((s, p, i) => i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0, 0);
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy || 1, L = Math.sqrt(L2);
+    const t = clampN(((x - a.x) * vx + (y - a.y) * vy) / L2, 0, 1);
+    const px = a.x + vx * t, py = a.y + vy * t, d = Math.hypot(x - px, y - py);
+    if (d < best) { best = d; bt = (acc + t * L) / total; side = vx * (y - a.y) - vy * (x - a.x) >= 0 ? 1 : -1; bx = px; by = py; }
+    acc += L;
+  }
+  return { d: best, t: bt, side, x: bx, y: by };
+}
+function chaikin(pts, n) {
+  for (let k = 0; k < n; k++) {
+    const o = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      o.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 }, { x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    o.push(pts[pts.length - 1]);
+    pts = o;
+  }
+  return pts;
+}
+function genRiver(seed) {
+  const rng = mulberry32(seed * 5113 + 7);
+  const N = MAP_W * MAP_H;
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const mode = Math.floor(rng() * 3);
+  let A, B;
+  if (mode === 0) { A = { x: -3, y: MAP_H * (0.3 + rng() * 0.4) }; B = { x: MAP_W + 2, y: MAP_H * (0.3 + rng() * 0.4) }; }
+  else if (mode === 1) { A = { x: MAP_W * (0.3 + rng() * 0.4), y: -3 }; B = { x: MAP_W * (0.3 + rng() * 0.4), y: MAP_H + 2 }; }
+  else { const up = rng() < 0.5; A = { x: -3, y: MAP_H * (up ? 0.15 + rng() * 0.2 : 0.65 + rng() * 0.2) }; B = { x: MAP_W * (0.6 + rng() * 0.3), y: up ? MAP_H + 2 : -3 }; }
+  const river = chaikin(wander(rng, A, B, 0.2, 4), 2);
+  const hwAt = (t) => 1.4 + 1.5 * vnoise(t * 40, 3, 6, seed + 9);
+  const rd = new Float32Array(N), rs = new Int8Array(N), rt = new Float32Array(N);
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+    const i = idx(x, y), q = nearestOnPoly(river, x + 0.5, y + 0.5);
+    rd[i] = q.d - hwAt(q.t); rs[i] = q.side; rt[i] = q.t;
+    if (rd[i] < 0) pit[i] = 1;
+  }
+  // 谷底: 川の両岸 3〜6.5 マスを河原として開ける（谷の壁は川に沿って続く）。ところどころに岩
+  const valW = 3 + 2 * rng();
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    const i = idx(x, y);
+    if (rd[i] >= 0 && rd[i] < valW + 3.2 * vnoise(x, y, 9, seed + 3) && vnoise(x, y, 3, seed + 4) > 0.16) g[i] = 0;
+  }
+  // 両岸の脇の洞（谷の壁の向こう）
+  const rooms = poisson(rng, 8.5, 3.5, 3.5, MAP_W - 4.5, MAP_H - 4.5, 13, (p) => nearestOnPoly(river, p.x, p.y).d - hwAt(nearestOnPoly(river, p.x, p.y).t) < valW + 5);
+  for (const r of rooms) { const q = nearestOnPoly(river, r.x, r.y); r.side = q.side; r.t = q.t; r.d = q.d; r.qx = q.x; r.qy = q.y; r.r = 3.2 + rng() * 2.4; }
+  const edges = [];
+  for (const sd of [-1, 1]) {
+    const ids = rooms.map((r, i) => i).filter((i) => rooms[i].side === sd);
+    const sub = ids.map((i) => rooms[i]);
+    const e = addLoops(sub, mstEdges(sub), 1, 22);
+    for (const [a, b] of e) edges.push([ids[a], ids[b], "main"]);
+  }
+  for (const r of rooms) blob(g, r.x, r.y, r.r, seed + 20, 0.3, 0, null, 1.15, 0.9, rng() * 3);
+  for (const [a, b] of edges) {
+    // 岸を越えない（川に触れる辺は彫らずに捨てる）
+    const path = wander(rng, rooms[a], rooms[b], 0.16, 3);
+    if (path.some((p) => { const q = nearestOnPoly(river, p.x, p.y); return q.d - hwAt(q.t) < 1.5; })) continue;
+    polyline(g, path, 1.2 + rng() * 0.4, 0, null);
+  }
+  // 川に近い部屋は河原へ降りる道を持つ
+  for (const r of rooms) if (r.d < 16) {
+    const nx = (r.x - r.qx) / (r.d || 1), ny = (r.y - r.qy) / (r.d || 1), hw = hwAt(r.t) + 1;
+    polyline(g, wander(rng, r, { x: r.qx + nx * hw, y: r.qy + ny * hw }, 0.12, 2), 1.15, 0, null);
+  }
+  // 橋（2〜3 本）と浅瀬（1 か所）
+  const nb = 2 + (rng() < 0.4 ? 1 : 0);
+  const crossings = [];
+  for (let k = 0; k < nb + 1; k++) crossings.push((k + 0.5 + (rng() - 0.5) * 0.4) / (nb + 1));
+  const fordAt = 1 + Math.floor(rng() * (nb - 1));
+  crossings.forEach((t, k) => {
+    // 川の上の点を探す（地図の内側で、t に一番近いもの）
+    let best = -1, bd = 1e9;
+    for (let i = 0; i < N; i++) {
+      const x = i % MAP_W, y = (i / MAP_W) | 0;
+      if (!pit[i] || x < 4 || y < 4 || x > MAP_W - 5 || y > MAP_H - 5) continue;
+      const d = Math.abs(rt[i] - t) + Math.max(0, rd[i] + 1) * 0.02;
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best < 0) return;
+    const bx = best % MAP_W + 0.5, by = ((best / MAP_W) | 0) + 0.5;
+    const q = nearestOnPoly(river, bx, by);
+    let nx = bx - q.x, ny = by - q.y; const nl = Math.hypot(nx, ny);
+    if (nl < 0.3) { // 中心線の上: 流れの向きから法線を作る
+      const q2 = nearestOnPoly(river, bx + 1, by), q3 = nearestOnPoly(river, bx, by + 1);
+      nx = q2.d - q.d; ny = q3.d - q.d;
+    }
+    const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+    const hw = hwAt(q.t) + 3.2;
+    if (k === fordAt) {
+      for (let s = -hw; s <= hw; s += 0.5) disc(g, q.x + nx * s, q.y + ny * s, 2.1, 0, pit);
+      for (let i = 0; i < N; i++) if (!g[i] && rd[i] < 0.3) { const x = i % MAP_W, y = (i / MAP_W) | 0; if (Math.abs((x + 0.5 - q.x) * -ny + (y + 0.5 - q.y) * nx) < 2.6) ter[i] = 1; }
+    } else line(g, q.x - nx * hw, q.y - ny * hw, q.x + nx * hw, q.y + ny * hw, 1.05, 0, pit);
+  });
+  border(g); tidy(g);
+  for (let i = 0; i < N; i++) if (pit[i] && !ter[i]) g[i] = 1;
+  connectAll(g, pit, 25);
+  // 開始 = 片岸の上流側、主の間 = 向こう岸の下流側
+  const sideA = rooms.filter((r) => r.side === -1), sideB = rooms.filter((r) => r.side === 1);
+  const nodes = rooms.map((r) => ({ x: r.x, y: r.y, role: "岸の部屋", kind: "main" }));
+  const pickMin = (arr) => arr.reduce((a, b) => (b.t < a.t ? b : a));
+  const pickMax = (arr) => arr.reduce((a, b) => (b.t > a.t ? b : a));
+  const s0 = sideA.length ? pickMin(sideA) : pickMin(rooms), b0 = sideB.length ? pickMax(sideB) : pickMax(rooms);
+  nodes[rooms.indexOf(s0)].role = "開始"; nodes[rooms.indexOf(b0)].role = "主の間";
+  if (s0 === b0) nodes[rooms.indexOf(pickMax(rooms))].role = "主の間";
+  const out = finishMap(g, ter, pit, nodes, edges);
+  out.info = ["横に流れる川", "縦に流れる川", "斜めに流れる川"][mode] + "・橋 " + nb + " 本と浅瀬 1";
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 3 環状: 中央の大岩か池（1 つ、または 2 つで 8 の字）を輪の道が回る。外側に部屋、芯を突っ切る近道 1〜2 本
+// ---------------------------------------------------------------------
+function coreRho(c, x, y) {
+  const dx = x - c.x, dy = y - c.y, ca = Math.cos(c.ang), sa = Math.sin(c.ang);
+  const u = dx * ca + dy * sa, w = -dx * sa + dy * ca, r = Math.hypot(u, w) || 0.001;
+  const rho = 1 / Math.sqrt((u / r / c.rx) ** 2 + (w / r / c.ry) ** 2);
+  return { d: r - rho, rho, r };
+}
+function genRing(seed) {
+  const rng = mulberry32(seed * 6311 + 5);
+  const N = MAP_W * MAP_H;
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const twin = rng() < 0.35, pond = rng() < 0.5;
+  const cx = MAP_W / 2 + (rng() - 0.5) * 8, cy = MAP_H / 2 + (rng() - 0.5) * 2;
+  const bw = 4.4 + rng() * 1.6, wt = 2.4 + rng() * 1.0;
+  const cores = [];
+  if (twin) {
+    const off = 9.5 + rng() * 2, tilt = (rng() - 0.5) * 3;
+    for (const sg of [-1, 1]) cores.push({ x: cx + sg * off, y: cy + sg * tilt, rx: 4.6 + rng() * 1.6, ry: 4 + rng() * 1.2, ang: (rng() - 0.5) * 0.8 });
+  } else cores.push({ x: cx, y: cy, rx: 8.5 + rng() * 4, ry: 5.2 + rng() * 1.8, ang: (rng() - 0.5) * 0.4 });
+  // 芯の縁からの距離（負 = 芯の中）。縁は雑音で少しだけ揺らす（輪の形が読めるように）
+  const dist = new Float32Array(N);
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+    let d = 1e9;
+    for (const c of cores) d = Math.min(d, coreRho(c, x + 0.5, y + 0.5).d);
+    dist[idx(x, y)] = d + (vnoise(x, y, 6, seed + 2) - 0.5) * 1.4;
+  }
+  const dAt = (x, y) => dist[idx(clampN(Math.floor(x), 0, MAP_W - 1), clampN(Math.floor(y), 0, MAP_H - 1))];
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    const d = dist[idx(x, y)];
+    if (d >= 0 && d < bw + (vnoise(x, y, 4, seed + 3) - 0.5) * 1.2) g[idx(x, y)] = 0;
+  }
+  // 輪の外: 岩の帯（幅 wt）の外を Voronoi で部屋に割る（部屋どうしは幅 1.6 の壁で分かれる）
+  const outer = bw + wt;
+  const rooms = poisson(rng, 8.5, 3, 3, MAP_W - 4, MAP_H - 4, 14, (p) => dAt(p.x, p.y) < outer + 2.5);
+  for (const r of rooms) r.r = 4.6 + rng() * 2.2;
+  voronoiCarve(g, rooms, 2.0, seed + 30, 0.25, (x, y) => dist[idx(x, y)] >= outer, null);
+  // 輪に近い部屋は輪へ降りる口を持つ。遠い部屋は隣の部屋へ戸口
+  const toRing = (r) => {
+    const dx = cx - r.x, dy = cy - r.y, L = Math.hypot(dx, dy) || 1;
+    let t = 0;
+    while (t < L && dAt(r.x + dx / L * t, r.y + dy / L * t) > bw * 0.5) t += 0.5;
+    line(g, r.x, r.y, r.x + dx / L * t, r.y + dy / L * t, 1.15, 0, null);
+  };
+  const near = rooms.filter((r) => dAt(r.x, r.y) < outer + r.r + 1.5);
+  for (const r of near) if (rng() < 0.8 || near.length < 4) toRing(r);
+  const edges = mstEdges(rooms);
+  for (const [a, b] of edges) {
+    const A = rooms[a], B = rooms[b];
+    if (near.includes(A) && near.includes(B) && rng() < 0.6) continue;
+    // 輪や芯を横切る辺は彫らない（輪の外だけを通る戸口）
+    let ok = true;
+    for (let t = 0; t <= 1; t += 0.05) if (dAt(A.x + (B.x - A.x) * t, A.y + (B.y - A.y) * t) < outer - 0.5) { ok = false; break; }
+    if (ok) line(g, A.x, A.y, B.x, B.y, 0.95, 0, null);
+  }
+  // 芯を突っ切る近道（岩ならトンネル、池なら桟道）。岩の芯には祠を 1 つ
+  const nShort = 1 + (rng() < 0.45 ? 1 : 0);
+  for (let s = 0; s < nShort; s++) {
+    const a = (twin ? Math.PI / 2 : rng() * Math.PI) + (rng() - 0.5) * 0.6 + s * Math.PI / 2;
+    const ux = Math.cos(a), uy = Math.sin(a);
+    let t0 = 0, t1 = 0;
+    while (t0 < 30 && dAt(cx - ux * t0, cy - uy * t0) < bw * 0.5) t0 += 0.5;
+    while (t1 < 30 && dAt(cx + ux * t1, cy + uy * t1) < bw * 0.5) t1 += 0.5;
+    line(g, cx - ux * t0, cy - uy * t0, cx + ux * t1, cy + uy * t1, 0.95, 0, null);
+  }
+  if (!pond && !twin && rng() < 0.6) disc(g, cores[0].x, cores[0].y, 2.4, 0, null);
+  for (let i = 0; i < N; i++) if (pond && dist[i] < 0 && g[i]) pit[i] = 1;
+  border(g);
+  connectAll(g, pit, 25);
+  // 開始と主の間: 輪をはさんで向かい合う部屋（中心から見た角度が一番離れた組）
+  let si = 0, bi = 0, bd = -1;
+  for (let i = 0; i < rooms.length; i++) for (let j = 0; j < rooms.length; j++) {
+    const ai = Math.atan2(rooms[i].y - cy, rooms[i].x - cx), aj = Math.atan2(rooms[j].y - cy, rooms[j].x - cx);
+    let da = Math.abs(ai - aj); if (da > Math.PI) da = Math.PI * 2 - da;
+    const sc = da * 10 + Math.hypot(rooms[i].x - rooms[j].x, rooms[i].y - rooms[j].y) * 0.1;
+    if (sc > bd) { bd = sc; si = i; bi = j; }
+  }
+  const nodes = rooms.map((r) => ({ x: r.x, y: r.y, role: "外の部屋", kind: near.includes(r) ? "main" : "branch" }));
+  nodes[si].role = "開始"; nodes[bi].role = "主の間";
+  for (const c of cores) nodes.push({ x: c.x, y: c.y, role: pond ? "池" : "大岩", kind: "branch" });
+  const k = rooms.length, extra = rooms.filter((r) => !near.includes(r));
+  const out = finishMap(g, ter, pit, nodes, []);
+  out.info = (twin ? "8 の字（芯 2 つ）" : "輪 1 つ") + "・芯は" + (pond ? "池" : "大岩") + "・外の部屋 " + k + "・隅の部屋 " + extra.length + "・近道 " + nShort;
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 4 中庭・寺院: 軸（縦か横）に沿って 門 → 参道 → 中庭（1〜2）→ 本堂（主の間）。中庭は列柱の回廊が囲み、
+// 回廊の外に小部屋が左右ゆるく対称に並ぶ。外回りの廊下と本堂への裏道でループ
+// ---------------------------------------------------------------------
+function genCourtyard(seed) {
+  const rng = mulberry32(seed * 7001 + 3);
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const vert = rng() < 0.5, flip = rng() < 0.5;
+  const L = vert ? MAP_H - 2 : MAP_W - 2, V = vert ? 31 : 19;
+  // 軸の座標 (u, v) → マス。v は -V..V-1 で、v と -1-v が鏡写し
+  const toXY = (u, v) => {
+    const uu = flip ? L - 1 - u : u;
+    return vert ? [MAP_W / 2 + v, MAP_H - 2 - uu] : [1 + uu, MAP_H / 2 + v];
+  };
+  const set = (u, v, val, P) => {
+    const [x, y] = toXY(u, v); if (!inner(x, y)) return;
+    g[idx(x, y)] = val; if (P === 1) pit[idx(x, y)] = 1; if (!val && P !== 1) pit[idx(x, y)] = 0;
+  };
+  const rect = (u0, u1, v0, v1, val, mirror, P) => {
+    for (let u = Math.floor(u0); u < u1; u++) for (let v = Math.floor(v0); v < v1; v++) {
+      set(u, v, val, P);
+      if (mirror) set(u, -1 - v, val, P);
+    }
+  };
+  const nodes = [];
+  const node = (u, v, role, kind) => { const [x, y] = toXY(u, v); nodes.push({ x: x + 0.5, y: y + 0.5, role, kind }); };
+  let u = 1;
+  // 門（開始）
+  const gw = 3 + Math.floor(rng() * 2);
+  rect(u, u + 5, 0, gw, 0, true); node(u + 2.5, 0, "開始", "main");
+  u += 5;
+  const app = 2 + Math.floor(rng() * 3);
+  rect(u, u + app, 0, 2, 0, true); u += app;
+  const nc = vert ? 1 : (rng() < 0.55 ? 2 : 1);
+  const bossL = vert ? 8 + Math.floor(rng() * 3) : 10 + Math.floor(rng() * 4);
+  const avail = L - u - bossL - 2;
+  const lastRooms = [];
+  let lastW = 0;
+  for (let c = 0; c < nc; c++) {
+    const len = Math.floor(avail / nc) - (c < nc - 1 ? 1 : 0);
+    const a = u, b = u + len;
+    const wMax = V - 9;
+    const w = Math.min(wMax, vert ? 8 + Math.floor(rng() * 6) : 5 + Math.floor(rng() * 3));
+    lastW = w;
+    // 回廊の外周まで床 → 列柱（1 つおきの柱）→ 中庭の飾り
+    rect(a, b, 0, w + 3, 0, true);
+    for (let uu = a + 2; uu < b - 2; uu++) for (let vv = 0; vv < w + 1; vv++) {
+      const onEdge = uu === a + 2 || uu === b - 3 || vv === w;
+      if (!onEdge) continue;
+      const k = uu === a + 2 || uu === b - 3 ? vv : uu - a;
+      if (k % 2 === 0 && !(vv < 2 && (uu === a + 2 || uu === b - 3))) { set(uu, vv, 1); set(uu, -1 - vv, 1); }
+    }
+    const mu = (a + b) / 2, feat = rng();
+    if (feat < 0.4) { // 池（穴）
+      const ph = Math.max(1.5, (len - 8) / 2 - rng() * 1.5), pw = Math.max(2, w - 3 - Math.floor(rng() * 2));
+      for (let uu = Math.ceil(mu - ph); uu < mu + ph; uu++) for (let vv = 0; vv < pw; vv++) {
+        const cu = (uu + 0.5 - mu) / ph, cv = (vv + 0.5) / pw;
+        if (cu * cu + cv * cv < 1.05) { set(uu, vv, 1, 1); set(uu, -1 - vv, 1, 1); }
+      }
+      // 池を渡る石橋
+      if (rng() < 0.6) rect(Math.floor(mu) - 1, Math.floor(mu) + 1, 0, w, 0, true);
+    } else if (feat < 0.7) { // 石庭の岩
+      for (let k = 0; k < 2; k++) {
+        const ru = mu + (rng() - 0.5) * (len - 10), rv = 1.5 + rng() * (w - 3);
+        for (let uu = Math.floor(ru - 1); uu <= ru + 1; uu++) for (let vv = Math.floor(rv - 1); vv <= rv + 1; vv++) if (Math.hypot(uu + 0.5 - ru, vv + 0.5 - rv) < 1.3) { set(uu, vv, 1); set(uu, -1 - vv, 1); }
+      }
+    } else { // 四本柱
+      for (const du of [-1, 1]) for (const dv of [1]) {
+        const pu = Math.floor(mu + du * (len - 8) / 4), pv = Math.floor(w / 2) * dv;
+        rect(pu, pu + 1, pv, pv + 1, 1, true);
+      }
+    }
+    node(mu, 0, "中庭", "main");
+    // 回廊の外の小部屋（鏡写しは 8 割、残りは左右を別々に作る）
+    const mirrored = rng() < 0.8;
+    for (const side of mirrored ? [1] : [1, -1]) {
+      const n = 2 + Math.floor(rng() * 2);
+      const rw = Math.min(12, V - (w + 4) - 2 - Math.floor(rng() * 4));
+      if (rw < 3) continue;
+      const seg = len / n;
+      const rr = [];
+      const room = (vs, r0, r1, v0, v1) => {
+        for (let uu = r0; uu < r1; uu++) for (let vv = v0; vv < v1; vv++) set(uu, vs < 0 ? -1 - vv : vv, 0);
+        const du = Math.floor((r0 + r1) / 2), vd = vs < 0 ? -1 - (w + 3) : w + 3;
+        set(du, vd, 0); set(du - 1, vd, 0);
+      };
+      for (let j = 0; j < n; j++) {
+        if (n === 3 && rng() < 0.2) continue;
+        const r0 = Math.floor(a + j * seg) + (j ? 1 : 0), r1 = Math.floor(a + (j + 1) * seg);
+        const v0 = w + 4, v1 = w + 4 + rw - (rng() < 0.3 ? 1 : 0);
+        room(side, r0, r1, v0, v1);
+        if (mirrored) room(-side, r0, r1, v0, v1);
+        rr.push({ r0, r1, v1 });
+        node((r0 + r1) / 2, side * (v0 + rw / 2), "脇の間", "branch");
+        if (mirrored) node((r0 + r1) / 2, -(v0 + rw / 2), "脇の間", "branch");
+      }
+      // 外回りの廊下（部屋の外側を通って隣の部屋どうしをつなぐ）
+      if (rr.length >= 2 && rng() < 0.6) {
+        const vv = Math.max(...rr.map((r) => r.v1)) + 1;
+        if (vv + 2 < V) {
+          const lay = (vs) => {
+            const f = (v2) => vs < 0 ? -1 - v2 : v2;
+            for (let uu = Math.floor((rr[0].r0 + rr[0].r1) / 2); uu <= (rr[rr.length - 1].r0 + rr[rr.length - 1].r1) / 2; uu++) { set(uu, f(vv), 0); set(uu, f(vv + 1), 0); }
+            for (const r of rr) { const du = Math.floor((r.r0 + r.r1) / 2); set(du, f(vv - 1), 0); }
+          };
+          lay(side); if (mirrored) lay(-side);
+        }
+      }
+      if (c === nc - 1) lastRooms.push(...rr.map((r) => Object.assign({ side }, r)));
+    }
+    u = b;
+    if (c < nc - 1) { rect(u - 1, u + 1, 0, 2, 0, true); u += 1; }
+  }
+  // 本堂（主の間）への参道と本堂
+  rect(u - 1, u + 2, 0, 2, 0, true); u += 2;
+  const bw = Math.min(V - 2, lastW + 2 + Math.floor(rng() * 4));
+  rect(u, L - 1, 0, bw, 0, true);
+  for (let uu = u + 2; uu < L - 3; uu += 3) { const pv = Math.max(2, bw - 3); rect(uu, uu + 1, pv, pv + 1, 1, true); }
+  node((u + L - 1) / 2, 0, "主の間", "main");
+  // 裏道: 最後の中庭の脇の間から本堂の脇へ細い道（片側）
+  const lr = lastRooms.filter((r) => r.side === 1);
+  if (lr.length && rng() < 0.75) {
+    const r = lr[lr.length - 1], vv = Math.min(bw - 1, r.v1 - 2);
+    for (let uu = r.r1 - 1; uu < u + 2; uu++) set(uu, vv, 0);
+  }
+  border(g);
+  connectAll(g, pit, 12);
+  for (let i = 0; i < g.length; i++) if (pit[i]) g[i] = 1;
+  const out = finishMap(g, ter, pit, nodes, []);
+  out.info = (vert ? "縦の軸" : "横の軸") + "・中庭 " + nc + "・脇の間 " + nodes.filter((q) => q.role === "脇の間").length;
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 5 掘り手の迷い道（drunkard's walk）: 開始から主の間へ 1 本目の掘り手、以降は掘った所から別の目印へ。
+// 寄り癖・直進癖・幅（1 か 2）が掘り手ごとに違う。ときどき小さな溜まりを掘る
+// ---------------------------------------------------------------------
+function genDrunk(seed) {
+  const rng = mulberry32(seed * 8123 + 19);
+  const N = MAP_W * MAP_H;
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const edge = Math.floor(rng() * 4);
+  const along = (t, e) => e === 0 ? { x: 4, y: 4 + t * (MAP_H - 9) } : e === 1 ? { x: MAP_W - 6, y: 4 + t * (MAP_H - 9) } : e === 2 ? { x: 4 + t * (MAP_W - 10), y: 4 } : { x: 4 + t * (MAP_W - 10), y: MAP_H - 6 };
+  const S = along(0.15 + rng() * 0.7, edge), B = along(0.15 + rng() * 0.7, edge ^ 1);
+  const wps = poisson(rng, 9, 4, 4, MAP_W - 5, MAP_H - 5, 12);
+  const target = (0.4 + rng() * 0.05) * N;
+  const turnP = 0.1 + rng() * 0.2; // 曲がり癖（seed ごと。小さいほど長い直線）
+  const wide = 0.35 + rng() * 0.4; // 幅 2 で掘る掘り手の割合
+  let floor = 0;
+  const carved = [];
+  const dig = (x, y, b) => {
+    for (let j = 0; j < b; j++) for (let i = 0; i < b; i++) {
+      const nx = x + i, ny = y + j; if (nx < 2 || ny < 2 || nx > MAP_W - 3 || ny > MAP_H - 3) continue;
+      const k = idx(nx, ny); if (g[k]) { g[k] = 0; floor++; carved.push(k); }
+    }
+  };
+  const pool = (x, y, r) => { for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) if (Math.hypot(i, j) < r) dig(x + i, y + j, 1); };
+  const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  // 掘り手: 向きを保って進み、ときどき左右へ曲がる。前が既に道なら壁の側へ曲がり（広場にしない）、
+  // それでも道へ出たら合流として止まる（ループになる）
+  const ahead = (x, y, d, k) => { const nx = x + DIRS[d][0] * k, ny = y + DIRS[d][1] * k; return nx < 2 || ny < 2 || nx > MAP_W - 4 || ny > MAP_H - 4 ? -1 : g[idx(nx, ny)]; };
+  const walk = (x, y, dir, brush, life, tgt, joinStop) => {
+    for (let s = 0; s < life; s++) {
+      dig(x, y, brush);
+      if (tgt && Math.abs(x - tgt.x) + Math.abs(y - tgt.y) < 2) break;
+      if (tgt && rng() < 0.4) {
+        const dx = tgt.x - x, dy = tgt.y - y;
+        dir = Math.abs(dx) * (0.5 + rng()) > Math.abs(dy) * (0.5 + rng()) ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3);
+      } else if (rng() < turnP) dir = (dir + (rng() < 0.5 ? 1 : 3)) % 4;
+      if (!tgt && ahead(x, y, dir, 3) === 0) {
+        const alt = [1, 3].map((t) => (dir + t) % 4).filter((d) => ahead(x, y, d, 3) === 1 && ahead(x, y, d, 1) === 1);
+        if (alt.length) dir = alt[Math.floor(rng() * alt.length)];
+      }
+      if (ahead(x, y, dir, 1) < 0) dir = (dir + 2) % 4;
+      const nx = clampN(x + DIRS[dir][0], 2, MAP_W - 4), ny = clampN(y + DIRS[dir][1], 2, MAP_H - 4);
+      const joined = s > 4 && g[idx(nx, ny)] === 0 && (brush === 1 || g[idx(clampN(nx + DIRS[dir][0], 0, MAP_W - 1), clampN(ny + DIRS[dir][1], 0, MAP_H - 1))] === 0);
+      x = nx; y = ny;
+      if (joinStop && joined && rng() < 0.75) return;
+    }
+    if (rng() < 0.5) pool(x, y, 1.8 + rng() * 1.3);
+  };
+  walk(Math.round(S.x), Math.round(S.y), 0, 2, 2000, { x: Math.round(B.x), y: Math.round(B.y) }, false);
+  for (let w = 0; w < 600 && floor < target; w++) {
+    const o = carved[Math.floor(rng() * carved.length)];
+    const ox = o % MAP_W, oy = (o / MAP_W) | 0;
+    // 壁へ向かって掘り出す（4 方向のうち 2 マス先が壁の向き）
+    const outs = [0, 1, 2, 3].filter((d) => ahead(ox, oy, d, 2) === 1 && ahead(ox, oy, d, 4) === 1);
+    if (!outs.length) continue;
+    const wp = rng() < 0.3 && wps.length ? wps[Math.floor(rng() * wps.length)] : null;
+    walk(ox, oy, outs[Math.floor(rng() * outs.length)], rng() < wide ? 2 : 1, 20 + Math.floor(rng() * 70), wp ? { x: Math.round(wp.x), y: Math.round(wp.y) } : null, true);
+  }
+  // 開始と主の間の前だけ少し広げる
+  pool(Math.round(S.x), Math.round(S.y), 2.6);
+  pool(Math.round(B.x), Math.round(B.y), 3.6);
+  tidy(g); border(g);
+  connectAll(g, pit, 10);
+  const nodes = wps.map((p) => ({ x: p.x, y: p.y, role: "目印", kind: "branch" }));
+  nodes.push({ x: S.x + 0.5, y: S.y + 0.5, role: "開始", kind: "main" }, { x: B.x + 0.5, y: B.y + 0.5, role: "主の間", kind: "main" });
+  const out = finishMap(g, ter, pit, nodes, []);
+  out.info = "曲がり癖 " + Math.round(turnP * 100) + "%・幅 2 の掘り手 " + Math.round(wide * 100) + "%";
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 6 島と桟道: Poisson + 緩和で島を置き、最小全域木 + ループ 1〜3 本を細い桟道で結ぶ。島以外はすべて穴。
+// 「多島」（小島が多い）と「大島」（大きな島が少ない）の 2 系統
+// ---------------------------------------------------------------------
+function genIslands(seed) {
+  const rng = mulberry32(seed * 9091 + 23);
+  const g = gridOf(1), pit = gridOf(1), ter = gridOf(0);
+  const many = rng() < 0.5;
+  // 多島: 小さな島がたくさん・水路は細い / 大島: 大きな島が少し・水路は広い
+  const minD = many ? 9.5 : 13, maxN = many ? 14 : 8;
+  const gap = many ? 2.6 + rng() * 0.8 : 3.6 + rng() * 1.4;
+  const pts = poisson(rng, minD, 4, 3.5, MAP_W - 5, MAP_H - 4.5, maxN);
+  relax(pts, 30, minD * 1.08, 4, 3.5, MAP_W - 5, MAP_H - 4.5);
+  for (const p of pts) p.r = many ? 5.2 + rng() * 1.8 : 7.2 + rng() * 2.6;
+  // 島 = Voronoi の区画を水路の幅だけ削り、中心から r より遠い所（外海）も削る
+  voronoiCarve(g, pts, gap, seed + 7, 0.28, (x, y) => x >= 2 && y >= 2 && x <= MAP_W - 3 && y <= MAP_H - 3, pit);
+  const edges = addLoops(pts, mstEdges(pts), 1 + Math.floor(rng() * 3), minD * 1.9);
+  for (const [a, b] of edges) {
+    const A = pts[a], B = pts[b];
+    // 桟道: 直線か、1 回だけ折れる（板の道らしく）
+    const bent = Math.abs(A.x - B.x) > 4 && Math.abs(A.y - B.y) > 4 && rng() < 0.4;
+    if (bent) polyline(g, [A, rng() < 0.5 ? { x: B.x, y: A.y } : { x: A.x, y: B.y }, B], 0.8, 0, pit);
+    else line(g, A.x, A.y, B.x, B.y, 0.8, 0, pit);
+  }
+  // 飛び石の小島（外海に）
+  for (let k = 0; k < 4; k++) {
+    const p = { x: 3 + rng() * (MAP_W - 6), y: 3 + rng() * (MAP_H - 6) };
+    if (!pit[idx(Math.floor(p.x), Math.floor(p.y))]) continue;
+    blob(g, p.x, p.y, 1.4 + rng() * 0.8, seed + 9, 0.25, 0, pit);
+  }
+  border(g);
+  for (let i = 0; i < g.length; i++) pit[i] = g[i] ? 1 : 0;
+  connectAll(g, pit, 8);
+  const [s, b] = farthestPair(pts, edges);
+  const nodes = pts.map((p) => ({ x: p.x, y: p.y, role: "島", kind: "main" }));
+  nodes[s].role = "開始"; nodes[b].role = "主の間";
+  const out = finishMap(g, ter, pit, nodes, edges.map(([p, q]) => [p, q, "main"]));
+  out.info = (many ? "多島" : "大島") + "・島 " + pts.length + "・桟道 " + edges.length + "（ループ " + (edges.length - pts.length + 1) + "）";
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 7 縦穴・段々: 横長の段（3〜5 段、傾きと波あり）を上から順に、端の坂で折り返して降りる。
+// 段の間に細いはしご口（近道）。3 割ほどは中央に縦穴（穴）が開き、各段が橋で渡る
+// ---------------------------------------------------------------------
+function genTerrace(seed) {
+  const rng = mulberry32(seed * 3307 + 31);
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const n = 3 + Math.floor(rng() * 3);
+  const gapH = (n === 5 ? 2.6 : n === 4 ? 3.2 : 4) + rng() * 0.6;
+  // 全段で同じうねり（地層のように平行）と傾き。振れ幅の分だけ段を細くする
+  const A = 0.5 + rng() * 1.5, fr = 0.06 + rng() * 0.08, ph = rng() * 6;
+  let slope = (rng() - 0.5) * 0.24;
+  const maxE = n * 1.3;
+  if (2 * A + Math.abs(slope) * 56 > maxE) slope = Math.sign(slope) * Math.max(0, (maxE - 2 * A) / 56);
+  const E = 2 * A + Math.abs(slope) * 56;
+  const bandH = (MAP_H - 4 - (n - 1) * gapH - E) / n;
+  const wave = (x) => A * Math.sin(x * fr + ph) + slope * (x - MAP_W / 2);
+  const flipX = rng() < 0.5;
+  const bands = [];
+  for (let i = 0; i < n; i++) {
+    const y0 = 2 + E / 2 + i * (bandH + gapH);
+    bands.push({ i, y0, xs: 2 + Math.floor(rng() * 5), xe: MAP_W - 3 - Math.floor(rng() * 5) });
+  }
+  const top = (b, x) => b.y0 + wave(x) + (vnoise(x, b.i * 7, 5, seed + 4) - 0.5) * 0.8;
+  const bot = (b, x) => b.y0 + wave(x) + bandH + (vnoise(x, b.i * 7 + 3, 5, seed + 5) - 0.5) * 0.8;
+  for (const b of bands) for (let x = b.xs; x <= b.xe; x++) {
+    const endD = Math.min(x - b.xs, b.xe - x), shrink = endD < 3 ? (3 - endD) * 0.8 : 0;
+    for (let y = Math.floor(top(b, x) + shrink); y < bot(b, x) - shrink; y++) if (inner(x, y)) g[idx(x, y)] = 0;
+  }
+  // 段の中の岩（遮蔽物）。段の上下に通り道を残す
+  if (bandH >= 4.8) for (const b of bands) for (let x = b.xs + 4; x <= b.xe - 4; x++) {
+    for (let y = Math.ceil(top(b, x) + 1.5); y < bot(b, x) - 1.5; y++) if (vnoise(x, y, 3, seed + 9) > 0.74) g[idx(x, y)] = 1;
+  }
+  // 坂（端で折り返す）とはしご口（中ほどの細い近道）
+  for (let i = 0; i < n - 1; i++) {
+    const right = (i % 2 === 0) !== flipX;
+    const a = bands[i], b = bands[i + 1];
+    const x0 = right ? Math.min(a.xe, b.xe) - 3 - rng() * 4 : Math.max(a.xs, b.xs) + 3 + rng() * 4;
+    const x1 = x0 + (right ? -5 : 5);
+    polyline(g, [{ x: x0, y: bot(a, x0) - 1.2 }, { x: x1, y: top(b, x1) + 1.2 }], 1.45, 0, null);
+    const nl = rng() < 0.25 ? 0 : rng() < 0.7 ? 1 : 2;
+    for (let l = 0; l < nl; l++) {
+      const lx = clampN(MAP_W / 2 + (rng() - 0.5) * 34, 8, MAP_W - 9);
+      line(g, lx, bot(a, lx) - 1, lx, top(b, lx) + 1, 0.62, 0, null);
+    }
+  }
+  // 縦穴（3 割強）: 中ほどに上から下まで穴が開き、各段は橋で渡る
+  const shaft = rng() < 0.35;
+  if (shaft) {
+    const sx = MAP_W / 2 + (rng() - 0.5) * 16, sw = 2.2 + rng() * 1.4;
+    for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+      const w = sw + (vnoise(x, y, 5, seed + 13) - 0.5) * 1.6;
+      if (Math.abs(x + 0.5 - sx - Math.sin(y * 0.25) * 1.2) < w) { pit[idx(x, y)] = 1; g[idx(x, y)] = 1; }
+    }
+    for (const b of bands) { const yc = (top(b, sx) + bot(b, sx)) / 2; line(g, sx - sw - 3, yc, sx + sw + 3, yc, 1.0, 0, pit); }
+  }
+  const first = bands[0], last = bands[n - 1];
+  const sx = !flipX ? first.xs + 3 : first.xe - 3;
+  const lastRight = ((n - 2) % 2 === 0) !== flipX;
+  const bx = lastRight ? last.xs + 5 : last.xe - 5;
+  const byc = (top(last, bx) + bot(last, bx)) / 2;
+  // 主の間: 最下段の奥を少し下へ広げる
+  blob(g, bx, byc + 1, Math.min(4.2, bandH * 0.5 + 1.5), seed + 15, 0.15, 0, pit, 1.5, 1);
+  border(g);
+  connectAll(g, pit, 20);
+  for (let i = 0; i < g.length; i++) if (pit[i]) g[i] = 1;
+  const nodes = bands.map((b) => ({ x: (b.xs + b.xe) / 2, y: b.y0 + wave((b.xs + b.xe) / 2) + bandH / 2, role: "段 " + (b.i + 1), kind: "branch" }));
+  nodes.push({ x: sx, y: (top(first, sx) + bot(first, sx)) / 2, role: "開始", kind: "main" }, { x: bx, y: byc, role: "主の間", kind: "main" });
+  const out = finishMap(g, ter, pit, nodes, []);
+  out.info = n + " 段" + (shaft ? "・縦穴あり" : "") + "・傾き " + slope.toFixed(2);
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 8 断片の組み合わせ: 手で描いた部屋の型（文字の格子）を回転・反転して Poisson + 緩和で置き、
+// 最小全域木 + ループの辺を扉どうしの折れ曲がった廊下でつなぐ
+// '.' 床 / '#' 柱・壁 / '~' 浅い地形 / 'o' 穴 / 'D' 扉 / ' ' 何もしない
+// ---------------------------------------------------------------------
+const PREFABS = {
+  cross: { name: "十字の間", rows: [
+    "    .DD.    ",
+    "    ....    ",
+    "    ....    ",
+    "   ......   ",
+    " .......... ",
+    "D....##....D",
+    "D....##....D",
+    " .......... ",
+    "   ......   ",
+    "    ....    ",
+    "    ....    ",
+    "    .DD.    "] },
+  hall: { name: "柱の広間", rows: [
+    "......DD......",
+    "..............",
+    "..#..#..#..#..",
+    "..............",
+    "D............D",
+    "D............D",
+    "..............",
+    "..#..#..#..#..",
+    "..............",
+    "......DD......"] },
+  pond: { name: "池の祠", rows: [
+    "......DD......",
+    "..............",
+    "..oooooooooo..",
+    "..oooooooooo..",
+    "..ooo....ooo..",
+    "D.ooo.##.ooo.D",
+    "D.ooo.##.ooo.D",
+    "..ooo....ooo..",
+    "..oooo..oooo..",
+    "..oooo..oooo..",
+    "..............",
+    "......DD......"] },
+  ell: { name: "L 字の間", rows: [
+    ".DD.......  ",
+    "..........  ",
+    "..........  ",
+    "....~~....  ",
+    "...~~~~.....",
+    "...~~~~....D",
+    "....~~.....D",
+    "............",
+    "  ..........",
+    "  ......DD.."] },
+  twin: { name: "二間続き", rows: [
+    "...DD.....##.....DD...",
+    "..........##..........",
+    "D.....................",
+    "D.....................",
+    "..........##..........",
+    "..........##.........D",
+    "...DD.....##.........D"] },
+  ring: { name: "回り廊下", rows: [
+    "......DD......",
+    "..............",
+    "..##########..",
+    "..#........#..",
+    "D.#..~~~~..#..",
+    "D.#..~~~~..#..",
+    "..#........#.D",
+    "..####..####.D",
+    "..............",
+    "......DD......"] },
+  zig: { name: "段違い", rows: [
+    "DD.......       ",
+    ".........       ",
+    ".........       ",
+    "....#........   ",
+    "....#........   ",
+    "    .....#......",
+    "    .....#.....D",
+    "       ........D",
+    "       ......DD."] },
+  gallery: { name: "細長い回廊", rows: [
+    "D.#...#...#...#..D",
+    "D................D",
+    "..#...#...#...#..."] },
+  start: { name: "入口", rows: [
+    "  .DD.  ",
+    " ...... ",
+    "D......D",
+    "D......D",
+    " ...... ",
+    "  .DD.  "] },
+  boss: { name: "主の間", rows: [
+    "   .......DD.......   ",
+    " .................... ",
+    "......................",
+    "...#..............#...",
+    "......................",
+    "D....................D",
+    "D.........##.........D",
+    "...........#..........",
+    "...#..............#...",
+    "......................",
+    " .................... ",
+    "   ......DD........   "] },
+};
+// 型を回転・反転してセルの一覧にする
+function prefabCells(key, rot, mir) {
+  const rows = PREFABS[key].rows, H = rows.length, W = Math.max(...rows.map((r) => r.length));
+  const cells = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const c = rows[y][x] || " "; if (c === " ") continue;
+    let px = mir ? W - 1 - x : x, py = y, w = W, h = H;
+    for (let r = 0; r < rot; r++) { const t = px; px = h - 1 - py; py = t; const tw = w; w = h; h = tw; }
+    cells.push({ x: px, y: py, c });
+  }
+  const w = rot % 2 ? H : W, h = rot % 2 ? W : H;
+  return { cells, w, h, key };
+}
+function genPrefab(seed) {
+  const rng = mulberry32(seed * 2129 + 41);
+  const g = gridOf(1), pit = gridOf(0), ter = gridOf(0);
+  const pool = ["cross", "hall", "pond", "ell", "twin", "ring", "zig", "gallery"];
+  const n = 8 + Math.floor(rng() * 3);
+  const keys = ["start", "boss"];
+  for (let i = 0; i < n - 2; i++) keys.push(pool[Math.floor(rng() * pool.length)]);
+  // 開始と主の間は地図の向かい合う端の近くから始める
+  const horiz = rng() < 0.65, sgn = rng() < 0.5 ? 1 : -1;
+  const rooms = keys.map((key, i) => {
+    const t = prefabCells(key, Math.floor(rng() * 4), rng() < 0.5);
+    let x, y;
+    if (i < 2) {
+      const s = i === 0 ? -sgn : sgn;
+      x = horiz ? MAP_W / 2 + s * (MAP_W / 2 - t.w / 2 - 2) : 6 + rng() * (MAP_W - 12);
+      y = horiz ? 6 + rng() * (MAP_H - 12) : MAP_H / 2 + s * (MAP_H / 2 - t.h / 2 - 2);
+    } else { x = 6 + rng() * (MAP_W - 12); y = 5 + rng() * (MAP_H - 10); }
+    return Object.assign(t, { key, x, y });
+  });
+  // 矩形の緩和（重なりを小さい軸の方向へ押し離す。余白 2 マス）
+  const fit = (r) => { r.x = clampN(r.x, r.w / 2 + 1.5, MAP_W - r.w / 2 - 1.5); r.y = clampN(r.y, r.h / 2 + 1.5, MAP_H - r.h / 2 - 1.5); };
+  rooms.forEach(fit);
+  for (let it = 0; it < 120; it++) {
+    let moved = false;
+    for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+      const a = rooms[i], b = rooms[j];
+      const ox = (a.w + b.w) / 2 + 2 - Math.abs(a.x - b.x), oy = (a.h + b.h) / 2 + 2 - Math.abs(a.y - b.y);
+      if (ox <= 0 || oy <= 0) continue;
+      moved = true;
+      const wa = i < 2 ? 0.15 : 0.5, wb = 1 - wa;
+      if (ox < oy) { const s = a.x < b.x ? -1 : 1; a.x += s * ox * wa; b.x -= s * ox * wb; }
+      else { const s = a.y < b.y ? -1 : 1; a.y += s * oy * wa; b.y -= s * oy * wb; }
+    }
+    rooms.forEach(fit);
+    if (!moved) break;
+  }
+  // まだ重なる部屋は捨てる（開始・主の間は残す）
+  const placed = [];
+  for (const r of rooms) {
+    const ok = placed.every((b) => (r.w + b.w) / 2 + 1 - Math.abs(r.x - b.x) <= 0 || (r.h + b.h) / 2 + 1 - Math.abs(r.y - b.y) <= 0);
+    if (ok || r.key === "start" || r.key === "boss") placed.push(r);
+  }
+  // 空いた所へ追加で差し込む（地図を埋めて床を今の洞窟並みに近づける）
+  const want = 11 + Math.floor(rng() * 3);
+  for (let t = 0; t < 40 && placed.length < want; t++) {
+    const tt = prefabCells(pool[Math.floor(rng() * pool.length)], Math.floor(rng() * 4), rng() < 0.5);
+    const free = [];
+    for (let y = Math.ceil(tt.h / 2 + 1.5); y <= MAP_H - tt.h / 2 - 1.5; y++) for (let x = Math.ceil(tt.w / 2 + 1.5); x <= MAP_W - tt.w / 2 - 1.5; x++) {
+      if (placed.every((b) => (tt.w + b.w) / 2 + 2 - Math.abs(x - b.x) <= 0 || (tt.h + b.h) / 2 + 2 - Math.abs(y - b.y) <= 0)) free.push([x, y]);
+    }
+    if (!free.length) continue;
+    const [x, y] = free[Math.floor(rng() * free.length)];
+    placed.push(Object.assign(tt, { x, y }));
+  }
+  for (const r of placed) { r.x0 = Math.round(r.x - r.w / 2); r.y0 = Math.round(r.y - r.h / 2); }
+  // 廊下（扉の組のうち一番近いもの同士を、L 字に幅 2 で）
+  const doorsOf = (r) => {
+    const ds = r.cells.filter((c) => c.c === "D").map((c) => {
+      const out = c.x === 0 ? [-1, 0] : c.x === r.w - 1 ? [1, 0] : c.y === 0 ? [0, -1] : [0, 1];
+      return { x: r.x0 + c.x + out[0] * 2, y: r.y0 + c.y + out[1] * 2, ix: r.x0 + c.x, iy: r.y0 + c.y };
+    });
+    return ds.length ? ds : [{ x: Math.round(r.x), y: Math.round(r.y), ix: Math.round(r.x), iy: Math.round(r.y) }];
+  };
+  const pts = placed.map((r) => ({ x: r.x, y: r.y }));
+  const edges = addLoops(pts, mstEdges(pts), 3, 30);
+  const cg = gridOf(1);
+  const brush = (x, y, w) => { for (let j = 0; j < w; j++) for (let i = 0; i < w; i++) if (inner(x + i, y + j)) cg[idx(x + i, y + j)] = 0; };
+  const wide = rng() < 0.4 ? 3 : 2;
+  for (const [a, b] of edges) {
+    let best = null, bd = 1e9;
+    for (const da of doorsOf(placed[a])) for (const db of doorsOf(placed[b])) {
+      const d = Math.abs(da.x - db.x) + Math.abs(da.y - db.y);
+      if (d < bd) { bd = d; best = [da, db]; }
+    }
+    const [da, db] = best;
+    const w = a === 0 || b === 0 ? 2 : wide;
+    const seg = (x0, y0, x1, y1) => { const n2 = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let s = 0; s <= n2; s++) brush(Math.round(x0 + (x1 - x0) * s / (n2 || 1)), Math.round(y0 + (y1 - y0) * s / (n2 || 1)), w); };
+    seg(da.ix, da.iy, da.x, da.y); seg(db.ix, db.iy, db.x, db.y);
+    if (rng() < 0.5) { seg(da.x, da.y, db.x, da.y); seg(db.x, da.y, db.x, db.y); }
+    else { seg(da.x, da.y, da.x, db.y); seg(da.x, db.y, db.x, db.y); }
+  }
+  for (let i = 0; i < g.length; i++) if (!cg[i]) g[i] = 0;
+  // 部屋を上から押す（柱は廊下より強い）
+  for (const r of placed) for (const c of r.cells) {
+    const x = r.x0 + c.x, y = r.y0 + c.y; if (!inner(x, y)) continue;
+    const i = idx(x, y);
+    if (c.c === "#") { g[i] = 1; pit[i] = 0; }
+    else if (c.c === "o") { g[i] = 1; pit[i] = 1; }
+    else { g[i] = 0; pit[i] = 0; if (c.c === "~") ter[i] = 1; }
+  }
+  border(g);
+  connectAll(g, pit, 10);
+  for (let i = 0; i < g.length; i++) if (pit[i]) g[i] = 1;
+  const nodes = placed.map((r) => ({ x: r.x, y: r.y, role: r.key === "start" ? "開始" : r.key === "boss" ? "主の間" : PREFABS[r.key].name, kind: r.key === "start" || r.key === "boss" ? "main" : "branch" }));
+  const out = finishMap(g, ter, pit, nodes, edges.map(([p, q]) => [p, q, "main"]));
+  out.info = "部屋 " + placed.length + ": " + placed.map((r) => PREFABS[r.key].name).join("・");
+  return out;
+}
+// </gen2>
+// 型（新しい 8 種）→ 従来（比較用 4 種）の順
+const GEN_FN = { cavern: genCavern, river: genRiver, ring: genRing, court: genCourtyard, drunk: genDrunk, isle: genIslands, terrace: genTerrace, prefab: genPrefab,
+  cave: genCave, rooms: genRooms, skel: genSkeleton, skelw: genSkeletonWide };
+const GEN_NEW = ["cavern", "river", "ring", "court", "drunk", "isle", "terrace", "prefab"];
+const GEN_OLD = ["cave", "rooms", "skel", "skelw"];
 const mapCache = new Map();
 function getMap(gen, seed) {
   const key = gen + ":" + seed;
   if (mapCache.has(key)) return mapCache.get(key);
   const m = GEN_FN[gen](seed);
+  if (!m.pit) m.pit = new Uint8Array(m.solid.length);
   m.clear = clearanceMap(m.solid);
   placeTerrain(m, seed);
   for (let i = 0; i < m.solid.length; i++) if (m.solid[i]) m.ter[i] = 0;
@@ -945,6 +2009,11 @@ function getMap(gen, seed) {
 }
 const tileSolid = (m, x, y) => (!inMap(x, y) || m.solid[idx(x, y)]) ? 1 : 0;
 const tileTer = (m, x, y) => (inMap(x, y) && m.ter[idx(x, y)]) ? 1 : 0;
+const tilePit = (m, x, y) => (inMap(x, y) && m.pit && m.pit[idx(x, y)]) ? 1 : 0;
+// 描画用: 奈落の無い章では穴を壁でなく地形として描く（当たりは壁のまま）
+const tileWallR = (m, x, y) => (!inMap(x, y) || (m.solid[idx(x, y)] && !(m.pit && m.pit[idx(x, y)]))) ? 1 : 0;
+const tileTerR = (m, x, y) => (inMap(x, y) && (m.ter[idx(x, y)] || (m.pit && m.pit[idx(x, y)]))) ? 1 : 0;
+const BLACK_C = pack(0, 0, 0);
 
 // =====================================================================
 // dual-grid の縁（表示の格子を半マスずらし、頂点を囲む 4 マスで形を決める）
@@ -1271,6 +2340,7 @@ function oldPix(m, wx, wy) {
   const tx = Math.floor(lx / TILE), ty = Math.floor(ly / TILE);
   const px = lx - tx * TILE, py = ly - ty * TILE;
   const row = py >> 2, bx = (px + (row & 1) * 4) & 7;
+  if (!TH.abyss && tilePit(m, tx, ty)) { const T = TERC[TH.ter]; return mix(T.deep || T.a, BLACK_C, (py & 3) === 3 ? 0.35 : 0.18); }
   if (tileSolid(m, tx, ty)) {
     const n = !tileSolid(m, tx, ty - 1), s = !tileSolid(m, tx, ty + 1), w = !tileSolid(m, tx - 1, ty), e = !tileSolid(m, tx + 1, ty);
     if (!n && !s && !w && !e) return hex("#0b0a0f");
@@ -1606,21 +2676,28 @@ function renderScene(scene, variant) {
   STONES = TH.floor === "sand" ? pr.stones : [];
   const camL = scene.cam.x * DOTS, camT = scene.cam.y * DOTS;
   const RW = VW + MARGIN * 2, RH = VH + MARGIN * 2, ox = camL - MARGIN, oy = camT - MARGIN;
-  const S = new Uint8Array(RW * RH), T = new Uint8Array(RW * RH);
+  const S = new Uint8Array(RW * RH), T = new Uint8Array(RW * RH), Q = new Uint8Array(RW * RH);
   const round = variant > 0;
+  const pitOn = !TH.abyss && m.pit && m.pit.some((v) => v);
+  const fWall = pitOn ? tileWallR : tileSolid, fTer = pitOn ? tileTerR : tileTer;
   const R = TH.corner === "chamfer" ? 12 : 16;
   const chamfer = TH.corner === "chamfer";
   for (let j = 0; j < RH; j++) for (let i = 0; i < RW; i++) {
     const wx = ox + i, wy = oy + j, k = j * RW + i;
     if (!round) {
-      S[k] = tileSolid(m, Math.floor(wx / TD), Math.floor(wy / TD));
-      T[k] = tileTer(m, Math.floor(wx / TD), Math.floor(wy / TD));
+      S[k] = fWall(m, Math.floor(wx / TD), Math.floor(wy / TD));
+      T[k] = fTer(m, Math.floor(wx / TD), Math.floor(wy / TD));
+      if (pitOn) Q[k] = tilePit(m, Math.floor(wx / TD), Math.floor(wy / TD));
     } else {
-      S[k] = smoothMask(tileSolid, m, wx, wy, R, chamfer, TH.noise, 11, SEED + 1);
-      T[k] = S[k] ? 0 : smoothMask(tileTer, m, wx, wy, 16, false, 2, 9, SEED + 2);
+      S[k] = smoothMask(fWall, m, wx, wy, R, chamfer, TH.noise, 11, SEED + 1);
+      T[k] = S[k] ? 0 : smoothMask(fTer, m, wx, wy, 16, false, 2, 9, SEED + 2);
+      if (pitOn && T[k]) Q[k] = smoothMask(tilePit, m, wx, wy, 16, false, 2, 9, SEED + 3);
     }
   }
   const dIn = distField(S, RW, RH, 1), dOut = distField(S, RW, RH, 0), dT = distField(T, RW, RH, 1);
+  const dQ = pitOn ? distField(Q, RW, RH, 1) : null;
+  // 穴（川・池）は岸から離れるほど暗く深く
+  const deepen = (c, k) => !dQ || !Q[k] || dQ[k] <= 6 ? c : mix(c, P.vD, dQ[k] > 16 ? 0.42 : 0.24);
   const s = (i, j) => (i < 0 || j < 0 || i >= RW || j >= RH) ? 1 : S[j * RW + i];
   const t = (i, j) => (i < 0 || j < 0 || i >= RW || j >= RH) ? 0 : T[j * RW + i];
   const out = new Uint32Array(VW * VH);
@@ -1638,7 +2715,7 @@ function renderScene(scene, variant) {
         out[o] = c; continue;
       }
       if (dOut[k] <= 1) { out[o] = TH.abyss ? mix(P.light, P.fL, 0.45) : P.fO; continue; }
-      out[o] = T[k] ? terTex(wx, wy, dT[k], false) : floorTex(wx, wy);
+      out[o] = T[k] ? deepen(terTex(wx, wy, dT[k], false), k) : floorTex(wx, wy);
       continue;
     }
     // B / C: 天面・側面・縁
@@ -1666,7 +2743,7 @@ function renderScene(scene, variant) {
       }
       continue;
     }
-    let c = T[k] ? terTex(wx, wy, dT[k], !t(i, j - 3) || !t(i, j - 2)) : floorTex(wx, wy);
+    let c = T[k] ? deepen(terTex(wx, wy, dT[k], !t(i, j - 3) || !t(i, j - 2)), k) : floorTex(wx, wy);
     if (TH.abyss) {
       if (dOut[k] <= 1) c = mix(P.light, P.fL, 0.35);
       else if (dOut[k] <= 2.5) c = P.fL;
@@ -1696,6 +2773,12 @@ function renderScene(scene, variant) {
   if (variant === 3) for (const b of m.blobs) {
     if (TH.ter === "lava") ctx.lights.push({ x: b.x * TD, y: b.y * TD, r: (b.r + 2.2) * TD, s: 1.0, c: hex("#ff7a2a") });
     if (TH.ter === "miasma" || TH.ter === "blood") ctx.lights.push({ x: b.x * TD, y: b.y * TD, r: (b.r + 1.4) * TD, s: 0.55, c: P.light });
+  }
+  if (variant === 3 && pitOn && TH.ter === "lava") {
+    for (let ty = Math.floor(camT / TD) - 2; ty < (camT + VH) / TD + 2; ty += 2) for (let tx = Math.floor(camL / TD) - 2; tx < (camL + VW) / TD + 2; tx += 2) {
+      if (!tilePit(m, tx, ty) || hf(tx, ty, m.seed + 61) > 0.5) continue;
+      ctx.lights.push({ x: tx * TD + 16, y: ty * TD + 16, r: 84, s: 0.6, c: hex("#ff7a2a") });
+    }
   }
   const ch = scene.chars;
   for (const c of ch) items.push({ y: c.y * DOTS, draw: () => drawChar(ctx, c) });
@@ -1825,6 +2908,7 @@ function drawDecals(ctx, m) {
     if (!inMap(tx, ty)) continue;
     const i = idx(tx, ty), h = h32(tx, ty, m.seed + salt);
     if (m.solid[i]) {
+      if (!TH.abyss && m.pit[i]) continue;
       // 南が床の壁 = 側面がある
       if (!TH.abyss && !tileSolid(m, tx, ty + 1)) sideDecal(ctx, tx, ty, h);
       continue;
@@ -2109,13 +3193,79 @@ const VARIANTS = [
       "予告（赤い扇）と弾は光の外の層に描くので暗くならない（A19）。state と rng を消費しないので生成もリプレイも不変。"] },
 ];
 const GENS = {
+  cavern: "大洞窟: 大広間の芯（楕円 1〜2 個）と、その周りの小洞（Poisson disk で 6〜10 個）を先に置く。芯と小洞を最小全域木 + ループ 2 本の曲がった通り道で結び、芯・通り道は床に固定したままセルオートマトンで縁を育てる。最後に広間の中へ岩の島（遮蔽物）を 2〜4 個。",
+  river: "谷・川筋: 地図の端から端へ、中点をずらして蛇行させた川（通れない穴）を 1 本引く（横・縦・斜めの 3 通り）。川の縁に切れ切れの河原を開け、両岸に Poisson disk で部屋を置いて岸ごとに最小全域木 + ループで結ぶ。渡れるのは橋 2〜3 本と浅瀬 1 か所だけ。",
+  ring: "環状: 中央に大岩か池の芯（1 つ、3 割強は 2 つで 8 の字）を置き、芯の縁から一定の幅を輪の道にする。輪の外に岩の帯を残し、その外の部屋は角度を均して置いて短い通路で輪へ降ろす。隅の空き地にも Poisson で部屋。芯を突っ切る近道（岩はトンネル、池は桟道）が 1〜2 本。",
+  court: "中庭・寺院: 縦か横の軸に沿って 門（開始）→ 参道 → 中庭（1〜2）→ 本堂（主の間）。中庭は 1 つおきの列柱の回廊が囲み、真ん中に池・石庭・四本柱のどれか。回廊の外の脇の間は 8 割が左右の鏡写し（残りは左右別々）。脇の間の外回り廊下と、本堂への裏道でループ。",
+  drunk: "掘り手の迷い道: Nuclear Throne 式の掘り手（drunkard's walk）。1 本目は開始から主の間へ寄りながら掘り、以降は掘った所から壁の方へ掘り出す。掘り手は向きを保ってときどき左右に曲がり、前が既に道なら壁側へ逸れ（広場にしない）、道へ出たら合流して止まる（ループ）。掘り終わりに小さな溜まり。",
+  isle: "島と桟道: Poisson disk + 力学的な緩和で島の中心を散らし、雑音で縁の揺れる島（4 割はこぶ付き）を置く。最小全域木 + ループ 1〜3 本を細い桟道（直線か 1 回折れ）で結び、ほかはすべて穴。「多島」（小島 14 まで）と「大島」（大きな島 8 まで）の 2 系統と、飛び石の小島。",
+  terrace: "縦穴・段々: 横長の段を 3〜5 段、同じうねりと傾きで平行に重ねる（地層のように）。段どうしは端の坂でつながり、左右に折り返しながら降りる。段の間に細いはしご口（近道）0〜2 本。3 割強は中ほどに縦穴（穴）が上から下まで開き、各段が橋で渡る。",
+  prefab: "断片の組み合わせ: 手で描いた部屋の型（十字の間・柱の広間・池の祠・L 字の間・二間続き・回り廊下・段違い・細長い回廊 + 入口・主の間）を回転・反転し、開始と主の間を地図の両端に置いてから力学的な緩和で重なりを押し離す。空いた所へ差し込み、最小全域木 + ループ 3 本の辺を扉どうしの折れた廊下でつなぐ。",
   cave: "今の洞窟: 全面に 45% の壁を撒いてセルオートマトン 5 回 → 最大連結成分（CAVE.json の base と同じ数値）。形に意図がなく、塊が似た不定形になる。",
   skel: "骨組み + 形の語彙: 開始 → 主の間の主の道（6 ノード）、ループ 1 本、寄り道 2 本のグラフを先に作る。ノードに円・瓢箪・三日月・環・扇・合成塊・池の広間・二重円（主の間）を置き、辺を曲線の通路で結び、最後にセルオートマトン 1 回で縁だけ崩す（崩した後に通路の芯・主の間の切れ目・環の芯の周りを開け直し、ノードが途切れて消えないようにする）。生成が変わるのでリプレイの版を上げる段（D4）。",
   skelw: "骨組み + 形の語彙（広め）: 骨組みの意図（主の道・ループ・寄り道が読める、塊に形の語彙）はそのままに、歩ける床の割合を今の洞窟と同じくらい（約 56%）まで広げた案。",
   rooms: "今の回廊: 矩形の部屋 + 幅 2 の L 字通路。木構造でループは偶然だけ。",
 };
-const GEN_SHORT = { cave: "今の洞窟", skel: "骨組み", skelw: "骨組み（広め）", rooms: "今の回廊" };
+const GEN_SHORT = { cavern: "大洞窟", river: "谷・川筋", ring: "環状", court: "中庭・寺院", drunk: "掘り手の迷い道", isle: "島と桟道", terrace: "縦穴・段々", prefab: "断片の組み合わせ",
+  cave: "今の洞窟", skel: "骨組み", skelw: "骨組み（格子）", rooms: "今の回廊" };
+// 型ごとの遊び（全体図の一覧に出す 1〜2 行）
+const GEN_PLAY = {
+  cavern: "大広間で囲まれながら岩の島を盾に戦う。見通しが良く群れ・飛び道具の敵が映える。枝の小洞は宝と息継ぎ。迷いは少ない（広い型）。",
+  river: "川が地図を二分し、渡れるのは橋と浅瀬だけ。橋の上が狭い戦場（挟み撃ち・押し合い）。対岸は見えるのに回り道、が近道探しの動機。",
+  ring: "芯を回る輪の道で、追われたら回って振り切れる。芯を突っ切る近道と外回りの抜け道で往復が速い。迷わないが同じ所をよく通る。",
+  court: "門から本堂まで軸が 1 本で迷わない。列柱の回廊は柱を盾に、中庭は大勢との乱戦。脇の間の外回りと本堂への裏道が近道。",
+  drunk: "幅 1〜2 の細道の網と小さな溜まり。曲がり角で鉢合わせ、一列で来る敵を通路で迎え撃つ。見通しが悪く迷いやすい（狭い型）。",
+  isle: "島の上が戦場、桟道は一列でしか通れない危ない橋（吹き飛ばしが活きる）。島の上は見通せるが、道は木の形で遠回り。",
+  terrace: "横長の段を端の坂で折り返して降りる、主の道が一番長い型。段の上は横一列の撃ち合い、はしご口と縦穴の橋が近道。",
+  prefab: "手描きの部屋（十字・柱の広間・池の祠・回り廊下など）を回して置き、廊下でつなぐ。部屋ごとに戦い方が決まり、作り手の意図が読める。",
+  cave: "比較用。45% の壁 + セルオートマトン。形に意図がなく、どの seed も似た不定形。",
+  rooms: "比較用。矩形の部屋 + L 字の通路。木構造でループは偶然だけ。",
+  skel: "比較用。主の道・ループ・寄り道のグラフに形の語彙の塊。床が狭い（約 30%）。",
+  skelw: "比較用。骨組みを 5x3 の格子に敷いた広め版。どの seed も同じ並びに見える。",
+};
+// 章との相性（おすすめの型と理由）
+const REC = {
+  moss: { gens: ["cavern", "drunk"], why: "自然の洞窟。大広間と苔の天窓、掘り手の細道は虫や獣の巣穴に見える。水たまりは大洞窟の窪みに。" },
+  temple: { gens: ["court", "prefab"], why: "人が造った場所。軸と列柱の寺院、手描きの部屋（祠・柱の広間）で「建てた意図」が読める。油の池は中庭の池に。" },
+  fire: { gens: ["river", "ring"], why: "溶岩の川を橋で渡る城下、溶岩の池を回る輪。穴が光源になり、見た目 C の光が活きる。" },
+  frost: { gens: ["ring", "terrace"], why: "凍った城の庭。凍った池を回る輪、霜の段々を降りる城壁の上。広い見通しで氷の滑りが活きる。" },
+  deep: { gens: ["isle", "terrace"], why: "浮島と奈落の異界。島と桟道はそのまま浮島に、段々は奈落へ降りる崖、縦穴は奈落の裂け目に。" },
+  final: { gens: ["court", "ring"], why: "枯山水の最深。軸と中庭の静けさ、墨の池を回る輪。主の間へ一直線に向かう舞台。" },
+  blood: { gens: ["isle", "drunk"], why: "深みの変異。浮島に加えて、裂け目のような細道の網で「壊れた」感じを出す。" },
+};
 const GEN_TUNE = {
+  cavern: [
+    "seed で変わる所: 大広間が 1 つ（中央の巨大な空洞）か 2 つ（斜めに並んで間に岩の壁）、小洞の数と位置（Poisson）、通り道の曲がり、岩の島の位置。",
+    "数値: 大広間 rx 13〜17 / ry 8.5〜11（2 つなら 8〜11 / 6.5〜8.5）、芯は楕円の 0.62 倍まで床に固定、縁は 1.2 倍まで床 64%、通り道の周り 3 マスは 50%、他は 20% → セルオートマトン 4 回。",
+  ],
+  river: [
+    "seed で変わる所: 川の向き（横・縦・斜め）と蛇行（中点ずらし 4 段 + Chaikin 2 回）、川幅（2.8〜5.8 マス）、両岸の部屋の数と位置、橋の本数（2〜3）と浅瀬の位置。",
+    "岸の部屋どうしの通路は川に触れたら彫らない（勝手に渡れる所を作らない）。それでも片岸が割れたら幅 2 のトンネル（川の上なら橋）でつなぐ。",
+  ],
+  ring: [
+    "seed で変わる所: 芯が 1 つ（横長の輪）か 2 つ（8 の字）、芯が岩か池、輪の幅（4.2〜6.2）、外の部屋の数（6〜8）と隅の部屋、近道の本数と向き、岩の芯の中の祠。",
+    "輪の外に幅 1.6〜2.8 の岩の帯を残し、部屋はその外だけを彫る（部屋が輪に溶けて輪が読めなくならないように）。外の部屋どうしの抜け道は 4 割。",
+  ],
+  court: [
+    "seed で変わる所: 軸の向き（縦 = 横長の中庭 1 つ / 横 = 中庭 1〜2 つが連なる）と前後の反転、中庭の幅と飾り（池・石庭・四本柱）、脇の間の数と幅、鏡写しか左右別々か、外回り廊下と裏道の有無。",
+    "当たりは 16px の矩形のまま。列柱は 1 つおき（柱 = 当たりのある 1 マス）で、中庭と回廊は柱の間から行き来できる。",
+  ],
+  drunk: [
+    "seed で変わる所: 開始の辺（4 辺のどれか）と主の間（向かいの辺）、曲がり癖（10〜30%）、幅 2 で掘る掘り手の割合（35〜75%）、目印の位置。床が 40〜45% になるまで掘り手を足す。",
+    "最大の部屋が小さい（溜まり = 半径 2〜3 マスまで）ので、群れは通路に一列で来る。行き止まりの先に溜まりがあるので寄り道の報酬を置ける。",
+  ],
+  isle: [
+    "seed で変わる所: 多島（島 10〜14、半径 4〜6）か大島（島 6〜8、半径 6〜8）、島の位置（Poisson + 緩和）、桟道のループの数（1〜3）、桟道の折れ。",
+    "深みの章では穴は奈落、他の章では深い地形（水・油・溶岩・氷・墨の湖）として描く。当たりはどちらも壁と同じ（通れない）。",
+  ],
+  terrace: [
+    "seed で変わる所: 段の数（3〜5）と厚さ、全段共通のうねり（振れ幅 0.5〜2）と傾き、坂が左右どちらから始まるか、はしご口の数と位置、縦穴の有無と位置。",
+    "主の道は全段を折り返すので一番長い（約 1.5〜2 倍）。はしご口は幅 1 で、近道だが一列でしか通れない。",
+  ],
+  prefab: [
+    "seed で変わる所: 使う部屋の型・回転（4 通り）・反転、開始と主の間の端（横か縦）、緩和後の位置、空き地への差し込み、廊下の幅（2 か 3）と折れる向き。",
+    "部屋の型は文字の格子（'.' 床 / '#' 柱 / '~' 浅い地形 / 'o' 穴 / 'D' 扉）。廊下を先に掘り、部屋を後から押すので柱や池は廊下で崩れない。",
+  ],
   skelw: [
     "ノードを 9 から 11〜15 に: 5 列 x 3 段の区画に敷き、主の道は左端の開始 → 右端の主の間へ、列の中でだけ段を変えて蛇行（5〜8 ノード）。空き区画を通るループを 2 本、残りを寄り道にする（空き区画の 15% は岩のまま）。",
     "塊を大きく（主の道・ループ r 5.8〜7.2、主の間 7.8、寄り道 4.6〜5.8）、通路を太く（幅 約 4.6 / 4.0 / 3.5 マス）、塊の周りに雑音で不揃いな広間を足す（r x 1.3 まで。三日月・二重円は形を保つため足さない）。",
@@ -2126,19 +3276,30 @@ const GEN_TUNE = {
 const STAT_KEYS = ["floor", "ratio", "path", "deadEnds", "room"];
 const AVG_SEEDS = 20;
 function statsOf(m) { if (!m.stats) m.stats = mapStats(m); return m.stats; }
+// 20 seed の平均は 12 生成 x 20 = 240 枚あるので、ページを開いた後に少しずつ測る（描画を止めない）
 let avgStats = null;
-function averageStats() {
-  if (avgStats) return avgStats;
-  avgStats = {};
-  for (const gen of Object.keys(GEN_FN)) {
-    const acc = { floor: 0, ratio: 0, path: 0, deadEnds: 0, room: 0 };
-    for (let sd = 1; sd <= AVG_SEEDS; sd++) {
+function startAverages() {
+  const jobs = [];
+  for (const gen of Object.keys(GEN_FN)) for (let sd = 1; sd <= AVG_SEEDS; sd++) jobs.push([gen, sd]);
+  const acc = {};
+  let j = 0;
+  const tick = () => {
+    const t0 = performance.now();
+    while (j < jobs.length && performance.now() - t0 < 24) {
+      const [gen, sd] = jobs[j++];
       const s = mapStats(GEN_FN[gen](sd));
-      for (const k of STAT_KEYS) acc[k] += s[k] / AVG_SEEDS;
+      if (!acc[gen]) acc[gen] = { floor: 0, ratio: 0, path: 0, deadEnds: 0, room: 0 };
+      for (const k of STAT_KEYS) acc[gen][k] += s[k] / AVG_SEEDS;
     }
-    avgStats[gen] = acc;
-  }
-  return avgStats;
+    if (j < jobs.length) {
+      document.getElementById("areaTitle").textContent = "歩ける面積（seed " + st.seed + "。20 seed の平均を計算中 " + Math.round(j / jobs.length * 100) + "%）";
+      setTimeout(tick, 0);
+      return;
+    }
+    avgStats = acc;
+    updateAreaTable();
+  };
+  setTimeout(tick, 60);
 }
 // 平均の行き止まりだけ小数 1 桁（0〜5 程度なので丸めると差が消える）
 function fmtStat(k, v, isAvg) {
@@ -2146,32 +3307,116 @@ function fmtStat(k, v, isAvg) {
   if (k === "deadEnds" && isAvg) return v.toFixed(1);
   return String(Math.round(v));
 }
+const CAVE_BASE = 0.56; // 平均が出るまでの今の洞窟の割合（実測の 20 seed 平均に近い値）
 function updateAreaTable() {
-  document.getElementById("areaTitle").textContent = "歩ける面積（seed " + st.seed + " と 20 seed の平均）";
+  document.getElementById("areaTitle").textContent = "歩ける面積（seed " + st.seed + " と 20 seed の平均）" + (avgStats ? "" : "（平均は計算中）");
   const body = document.getElementById("areaBody"); body.textContent = "";
-  const avg = averageStats();
-  for (const gen of Object.keys(GEN_FN)) {
+  const caveAvg = avgStats ? avgStats.cave.ratio : CAVE_BASE;
+  const cols = ["floor", "ratio", "cave", "path", "deadEnds", "room"];
+  const addSep = (label) => {
+    const tr = document.createElement("tr");
+    const th = document.createElement("th"); th.scope = "rowgroup"; th.colSpan = cols.length + 1; th.textContent = label;
+    th.style.cssText = "text-align:left;color:var(--muted);font-weight:400;font-size:12px";
+    tr.appendChild(th); body.appendChild(tr);
+  };
+  const rec = REC[THEMES[st.theme].key].gens;
+  addSep("型（新しい 8 種）");
+  for (const gen of GEN_NEW.concat(GEN_OLD)) {
+    if (gen === GEN_OLD[0]) addSep("従来（比較用）");
     const s = statsOf(getMap(gen, st.seed));
+    const a = avgStats && avgStats[gen];
     const tr = document.createElement("tr");
     if (gen === st.gen) { tr.className = "cur"; tr.setAttribute("aria-current", "true"); }
-    const th = document.createElement("th"); th.scope = "row"; th.textContent = GEN_SHORT[gen]; tr.appendChild(th);
-    for (const k of STAT_KEYS) {
+    const th = document.createElement("th"); th.scope = "row"; th.textContent = (rec.includes(gen) ? "★" : "") + GEN_SHORT[gen]; tr.appendChild(th);
+    for (const k of cols) {
       const td = document.createElement("td");
-      td.textContent = fmtStat(k, s[k]);
-      const sm = document.createElement("span"); sm.className = "avg"; sm.textContent = fmtStat(k, avg[gen][k], true);
+      const v = k === "cave" ? s.ratio / caveAvg : s[k], av = a ? (k === "cave" ? a.ratio / caveAvg : a[k]) : null;
+      td.textContent = k === "cave" ? "x" + v.toFixed(2) : fmtStat(k, v);
+      const sm = document.createElement("span"); sm.className = "avg";
+      sm.textContent = av === null ? "…" : k === "cave" ? "x" + av.toFixed(2) : fmtStat(k, av, true);
       td.appendChild(sm);
       tr.appendChild(td);
     }
     body.appendChild(tr);
   }
 }
-const st = { variant: 1, theme: 0, gen: "skel", seed: 7, focusIdx: 0, focusPoint: null, compare: false, split: 240, mag: null };
+function updateRecTable() {
+  const body = document.getElementById("recBody"); body.textContent = "";
+  THEMES.forEach((th, i) => {
+    const r = REC[th.key];
+    const tr = document.createElement("tr");
+    if (i === st.theme) { tr.className = "cur"; tr.setAttribute("aria-current", "true"); }
+    const h = document.createElement("th"); h.scope = "row"; h.textContent = th.label; tr.appendChild(h);
+    const t1 = document.createElement("td"); t1.textContent = r.gens.map((g) => "★" + GEN_SHORT[g]).join("・"); tr.appendChild(t1);
+    const t2 = document.createElement("td"); t2.textContent = r.why; tr.appendChild(t2);
+    body.appendChild(tr);
+  });
+}
+// 型の一覧: 同じ seed・同じ章の色で全部の型の全体図を並べる（主の道 = 橙の線、開始 = 白、主の間 = 赤）
+let galKey = "";
+const galCanvases = {};
+function buildGallery() {
+  const grid = document.getElementById("galGrid");
+  const mk = (gen) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "card"; b.dataset.gen = gen;
+    const cv = document.createElement("canvas"); cv.width = MAP_W * 3; cv.height = MAP_H * 3;
+    cv.setAttribute("aria-hidden", "true");
+    const nm = document.createElement("span"); nm.className = "nm";
+    const play = document.createElement("span"); play.className = "play"; play.textContent = GEN_PLAY[gen];
+    const num = document.createElement("span"); num.className = "num";
+    b.append(cv, nm, play, num);
+    grid.appendChild(b);
+    galCanvases[gen] = { cv, nm, num };
+  };
+  GEN_NEW.forEach(mk);
+  const sep = document.createElement("div"); sep.className = "gal-sep"; sep.textContent = "従来（比較用）"; grid.appendChild(sep);
+  GEN_OLD.forEach(mk);
+}
+function mainPath(m) {
+  const s = statsOf(m), out = [];
+  let c = s.start;
+  for (let guard = 0; guard < 4000 && s.dg[c] > 0; guard++) {
+    out.push(c);
+    const x = c % MAP_W, y = (c / MAP_W) | 0;
+    let next = -1;
+    for (const [dx, dy] of N4) { const nx = x + dx, ny = y + dy; if (inMap(nx, ny) && s.dg[idx(nx, ny)] === s.dg[c] - 1) { next = idx(nx, ny); break; } }
+    if (next < 0) break;
+    c = next;
+  }
+  out.push(c);
+  return out;
+}
+function updateGallery() {
+  const th = THEMES[st.theme], rec = REC[th.key].gens;
+  document.getElementById("galSub").textContent = "seed " + st.seed + "・" + th.label + " の色。押すとその型を上の地図で見る。橙の線 = 主の道（開始 白 → 主の間 赤）。★ = この章のおすすめ。";
+  const key = st.seed + "|" + st.theme;
+  for (const gen of Object.keys(galCanvases)) {
+    const { cv, nm, num } = galCanvases[gen];
+    nm.textContent = "";
+    if (rec.includes(gen)) { const r = document.createElement("span"); r.className = "rec-mark"; r.textContent = "★"; r.title = "この章のおすすめ"; nm.appendChild(r); }
+    nm.appendChild(document.createTextNode(GEN_SHORT[gen]));
+    cv.parentElement.setAttribute("aria-pressed", String(gen === st.gen));
+    if (key === galKey) continue;
+    const m = getMap(gen, st.seed), s = statsOf(m), P2 = derivePalette(th);
+    const ctx = cv.getContext("2d");
+    const img = ctx.createImageData(MAP_W * 3, MAP_H * 3);
+    paintMini(new Uint32Array(img.data.buffer), m, th, P2, 3);
+    ctx.putImageData(img, 0, 0);
+    ctx.fillStyle = "rgba(226,162,78,0.85)";
+    for (const c of mainPath(m)) ctx.fillRect((c % MAP_W) * 3 + 1, ((c / MAP_W) | 0) * 3 + 1, 1, 1);
+    const dot = (i, col) => { ctx.fillStyle = "#0b0a0f"; ctx.fillRect((i % MAP_W) * 3 - 2, ((i / MAP_W) | 0) * 3 - 2, 7, 7); ctx.fillStyle = col; ctx.fillRect((i % MAP_W) * 3 - 1, ((i / MAP_W) | 0) * 3 - 1, 5, 5); };
+    dot(s.start, "#f4f0e4"); dot(s.goal, "#c83a2a");
+    num.textContent = "床 " + (s.ratio * 100).toFixed(0) + "%（洞窟比 x" + (s.ratio / (avgStats ? avgStats.cave.ratio : CAVE_BASE)).toFixed(2) + "）・主の道 " + s.path + " 歩・行き止まり " + s.deadEnds + "・最大の部屋 " + s.room;
+  }
+  galKey = key;
+}
+const st = { variant: 3, theme: 0, gen: "cavern", seed: 7, focusIdx: 0, focusPoint: null, compare: false, split: 240, mag: null };
 try {
   const saved = JSON.parse(localStorage.getItem("mapPreview.v1") || "null");
   if (saved && typeof saved === "object") {
     if ([0, 1, 2, 3].includes(saved.variant)) st.variant = saved.variant;
     if (Number.isInteger(saved.theme) && saved.theme >= 0 && saved.theme < THEMES.length) st.theme = saved.theme;
-    if (GENS[saved.gen]) st.gen = saved.gen;
+    if (GEN_FN[saved.gen]) st.gen = saved.gen;
     if (Number.isInteger(saved.seed)) st.seed = saved.seed;
   }
 } catch (e) { /* 保存が使えなくても既定で動く */ }
@@ -2187,6 +3432,15 @@ const mctx = mini.getContext("2d");
 const mag = document.getElementById("mag");
 const gctx = mag.getContext("2d");
 gctx.imageSmoothingEnabled = false;
+for (const [gid, list] of [["genGroup", GEN_NEW], ["genOldGroup", GEN_OLD]]) {
+  const grp = document.getElementById(gid);
+  for (const gen of list) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.gen = gen; b.className = "gen-btn";
+    grp.appendChild(b);
+  }
+}
+buildGallery();
 const themeGroup = document.getElementById("themeGroup");
 THEMES.forEach((th, i) => {
   const b = document.createElement("button");
@@ -2229,11 +3483,7 @@ function drawMini() {
   mctx.fillStyle = "#0b0a0f"; mctx.fillRect(0, 0, mini.width, mini.height);
   const img = mctx.createImageData(MAP_W * s, MAP_H * s);
   const u = new Uint32Array(img.data.buffer);
-  const wallC = scene.theme.abyss ? P2.vD : mix(P2.sB, P2.tD, 0.4), floorC = P2.fL, terC = TERC[scene.theme.ter].old;
-  for (let y = 0; y < MAP_H * s; y++) for (let x = 0; x < MAP_W * s; x++) {
-    const i = idx((x / s) | 0, (y / s) | 0);
-    u[y * MAP_W * s + x] = m.solid[i] ? (m.clear[i] === 0 && hasFloorNear(m, (x / s) | 0, (y / s) | 0) ? wallC : hex("#0b0a0f")) : m.ter[i] ? terC : floorC;
-  }
+  paintMini(u, m, scene.theme, scene.P, s);
   mctx.putImageData(img, 0, 0);
   if (m.graph) {
     mctx.strokeStyle = "rgba(226,162,78,0.8)"; mctx.lineWidth = 1;
@@ -2252,6 +3502,15 @@ function drawMini() {
   mctx.strokeRect(Math.round(scene.cam.x / TILE * s) + 0.5, Math.round(scene.cam.y / TILE * s) + 0.5, Math.round(VIEW_W / TILE * s), Math.round(VIEW_H / TILE * s));
   const pl = scene.chars[0];
   mctx.fillStyle = "#ffd05a"; mctx.fillRect(Math.round(pl.x / TILE * s) - 1, Math.round(pl.y / TILE * s) - 2, 3, 3);
+}
+// 全体図の色（床・地形・穴・壁の縁）。s = 1 マスのドット数
+function paintMini(u, m, th, P2, s) {
+  const wallC = th.abyss ? P2.vD : mix(P2.sB, P2.tD, 0.4), floorC = P2.fL, terC = TERC[th.ter].old, bg = hex("#0b0a0f");
+  const pitC = th.abyss ? bg : mix(TERC[th.ter].deep || TERC[th.ter].a, bg, 0.45);
+  for (let y = 0; y < MAP_H * s; y++) for (let x = 0; x < MAP_W * s; x++) {
+    const i = idx((x / s) | 0, (y / s) | 0);
+    u[y * MAP_W * s + x] = m.pit[i] ? pitC : m.solid[i] ? (m.clear[i] === 0 && hasFloorNear(m, (x / s) | 0, (y / s) | 0) ? wallC : bg) : m.ter[i] ? terC : floorC;
+  }
 }
 function hasFloorNear(m, x, y) {
   for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (inMap(x + i, y + j) && !m.solid[idx(x + i, y + j)]) return true;
@@ -2291,10 +3550,19 @@ function updateText() {
     gtxt += " この seed: 主の道 " + cnt("main") + "・ループ " + cnt("loop") + "・寄り道 " + cnt("branch") + " ノード。塊: " +
       Object.entries(shapeCount).map(([k, v]) => k + " " + v).join("・") + "。";
   }
+  if (scene.map.info) gtxt += " この seed: " + scene.map.info + "。";
   gEl.appendChild(document.createTextNode(gtxt));
   const tu = document.getElementById("gTune"); tu.textContent = "";
   for (const line of GEN_TUNE[st.gen] || []) { const li = document.createElement("li"); li.textContent = line; tu.appendChild(li); }
   updateAreaTable();
+  updateRecTable();
+  updateGallery();
+  const rec = REC[th.key].gens;
+  for (const b of document.querySelectorAll(".gen-btn")) {
+    b.textContent = "";
+    if (rec.includes(b.dataset.gen)) { const r = document.createElement("span"); r.className = "rec-mark"; r.textContent = "★"; r.title = "この章のおすすめ"; b.appendChild(r); }
+    b.appendChild(document.createTextNode(GEN_SHORT[b.dataset.gen]));
+  }
   const lg = document.getElementById("legend"); lg.textContent = "";
   const c = th.c;
   for (const [name, col] of [["床 暗", c.fD], ["床 基", c.fB], ["床 明", c.fL], ["天面", c.top], ["側面", c.side], ["光", c.light], ["差し色", c.accent]]) {
@@ -2315,7 +3583,10 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.variant !== undefined) { st.variant = Number(b.dataset.variant); }
   else if (b.dataset.theme !== undefined) { st.theme = Number(b.dataset.theme); }
-  else if (b.dataset.gen !== undefined) { st.gen = b.dataset.gen; resetView(); }
+  else if (b.dataset.gen !== undefined) {
+    st.gen = b.dataset.gen; resetView();
+    if (b.classList.contains("card")) { persist(); redraw(); document.getElementById("canvasbox").scrollIntoView({ block: "nearest" }); return; }
+  }
   else if (b.id === "seedPrev") { st.seed -= 1; resetView(); }
   else if (b.id === "seedNext") { st.seed += 1; resetView(); }
   else if (b.id === "seedRand") { st.seed = (h32(st.seed, Date.now() & 65535, 5) % 9000) + 1; resetView(); }
@@ -2360,5 +3631,6 @@ function fitCanvas() {
 window.addEventListener("resize", fitCanvas);
 fitCanvas();
 redraw();
+startAverages();
 window.__preview = { st, redraw };
 </script>
