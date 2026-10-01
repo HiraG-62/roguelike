@@ -10,6 +10,7 @@ import {
   PIT_OF_KIND,
   STORM_HUE_STEP_DEG,
   STYLE_DEFS,
+  TOWN_ROAD_COLORS,
   type BiomeDef,
   type BiomeVariant,
   type PropWeight,
@@ -284,6 +285,31 @@ export function mapThemeFor(depth: number, floorKind: FloorKind): MapTheme {
   const theme = buildTheme(key, style, floorKind, mutated.colors, mapDarkFor(style, depth) + mutated.darkAdd);
   THEME_CACHE.set(key, theme);
   return theme;
+}
+
+/** 拠点の床の地帯: 石畳の地帯を無くし（stone を 1 超に）、草の斑は少なめ */
+const TOWN_FLOOR_ZONE = { stone: 1.1, moss: 0.7 };
+
+/** 拠点のテーマの作り置き（定数の初期化順を避けるため初回に作る） */
+let townThemeCache: MapTheme | null = null;
+let townRoadThemeCache: MapTheme | null = null;
+
+/** 拠点（門前町）のテーマ。深度に依らず 1 つで、いつも同じ参照を返す。バイオームは素の洞窟（寄せなし） */
+export function townTheme(): MapTheme {
+  // 床は土の道（石畳の地帯なし・草の斑だけ）。石畳は参道・辻（townRoadTheme）にだけ敷く
+  townThemeCache ??= { ...buildTheme("town", "town", "cave", packColors(STYLE_DEFS.town.colors), mapDarkFor("town", 0)), floorZone: TOWN_FLOOR_ZONE };
+  return townThemeCache;
+}
+
+/** 拠点の石畳（参道・辻）のテーマ。床だけ切石に替え、色は石畳の配色。townScene が道の canvas を焼くのに使う */
+export function townRoadTheme(): MapTheme {
+  townRoadThemeCache ??= {
+    ...townTheme(),
+    key: "town:road",
+    floor: "ashlar",
+    palette: derivePalette(packColors(TOWN_ROAD_COLORS)),
+  };
+  return townRoadThemeCache;
 }
 
 function buildTheme(key: string, style: MapStyle, floorKind: FloorKind, mutatedColors: PackedColors, dark: number): MapTheme {

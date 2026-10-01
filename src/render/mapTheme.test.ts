@@ -20,6 +20,8 @@ import {
   packedPitColors,
   rotateHue,
   styleFor,
+  townRoadTheme,
+  townTheme,
 } from "./mapTheme";
 import { STYLE_DEFS } from "../data/mapThemes";
 import type { MapPalette, MapTheme } from "./mapTypes";
@@ -273,5 +275,41 @@ describe("mapTheme: 色の計算", () => {
     const green = rotateHue(hexColor("#ff0000"), 120);
     expect(colorG(green), "緑が最大").toBeGreaterThan(colorR(green));
     expect(colorG(green)).toBeGreaterThan(colorB(green));
+  });
+});
+
+describe("mapTheme: 拠点（門前町）のテーマ", () => {
+  it("townTheme は様式 town で、いつも同じ参照を返し、key は town", () => {
+    expect(townTheme()).toBe(townTheme());
+    expect(townTheme().style).toBe("town");
+    expect(townTheme().key).toBe("town");
+  });
+
+  it("拠点は光の層で暗くしない（暗さ 0）。置物は無く、汚しは小石とひびだけ", () => {
+    const theme = townTheme();
+    expect(theme.dark, "暗さ").toBe(0);
+    expect(theme.props, "置物").toEqual([]);
+    expect(new Set(theme.decals), "汚し").toEqual(new Set(["pebble", "crack"]));
+  });
+
+  it("床は土の道（石畳の地帯が無い）。参道の石畳は切石で、土の床と別の key・配色", () => {
+    const theme = townTheme();
+    expect(theme.floorZone?.stone ?? 0, "石畳の地帯の閾値が 1 超 = 土だけ").toBeGreaterThan(1);
+    const road = townRoadTheme();
+    expect(townRoadTheme()).toBe(townRoadTheme());
+    expect(road.key).not.toBe(theme.key);
+    expect(road.floor).toBe("ashlar");
+    expect(road.palette.fB, "石畳の基本色は土と違う").not.toBe(theme.palette.fB);
+  });
+
+  it("拠点と石畳の面の色は、予告の色と RGB 距離 60 以上離れている", () => {
+    const targets = TELEGRAPH_COLORS.map(hexColor);
+    for (const theme of [townTheme(), townRoadTheme()]) {
+      for (const key of SURFACE_KEYS) {
+        for (const [i, target] of targets.entries()) {
+          expect(distance(theme.palette[key], target), `${theme.key} の ${key} と ${TELEGRAPH_COLORS[i]}`).toBeGreaterThanOrEqual(RGB_DISTANCE_MIN);
+        }
+      }
+    }
   });
 });

@@ -16,7 +16,7 @@ import { MAP_DOTS, type MapLight, type MapStyle, type MapTheme } from "./mapType
 // ---------------------------------------------------------------------------
 
 /** 章 1〜4 を chapterDark の添字にしたもの（章 3 の炎 / 霜は同じ暗さ） */
-const CHAPTER_DARK_INDEX: Readonly<Record<Exclude<MapStyle, "final" | "deep">, number>> = {
+const CHAPTER_DARK_INDEX: Readonly<Record<Exclude<MapStyle, "final" | "deep" | "town">, number>> = {
   moss: 0,
   temple: 1,
   castleFire: 2,
@@ -29,6 +29,8 @@ const LAST_CHAPTER_DARK_INDEX = 3;
  * 様式 deep は章 4（16〜20 階）と深み（22 階〜）の両方なので、深度で chapterDark の末尾か deepDark かを分ける
  */
 export function mapDarkFor(style: MapStyle, depth: number): number {
+  // 拠点は光の層（MapLightLayer）を使わず、宵の配色と提灯の発光で見せる（暗さで覆わない）
+  if (style === "town") return 0;
   if (style === "final") return MAP_LIGHT.finalDark;
   if (style === "deep") return isDeepDepth(depth) ? MAP_LIGHT.deepDark : (MAP_LIGHT.chapterDark[LAST_CHAPTER_DARK_INDEX] ?? MAP_LIGHT.deepDark);
   return MAP_LIGHT.chapterDark[CHAPTER_DARK_INDEX[style]] ?? 0;

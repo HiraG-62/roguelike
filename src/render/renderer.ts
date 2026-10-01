@@ -110,12 +110,13 @@ import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackCli
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
+import { TownLayer, type TownHubView, townViewOf } from "./townScene";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { MapChunkCache, type MapView } from "./mapChunks";
 import { type LightView, MapLightLayer, mapLights } from "./mapLight";
 import { lipRects } from "./frontLip";
-import { colorB, colorG, colorR, mapThemeFor } from "./mapTheme";
+import { colorB, colorG, colorR, mapThemeFor, townTheme } from "./mapTheme";
 import type { MapTheme } from "./mapTypes";
 import { doorMarkDone, drawInvertedTint, drawInvertedTintAtop, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { drawExitHints } from "./exitUi";
@@ -736,6 +737,8 @@ export class Renderer {
   private readonly stairsBuf: number[] = [];
   /** 迷宮の地図（床・壁・穴）の焼き済みチャンク。拠点は使わない（drawTilesLegacy） */
   private readonly mapChunks = new MapChunkCache();
+  /** 拠点（門前町）の道・建物・灯籠・名札（docs/ideas/hub-town-impl.md 4 章）。拠点を開いた時に絵を作る */
+  private readonly townLayer = new TownLayer();
   /** 地図を描く画面（ワールド座標の左上）。毎フレーム使い回す */
   private readonly mapView: MapView = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
   /** 地図だけを暗くして光源の周りを抜く層（drawMapLight。拠点は掛けない） */
@@ -866,12 +869,15 @@ export class Renderer {
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
     drawExitHints(ctx, state);
-    if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
+    const town = townViewOf(this.hubView);
+    if (town) this.townLayer.drawBack(ctx, state, town);
+    else if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
     drawPlayerAuras(ctx, state);
     this.drawPlayer(state);
+    if (town) this.drawTownFront(ctx, state, town);
     // 南の壁の縁は体の後・弾の前（弾と光線は縁より上。docs/ideas/map-visual-impl.md 1-5 節）
     this.drawFrontLip(state, -ox, -oy);
     this.drawProjectiles(state);
@@ -1113,12 +1119,29 @@ export class Renderer {
   /** 拠点は今の Puny のタイル、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節） */
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
     if (state.sandbox === true) {
-      this.drawTilesLegacy(state, viewX, viewY);
+      const town = townViewOf(this.hubView);
+      if (town) this.drawTownGround(town, viewX, viewY);
+      else this.drawTilesLegacy(state, viewX, viewY);
       return;
     }
     const view = this.setMapView(viewX, viewY);
     this.mapChunks.update(state.map, this.mapTheme(state), view, this.wipeActive);
     this.mapChunks.drawGround(this.ctx, view);
+  }
+
+  /** 拠点の体より手前の物 → 提灯の発光 → 名札（名札は最後 = 一番上） */
+  private drawTownFront(ctx: CanvasRenderingContext2D, state: GameState, town: TownHubView): void {
+    this.townLayer.drawFront(ctx, state, town);
+    this.townLayer.drawGlow(ctx, state, town);
+    this.townLayer.drawLabels(ctx, town);
+  }
+
+  /** 門前町の床（見た目用の地図 ground を様式 town で焼いたチャンク）と参道・辻の石畳 */
+  private drawTownGround(town: TownHubView, viewX: number, viewY: number): void {
+    const view = this.setMapView(viewX, viewY);
+    this.mapChunks.update(town.town.layout.ground, townTheme(), view, false);
+    this.mapChunks.drawGround(this.ctx, view);
+    this.townLayer.drawRoads(this.ctx, town);
   }
 
   /** 章の暗さと光源の周りの明るさ。地図（床・壁・穴・地形）だけを覆い、この後に描く予告・弾・敵・自分は暗くならない */
@@ -1163,9 +1186,14 @@ export class Renderer {
   }
 
   settleMap(state: GameState): void {
-    if (state.sandbox === true) return;
+    const town = state.sandbox === true ? townViewOf(this.hubView) : null;
+    if (state.sandbox === true && !town) return;
     const cam = state.camera;
     const view = this.setMapView(Math.round(cam.pos.x - cam.offset.x - VIEW_W / 2), Math.round(cam.pos.y - cam.offset.y - VIEW_H / 2));
+    if (town) {
+      this.mapChunks.settle(town.town.layout.ground, townTheme(), view);
+      return;
+    }
     this.mapChunks.settle(state.map, this.mapTheme(state), view);
   }
 

@@ -52,6 +52,11 @@ describe("章の暗さ（mapDarkFor）", () => {
     expect(mapDarkFor("castleFrost", 11), "霜").toBe(mapDarkFor("castleFire", 11));
   });
 
+  it("拠点（town）は光の層で暗くしない", () => {
+    expect(mapDarkFor("town", 0), "深度に依らず 0").toBe(0);
+    expect(mapDarkFor("town", 12)).toBe(0);
+  });
+
   it("最深の間は finalDark、深みは deepDark（章 4 とはテーマの key も分かれる）", () => {
     expect(mapDarkFor("final", 21), "最深の間").toBe(MAP_LIGHT.finalDark);
     expect(mapDarkFor("deep", 22), "深み").toBe(MAP_LIGHT.deepDark);

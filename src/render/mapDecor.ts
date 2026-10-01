@@ -142,6 +142,7 @@ const DEAD_END_PROPS: Readonly<Record<MapTheme["style"], readonly { kind: MapPro
     { kind: "bonePile", weight: 1 },
   ],
   final: [],
+  town: [],
 };
 
 /** 光る置物の光（半径は論理 px = 見本 PROP_LIGHT の半分、強さは見本の s）。color 無しはテーマの light 色 */

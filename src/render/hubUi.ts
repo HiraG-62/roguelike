@@ -8,7 +8,8 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { HUB } from "../data/tuning";
 import type { HubLayout, HubSpotKey } from "../map/hubMap";
-import { FACILITY_NAME, FACILITY_OF_SPOT, type HubDecor } from "../meta/hub";
+import type { Rect } from "../map/grid";
+import { FACILITY_HINT, FACILITY_NAME, FACILITY_OF_SPOT, type HubDecor } from "../meta/hub";
 import type { TownLook } from "../meta/townLook";
 import { KEYSTONE_NAME } from "../system/keystones";
 import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_PANEL_BG, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
@@ -83,6 +84,9 @@ const TRIAL_TOP = 22;
 const DECOR_TOP = 22;
 const DECOR_W = 130;
 const DECOR_MAX_LINES = 6;
+/** 石段の案内を出す、石段の矩形までの距離（論理 px。3 マス） */
+const GATE_PROMPT_RANGE = TILE_SIZE * 3;
+const GATE_PROMPT_TEXT = "石段: 出撃";
 
 function spotLabel(spot: HubSpotKey): string {
   return SPOT_LABEL_OVERRIDE[spot] ?? FACILITY_NAME[FACILITY_OF_SPOT[spot]];
@@ -124,6 +128,50 @@ export function spotPrompt(spot: HubSpotKey, donated: number | undefined): strin
   const base = `${actionKeyLabel("interact")}: ${SPOT_ACTION[spot]}`;
   if (spot !== "well" || donated === undefined || donated <= 0) return base;
   return `${base}（寄進 ${donated}）`;
+}
+
+/** 点が石段（出撃の口）の矩形から range px 以内か。矩形が空（石段が無い拠点）なら false */
+export function nearGate(pos: Vec, gateZone: Rect, range: number = GATE_PROMPT_RANGE): boolean {
+  if (gateZone.w <= 0 || gateZone.h <= 0) return false;
+  const left = gateZone.x * TILE_SIZE;
+  const top = gateZone.y * TILE_SIZE;
+  const dx = Math.max(left - pos.x, 0, pos.x - (left + gateZone.w * TILE_SIZE));
+  const dy = Math.max(top - pos.y, 0, pos.y - (top + gateZone.h * TILE_SIZE));
+  return Math.hypot(dx, dy) <= range;
+}
+
+/** 石段の近くの案内。台の案内（近い台があるとき）が優先で、石段は台から離れているので同じ枠を使う */
+function drawGatePrompt(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
+  if (view.town === undefined || view.near !== null) return;
+  if (!nearGate(state.player.body.pos, view.town.layout.gateZone)) return;
+  drawTextShadow(ctx, GATE_PROMPT_TEXT, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, NEAR_COLOR, SHADOW, "center");
+}
+
+/** 未建設の設備の手がかりを出す、台からの距離（論理 px。台を開ける距離の 2 倍。空き地の手前に立てば読める） */
+const UNBUILT_HINT_RANGE = HUB.interactRadius * 2;
+
+/** 一番近い未建設の台（UNBUILT_HINT_RANGE 以内）。無ければ null */
+export function nearUnbuiltSpot(pos: Vec, view: HubSpotsView, range: number = UNBUILT_HINT_RANGE): HubSpotKey | null {
+  let best: HubSpotKey | null = null;
+  let bestD = range;
+  for (const [spot, at] of Object.entries(view.spots) as [HubSpotKey, Vec][]) {
+    if (view.available.has(spot)) continue;
+    const d = Math.hypot(at.x - pos.x, at.y - pos.y);
+    if (d > bestD) continue;
+    best = spot;
+    bestD = d;
+  }
+  return best;
+}
+
+/** 未建設の空き地の前で、解放の手がかりを 1 行（「書庫（建設予定）: スキル石を手にすると建つ」） */
+function drawUnbuiltHint(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
+  if (view.town === undefined || view.near !== null) return;
+  const spot = nearUnbuiltSpot(state.player.body.pos, view);
+  if (spot === null) return;
+  const facility = FACILITY_OF_SPOT[spot];
+  const text = truncateText(`${FACILITY_NAME[facility]}（建設予定）: ${FACILITY_HINT[facility]}`, VIEW_W - MARGIN * 2, TEXT.BODY);
+  drawTextShadow(ctx, text, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, COLOR_DIM, SHADOW, "center");
 }
 
 function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
@@ -186,10 +234,13 @@ function drawDecor(ctx: CanvasRenderingContext2D, view: HubView): void {
 export function drawHubOverlay(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
   // 装備画面などを開いている間（paused）は、上に重なる画面の邪魔をしないよう出さない
   if (state.paused) return;
-  drawDecor(ctx, view);
+  // 門前町では飾りを町の景色（碑・幟・井戸・称号の札）で見せるので、右上の一覧は出さない
+  if (view.town === undefined) drawDecor(ctx, view);
   drawTrialKeystone(ctx, view);
   drawBanner(ctx, view);
   drawPrompt(ctx, view);
+  drawGatePrompt(ctx, state, view);
+  drawUnbuiltHint(ctx, state, view);
   drawRackStatus(ctx, view);
   drawDepartGauge(ctx, view);
 }

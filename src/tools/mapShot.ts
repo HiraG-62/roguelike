@@ -1,13 +1,18 @@
 // 地図の見た目の確認用（docs/ideas/map-visual-impl.md 5-2 節）。ゲーム本体からは import しない。
 // クエリ: ?depth=&kind=&seed=&tx=&ty=&layout= で階を作って 1 回描き、window.__mapShotReady = true。
-// kind=hub で拠点。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
+// kind=hub で拠点（scene=new は空の保存の門前町、scene=full は全部建った門前町。無ければ旧来の拠点）。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
 // 実時間（performance.now）を使うのは計測だけで、ゲームの描画・state には入れない。
 import { createGame } from "../core/game";
 import { VIEW_H, VIEW_W } from "../core/view";
 import type { FloorKind, GameState } from "../core/state";
 import { SHEETS, TILE_SPRITES } from "../data/tiles";
 import { createEmptyProfile } from "../loot/types";
-import { HUB_SPOT_KEYS, type HubSpotKey } from "../map/hubMap";
+import { type HubSpotKey } from "../map/hubMap";
+import { FACILITY_KEYS, type HubProgressSource, availableSpots, builtFacilities } from "../meta/hub";
+import { createAchievementSave } from "../meta/achievements";
+import { createCodexSave } from "../meta/codex";
+import { createHubSave } from "../meta/hubStore";
+import { type TownLook, townLook } from "../meta/townLook";
 import { LAYOUT_KINDS, type FloorLayout } from "../map/layout/types";
 import { withFixedLayout } from "../map/layout/select";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -17,6 +22,7 @@ import { defaultRunSetup } from "../system/runSetup";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { Renderer } from "../render/renderer";
 import type { HubSpotsView } from "../render/hubUi";
+import { type TownHubView, TownLayer, canvasFromTownPixels } from "../render/townScene";
 
 interface MapBench {
   frames: number;
@@ -32,10 +38,23 @@ interface MapBench {
   renderMsAvg: number;
 }
 
+interface TownOpenCost {
+  /** TownLayer の最初の prepare（道の石畳の焼き + 物の絵の最初の 1 フレーム分）の ms */
+  prepareMs: number;
+  /** 物の絵がすべて出来るまでの prepare の合計 ms（フレームに分けない場合の 1 回分） */
+  allMs: number;
+  /** 物の絵が出来るまでに掛かったフレーム数 */
+  frames: number;
+  /** 160x160 ドットの絵 25 枚 + 288x160 を canvas にする ms（C2 の絵が入った後の見積り） */
+  syntheticArtMs: number;
+}
+
 declare global {
   interface Window {
     __mapShotReady?: boolean;
     __mapBench?: MapBench;
+    /** 拠点を開いた直後の canvas 作成の ms（?scene=new|full のとき） */
+    __townOpen?: TownOpenCost;
     __mapShotError?: string;
   }
 }
@@ -94,11 +113,61 @@ function buildRun(q: URLSearchParams): GameState {
   return state;
 }
 
-function buildHub(renderer: Renderer): GameState {
-  const available = new Set<HubSpotKey>(HUB_SPOT_KEYS);
+/** 空の保存（図鑑・実績・スキル石なし、1 回も出撃していない）の景色の材料 */
+const NEW_TOWN_SOURCE: HubProgressSource = { runs: 0, codex: createCodexSave(), stoneCount: 0, hasBud: false, achievements: createAchievementSave() };
+/** 全部建ち、灯籠・井戸・幟・碑・賑わいが最大の景色（手で組む。townLook の段の数値と独立に最大の見え方を撮る） */
+const FULL_TOWN_LOOK: TownLook = {
+  key: "shot-full",
+  built: new Set(FACILITY_KEYS),
+  lanterns: 8,
+  wellTier: 3,
+  trophies: [1, 2, 3, 4, 1, 2],
+  hallLit: true,
+  archiveLights: 5,
+  stele: 4,
+  deepestChapter: 4,
+  bustle: 4,
+  title: "拠点の主",
+};
+
+/** 場面に応じた門前町の景色。new は townLook の導出（建っている設備は builtFacilities から） */
+function townLookFor(scene: string): TownLook {
+  if (scene === "full") return FULL_TOWN_LOOK;
+  const built = builtFacilities(NEW_TOWN_SOURCE);
+  return { ...townLook(NEW_TOWN_SOURCE, createHubSave()), built: new Set(built) };
+}
+
+/** 拠点を開いた直後の canvas 作成を、新しい TownLayer で測る（実時間は計測だけで、描画・state には入れない） */
+function measureTownOpen(view: TownHubView): TownOpenCost {
+  const layer = new TownLayer();
+  const t0 = performance.now();
+  layer.prepare(view);
+  const prepareMs = performance.now() - t0;
+  let frames = 1;
+  while (layer.pendingCount > 0 && frames < 100) {
+    layer.prepare(view);
+    frames++;
+  }
+  const allMs = performance.now() - t0;
+  const s0 = performance.now();
+  const sized = [...Array.from({ length: 25 }, () => [160, 160] as const), [288, 160] as const];
+  for (const [w, h] of sized) canvasFromTownPixels(new Uint32Array(w * h).fill(0xff3030c0), w, h);
+  return { prepareMs, allMs, frames, syntheticArtMs: performance.now() - s0 };
+}
+
+function buildHub(renderer: Renderer, q: URLSearchParams): GameState {
+  const scene = q.get("scene");
+  const built = scene === "new" ? builtFacilities(NEW_TOWN_SOURCE) : FACILITY_KEYS;
+  const available = availableSpots(built);
   const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), available);
-  const view: HubSpotsView = { spots: session.hub.layout.spots, available, near: null };
+  const near = (q.get("near") as HubSpotKey | null) ?? null;
+  const view: HubSpotsView = { spots: session.hub.layout.spots, available, near };
+  if (scene === "new" || scene === "full") {
+    view.town = { layout: session.hub.layout, look: townLookFor(scene) };
+    window.__townOpen = measureTownOpen({ ...view, town: view.town });
+  }
   renderer.setHubView(view);
+  placeCamera(session.state, q);
   return session.state;
 }
 
@@ -186,7 +255,7 @@ async function main(): Promise<void> {
   const atlas = await loadImageAtlas(TILE_SPRITES, SHEETS);
   renderer.setAtlas(atlas);
 
-  const state = q.get("kind") === "hub" ? buildHub(renderer) : buildRun(q);
+  const state = q.get("kind") === "hub" ? buildHub(renderer, q) : buildRun(q);
   // 1 回目で描画側の追跡（階の名札の時刻・部屋の表）を初期化し、時間を進めてから撮る
   renderer.render(state, null, false);
   await waitPlayerArt(renderer, state);

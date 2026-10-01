@@ -23,7 +23,8 @@ export const BAKE_ROWS_BOOST = 8;
 /** 持つチャンクの上限（LRU） */
 export const CHUNK_CACHE_MAX = 20;
 
-export type MapStyle = "moss" | "temple" | "castleFire" | "castleFrost" | "deep" | "final";
+/** town = 拠点（門前町。docs/ideas/hub-town-impl.md 4 章）。深度からは決まらず、townTheme() が直接返す */
+export type MapStyle = "moss" | "temple" | "castleFire" | "castleFrost" | "deep" | "final" | "town";
 export type FloorPattern = "cobble" | "slab" | "ashlar" | "glyph" | "sand";
 export type TopPattern = "rock" | "mason" | "ink";
 export type SidePattern = "rockside" | "stonewall" | "ashlarside" | "cliff" | "inkside";
