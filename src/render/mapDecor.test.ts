@@ -700,3 +700,48 @@ describe("mapDecor: 描き込み", () => {
     console.log(`mapDecor 描き込み: ${rows.join(" / ")}`);
   });
 });
+
+describe("mapDecor: 手前の縁と汚し", () => {
+  /** lip の画素のうち、ground と違う画素の数（縁を描き直す矩形の端で、汚しや飾りが切れて見える所） */
+  function lipMismatch(out: BakeOutput): { diff: number; lip: number } {
+    let diff = 0;
+    let lip = 0;
+    for (let i = 0; i < out.lip.length; i++) {
+      const c = out.lip[i] ?? 0;
+      if (c === 0) continue;
+      lip++;
+      if (c !== out.ground[i]) diff++;
+    }
+    return { diff, lip };
+  }
+
+  it("縁の画素は焼いた ground と同じ（汚し・飾り・置物を描き込んだ後の色。描き直す矩形の端で切れない）", () => {
+    const cases: readonly [number, FloorKind, FloorLayout][] = [
+      [3, "cave", "cavern"],
+      [7, "rooms", "court"],
+      [8, "mine", "prefab"],
+      [12, "forge", "terrace"],
+      [13, "glacier", "drunk"],
+      [17, "cave", "isle"],
+      [21, "rooms", "ring"],
+    ];
+    const report: string[] = [];
+    for (const [depth, kind, layout] of cases) {
+      const { map, theme } = floorOf(depth, kind, layout, 2);
+      const exclude = buildDecorExclude(map);
+      let lip = 0;
+      let diff = 0;
+      for (let cy = 0; cy * CHUNK_TILES < map.height && cy < 3; cy++) {
+        for (let cx = 0; cx * CHUNK_TILES < map.width && cx < 3; cx++) {
+          const m = lipMismatch(bake(map, theme, cx, cy, exclude));
+          lip += m.lip;
+          diff += m.diff;
+        }
+      }
+      report.push(`${depth}/${kind}/${layout} ${diff}/${lip}`);
+      expect(lip, `深度 ${depth} ${kind} ${layout} に縁がある`).toBeGreaterThan(0);
+      expect(diff, `深度 ${depth} ${kind} ${layout} で縁と ground が違う画素（縁 ${lip}）`).toBe(0);
+    }
+    console.log(`縁と ground の差: ${report.join(" / ")}`);
+  });
+});

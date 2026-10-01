@@ -526,7 +526,7 @@ export function createRectBake(input: RectBakeInput): ChunkBakeJob {
       if (painted >= input.h) {
         // 床・壁・穴が焼き上がってから、汚し・側面の飾り・置物を描き込む（光源はここで集まる）
         const { map, theme, exclude, x, y, w, h } = input;
-        output.lights.push(...decorateChunk({ map, theme, ...(exclude ? { exclude } : {}), x, y, w, h, ground: output.ground, surface: decorSurfaceOf(state) }));
+        output.lights.push(...decorateChunk({ map, theme, ...(exclude ? { exclude } : {}), x, y, w, h, ground: output.ground, lip: output.lip, surface: decorSurfaceOf(state) }));
         releaseBuffers(state.buf);
         state = null;
       }

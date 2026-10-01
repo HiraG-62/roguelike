@@ -117,8 +117,10 @@ import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { MapChunkCache, type MapView } from "./mapChunks";
 import { type LightView, MapLightLayer, mapLights } from "./mapLight";
 import { lipRects } from "./frontLip";
-import { colorB, colorG, colorR, mapThemeFor, townTheme } from "./mapTheme";
+import { mapThemeFor, townTheme } from "./mapTheme";
 import type { MapTheme } from "./mapTypes";
+import { type DoorEdgeLook, drawLockedDoor, lockedDoorBarCss, lockedDoorEdge } from "./lockedDoor";
+import { StairsArt } from "./stairsArt";
 import { doorMarkDone, drawInvertedTint, drawInvertedTintAtop, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
@@ -350,15 +352,6 @@ const STAIRS_GLOW_SPEED = 3;
 const STAIRS_GLOW_MIN = 0.35;
 const STAIRS_GLOW_MAX = 0.85;
 const STAIRS_GLOW_FRAME_TIME = 0.4;
-const DOOR_EDGE_SPEED = 8;
-const DOOR_EDGE_MIN = 0.45;
-const DOOR_EDGE_MAX = 0.95;
-/** 封鎖の扉: 床の暗さ・格子の帯（太さと位置。16px に 3 本ずつ）・外周の線の太さ */
-const DOOR_SHADE_ALPHA = 0.45;
-const DOOR_BAR_ALPHA = 0.8;
-const DOOR_BAR_W = 2;
-const DOOR_BAR_OFFSETS = [2, 7, 12] as const;
-const DOOR_EDGE_W = 1;
 
 /** 影 */
 const SHADOW_ALPHA = 0.35;
@@ -746,9 +739,12 @@ export class Renderer {
   private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
   /** 縁を描き直す体の矩形（毎フレーム使い回す） */
   private readonly lipRectBuf: LightView[] = [];
-  /** 封鎖の扉の差し色（lockedDoorColors がテーマの変わり目で作り直す） */
+  /** 封鎖の扉の格子の色（lockedDoorColors がテーマの変わり目で作り直す）と外周の脈（毎フレーム書き換える） */
   private doorTheme: MapTheme | null = null;
-  private doorAccent = "#ffffff";
+  private doorBar = "#ffffff";
+  private readonly doorEdge: DoorEdgeLook = { color: "#ff3030", alpha: 1 };
+  /** 下りの階段の章別の絵（テーマごとに 1 回だけ canvas を作る） */
+  private readonly stairsArt = new StairsArt();
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
   /** 拠点の台（setHubView）。拠点以外では null */
@@ -1241,9 +1237,10 @@ export class Renderer {
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
     const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-    const stairs = this.sprite(SPR.stairs);
-    const doorColors = state.lockedTiles.size > 0 ? this.lockedDoorColors(state) : null;
-    const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
+    // 迷宮は章の様式の階段、拠点は今の絵
+    const stairsTheme = state.sandbox === true ? null : this.mapTheme(state);
+    const doorBar = state.lockedTiles.size > 0 ? this.lockedDoorColors(state) : null;
+    const doorEdge = lockedDoorEdge(state.time, this.doorEdge);
     this.stairsBuf.length = 0;
 
     for (let y = y0; y <= y1; y++) {
@@ -1258,52 +1255,23 @@ export class Renderer {
         if (tile === Tile.Pit) continue;
         this.drawRoomFloor(state, toIndex(map, x, y), tile, px, py);
         if (tile === Tile.StairsDown) {
-          this.blit(stairs, 0, px, py);
+          if (!stairsTheme || !this.stairsArt.draw(this.ctx, stairsTheme, px, py)) this.blit(this.sprite(SPR.stairs), 0, px, py);
           this.stairsBuf.push(px, py);
         }
-        if (doorColors && state.lockedTiles.has(toIndex(map, x, y))) this.drawLockedDoor(state, x, y, doorColors.accent, doorEdgeAlpha);
+        if (doorBar && state.lockedTiles.has(toIndex(map, x, y))) drawLockedDoor(this.ctx, state, x, y, doorBar, doorEdge);
       }
     }
     this.drawStairsGlow(state);
   }
 
-  /** 封鎖の扉の格子の色（章の差し色。テーマが変わったときだけ作り直す） */
-  private lockedDoorColors(state: GameState): { accent: string } {
+  /** 封鎖の扉の格子の色（章の差し色。朱の章は外周の赤と分けるため替える。テーマが変わったときだけ作り直す） */
+  private lockedDoorColors(state: GameState): string {
     const theme = this.mapTheme(state);
     if (this.doorTheme !== theme) {
       this.doorTheme = theme;
-      const c = theme.palette.accent;
-      this.doorAccent = `rgb(${colorR(c)},${colorG(c)},${colorB(c)})`;
+      this.doorBar = lockedDoorBarCss(theme.palette);
     }
-    return { accent: this.doorAccent };
-  }
-
-  /**
-   * 封鎖の扉: 暗い床 + 章の差し色の格子の帯 + 外周だけ赤く脈打つ線（赤 = 閉じている）。
-   * 外周は隣の封鎖マスに接する辺を引かない（幅の広い扉が 1 枚の枠に読める）
-   */
-  private drawLockedDoor(state: GameState, x: number, y: number, accent: string, edgeAlpha: number): void {
-    const { ctx } = this;
-    const { map } = state;
-    const px = x * TILE_SIZE;
-    const py = y * TILE_SIZE;
-    ctx.globalAlpha = DOOR_SHADE_ALPHA;
-    ctx.fillStyle = COLOR_BLACK;
-    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-    ctx.globalAlpha = DOOR_BAR_ALPHA;
-    ctx.fillStyle = accent;
-    for (const o of DOOR_BAR_OFFSETS) {
-      ctx.fillRect(px + o, py, DOOR_BAR_W, TILE_SIZE);
-      ctx.fillRect(px, py + o, TILE_SIZE, DOOR_BAR_W);
-    }
-    ctx.globalAlpha = edgeAlpha;
-    ctx.fillStyle = COLOR_DOOR_EDGE;
-    const locked = (dx: number, dy: number): boolean => state.lockedTiles.has(toIndex(map, x + dx, y + dy));
-    if (!locked(0, -1)) ctx.fillRect(px, py, TILE_SIZE, DOOR_EDGE_W);
-    if (!locked(0, 1)) ctx.fillRect(px, py + TILE_SIZE - DOOR_EDGE_W, TILE_SIZE, DOOR_EDGE_W);
-    if (!locked(-1, 0)) ctx.fillRect(px, py, DOOR_EDGE_W, TILE_SIZE);
-    if (!locked(1, 0)) ctx.fillRect(px + TILE_SIZE - DOOR_EDGE_W, py, DOOR_EDGE_W, TILE_SIZE);
-    ctx.globalAlpha = 1;
+    return this.doorBar;
   }
 
   /** 部屋の種類ごとの床表現: 伏兵の暗い床、泉、扉の手前のマーク */

@@ -9,7 +9,7 @@
 import type { GameMap } from "../map/grid";
 import { TILE_SIZE, Tile } from "../map/grid";
 import type { FloorLayout } from "../map/layout/types";
-import { MAP_PROP_ROLES, MAP_PROP_SPRITES, isMapPropSpriteKind, type MapPropSprite } from "../data/sprites/mapProps";
+import { MAP_PROP_ROLES, MAP_PROP_SPRITES, isMapPropSpriteKind, type MapPropRole, type MapPropSprite } from "../data/sprites/mapProps";
 import { h32, hashString, hf } from "./mapNoise";
 import { darken, hexColor, lighten, mixColor } from "./mapTheme";
 import type { TexStone } from "./mapTextures";
@@ -592,6 +592,11 @@ export interface DecorInput {
   w: number;
   h: number;
   ground: Uint32Array;
+  /**
+   * 手前の縁の画素列（ground と同じ並び、0 は透明）。渡すと、描き込みの後に縁のある画素を ground の色へ揃える。
+   * 縁は体と重なる矩形だけ描き直す（render/frontLip.ts）ので、ground と違う画素が残ると矩形の端で汚しが切れて見える
+   */
+  lip?: Uint32Array;
   surface: DecorSurface;
 }
 
@@ -644,6 +649,12 @@ function setSidePx(p: Paint, wx: number, wy: number, c: number): boolean {
 const COLOR_TABLE_SIZE = 128;
 const COLOR_CACHE = new WeakMap<MapPalette, Map<string, Uint32Array>>();
 
+/** 役 1 つの色（テーマの配色か固定色を、役の寄せで明暗させる）。階段の絵（stairsArt.ts）も同じ当て方 */
+export function roleColor(P: MapPalette, role: MapPropRole): number {
+  const raw = role.from.startsWith("#") ? hexColor(role.from) : P[role.from as keyof MapPalette];
+  return role.shade > 0 ? lighten(raw, role.shade) : role.shade < 0 ? darken(raw, -role.shade) : raw;
+}
+
 /** 役の文字 → 色（文字コードで引く。0 は透明）。テーマの配色ごと・輪郭の差し替えごとに 1 回だけ作る */
 function roleColors(P: MapPalette, outline: keyof MapPalette | undefined): Uint32Array {
   let byOutline = COLOR_CACHE.get(P);
@@ -656,9 +667,7 @@ function roleColors(P: MapPalette, outline: keyof MapPalette | undefined): Uint3
   if (cached) return cached;
   const table = new Uint32Array(COLOR_TABLE_SIZE);
   for (const [ch, role] of Object.entries(MAP_PROP_ROLES)) {
-    const raw = role.from.startsWith("#") ? hexColor(role.from) : P[role.from as keyof MapPalette];
-    const shaded = role.shade > 0 ? lighten(raw, role.shade) : role.shade < 0 ? darken(raw, -role.shade) : raw;
-    table[ch.charCodeAt(0)] = ch === "k" && outline ? P[outline] : shaded;
+    table[ch.charCodeAt(0)] = ch === "k" && outline ? P[outline] : roleColor(P, role);
   }
   byOutline.set(key, table);
   return table;
@@ -1234,7 +1243,19 @@ export function decorateChunk(input: DecorInput): MapLight[] {
     drawPlacement(paint, pl);
     if (pl.tx >= own.tx0 && pl.tx <= own.tx1 && pl.ty >= own.ty0 && pl.ty <= own.ty1) lightOf(paint, pl);
   }
+  if (input.lip) syncLip(input.lip, input.ground);
   return paint.lights;
+}
+
+/**
+ * 縁のある画素を、描き込み後の ground の色へ揃える。縁は南の壁の手前（床の 3px と壁の天面の帯）にしか無く、
+ * そこに描き込まれた汚し・飾り・置物は体より手前にあるので、縁と一緒に体の上へ描き直してよい
+ */
+function syncLip(lip: Uint32Array, ground: Uint32Array): void {
+  const n = Math.min(lip.length, ground.length);
+  for (let i = 0; i < n; i++) {
+    if (lip[i] !== 0) lip[i] = ground[i] ?? 0;
+  }
 }
 
 /** 砂紋の同心円は横に 1.15 倍の楕円（mapTextures の floorSand）。絵が届く範囲の見積もりに使う */
