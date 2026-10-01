@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SFX_NAMES, type SfxName } from "./sfxNames";
 import { SFX_DEFINITIONS, SfxPlayer } from "./sfx";
 import { LAYERED_SFX } from "./sfxLayers";
@@ -178,6 +178,37 @@ describe("SfxPlayer", () => {
       player.play(name);
     }
     expect(player.getActiveVoiceCount()).toBe(24);
+  });
+
+  it("unlock で全効果音の組み立てを鳴らさない文脈で一度ずつ通し、本番の文脈では鳴らさない", () => {
+    vi.useFakeTimers();
+    const offlines: { gains: number }[] = [];
+    const OfflineCtor = function (this: unknown) {
+      const ctx = createMockAudioContext();
+      const tally = { gains: 0 };
+      offlines.push(tally);
+      const createGain = ctx.createGain.bind(ctx);
+      ctx.createGain = () => {
+        tally.gains++;
+        return createGain();
+      };
+      return ctx;
+    } as unknown as new () => OfflineAudioContext;
+    const g = globalThis as unknown as { OfflineAudioContext?: new () => OfflineAudioContext };
+    const saved = g.OfflineAudioContext;
+    g.OfflineAudioContext = OfflineCtor;
+    try {
+      const player = new SfxPlayer();
+      player.unlock();
+      vi.runAllTimers();
+      expect(offlines).toHaveLength(1);
+      // 受け口の 1 個 + 効果音ごとに 1 個以上の gain を作る
+      expect(offlines[0]?.gains ?? 0).toBeGreaterThan(Object.keys(SFX_DEFINITIONS).length);
+      expect(player.getActiveVoiceCount()).toBe(0);
+    } finally {
+      g.OfflineAudioContext = saved;
+      vi.useRealTimers();
+    }
   });
 
   it("setMasterVolume は 0..1 にクランプされる", () => {
