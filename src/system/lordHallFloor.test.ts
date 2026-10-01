@@ -13,6 +13,7 @@ import { bossEnemy, bossKeyForDepth, isBossDepth } from "./boss";
 import { createHallGame, hallBossKeys } from "./bossHall";
 import { isChapterBossDepth } from "./chapters";
 import { damageEnemy } from "./combat";
+import { LORD_PULL_APPEAR, LORD_PULL_VANISH } from "./effects";
 import { buildFloor, insideRoom, updateRooms } from "./floor";
 import { merchantKindFor } from "./merchants";
 import type { RoomProp } from "./specialRooms";
@@ -274,6 +275,29 @@ describe.each(BOSS_DEPTHS)("封鎖前の狙撃（深度 %i。門の通路から�
     for (const t of state.lockedTiles) expect(isGateTile(state, t), `塞いだタイル ${t} は門の通路`).toBe(true);
     step(state, withInput({}), FIXED_DT);
     expect(bossEnemy(state)?.phase, "主が起きる").not.toBe("idle");
+  });
+
+  it("引き込みでは、元の位置の消える渦と先の現れる渦・浮き文字・効果音の出来事が積まれる", () => {
+    const state = snipeFromGate(depth);
+    const pulls = (state.effects?.marks ?? []).filter((m) => m.kind === "lordPull");
+    const vanish = pulls.find((m) => m.value === LORD_PULL_VANISH);
+    const appear = pulls.find((m) => m.value === LORD_PULL_APPEAR);
+    expect(vanish, "元の位置の渦").toBeDefined();
+    expect(appear, "先の渦").toBeDefined();
+    const gate = gateSpotPx(state);
+    expect(Math.hypot((vanish?.pos.x ?? 0) - gate.x, (vanish?.pos.y ?? 0) - gate.y), "元の位置は撃った門の通路").toBeLessThan(TILE_SIZE);
+    const p = state.player.body.pos;
+    expect(Math.hypot((appear?.pos.x ?? 0) - p.x, (appear?.pos.y ?? 0) - p.y), "先はプレイヤーの今の位置").toBeLessThan(TILE_SIZE);
+    expect(appear?.life, "現れる渦は遅れて始まるぶん長い").toBeGreaterThan(vanish?.life ?? 0);
+    expect(state.texts.length, "浮き文字が積まれる").toBeGreaterThan(0);
+    expect(state.sfx, "効果音").toContain("dash");
+  });
+
+  it("撃たずに入るだけなら、引き込みの出来事は積まれない", () => {
+    const state = bossFloor(depth);
+    state.player.body.pos = insideGatePx(state);
+    updateRooms(state, FIXED_DT);
+    expect((state.effects?.marks ?? []).some((m) => m.kind === "lordPull")).toBe(false);
   });
 
   it("撃たずに門の通路に立っているだけなら、主の間に入るまで封鎖せず主も寝たまま", () => {

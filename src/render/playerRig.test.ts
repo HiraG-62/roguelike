@@ -259,3 +259,34 @@ describe("playerRig: 二刀の後ろの手の前後", () => {
     }
   });
 });
+
+describe("playerRig: 回さない武器（書）の上向き", () => {
+  const book: Stance = { grip: "one", body: "light", restDeg: 0, restHand: [6, 5], swayDeg: 2, braced: true };
+  const UP = -Math.PI / 2;
+  const swingAt = (aim: number) => ({ frame: 0, flipX: false, flipY: false, angle: aim, dx: 0, dy: -10, behind: true }) as const;
+
+  it("真上を狙った振りでも、振り・戻しの間ずっと本は体の前に描く", () => {
+    for (const restBlend of [0, 0.3, 0.6, 1]) {
+      const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), restBlend, unrotated: true });
+      expect(rig.front.behind, `寄せる割合 ${restBlend}`).toBe(false);
+    }
+  });
+
+  it("回す武器（unrotated 無し）は今までどおり上向きで体の後ろへ回る", () => {
+    const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP) });
+    expect(rig.front.behind).toBe(true);
+  });
+
+  it("上向きでも拳は肩の真上でなく前へ倒した所（顔を隠さない）で、腕の長さを越えない", () => {
+    const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), unrotated: true });
+    expect(rig.front.hand.x, "拳は前（+x）へ寄る").toBeGreaterThan(base.shoulderF.x + 3);
+    // 腕を伸ばしきらない上限は ARM_REACH より少し長い（playerRig の ARM_SPAN）
+    expect(Math.hypot(rig.front.hand.x - base.shoulderF.x, rig.front.hand.y - base.shoulderF.y)).toBeLessThanOrEqual(ARM_REACH + 0.5 + 1e-6);
+  });
+
+  it("真上寄りの度合いが違っても拳の高さは上限で揃う（連続）", () => {
+    const a = solveRig({ ...base, stance: book, aim: (-80 * Math.PI) / 180, swing: swingAt(UP), unrotated: true });
+    const b = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), unrotated: true });
+    expect(Math.abs(a.front.hand.y - b.front.hand.y)).toBeLessThan(0.01);
+  });
+});

@@ -26,7 +26,7 @@ import { chooseLayout } from "../map/layout/select";
 import type { FloorLayout, LayoutContext } from "../map/layout/types";
 import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
-import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
+import { addFloatingText, lordPullFx, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { heartsAllowed } from "./keystones";
@@ -783,6 +783,7 @@ function summonIntoLordHall(state: GameState, room: RoomState, index: number): v
   const to = summonSpot(state, room);
   if (!to) return;
   const body = state.player.body;
+  lordPullFx(state, body.pos, to);
   body.pos = to;
   body.vel = { x: 0, y: 0 };
   snapCamera(state);

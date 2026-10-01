@@ -664,7 +664,9 @@ export type FxMarkKind =
   | "budBloom"
   /** 受け流しの成功（描画は render/fxAttack.ts のスプライト） */
   | "parry"
-  | "inscribe";
+  | "inscribe"
+  /** ボス階の主の間への引き込み（value 0 = 元の位置で消える墨の渦、1 = 先で現れる渦） */
+  | "lordPull";
 
 export interface FxMark {
   kind: FxMarkKind;

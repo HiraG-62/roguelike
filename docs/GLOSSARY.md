@@ -160,6 +160,7 @@
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
 | 封鎖（封鎖中） | locked / lockRoom | 部屋に入ると扉が閉じる状態。「部屋ロック」とも書かれているが表示は「封鎖」に寄せる。開放型フロア（2026-09-24）では試練・闘技場・巣・巣窟・伏兵・護衛・鏡とボス部屋だけ（`ROOM_KIND.locks`） | `system/floor.ts`、`render/renderer.ts` |
+| 引き込み | `lordPull`（FxMark）/ `summonIntoLordHall` | ボス階で封鎖前に主の間の敵を撃つと、プレイヤーが主の間の口の内側へ瞬間移動して封鎖される。元の位置で墨の渦が消え、先で現れる演出と、章の色の浮き文字「引き込み」が出る | `system/floor.ts`、`system/effects.ts` lordPullFx、`render/effectsUi.ts` |
 | 交戦 | engaged | 封鎖しない部屋に入る、または部屋の敵が気付いた状態。封鎖と同じフック（祝福・ランイベント・呪い）が 1 回起きる | `system/floor.ts` |
 | 交戦中 | isEngaged / roomLocked | 今いる部屋が封鎖中、または交戦が始まっていて敵が残っている状態。旧「封鎖中」を条件にしていた祝福・誓約・性質・トリガー条件・殲滅・縛りはこれを見る。回復・気力の「戦闘中」（近くに敵）とは別 | `system/engagement.ts` |
 | 制圧 | cleared | 部屋の敵を全滅させた（封鎖した部屋は波も全て）。1 部屋 1 回 | `system/floor.ts`、祝福の説明文 |

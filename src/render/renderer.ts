@@ -2256,6 +2256,7 @@ export class Renderer {
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
       restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
       kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
     };
