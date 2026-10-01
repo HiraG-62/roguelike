@@ -1,10 +1,12 @@
 import type { GameState, RoomKind } from "../core/state";
 import type { Vec } from "../core/vec";
 import { MINIMAP, REAPER, RUN_EVENT } from "../data/tuning";
+import { isDeepDepth } from "../system/chapters";
 import { type GameMap, TILE_SIZE, Tile, rectCenter, toIndex } from "../map/grid";
 import { exitColor } from "../system/exits";
 import { bountyTargetId } from "../system/runEvents";
 import { ROOM_KIND_COLOR } from "../system/specialRooms";
+import { pitLook } from "./pitLook";
 
 /**
  * 部屋のタイル所属表。描画側（床マーク・伏兵の暗い床・泉・ミニマップ）で共有する。
@@ -157,6 +159,7 @@ export function paintExplored(
 
 function tileColor(state: GameState, lookup: RoomLookup, bossRoom: number, tile: number): Rgb {
   if (state.map.tiles[tile] === Tile.Fountain) return FOUNTAIN_RGB;
+  if (state.map.tiles[tile] === Tile.Pit) return pitLook(state.floorKind, isDeepDepth(state.depth)).mini;
   const room = lookup.roomOf[tile] ?? NO_ROOM;
   if (room === NO_ROOM) return CORRIDOR_RGB;
   if (room === bossRoom) return state.boss?.major ? BOSS_RGB : FLOOR_LORD_RGB;

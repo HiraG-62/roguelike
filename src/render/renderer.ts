@@ -112,9 +112,11 @@ import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
+import { type PitLook, pitLook } from "./pitLook";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
+import { isDeepDepth } from "../system/chapters";
 
 /** コンボ表示（論理 px・y 座標） */
 const COMBO_TEXT_PX = 14;
@@ -149,6 +151,8 @@ const COLOR_BLACK = "#000000";
 const COLOR_KEYSTONE = "#d08cff";
 const COLOR_WARN = "#ff6060";
 const COLOR_DOOR_EDGE = "#ff3030";
+/** 穴の縁の帯の太さ（論理 px） */
+const PIT_EDGE_PX = 1;
 const COLOR_SLOWMO = "#2040a0";
 const COLOR_DESAT = "#808080";
 const COLOR_AURA_DAMAGE = "#ff6040";
@@ -1096,6 +1100,7 @@ export class Renderer {
     const door = this.sprite(SPR.door);
     const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
     this.stairsBuf.length = 0;
+    const look = pitLook(state.floorKind, isDeepDepth(state.depth));
 
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
@@ -1118,6 +1123,10 @@ export class Renderer {
           this.drawHiddenCrack(state, x, y, px, py);
           continue;
         }
+        if (tile === Tile.Pit) {
+          this.drawPit(map, x, y, px, py, look);
+          continue;
+        }
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
         this.drawRoomFloor(state, toIndex(map, x, y), tile, px, py);
         if (tile === Tile.StairsDown) {
@@ -1135,6 +1144,18 @@ export class Renderer {
       }
     }
     this.drawStairsGlow(state);
+  }
+
+  /** 穴の仮描画: 単色 + 縁の 1px の帯（隣が穴でない辺だけ）。形の良い絵は別の段で作る */
+  private drawPit(map: GameMap, x: number, y: number, px: number, py: number, look: PitLook): void {
+    const { ctx } = this;
+    ctx.fillStyle = look.body;
+    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    ctx.fillStyle = look.edge;
+    if (getTile(map, x, y - 1) !== Tile.Pit) ctx.fillRect(px, py, TILE_SIZE, PIT_EDGE_PX);
+    if (getTile(map, x, y + 1) !== Tile.Pit) ctx.fillRect(px, py + TILE_SIZE - PIT_EDGE_PX, TILE_SIZE, PIT_EDGE_PX);
+    if (getTile(map, x - 1, y) !== Tile.Pit) ctx.fillRect(px, py, PIT_EDGE_PX, TILE_SIZE);
+    if (getTile(map, x + 1, y) !== Tile.Pit) ctx.fillRect(px + TILE_SIZE - PIT_EDGE_PX, py, PIT_EDGE_PX, TILE_SIZE);
   }
 
   /** 部屋の種類ごとの床表現: 伏兵の暗い床、泉、扉の手前のマーク */
