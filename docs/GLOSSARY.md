@@ -262,7 +262,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 虚心 / 刹那 / 遠間の誓い / 清貧 / 黄金の檻 / 喜捨（段取り 7d の新しい誓約） | `ks_mushin` / `ks_instant` / `ks_farOath` / `ks_poverty` / `ks_goldCage` / `ks_alms` | 虚心 = コンボが加算されず、攻撃を当てずに 3 秒たつと次の 1 撃が大きな倍。刹那 = 見切りの瞬間、近くの敵を 1 秒凍結。遠間の誓い = 近い敵へ弱く、遠い敵へ強い（近間の誓いの対）。清貧 = 銭を持てず、拾った銭は気力に換わって与ダメの増。黄金の檻 = 持ち金に応じて与ダメの倍、被弾でこぼれる銭が増える。喜捨 = 銭を払うたび生命が回復し、しばらく与ダメが上がる。消えた誓約（風走り・渇き・蝕み・死神・一色・無・単色・無色・鏡・修行・忘却・鉄・溜め・構え・土・滑り・熾火・弱点・狂戦士・背水・楔・締め上げ・不動）は性質の条件の族・行動へ写した（例: 背水 → 瀕死の間の与ダメ） | `system/keystones.ts` |
 | 性質名（行動 43・来歴 3。名前付きのもの） | `loot/affixes.ts` | 「名前: 効果」で表示する。汲み上げ / 身代わり / 溢れ / 見切りの息吹 / 手替えの呼吸 / 疫病の種 / 腐爆 / 形見 / 楔 / 剥がし / 崩れの反響 / 崩れ雷 / 崩れの刻印 / 先の先 / 返し波 / 幕引き / 逆撫で / 崩れの属性 / 連射の烙印 / 地脈の炸裂 / 残り火 / 霜の轍 / 土の息 / 余韻斬り / 撃ち込み杭 / 置き土産 / 血の署名 / 籠城 / 構え（近接を振っている間の被ダメ軽減）/ 踏ん張り（被弾で押し戻されない。静止中の被ダメ軽減）/ 若木 / 歴戦 / 古傷。条件の族 25 は名前を持たず「怯み中の敵へのダメージ +n%」のように条件そのものを書く（懐だけ「懐: …」） | `loot/affixes.ts` |
 | 目覚め | `MilestoneDef.awakening` | 節目の芽の片方を、名指しした性質にすること（例: 撃破 … 熾火の節目 → 残り火）。目覚め専用の性質は段取り 7d で無くなり、残る性質だけを名指しする。節目の key は変えない（到達済みの遺物に芽が出直さない） | `loot/provenance.ts` MILESTONES |
-| 弱点を突いた / 耐性に阻まれた / 地形の上の撃破 / 得意武器での撃破 / 溜めの命中 / 派生の命中（節目） | weakHits / resistedHits / terrainKills / favoredKills / chargedHits / branchHits | 第 2 弾の来歴の節目。銘の名詞は 急所読み / 逆鱗 / 地這い / 師範 / 満月 / 型破り | `loot/provenance.ts`、`loot/names.ts` |
+| 弱点を突いた / 耐性に阻まれた / 地形の上の撃破 / 初期武器と同じ型での撃破 / 溜めの命中 / 派生の命中（節目） | weakHits / resistedHits / terrainKills / favoredKills / chargedHits / branchHits | 第 2 弾の来歴の節目。「初期武器と同じ型での撃破」は今の武器の型がジョブの初期武器の型（`system/jobs.ts` isStarterFormWeapon）と同じ間の撃破で、旧「得意武器での撃破」と key（favoredKills）を共有して数えを引き継ぐ。銘の名詞は 急所読み / 逆鱗 / 地這い / 師範 / 満月 / 型破り | `loot/provenance.ts`、`loot/names.ts` |
 | 帰還（節目） | returns / `ProvenanceEvent` の returned | 上り階段で浅い階へ戻ったとき装備していた遺物に積もる来歴。最初の 1 回で芽が 1 つ出る（第 4 弾） | `loot/provenance.ts`、`system/floor.ts` ascend |
 | 攻撃手段 / 持ち替え | AttackMode（melee / ranged / skill） | 近接・射撃・スキルの 3 つ。直前と違う手段で当てることを「持ち替え」と呼ぶ | `system/traitHooks.ts` attackMode |
 | 殲滅 / 怯ませた / カウンター / スキル発動 / 精鋭撃破（節目） | lastKills / staggers / counters / skillCasts / eliteKills | 来歴の節目。銘の名詞は 幕引き / 崩し / 先読み / 詠み手 / 剥ぎ取り | `loot/provenance.ts`、`loot/names.ts` |
@@ -431,7 +431,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。カードの格子で並べ、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | ボスの間 | hall（`FacilityKey` / `HubSpotKey`） | 拠点の設備（章ボスか最深の主を 1 体倒すと建つ）。倒したボスに今の装備の写し（借り物を含む）で挑み直す。祝福なし。保存するのは挑戦・撃破の回数と最速・最少の被弾だけ（`roguelike.hub.v1` の `hall`）。部屋の種類の「〜の間」（潮の間・反転の間）・最深の間とは別物 | `system/bossHall.ts`、`meta/hubStore.ts` HallRecord |
-| 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される得意武器の素の器。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
+| 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される武器の素の器。遺物の来歴の節目はこの武器と同じ型の武器での撃破を数える。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
 | 死因 / 次の山 / 前回比 | `killer` / `nextPeakOf` / `previousComparable` | 死亡画面の 3 行。死因 = 最後に受けた傷の出どころ（敵なら「{敵名}の一撃 / 射撃 / 爆発 / 余波」と倒された回数）、次の山 = 力尽きた階から先で最初の章の主か最深の主、前回比 = 前の探索との到達の階・被弾・見切りの差。撃ち手の消えた敵弾は「流れ弾」、出どころの無い爆風は「余波」、ランイベントの落石は「落下物」 | `meta/deathReport.ts`、`system/deathCause.ts` |

@@ -19,7 +19,7 @@ import { addPoise, poiseRatio } from "./poise";
 import { applyStatus, enemiesInRadius, hasStatus } from "./statusEffects";
 import { fireTrigger, inflictApply, shockwave } from "./triggers";
 import { type OutgoingElement, dominantElement, elementShares } from "./elementCombat";
-import { isFavoredWeapon } from "./jobs";
+import { isStarterFormWeapon } from "./jobs";
 import { placeTerrain, terrainAt } from "./terrain";
 import { statsBulletHas } from "../loot/bullets";
 
@@ -348,7 +348,8 @@ export function onTraitKill(state: GameState, enemy: Enemy): void {
   if (t.inheritCharges > 0) inheritAffliction(state, enemy, t.inheritCharges);
   if (hasKeystone(state, KS.contagion)) spreadAfflictions(state, enemy);
   if (enemy.elite !== undefined) recordProvenance(state, { kind: "eliteKill" });
-  if (isFavoredWeapon(state.stats, state.job)) recordProvenance(state, { kind: "favoredKill" });
+  // 来歴の節目「初期武器と同じ型での撃破」（key は favoredKills のまま。旧セーブの数えを引き継ぐ）
+  if (isStarterFormWeapon(state.stats, state.job)) recordProvenance(state, { kind: "favoredKill" });
   onGroundKill(state, enemy);
   if (isLastKillInEngagedRoom(state, enemy)) onLastKill(state);
 }

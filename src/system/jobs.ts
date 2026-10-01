@@ -1,6 +1,8 @@
 import type { Rule } from "../core/rules";
 import type { GameState } from "../core/state";
 import { DASH_FORM_NAMES, JOBS, JOB_KEYS, type JobKey, favoredMovesets } from "../data/jobs";
+import { MOVESETS } from "../data/weapons";
+import type { FormKey } from "../data/weaponForms";
 import { JOB } from "../data/tuning";
 import { createRng } from "../core/rng";
 import { baseDef } from "../loot/bases";
@@ -44,6 +46,25 @@ export function jobChangesStats(job: JobKey): boolean {
 export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
   // 素手は型が拳でも武器を持っていないので、拳を得意とするジョブでも得意に数えない
   return !stats.unarmed && favoredMovesets(job).includes(stats.moveset);
+}
+
+/** ジョブの初期武器の型（武器種ではなく型。見習いは初期武器が無いので undefined） */
+export function starterForm(job: JobKey): FormKey | undefined {
+  const baseKey = JOBS[job].starterWeapon;
+  if (baseKey === null) return undefined;
+  const moveset = baseDef(baseKey)?.moveset;
+  return moveset === undefined ? undefined : MOVESETS[moveset].form;
+}
+
+/**
+ * 今の武器がジョブの初期武器と同じ型か（来歴の節目「初期武器と同じ型での撃破」が読む）。
+ * 初期武器の武器種そのものではなく型で見る: 剣士の打刀なら、同じ型に束ねた武器種も数える。
+ * 素手は武器を持っていないので、型が拳でも数えない
+ */
+export function isStarterFormWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
+  if (stats.unarmed) return false;
+  const form = starterForm(job);
+  return form !== undefined && MOVESETS[stats.moveset].form === form;
 }
 
 /**

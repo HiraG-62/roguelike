@@ -45,6 +45,7 @@ export type ProvenanceEvent =
   | { kind: "weakHit" }
   | { kind: "resistedHit" }
   | { kind: "terrainKill" }
+  /** ジョブの初期武器と同じ型での撃破（旧「得意武器での撃破」。key は旧セーブの数えを引き継ぐため据え置き） */
   | { kind: "favoredKill" }
   | { kind: "chargedHit" }
   | { kind: "branchHit" }
@@ -137,12 +138,12 @@ export const MILESTONES: readonly MilestoneDef[] = [
   milestone("weakHits", 150, "azure", "弱点攻撃", "prismEdge"),
   milestone("resistedHits", 150, "umbra", "耐性で軽減", "backlash"),
   milestone("terrainKills", 60, "jade", "地形上での撃破", "groundRooted"),
-  milestone("favoredKills", 150, "crimson", "得意武器での撃破"),
+  milestone("favoredKills", 150, "crimson", "初期武器と同じ型での撃破"),
   milestone("chargedHits", 100, "crimson", "溜め攻撃の命中", "chargeCore"),
   milestone("branchHits", 150, "gold", "派生の命中", "branchArt"),
   milestone("weakHits", 600, "gold", "弱点攻撃", "prismEdge"),
   milestone("terrainKills", 250, "jade", "地形上での撃破", "terrainHunter"),
-  milestone("favoredKills", 600, "gold", "得意武器での撃破", "branchArt"),
+  milestone("favoredKills", 600, "gold", "初期武器と同じ型での撃破", "branchArt"),
   // ---- 2026-09-24 第 4 弾: 上り階段で浅い階へ戻った探索を共にした（docs/ideas/run-expansion.md 4 章の見送り分）----
   milestone("returns", 1, "azure", "帰還"),
 ];
