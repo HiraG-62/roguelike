@@ -21,6 +21,7 @@ import {
   toIndex,
 } from "../map/grid";
 import { generateLayoutMap } from "../map/layout/index";
+import { generateLordHallMap } from "../map/layout/lordHall";
 import { chooseLayout } from "../map/layout/select";
 import type { FloorLayout, LayoutContext } from "../map/layout/types";
 import { snapCamera } from "./camera";
@@ -34,7 +35,7 @@ import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
 import { circlesOverlap, isSolidTile, overlapsTiles, overlapsWall } from "./physics";
-import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
+import { announceBoss, bossKeyForDepth, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
 import { chapterOf, deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
 import { announceDeep } from "./deep";
@@ -173,7 +174,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
     if (startsEmpty(room.kind) || room.kind === "normal") return;
     populateRoom(state, room, i);
   });
-  planJins(state, new Set([START_ROOM, bossRoom]));
+  // ボス階の専用の部屋は入口 → 前室 → 主の間の 1 本道で、道中の戦闘を置かない（docs/ideas/lordhall-design.md 8 章）
+  if (state.floorLayout !== LORD_HALL_LAYOUT) planJins(state, new Set([START_ROOM, bossRoom]));
   revealAround(state);
   // ここから下の乱数は部屋の中身が決まった後に引く（既存の部屋・敵の配置の乱数消費を変えない）
   const ends = new Set([START_ROOM, last]);
@@ -276,6 +278,8 @@ function generatorOptions(depth: number, kind: FloorKind, areaMul: number): Gene
 
 /** 旧生成器（フロア種別の MAP_SHAPE の rooms / cave）の型名 */
 const LEGACY_LAYOUT: FloorLayout = "legacy";
+/** ボス階の専用の部屋の型名 */
+const LORD_HALL_LAYOUT: FloorLayout = "lordHall";
 
 /** この階の型を選ぶ文脈。previous は前の階で実際に使った型（state.floorLayout を上書きする前に読む） */
 export function floorLayoutContext(state: GameState): LayoutContext {
@@ -299,8 +303,8 @@ export function generateFloorMap(state: GameState, layout: FloorLayout): GameMap
     case "legacy":
       return legacyFloorMap(state, options);
     case "lordHall":
-      // ボス階の専用の部屋（docs/ideas/lordhall-design.md）ができるまで旧生成器で作る
-      return legacyFloorMap(state, options);
+      // 手描きの格子を並べるだけで乱数を引かない（docs/ideas/lordhall-design.md 5 章）
+      return generateLordHallMap(bossKeyForDepth(state.depth));
     default:
       return generateLayoutMap(layout, state.rng, options.width, options.height) ?? legacyFloorMap(state, options);
   }

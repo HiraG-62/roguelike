@@ -126,15 +126,18 @@ function artKeyOfKind(kind: ArtActKind): SkillKey {
   return key;
 }
 
-/** 突進を左の壁へ向けて激突させ、ダウンさせてから起こす（1 回分）。playerNear なら騎士の背後（右）の近くにプレイヤーを置く */
+/**
+ * 突進を右の縁（浮島を囲む穴）へ向けて激突させ、ダウンさせてから起こす（1 回分）。playerNear なら騎士の背後（左）の近くに
+ * プレイヤーを置く。西は桟道で抜けるので東へ向ける
+ */
 function slamIntoWall(state: GameState, boss: Enemy, playerNear = false): void {
   const room = state.rooms[boss.roomIndex];
   if (!room) throw new Error("no room");
   const c = rectCenterPx(room.rect);
-  boss.body.pos = { x: room.rect.x * TILE_SIZE + boss.body.radius + 1, y: c.y };
-  state.player.body.pos = { x: playerNear ? boss.body.pos.x + 30 : c.x + 120, y: c.y };
-  boss.strikeDir = { x: -1, y: 0 };
-  boss.facing = { x: -1, y: 0 };
+  boss.body.pos = { x: (room.rect.x + room.rect.w) * TILE_SIZE - boss.body.radius - 1, y: c.y };
+  state.player.body.pos = { x: playerNear ? boss.body.pos.x - 30 : c.x - 120, y: c.y };
+  boss.strikeDir = { x: 1, y: 0 };
+  boss.facing = { x: 1, y: 0 };
   boss.phase = "strike";
   boss.phaseTimer = MK.lungeTime;
   setMove(boss, MIRROR_LUNGE);

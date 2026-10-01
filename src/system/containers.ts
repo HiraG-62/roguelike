@@ -144,8 +144,10 @@ function candidateSpots(state: GameState): Spots {
     if (overlapsWall(state, p.x, p.y, radius) || nearAny(keepOut, p, c.keepClear)) return;
     (dead ? deadEnds : corners).push(p);
   };
-  const seen = new Set<number>();
+  // 主の間のタイルは「見た」扱いにして、隅としても行き止まりとしても候補にしない
+  const seen = new Set<number>(lordHallTiles(state));
   for (const t of roomFloorTiles(state)) {
+    if (seen.has(t)) continue;
     seen.add(t);
     consider(t % state.map.width, Math.floor(t / state.map.width));
   }
@@ -157,6 +159,15 @@ function candidateSpots(state: GameState): Spots {
     }
   }
   return { corners, deadEnds };
+}
+
+/**
+ * ボス階の専用の部屋（layout "lordHall"）の主の間の所属タイル。それ以外の階は空。
+ * 主の間は部屋の形そのものが戦いの読みなので、壺・木箱で塞がない（docs/ideas/lordhall-design.md 2 章の 13）
+ */
+function lordHallTiles(state: GameState): ReadonlySet<number> {
+  if (state.floorLayout !== "lordHall") return new Set();
+  return state.rooms[state.rooms.length - 1]?.tiles ?? new Set();
 }
 
 /** pool から間隔を空けて need 個まで引き、placed に足す（引いた候補は使い切るまで戻さない） */

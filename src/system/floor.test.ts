@@ -24,6 +24,8 @@ import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
 import { slayFloorLord } from "./testHelpers";
+import { generateLordHallMap } from "../map/layout/lordHall";
+import { bossKeyForDepth } from "./boss";
 
 /** 広いマップ（面積 3.5〜5 倍）を何十枚も作るテストの制限時間（ms）。既定の 5 秒では並列実行の負荷で足りない */
 const WIDE_FLOOR_LOOP_TIMEOUT = 30_000;
@@ -75,12 +77,13 @@ describe("マップの広さ（MAP_SIZE）", () => {
     expect(Array.from(a.map.tiles)).toEqual(Array.from(b.map.tiles));
   });
 
-  it("ボス階は基準の大きさのまま", () => {
+  it("ボス階は面積の倍率を引かず、専用の部屋（lordHall）の大きさになる", () => {
     const state = createGame(4);
     state.depth = BOSS.interval;
     buildFloor(state);
     expect(state.floorAreaMul).toBe(1);
-    expect([state.map.width, state.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
+    const hall = generateLordHallMap(bossKeyForDepth(state.depth));
+    expect([state.map.width, state.map.height]).toEqual([hall.width, hall.height]);
   });
 
   it("部屋の敵の抽選回数は 面積の倍率 ^ roomEnemiesExp 倍（倍率 1 は基準のまま、部屋の上限は超えない）", () => {
@@ -731,7 +734,8 @@ describe("開放型フロア: 時間経過では湧かない（増援の代わ�
 
 describe("巣窟（モンスターハウス）", () => {
   it("最初は無人で、入ると封鎖して波で湧き、全波を倒すと制圧・rare 以上が落ちて扉が開く", () => {
-    const { state, index } = floorWithHorde(5);
+    // ボス階（5）は専用の部屋で巣窟が出ないので、巣窟が 2 個まで出る深さの通常の階で探す
+    const { state, index } = floorWithHorde(ROOM_KIND.hordeSecondDepth + 2);
     const room = state.rooms[index]!;
     expect(state.enemies.filter((e) => e.roomIndex === index), "最初は無人").toHaveLength(0);
     state.player.body.pos = rectCenterPx(room.rect);

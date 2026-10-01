@@ -96,7 +96,7 @@ export function floorKindLabel(kind: FloorKind): string {
 
 /**
  * マップの形。洞窟（まばらな塊と細い道）が基本で、部屋 + 通路は回廊・骨の墓所・油の坑道だけ
- * （memo/20260924-1.md「優先的」1）。ボス階は boss.ts が矩形の最後の部屋を前提にするので回廊になる
+ * （memo/20260924-1.md「優先的」1）。ボス階はこの形を使わず、専用の部屋（階の型 "lordHall"、map/layout/lordHall.ts）で作る
  */
 export const MAP_SHAPE: Readonly<Record<FloorKind, MapShape>> = {
   rooms: "rooms",
@@ -119,7 +119,7 @@ export function biomeShape(kind: FloorKind): MapShape {
 // -----------------------------------------------------------------------------
 
 /**
- * この深度で出せるフロア種別。ボス階は boss.ts が「最後の部屋」を前提にしているので rooms だけ。
+ * この深度で出せるフロア種別。ボス階は rooms だけ（地図は専用の部屋 "lordHall" で、種別は敵の顔ぶれ・地形・見た目に効く）。
  * それ以外は解禁済みの全種別（洞窟の重みが大きい。FLOOR_KIND.weight）
  */
 export function floorKindCandidates(depth: number): FloorKind[] {

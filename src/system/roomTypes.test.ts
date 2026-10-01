@@ -29,7 +29,9 @@ function floorWith(kind: RoomKind, depth: number): { state: GameState; index: nu
   for (let seed = 0; seed < SEARCH_SEEDS; seed++) {
     const state = withBaseAreaMul(() => createGame(seed));
     state.depth = depth;
-    buildFloor(state);
+    // ボス階は専用の部屋（部屋 3 つ）で特別な部屋が出ないので、ボス階の深度を使う検査は旧生成器の形で作る
+    if (isBossDepth(depth)) withFixedLayout("legacy", () => buildFloor(state));
+    else buildFloor(state);
     const index = state.rooms.findIndex((r) => r.kind === kind);
     if (index >= 0) return { state, index };
   }

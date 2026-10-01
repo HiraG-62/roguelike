@@ -103,17 +103,18 @@ describe("階の型と floor の結線", () => {
     expect(a.rng.next(), "乱数の消費も同じ").toBe(b.rng.next());
   });
 
-  it("ボス階は型の抽選で乱数を引かず、旧生成器で作って \"legacy\" を記録する", () => {
+  it("ボス階は型の抽選でも地図の生成でも乱数を引かず、\"lordHall\" を記録する", () => {
     const bossDepth = 5;
     expect(isBossDepth(bossDepth), "深度 5 はボス階").toBe(true);
     const a = withBaseAreaMul(() => createGame(SEED));
     const b = withBaseAreaMul(() => createGame(SEED));
     a.depth = bossDepth;
     b.depth = bossDepth;
+    expect(chooseLayout(a.rng, floorLayoutContext(a))).toBe("lordHall");
+    expect(generateFloorMap(a, "lordHall").layout).toBe("lordHall");
+    expect(a.rng.next(), "型の抽選と地図の生成で乱数を消費しない").toBe(b.rng.next());
     buildFloor(a);
-    withFixedLayout("legacy", () => buildFloor(b));
-    expect(a.floorLayout).toBe("legacy");
-    expect(summary(a), "旧生成器を固定したときと同じ階・同じ乱数の消費").toBe(summary(b));
+    expect(a.floorLayout).toBe("lordHall");
   });
 
   it("前の階の型を文脈に渡し、同じ型を続けない", () => {

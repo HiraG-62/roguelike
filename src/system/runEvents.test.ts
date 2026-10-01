@@ -7,6 +7,7 @@ import { ARC, DEEP, ECONOMY, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tu
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
+import { withFixedLayout } from "../map/layout/select";
 import { shadowPositions } from "./linger";
 import { reaperAppearAfter } from "./reaper";
 import { isDark } from "./roomTypes";
@@ -55,7 +56,8 @@ function floorWithEnemyRoom(seed: number, depth: number, make: (s: number) => Ga
   for (let s = seed; s < seed + SEED_TRIES; s++) {
     const state = make(s);
     state.depth = depth;
-    buildFloor(state, "rooms");
+    // 深度 5 はボス階で専用の部屋（部屋 3 つ・道中の敵なし）になるので、敵のいる塊が要るこの検査は旧生成器の形で作る
+    withFixedLayout("legacy", () => buildFloor(state, "rooms"));
     quiet(state);
     const index = enemyRoomIndex(state);
     const room = state.rooms[index];

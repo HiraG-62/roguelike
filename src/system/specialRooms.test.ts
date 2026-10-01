@@ -48,7 +48,8 @@ function roomOf(kind: RoomKind, seed = 3): { state: GameState; room: RoomState; 
   // 開始の階は旧生成器（"legacy"）で作る（階の型の抽選は乱数の流れを変え、部屋の地形が seed ごとに揺れるため）
   const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = DEPTH;
-  buildFloor(state, "rooms");
+  // 深度 5 はボス階で専用の部屋（部屋 3 つ）になるので、真ん中の部屋が要るこの検査は旧生成器の形で作る
+  withFixedLayout("legacy", () => buildFloor(state, "rooms"));
   const index = state.rooms.findIndex((r, i) => i > 1 && i < state.rooms.length - 1 && r.rect.w >= 9 && r.rect.h >= 9);
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
