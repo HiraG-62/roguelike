@@ -5,8 +5,10 @@
 //   1. フォントを取る（リポジトリには入れない）:
 //        curl -sS -A "Mozilla/5.0" "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=墨淵"
 //        で出る url(...) の TTF を保存する
-//   2. NODE_PATH=$(npm root -g) node scripts/title/gen-logo.mjs --font <ttf> [--text 墨淵] [--px 40] [--thr 110]
+//   2. NODE_PATH=$(npm root -g) node scripts/title/gen-logo.mjs --font <ttf> [--text 墨淵] [--dots 2] [--px 80] [--thr 110]
+//   --dots は 1 点 = 論理 1/dots px（密度）。--px は二値化するフォントの大きさ。論理の大きさを保つなら 40 * dots
 // ブラウザは playwright（グローバル）の Chromium。フォントを @font-face で読ませて canvas に描く。
+// 論理の大きさは 40px・密度 1 の旧版と同じ（80px・密度 2 で約 142x68）。
 // 二値化は見本（docs/ideas/previews/title/index.html の mask）と同じ:
 // 文字の外接矩形で切り、アルファが閾値以上なら 1。
 import { createRequire } from "node:module";
@@ -29,7 +31,10 @@ if (!fontPath) {
   process.exit(1);
 }
 const text = arg("text", "墨淵");
-const px = Number(arg("px", "40"));
+/** 論理 1px あたりの点の数（data/sprites/dots.ts と同じ考え方）。論理の大きさは px / dots で決まる */
+const dots = Number(arg("dots", "2"));
+const LOGICAL_FONT_PX = 40;
+const px = Number(arg("px", String(LOGICAL_FONT_PX * dots)));
 const thr = Number(arg("thr", "110"));
 
 const { chromium } = require("playwright");
@@ -85,6 +90,10 @@ const src = `/**
  * 作り方: scripts/title/gen-logo.mjs（Yuji Boku、SIL OFL 1.1、${px}px、アルファ閾値 ${thr}）。
  * 実行時にフォントは読まない。塗りは render/titleLogo.ts（縁・影・上下の明暗・光の筋）。
  */
+
+/** 論理 1px あたりの点の数（1 点 = 論理 1/TITLE_LOGO_DOTS px）。マスクの論理の大きさは寸法 / この値 */
+export const TITLE_LOGO_DOTS = ${dots};
+
 export const TITLE_LOGO_ROWS: readonly string[] = [
 ${body}
 ];
