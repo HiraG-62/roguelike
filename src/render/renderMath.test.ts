@@ -392,7 +392,7 @@ describe("誓約のオーラ（7-20）", () => {
     expect(keystoneAuraColors([])).toEqual([]);
   });
 
-  it("同じ系統の誓約は 1 色、系統が違えば色が増える。知らない key は無視する", () => {
+  it("同じ組の誓約は 1 色、組が違えば色が増える。知らない key は無視する", () => {
     expect(keystoneAuraColors(["ks_glassCannon", "ks_vampire"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
     expect(keystoneAuraColors(["ks_glassCannon", "ks_mushin", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
     expect(keystoneAuraColors(["ks_goldCage"]), "銭の系統").toEqual([KEYSTONE_GROUP_COLOR.coin]);

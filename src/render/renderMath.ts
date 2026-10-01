@@ -263,7 +263,7 @@ export function resonanceMantleColors(steps: readonly ResonanceStep[]): string[]
     .map((s) => KEYWORD_DEFS[s.keyword].color);
 }
 
-/** 誓約の系統ごとのオーラの色（7-20）。系統は src/loot/affixes.ts の KeystoneGroup（排他の単位） */
+/** 誓約の組ごとのオーラの色（7-20）。組は src/loot/affixes.ts の KeystoneGroup（排他の単位） */
 export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
   body: "#ff6a5a",
   tempo: "#ffb040",
@@ -274,7 +274,7 @@ export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
   coin: "#ffd24a",
 };
 
-/** 持っている誓約の系統の色（重複を除いて持っている順）。誓約が無ければ空 */
+/** 持っている誓約の組の色（重複を除いて持っている順）。誓約が無ければ空 */
 export function keystoneAuraColors(keys: readonly string[]): string[] {
   const groups: KeystoneGroup[] = [];
   for (const key of keys) {

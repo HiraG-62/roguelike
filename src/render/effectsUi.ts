@@ -618,7 +618,7 @@ function drawResonanceMantle(ctx: CanvasRenderingContext2D, x: number, y: number
   }
 }
 
-/** 誓約のオーラ: 細い輪を系統の数だけの弧に分けてゆっくり回す */
+/** 誓約のオーラ: 細い輪を組の数だけの弧に分けてゆっくり回す */
 function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, colors: readonly string[], time: number): void {
   if (colors.length === 0) return;
   const c = FX_WAVE3.keystoneAura;
