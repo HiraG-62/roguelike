@@ -4,9 +4,9 @@ import { REACH } from "../data/tuning";
 import { REACH_DEFS } from "../loot/reach";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { reachRows } from "./reachRows";
-import { statusTabEffectRows } from "./statusTab";
+import { bodyReachRows } from "./sheetBody";
 
-/** 効果の頁の先頭に出る到達の行（装備だけの stats.reach から組む） */
+/** 書付「体」に出る到達の行（装備だけの stats.reach から組む） */
 
 function statsWithReach(reach: Partial<Record<"chain" | "burn" | "morale", number>>): PlayerStats {
   return { ...DEFAULT_STATS, reach: { ...DEFAULT_STATS.reach, ...reach } };
@@ -35,12 +35,12 @@ describe("到達の行", () => {
     expect(rows[0]?.info, "+50% / +80%").toBe(`+50%/+${Math.round(REACH.chain * 100)}%`);
   });
 
-  it("拠点（sandbox）の state でも効果の頁の先頭に出る", () => {
+  it("拠点（sandbox）の state でも書付「体」に出る", () => {
     const state = createGame(1);
     state.sandbox = true;
-    expect(statusTabEffectRows(state), "装備が無ければ空").toHaveLength(0);
+    expect(bodyReachRows(state), "装備が無ければ空").toHaveLength(0);
     state.stats = statsWithReach({ chain: REACH.chain });
-    const rows = statusTabEffectRows(state);
+    const rows = bodyReachRows(state);
     expect(rows[0]?.key, "先頭が到達").toBe("reach:chain");
     expect(rows[0]?.info).toBe("到達");
   });

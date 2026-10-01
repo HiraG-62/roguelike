@@ -14,7 +14,7 @@
 - 各段・弾の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
 - ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手のベースに `moveset` を指定（`PlayerStats.moveset` へ流れる）。銃の家系のベースは `PlayerStats.bullet` に自分の key が入る
 - 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.bullet` で `loot/bullets.ts` の `BULLETS` を引いて発動処理を分岐
-- テスト: `data/weapons.test.ts` / `loot/bullets.test.ts` / `system/weaponArts.test.ts`（右レーンの段）/ `system/player.test.ts`（左右の共有の段カウンタ・派生）/ `data/ultimates.test.ts`・`system/ultimates.test.ts`（奥義）。計算式の頁が詳細欄 1 枚に収まるかは `render/detailPane.test.ts`（行動が増えて溢れたら `ui/scalingText.ts` の畳み方を見直す）。右レーンと派生の係数表は `data/scalingVariety.test.ts` の `LANE_TABLE` が受ける
+- テスト: `data/weapons.test.ts` / `loot/bullets.test.ts` / `system/weaponArts.test.ts`（右レーンの段）/ `system/player.test.ts`（左右の共有の段カウンタ・派生）/ `data/ultimates.test.ts`・`system/ultimates.test.ts`（奥義）。計算式の頁が詳細欄 1 枚に収まるかは `render/sheetUi.test.ts`（行動が増えて溢れたら `ui/scalingText.ts` の畳み方を見直す）。右レーンと派生の係数表は `data/scalingVariety.test.ts` の `LANE_TABLE` が受ける
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 - **近接の威力の係数**: 近接の段の `scaling` は復元時に `WEAPON.meleeDamageScale`（0.6）を掛ける（`data/weapons.ts` の `meleeScaling`）。JSON は掛ける前の値。弾（`throw.scaling`・銃の弾）・スキル・奥義には掛けない。右手が空なら拳の型で `stats.unarmed`（表示名「素手」、威力 × `WEAPON.unarmed.damageMul`）

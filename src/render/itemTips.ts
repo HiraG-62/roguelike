@@ -16,13 +16,16 @@ import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, slotModifier
 import { boonGrantedModifiers } from "../system/boons";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import { synergyBuild } from "../ui/synergyBuild";
-import type { Rect } from "../ui/inventoryLayout";
-import { DETAIL_GAP_LINE, type DetailLine, ultimateTipLine } from "./detailPane";
 import { chosenUltimate } from "../system/ultimates";
 import { MOVESETS } from "../data/weapons";
+import type { ColorBarSegment } from "../loot/describe";
+import { baseDef } from "../loot/bases";
+import { ultimateChoice } from "../loot/profile";
+import type { Profile } from "../loot/types";
 import {
   type ActionFormulas,
   type LoadoutSources,
+  type FormulaChunk,
   type ScalingFormula,
   actionListRows,
   itemModifierRows,
@@ -35,9 +38,34 @@ import { itemAttackLine, skillAttackLine } from "./elementUi";
 import { COLOR_DIM, COLOR_EMPTY, COLOR_GROWN, COLOR_INSCRIPTION, COLOR_TEXT, COLOR_WARN, GROWN_MARK, type TipLine, traitTipLine } from "./lootUiParts";
 
 /**
- * 遺物・スキル石の説明の行（旧 render/inventoryUi.ts の詳細欄の部品を中身を変えずに移した。docs/ideas/inventory-v2/E-impl.md 2-2）。
- * 床の遺物のツールチップ（render/dropTooltip.ts）と、段 6 の書付（render/sheetUi.ts）が読む
+ * 遺物・スキル石の説明の行（旧 render/inventoryUi.ts の詳細欄の部品を移した。docs/ideas/inventory-v2/E-impl.md 2-2）。
+ * 床の遺物のツールチップ（render/dropTooltip.ts）と書付（render/sheetUi.ts）が読む
  */
+
+/** 色の配合の帯を 1 行として挟む（遺物の色の帯など） */
+export interface DetailBar {
+  bar: readonly ColorBarSegment[];
+}
+
+/** 色分けした片の行（計算式）。片の境目でだけ折り返し、続きの行は字下げする */
+export interface DetailChunks {
+  chunks: readonly FormulaChunk[];
+}
+
+export type DetailLine = TipLine | DetailBar | DetailChunks;
+
+/** 要点と詳しくの区切り（空の行）。wrapTipLines を通さず半行ぶん空ける */
+export const DETAIL_GAP_LINE: TipLine = { text: "", color: COLOR_DIM };
+
+/** 右手の武器の要点に出す、その武器種で選んでいる奥義（選ぶのは書付「体」の奥義の頁） */
+const ULTIMATE_LINE_HEAD = "奥義: ";
+
+/** 武器種を持つ武器なら「奥義: 円月」の行。武器でなければ null */
+export function ultimateTipLine(profile: Readonly<Pick<Profile, "ultimates">>, item: Readonly<Item>): TipLine | null {
+  const moveset = baseDef(item.baseKey)?.moveset;
+  if (moveset === undefined) return null;
+  return { text: `${ULTIMATE_LINE_HEAD}${ultimateChoice(profile, moveset).name}`, color: COLOR_DIM };
+}
 
 const COLOR_SKILL = SKILL.drop.stoneColor;
 /** 武器技の「〇〇専用」（今の武器種で撃てる / 撃てない） */
@@ -50,9 +78,6 @@ export const INNATE_HEAD = "地金: ";
 const INNATE_JOINER = "、";
 /** コストが最大気力を超えて切り詰められたときの注記 */
 const COST_CLAMPED_NOTE = "（上限で切り詰め）";
-/** 旧装備タブの要約の見出し（ジョブ）の高さ（ui/equipmentLayout.ts の SUMMARY_HEAD_H を移した） */
-const SUMMARY_HEAD_H = 12;
-const SECTION_GAP = 3;
 
 function keystoneKeysOf(item: Item): string[] {
   const keys = item.affixes.filter((r) => isKeystoneKey(r.key)).map((r) => r.key);
@@ -68,7 +93,7 @@ function conflictText(names: readonly string[]): string {
  * item を装備した場合（装備中ならそのまま）の誓約の排他衝突のうち、item の誓約が絡むもの。
  * 同じスロットの現装備は置き換わる前提で除外する。
  */
-function conflictLinesFor(state: GameState, item: Item): string[] {
+export function conflictLinesFor(state: Readonly<GameState>, item: Item): string[] {
   const own = keystoneKeysOf(item);
   if (own.length === 0) return [];
   const keys = [...own];
@@ -170,12 +195,6 @@ export function itemDetailLines(state: GameState, item: Item): { lines: TipLine[
 /** 何も乗せていないときの計算式の頁: ステータスごとに参照している行動（テストが欄に収まるかを見る） */
 export function summaryFormulaLines(state: GameState): DetailLine[] {
   return [captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
-}
-
-/** 要約の詳細欄: 見出し（ジョブ）の下から詳細欄の部品で流し込む */
-export function summaryBelowRect(rect: Rect): Rect {
-  const top = rect.y + SUMMARY_HEAD_H + SECTION_GAP;
-  return { x: rect.x, y: top, w: rect.w, h: rect.y + rect.h - top };
 }
 
 // ---------------------------------------------------------------------------

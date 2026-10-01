@@ -3,18 +3,9 @@ import { createGame } from "../core/game";
 import { ARC } from "../data/tuning";
 import { BOONS } from "../system/boonDefs";
 import { BOON_GRADE_LABEL, boonGradeOf } from "../system/boonGrade";
-import { boonRows, buffRows, coreRows, runEffectRows, statusEffectRows } from "./effectsList";
+import { boonRows, coreRows, lineageBoonRows, temperCount } from "./effectsList";
 
-describe("効果の一覧（装備画面のステータスタブ「効果」頁）", () => {
-  it("ラン中は state.player.status に付いている状態異常を残り秒つきで出す", () => {
-    const state = createGame(1);
-    state.player.status.effects.push({ kind: "burn", stacks: 2, time: 3.4, maxTime: 5, potency: 10, source: "player", acc: 0, tick: 0 });
-    const rows = statusEffectRows(state);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.name, "スタックを添える").toBe("燃焼×2");
-    expect(rows[0]?.info, "残り秒").toBe("3.4秒");
-  });
-
+describe("祝福の行（書付「系譜」「祝福」）", () => {
   it("持っている祝福を名前・格・効果の説明つきで出す（芯は除く）", () => {
     const state = createGame(1);
     state.boons.push("emberSeed");
@@ -64,35 +55,20 @@ describe("効果の一覧（装備画面のステータスタブ「効果」頁�
     expect(boonRows(state).some((r) => r.key.includes("coreTempo"))).toBe(false);
   });
 
-  it("一時強化（ダメージ・移動速度・無敵）が掛かっていれば出す", () => {
-    const state = createGame(1);
-    state.player.buffs.damage = { time: 2, mul: 1.5 };
-    state.player.buffs.speed = { time: 1, mul: 1.2 };
-    state.player.buffs.invuln = 0.5;
-    const rows = buffRows(state);
-    expect(rows.map((r) => r.name)).toEqual(["ダメージ強化", "移動速度強化", "無敵"]);
-  });
 
-  it("倍率 1（効果なし）の一時強化は出さない", () => {
+  it("系譜の行はその系譜の札だけで、研鑽の数えを返す", () => {
     const state = createGame(1);
-    state.player.buffs.damage = { time: 2, mul: 1 };
-    expect(buffRows(state)).toHaveLength(0);
-  });
-
-  it("拠点（sandbox）では何も出さない", () => {
-    const state = createGame(1);
-    state.sandbox = true;
-    state.boons.push("emberSeed");
-    state.player.status.effects.push({ kind: "haste", stacks: 1, time: 1, maxTime: 1, potency: 0, source: "player", acc: 0, tick: 0 });
-    expect(runEffectRows(state)).toHaveLength(0);
-  });
-
-  it("ラン中は芯 → 祝福 → 状態異常 → 一時強化の順に並ぶ", () => {
-    const state = createGame(1);
-    state.boons.push("coreTempo", "emberSeed");
-    state.player.status.effects.push({ kind: "haste", stacks: 1, time: 1, maxTime: 1, potency: 0, source: "player", acc: 0, tick: 0 });
-    state.player.buffs.invuln = 1;
-    const rows = runEffectRows(state);
-    expect(rows.map((r) => r.key)).toEqual(["core:coreTempo", "boon:emberSeed", "status:haste", "buff:invuln"]);
+    state.boons.push("ashBlaze", "emberSeed");
+    state.boonRun.tallies.ashBlaze = 7.9;
+    const lineage = BOONS.ashBlaze.lineage;
+    if (lineage === undefined) throw new Error("灰の研鑽に系譜が無い");
+    const keys = lineageBoonRows(state, lineage).map((r) => r.key);
+    expect(keys, "その系譜の札").toContain("boon:ashBlaze");
+    for (const key of keys) {
+      const def = BOONS[key.replace("boon:", "") as keyof typeof BOONS];
+      expect(def.lineage === lineage || def.fusion?.includes(lineage) === true, key).toBe(true);
+    }
+    expect(temperCount(state, BOONS.ashBlaze), "研鑽の数え").toBe(7);
+    expect(temperCount(state, BOONS.emberSeed), "研鑽でない札").toBeNull();
   });
 });
