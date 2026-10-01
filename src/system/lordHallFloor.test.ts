@@ -3,7 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { enemyDef } from "../data/enemies";
-import { ARC } from "../data/tuning";
+import { ARC, ROOM } from "../data/tuning";
 import { createRng } from "../core/rng";
 import { generateItem } from "../loot/generator";
 import { createEmptyProfile } from "../loot/types";
@@ -13,7 +13,7 @@ import { bossEnemy, bossKeyForDepth, isBossDepth } from "./boss";
 import { createHallGame, hallBossKeys } from "./bossHall";
 import { isChapterBossDepth } from "./chapters";
 import { damageEnemy } from "./combat";
-import { buildFloor, updateRooms } from "./floor";
+import { buildFloor, insideRoom, updateRooms } from "./floor";
 import { merchantKindFor } from "./merchants";
 import type { RoomProp } from "./specialRooms";
 import { slayFloorLord, withInput } from "./testHelpers";
@@ -35,6 +35,12 @@ const SNIPE_STEPS = 180;
 const SNIPE_DAMAGE = 1;
 /** 入ったとみなされる深さ（扉から東へのタイル数。部屋の判定は体の縁で見る） */
 const ENTER_DEPTH = 3;
+/** 引き込み先が門の通路の立ち位置から離れてよい距離（タイル。扉を越えて縁の判定ぶん入った所） */
+const SUMMON_REACH = 4;
+/** 狙撃の後、命中の止め（hitstop）が明けて部屋の更新が回るまでに待つ step の上限 */
+const SETTLE_STEPS = 30;
+/** ボス階でない深度（通常の階の階の主） */
+const NORMAL_DEPTH = 3;
 /** 主の座が移る回数の上限（双子の騎士で 2） */
 const MAX_LORDS = 4;
 
@@ -226,26 +232,91 @@ describe("前室の台座の置き場", () => {
   });
 });
 
-describe("封鎖前の狙撃（門の通路から寝ている主を撃つ）", () => {
-  // 設計 9 章の確かめ: 封鎖は主の間に入ったときだけ。外から撃っても封鎖されず、主も寄ってこない（記録は報告へ）
-  it("門の通路から主を撃っても、主の間に入るまでは封鎖しない", () => {
-    const state = bossFloor(BOSS_DEPTHS[0]);
-    const boss = bossEnemy(state);
-    if (!boss) throw new Error("主がいない");
+/** 門の通路の中（主の間の扉のすぐ手前のタイル）の px */
+function gateSpotPx(state: GameState): { x: number; y: number } {
+  const gate = [...hallOf(state).doorTiles].sort((a, b) => a - b)[0] ?? -1;
+  const gx = (gate % state.map.width) - 1;
+  const gy = Math.floor(gate / state.map.width);
+  expect(isGateTile(state, toIndex(state.map, gx, gy)), "門の通路のタイル").toBe(true);
+  return { x: (gx + 0.5) * TILE_SIZE, y: (gy + 0.5) * TILE_SIZE };
+}
+
+/**
+ * 門の通路に立って主を撃ち、命中の止め（hitstop）が明けるまで step を進める。
+ * 最深の主は門柱が立つ間は本体に通らないので、そのときは主の間の門柱を撃つ
+ */
+function snipeFromGate(depth: number, seed = SEED): GameState {
+  const state = bossFloor(depth, seed);
+  const boss = bossEnemy(state);
+  if (!boss) throw new Error("主がいない");
+  state.player.body.pos = gateSpotPx(state);
+  damageEnemy(state, boss, SNIPE_DAMAGE, { x: 1, y: 0 }, 0);
+  if (boss.hp >= boss.maxHp) {
+    const guard = state.enemies.find((e) => e.roomIndex === HALL_ROOM && e !== boss && e.hp > 0);
+    if (!guard) throw new Error("撃てる相手がいない");
+    damageEnemy(state, guard, SNIPE_DAMAGE, { x: 1, y: 0 }, 0);
+  }
+  expect(state.enemies.some((e) => e.roomIndex === HALL_ROOM && e.hp < e.maxHp), "狙撃が通る").toBe(true);
+  for (let i = 0; i < SETTLE_STEPS && !hallOf(state).locked; i++) step(state, withInput({}), FIXED_DT);
+  return state;
+}
+
+describe.each(BOSS_DEPTHS)("封鎖前の狙撃（深度 %i。門の通路から寝ている主を撃つ）", (depth) => {
+  it("主が傷を負うと、プレイヤーを主の間の口の内側へ引き込んで封鎖し、主が起きる", () => {
+    const state = snipeFromGate(depth);
     const hall = hallOf(state);
-    const gate = [...hall.doorTiles].sort((a, b) => a - b)[0] ?? -1;
-    const gx = (gate % state.map.width) - 1;
-    const gy = Math.floor(gate / state.map.width);
-    const spot = { x: (gx + 0.5) * TILE_SIZE, y: (gy + 0.5) * TILE_SIZE };
-    expect(isGateTile(state, toIndex(state.map, gx, gy)), "プレイヤーは門の通路").toBe(true);
-    damageEnemy(state, boss, SNIPE_DAMAGE, { x: 1, y: 0 }, 0);
+    const p = state.player.body.pos;
+    expect(hall.locked, "封鎖").toBe(true);
+    expect(state.boss?.lockedAt, "封鎖の時刻が付く（登場演出・記録の起点）").toBeDefined();
+    expect(insideRoom(state, hall, p.x, p.y, ROOM.enterMargin), "プレイヤーは主の間の中").toBe(true);
+    const gate = gateSpotPx(state);
+    expect(Math.hypot(p.x - gate.x, p.y - gate.y), "引き込み先は口のすぐ内側").toBeLessThanOrEqual(SUMMON_REACH * TILE_SIZE);
+    for (const t of state.lockedTiles) expect(isGateTile(state, t), `塞いだタイル ${t} は門の通路`).toBe(true);
+    step(state, withInput({}), FIXED_DT);
+    expect(bossEnemy(state)?.phase, "主が起きる").not.toBe("idle");
+  });
+
+  it("撃たずに門の通路に立っているだけなら、主の間に入るまで封鎖せず主も寝たまま", () => {
+    const state = bossFloor(depth);
+    const spot = gateSpotPx(state);
     for (let i = 0; i < SNIPE_STEPS; i++) {
-      state.player.invulnTimer = SNIPE_STEPS;
       state.player.body.pos = { ...spot };
       step(state, withInput({}), FIXED_DT);
     }
-    expect(hall.locked, "主の間の外にいるあいだは封鎖しない").toBe(false);
+    expect(hallOf(state).locked, "封鎖しない").toBe(false);
     expect(state.boss?.lockedAt, "封鎖の時刻も付かない").toBeUndefined();
+    expect(bossEnemy(state)?.phase, "主は寝たまま").toBe("idle");
+  });
+});
+
+describe("封鎖前の狙撃の決定性と範囲", () => {
+  it("同じ seed で同じように撃てば、引き込み先・封鎖・乱数の続きが同じ", () => {
+    const run = (): GameState => {
+      const s = snipeFromGate(BOSS_DEPTHS[0]);
+      for (let i = 0; i < SNIPE_STEPS; i++) step(s, withInput({}), FIXED_DT);
+      return s;
+    };
+    const a = run();
+    const b = run();
+    expect(a.player.body.pos).toEqual(b.player.body.pos);
+    expect(a.boss?.lockedAt).toBe(b.boss?.lockedAt);
+    expect(a.enemies.map((e) => [e.id, e.hp, e.body.pos.x, e.body.pos.y])).toEqual(b.enemies.map((e) => [e.id, e.hp, e.body.pos.x, e.body.pos.y]));
+    expect(a.rng.next()).toBe(b.rng.next());
+  });
+
+  it("通常の階の階の主の部屋は、外から撃っても引き込まず封鎖しない（陣の部屋の挙動は変えない）", () => {
+    const state = createGame(SEED);
+    state.depth = NORMAL_DEPTH;
+    buildFloor(state);
+    expect(isBossDepth(NORMAL_DEPTH)).toBe(false);
+    const lord = bossEnemy(state);
+    const index = state.boss?.roomIndex ?? -1;
+    if (!lord) throw new Error("階の主がいない");
+    const before = { ...state.player.body.pos };
+    damageEnemy(state, lord, SNIPE_DAMAGE, { x: 1, y: 0 }, 0);
+    updateRooms(state, FIXED_DT);
+    expect(state.rooms[index]?.locked, "封鎖しない").toBe(false);
+    expect(state.player.body.pos, "プレイヤーは動かない").toEqual(before);
   });
 });
 

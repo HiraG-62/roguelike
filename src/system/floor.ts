@@ -629,6 +629,7 @@ function updateOpenRoom(state: GameState, room: RoomState, index: number): void 
   const p = state.player.body.pos;
   if (!room.engaged) {
     if (insideRoom(state, room, p.x, p.y, ROOM.enterMargin)) enterRoom(state, room, index);
+    else if (lordProvoked(state, index)) summonIntoLordHall(state, room, index);
     else if (!roomLocks(state, index) && roomNoticed(state, index)) engageRoom(state, room, index);
   }
   if (room.cleared || room.locked || !room.engaged) return;
@@ -643,6 +644,58 @@ function roomAlive(state: GameState, index: number): boolean {
 /** 部屋の敵のどれかがプレイヤーに気付いた（idle から抜けた） */
 function roomNoticed(state: GameState, index: number): boolean {
   return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && e.phase !== "idle");
+}
+
+/**
+ * ボス階の主の間が、封鎖前に傷を負ったか（門の通路は主の立つ中央へまっすぐ向くので、入らずに撃てる）。
+ * 主の間の敵は主（と双子の相方）だけで、封鎖前の主の間でプレイヤー以外に主を傷つけるものは無いので、
+ * 「HP が減った」をプレイヤーの攻撃の印にする（combat.ts の被弾の流れに手を入れずに済む）。
+ * 通常の階の階の主（陣の部屋）は対象にしない
+ */
+function lordProvoked(state: GameState, index: number): boolean {
+  const boss = state.boss;
+  if (state.floorLayout !== "lordHall" || !boss || boss.roomIndex !== index || boss.defeated) return false;
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && e.hp < e.maxHp && !isAllied(state, e));
+}
+
+/**
+ * 封鎖前の狙撃への答え: 主の間の外にいるプレイヤーを主の間の口の内側へ引き込み、そのまま封鎖する。
+ * 主を起こして外へ追わせる案は採らない（ボスの技・記録・登場演出はどれも封鎖した主の間の中で戦う前提で、
+ * 外で戦うと封鎖の時刻が付かず記録が残らない・取り巻きや仕掛けが主の間に出る）。寄せ先が無ければ封鎖しない（締め出さない）
+ */
+function summonIntoLordHall(state: GameState, room: RoomState, index: number): void {
+  const to = summonSpot(state, room);
+  if (!to) return;
+  const body = state.player.body;
+  body.pos = to;
+  body.vel = { x: 0, y: 0 };
+  snapCamera(state);
+  lockRoom(state, room, index);
+}
+
+/**
+ * 引き込み先: 部屋に入ったとみなされ（ROOM.enterMargin）、壁・扉・生きた敵に重ならない部屋のタイルの中心のうち、
+ * プレイヤーに一番近いもの（同じ距離は部屋タイルの走査順で先。乱数は使わない）
+ */
+function summonSpot(state: GameState, room: RoomState): { x: number; y: number } | null {
+  const p = state.player.body.pos;
+  const r = state.player.body.radius;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const t of roomTileIndices(state, room)) {
+    const c = tileCenterPx(state, t);
+    const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+    if (d >= bestD || !summonSpotFree(state, room, c.x, c.y, r)) continue;
+    best = c;
+    bestD = d;
+  }
+  return best;
+}
+
+function summonSpotFree(state: GameState, room: RoomState, x: number, y: number, r: number): boolean {
+  if (!insideRoom(state, room, x, y, ROOM.enterMargin)) return false;
+  if (overlapsWall(state, x, y, r) || circleOnDoorTiles(state, room, x, y, r)) return false;
+  return !state.enemies.some((e) => e.hp > 0 && circlesOverlap(x, y, r, e.body.pos.x, e.body.pos.y, e.body.radius));
 }
 
 /**
