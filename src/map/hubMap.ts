@@ -5,11 +5,33 @@ import { type GameMap, type Rect, TILE_SIZE, Tile, createMap, setTile } from "./
 export const HUB_SPOT_KEYS = ["well", "board", "forge", "library", "altar", "garden", "history", "codex", "achievements", "rack", "hall"] as const;
 export type HubSpotKey = (typeof HUB_SPOT_KEYS)[number];
 
+/**
+ * 門前町の敷地（建物・区画）。当たりでは壁、見た目用の地図 ground では床（docs/ideas/hub-town-impl.md 3 章）。
+ * shrine = 社（祭壇）/ hall = 御堂（ボスの間）/ archive = 記録の蔵 / rackShed = 武器小屋 / yard = 稽古場（訓練場。当たりは床）
+ */
+export const HUB_LOT_KEYS = ["shrine", "hall", "forge", "library", "well", "board", "archive", "garden", "rackShed", "yard"] as const;
+export type HubLotKey = (typeof HUB_LOT_KEYS)[number];
+
 export interface HubLayout {
+  /** 当たりの地図（敷地・灯籠・鳥居の柱は壁） */
   map: GameMap;
+  /** 見た目用の地図（敷地・灯籠・鳥居の柱を床にした写し）。迷宮のチャンク焼き付けに渡す */
+  ground: GameMap;
   spots: Readonly<Record<HubSpotKey, Vec>>;
   dummySpots: readonly Vec[];
   playerStart: Vec;
+  /** 敷地の矩形（タイル）。建物の絵の置き場所 */
+  lots: Readonly<Record<HubLotKey, Rect>>;
+  /** 鳥居の絵を掛ける矩形（タイル） */
+  gate: Rect;
+  /** 石段（出撃の口）。プレイヤーが入ると出撃する矩形（タイル） */
+  gateZone: Rect;
+  /** 参道・辻の石畳の矩形（タイル。見た目だけで当たりは床） */
+  roads: readonly Rect[];
+  /** 参道の灯籠を置く点（px。進行で前から順に灯籠が増える。当たりは無い） */
+  lanternSlots: readonly Vec[];
+  /** 賑わいの小物（樽・荷車・洗濯物・猫）を置く点（px。前から順に使う） */
+  clutterSlots: readonly Vec[];
 }
 
 /**
@@ -81,7 +103,22 @@ export function buildHubMap(): HubLayout {
   // 1 部屋 = 外周の壁を除いた 1 つの矩形
   const room: Rect = { x: 1, y: 1, w: width - 2, h: height - 2 };
   map.rooms = [room];
-  return { map, spots: completeSpots(spots), dummySpots, playerStart: playerStart ?? tileCenterPx(room.x, room.y) };
+  // 段 0 の仮置き: 門前町の配置（レーン A）が入るまで、敷地・門・道は空
+  const none: Rect = { x: 0, y: 0, w: 0, h: 0 };
+  const lots = Object.fromEntries(HUB_LOT_KEYS.map((k) => [k, none])) as Record<HubLotKey, Rect>;
+  return {
+    map,
+    ground: map,
+    spots: completeSpots(spots),
+    dummySpots,
+    playerStart: playerStart ?? tileCenterPx(room.x, room.y),
+    lots,
+    gate: none,
+    gateZone: none,
+    roads: [],
+    lanternSlots: [],
+    clutterSlots: [],
+  };
 }
 
 /** 配置表の書き漏れはテストで気付けるよう throw する */

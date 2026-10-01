@@ -7,8 +7,9 @@ import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { HUB } from "../data/tuning";
-import type { HubSpotKey } from "../map/hubMap";
+import type { HubLayout, HubSpotKey } from "../map/hubMap";
 import { FACILITY_NAME, FACILITY_OF_SPOT, type HubDecor } from "../meta/hub";
+import type { TownLook } from "../meta/townLook";
 import { KEYSTONE_NAME } from "../system/keystones";
 import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_PANEL_BG, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, drawTextShadow, textLineHeight, textWidth, truncateText } from "./pixelText";
@@ -23,6 +24,8 @@ export interface HubSpotsView {
   spots: Readonly<Record<HubSpotKey, Vec>>;
   available: ReadonlySet<HubSpotKey>;
   near: HubSpotKey | null;
+  /** 門前町の配置と景色（docs/ideas/hub-town-impl.md）。無ければ旧来の 1 部屋の描画 */
+  town?: { layout: HubLayout; look: TownLook };
 }
 
 export interface HubView extends HubSpotsView {
