@@ -65,7 +65,7 @@ export const WEB_HELP: readonly { text: string; color: string }[] = [
   { text: "寒色の点滅 = 枯れ（糧だけで源がない）", color: STATE_COLOR.hunger },
   { text: "右下の数 = 源の数 / 糧の数", color: COLOR_DIM },
   { text: "名前の色: 遺物 / 装備全体 / スキル石 / 祝福", color: COLOR_DIM },
-  { text: "グリッドの下: 共鳴している語と段", color: COLOR_DIM },
+  { text: "グリッドの下: 共鳴している流れと段", color: COLOR_DIM },
 ];
 
 export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, ui: SynergyPanelUi): void {
@@ -89,7 +89,7 @@ function drawResonanceLines(ctx: CanvasRenderingContext2D, lines: readonly strin
     drawText(ctx, truncateText(text, r.w, m), r.x, y, m, COLOR_RESONANCE);
     y += lineH;
   }
-  if (shown.length < lines.length) drawText(ctx, `ほか ${lines.length - shown.length} 語`, r.x, y, m, COLOR_DIM);
+  if (shown.length < lines.length) drawText(ctx, `ほか ${lines.length - shown.length} 件`, r.x, y, m, COLOR_DIM);
 }
 
 function hungerAlpha(time: number): number {

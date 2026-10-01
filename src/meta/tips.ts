@@ -172,10 +172,10 @@ const RELIC_TIPS: readonly TipDef[] = [
     term: "共鳴",
     category: "relic",
     body:
-      `同じ語（燃焼・近接など）の源が ${RESONANCE.minSources} つ以上、糧が ${RESONANCE.minSinks} つ以上そろうと、その語が共鳴して段が立つ。` +
+      `同じ流れ（燃焼・近接など）の源が ${RESONANCE.minSources} つ以上、糧が ${RESONANCE.minSinks} つ以上そろうと、その流れが共鳴して段が立つ。` +
       "遺物・スキル石・祝福・流儀・武器の型・改鋳・誓約をそれぞれ 1 つと数える。" +
       `源と糧が増えるほど、強めるものがあるほど段が上がる（上限 ${RESONANCE.maxSteps}）。` +
-      "段ごとにその語の与ダメージが伸びる（ダッシュ・見切り・気力・回復・障壁は、その性能が伸びる）。",
+      "段ごとにその流れの与ダメージが伸びる（ダッシュ・見切り・気力・回復・障壁は、その性能が伸びる）。",
   },
   { key: "colorless", term: "無色", category: "relic", body: "旧い遺物に残る、脱色された性質。色を持たない。" },
   { key: "provenance", term: "来歴", category: "relic", body: "装備している間に起きた出来事の記録。節目に達すると芽が出る。" },

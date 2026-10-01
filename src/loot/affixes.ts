@@ -2421,7 +2421,7 @@ export const IMPLICITS: readonly ImplicitDef[] = [
   },
   {
     key: "implicit.twinRing",
-    label: "源か糧があと 1 つ足りない共鳴の語 {v} つが 1 段で成立",
+    label: "源か糧があと 1 つ足りない流れ {v} つが 1 段で共鳴",
     range: { min: 1, max: 2 },
     // 効くのは system/resonance.ts の resonanceEaseOf（共鳴の数え直しが読む）。stats には畳まない。
     // 旧セーブの遺物は昔の値（2〜4）を持つので、読む側が RESONANCE.ringEaseMax で切る
