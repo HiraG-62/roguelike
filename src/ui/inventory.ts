@@ -224,8 +224,9 @@ function skillKeyFocus(ui: InventoryUi, view: MenuView, hits: readonly MenuHit[]
   const keys = [input.skill1Pressed, input.skill2Pressed, input.skill3Pressed, input.skill4Pressed];
   const i = keys.findIndex((on) => on);
   if (i < 0) return;
-  const id = fid.stone(i);
-  if (hits.some((h) => h.id === id)) setFocus(ui, view, id);
+  // 符の持ち上げ中は石の当たりが無く、置き先の列（fid.col）に焦点を移す
+  const id = [fid.stone(i), fid.col(i)].find((cand) => hits.some((h) => h.id === cand));
+  if (id !== undefined) setFocus(ui, view, id);
 }
 
 /** 長押しを続ける。0.6 秒で hold、先に離せば act。終わったら true */
