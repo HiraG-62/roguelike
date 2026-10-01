@@ -94,6 +94,7 @@ export type MenuAct =
   | { kind: "sheetPage"; page: number }
   | { kind: "chooseUltimate"; index: number }
   | { kind: "stepMoveset"; dir: -1 | 1 }
+  | { kind: "anvilPage"; dir: -1 | 1 }
   | { kind: "anvilPart"; slot: Slot }
   | { kind: "forgeSubject"; itemId: string }
   | { kind: "forgeOp"; op: EchoOp }
