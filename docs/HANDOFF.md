@@ -1,8 +1,38 @@
-# 引き継ぎ（2026-09-30 時点、0.0.15α + [Unreleased]）
+# 引き継ぎ（2026-10-01 時点、0.0.15α + [Unreleased]）
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
-## 1. 現在地
+## 1. 現在地（2026-10-01 夜。ローカルセッションへの引き継ぎ）
+
+- ブランチ `claude/ecstatic-galileo-ieczys`（push 済み。master より約 250 コミット先、master 側の新しいコミットは無い）。PR はこの引き継ぎと一緒に新しく作る（前の PR #31 はマージせず閉じた）。`npm run check` 通過（テスト 7,316 件）。`REPLAY_VERSION` 34。版は 0.0.15α のまま（**[Unreleased] に大きな変更が溜まっている**）
+- ローカルで始めるとき: `git fetch origin && git switch claude/ecstatic-galileo-ieczys`（または PR をマージした master）→ `npm ci` → `npm run check`。Electron のセーブは `%APPDATA%\BOKUEN`（旧 `%APPDATA%\DEPTHBREAKER` は読まれない。移行コードは作らない方針）
+- 2026-10-01 にやったこと（詳細は `CHANGELOG.md` の [Unreleased]）
+  - **ゲーム名「墨淵（ぼくえん）/ BOKUEN」とタイトル画面「門」**（`docs/ideas/title-ideas.md`）: 題字は Yuji Boku を点にした密度 2 の絵（`scripts/title/gen-logo.mjs` で再生成。フォント本体はリポジトリに入れない）。メニュー 4 項目 + 記録の下の階層・石碑・開始の演出。タブ・Electron の製品名とセーブのフォルダも新名
+  - **マップの生成**（`docs/ideas/map-gen-impl.md` / `lordhall-design.md`）: 階の型 8 種（cavern / river / ring / court / drunk / isle / terrace / prefab）を階ごとに抽選・穴 `Tile.Pit`・ボス階は専用の部屋（入口 → 前室 → 主の間、封鎖前に主を撃つと引き込み）
+  - **マップの見た目 C 案**（`docs/ideas/map-visual-impl.md`。段 0〜3 すべて実装）: 迷宮の床・壁・穴を 16x16 マスのチャンクごとに密度 2 で焼く（`render/mapBake.ts` / `mapChunks.ts`）・章の様式 × バイオーム（`mapTheme.ts` / `data/mapThemes.ts`）・dual-grid の地形（`terrainTex.ts`）・置物 16 種と飾り（`data/sprites/mapProps.ts` / `render/mapDecor.ts`）・地図だけの暗がりと光（`mapLight.ts`、`feel/MAP_LIGHT.json`）・南の壁の手前の縁（`frontLip.ts`）・弾を自分の上へ・封鎖の扉の結界・ミニマップ。拠点は旧来の絵のまま。旧 9 バイオームの再配色タイルは削除
+  - **装備画面「装束と紋」**（`docs/ideas/inventory-v2/E-merged.md` / `E-impl.md`）: 頁の積み重ね・装束・候補・紋・系統・書付・金床の構え
+  - プレイの指摘: ジョブの説明・Tips・棍の戦意（先端判定）・書の作り直し（開いた本・墨印 `system/inkMark.ts`・文字の刃）・爪の待機中に手前の爪が隠れる（`Stance.restFront`）・闇市の反転・書付「体」の内訳の頁
+- 確認の道具: `npm run map:shot`（地図の見た目を 14 場面撮る。`-- --bench` で描画の ms。Playwright は `npm root -g` か `PLAYWRIGHT_MODULE`、Chromium は環境に合わせて `PLAYWRIGHT_BROWSERS_PATH`）。ミニマップは探索ログが空なので撮影では確かめられない
+- 計測（headless Chromium のソフトウェア描画）: 迷宮の 1 フレーム約 10〜15ms（拠点 5.6ms）。地図そのものは約 0.1ms で、光の層が約 3ms。**実機（GPU）でまだ測っていない**
+- 最新のフル QA（`src/qa/report.md`、2026-10-01）: 例外なし・壁めり込み 1 件・踏破率 3%（目標 5〜15%）。階の生成が平均 43〜97ms・最大 1〜1.9 秒（並行作業で CPU が混んでいた時の値）。連打計測の武器種の節（`src/qa/probe.md`）に書を含む 27 種
+
+### 次にやること（推奨順。ユーザーに提示済み）
+
+1. **実機で遊んで重さと見た目を確かめる**（GPU のある環境での描画の ms。重ければ `mapLight.ts` の暗がりの全画面合成を詰める）
+2. **階の生成時間の測り直し**: 静かな状態で `buildFloor` を型ごとに測る（`src/qa/layoutMetrics.ts`、フル QA の「階の型ごとの計測」）。目標は平均 40ms・最大 80ms。重い型は `map/layout/shapes.ts` の `caStep` / `tidy` / `connectAll` と finalize / validate
+3. **版を上げる**: `node scripts/bump.mjs patch`（0.0.16α）。[Unreleased] が大きいので 1 と 2 の後に
+4. 深さによる敵の数の差（深度 1〜3 で目標の約 −20%、16〜19 で +31%。`JIN.tilesPerJin` / `maxJins`。40 本以上のテストが敵数を前提にしているので一緒に直す）
+5. 小さめ: 階段を章ごとの絵に（置物の絵の続き）/ 縁を描き直す矩形の端で床の汚しが少し切れる（`frontLip.ts` / `mapDecor.ts`、全体の 1〜1.5% の点）/ 章 2 の封鎖の扉は差し色も赤で外周が目立ちにくい
+6. 未定・後の段: 墓標の間（探索履歴の作り直し、タイトルの案 C）/ 拠点の見た目（門前町）/ 深みの主の作り直し（ユーザー「まだいい」）
+
+### ユーザーの決定（2026-10-01）
+
+- タイトル: 案 A「門」・名前「墨淵 / BOKUEN」（DEPTHBREAKER は英題としても残さない）・題字は墨書きを密度 2 で
+- マップの見た目: 「全部推奨で」（章 4 の壁は床から 1.5 マスを崖の天面にして奥だけ奈落・拠点は門前町の段まで今の絵）・逆さの鳥居は金のまま
+- 書の火力は今のまま・墨印は推奨の仕様のまま
+- 開発段階なので旧データからの移行・互換は作らない
+
+## 1-旧. 2026-09-30 時点の現在地（段取り 1〜10）
 
 - ブランチ `claude/ecstatic-galileo-ieczys`（push 済み）。`npm run check` 通過。`REPLAY_VERSION` 33。ユーザーの「まとまった案をどんどん進めて」「進められる限り自走して」を受け、`docs/ideas/core-synthesis.md` 9 章の段取り **1〜10 を全部実装した**（2026-09-30）。仕上げで、性能（共鳴の数え直しを省く）・QA の bot の進み方（封鎖 → 階の主 → 階段）・封鎖の詰み（届かない側の敵を寄せる・塊の部屋の袋を扉にしない）・章ボス 4 体の生命と 1 発を直した。**残り: 深みのボス 5 体の作り直し（別の段「深みの主」）・マップの一新とインベントリの一新（構想と見本まで。下の 2 章）**
   - 段取り 1 計測: `npm run qa:probe`（1 対 1 / 集団 / 武器種 × 敵 `-- --weapons` / 深度 1〜20 / 地力 ÷ 敵の生命）、フル QA に戦闘の基準・陣・深度帯別の表
@@ -23,34 +53,11 @@
 - 統合役が推奨で決めたこと（ユーザーに報告済み・変更可）: 受け流しのキー R・扇子は軽・格「猛」・第 2 波「後詰」・武器種 27 は残して型を上に足す・得意武器と弱点の削除・短銃の装填・陰陽師と巫女は既定で解放・剣の戦意は「応報」（刀の「返し」と衝突）・書と手鈴の武器種の key は `book` / `handbell`・欠片を銭に改名（`state.economy.coins`）・寄進は hub.v1 の任意項目・商人を襲うと値段 2 倍・章ボス 5 スライム王 / 10 盗賊王 / 15 油壺の王 / 20 鏡の騎士・瓶は B / 5 / 十字上・旅商人（契約者の行商と衝突）・賭けの速攻 / 凌ぎ・祝福「拾銭」
 - 段取り 7 で統合役が推奨で決めたこと（`boon-impl.md` 冒頭の表。永続データを消す 3 件は確認済み）: 系譜名 輪廻 / 眷属 / 財宝・格 4・5 は至高 / 極致・札の 4 段目は表示「真髄」（状態異常の昇華と衝突するため。key は `apex`）・3 枠目は真髄と名のある遺物の 2 つだけ・芯は 8 → 4・手持ちの刻印符は消す・武器技の石は共通技へ写す
 
-## 1-旧. 2026-09-26 時点の現在地
-
-- ブランチ `feat/memo-20260926-1`（ローカル、未 push）。`npm run check` 通過。`REPLAY_VERSION` 12。memo `memo/20260926-1.md` の全項目を実装した（2026-09-26）
-  - 装備: 部位「頭」（内部 `head`、鎧→体・靴→足は表示名だけ）、地金（`Item.innate`、`loot/innate.ts`、`INNATE/`）、ステータス「防御」`def`（防御力 +1・魔防 +0.5 / 点、盾・恨み返しなどに係数）、ステータスタブに耐性 2 行と「効果」の頁
-  - マップ: 毎階の「階の主」（`system/floorLord.ts`、`BossState.major`）、ボス階を 5 の倍数に（`BOSS.interval`）、降階で減った生命の 35% 回復、隠し部屋（`system/hiddenRoom.ts` / `map/hidden.ts`）、通路への徘徊の初期配置と敵数の増加（`populateCorridors`、深度 1 で約 180 体）
-  - 武器: 投擲の通常の投げを遅く、杖の右の氷の猶予を延長（`chainWindow`）、投擲の奥義「手返しの理」→「早業」、投げる技で武器の絵が飛ぶ（`render/thrownLook.ts`）
-  - その他: Tips ノートの武器種タブ（`meta/weaponTips.ts`）、斬撃と鞭の効果音（鞭は `hitLash*`）
-- フル QA（2026-09-26、`src/qa/report.md`）: 例外・NaN なし。1 step 0.19 → 0.22ms。深度 1 の死亡割合 45% → 58%（階の主 + 敵の増量）。隠し部屋の開放 4/51 階。拾った rare が 15% → 6.5%（到達深度の低下との相関か未確認）。フル QA は約 25 分
-- 保留（ユーザーの判断待ち）: 刻印符をランごとにリセットするか、装備が盛りやすくなったことでローグライク性が弱まる懸念への追加の抑え（今は地金の深度別の上限 `INNATE.hardCap` だけ）
-
-## 1-旧. 2026-09-25 時点の現在地
-
-- ブランチ `claude/busy-shannon-flfsgk`（push 済み、PR は未作成）。`npm run check` 通過（テスト約 4,920 件）。版はまだ上げていない（CHANGELOG の [Unreleased] に全部ある）
-- memo `memo/20260925-2.md` の全項目を実装した（2026-09-25 夜〜）
-  - バランス JSON を `src/data/balance/<分野>/<ブロック>/…` に細分化（919 ファイル。`npm run balance:gen` で組み立てを再生成。docs/BALANCE.md「ファイルの配置」）
-  - 戦闘: 奥義ゲージを「1 秒ぶんの振りで溜まる量」に統一・銃弾でも溜まる・奥義ごとの `cost`、持続奥義 3 件の修正（詠唱・鉄槌の律・火薬庫→零距離）、円環の理を周回弾（`BulletDef.orbit`）、投擲の呼び戻しの追尾と減速、擲弾の派生の曲射のカーソル距離、コンボ派生を「実際に出た段」で判定（`REPLAY_VERSION` 10）、ヒットストップ設定の即時反映（0〜200）
-  - 火力: 近接の段に一律 ×0.6（`WEAPON.meleeDamageScale`、係数ごと下げるので 1 点あたりの伸び率は同じ）、銃弾 8 種に参照先、素手（拳の型 ×0.7、`stats.unarmed`）、敵 HP の深度倍率を JSON へ
-  - 武器: 新武器種 4 種（爪 claws / チェーンアレイ flail / チャクラム ringBlades / 扇子 fan。設計 `docs/ideas/weapons-wave4.md`）と杖の魔法化（左 = 炎・右 = 氷・混ぜると雷 / 毒 / 渦 / 光 / 闇）。共通の仕組み cast / applies / look / leaves / orbit / cutsBullets / spinning（`system/weaponMechanics.test.ts`）
-  - UI: 一覧のホイールは表示だけ送る、設定のゲージ（0〜100、ドラッグ可）、拠点の台を world 層へ、武器掛けをカード格子 + 資源の調整欄、装備画面にステータスタブ（奥義の選び場。拠点のみ）・頁送り・破壊操作の 2 段階確認、装備名の下を武器種名に、キー表記を `keyLabel` で、説明文を削って Tips ノート（`meta/tips.ts`、96 項目、タイトル T / ポーズから）
-  - マップ: 通常階の面積を 3.5〜5 倍でランダム（`world/MAP_SIZE.json`）、遠くの idle の敵は眠る（`isAsleep`、`ROAM.sleepDist`）、押し合いは升目
-  - 命中音: 斬撃 / 打撃 / 刺突 × 軽・中・重の 9 種
-- フル QA（2026-09-25 13:02、`src/qa/report.md`）: 例外・NaN・壁めり込みなし。**平均到達深度 2.9〜3.3 → 1.1〜2.6** に下がった（深度 1〜2 の滞在が約 2.5 倍、死因最多が深度 1 に前倒し、素手の起点が最も落ちた）。1 step 0.11 → 0.19ms。スキル由来与ダメ比率 53.6%（目標 55〜65% を下回った）。濡れ・浸水・油膜の付与が 2〜3.6 倍（地形の踏み込みは横ばいなので攻撃側の付与。原因未切り分け）
-
 ## 2. 次の候補
 
-- **2026-10-01 階の型 8 種の結線の積み残し**: 型の地図は生成直後の敵が旧生成の約 1.6 倍（部屋が増えるため。`JIN.tilesPerJin` / `maxJins` を balance-tuner で）。`buildFloor` は drunk 106ms・river 85ms・cavern 68ms が重い（`shapes.ts` の `caStep` / `tidy` / `connectAll` と finalize / validate を速くする候補。各型のレーンが「shapes へ移す候補」を出している: `fillPinches`・`riverField`・`coreDistance` など）。QA bot の `crossesPit`（L7）とフル QA の型別の表は未
+- **2026-10-01 階の型 8 種の結線の積み残し**: 敵の数の深度帯の差と階の生成時間は「1. 現在地」の「次にやること」へ移した
 - **マップの一新**: 生成（階の型 8 種・ボス階の専用の部屋）と見た目（C 案: 密度 2 のチャンク焼き付け・dual-grid の地形・章の様式 × バイオーム・置物・光と暗がり・手前の縁・封鎖の扉）は **2026-10-01 に実装済み**（`docs/ideas/map-gen-impl.md` / `map-visual-impl.md`）。残りは階段の章別の絵と拠点（門前町の段）。見た目の確認は `npm run map:shot`。描画はソフトウェア描画の headless で迷宮 1 フレーム約 10〜15ms（光の層が約 3ms）なので、重いと感じたら光の層を詰める
-- **インベントリの一新**（2026-10-01 作り直し: `docs/ideas/inventory-v2/` の 4 案、見本 `docs/ideas/previews/inv2/index.html`）: 前の旅装案はユーザーが「根本的でない・情報量が多すぎる」として見送り。A 決める瞬間（判断を床・階の切れ目・拠点の台・ランの終わりへ。ラン中の倉庫の付け替えを捨てる）/ B 物として置く（影法師の体 + 荷札 1 枚。絵 約 80 枚）/ C 一つずつ（札 1 枚を繰る。1 画面 7 行）/ D ビルドの形から引く（系統の紋）。ユーザーは A・B・D を評価 → **統合案 E「装束と紋」**（`inventory-v2/E-merged.md`、見本 `previews/inv2/E.html`）。装束 = 体の周りの 6 部位と腰の石から選び、右に紋の写し / 紋 = D の帯と珠。ラン中の倉庫の付け替えは今のまま。**E の聞くこと 5 件の回答待ち**
+- **インベントリの一新**: 統合案 E「装束と紋」を 2026-10-01 に実装済み（`docs/ideas/inventory-v2/E-merged.md` / `E-impl.md`）。A〜D の案と見本 `docs/ideas/previews/inv2/` は経緯として残す
 - **別の段「深みの主」**: 深みの回転のボス 5 体の作り直し。最深の主は bot が 5 戦全部で負け、第 1 段階（四門）に 95% の時間
 - **新要素の絵が仮のもの**（2026-09-30 の洗い出し）: 章の市・行商・闇市の商人は色違い、章ボスの新しい技・共通技・ダッシュの形・応手と終撃は汎用の輪・粒子・文字、ボスの間は封印の台と同じタイル、地上への道・商人の品の台座・盗賊王の柵・踏破の碑は図形か文字、型 15・祝福・名のある遺物・誓約・状態「傷」のアイコンは漢字 1 字
 
@@ -99,12 +106,12 @@
 - 6 本並列だと load average が 10〜20 になり、`replay.test.ts` / `qa/simulation.test.ts` が負荷でタイムアウトして見かけ上失敗する。各レーンには「他レーン起因の失敗と負荷のタイムアウトは報告だけ」と伝え、統合役が負荷の下がった後に `npm run check`
 - **新しい敵・修飾子・部屋を足すと seed 依存のテストが落ちる**（抽選がずれる）。今回は runEvents / roomTypes / specialRooms の 4 件を「敵の生命を十分にする」「交戦フラグを解く」「台座から最も遠い隅へ離れる」の形で堅牢化した。seed を変えるより、テストの意図を守る形で直す
 - QA は必ず **隔離 worktree**（`git worktree add <scratchpad>/wt-qa <commit>` → `node_modules` は前回の worktree からコピー → `npm run qa:full`）。本体で回すと他レーンの未コミット変更が混ざる。生成された report.md は統合役が本体へコピーする
-- 統合役は `git add -A -- . ':!.gitignore'` でコミット。1 バッチ 1 コミットで CHANGELOG の `[Unreleased]` に要点を書く。docs の更新は別コミット
+- 統合役は所有ファイルを `git add <path>` で足してコミット（`git add -A` は使わない。CLAUDE.md）。1 論理変更 1 コミットで CHANGELOG の `[Unreleased]` に要点を書く。2026-10-01 は並行のレーンを `isolation: worktree` で動かし、worktree の差分を本体へ 3-way で当てて（`git -C <wt> diff --binary | git apply --3way` + 新規ファイルの複写）統合した。worktree は古い基点から始まることがあるので、レーンの最初に `git reset --hard <ブランチ>` させる
 - コミット: `git -c user.name="Horry" -c user.email="hira6291gi@gmail.com" commit -m "<type>: <日本語>"` + セッションの指示にある `Co-Authored-By` / `Claude-Session` の行（モデル名はセッションごとに変わるので固定で書かない）。push はそのセッションの作業ブランチへ `git push -u origin <branch>`。**タグの push はこの環境では 403 で拒否される**（remote に過去のタグも無い）。タグはローカルだけに残し、ブランチだけ push する
 - **クラウドセッション**: ユーザーの共通ルールと自動メモリは `.claude/global/`（`CLAUDE.md` が @import）。ローカルで memory を変えたら `npm run sync:claude` で写してコミットする。クラウド側で覚えるべきことが出たらこの HANDOFF に書く（memory は編集しない）
 - 事故と対処: node_modules が無ければ `npm install`。エージェントの一時ファイルが `src/` に残ったら `git status --short` で見つけて消す。`src/qa/simulation.test.ts` の差分は目視する
 
-## 4. 次にやる候補（優先順）
+## 4. 前からある候補（2026-09 からの残り。マップと戦闘を入れ替えた後なので、測り直してから要否を決める）
 
 1. **0.0.11α QA の未解決項目**（`src/qa/report.md` 末尾の調査メモ参照）
    - ドロップ率 79.8%（0.0.7α 比。目標 60〜70%）。深度 3 以降だけ絞ったが深度 1〜2 の到達率が 97% なので効きが薄い。次は `LOOT_DROP.mobDropMulByDepth` / `roomClearChanceByDepth` を全深度で薄く絞る
