@@ -6,7 +6,7 @@ import { Tile, TILE_SIZE, createMap, type Rect } from "../map/grid";
 import { HUB_LOT_KEYS, HUB_SPOT_KEYS, type HubLayout, type HubLotKey, type HubSpotKey } from "../map/hubMap";
 import { FACILITY_KEYS, FACILITY_NAME, FACILITY_OF_LOT, type FacilityKey } from "../meta/hub";
 import type { TownLook } from "../meta/townLook";
-import type { TownObjectKind } from "./townArt";
+import { type TownObjectKind, townObjectGlows } from "./townArt";
 import {
   ROAD_DOTS_PER_FRAME,
   TOWN_ART_PER_FRAME,
@@ -33,6 +33,15 @@ const art = { real: false };
 vi.mock("./townArt", () => ({
   townObjectPixels: (_kind: TownObjectKind) =>
     art.real ? { w: 4, h: 6, anchor: { x: 2, y: 6 }, pixels: new Uint32Array(24).fill(0xff0000ff) } : { w: 1, h: 1, anchor: { x: 0, y: 0 }, pixels: new Uint32Array(1) },
+  // 灯の点の差し替え: 鳥居は石段の奥 1、建った鍛冶屋は提灯 2、建った蔵は窓 5、灯籠は火袋 1、ほかは無し
+  townObjectGlows: (kind: TownObjectKind) => {
+    if (kind.type === "torii") return [{ x: 2, y: 3, kind: "gate" }];
+    if (kind.type === "lantern") return [{ x: 2, y: 2, kind: "lantern" }];
+    if (kind.type !== "lot" || !kind.built) return [];
+    if (kind.lot === "forge") return [{ x: 1, y: 2, kind: "lantern" }, { x: 3, y: 2, kind: "lantern" }];
+    if (kind.lot === "archive") return [0, 1, 2, 3, 4].map((i) => ({ x: i, y: 3, kind: "window" }));
+    return [];
+  },
 }));
 
 const T = TILE_SIZE;
@@ -281,21 +290,26 @@ describe("buildTownLabels（名札）", () => {
 
 describe("buildTownGlows（発光）", () => {
   const layout = fixtureLayout();
+  const glowsOf = (kind: TownObjectKind): number => townObjectGlows(kind).length;
 
-  it("建っていない建物は光らない。建った建物は軒の提灯 2 つ（幅の狭い敷地は 1 つ）。井戸は光らない", () => {
-    expect(buildTownGlows(layout, look()).length, "何も建っていなければ石段の奥の灯だけ").toBe(1);
-    const built = buildTownGlows(layout, look({ built: new Set<FacilityKey>(["forge"]) }));
-    const eaves = built.filter((g) => g.x >= LOTS.forge.x * T && g.x <= (LOTS.forge.x + LOTS.forge.w) * T && g.y < (LOTS.forge.y + LOTS.forge.h) * T);
-    expect(eaves.length, "鍛冶屋の提灯").toBe(2);
-    const board = buildTownGlows(layout, look({ built: new Set<FacilityKey>(["board"]) }));
-    expect(board.length - buildTownGlows(layout, look()).length, "高札（幅 2）は提灯 1").toBe(1);
+  it("灯は絵が返す灯の点から。建っていない建物・井戸は光らず、何も無ければ石段の奥の灯だけ", () => {
+    const base = buildTownGlows(layout, look());
+    expect(base.length, "鳥居の灯の点の数").toBe(glowsOf({ type: "torii" }));
+    const forge = buildTownGlows(layout, look({ built: new Set<FacilityKey>(["forge"]) }));
+    expect(forge.length - base.length, "鍛冶屋の絵の灯の点の数").toBe(glowsOf({ type: "lot", lot: "forge", built: true }));
+    expect(glowsOf({ type: "lot", lot: "forge", built: true }), "鍛冶屋には灯がある").toBeGreaterThan(0);
+    const added = forge.filter((g) => !base.some((b) => b.x === g.x && b.y === g.y));
+    for (const g of added) {
+      expect(g.x, "鍛冶屋の灯は敷地の横幅の中").toBeGreaterThanOrEqual(LOTS.forge.x * T);
+      expect(g.x).toBeLessThanOrEqual((LOTS.forge.x + LOTS.forge.w) * T);
+    }
     const well = buildTownGlows(layout, look({ built: new Set<FacilityKey>(["well"]) }));
-    expect(well.length, "井戸は光らない").toBe(buildTownGlows(layout, look()).length);
+    expect(well.length, "井戸は光らない").toBe(base.length);
   });
 
-  it("参道の灯籠は灯籠の数だけ、御堂の篝火は hallLit のときだけ 2 つ増える", () => {
+  it("参道の灯籠は 1 基ごとに灯籠の絵の灯の数だけ、御堂の篝火は hallLit のときだけ 2 つ増える", () => {
     const base = buildTownGlows(layout, look()).length;
-    expect(buildTownGlows(layout, look({ lanterns: 4 })).length - base).toBe(4);
+    expect(buildTownGlows(layout, look({ lanterns: 4 })).length - base).toBe(4 * glowsOf({ type: "lantern" }));
     expect(buildTownGlows(layout, look({ hallLit: true })).length - base).toBe(2);
   });
 
@@ -304,7 +318,6 @@ describe("buildTownGlows（発光）", () => {
     expect(new Set([1, 2, 3, 4].map(gate)).size, "章 1〜4 で色が違う").toBe(4);
     expect(gate(99), "範囲外は最後の色").toBe(gate(4));
   });
-
   it("位相は座標のハッシュ（同じ配置なら同じ）で、揺らぎは 0.8〜1 の範囲を time で往復する", () => {
     const a = buildTownGlows(layout, look({ lanterns: 3 }));
     const b = buildTownGlows(layout, look({ lanterns: 3 }));
@@ -315,6 +328,13 @@ describe("buildTownGlows（発光）", () => {
       expect(f).toBeGreaterThanOrEqual(0.8);
     }
     expect(glowFlicker(0, 0)).not.toBe(glowFlicker(0.4, 0));
+  });
+
+  it("記録の蔵の窓は左から archiveLights 個だけ灯る", () => {
+    const built = new Set<FacilityKey>(["archive"]);
+    const none = buildTownGlows(layout, look({ built, archiveLights: 0 })).length;
+    const two = buildTownGlows(layout, look({ built, archiveLights: 2 })).length;
+    expect(two - none).toBe(2);
   });
 });
 

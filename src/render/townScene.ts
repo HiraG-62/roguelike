@@ -19,7 +19,7 @@ import { hf } from "./mapNoise";
 import { hexColor, mixColor, townRoadTheme } from "./mapTheme";
 import { MAP_DOTS, TILE_DOTS } from "./mapTypes";
 import { TEXT, drawTextShadow } from "./pixelText";
-import { type TownObjectKind, type TownPixels, townObjectPixels } from "./townArt";
+import { type TownGlowKind, type TownObjectKind, type TownPixels, townObjectGlows, townObjectPixels } from "./townArt";
 
 // ---------------------------------------------------------------------------
 // 定数
@@ -103,16 +103,17 @@ const GLOW_FLICKER_AMOUNT = 0.18;
 const GLOW_SEED = 0x7a31;
 const TWO_PI = Math.PI * 2;
 const BYTE_MAX = 255;
-/** 提灯・灯籠・篝火の発光（半径 px・強さ）。強さは globalAlpha */
-const GLOW_EAVES = { r: 20, strength: 0.75 };
-const GLOW_LANTERN = { r: 22, strength: 0.85 };
-const GLOW_BRAZIER = { r: 34, strength: 1 };
-const GLOW_GATE = { r: 40, strength: 0.5 };
-/** 軒の提灯は敷地の上辺から下へ・左右の端から内へ */
-const EAVES_DROP = 8;
-const EAVES_INSET = 7;
-/** 灯籠の灯は足元から上へ */
-const LANTERN_FIRE_RISE = 11;
+/**
+ * 灯の種類ごとの発光（半径 px・強さ）。強さは globalAlpha。位置は絵が返す灯の点（townArt の townObjectGlows）。
+ * 宵の暗さの中で灯を読ませるだけの強さに抑える（強いと建物の絵と名札が白く飛ぶ）
+ */
+const GLOW_BY_KIND: Readonly<Record<TownGlowKind, { r: number; strength: number }>> = {
+  lantern: { r: 12, strength: 0.5 },
+  window: { r: 9, strength: 0.4 },
+  fire: { r: 16, strength: 0.55 },
+  gate: { r: 40, strength: 0.5 },
+};
+const GLOW_BRAZIER = { r: 14, strength: 0.55 };
 /** 篝火は御堂の左右の外 */
 const BRAZIER_OUTSET = 6;
 /** 石段の奥の灯の色（章 1〜4。titleUi の CHAPTER_TINTS と同じ。共有化は統合役） */
@@ -347,35 +348,36 @@ function glowAt(x: number, y: number, size: { r: number; strength: number }, col
   return { x, y, r: size.r, strength: size.strength, color, phase: hf(Math.round(x), Math.round(y), GLOW_SEED) * TWO_PI };
 }
 
-/** 発光する点。使える建物の軒の提灯・参道の灯籠・御堂の篝火・石段の奥の灯 */
+/** 灯を出す物か。建っていない敷地・幟・碑・小物は光らない（絵が灯の点を返さない物も含めて弾く） */
+function glowsFor(p: TownPlacement): boolean {
+  if (p.kind.type === "lot") return p.kind.built;
+  return p.kind.type === "torii" || p.kind.type === "lantern";
+}
+
+/**
+ * 発光する点。物の絵が返す灯の点（提灯・窓・火床・石段の奥）を置き場所へ写す。記録の蔵の窓は左から archiveLights 個だけ灯す。
+ * 石段の奥の灯は最深の章の色。御堂の篝火は絵に無いので左右の外に足す
+ */
 export function buildTownGlows(layout: HubLayout, look: TownLook): TownGlow[] {
   const out: TownGlow[] = [];
-  for (const lot of HUB_LOT_KEYS) {
-    const rect = layout.lots[lot];
-    if (!hasArea(rect) || lot === "well" || !look.built.has(FACILITY_OF_LOT[lot])) continue;
-    const px = rectPx(rect);
-    const y = px.y + EAVES_DROP;
-    if (px.w < TILE_SIZE * 3) {
-      out.push(glowAt(px.x + px.w / 2, y, GLOW_EAVES, GLOW_COLOR));
-      continue;
+  for (const p of buildTownPlacements(layout, look)) {
+    if (!glowsFor(p)) continue;
+    const anchor = townObjectPixels(p.kind).anchor;
+    const isArchive = p.kind.type === "lot" && p.kind.lot === "archive";
+    let windows = 0;
+    const points = [...townObjectGlows(p.kind)].sort((g1, g2) => g1.x - g2.x);
+    for (const g of points) {
+      if (isArchive && g.kind === "window" && windows++ >= look.archiveLights) continue;
+      const x = p.footX + (g.x - anchor.x) * DOT_PX;
+      const y = p.footY + (g.y - anchor.y) * DOT_PX;
+      const color = g.kind === "gate" ? (GATE_TINTS[Math.max(0, Math.min(GATE_TINTS.length - 1, look.deepestChapter - 1))] ?? GLOW_COLOR) : GLOW_COLOR;
+      out.push(glowAt(x, y, GLOW_BY_KIND[g.kind], color));
     }
-    out.push(glowAt(px.x + EAVES_INSET, y, GLOW_EAVES, GLOW_COLOR));
-    out.push(glowAt(px.x + px.w - EAVES_INSET, y, GLOW_EAVES, GLOW_COLOR));
-  }
-  const lanterns = Math.min(look.lanterns, layout.lanternSlots.length);
-  for (let i = 0; i < lanterns; i++) {
-    const at = layout.lanternSlots[i];
-    if (at) out.push(glowAt(at.x, at.y - LANTERN_FIRE_RISE, GLOW_LANTERN, GLOW_COLOR));
   }
   if (look.hallLit && hasArea(layout.lots.hall)) {
     const px = rectPx(layout.lots.hall);
     out.push(glowAt(px.x - BRAZIER_OUTSET, px.y + px.h, GLOW_BRAZIER, GLOW_COLOR));
     out.push(glowAt(px.x + px.w + BRAZIER_OUTSET, px.y + px.h, GLOW_BRAZIER, GLOW_COLOR));
-  }
-  if (hasArea(layout.gateZone)) {
-    const px = rectPx(layout.gateZone);
-    const tint = GATE_TINTS[Math.max(0, Math.min(GATE_TINTS.length - 1, look.deepestChapter - 1))] ?? GLOW_COLOR;
-    out.push(glowAt(px.x + px.w / 2, px.y + px.h / 2, GLOW_GATE, tint));
   }
   return out;
 }
