@@ -7,11 +7,11 @@ import { depthHpScale, enemyDef } from "../data/enemies";
 import { ROLE_ELITE_EXCLUDE, gradeOf, roleOf } from "../data/enemyRoles";
 import type { FormationSlot } from "../data/formations";
 import { ELITE, JIN } from "../data/tuning";
-import { TILE_SIZE, rectCenterPx, toIndex } from "../map/grid";
+import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { NOTICE_RANGE, createEnemy } from "./enemies";
 import { buildFloor, updateRooms, withBaseAreaMul } from "./floor";
-import { createBossJin, gradeAtDepth, jinBudget, jinPairMidpoints, makeStrong, nearestSleepingJin, slotCount, updateJinPhases, updateLookouts } from "./jinSpawn";
+import { createBossJin, gradeAtDepth, jinBudget, jinCount, jinPairMidpoints, makeStrong, nearestSleepingJin, slotCount, updateJinPhases, updateLookouts } from "./jinSpawn";
 import { overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
 import { corridorTileList } from "./spawner";
@@ -102,6 +102,18 @@ describe("陣の配り（planJins）", () => {
         }
       }
     }
+  });
+
+  it("陣の数の目安は床タイル数 / tilesPerJin。旧生成の地図だけ JIN.legacy の目安を使う", () => {
+    const state = createGame(1);
+    let floor = 0;
+    for (const t of state.map.tiles) if (t === Tile.Floor) floor++;
+    const expected = (tilesPerJin: number, maxJins: number): number => Math.min(maxJins, Math.max(JIN.minJins, Math.round(floor / tilesPerJin)));
+    state.floorLayout = "cavern";
+    expect(jinCount(state), "型の地図").toBe(expected(JIN.tilesPerJin, JIN.maxJins));
+    state.floorLayout = "legacy";
+    expect(jinCount(state), "旧生成の地図").toBe(expected(JIN.legacy.tilesPerJin, JIN.legacy.maxJins));
+    expect(JIN.legacy.maxJins, "前提: 旧生成は部屋が少ないので上限が広い").toBeGreaterThan(JIN.maxJins);
   });
 
   it("陣の中心どうし（と開始の塊）は minSpacing 以上離れる", () => {

@@ -7,6 +7,7 @@ import { type FormationDef, type FormationKey, type FormationLeader, type Format
 import { ELITE, JIN } from "../data/tuning";
 import { TILE_SIZE, Tile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { layoutOffsets, rotateToFacing } from "../map/formation";
+import type { FloorLayout } from "../map/layout/types";
 import { lineOfSight, nextWaypoint } from "../map/pathing";
 import { biomeEnemyWeight } from "./biomes";
 import { NOTICE_RANGE, createEnemy } from "./enemies";
@@ -33,6 +34,8 @@ const START_ROOM = 0;
 const PLAYER_CLEARANCE = 40;
 /** 並べたい点が塞がっているとき、空きを探す範囲（タイル） */
 const SPOT_SEARCH_TILES = 6;
+/** 旧生成器の型名（floor.ts の LEGACY_LAYOUT と同じ） */
+const LEGACY_LAYOUT: FloorLayout = "legacy";
 /** 陣形の向きが決まらないときの正面 */
 const DEFAULT_FACING: Vec = { x: 1, y: 0 };
 
@@ -105,11 +108,15 @@ export function makeStrong(e: Enemy): void {
 // 数・場所・予算・陣形
 // -----------------------------------------------------------------------------
 
-/** 陣の数: 床タイル総数 / tilesPerJin を minJins〜maxJins に収める（面積の倍率は床タイル数に含まれる） */
+/**
+ * 陣の数: 床タイル総数 / tilesPerJin を minJins〜maxJins に収める（面積の倍率は床タイル数に含まれる）。
+ * 旧生成の地図は部屋が少なく候補の塊で先に頭打ちになる前提で合わせた数なので、JIN.legacy の目安を使う
+ */
 export function jinCount(state: GameState): number {
   let floor = 0;
   for (const t of state.map.tiles) if (t === Tile.Floor) floor++;
-  return clamp(Math.round(floor / JIN.tilesPerJin), JIN.minJins, JIN.maxJins);
+  const rule = (state.floorLayout ?? LEGACY_LAYOUT) === LEGACY_LAYOUT ? JIN.legacy : JIN;
+  return clamp(Math.round(floor / rule.tilesPerJin), JIN.minJins, rule.maxJins);
 }
 
 /** 塊の床タイル数（矩形の部屋は幅 × 高さ） */

@@ -29,6 +29,8 @@ import { isBossDriven } from "../system/boss";
 import { createEnemy, isAsleep, strikerCap } from "../system/enemies";
 import { ROAMING_ROOM } from "../system/spawner";
 import { TILE_SIZE, toIndex } from "../map/grid";
+import { withFixedLayout } from "../map/layout/select";
+import { LAYOUT_KINDS, type LayoutKind } from "../map/layout/types";
 import { ELITE_KINDS, ELITE_PREFIX } from "../system/elites";
 import * as combat from "../system/combat";
 import * as statusEffectsModule from "../system/statusEffects";
@@ -60,6 +62,7 @@ import {
   type CombatTally,
 } from "./combatMetrics";
 import { buildEconomySection, createEconomyRecorder, type EconomyTally } from "./economyMetrics";
+import { buildLayoutSection, createLayoutRecorder, type LayoutFloorRecord } from "./layoutMetrics";
 import { fittedEquipment } from "./gearPower";
 import {
   buildReachSection,
@@ -693,6 +696,8 @@ interface RunMetrics {
   economy: EconomyTally;
   /** 封鎖が 30 秒以上、被弾も撃破も無いまま続いたことがあるか（combatMetrics.ts の createLockStallWatcher） */
   lockStalled: boolean;
+  /** 初めて着いた階ごとの型・歩数・敵の数・重さ（layoutMetrics.ts） */
+  layoutFloors: LayoutFloorRecord[];
 }
 
 /**
@@ -795,6 +800,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   const scalingRecorder = createScalingRecorder();
   const economyRecorder = createEconomyRecorder(state);
   const lockStallWatcher = createLockStallWatcher();
+  const layoutRecorder = createLayoutRecorder();
 
   const metrics: RunMetrics = {
     seed,
@@ -845,6 +851,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     scaling: scalingRecorder.tally,
     economy: economyRecorder.tally,
     lockStalled: false,
+    layoutFloors: layoutRecorder.records,
   };
 
   let depthEnterTime = state.time;
@@ -856,6 +863,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
   let sawHiddenOpenThisFloor = false;
   let sawCorridorRoamerThisFloor = false;
   recordFloorSpawn(metrics.floorSpawn, state);
+  layoutRecorder.beginFloor(state, null);
   // 階を作り直すと state.jins が新しい配列になるので、前の配列を持っておいて離れるときに数える
   let floorJins = state.jins;
   let stepTimeTotal = 0;
@@ -910,8 +918,11 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
       metrics.exceptions.push(toRunException(i, err));
       break;
     }
-    stepTimeTotal += performance.now() - t0;
+    const stepMs = performance.now() - t0;
+    stepTimeTotal += stepMs;
     metrics.stepsRun++;
+    // 階が変わった step は生成の重さとして別に数える（下の階の切り替え）
+    if (state.depth === currentDepth) layoutRecorder.noteStep(stepMs);
     combatRecorder.afterStep(state, FIXED_DT);
     scalingRecorder.afterStep(state);
     lockStallWatcher.afterStep(state, FIXED_DT);
@@ -987,6 +998,9 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     }
 
     if (state.depth !== currentDepth) {
+      layoutRecorder.endFloor(state, state.depth > currentDepth ? "descended" : "left");
+      if (state.runEvents.strata.fresh) layoutRecorder.beginFloor(state, stepMs);
+      else layoutRecorder.skipFloor();
       metrics.depthSeconds[currentDepth] = (metrics.depthSeconds[currentDepth] ?? 0) + (state.time - depthEnterTime);
       depthEnterTime = state.time;
       currentDepth = state.depth;
@@ -1015,10 +1029,12 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
       metrics.deathDepth = state.depth;
       metrics.deathCause = deathCauseOf(state);
       scalingRecorder.noteDeath(state.depth, temperDigestOf(state));
+      layoutRecorder.endFloor(state, "died", metrics.deathCause);
     }
   }
 
   combatRecorder.finish();
+  layoutRecorder.endFloor(state, "ended");
   metrics.lockStalled = lockStallWatcher.stalled;
   economyRecorder.finish(state);
   recordJinSettle(metrics.jinSettle, floorJins);
@@ -1076,6 +1092,9 @@ describe("QA simulation (縮小版スモーク)", () => {
         expect(metrics.duplicateFloorItemId, `seed=${seed} profile=${profileKind} で floorItems の id が重複した`).toBe(false);
         expect(metrics.boon.takenNonCore, `seed=${seed} 芯を除く取得数は全体以下`).toBeLessThanOrEqual(metrics.boon.taken);
         expect(metrics.hiddenRoomsOpened, `seed=${seed} 開いた隠し部屋は計画された数以下`).toBeLessThanOrEqual(metrics.hiddenRoomsPlanned);
+        // 階の型の表（layoutMetrics.ts）: 最初の階から数え、生成 ms は降りて作った階にだけ付く
+        expect(metrics.layoutFloors.length, `seed=${seed} 型ごとの階の記録がある`).toBeGreaterThanOrEqual(1);
+        expect(metrics.layoutFloors[0]?.genMs, `seed=${seed} 最初の階は生成 ms を持たない`).toBeNull();
       }
       // 生命の収支のスパイ（damagePlayer / damagePlayerDot / healPlayer の素通し）が実際に数えていること
       const floor1 = all.map((m) => m.scaling.floor1);
@@ -1097,6 +1116,46 @@ describe("QA simulation (縮小版スモーク)", () => {
     // 毎階の「階の主」で 1 階の戦いが重くなった分、既定の 30s から広げる（全体を並列で回すと 60s も超えるので 120s）
     120_000,
   );
+});
+
+// ---------------------------------------------------------------------------
+// 階の型ごとのスモーク（docs/ideas/map-gen-impl.md 2-6「QA bot」）
+// ---------------------------------------------------------------------------
+
+/** 型ごとに回す seed。深度 1 は章の休符で主がいないので、bot は交戦しながら階段へ歩くだけで着く */
+const LAYOUT_SMOKE_SEEDS: readonly number[] = [11_000, 11_001];
+/** 1 本の step の上限（ゲーム内 150 秒）。広い型でも階段までの歩きと道中の陣で足りる */
+const LAYOUT_SMOKE_MAX_STEPS = 9_000;
+const LAYOUT_SMOKE_PROFILE: ProfileKind = "dominantLoadout";
+/** 8 型 × 2 本。1 本 数秒なので、まとめて回す時間に合わせる */
+const LAYOUT_SMOKE_TIMEOUT_MS = 180_000;
+
+/** 型を固定して深度 1 を作り、bot で階段を下りるまで回す。下りた step（着かなければ null）と、実際に使った型を返す */
+function runLayoutToStairs(kind: LayoutKind, seed: number): { layout: string | undefined; steps: number | null } {
+  const profile = buildProfile(LAYOUT_SMOKE_PROFILE, seed);
+  const state = withFixedLayout(kind, () => createGame(seed, String(seed), profile, buildQaSkillProfile()));
+  const layout = state.floorLayout;
+  const bot = createBotState(seed);
+  for (let i = 0; i < LAYOUT_SMOKE_MAX_STEPS; i++) {
+    if (state.status !== "playing") break;
+    if (state.pendingBud) chooseBud(state, 0);
+    step(state, botInput(state, bot, FIXED_DT), FIXED_DT);
+    if (state.depth > 1) return { layout, steps: i + 1 };
+  }
+  return { layout, steps: null };
+}
+
+describe("QA simulation (階の型ごとのスモーク)", () => {
+  it(`8 型を固定 × ${LAYOUT_SMOKE_SEEDS.length} seed で、bot が深度 1 の階段まで着く`, { timeout: LAYOUT_SMOKE_TIMEOUT_MS }, () => {
+    for (const kind of LAYOUT_KINDS) {
+      for (const seed of LAYOUT_SMOKE_SEEDS) {
+        const run = runLayoutToStairs(kind, seed);
+        if (process.env.QA_DEBUG) console.log(`${kind} seed=${seed}: ${run.steps ?? "着かず"} step`);
+        expect(run.layout, `${kind} seed=${seed} 型の生成が旧生成へ落ちない`).toBe(kind);
+        expect(run.steps, `${kind} seed=${seed} が ${LAYOUT_SMOKE_MAX_STEPS} step 以内に階段まで着く`).not.toBeNull();
+      }
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1242,6 +1301,7 @@ function buildReport(allMetrics: readonly RunMetrics[], deepMetrics: readonly Ru
   lines.push(`通路に徘徊が立った階: ${corridorFloors} / 観測した階 ${totalFloorsSeen}（${percent(corridorFloors, totalFloorsSeen)}）`);
   lines.push("");
   lines.push(...buildFloorSpawnSection(allMetrics.map((m) => m.floorSpawn)));
+  lines.push(...buildLayoutSection(allMetrics.flatMap((m) => m.layoutFloors)));
   lines.push(...buildJinSettleSection(allMetrics.map((m) => m.jinSettle)));
   lines.push(...buildBossLogSection(allMetrics.map((m) => m.boss), allMetrics.length, allMetrics.filter((m) => m.died).length));
 

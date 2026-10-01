@@ -129,7 +129,7 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
  * 引っかかっている遠い追跡者へ直進して詰まらないよう、近い敵だけを相手にする（遠い敵は来るまで探索を続ける）
  */
 const ENGAGE_RANGE = 240;
-/** 閉じた扉の判定で線分をたどる刻み（px）。タイルより細かければ扉を飛び越えない */
+/** 閉じた扉・穴の判定で線分をたどる刻み（px）。タイルより細かければ扉・穴を飛び越えない */
 const LOCK_PROBE_STEP = 4;
 /** 届かないハートの経路を引き直すまでの間隔（秒）。毎フレーム BFS しないため */
 const HEART_PATH_RETRY = 1;
@@ -452,6 +452,8 @@ export function nearestEngagedEnemy(state: GameState): Enemy | null {
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
     if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos) || crossesLockedTile(state, state.player.body.pos, e.body.pos)) continue;
+    // 穴（川・池）は視線が通るので見えてしまうが、直進すると縁で止まる。後回しにして、封鎖中の部屋なら探索の経路で回り込む
+    if (crossesPit(state, state.player.body.pos, e.body.pos)) continue;
     if (d < bestDist) {
       bestDist = d;
       best = e;
@@ -463,11 +465,22 @@ export function nearestEngagedEnemy(state: GameState): Enemy | null {
 /** 線分が封鎖中の扉（lockedTiles）を通るか（視線はマップの壁しか見ないので、閉じた扉越しの敵を狙わないために足す） */
 function crossesLockedTile(state: GameState, a: Vec, b: Vec): boolean {
   if (state.lockedTiles.size === 0) return false;
+  return segmentTouches(state.map, a, b, (index) => state.lockedTiles.has(index));
+}
+
+/** 線分が穴のタイルを通るか（視線は穴を越えるが体は越えられないので、穴越しの敵へ直進しないために足す） */
+export function crossesPit(state: GameState, a: Vec, b: Vec): boolean {
+  const tiles = state.map.tiles;
+  return segmentTouches(state.map, a, b, (index) => tiles[index] === Tile.Pit);
+}
+
+/** 線分 a→b を LOCK_PROBE_STEP ごとに見て、どれかのタイルで hit が真か */
+function segmentTouches(map: GameMap, a: Vec, b: Vec, hit: (index: number) => boolean): boolean {
   const n = Math.max(1, Math.ceil(dist(a, b) / LOCK_PROBE_STEP));
   for (let k = 0; k <= n; k++) {
-    const x = a.x + ((b.x - a.x) * k) / n;
-    const y = a.y + ((b.y - a.y) * k) / n;
-    if (state.lockedTiles.has(toIndex(state.map, Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE)))) return true;
+    const tx = Math.floor((a.x + ((b.x - a.x) * k) / n) / TILE_SIZE);
+    const ty = Math.floor((a.y + ((b.y - a.y) * k) / n) / TILE_SIZE);
+    if (inBounds(map, tx, ty) && hit(toIndex(map, tx, ty))) return true;
   }
   return false;
 }

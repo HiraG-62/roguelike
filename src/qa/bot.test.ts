@@ -10,12 +10,14 @@ import {
   botInput,
   chooseTargetRoomIndex,
   createBotState,
+  crossesPit,
   nearestEngagedEnemy,
   pickBoonIndex,
   shouldDrinkFlask,
   shouldPressUltimate,
 } from "./bot";
-import { TILE_SIZE, toIndex } from "../map/grid";
+import { TILE_SIZE, Tile, toIndex } from "../map/grid";
+import { invalidatePathing } from "../map/pathing";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
 import { planHidden } from "../system/hiddenRoom";
@@ -389,5 +391,60 @@ describe("bot は閉じた扉の向こうを追わない", () => {
     botInput(sealed, botB, DT);
     expect(botB.pathGoal === null || Math.abs(botB.pathGoal.x - heartPos.x) > TILE_SIZE || Math.abs(botB.pathGoal.y - heartPos.y) > TILE_SIZE, "ハートを経路の目標にしない").toBe(true);
     expect(botB.heartRetry, "届かないと分かったら次の引き直しまで待つ").toBeGreaterThan(0);
+  });
+});
+
+describe("bot は穴越しの敵へ直進しない", () => {
+  const ENEMY_DX = 80;
+  /** 穴の列を置く、プレイヤーから右へのタイル数 */
+  const PIT_COLUMN_TILES = 2;
+  /** 回り込みに使う秒 */
+  const ROUTE_SECONDS = 6;
+  /** 回り込んで近づけたとみなす距離（px） */
+  const REACHED_DIST = 40;
+
+  /**
+   * プレイヤーの右に縦一列の穴を開ける。gapAbove > 0 なら上端からそのタイル数だけ開けて回り道を残す
+   * （縁を滑る向きの探索は下を先に試すので、回り道を上に置くと直進では袋小路に入る）
+   */
+  function digPitColumn(state: GameState, gapAbove: number): void {
+    const map = state.map;
+    const room = state.rooms[0];
+    if (!room) throw new Error("開始部屋が無い");
+    const tx = Math.floor(state.player.body.pos.x / TILE_SIZE) + PIT_COLUMN_TILES;
+    for (let ty = room.rect.y + gapAbove; ty < room.rect.y + room.rect.h; ty++) map.tiles[toIndex(map, tx, ty)] = Tile.Pit;
+    invalidatePathing(map);
+  }
+
+  it("視線が通っていても、線分が穴を横切る敵は狙わない", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    if (!enemy) throw new Error("敵が無い");
+    expect(nearestEngagedEnemy(state), "前提: 穴が無ければ狙う").toBe(enemy);
+    digPitColumn(state, 0);
+    expect(crossesPit(state, state.player.body.pos, enemy.body.pos), "線分は穴を横切る").toBe(true);
+    expect(nearestEngagedEnemy(state), "穴越しの敵は後回し").toBeNull();
+  });
+
+  it("封鎖中の部屋で穴を挟んだ敵へ、縁で詰まらずに経路で回り込む", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    const room = state.rooms[0];
+    if (!enemy || !room) throw new Error("敵か開始部屋が無い");
+    room.cleared = false;
+    room.locked = true;
+    enemy.roomIndex = 0;
+    digPitColumn(state, 2);
+    const pin = { ...enemy.body.pos };
+    const bot = createBotState(1);
+    let closest = Infinity;
+    for (let t = 0; t < ROUTE_SECONDS / DT; t++) {
+      step(state, botInput(state, bot, DT), DT);
+      // 敵は動かさない（敵が自分から穴を回って来ると、bot の回り込みを確かめられない）
+      enemy.body.pos = { ...pin };
+      enemy.body.vel = { x: 0, y: 0 };
+      closest = Math.min(closest, Math.hypot(pin.x - state.player.body.pos.x, pin.y - state.player.body.pos.y));
+    }
+    expect(closest, "穴の縁で止まらず敵のそばまで回り込む").toBeLessThan(REACHED_DIST);
   });
 });
