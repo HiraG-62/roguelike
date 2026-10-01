@@ -46,6 +46,9 @@ const BENCH_SPEED = 4;
 const TILE = 16;
 /** 時間の経過で階の名札が消えるように進める秒数 */
 const SETTLE_TIME = 10;
+/** プレイヤーの絵の読み込みを待つ回数と間隔（合わせて最大 5 秒） */
+const ART_WAIT_TRIES = 50;
+const ART_WAIT_MS = 100;
 
 function intParam(q: URLSearchParams, key: string, fallback: number): number {
   const v = q.get(key);
@@ -162,6 +165,14 @@ function runBench(renderer: Renderer, state: GameState): MapBench {
   };
 }
 
+/** プレイヤーの高精細の絵は非同期で読むので、読めるまで待つ（読めないまま撮ると 24x24 の旧い体で写る） */
+async function waitPlayerArt(renderer: Renderer, state: GameState): Promise<void> {
+  for (let i = 0; i < ART_WAIT_TRIES; i++) {
+    if (renderer.playerArtReady(state)) return;
+    await new Promise((resolve) => setTimeout(resolve, ART_WAIT_MS));
+  }
+}
+
 async function main(): Promise<void> {
   const q = new URLSearchParams(window.location.search);
   const canvas = document.getElementById("game");
@@ -178,6 +189,7 @@ async function main(): Promise<void> {
   const state = q.get("kind") === "hub" ? buildHub(renderer) : buildRun(q);
   // 1 回目で描画側の追跡（階の名札の時刻・部屋の表）を初期化し、時間を進めてから撮る
   renderer.render(state, null, false);
+  await waitPlayerArt(renderer, state);
   state.time += SETTLE_TIME;
   if (typeof renderer.settleMap === "function") renderer.settleMap(state);
   renderer.render(state, null, false);

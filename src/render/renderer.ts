@@ -1151,6 +1151,14 @@ export class Renderer {
   }
 
   /** 画面内の欲しいチャンクを予算なしで焼き上げる（撮影・ベンチ用。ゲーム中は呼ばない）。拠点は何もしない */
+  /** 今のジョブの体と武器種の高精細の絵が読めているか（撮影ツールが待つため。読めていなければ読み始める） */
+  playerArtReady(state: GameState): boolean {
+    const body = bodyAtlas(state.job);
+    const weapon = weaponAtlas(playerMoveset(state).key);
+    this.actorBank.focus([body, weapon]);
+    return this.actorBank.ready(body) && (weapon === undefined || this.actorBank.ready(weapon));
+  }
+
   settleMap(state: GameState): void {
     if (state.sandbox === true) return;
     const cam = state.camera;
