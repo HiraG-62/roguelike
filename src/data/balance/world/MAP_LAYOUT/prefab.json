@@ -1,3 +1,37 @@
 {
-  "_note": "階の型「断片の組み合わせ」（prefab）の形の数値。手で描いた部屋の断片を置いて L 字の廊下でつなぐ。長さは unit 倍・個数は countMul 倍で拡縮する前の「見本の単位」で書く（docs/ideas/map-gen-impl.md 2-4）。まだ空。型のレーンが数値を足し、このブロックの先頭に _fields（項目の意味・単位・目安）も書く"
+  "_note": "階の型「断片の組み合わせ」（prefab）の形の数値。手で描いた部屋の断片（src/map/layout/prefabPieces.ts の PREFABS。TS の定数）を回転・反転・拡大して置き、緩和と空き地への差し込みのあと、扉どうしを L 字の廊下でつなぐ。数値は見本（64x40）の単位で書く。断片の数は countMul 倍（拡大した分は割り戻す）、断片は unit が 1〜2 の間は確率で 2 倍に拡大し、廊下の長さの上限は unit 倍で拡縮する（docs/ideas/map-gen-impl.md 2-4）。廊下の幅は体の大きさで決まるので拡縮しない",
+  "_fields": {
+    "horizontalChance": "開始と主の間を地図の左右の端に置く確率。残りは上下の端。割合（0..1）",
+    "baseCount": "最初に置く断片の数（開始・主の間を含む）の下限。個（見本の単位。countMul 倍）",
+    "baseSpan": "最初に置く断片の数に足す乱数の幅（0 以上 span 未満の整数）。個",
+    "fillCount": "空き地へ差し込んだあとの断片の数の目標の下限。個（見本の単位。countMul 倍）",
+    "fillSpan": "断片の数の目標に足す乱数の幅（0 以上 span 未満の整数）。個",
+    "relaxIters": "重なりを押し離す緩和の最大の回数。回",
+    "relaxGap": "断片どうしを離す余白（外接矩形の間の空きマス）。緩和と差し込みで使う。タイル",
+    "keepGap": "緩和のあとに、これ未満しか離れていない断片を捨てる余白。開始と主の間は捨てない。タイル",
+    "insertTries": "空き地へ差し込む試行の回数の上限。回（見本の単位。countMul 倍）",
+    "insertSamples": "差し込みの 1 試行で試す乱択の点の数。点ごとに置いた断片と突き合わせる（全マスを調べない）。個",
+    "loops": "最小全域木に足すループの辺の数。本（見本の単位。countMul 倍）",
+    "loopMaxLen": "ループの辺にする断片どうしの距離の上限（中心どうし）。タイル（見本の単位。unit 倍）",
+    "wideChance": "廊下を太くする確率（開始につながる廊下は常に通常の幅）。割合（0..1）",
+    "corridorWidth": "廊下の幅。道幅なので拡縮しない。2 = 開始から主の間まで幅 2 で通る検査を満たす。タイル",
+    "wideCorridorWidth": "太い廊下の幅。タイル",
+    "minKeep": "つながらない床の欠片がこの数未満なら埋める（connectAll）。タイル"
+  },
+  "horizontalChance": 0.65,
+  "baseCount": 8,
+  "baseSpan": 3,
+  "fillCount": 11,
+  "fillSpan": 3,
+  "relaxIters": 120,
+  "relaxGap": 2,
+  "keepGap": 1,
+  "insertTries": 40,
+  "insertSamples": 200,
+  "loops": 3,
+  "loopMaxLen": 30,
+  "wideChance": 0.4,
+  "corridorWidth": 2,
+  "wideCorridorWidth": 3,
+  "minKeep": 10
 }
