@@ -48,6 +48,7 @@ import {
   type HudLayout,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
+import { WARM_GLYPHS } from "./warmGlyphs";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, dotsOf, drawFrame, enemySpriteKey, getSprite, mergeAtlas, snapTo, spriteFrame } from "./sprites";
 import { expandTileAtlas } from "./tileAtlas";
 import { isDark } from "../system/roomTypes";
@@ -770,6 +771,8 @@ export class Renderer {
     this.edgeRed = buildEdgeGlow("255,40,40");
     this.edgePurple = buildEdgeGlow("128,64,192");
     pixelText().setScale(RENDER_SCALE);
+    // よく出る字を先に焼く（フォントの読み込み前なら読み込み後）。ゲーム中の初めての浮き文字で固まらないように
+    pixelText().warm(WARM_GLYPHS);
     this.beginFrame();
     this.fitToWindow();
     window.addEventListener("resize", () => this.fitToWindow());

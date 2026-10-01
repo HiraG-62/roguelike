@@ -28,7 +28,12 @@ function fakeCtx(scale = 1, e = 0, f = 0) {
     measureText: (s: string) => ({ width: [...s].reduce((a, c) => a + fakeWidth(c), 0) }),
     fillText: (s: string) => texts.push(s),
     fillRect: () => {},
-    drawImage: (image: unknown, x = 0, y = 0, w = 0, h = 0) => draws.push({ image, x, y, w, h }),
+    clearRect: () => {},
+    // 台紙から切り出す 9 引数の形（source の矩形 + 描く先の矩形）は描く先を記録する
+    drawImage: (image: unknown, ...args: number[]) => {
+      const [x = 0, y = 0, w = 0, h = 0] = args.length >= 8 ? args.slice(4) : args;
+      draws.push({ image, x, y, w, h });
+    },
     getTransform: () => ({ a: scale, e, f }),
     save: () => {},
     restore: () => {},
@@ -168,6 +173,63 @@ describe("PixelText フォント未ロード", () => {
     expect(pt.isReady()).toBe(true);
     pt.draw(ctx, "あい", 0, 0, { m: 1, color: "#fff" });
     expect(draws).toHaveLength(2);
+  });
+});
+
+describe("PixelText 先に焼く字（warm）", () => {
+  it("warm した字は描くときに焼き直さない", () => {
+    const e = makeEnv();
+    const pt = new PixelText(e.env);
+    pt.warm("あい");
+    expect(pt.glyphCacheSize()).toBe(2);
+    pt.draw(fakeCtx(2).ctx, "あい", 0, 0, { m: 1, color: "#fff" });
+    expect(pt.glyphCacheSize()).toBe(2);
+  });
+
+  it("字をたくさん焼いても canvas は台紙と作業面の数だけ（1 字 1 枚にしない）", () => {
+    const e = makeEnv();
+    const pt = new PixelText(e.env);
+    let chars = "";
+    for (let c = 0x4e00; c < 0x4e00 + 300; c++) chars += String.fromCodePoint(c);
+    pt.warm(chars);
+    // 幅を測る 1 + 作業面 1 + 白の台紙 1
+    expect(e.created()).toBe(3);
+    const before = e.created();
+    pt.draw(fakeCtx(2).ctx, chars.slice(0, 100), 0, 0, { m: 1, color: "#f00" });
+    // 色を付ける作業面 1 + その色の台紙 1
+    expect(e.created() - before).toBe(2);
+    expect(pt.tintedCacheSize()).toBe(100);
+  });
+
+  it("フォントの読み込み前に頼んだ字は、読み込み後に焼く", async () => {
+    const e = makeEnv(false);
+    const pt = new PixelText(e.env);
+    pt.warm("あいう");
+    expect(pt.glyphCacheSize()).toBe(0);
+    e.resolveLoad();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pt.glyphCacheSize()).toBe(3);
+  });
+
+  it("グリフの canvas は画素を読むので CPU 側（willReadFrequently）で作る", () => {
+    const options: unknown[] = [];
+    const env: PixelTextEnv = {
+      createCanvas(width, height) {
+        return {
+          width,
+          height,
+          getContext: (_kind: string, opts?: unknown) => {
+            options.push(opts);
+            return fakeCtx().ctx;
+          },
+        } as unknown as HTMLCanvasElement;
+      },
+      isFontReady: () => true,
+      loadFont: () => Promise.resolve(),
+    };
+    new PixelText(env).warm("あ");
+    expect(options).toContainEqual({ willReadFrequently: true });
   });
 });
 
