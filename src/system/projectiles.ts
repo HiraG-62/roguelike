@@ -12,7 +12,7 @@ import { gainAttackMana } from "./mana";
 import { attackHitManaMul } from "./manaSources";
 import { noteRiposte } from "./moments";
 import { currentForm } from "./morale";
-import { circlesOverlap, overlapsWall } from "./physics";
+import { circlesOverlap, overlapsShotWall } from "./physics";
 import { blastMulAt } from "./blast";
 import { applyStatus, inflictOnPlayer } from "./statusEffects";
 import { placeTerrain, swallowedBySmoke } from "./terrain";
@@ -50,7 +50,7 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
   pr.pos.y += pr.vel.y * dt;
 
   // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
-  if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
+  if (!pr.shot?.orbit && overlapsShotWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
     if (def && hitWallByShot(state, pr, def, prev, dt)) return;
     pr.life = 0;
     spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
@@ -283,8 +283,8 @@ function hitWallByShot(state: GameState, pr: Projectile, def: BulletDef, prev: V
 function bounceShot(state: GameState, pr: Projectile, def: BulletDef, prev: Vec, dt: number): boolean {
   const left = pr.shot?.bouncesLeft ?? 0;
   if (!def.bounce || !pr.shot || left <= 0) return false;
-  const hitX = overlapsWall(state, prev.x + pr.vel.x * dt, prev.y, pr.radius);
-  const hitY = overlapsWall(state, prev.x, prev.y + pr.vel.y * dt, pr.radius);
+  const hitX = overlapsShotWall(state, prev.x + pr.vel.x * dt, prev.y, pr.radius);
+  const hitY = overlapsShotWall(state, prev.x, prev.y + pr.vel.y * dt, pr.radius);
   // 角に真っ直ぐ入ったとき（どちらの軸単独でも当たらない）は両方を返す
   const flipBoth = !hitX && !hitY;
   pr.pos = prev;

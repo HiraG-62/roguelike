@@ -1,10 +1,10 @@
-import { type GameMap, type Point, TILE_SIZE, Tile, inBounds, toIndex } from "./grid";
+import { type GameMap, type Point, TILE_SIZE, Tile, getTile, inBounds, isPassableTile, toIndex } from "./grid";
 import { sightBlockedAt } from "./sightBlock";
 
 /**
  * タイル上の視線と経路（純関数 + マップから作る派生データのキャッシュ）。
  * 開放型フロア（system/spawner.ts の徘徊、system/enemies.ts の気付き・回り込み）と QA bot が使う。
- * 壁（Tile.Wall）だけを見る。封鎖中の扉（state.lockedTiles）は見ない（扉は部屋の縁にしか立たない前提で、system/floor.ts の dropPocketDoors が袋の扉を作らないことで保つ。封鎖は一時的で、扉の前で押し合うだけ）
+ * 視線は壁（Tile.Wall）だけを見る（穴は越えて見える）。経路と walkLine は壁と穴の両方を避ける。封鎖中の扉（state.lockedTiles）は見ない（扉は部屋の縁にしか立たない前提で、system/floor.ts の dropPocketDoors が袋の扉を作らないことで保つ。封鎖は一時的で、扉の前で押し合うだけ）
  */
 
 /** 視線を調べる刻み（px）。タイルの 1/4 なので壁の角をすり抜けない */
@@ -22,6 +22,23 @@ export function lineOfSight(map: GameMap, a: Point, b: Point): boolean {
     if (!inBounds(map, tx, ty) || map.tiles[toIndex(map, tx, ty)] === Tile.Wall) return false;
     // 煙（system/terrain.ts）も視線を遮る
     if (sightBlockedAt(map, toIndex(map, tx, ty))) return false;
+  }
+  return true;
+}
+
+/**
+ * 2 点を結ぶ線分が壁にも穴にも掛からないか（体が直進して行ける）。
+ * 視線（lineOfSight）は穴を越えるので、追跡の「見えたら直進」はこちらで判定する
+ */
+export function walkLine(map: GameMap, a: Point, b: Point): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const steps = Math.ceil(Math.hypot(dx, dy) / LOS_STEP);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const tx = Math.floor((a.x + dx * t) / TILE_SIZE);
+    const ty = Math.floor((a.y + dy * t) / TILE_SIZE);
+    if (!isPassableTile(getTile(map, tx, ty))) return false;
   }
   return true;
 }
@@ -92,7 +109,7 @@ function buildField(map: GameMap, goal: number): Int32Array {
 
 /** 未訪問の歩ける隣を歩数 d で埋めて待ち行列に積み、新しい末尾を返す */
 function visit(field: Int32Array, tiles: GameMap["tiles"], queue: Int32Array, tail: number, ni: number, d: number): number {
-  if (field[ni] !== UNREACHABLE || tiles[ni] === Tile.Wall) return tail;
+  if (field[ni] !== UNREACHABLE || tiles[ni] === Tile.Wall || tiles[ni] === Tile.Pit) return tail;
   field[ni] = d;
   queue[tail] = ni;
   return tail + 1;
@@ -139,11 +156,12 @@ export function nextWaypoint(map: GameMap, pos: Point, goal: Point): Point | nul
 }
 
 /**
- * 追跡の向き。目標が見えていれば dir（まっすぐ）、壁に遮られていれば経路の次の点へ向かう単位ベクトル。
+ * 追跡の向き。目標が見えて（lineOfSight）直進できれば（walkLine）dir、壁・穴・煙に遮られていれば経路の次の点へ向かう単位ベクトル。
  * 経路が無ければ dir のまま
  */
 export function chaseHeading(map: GameMap, pos: Point, target: Point, dir: Point): Point {
-  if (lineOfSight(map, pos, target)) return dir;
+  // 煙で見えない間は経路で回る（従来どおり）ので、視線と直進の両方を満たすときだけまっすぐ
+  if (lineOfSight(map, pos, target) && walkLine(map, pos, target)) return dir;
   const next = nextWaypoint(map, pos, target);
   if (!next) return dir;
   const dx = next.x - pos.x;

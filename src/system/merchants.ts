@@ -16,7 +16,7 @@ import {
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { ECONOMY, TIER_REWARD } from "../data/tuning";
-import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
+import { TILE_SIZE, isPassableTile, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, tileOf } from "../map/pathing";
 import { dropChosenStone, dropCursedItem, goodDetailName, keystoneOpen, pocketStall, rollGoodKey, takeKeystoneWare } from "./blackMarket";
 import { isChapterBossDepth } from "./chapters";
@@ -183,11 +183,11 @@ function roomTileList(state: GameState, room: RoomState): number[] {
   return out;
 }
 
-/** 距離場を流す起点: 部屋の中心のタイル（壁なら部屋の最初の床タイル） */
+/** 距離場を流す起点: 部屋の中心のタイル（壁・穴なら部屋の最初の床タイル） */
 function roomGoalTile(state: GameState, room: RoomState): number | null {
   const center = tileOf(state.map, rectCenterPx(room.rect));
-  if (state.map.tiles[center] !== Tile.Wall) return center;
-  return roomTileList(state, room).find((t) => state.map.tiles[t] !== Tile.Wall) ?? null;
+  if (isPassableTile(state.map.tiles[center] ?? 0)) return center;
+  return roomTileList(state, room).find((t) => isPassableTile(state.map.tiles[t] ?? 0)) ?? null;
 }
 
 /**

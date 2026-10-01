@@ -68,10 +68,21 @@ export function ensureTerrainLayer(state: GameState): TerrainLayer {
   return layer;
 }
 
+/** 地図の浅い地形（見本の浅瀬・断片の「~」）を自然配置より先に写す。乱数は使わない */
+function stampShallow(state: GameState, layer: TerrainLayer): void {
+  const shallow = state.map.shallow;
+  if (!shallow) return;
+  for (let i = 0; i < shallow.length && i < layer.kinds.length; i++) {
+    const code = shallow[i] ?? NONE;
+    if (code !== NONE && layer.kinds[i] === NONE) layer.kinds[i] = code;
+  }
+}
+
 /** フロアの自然配置を 1 回だけ入れる（スキルなどで先に置かれた地形は上書きしない） */
 function planOnce(state: GameState, layer: TerrainLayer): void {
   if (layer.planned) return;
   layer.planned = true;
+  stampShallow(state, layer);
   const skip = new Set([START_ROOM, state.map.rooms.length - 1]);
   const planned = planTerrain(state.rng, state.map, state.depth, skip);
   for (let i = 0; i < planned.length; i++) {

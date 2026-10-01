@@ -4,7 +4,7 @@ import { type Vec, add, dist, normalize, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { addFloatingText, spawnBurst } from "../system/effects";
-import { overlapsWall } from "../system/physics";
+import { overlapsShotWall } from "../system/physics";
 import { enemiesInRadius, findStatus, removeStatus } from "../system/statusEffects";
 import { SKILL } from "./data";
 import { skillHit, skillPower } from "./hit";
@@ -91,7 +91,7 @@ export function updateShots(state: GameState, dt: number): void {
 function stepShot(state: GameState, s: SkillShot, dt: number): void {
   s.life -= dt;
   const next = add(s.pos, scale(s.vel, dt));
-  if (!overlapsWall(state, next.x, next.y, WALL_PAD)) {
+  if (!overlapsShotWall(state, next.x, next.y, WALL_PAD)) {
     s.pos = next;
     return;
   }
@@ -99,8 +99,8 @@ function stepShot(state: GameState, s: SkillShot, dt: number): void {
     s.life = 0;
     return;
   }
-  const blockedX = overlapsWall(state, next.x, s.pos.y, WALL_PAD);
-  const blockedY = overlapsWall(state, s.pos.x, next.y, WALL_PAD);
+  const blockedX = overlapsShotWall(state, next.x, s.pos.y, WALL_PAD);
+  const blockedY = overlapsShotWall(state, s.pos.x, next.y, WALL_PAD);
   s.vel = { x: blockedX || !blockedY ? -s.vel.x : s.vel.x, y: blockedY || !blockedX ? -s.vel.y : s.vel.y };
   s.bouncesLeft -= 1;
   pushSfx(state, "wallHit");
