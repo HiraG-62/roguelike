@@ -212,6 +212,27 @@ export function mapLights(state: GameState, view: LightView, theme: MapTheme, ch
 // 光の層
 // ---------------------------------------------------------------------------
 
+/** drawLitRects の作業用 canvas（ドット）と、1 枚の断片の最大（作業用 canvas に必ず 1 枚は入る） */
+const LIT_W = 512;
+const LIT_H = 256;
+const LIT_PIECE_W = 256;
+const LIT_PIECE_H = 128;
+
+/** 作業用 canvas に詰めた断片: 画面のドット位置（sx, sy）・大きさ・作業用 canvas の置き場所（wx, wy） */
+interface PlacedDots {
+  sx: number;
+  sy: number;
+  w: number;
+  h: number;
+  wx: number;
+  wy: number;
+}
+
+/** ドット座標を 0..max に収める */
+function clampDot(v: number, max: number): number {
+  return v < 0 ? 0 : v > max ? max : v;
+}
+
 export type LightCanvasFactory = (width: number, height: number) => HTMLCanvasElement;
 
 function domCanvas(width: number, height: number): HTMLCanvasElement {
@@ -242,6 +263,8 @@ const BLACK: Rgb = { r: 0, g: 0, b: 0 };
 export class MapLightLayer {
   private readonly dark: HTMLCanvasElement;
   private readonly darkCtx: CanvasRenderingContext2D;
+  /** drawLitRects の作業用 canvas（初めて使うときに作る。拠点は使わない） */
+  private lit: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
   private readonly stamps = new Map<string, HTMLCanvasElement>();
 
   constructor(
@@ -269,6 +292,93 @@ export class MapLightLayer {
     ctx.globalCompositeOperation = TINT_BLEND;
     for (const l of lights) this.drawTint(ctx, view, l);
     ctx.restore();
+  }
+
+  /**
+   * paint が描いたもの（手前の縁など）を、直前の draw と同じ暗さで world へ描く。rects（ワールド座標）の中だけ。
+   * 小さな作業用 canvas（LIT_W x LIT_H ドット。画面全体ではない）へ矩形を詰めて paint を密度 2 で描き、
+   * 光の層の暗がりを source-atop で重ね、その範囲だけ world へ描く。draw と同じフレームの同じ view で呼ぶこと
+   * （暗がりは draw が作ったものをそのまま使う）。paint の ctx はワールド座標で、第 2 引数はドットの格子に切り揃えた
+   * 描く範囲（paint はこの範囲の外を描かなくてよい）。rects は互いに重ならないこと（重なると暗がりが 2 回掛かる。
+   * frontLip.ts の lipRects が束ねる）。canvas を元にした描画は元が変わるたびに画素の複写が走るので、
+   * 「全部描く → 全部暗がり → 全部 world へ」の 3 段にして複写を抑え、作業用 canvas も小さくして複写を軽くする
+   */
+  drawLitRects(ctx: CanvasRenderingContext2D, view: LightView, rects: readonly LightView[], paint: (g: CanvasRenderingContext2D, area: LightView) => void): void {
+    if (rects.length === 0) return;
+    const lit = this.litLayer();
+    const placed: PlacedDots[] = [];
+    let cursorX = 0;
+    let cursorY = 0;
+    let shelfH = 0;
+    const flush = (): void => {
+      if (placed.length === 0) return;
+      this.compositeLit(ctx, view, lit, placed, paint);
+      placed.length = 0;
+      cursorX = 0;
+      cursorY = 0;
+      shelfH = 0;
+    };
+    for (const r of rects) {
+      const x0 = clampDot(Math.floor((r.x - view.x) * MAP_DOTS), this.dark.width);
+      const y0 = clampDot(Math.floor((r.y - view.y) * MAP_DOTS), this.dark.height);
+      const x1 = clampDot(Math.ceil((r.x + r.w - view.x) * MAP_DOTS), this.dark.width);
+      const y1 = clampDot(Math.ceil((r.y + r.h - view.y) * MAP_DOTS), this.dark.height);
+      // 作業用 canvas に収まらない大きな矩形は、LIT_PIECE_W x LIT_PIECE_H の断片に割る（断片は互いに重ならない）
+      for (let sy = y0; sy < y1; sy += LIT_PIECE_H) {
+        for (let sx = x0; sx < x1; sx += LIT_PIECE_W) {
+          const w = Math.min(LIT_PIECE_W, x1 - sx);
+          const h = Math.min(LIT_PIECE_H, y1 - sy);
+          if (cursorX + w > LIT_W) {
+            cursorX = 0;
+            cursorY += shelfH;
+            shelfH = 0;
+          }
+          if (cursorY + h > LIT_H) {
+            flush();
+          }
+          placed.push({ sx, sy, w, h, wx: cursorX, wy: cursorY });
+          cursorX += w;
+          shelfH = Math.max(shelfH, h);
+        }
+      }
+    }
+    flush();
+  }
+
+  private compositeLit(
+    ctx: CanvasRenderingContext2D,
+    view: LightView,
+    lit: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D },
+    placed: readonly PlacedDots[],
+    paint: (g: CanvasRenderingContext2D, area: LightView) => void,
+  ): void {
+    const { ctx: g, canvas } = lit;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-over";
+    for (const d of placed) g.clearRect(d.wx, d.wy, d.w, d.h);
+    g.imageSmoothingEnabled = false;
+    for (const d of placed) {
+      // ワールド → 作業用 canvas のドット: (world - view) * 密度 + (作業用の置き場所 - 画面のドット位置)
+      g.setTransform(MAP_DOTS, 0, 0, MAP_DOTS, -view.x * MAP_DOTS + d.wx - d.sx, -view.y * MAP_DOTS + d.wy - d.sy);
+      paint(g, { x: view.x + d.sx / MAP_DOTS, y: view.y + d.sy / MAP_DOTS, w: d.w / MAP_DOTS, h: d.h / MAP_DOTS });
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-atop";
+    for (const d of placed) g.drawImage(this.dark, d.sx, d.sy, d.w, d.h, d.wx, d.wy, d.w, d.h);
+    g.globalCompositeOperation = "source-over";
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    for (const d of placed) ctx.drawImage(canvas, d.wx, d.wy, d.w, d.h, view.x + d.sx / MAP_DOTS, view.y + d.sy / MAP_DOTS, d.w / MAP_DOTS, d.h / MAP_DOTS);
+    ctx.restore();
+  }
+
+  private litLayer(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+    if (this.lit) return this.lit;
+    const canvas = this.makeCanvas(LIT_W, LIT_H);
+    this.lit = { canvas, ctx: context2d(canvas) };
+    return this.lit;
   }
 
   private paintDark(view: LightView, lights: readonly MapLight[], dark: number): void {

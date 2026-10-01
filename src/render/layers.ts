@@ -25,7 +25,7 @@ export type RenderLayer = (typeof RENDER_LAYERS)[number];
 export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = {
   world: [
     "drawTiles",
-    "drawBiomeTint",
+    "drawInvertedTint",
     "drawTerrainLayer",
     "drawMapLight",
     "drawTileOverlays",
@@ -41,10 +41,11 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawEnemies",
     "drawDeathFx",
     "drawBossDeath",
-    "drawProjectiles",
-    "drawLasers",
     "drawPlayerAuras",
     "drawPlayer",
+    "drawFrontLip",
+    "drawProjectiles",
+    "drawLasers",
     "drawReaper",
     "drawSkillAir",
     "drawSmokeLayer",

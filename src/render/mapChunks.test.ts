@@ -307,4 +307,26 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     const away: MapView = { x: 100000, y: 100000, w: 480, h: 270 };
     expect(cache.lightsIn(away).length, "画面の外の光は返さない").toBe(0);
   });
+
+  it("drawLip は clip があればその範囲だけを元と先の矩形を切って描く（clip が無ければチャンク全体）", () => {
+    const map = createMap(32, 32);
+    for (let y = 1; y < 12; y++) for (let x = 1; x < 20; x++) setTile(map, x, y, Tile.Floor);
+    const cache = new MapChunkCache(() => ({ width: CHUNK_DOTS }) as unknown as HTMLCanvasElement);
+    cache.settle(map, theme, VIEW);
+    const calls: number[][] = [];
+    const ctx = { drawImage: (_i: unknown, ...a: number[]) => calls.push(a) } as unknown as CanvasRenderingContext2D;
+    cache.drawLip(ctx, VIEW);
+    expect(calls.every((a) => a.length === 4), "clip なしは 4 引数でチャンク全体").toBe(true);
+    expect(calls.length, "画面に掛かるチャンクの分").toBeGreaterThan(0);
+    calls.length = 0;
+    const clip: MapView = { x: 40, y: 20, w: 30, h: 20 };
+    cache.drawLip(ctx, VIEW, clip);
+    expect(calls.length, "clip が掛かるチャンクは 1 枚").toBe(1);
+    const [sx, sy, sw, sh, dx, dy, dw, dh] = calls[0] ?? [];
+    expect([dx, dy, dw, dh], "先は clip と同じ").toEqual([40, 20, 30, 20]);
+    expect([sx, sy, sw, sh], "元は密度 2 の画素").toEqual([80, 40, 60, 40]);
+    calls.length = 0;
+    cache.drawLip(ctx, VIEW, { x: 1000, y: 1000, w: 10, h: 10 });
+    expect(calls.length, "別のチャンクの clip は（そのチャンクが焼けていなければ）描かない").toBe(0);
+  });
 });

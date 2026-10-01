@@ -1,5 +1,5 @@
 import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
-import type { FloorKind, GameState, RoomState } from "../core/state";
+import type { GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { ARC, CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
@@ -35,28 +35,26 @@ const COLOR_DIM = "#909090";
 // -----------------------------------------------------------------------------
 
 /**
- * バイオームの色調を全画面に重ねるか。PNG 素材の床・壁（tiled）は読み込み時にバイオームの色で染めてあるので、
- * 重ねると二重に掛かる。素材が無い（未ロード・読み込み失敗）ときだけ重ねる
+ * 反転層の紫を地図に重ねる（地図を描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。
+ * バイオームの色調は迷宮の焼き付け（章の様式 × バイオームの寄せ）が持つので重ねない
  */
-export function biomeTintNeeded(kind: FloorKind, tiled: boolean): boolean {
-  return !tiled && BIOMES[kind].tint !== null;
+export function drawInvertedTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number): void {
+  if (!isInvertedDepth(state.depth)) return;
+  fillInvertedTint(ctx, viewX, viewY, VIEW_W, VIEW_H, alpha);
 }
 
-/** 床と壁に重ねるバイオームの色調（タイルを描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。反転層は紫を重ねる */
-export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number, tiled = false): void {
-  const tint = biomeTintNeeded(state.floorKind, tiled) ? BIOMES[state.floorKind].tint : null;
-  if (isInvertedDepth(state.depth)) {
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = FLOOR_KIND.invertedColor;
-    ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
-  }
-  if (!tint) {
-    ctx.globalAlpha = 1;
-    return;
-  }
+/** 反転層なら、すでに描いた物（ctx の中身）の上だけに紫を重ねる（描き直す縁を地図の他の所と同じ色にするため） */
+export function drawInvertedTintAtop(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number, w: number, h: number, alpha: number): void {
+  if (!isInvertedDepth(state.depth)) return;
+  ctx.globalCompositeOperation = "source-atop";
+  fillInvertedTint(ctx, x, y, w, h, alpha);
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function fillInvertedTint(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, alpha: number): void {
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = tint;
-  ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
+  ctx.fillStyle = FLOOR_KIND.invertedColor;
+  ctx.fillRect(x, y, w, h);
   ctx.globalAlpha = 1;
 }
 

@@ -1,12 +1,12 @@
 import type { FloorKind } from "../core/state";
-import { PIT_COLORS, PIT_OF_KIND } from "../data/mapThemes";
+import { PIT_COLORS } from "../data/mapThemes";
 import { colorB, colorG, colorR, hexColor, mapThemeFor } from "./mapTheme";
 import type { PitTheme } from "./mapTypes";
 
 /**
  * 穴（Tile.Pit）の色。穴の種類は `MapTheme.pit`（章 4・深みは奈落、それ以外はバイオームの対応）を正にし、
  * 色の表は `data/mapThemes.ts` の `PIT_COLORS` の deep 色から引く（ここに二重に持たない）。
- * 地図の焼き付けは `packedPitColors` を直接使う。ここはミニマップ・地形の層・拠点の仮描きのための本体色・縁の色・ミニマップの色
+ * 地図の焼き付けは `packedPitColors` を直接使う。ここはミニマップ・地形の層のための本体色・縁の色・ミニマップの色
  */
 
 type Rgb = readonly [number, number, number];
@@ -75,16 +75,4 @@ export function pitThemeAt(depth: number, floorKind: FloorKind): PitTheme {
 /** この階の穴の見た目 */
 export function pitLookAt(depth: number, floorKind: FloorKind): PitLook {
   return LOOKS[pitThemeAt(depth, floorKind)];
-}
-
-/**
- * 深さを持たない旧い呼び方（拠点の仮描き `Renderer.drawPit` 用。段 3 でそちらを捨てるときに一緒に消す）。
- * 章 4 の奈落は表せないので、迷宮の描画は `pitLookAt` / `pitThemeAt` を使う
- */
-export function pitTheme(floorKind: FloorKind, deep: boolean): PitTheme {
-  return deep ? "abyss" : PIT_OF_KIND[floorKind];
-}
-
-export function pitLook(floorKind: FloorKind, deep: boolean): PitLook {
-  return LOOKS[pitTheme(floorKind, deep)];
 }

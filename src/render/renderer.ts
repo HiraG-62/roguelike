@@ -50,7 +50,6 @@ import {
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, dotsOf, drawFrame, enemySpriteKey, getSprite, mergeAtlas, snapTo, spriteFrame } from "./sprites";
 import { expandTileAtlas } from "./tileAtlas";
-import { tileBiome } from "../data/tiles";
 import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
@@ -112,15 +111,14 @@ import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
-import { type PitLook, pitLook } from "./pitLook";
 import { MapChunkCache, type MapView } from "./mapChunks";
-import { MapLightLayer, mapLights } from "./mapLight";
-import { mapThemeFor } from "./mapTheme";
+import { type LightView, MapLightLayer, mapLights } from "./mapLight";
+import { lipRects } from "./frontLip";
+import { colorB, colorG, colorR, mapThemeFor } from "./mapTheme";
 import type { MapTheme } from "./mapTypes";
-import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
+import { doorMarkDone, drawInvertedTint, drawInvertedTintAtop, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
 import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
-import { isDeepDepth } from "../system/chapters";
 
 /** コンボ表示（論理 px・y 座標） */
 const COMBO_TEXT_PX = 14;
@@ -155,8 +153,8 @@ const COLOR_BLACK = "#000000";
 const COLOR_KEYSTONE = "#d08cff";
 const COLOR_WARN = "#ff6060";
 const COLOR_DOOR_EDGE = "#ff3030";
-/** 穴の縁の帯の太さ（論理 px） */
-const PIT_EDGE_PX = 1;
+/** 拠点の床・壁の素材の組（data/tiles.ts の BIOME_TILESET.hub が作る tile.hub.*） */
+const HUB_TILE = "hub";
 const COLOR_SLOWMO = "#2040a0";
 const COLOR_DESAT = "#808080";
 const COLOR_AURA_DAMAGE = "#ff6040";
@@ -358,8 +356,14 @@ const STAIRS_GLOW_MIN = 0.35;
 const STAIRS_GLOW_MAX = 0.85;
 const STAIRS_GLOW_FRAME_TIME = 0.4;
 const DOOR_EDGE_SPEED = 8;
-const DOOR_EDGE_MIN = 0.25;
+const DOOR_EDGE_MIN = 0.45;
 const DOOR_EDGE_MAX = 0.95;
+/** 封鎖の扉: 床の暗さ・格子の帯（太さと位置。16px に 3 本ずつ）・外周の線の太さ */
+const DOOR_SHADE_ALPHA = 0.45;
+const DOOR_BAR_ALPHA = 0.8;
+const DOOR_BAR_W = 2;
+const DOOR_BAR_OFFSETS = [2, 7, 12] as const;
+const DOOR_EDGE_W = 1;
 
 /** 影 */
 const SHADOW_ALPHA = 0.35;
@@ -741,6 +745,11 @@ export class Renderer {
   private hudConflictText = "";
   private readonly minimap = new Minimap();
   private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
+  /** 縁を描き直す体の矩形（毎フレーム使い回す） */
+  private readonly lipRectBuf: LightView[] = [];
+  /** 封鎖の扉の差し色（lockedDoorColors がテーマの変わり目で作り直す） */
+  private doorTheme: MapTheme | null = null;
+  private doorAccent = "#ffffff";
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
   /** 拠点の台（setHubView）。拠点以外では null */
@@ -841,7 +850,7 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
-    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, state.sandbox !== true || `tile.${tileBiome(state.floorKind, true)}.floor` in this.atlas);
+    drawInvertedTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha);
     drawTerrainLayer(ctx, state, -ox, -oy, this.atlas);
     this.drawMapLight(state, -ox, -oy);
     this.drawTileOverlays(state, -ox, -oy);
@@ -858,10 +867,12 @@ export class Renderer {
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
-    this.drawProjectiles(state);
-    this.drawLasers(state);
     drawPlayerAuras(ctx, state);
     this.drawPlayer(state);
+    // 南の壁の縁は体の後・弾の前（弾と光線は縁より上。docs/ideas/map-visual-impl.md 1-5 節）
+    this.drawFrontLip(state, -ox, -oy);
+    this.drawProjectiles(state);
+    this.drawLasers(state);
     this.drawReaper(state);
     drawSkillAir(ctx, state);
     drawThrownSkillAir(ctx, state, this.atlas);
@@ -1115,6 +1126,19 @@ export class Renderer {
     this.mapLight.draw(this.ctx, view, mapLights(state, view, theme, this.mapChunks.lightsIn(view)), theme.dark);
   }
 
+  /** 南の壁の手前の縁（床へ張り出す 3px + 壁の天面の帯）。体と重なる所だけ、体の後に地図と同じ暗さで描き直す（焼いた画素は同じなので他は描かない）。拠点は無し */
+  private drawFrontLip(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) return;
+    const view = this.setMapView(viewX, viewY);
+    const rects = lipRects(state, view, this.lipRectBuf);
+    if (rects.length === 0) return;
+    this.mapLight.drawLitRects(this.ctx, view, rects, (g, area) => {
+      this.mapChunks.drawLip(g, view, area);
+      // ground は反転層の紫を重ねてから暗がりを受けるので、縁も同じ順（紫 → 暗がり）にする
+      drawInvertedTintAtop(g, state, area.x, area.y, area.w, area.h, FLOOR_KIND.tintAlpha);
+    });
+  }
+
   /** 迷宮の地図のテーマ（章の様式 × バイオーム。mapThemeFor は同じ引数で同じ参照を返す） */
   private mapTheme(state: GameState): MapTheme {
     return mapThemeFor(state.depth, state.floorKind);
@@ -1141,12 +1165,10 @@ export class Renderer {
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
     const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-    const biome = tileBiome(state.floorKind, state.sandbox === true);
-    // PNG 取り込みのバイオーム版（tile.<biome>.floor）があればそれを、無ければピクセルマップ
-    const floor = this.atlas[`tile.${biome}.floor`] ?? this.sprite(SPR.floor);
+    // PNG 取り込みの拠点版（tile.hub.floor）があればそれを、無ければピクセルマップ
+    const floor = this.atlas[`tile.${HUB_TILE}.floor`] ?? this.sprite(SPR.floor);
     const wallFace = this.sprite(SPR.wallFace);
     const wallTop = this.sprite(SPR.wallTop);
-    const look = pitLook(state.floorKind, isDeepDepth(state.depth));
 
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
@@ -1157,8 +1179,8 @@ export class Renderer {
           const style = wallStyle(map, x, y);
           // 周囲 8 マスが壁の岩盤は、PNG の有無にかかわらず描かない（壁の模様で画面が埋まらないように）
           if (style === "none") continue;
-          // PNG 取り込み（tile.<biome>.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
-          const masked = this.atlas[`tile.${biome}.wall.${wallMask(map, x, y)}`];
+          // PNG 取り込み（tile.hub.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
+          const masked = this.atlas[`tile.${HUB_TILE}.wall.${wallMask(map, x, y)}`];
           if (masked) {
             this.blit(masked, 0, px, py);
           } else if (style === "face") {
@@ -1168,10 +1190,8 @@ export class Renderer {
           }
           continue;
         }
-        if (tile === Tile.Pit) {
-          this.drawPit(map, x, y, px, py, look);
-          continue;
-        }
+        // 拠点に穴は無い（迷宮の穴は焼き付け）。万一あれば何も描かない
+        if (tile === Tile.Pit) continue;
         this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
       }
     }
@@ -1183,13 +1203,12 @@ export class Renderer {
    */
   private drawTileOverlays(state: GameState, viewX: number, viewY: number): void {
     const { map } = state;
-    const { ctx } = this;
     const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
     const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
     const stairs = this.sprite(SPR.stairs);
-    const door = this.sprite(SPR.door);
+    const doorColors = state.lockedTiles.size > 0 ? this.lockedDoorColors(state) : null;
     const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
     this.stairsBuf.length = 0;
 
@@ -1208,29 +1227,49 @@ export class Renderer {
           this.blit(stairs, 0, px, py);
           this.stairsBuf.push(px, py);
         }
-        if (state.lockedTiles.has(toIndex(map, x, y))) {
-          this.blit(door, 0, px, py);
-          ctx.globalAlpha = doorEdgeAlpha;
-          ctx.strokeStyle = COLOR_DOOR_EDGE;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-          ctx.globalAlpha = 1;
-        }
+        if (doorColors && state.lockedTiles.has(toIndex(map, x, y))) this.drawLockedDoor(state, x, y, doorColors.accent, doorEdgeAlpha);
       }
     }
     this.drawStairsGlow(state);
   }
 
-  /** 穴の仮描画: 単色 + 縁の 1px の帯（隣が穴でない辺だけ）。形の良い絵は別の段で作る */
-  private drawPit(map: GameMap, x: number, y: number, px: number, py: number, look: PitLook): void {
+  /** 封鎖の扉の格子の色（章の差し色。テーマが変わったときだけ作り直す） */
+  private lockedDoorColors(state: GameState): { accent: string } {
+    const theme = this.mapTheme(state);
+    if (this.doorTheme !== theme) {
+      this.doorTheme = theme;
+      const c = theme.palette.accent;
+      this.doorAccent = `rgb(${colorR(c)},${colorG(c)},${colorB(c)})`;
+    }
+    return { accent: this.doorAccent };
+  }
+
+  /**
+   * 封鎖の扉: 暗い床 + 章の差し色の格子の帯 + 外周だけ赤く脈打つ線（赤 = 閉じている）。
+   * 外周は隣の封鎖マスに接する辺を引かない（幅の広い扉が 1 枚の枠に読める）
+   */
+  private drawLockedDoor(state: GameState, x: number, y: number, accent: string, edgeAlpha: number): void {
     const { ctx } = this;
-    ctx.fillStyle = look.body;
+    const { map } = state;
+    const px = x * TILE_SIZE;
+    const py = y * TILE_SIZE;
+    ctx.globalAlpha = DOOR_SHADE_ALPHA;
+    ctx.fillStyle = COLOR_BLACK;
     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-    ctx.fillStyle = look.edge;
-    if (getTile(map, x, y - 1) !== Tile.Pit) ctx.fillRect(px, py, TILE_SIZE, PIT_EDGE_PX);
-    if (getTile(map, x, y + 1) !== Tile.Pit) ctx.fillRect(px, py + TILE_SIZE - PIT_EDGE_PX, TILE_SIZE, PIT_EDGE_PX);
-    if (getTile(map, x - 1, y) !== Tile.Pit) ctx.fillRect(px, py, PIT_EDGE_PX, TILE_SIZE);
-    if (getTile(map, x + 1, y) !== Tile.Pit) ctx.fillRect(px + TILE_SIZE - PIT_EDGE_PX, py, PIT_EDGE_PX, TILE_SIZE);
+    ctx.globalAlpha = DOOR_BAR_ALPHA;
+    ctx.fillStyle = accent;
+    for (const o of DOOR_BAR_OFFSETS) {
+      ctx.fillRect(px + o, py, DOOR_BAR_W, TILE_SIZE);
+      ctx.fillRect(px, py + o, TILE_SIZE, DOOR_BAR_W);
+    }
+    ctx.globalAlpha = edgeAlpha;
+    ctx.fillStyle = COLOR_DOOR_EDGE;
+    const locked = (dx: number, dy: number): boolean => state.lockedTiles.has(toIndex(map, x + dx, y + dy));
+    if (!locked(0, -1)) ctx.fillRect(px, py, TILE_SIZE, DOOR_EDGE_W);
+    if (!locked(0, 1)) ctx.fillRect(px, py + TILE_SIZE - DOOR_EDGE_W, TILE_SIZE, DOOR_EDGE_W);
+    if (!locked(-1, 0)) ctx.fillRect(px, py, DOOR_EDGE_W, TILE_SIZE);
+    if (!locked(1, 0)) ctx.fillRect(px + TILE_SIZE - DOOR_EDGE_W, py, DOOR_EDGE_W, TILE_SIZE);
+    ctx.globalAlpha = 1;
   }
 
   /** 部屋の種類ごとの床表現: 伏兵の暗い床、泉、扉の手前のマーク */

@@ -3,6 +3,8 @@
 作成日: 2026-10-01（architect）
 前提: `docs/ideas/map-overhaul-ideas.md`（A・D・E 章と「ユーザーの回答」）、見本 `docs/ideas/previews/map-preview.html` の見た目 C（`smoothMask` / `distField` / `floorTex` / `topTex` / `sideTex` / `voidTex` / `terTex` / `getProps` / `applyLight`）、`src/render/{renderer,terrainUi,darkness,pitLook,layers,tileAtlas,imageAtlas,minimap,renderMath}.ts`、`src/data/tiles.ts`、`src/map/grid.ts`、`src/system/{biomes,chapters,runEvents,terrain}.ts`
 
+**状況（2026-10-01）: 段 0〜3 を実装済み。** 残りは階段の章別の絵（置物の絵のレーンの続き）と拠点（門前町の段）
+
 ## 0. 結論
 
 - 当たり・経路・生成は 16px のまま変えない。地図の静的な部分（床・壁の天面と側面・岩盤の闇・穴・置物・汚し）は、**16x16 マスのチャンクを密度 2 の画素列へ純関数で焼き**、canvas にして毎フレーム blit だけする。手前の縁（lip）は同じ焼き付けで別の画素列に出し、体の後に描く
@@ -86,6 +88,8 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 - 毎フレーム（焼いていないとき）: 地図の blit 6〜9 回 + lip 6〜9 回と合成 2 回 + 光の層（塗り 1 回・光源 48 個以下・合成 2 回）+ 地形 dual-grid（画面の頂点 約 560 のうち地形のある所だけ。普通は 150 回以下）+ 上描き（階段・泉・扉・印）。今の `drawTiles` は画面の全マス約 550 回の `drawImage`（`renderer.ts:1105-1145`）なので、**今より軽くなる**
 
 ### 1-5. 壁の側面と体の前後
+
+（実装メモ 2026-10-01: 縁の床側の帯は ground にも焼き、`drawFrontLip` は体〔自分・敵・拾い物〕と重なる矩形だけを光の層と同じ暗さで描き直す〔`render/frontLip.ts`〕。画面全体で描き直すとソフトウェア描画で +3〜4ms だったため。反転層の紫は縁にも ground と同じ順で掛ける）
 
 - 側面の高さ: 苔の洞（章 1）16 ドット = 半マス / 寺院・廃城（章 2・3）32 ドット = 1 マス / 異界・最深の間 24 ドット。側面は壁のマスの下側に描き、床へ食い込ませない（当たりと絵が一致する）
 - 北の壁（床の北にある壁）の前では、体は側面の上に重なって「壁の前に立つ」に見える。焼いた ground に描くだけで足りる

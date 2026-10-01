@@ -419,7 +419,11 @@ function paintFloor(st: BakeState, out: BakeOutput, i: number, j: number, o: num
   out.ground[o] = c;
   // 手前の縁: 下の壁まで LIP_DOTS 以内。最後の 1 ドットは暗い線
   const toWall = run[k] ?? RUN_CAP;
-  if (toWall <= LIP_DOTS) out.lip[o] = toWall === LIP_DOTS ? P.fO : P.tL;
+  if (toWall > LIP_DOTS) return;
+  // 縁は ground にも同じ色を焼く。描き直す縁は体と重なる所だけで済み、他は ground のまま（見た目が同じ）
+  const lipColor = toWall === LIP_DOTS ? P.fO : P.tL;
+  out.lip[o] = lipColor;
+  out.ground[o] = lipColor;
 }
 
 function paintPit(st: BakeState, out: BakeOutput, i: number, j: number, o: number): void {

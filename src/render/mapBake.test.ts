@@ -210,6 +210,23 @@ describe("mapBake: 絵の中身", () => {
     expect(outside, "それ以外の行に lip は出ない").toEqual([]);
   });
 
+  it("lip の画素は ground にも同じ色で焼かれている（体と重なる所だけ縁を描き直せば見た目が変わらない）", () => {
+    for (const [depth, kind] of [[7, "rooms"], [3, "cave"], [12, "forge"], [17, "cave"], [21, "rooms"], [23, "cave"]] as const) {
+      const out = bake(inputOf(sampleMap(), mapThemeFor(depth, kind), 0, 0), 256);
+      let lipDots = 0;
+      let mismatch = 0;
+      for (let i = 0; i < out.lip.length; i++) {
+        const c = out.lip[i] ?? 0;
+        if (c === 0) continue;
+        lipDots++;
+        if (out.ground[i] !== c) mismatch++;
+      }
+      expect(lipDots, `${kind} 深度 ${depth} に lip がある`).toBeGreaterThan(0);
+      // 置物・汚しの後焼きが ground の縁の上に乗ることがある（lip はその前の素の色）。ごく一部だけ
+      expect(mismatch, `${kind} 深度 ${depth} の ground と食い違う lip のドット数（全 ${lipDots}）`).toBeLessThanOrEqual(lipDots * 0.03);
+    }
+  });
+
   it("北の壁・床の中ほどには lip が出ない", () => {
     const out = bake(inputOf(roomMap(), mapThemeFor(7, "rooms"), 0, 0), 256);
     const rows = (from: number, to: number): number => {

@@ -222,6 +222,7 @@ function fakeFactory(ops: Op[]): { make: (w: number, h: number) => HTMLCanvasEle
       globalAlpha: 1,
       fillStyle: "",
       imageSmoothingEnabled: true,
+      setTransform: () => {},
       clearRect: () => ops.push({ target: name, kind: "clear", composite: ctx.globalCompositeOperation }),
       fillRect: (_x: number, _y: number, w: number, h: number) => ops.push({ target: name, kind: "fill", composite: ctx.globalCompositeOperation, fillStyle: String(ctx.fillStyle), w, h }),
       drawImage: () => ops.push({ target: name, kind: "draw", composite: ctx.globalCompositeOperation }),
@@ -299,5 +300,79 @@ describe("MapLightLayer（光の層）", () => {
       layer.draw(world, VIEW, [{ x: 100, y: 100, r: 30, strength: 0.5 + 0.1 * Math.sin(i), color: "#ff9a40" }], 0.3);
     }
     expect(layer.stampCount(), "強さ 0.4〜0.6 の刻みだけ（暗がり用 + 色用）").toBeLessThanOrEqual(2 * 6);
+  });
+
+  it("drawLitRects: 矩形ごとに縁を描き、暗がりを source-atop で重ねてから、その矩形だけ world へ描く", () => {
+    const ops: Op[] = [];
+    const layer = new MapLightLayer(fakeFactory(ops).make);
+    const world = fakeTarget(ops);
+    layer.draw(world, VIEW, lights, 0.3);
+    ops.length = 0;
+    const areas: { x: number; y: number; w: number; h: number }[] = [];
+    layer.drawLitRects(world, VIEW, [{ x: 100.2, y: 50, w: 30, h: 20 }, { x: 200, y: 100, w: 10, h: 10 }], (_g, area) => {
+      areas.push(area);
+    });
+    expect(areas.length, "paint は矩形ごとに 1 回").toBe(2);
+    expect(areas[0], "ドットの格子（0.5px）に切り揃える").toEqual({ x: 100, y: 50, w: 30.5, h: 20 });
+    const atop = ops.filter((o) => o.target !== "world" && o.kind === "draw");
+    expect(atop.length, "暗がりの重ねは矩形ごとに 1 回").toBe(2);
+    expect(atop.every((o) => o.composite === "source-atop"), "source-atop").toBe(true);
+    const toWorld = ops.filter((o) => o.target === "world");
+    expect(toWorld.length, "world へも矩形ごとに 1 回").toBe(2);
+    expect(toWorld[0]?.w, "矩形の大きさだけ（画面全体ではない。元の矩形の幅 = 61 ドット）").toBe(61);
+    expect(toWorld[0]?.h, "高さ 40 ドット").toBe(40);
+  });
+
+  it("drawLitRects: 矩形が無ければ何もしない（作業用 canvas も作らない）。画面外の矩形は描かない", () => {
+    const ops: Op[] = [];
+    const fake = fakeFactory(ops);
+    const layer = new MapLightLayer(fake.make);
+    const world = fakeTarget(ops);
+    layer.draw(world, VIEW, lights, 0.3);
+    const before = fake.created();
+    ops.length = 0;
+    let painted = 0;
+    layer.drawLitRects(world, VIEW, [], () => painted++);
+    layer.drawLitRects(world, VIEW, [{ x: 5000, y: 5000, w: 10, h: 10 }], () => painted++);
+    expect(painted, "paint は呼ばない").toBe(0);
+    expect(ops.length, "何も描かない").toBe(0);
+    expect(fake.created() - before, "作業用 canvas は 1 度だけ（2 回目の呼び出しで作る）").toBeLessThanOrEqual(1);
+  });
+
+  it("drawLitRects の作業用 canvas は初めて使うときに 1 度だけ作る", () => {
+    const ops: Op[] = [];
+    const fake = fakeFactory(ops);
+    const layer = new MapLightLayer(fake.make);
+    const world = fakeTarget(ops);
+    layer.draw(world, VIEW, lights, 0.3);
+    const before = fake.created();
+    const rect = [{ x: 100, y: 50, w: 30, h: 20 }];
+    layer.drawLitRects(world, VIEW, rect, () => {});
+    layer.drawLitRects(world, VIEW, rect, () => {});
+    expect(fake.created() - before, "増えるのは 1 枚").toBe(1);
+  });
+
+  it("drawLitRects: 作業用 canvas より大きな矩形は断片に割り、断片は互いに重ならず矩形を過不足なく覆う", () => {
+    const ops: Op[] = [];
+    const layer = new MapLightLayer(fakeFactory(ops).make);
+    const world = fakeTarget(ops);
+    layer.draw(world, VIEW, lights, 0.3);
+    ops.length = 0;
+    const areas: { x: number; y: number; w: number; h: number }[] = [];
+    layer.drawLitRects(world, VIEW, [{ x: 0, y: 0, w: 480, h: 270 }], (_g, area) => {
+      areas.push(area);
+    });
+    expect(areas.length, "画面全体（960x540 ドット）は 256x128 の断片 4 x 5 枚").toBe(20);
+    const total = areas.reduce((sum, a) => sum + a.w * a.h, 0);
+    expect(total, "面積の合計が画面と同じ（重ならず欠けない）").toBe(480 * 270);
+    for (let i = 0; i < areas.length; i++) {
+      for (let j = i + 1; j < areas.length; j++) {
+        const a = areas[i];
+        const b = areas[j];
+        if (!a || !b) continue;
+        expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h, `断片 ${i} と ${j} が重ならない`).toBe(false);
+      }
+    }
+    expect(ops.filter((o) => o.target === "world").length, "world へも断片ごとに 1 回").toBe(20);
   });
 });

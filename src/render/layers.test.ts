@@ -65,6 +65,25 @@ describe("描画の層の順", () => {
     }
   });
 
+  it("手前の縁は自分の後で、弾・光線・図形より前（弾と光線は縁より上）", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawFrontLip");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "自分より後").toBeGreaterThan(world.indexOf("drawPlayer"));
+    expect(at, "自分のオーラより後").toBeGreaterThan(world.indexOf("drawPlayerAuras"));
+    expect(at, "敵より後").toBeGreaterThan(world.indexOf("drawEnemies"));
+    for (const name of ["drawProjectiles", "drawLasers", "drawShapes"]) {
+      expect(at, `${name} より前`).toBeLessThan(world.indexOf(name));
+    }
+    expect(at, "光の層（地図の暗がり）より後").toBeGreaterThan(world.indexOf("drawMapLight"));
+  });
+
+  it("バイオームの色調は描かない（反転層の紫だけを地図の直後に重ねる）", () => {
+    const world = LAYER_CONTENTS.world;
+    expect(world.includes("drawBiomeTint"), "旧い色調").toBe(false);
+    expect(world.indexOf("drawInvertedTint"), "地図の直後").toBe(world.indexOf("drawTiles") + 1);
+  });
+
   it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
     const world = LAYER_CONTENTS.world;
     const at = world.indexOf("drawHubSpots");

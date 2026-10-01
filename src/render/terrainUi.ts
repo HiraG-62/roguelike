@@ -179,11 +179,6 @@ function drawRubble(ctx: CanvasRenderingContext2D, state: GameState, x: number, 
   }
 }
 
-/** atlas 上の地形素材のキー（data/tiles.ts の terrain.<kind>）。PNG 素材の整理（段 3）まで tiles.test.ts が参照する */
-export function terrainSpriteKey(kind: TerrainKind): string {
-  return `terrain.${kind}`;
-}
-
 /** 崩れる床に敵が乗っている間は横に揺れる（抜けるまでの残りが短いほど大きい）。乗っていなければ 0 */
 function rubbleShake(state: GameState, load: number, hash: number): number {
   if (load <= 0) return 0;

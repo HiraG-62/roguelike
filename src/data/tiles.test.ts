@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Sprite, SpriteAtlas } from "../render/sprites";
 import { mergeAtlas } from "../render/sprites";
-import { terrainSpriteKey } from "../render/terrainUi";
 import { hubSpriteKey } from "../render/hubUi";
 import { HUB_SPOT_KEYS } from "../map/hubMap";
-import { biomeTintNeeded, propSpriteKey } from "../render/runUi";
+import { propSpriteKey } from "../render/runUi";
 import {
   BIOME_TILESET,
   DERIVED_SPRITES,
@@ -14,25 +13,7 @@ import {
   WALL_MASK_COUNT,
   biomeTileSuffixes,
   punyWallCell,
-  tileBiome,
-  type TileBiome,
 } from "./tiles";
-import type { FloorKind } from "../core/state";
-
-const FLOOR_KINDS: readonly FloorKind[] = [
-  "rooms",
-  "cave",
-  "dark",
-  "forge",
-  "ossuary",
-  "swamp",
-  "glacier",
-  "mine",
-  "meadow",
-];
-const BIOMES: readonly TileBiome[] = [...FLOOR_KINDS, "hub"];
-/** 素材で描く地形（terrainUi の STYLE で spriteAlpha を持つもの） */
-const SPRITE_TERRAINS = ["water", "oil", "lava", "bog", "ice", "mud"] as const;
 
 const sourceKeys = new Set(TILE_SPRITES.map((d) => d.key));
 const allKeys = new Set([...sourceKeys, ...DERIVED_SPRITES.map((d) => d.key)]);
@@ -71,39 +52,30 @@ describe("TILE_SPRITES", () => {
   });
 });
 
-describe("BIOME_TILESET", () => {
-  it("FloorKind 9 種と hub を全部持つ", () => {
-    for (const kind of FLOOR_KINDS) expect(BIOME_TILESET[kind], kind).toBeDefined();
-    expect(BIOME_TILESET.hub).toBeDefined();
+describe("BIOME_TILESET（拠点だけ）", () => {
+  it("拠点の組だけを持つ（迷宮の床・壁は焼き付けが描く）", () => {
+    expect(Object.keys(BIOME_TILESET), "拠点だけ").toEqual(["hub"]);
   });
 
-  it("全バイオームに床と壁 16 種の派生がある", () => {
+  it("拠点に床と壁 16 種の派生がある", () => {
     expect(biomeTileSuffixes().length, "床 1 + 壁 16").toBe(1 + WALL_MASK_COUNT);
-    for (const biome of BIOMES) {
-      for (const suffix of biomeTileSuffixes()) expect(allKeys.has(`tile.${biome}.${suffix}`), `${biome} の ${suffix}`).toBe(true);
-    }
+    for (const suffix of biomeTileSuffixes()) expect(allKeys.has(`tile.hub.${suffix}`), `hub の ${suffix}`).toBe(true);
   });
 
-  it("バイオームの素材の組は床と壁 16 種を切り出している", () => {
-    for (const biome of BIOMES) {
-      const source = BIOME_TILESET[biome].source;
-      for (const suffix of biomeTileSuffixes()) expect(sourceKeys.has(`tile.${source}.${suffix}`), `${source} の ${suffix}`).toBe(true);
-    }
+  it("拠点の素材の組は床と壁 16 種を切り出している", () => {
+    const source = BIOME_TILESET.hub.source;
+    for (const suffix of biomeTileSuffixes()) expect(sourceKeys.has(`tile.${source}.${suffix}`), `${source} の ${suffix}`).toBe(true);
   });
 
-  it("拠点（sandbox）は hub、それ以外はフロア種別をそのまま引く", () => {
-    expect(tileBiome("rooms", true)).toBe("hub");
-    expect(tileBiome("forge", false)).toBe("forge");
+  it("迷宮のバイオームの派生・下水の水面・封鎖の扉の素材は持たない", () => {
+    const stale = [...allKeys].filter((k) => /^tile\.(?!puny\.|hub\.)/.test(k) || k.startsWith("terrain.") || k === "door");
+    expect(stale, "捨てたはずのキー").toEqual([]);
   });
 });
 
 describe("DERIVED_SPRITES", () => {
   it("派生元はすべて切り出し表にある", () => {
     for (const d of DERIVED_SPRITES) expect(sourceKeys.has(d.from), `${d.key} の元 ${d.from}`).toBe(true);
-  });
-
-  it("素材で描く地形はすべてキーがある", () => {
-    for (const kind of SPRITE_TERRAINS) expect(allKeys.has(terrainSpriteKey(kind)), kind).toBe(true);
   });
 });
 
@@ -117,14 +89,6 @@ describe("台座", () => {
   it("切り出し表の prop.* は propSpriteKey で引けるキーと一致する", () => {
     const kinds = ["keystone", "rune", "lever", "anvil", "exchange", "curse", "chest", "ascend", "vein", "seal", "element", "inverter"] as const;
     for (const kind of kinds) expect(sourceKeys.has(propSpriteKey({ kind })), kind).toBe(true);
-  });
-});
-
-describe("biomeTintNeeded", () => {
-  it("素材を持つバイオームは色調を重ねない", () => {
-    expect(biomeTintNeeded("forge", true), "素材あり").toBe(false);
-    expect(biomeTintNeeded("forge", false), "素材なしなら従来どおり").toBe(true);
-    expect(biomeTintNeeded("rooms", false), "色調の無いバイオーム").toBe(false);
   });
 });
 

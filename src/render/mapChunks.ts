@@ -263,13 +263,29 @@ export class MapChunkCache {
     }
   }
 
-  /** 手前の縁の層（南の壁の手前）。体の後に描く（段 3 で結線） */
-  drawLip(ctx: CanvasRenderingContext2D, view: MapView): void {
+  /**
+   * 手前の縁の層（南の壁の手前）。体の後に描く。clip（ワールド座標）があればその範囲だけ（体と重なる所だけ描き直すため）。
+   * clip は 0.5px の格子（焼いた画素の大きさ）に揃っていること
+   */
+  drawLip(ctx: CanvasRenderingContext2D, view: MapView, clip?: MapView): void {
     const { map } = this;
     if (!map) return;
-    for (const entry of chunkPlan(view, map.width, map.height, 0)) {
+    for (const entry of chunkPlan(clip ?? view, map.width, map.height, 0)) {
       const lip = this.chunks.get(entry.key)?.lip;
-      if (lip) ctx.drawImage(lip, entry.cx * CHUNK_PX, entry.cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
+      if (!lip) continue;
+      const ox = entry.cx * CHUNK_PX;
+      const oy = entry.cy * CHUNK_PX;
+      if (!clip) {
+        ctx.drawImage(lip, ox, oy, CHUNK_PX, CHUNK_PX);
+        continue;
+      }
+      const x0 = Math.max(clip.x, ox);
+      const y0 = Math.max(clip.y, oy);
+      const x1 = Math.min(clip.x + clip.w, ox + CHUNK_PX);
+      const y1 = Math.min(clip.y + clip.h, oy + CHUNK_PX);
+      if (x1 <= x0 || y1 <= y0) continue;
+      const k = lip.width / CHUNK_PX;
+      ctx.drawImage(lip, (x0 - ox) * k, (y0 - oy) * k, (x1 - x0) * k, (y1 - y0) * k, x0, y0, x1 - x0, y1 - y0);
     }
   }
 
