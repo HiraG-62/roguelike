@@ -7,6 +7,7 @@ import type { GameMap } from "../map/grid";
 import { Tile } from "../map/grid";
 import { EDGE_PERIOD, buildVertexDepth, cornerShapeBits, sampleDepth, type VertexDepth } from "./dualGrid";
 import { Lattice, cliffTex, createTexContext, floorTex, pitTex, sideTex, topTex, voidTex, type TexContext } from "./mapTextures";
+import { DOT_FLOOR, DOT_PIT, DOT_WALL, decorateChunk, texStonesFor, type DecorSurface } from "./mapDecor";
 import { mixColor } from "./mapTheme";
 import {
   CHUNK_DOTS,
@@ -61,9 +62,9 @@ const SHADOW_EDGE = 0.5;
 /** 「まだ見つかっていない」行（Int16 の下限側） */
 const NONE_ROW = -10000;
 
-const KIND_FLOOR = 0;
-const KIND_WALL = 1;
-const KIND_PIT = 2;
+const KIND_FLOOR = DOT_FLOOR;
+const KIND_WALL = DOT_WALL;
+const KIND_PIT = DOT_PIT;
 
 /** 焼く長方形（ワールドのドット）。チャンクは 512x512 の特別な場合。継ぎ目の検査のため任意の大きさも焼ける */
 export interface RectBakeInput {
@@ -74,6 +75,8 @@ export interface RectBakeInput {
   w: number;
   h: number;
   depth?: VertexDepth;
+  /** 置物を置かないマスの印（地図と同じ並び。無ければ地図から作る） */
+  exclude?: Uint8Array;
 }
 
 interface BakeState {
@@ -168,7 +171,8 @@ function createState(input: RectBakeInput): BakeState {
   const rh = MARGIN_T + input.h + theme.sideH + MARGIN_B_EXTRA;
   const x0 = input.x - MARGIN_L;
   const y0 = input.y - MARGIN_T;
-  const tc = createTexContext(theme, x0, y0, rw, rh);
+  // 枯山水の砂紋が避ける墨の石は、床の模様より先に位置が要る
+  const tc = createTexContext(theme, x0, y0, rw, rh, texStonesFor(map, theme, input.exclude, input.x, input.y, input.w, input.h));
   const kindX0 = floorDiv(x0, TILE_DOTS) - 1;
   const kindY0 = floorDiv(y0, TILE_DOTS) - 1;
   const kindW = floorDiv(x0 + rw - 1, TILE_DOTS) + 1 - kindX0 + 1;
@@ -467,13 +471,32 @@ function paintRow(st: BakeState, out: BakeOutput): void {
   st.paintRow = r + 1;
 }
 
+/** 置物の描き込みが読む口。作業用の配列の範囲の外は壁（床・側面に描かない） */
+function decorSurfaceOf(st: BakeState): DecorSurface {
+  const index = (wx: number, wy: number): number => {
+    const i = wx - st.x0;
+    const j = wy - st.y0;
+    return i < 0 || j < 0 || i >= st.rw || j >= st.rh ? -1 : j * st.rw + i;
+  };
+  return {
+    kindAt: (wx, wy) => {
+      const k = index(wx, wy);
+      if (k < 0 || st.wall[k] === 1) return KIND_WALL;
+      return st.pit[k] === 1 ? KIND_PIT : KIND_FLOOR;
+    },
+    wallRun: (wx, wy) => {
+      const k = index(wx, wy);
+      return k < 0 ? RUN_CAP : (st.run[k] ?? RUN_CAP);
+    },
+  };
+}
+
 /** 長方形を焼く job（チャンクの焼き付けの本体）。output の ground / lip は w * h の行優先 */
 export function createRectBake(input: RectBakeInput): ChunkBakeJob {
   const size = Math.max(0, input.w) * Math.max(0, input.h);
   const output: BakeOutput = {
     ground: new Uint32Array(size),
     lip: new Uint32Array(size),
-    // 置物・側面の蛍苔の光は段 2 の置物のレーン（mapDecor）が足す
     lights: [],
   };
   let state: BakeState | null = null;
@@ -497,6 +520,9 @@ export function createRectBake(input: RectBakeInput): ChunkBakeJob {
       }
       painted = state.paintRow;
       if (painted >= input.h) {
+        // 床・壁・穴が焼き上がってから、汚し・側面の飾り・置物を描き込む（光源はここで集まる）
+        const { map, theme, exclude, x, y, w, h } = input;
+        output.lights.push(...decorateChunk({ map, theme, ...(exclude ? { exclude } : {}), x, y, w, h, ground: output.ground, surface: decorSurfaceOf(state) }));
         releaseBuffers(state.buf);
         state = null;
       }
@@ -517,6 +543,7 @@ export function createChunkBake(input: ChunkBakeInput): ChunkBakeJob {
     w: CHUNK_DOTS,
     h: CHUNK_DOTS,
     depth: input.depth,
+    exclude: input.exclude,
   });
 }
 

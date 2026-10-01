@@ -330,4 +330,4 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 3. **ドット絵の作業台との相性**: `mapProps.ts` は役の文字で色を当てるので、`npm run sprite lint` / `render` がアトラスへの登録や全体の色表を前提にしていると通らない。L5 の最初に `scripts/sprite/cli.mjs` の入力の形を確かめ、合わなければ `render` に色表を渡す引数を足すか、確認用 PNG を `mapShot` で撮る
 4. **光の色の重ね方**: `soft-light` の見え方は見本の掛け算と少し違う。L3 で 12 枚を撮り、合わなければ `overlay` か「暗くした後に `lighter` で弱く足す」に替える（数値は `MAP_LIGHT.lightTint`）
 5. **描き順の入れ替え（弾を自分の上へ）**: 書の真上のレーンの銃口・`insideDrawnGun` の見え方に効く可能性がある。L7 の前にそのレーンの統合結果で撮り直し、銃口で弾が二重に見えないかを確かめる
-6. **参道の判定**: court の参道を「どの部屋にも属さない通路のマス」（`RoomLookup.roomOf` が -1）で拾う想定。court の通路が部屋の所属に含まれている場合は拾えないので、L4 の最初に `map/layout/court.ts` の出力を 1 枚撮って確かめる
+6. **参道の判定**（確定 2026-10-01: court の参道は部屋の所属に入らず `roomOf == -1` で拾える。脇の戸口・外回り廊下・裏道も含む。縦軸の court は参道の両脇が東西の壁なので壁際の石灯籠の列が出ない）: court の参道を「どの部屋にも属さない通路のマス」（`RoomLookup.roomOf` が -1）で拾う想定。court の通路が部屋の所属に含まれている場合は拾えないので、L4 の最初に `map/layout/court.ts` の出力を 1 枚撮って確かめる

@@ -459,9 +459,14 @@ function floorSand(tc: TexContext, wx: number, wy: number): number {
   const { P, seed } = tc;
   let t = wy + (tc.sandBand[wx - tc.sandX0] ?? sandBandAt(tc.sandPhase, wx));
   for (const s of tc.stones) {
-    const d = Math.hypot((wx - s.x) / 1.15, wy - s.y);
-    if (d < s.ring) {
-      t = d;
+    // 全ドット × 石の数だけ回るので、外れは先に軸ごとに落とし、平方根は輪の中だけで取る
+    const dy = wy - s.y;
+    if (dy >= s.ring || dy <= -s.ring) continue;
+    const dx = (wx - s.x) / 1.15;
+    if (dx >= s.ring || dx <= -s.ring) continue;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < s.ring * s.ring) {
+      t = Math.sqrt(d2);
       break;
     }
   }

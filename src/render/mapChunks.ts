@@ -5,6 +5,7 @@
 import { type GameMap, TILE_SIZE, Tile } from "../map/grid";
 import { buildVertexDepth, type VertexDepth } from "./dualGrid";
 import { createChunkBake } from "./mapBake";
+import { buildDecorExclude } from "./mapDecor";
 import {
   BAKE_ROWS_BOOST,
   BAKE_ROWS_PER_FRAME,
@@ -184,6 +185,8 @@ export class MapChunkCache {
   private themeKey = "";
   /** 頂点の距離（地図ごとに 1 回作って全チャンクで共有する。分類が変わったら作り直す） */
   private depth: VertexDepth | null = null;
+  /** 置物を置かないマスの印（地図ごとに 1 回。焼きへ渡す） */
+  private exclude: Uint8Array | null = null;
   private flat: FlatColors | null = null;
   private frame = 0;
   private rowsThisFrame = 0;
@@ -289,6 +292,7 @@ export class MapChunkCache {
     this.map = map;
     this.themeKey = theme.key;
     this.depth = buildVertexDepth(map);
+    this.exclude = buildDecorExclude(map);
     this.flat = flatColorsOf(theme.palette);
   }
 
@@ -299,7 +303,9 @@ export class MapChunkCache {
     chunk.lastUsed = this.frame;
     if (chunk.sum === chunkChecksum(map, entry.cx, entry.cy)) return;
     this.chunks.delete(entry.key);
+    // 隠し部屋が開くなど分類が変わったら、頂点の距離と置物の除外の印も作り直す（まれな出来事）
     this.depth = buildVertexDepth(map);
+    this.exclude = buildDecorExclude(map);
     if (!entry.inView) return;
     const fresh = this.begin(map, theme, entry);
     this.advance(fresh, Number.POSITIVE_INFINITY);
@@ -311,7 +317,14 @@ export class MapChunkCache {
       cx: entry.cx,
       cy: entry.cy,
       sum: chunkChecksum(map, entry.cx, entry.cy),
-      job: createChunkBake({ map, cx: entry.cx, cy: entry.cy, theme, ...(this.depth ? { depth: this.depth } : {}) }),
+      job: createChunkBake({
+        map,
+        cx: entry.cx,
+        cy: entry.cy,
+        theme,
+        ...(this.depth ? { depth: this.depth } : {}),
+        ...(this.exclude ? { exclude: this.exclude } : {}),
+      }),
       rowsDone: 0,
       ground: null,
       lip: null,

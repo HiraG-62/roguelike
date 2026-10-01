@@ -297,10 +297,14 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     expect(cache.bakedCount, "1 枚は焼き直し待ち").toBeLessThan(planned.length);
   });
 
-  it("lightsIn は画面に掛かる光だけ（焼いた光源が無ければ空）", () => {
+  it("lightsIn は画面に掛かる光だけ（置物の光が画面の外なら空）", () => {
     const map = openMap(32, 32);
     const cache = new MapChunkCache(fakeImages().make);
     cache.settle(map, theme, VIEW);
-    expect(cache.lightsIn(VIEW).length, "仮の焼き付けは光源なし").toBe(0);
+    for (const l of cache.lightsIn(VIEW)) {
+      expect(l.x + l.r >= VIEW.x && l.x - l.r <= VIEW.x + VIEW.w && l.y + l.r >= VIEW.y && l.y - l.r <= VIEW.y + VIEW.h, "返った光は画面に掛かる").toBe(true);
+    }
+    const away: MapView = { x: 100000, y: 100000, w: 480, h: 270 };
+    expect(cache.lightsIn(away).length, "画面の外の光は返さない").toBe(0);
   });
 });
