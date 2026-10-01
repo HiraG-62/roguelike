@@ -9,22 +9,38 @@ import { ultimateChoice } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { type PlayerStats, createEmptyEquipment } from "../loot/types";
 import { deriveAttributes } from "../system/attributes";
-import { createInventoryUi, updateInventoryUi, type InventoryUi } from "./inventory";
 import { PANEL_H, PANEL_W, PANEL_X, PANEL_Y, type Rect } from "./inventoryLayout";
-import { derivedStatRows, effectsPanelRect, layoutStatusTab, statusTabEffectRows, statusTabRects, ultimateCostOf } from "./statusTab";
+import {
+  type StatusTabUi,
+  createStatusTabUi,
+  derivedStatRows,
+  effectsPanelRect,
+  layoutStatusTab,
+  statusTabEffectRows,
+  statusTabRects,
+  ultimateCostOf,
+  updateStatusTab,
+} from "./statusTab";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
+}
+
+/** ステータスタブの状態（段 2 で装備画面のタブが無くなったので、タブの状態を直に持つ。段 6 で sheetBody.test.ts へ移す） */
+interface InventoryUi {
+  status: StatusTabUi;
+}
+
+/** タブの入力を直に呼ぶ（マウスは毎回動いたものとして扱う） */
+function updateInventoryUi(state: GameState, ui: InventoryUi, input: FrameInput, _dt: number): void {
+  updateStatusTab(state, ui.status, input, true);
 }
 
 /** 拠点（sandbox）かラン中の state でステータスタブを開く */
 function openStatus(sandbox: boolean): { state: GameState; ui: InventoryUi } {
   const state = createGame(1);
   if (sandbox) state.sandbox = true;
-  const ui = createInventoryUi();
-  updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-  updateInventoryUi(state, ui, withInput({ inventoryPressed: true }), 0);
-  return { state, ui };
+  return { state, ui: { status: createStatusTabUi() } };
 }
 
 function clickAt(state: GameState, ui: InventoryUi, rect: Rect): void {
@@ -48,7 +64,6 @@ function overlaps(a: Rect, b: Rect): boolean {
 describe("ステータスタブ: 奥義の選択", () => {
   it("拠点では奥義カードのクリックで profile.ultimates が変わる", () => {
     const { state, ui } = openStatus(true);
-    expect(ui.tab).toBe("status");
     const moveset = state.stats.moveset;
     const set = ULTIMATES[moveset];
     const last = set.length - 1;

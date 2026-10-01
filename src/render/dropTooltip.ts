@@ -10,8 +10,8 @@ import type { FormKey } from "../data/weaponForms";
 import type { SkillStone } from "../skills/types";
 import { weaponArtLabel } from "../skills/arts";
 import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
-import { type Rect, SLOT_LABEL } from "../ui/inventory";
-import { itemTipLines } from "./inventoryUi";
+import { type Rect, SLOT_LABEL } from "../ui/inventoryLayout";
+import { itemTipLines } from "./itemTips";
 import {
   COLOR_BORDER,
   COLOR_DIM,

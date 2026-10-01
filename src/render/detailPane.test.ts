@@ -86,7 +86,7 @@ describe("詳細欄の計算式の頁", () => {
 
   it("全武器のベースで、計算式の頁が詳細欄の高さに収まる", async () => {
     const { detailPaneFits } = await import("./detailPane");
-    const { itemFormulaLines } = await import("./inventoryUi");
+    const { itemFormulaLines } = await import("./itemTips");
     const game = createGame(1);
     const rect = detailBodyRect();
     const weapons = BASES.filter((b) => b.moveset !== undefined);
@@ -103,7 +103,7 @@ describe("詳細欄の計算式の頁", () => {
 
   it("全スキル石で、計算式の頁が詳細欄の高さに収まる", async () => {
     const { detailPaneFits } = await import("./detailPane");
-    const { stoneFormulaLines } = await import("./inventoryUi");
+    const { stoneFormulaLines } = await import("./itemTips");
     const game = createGame(1);
     const rect = detailBodyRect();
     for (const scale of SCALES) {
@@ -118,7 +118,7 @@ describe("詳細欄の計算式の頁", () => {
 
   it("何も乗せていないときの参照一覧が、要約の見出しの下の欄に収まる（行動の多い武器種 + スキル 4 つ）", async () => {
     const { detailPaneFits } = await import("./detailPane");
-    const { summaryBelowRect, summaryFormulaLines } = await import("./inventoryUi");
+    const { summaryBelowRect, summaryFormulaLines } = await import("./itemTips");
     const game = createGame(1);
     const rect = summaryBelowRect(detailBodyRect());
     // 名前の多いスキル（式の数が多い順）を 4 つ装着した想定

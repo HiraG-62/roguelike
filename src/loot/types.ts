@@ -325,6 +325,8 @@ export interface ProfileMeta {
   /** 踏破の回数と、踏破した最高位階（履歴は 20 件で切れるので別に持つ。0 / 無しは書かない） */
   clears?: number;
   bestClearTier?: number;
+  /** 部位ごとに最後に候補を見たときの拾った時刻（新着の判定。ui/seen.ts。追加フィールドで version は変えない） */
+  seenAt?: Partial<Record<Slot, number>>;
 }
 
 export interface Profile {

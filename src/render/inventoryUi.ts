@@ -1,731 +1,211 @@
-import { currentForm } from "../system/morale";
-import { actionKeyLabel, skillKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
-import { type SynergyDescription, describeItem, describeSynergy, itemColorBar, itemKindName } from "../loot/describe";
-import { RARITY_COLOR, RARITY_LABEL, SLOTS, type Item } from "../loot/types";
-import { statsSummary } from "../loot/stats";
-import {
-  MODIFIERS,
-  SKILL,
-  SKILL_DEFS,
-  castBurden,
-  castInterval,
-  formatVariant,
-  modifierVerb,
-  resolveCast,
-  slotLinks,
-  stoneLabel,
-  transformLabel,
-} from "../skills/data";
-import { WEAR_TUNING } from "../skills/tuning2";
-import { wearSummary } from "../skills/wear";
-import { COMBOS, comboAfter } from "../skills/combos";
-import { findStone, stoneInSlot } from "../skills/persistence";
-import { weaponArtLabel } from "../skills/arts";
-import type { CastParams, ModifierKey, SkillDef, SkillKey, SkillStone } from "../skills/types";
-import { itemColor } from "../system/loot";
-import { affinity, skillKeywords } from "../system/keywords";
-import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, slotModifierView, usedLinks } from "../system/skills";
-import { boonGrantedModifiers } from "../system/boons";
-import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
-import { synergyBuild } from "../ui/synergyPanel";
-import { SUMMARY_HEAD_H, type SlotTileLayout } from "../ui/equipmentLayout";
-import { DETAIL_PAGES, type StashRowLayout, detailPagerRects } from "../ui/inventoryLayout";
-import {
-  CONTENT_Y,
-  type SkillColumn,
-  type InventoryLayout,
-  type InventoryUi,
-  type Rect,
-  SLOT_LABEL,
-  type SkillSlotLayout,
-  type SkillsLayout,
-  type StoneRowLayout,
-  type DetailPage,
-  detailPageOf,
-  hasDetailPager,
-  helpButtonRect,
-  isDestroyPending,
-  layoutInventory,
-  layoutSkills,
-  salvageKey,
-  shatterKey,
-  skillColumnRects,
-  tabRects,
-} from "../ui/inventory";
-import { drawBudModal } from "./budUi";
-import { drawSummaryHead } from "./attributeUi";
-import { drawStatusTab } from "./statusTabUi";
-import { DETAIL_GAP_LINE, type DetailContent, type DetailLine, drawDetailPane, ultimateTipLine } from "./detailPane";
-import { chosenUltimate } from "../system/ultimates";
-import { MOVESETS } from "../data/weapons";
-import {
-  type ActionFormulas,
-  type LoadoutSources,
-  type ScalingFormula,
-  actionListRows,
-  itemModifierRows,
-  allFormulas,
-  attributeReferences,
-  formulaChunks,
-  itemFormulas,
-  mainReferenceChunks,
-  referenceChunks,
-  skillFormulas,
-} from "../ui/scalingText";
-import { itemAttackLine, loadoutAttackLines, skillAttackLine } from "./elementUi";
-import { drawEchoTab } from "./echoTabUi";
-import { drawInventoryHelp } from "./inventoryHelp";
-import { drawSynergyTab } from "./synergyUi";
-import { drawRuneColumn, runeTooltipLines } from "./skillRuneUi";
-import {
-  COLOR_BORDER,
-  COLOR_DIM,
-  COLOR_EMPTY,
-  COLOR_GROWN,
-  COLOR_HOVER_BG,
-  COLOR_INSCRIPTION,
-  COLOR_SELECTED,
-  COLOR_TEXT,
-  COLOR_WARN,
-  GROWN_MARK,
-  HUE_STRIP_W,
-  META_GAP,
-  ROW_BASELINE_OFFSET,
-  TEXT_PAD_X,
-  type TipLine,
-  bodyLineH,
-  drawColorBar,
-  fillRectPx,
-  strokeRectPx,
-  traitTipLine,
-} from "./lootUiParts";
-import { drawSlotGroupLines, drawStashToolbar, stashEmptyText } from "./stashToolbarUi";
-import { TEXT, drawText, textWidth, truncateText } from "./pixelText";
+import { FACE_CHIPS, HEADER_CRUMBS_X, holdRatio, menuHits, viewModule } from "../ui/inventory";
+import { focusedHit } from "../ui/menuFocus";
+import { menuGuideText } from "../ui/menuInput";
+import { type GuideVerb, type InventoryUi, type MenuHit, type MenuView, rootFace, topView } from "../ui/menuState";
+import { drawActPage } from "./actPageUi";
+import { drawAttire } from "./attireUi";
+import { drawCandidates } from "./candidatesUi";
+import { MENU_INK, box, drawHoldRing, menuText, px } from "./crestDraw";
+import { drawCrest } from "./crestUi";
+import { drawFlow, drawFlowBoard } from "./flowUi";
+import { tileHash } from "./renderMath";
+import { drawSheet } from "./sheetUi";
+import { drawSkillPage } from "./skillPageUi";
+
+export { MENU_INK, captureMenuDraw, drawFocusBrackets, drawHoldRing, menuText, noteMarks } from "./crestDraw";
 
 /**
- * 装備画面（装備 / スキル / 残響 / 網の 4 タブ）の描画。state と ui を読むだけ。
- * 装備・スキルタブは「左: 一覧 / 右: 固定の詳細欄」。詳細欄は乗せた物の要点を出し、拾うキーで来歴・語などの詳しい行を足す。
- * 操作の説明は詳細欄の下端（いまできる操作だけ）と ？ のヘルプに出し、画面に常時の説明文は置かない。
- * 単一指標（DPS・スコア）は出さない
+ * 装備画面（装束と紋）の殻の描画（docs/ideas/inventory-v2/E-impl.md 4-3 E2）。state と ui を読むだけ。
+ * 墨染めの帳と漆の縁・見出し（面の札・頁の名・階）・荷札 2 行・操作案内・長押しの環を描き、頁の中身は頁ごとの描画に振り分ける。
+ * 文字は焦点の 1 つにだけ付く荷札と見出し・案内だけ（情報の予算。数は書付に出す）。単一指標は出さない
  */
 
-const COLOR_OVERLAY = "rgba(0,0,0,0.6)";
-/** 枠の背景は不透明にする（半透明だと背後の HUD の文字が透けて見出しと重なる） */
-const COLOR_FRAME_BG = "#0c0c12";
-const COLOR_HEADER_RULE = "#303038";
-const COLOR_BANNER_BG = "rgba(157,255,176,0.14)";
-const COLOR_TILE_ACTIVE_BG = "rgba(255,215,95,0.10)";
-const COLOR_SKILL = SKILL.drop.stoneColor;
-/** 武器技の「〇〇専用」（今の武器種で撃てる / 撃てない） */
-const COLOR_WEAPON_ART = "#ffd080";
-const COLOR_WEAPON_ART_OFF = "#ff7060";
-/** 地金の行（性質の色と混ざらない地金の色） */
-export const COLOR_INNATE = "#c8b48a";
-/** 地金の行の見出しと区切り */
-export const INNATE_HEAD = "地金: ";
-const INNATE_JOINER = "、";
+/** 見出し・区切り・荷札・操作案内の y（上端） */
+const HEADER_Y = 4;
+const HEADER_RULE_Y = 16;
+const TAG_TITLE_Y = 224;
+const TAG_SUB_Y = 238;
+const GUIDE_Y = 256;
+const TEXT_X = 8;
+const TEXT_RIGHT = 472;
+const TEXT_W = TEXT_RIGHT - TEXT_X;
+/** 見出しの右（階・件数）の幅 */
+const HEADER_RIGHT_W = 100;
+/** 荷札の 1 行目の右寄せ（地金 ▲▼・費用）の幅 */
+const TAG_ASIDE_W = 132;
+const TAG_MARK = "▶ ";
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "系統" };
-const TAB_UNDERLINE_H = 1;
-const HELP_LABEL = "？ ヘルプ";
-const COLOR_HELP = "#8fd0ff";
-const COLOR_HELP_BG = "rgba(143,208,255,0.12)";
-/** スキルタブの今の列の枠（選択中スロットの黄色と区別する） */
-const COLOR_FOCUS = "rgba(143,208,255,0.75)";
-const COLOR_DESTROY_BG = "rgba(255,96,96,0.22)";
-/** 倉庫の行: 色の配合の帯の幅・高さと、種類（武器種 / ベース名）の列の幅 */
-const ROW_BAR_W = 18;
-const ROW_BAR_H = 3;
-const ROW_KIND_W = 44;
-const PAGE_LABEL: Readonly<Record<DetailPage, string>> = { brief: "要点", full: "詳しく", formula: "計算式" };
-const PAGER_PREV = "<";
-const PAGER_NEXT = ">";
-/** 部位の枠・スキルのスロットの 1 行目と 2 行目のベースライン（枠の上端から） */
-const TILE_LINE1_Y = 9;
-const TILE_LINE2_Y = 19;
-const TILE_BAR_H = 2;
-const SKILL_ICON_SIZE = 14;
-const SKILL_ICON_BASELINE = 11;
-/** コストが最大気力を超えて切り詰められたときの注記 */
-const COST_CLAMPED_NOTE = "（上限で切り詰め）";
-const SECTION_GAP = 3;
+// -----------------------------------------------------------------------------
+// 帳と縁
+// -----------------------------------------------------------------------------
 
-function keystoneKeysOf(item: Item): string[] {
-  const keys = item.affixes.filter((r) => isKeystoneKey(r.key)).map((r) => r.key);
-  if (item.implicit && isKeystoneKey(item.implicit.key)) keys.push(item.implicit.key);
-  return keys;
+/** 紙の繊維（座標のハッシュで決まる点。1 度だけ数えて使い回す） */
+interface Fiber {
+  x: number;
+  y: number;
+  w: number;
+  color: string;
 }
 
-function conflictText(names: readonly string[]): string {
-  return `誓約が競合: ${names.join(" と ")}`;
-}
+const FIBER_INSET = 4;
+const FIBER_A_RATE = 0.012;
+const FIBER_A_WIDE = 0.004;
+const FIBER_B_RATE = 0.99;
+const HASH_SCALE = 2 ** 32;
+const FIBER_SEED_X = 911;
+const FIBER_SEED_Y = 57;
 
-/**
- * item を装備した場合（装備中ならそのまま）の誓約の排他衝突のうち、item の誓約が絡むもの。
- * 同じスロットの現装備は置き換わる前提で除外する。
- */
-function conflictLinesFor(state: GameState, item: Item): string[] {
-  const own = keystoneKeysOf(item);
-  if (own.length === 0) return [];
-  const keys = [...own];
-  for (const slot of SLOTS) {
-    const eq = state.profile.equipment[slot];
-    if (!eq || slot === item.slot) continue;
-    keys.push(...keystoneKeysOf(eq));
-  }
-  return keystoneConflicts(keys)
-    .filter((group) => group.some((d) => own.includes(d.key)))
-    .map((group) => conflictText(group.map((d) => d.name)));
-}
+let fibers: Fiber[] | null = null;
 
-/** 装備中の排他衝突（要約の先頭に出す） */
-function equippedConflictLines(state: GameState): string[] {
-  const keys: string[] = [];
-  for (const slot of SLOTS) {
-    const eq = state.profile.equipment[slot];
-    if (eq) keys.push(...keystoneKeysOf(eq));
-  }
-  return keystoneConflicts(keys).map((group) => conflictText(group.map((d) => d.name)));
-}
-
-function findItemById(state: GameState, id: string | null): Item | null {
-  if (!id) return null;
-  for (const slot of SLOTS) {
-    const item = state.profile.equipment[slot];
-    if (item && item.id === id) return item;
-  }
-  return state.profile.stash.find((it) => it.id === id) ?? null;
-}
-
-/** 頁送りの中央の文字（「要点 1/3」）。拾うキーでも送れるのでキーも添える */
-export function detailPagerText(page: DetailPage): string {
-  const index = DETAIL_PAGES.indexOf(page) + 1;
-  return `${PAGE_LABEL[page]} ${index}/${DETAIL_PAGES.length}  ${actionKeyLabel("interact")}`;
-}
-
-// ---------------------------------------------------------------------------
-// 計算式の頁（docs/COMBAT_DESIGN.md A-10）。式の組み立ては ui/scalingText.ts
-// ---------------------------------------------------------------------------
-
-const FORMULA_CAPTION = "計算式（今のステータスでの基礎の値）";
-const REFERENCE_CAPTION = "ステータスを参照している行動（今の装備・スキル）";
-const NO_FORMULA_TEXT = "ステータスで変わらない";
-
-/** 今の武器種・銃の弾・装着中のスキル石 */
-function loadoutSources(state: GameState): LoadoutSources {
-  const skills: SkillKey[] = [];
-  for (let i = 0; i < SKILL.slots; i++) {
-    const stone = stoneInSlot(state.skills.profile, i);
-    if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
-  }
-  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills, ultimate: chosenUltimate(state) };
-}
-
-/** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */
-function referenceLines(state: GameState): DetailLine[] {
-  return attributeReferences(state.stats, loadoutSources(state)).map((ref) => ({ chunks: referenceChunks(ref) }));
-}
-
-/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける。値だけの派生は 1 段落にまとめる */
-function actionFormulaLines(actions: readonly ActionFormulas[]): DetailLine[] {
-  return actionListRows(actions).map((chunks): DetailLine => ({ chunks }));
-}
-
-function captionLine(text: string): TipLine {
-  return { text, color: COLOR_DIM };
-}
-
-/** 武器なら行動ごとの式、武器でなければステータスを参照している行動（テストが欄に収まるかを見る） */
-export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
-  const head: TipLine = { text: item.name, color: itemColor(item) };
-  const actions = itemFormulas(state.stats, item);
-  if (actions.length === 0) return [head, captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
-  const modifiers = itemModifierRows(state.stats, item).map((chunks): DetailLine => ({ chunks }));
-  return [head, captionLine(FORMULA_CAPTION), ...actionFormulaLines(actions), ...modifiers];
-}
-
-/** 要点の「主に参照: 筋力・体力」（武器だけ） */
-function itemReferenceLine(state: GameState, item: Item): DetailLine | null {
-  const actions = itemFormulas(state.stats, item);
-  if (actions.length === 0) return null;
-  return { chunks: mainReferenceChunks(actions.flatMap((a) => allFormulas(a))) };
-}
-
-/** 要点の行の区切り（空の行）の手前に 1 行差し込む */
-function insertBeforeGap(lines: readonly DetailLine[], extra: DetailLine | null): DetailLine[] {
-  if (extra === null) return [...lines];
-  const gap = lines.indexOf(DETAIL_GAP_LINE);
-  if (gap < 0) return [...lines, extra];
-  return [...lines.slice(0, gap), extra, ...lines.slice(gap)];
-}
-
-export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
-  if (!ui.open) return;
-  const layout = layoutInventory(state, ui);
-
-  fillRectPx(ctx, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, COLOR_OVERLAY);
-  drawPanelFrame(ctx, layout, ui);
-  switch (ui.tab) {
-    case "status":
-      drawStatusTab(ctx, state, ui.status);
-      break;
-    case "skills":
-      drawSkillsTab(ctx, state, ui);
-      break;
-    case "echo":
-      drawEchoTab(ctx, state, ui.echo);
-      break;
-    case "web":
-      drawSynergyTab(ctx, state, ui.web);
-      break;
-    case "equipment":
-      drawEquipmentTab(ctx, state, layout, ui);
-      break;
-  }
-  if (hasDetailPager(ui.tab)) drawDetailPager(ctx, ui);
-  if (ui.helpOpen) drawInventoryHelp(ctx, ui.tab);
-}
-
-/** 詳細欄の下端の頁送り（ui/inventoryLayout.ts の detailPagerRects と同じ位置） */
-function drawDetailPager(ctx: CanvasRenderingContext2D, ui: InventoryUi): void {
-  const { bar, prev, next } = detailPagerRects();
-  const m = TEXT.SMALL;
-  strokeRectPx(ctx, bar, COLOR_BORDER);
-  for (const [r, glyph, dir] of [
-    [prev, PAGER_PREV, -1],
-    [next, PAGER_NEXT, 1],
-  ] as const) {
-    const hover = ui.hoverPager === dir;
-    if (hover) fillRectPx(ctx, r, COLOR_HOVER_BG);
-    strokeRectPx(ctx, r, hover ? COLOR_SELECTED : COLOR_BORDER);
-    drawText(ctx, glyph, r.x + r.w / 2, r.y + r.h / 2 + ROW_BASELINE_OFFSET, m, hover ? COLOR_SELECTED : COLOR_TEXT, "center");
-  }
-  const room = next.x - (prev.x + prev.w) - TEXT_PAD_X * 2;
-  const text = truncateText(detailPagerText(detailPageOf(ui)), room, m);
-  drawText(ctx, text, bar.x + bar.w / 2, bar.y + bar.h / 2 + ROW_BASELINE_OFFSET, m, ui.hoverPager === 1 ? COLOR_SELECTED : COLOR_TEXT, "center");
-}
-
-// ---------------------------------------------------------------------------
-// 枠と見出し
-// ---------------------------------------------------------------------------
-
-function drawPanelFrame(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
-  const { panel } = layout;
-  fillRectPx(ctx, panel, COLOR_FRAME_BG);
-  strokeRectPx(ctx, panel, COLOR_BORDER);
-  drawTabs(ctx, ui);
-  const help = helpButtonRect();
-  const lit = ui.hoverHelp || ui.helpOpen;
-  fillRectPx(ctx, help, lit ? COLOR_HOVER_BG : COLOR_HELP_BG);
-  strokeRectPx(ctx, help, lit ? COLOR_SELECTED : COLOR_HELP);
-  drawText(ctx, HELP_LABEL, help.x + help.w / 2, help.y + help.h - 1, TEXT.SMALL, lit ? COLOR_SELECTED : COLOR_HELP, "center");
-  fillRectPx(ctx, { x: panel.x + 1, y: CONTENT_Y - 2, w: panel.w - 2, h: 1 }, COLOR_HEADER_RULE);
-  if (ui.messageTimer <= 0 || !ui.message) return;
-  const m = TEXT.SMALL;
-  const right = help.x - TEXT_PAD_X * 2;
-  // タブの右端からヘルプの左までに収める（タブと重ねない）
-  const tabsRight = tabRects().reduce((max, t) => Math.max(max, t.rect.x + t.rect.w), panel.x);
-  drawText(ctx, truncateText(ui.message, right - tabsRight - TEXT_PAD_X * 2, m), right, help.y + help.h - 2, m, COLOR_SELECTED, "right");
-}
-
-function drawTabs(ctx: CanvasRenderingContext2D, ui: InventoryUi): void {
-  for (const { tab, rect } of tabRects()) {
-    const selected = ui.tab === tab;
-    drawText(ctx, TAB_LABEL[tab], rect.x + rect.w / 2, rect.y + rect.h - 2, TEXT.BODY, selected ? COLOR_TEXT : COLOR_DIM, "center");
-    if (selected) fillRectPx(ctx, { x: rect.x, y: rect.y + rect.h, w: rect.w, h: TAB_UNDERLINE_H }, COLOR_SELECTED);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 装備タブ
-// ---------------------------------------------------------------------------
-
-function drawEquipmentTab(ctx: CanvasRenderingContext2D, state: GameState, layout: InventoryLayout, ui: InventoryUi): void {
-  for (const tile of layout.tiles) drawSlotTile(ctx, tile, layout, ui);
-  drawStashToolbar(ctx, layout.stashToolbar, ui.stashView, layout.stashCounts);
-  if (layout.budBanner) drawBudBanner(ctx, state, layout.budBanner);
-  drawStash(ctx, layout, ui);
-  const item = findItemById(state, ui.hoverItemId);
-  if (item) drawDetailPane(ctx, layout.detail, itemDetail(state, item, ui.hoverTile !== null), detailPageOf(ui));
-  else drawBuildSummary(ctx, state, layout.detail, ui);
-  drawBudModal(ctx, state, ui.bud);
-}
-
-/** 部位の枠: 1 行目に部位名と倉庫の件数、2 行目に装備中の名前。選んでいる部位は黄色の枠 */
-function drawSlotTile(ctx: CanvasRenderingContext2D, tile: SlotTileLayout, layout: InventoryLayout, ui: InventoryUi): void {
-  const { rect, item } = tile;
-  const selected = ui.stashView.slot === tile.filter;
-  if (selected) fillRectPx(ctx, rect, COLOR_TILE_ACTIVE_BG);
-  if (ui.hoverTile === tile.filter) fillRectPx(ctx, rect, COLOR_HOVER_BG);
-  strokeRectPx(ctx, rect, selected ? COLOR_SELECTED : COLOR_BORDER);
-  const m = TEXT.SMALL;
-  const x = rect.x + TEXT_PAD_X + HUE_STRIP_W;
-  const maxWidth = rect.w - TEXT_PAD_X * 2 - HUE_STRIP_W;
-  const count = `${layout.stashCounts[tile.filter] ?? 0}`;
-  const labelColor = selected ? COLOR_TEXT : COLOR_DIM;
-  if (tile.slot === null) {
-    drawText(ctx, truncateText("全部位", maxWidth, m), x, rect.y + TILE_LINE1_Y, m, labelColor);
-    drawText(ctx, `${count} 点`, x, rect.y + TILE_LINE2_Y, m, COLOR_DIM);
-    return;
-  }
-  const label = SLOT_LABEL[tile.slot];
-  // 部位名を優先し、件数は並べて入るときだけ出す
-  const withCount = textWidth(label, m) + TEXT_PAD_X + textWidth(count, m) <= maxWidth;
-  if (withCount) drawText(ctx, count, rect.x + rect.w - TEXT_PAD_X, rect.y + TILE_LINE1_Y, m, COLOR_DIM, "right");
-  drawText(ctx, truncateText(label, maxWidth, m), x, rect.y + TILE_LINE1_Y, m, labelColor);
-  if (!item) {
-    drawText(ctx, "空", x, rect.y + TILE_LINE2_Y, m, COLOR_EMPTY);
-    return;
-  }
-  const color = itemColor(item);
-  fillRectPx(ctx, { x: rect.x + 1, y: rect.y + 1, w: HUE_STRIP_W, h: rect.h - 2 }, color);
-  const mark = item.budOffer ? GROWN_MARK : "";
-  drawText(ctx, truncateText(`${mark}${item.name}`, maxWidth, m), x, rect.y + TILE_LINE2_Y, m, color);
-  const bar = { x, y: rect.y + rect.h - TILE_BAR_H - 1, w: maxWidth, h: TILE_BAR_H };
-  drawColorBar(ctx, itemColorBar(item.affixes), bar);
-}
-
-/** 芽のバナー（ui/bud.ts の budBannerRect と同じ位置）。クリックで 2 択を開く */
-function drawBudBanner(ctx: CanvasRenderingContext2D, state: GameState, r: Rect): void {
-  const pending = state.pendingBud;
-  if (pending === null) return;
-  fillRectPx(ctx, r, COLOR_BANNER_BG);
-  strokeRectPx(ctx, r, COLOR_GROWN);
-  const m = TEXT.SMALL;
-  const name = state.profile.equipment[pending.slot]?.name ?? "";
-  const text = `${GROWN_MARK} 芽あり: ${name}（${pending.milestoneLabel}）クリックで選ぶ`;
-  drawText(ctx, truncateText(text, r.w - TEXT_PAD_X * 2, m), r.x + TEXT_PAD_X, r.y + r.h - 2, m, COLOR_GROWN);
-}
-
-function drawStash(ctx: CanvasRenderingContext2D, layout: InventoryLayout, ui: InventoryUi): void {
-  const first = layout.stashRows[0];
-  if (layout.stashOrder.length === 0 || !first) {
-    const top = layout.stashToolbar.reduce((max, c) => Math.max(max, c.rect.y + c.rect.h), 0);
-    drawText(ctx, stashEmptyText(layout.stashTotal), layout.panel.x + TEXT_PAD_X * 2, top + bodyLineH() + 2, TEXT.SMALL, COLOR_DIM);
-    return;
-  }
-  for (const row of layout.stashRows) drawStashRow(ctx, row, ui);
-  drawSlotGroupLines(ctx, layout.stashRows, layout.stashOrder, ui.stashView);
-}
-
-/**
- * 倉庫の 1 行: 色の縦線・名前 | 種類（武器種 / ベース名）・色の配合の帯・分類。
- * 名前以外を右の固定幅の列に寄せ、名前に行の大半を渡す（切れにくくする）。砕く 1 回目の行は赤くする
- */
-function drawStashRow(ctx: CanvasRenderingContext2D, row: StashRowLayout, ui: InventoryUi): void {
-  const { rect, item } = row;
-  if (isDestroyPending(ui, shatterKey(item.id))) fillRectPx(ctx, rect, COLOR_DESTROY_BG);
-  else if (ui.hoverItemId === item.id) fillRectPx(ctx, rect, COLOR_HOVER_BG);
-  const m = TEXT.SMALL;
-  const baseline = rect.y + rect.h / 2 + ROW_BASELINE_OFFSET;
-  const right = rect.x + rect.w - TEXT_PAD_X;
-  const rarity = RARITY_LABEL[item.rarity];
-  drawText(ctx, rarity, right, baseline, m, RARITY_COLOR[item.rarity], "right");
-  const barRight = right - textWidth(rarity, m) - META_GAP;
-  const bar = { x: barRight - ROW_BAR_W, y: rect.y + (rect.h - ROW_BAR_H) / 2, w: ROW_BAR_W, h: ROW_BAR_H };
-  drawColorBar(ctx, itemColorBar(item.affixes), bar);
-  const kindX = bar.x - META_GAP - ROW_KIND_W;
-  drawText(ctx, truncateText(itemKindName(item), ROW_KIND_W, m), kindX, baseline, m, COLOR_DIM);
-
-  const color = itemColor(item);
-  fillRectPx(ctx, { x: Math.round(rect.x), y: Math.round(rect.y) + 1, w: HUE_STRIP_W, h: rect.h - 2 }, color);
-  const nameX = rect.x + TEXT_PAD_X + HUE_STRIP_W;
-  const mark = item.budOffer ? `${GROWN_MARK} ` : "";
-  drawText(ctx, truncateText(`${mark}${item.name}`, kindX - META_GAP - nameX, m), nameX, baseline, m, color);
-}
-
-// ---------------------------------------------------------------------------
-// 装備タブ: 詳細欄
-// ---------------------------------------------------------------------------
-
-/** 床の遺物のツールチップ（render/dropTooltip.ts）用に、要点と詳しくを全部並べた行 */
-export function itemTipLines(state: GameState, item: Item): TipLine[] {
-  const d = itemDetailLines(state, item);
-  return [...d.lines, ...d.more];
-}
-
-/** 要点: 名前・銘・種類・性質・誓約の競合。詳しく: 攻撃の素性・一言・固有・余白・来歴・語 */
-function itemDetailLines(state: GameState, item: Item): { lines: TipLine[]; more: TipLine[] } {
-  const d = describeItem(item, state.depth);
-  const lines: TipLine[] = [{ text: d.name, color: itemColor(item) }];
-  if (d.inscription !== undefined && d.inscription !== d.name) lines.push({ text: `銘「${d.inscription}」`, color: COLOR_INSCRIPTION });
-  lines.push({ text: d.subtitle, color: COLOR_DIM });
-  const ult = ultimateTipLine(state.profile, item);
-  if (ult) lines.push(ult);
-  lines.push(DETAIL_GAP_LINE);
-  // 地金（ベースの既定のステータス）は性質の前に 1 行へまとめる（折り返しは wrapTipLines）
-  if (d.innate.length > 0) lines.push({ text: `${INNATE_HEAD}${d.innate.join(INNATE_JOINER)}`, color: COLOR_INNATE });
-  for (const line of d.lines) lines.push(traitTipLine(line));
-  for (const text of conflictLinesFor(state, item)) lines.push({ text, color: COLOR_WARN });
-
-  const more: TipLine[] = [];
-  const attackLine = itemAttackLine(item);
-  if (attackLine !== null) more.push({ text: attackLine, color: COLOR_DIM });
-  more.push({ text: d.summary, color: COLOR_TEXT });
-  // 種類の行は武器種名なので、ベース名（打刀・太刀）はここで見せる
-  if (d.baseName !== itemKindName(item)) more.push({ text: `ベース: ${d.baseName}`, color: COLOR_DIM });
-  if (d.implicit !== undefined) more.push({ text: `固有: ${d.implicit}`, color: COLOR_DIM });
-  more.push({ text: d.marginText, color: COLOR_GROWN });
-  for (const text of d.provenanceLines) more.push({ text: `・${text}`, color: COLOR_DIM });
-  // 同じ部位は入れ替わる前提で外したビルドと比べる（装備中なら「これが抜けたら何が欠けるか」）
-  more.push(...synergyTipLines(describeSynergy(item, synergyBuild(state, { slot: item.slot }))));
-  return { lines, more };
-}
-
-function itemDetail(state: GameState, item: Item, fromTile: boolean): DetailContent {
-  const { lines, more } = itemDetailLines(state, item);
-  const actions = fromTile ? ["クリック: この部位を一覧", "Shift+クリック: 外す"] : ["クリック: 装備", "Shift+クリック 2 回: 砕く"];
-  return {
-    lines: insertBeforeGap(lines, itemReferenceLine(state, item)),
-    more,
-    formulas: itemFormulaLines(state, item),
-    actions,
-  };
-}
-
-/** 何も乗せていないときの計算式の頁: ステータスごとに参照している行動（テストが欄に収まるかを見る） */
-export function summaryFormulaLines(state: GameState): DetailLine[] {
-  return [captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
-}
-
-/** 要約の詳細欄: 見出し（ジョブ）の下から詳細欄の部品で流し込む */
-export function summaryBelowRect(rect: Rect): Rect {
-  const top = rect.y + SUMMARY_HEAD_H + SECTION_GAP;
-  return { x: rect.x, y: top, w: rect.w, h: rect.y + rect.h - top };
-}
-
-/**
- * 何も乗せていないとき: ジョブ → 奥義 → 近接・射撃の素性（源と糧の共鳴は流れタブ）。
- * 詳しくでは装備の効果の一覧（statsSummary）を足す。ステータスの一覧はステータスタブ
- */
-function drawBuildSummary(ctx: CanvasRenderingContext2D, state: GameState, rect: Rect, ui: InventoryUi): void {
-  const lines: DetailLine[] = [];
-  for (const text of equippedConflictLines(state)) lines.push({ text, color: COLOR_WARN });
-  lines.push({ text: `奥義: ${chosenUltimate(state).name}`, color: COLOR_TEXT });
-  for (const text of loadoutAttackLines(state.stats)) lines.push({ text, color: COLOR_DIM });
-  const more = statsSummary(state.stats).map((text): TipLine => ({ text, color: COLOR_TEXT }));
-  const formulas = summaryFormulaLines(state);
-  const page = detailPageOf(ui);
-
-  const below = summaryBelowRect(rect);
-  strokeRectPx(ctx, rect, COLOR_BORDER);
-  drawSummaryHead(ctx, state, { x: rect.x, y: rect.y, w: rect.w, h: SUMMARY_HEAD_H });
-  drawDetailPane(ctx, below, { lines, more, formulas }, page);
-}
-
-// ---------------------------------------------------------------------------
-// 「ここに噛む」（docs/ideas/synergy-web.md 4-b / 4-d）。語と相手の名前だけで、優劣は出さない
-// ---------------------------------------------------------------------------
-
-/** 噛み合う語があるときの色 / 無いときは COLOR_DIM */
-const COLOR_SYNERGY = "#a8e0ff";
-const WORD_SEP = "・";
-
-function glyphs(words: readonly Keyword[]): string {
-  return words.map((k) => KEYWORD_DEFS[k].glyph).join("");
-}
-
-function labels(words: readonly Keyword[]): string {
-  return words.map((k) => KEYWORD_DEFS[k].label).join(WORD_SEP);
-}
-
-/** 1 行目: 出す / 食う語の字形。2 行目: 噛む相手と、埋める穴 / 食う余り */
-export function synergyTipLines(d: SynergyDescription): TipLine[] {
-  if (d.produces.length + d.consumes.length === 0) return [];
-  const meshes = d.fills.length + d.feeds.length + d.partners.length > 0;
-  const head: string[] = [];
-  if (d.produces.length > 0) head.push(`源 ${glyphs(d.produces)}`);
-  if (d.consumes.length > 0) head.push(`糧 ${glyphs(d.consumes)}`);
-  const lines: TipLine[] = [{ text: `系統: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
-  const detail: string[] = [];
-  if (d.partners.length > 0) detail.push(`相性: ${d.partners.join(WORD_SEP)}`);
-  if (d.fills.length > 0) detail.push(`潤い: ${labels(d.fills)}`);
-  if (d.feeds.length > 0) detail.push(`受け皿: ${labels(d.feeds)}`);
-  if (detail.length > 0) lines.push({ text: detail.join("  "), color: COLOR_SYNERGY });
-  return lines;
-}
-
-/** スキル石: ビルドの穴を埋める / 余りを食うなら 1 行、連携の相手が装着済みなら 1 行ずつ */
-function stoneSynergyLines(state: GameState, stone: SkillStone, slot: number, modifiers: readonly ModifierKey[]): TipLine[] {
-  const def = SKILL_DEFS[stone.skillKey];
-  const build = synergyBuild(state, slot >= 0 ? { skillSlot: slot } : {});
-  const aff = affinity(skillKeywords(def, modifiers), build.profile);
-  const words = [...aff.fills, ...aff.feeds];
-  const lines: TipLine[] = [];
-  if (words.length > 0) lines.push({ text: `${GROWN_MARK} 今のビルドと相性がよい（${labels(words)}）`, color: COLOR_SYNERGY });
-  for (const key of def.combos ?? []) {
-    const combo = COMBOS[key];
-    // 先のスキルが複数ある連携（変身 → 奥義）は、装着済みの最初の 1 つを出す
-    const after = comboAfter(combo).find((k) => partnerEquipped(state, k, slot));
-    if (after === undefined) continue;
-    lines.push({ text: `連携「${combo.name}」: ${SKILL_DEFS[after].name} の直後に使う`, color: COLOR_SYNERGY });
-  }
-  return lines;
-}
-
-/** 連携の「先」のスキル石が、この石以外のスロットに装着されているか */
-function partnerEquipped(state: GameState, after: SkillKey, ownSlot: number): boolean {
-  for (let i = 0; i < SKILL.slots; i++) {
-    if (i === ownSlot) continue;
-    if (stoneInSlot(state.skills.profile, i)?.skillKey === after) return true;
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// スキルタブ
-// ---------------------------------------------------------------------------
-
-/** 今操作している列を枠で囲む（石・刻印符・スロットで操作の対象が違うので、どこが動くかを見せる） */
-function drawSkillFocus(ctx: CanvasRenderingContext2D, focus: SkillColumn): void {
-  const r = skillColumnRects()[focus];
-  strokeRectPx(ctx, { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }, COLOR_FOCUS);
-}
-
-function drawSkillsTab(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
-  const skills = layoutSkills(state, ui);
-  drawSkillFocus(ctx, ui.skillFocus);
-  for (const slot of skills.slots) drawSkillSlot(ctx, state, slot, ui);
-  drawStoneHeader(ctx, skills);
-  if (skills.stoneOrder.length === 0) {
-    const h = skills.stoneHeader;
-    drawText(ctx, "スキル石がありません", h.x + TEXT_PAD_X, h.y + h.h + bodyLineH(), TEXT.SMALL, COLOR_DIM);
-  }
-  for (const row of skills.rows) drawStoneRow(ctx, row, ui);
-  drawRuneColumn(ctx, state, skills.runeList, ui);
-  drawDetailPane(ctx, skills.detail, skillDetail(state, ui, skills), detailPageOf(ui));
-}
-
-/** スロット: アイコン・石の名前・キー・付いている刻印符の数。選択中は黄色の枠 */
-function drawSkillSlot(ctx: CanvasRenderingContext2D, state: GameState, s: SkillSlotLayout, ui: InventoryUi): void {
-  const { rect } = s;
-  if (ui.hoverSkillSlot === s.index) fillRectPx(ctx, rect, COLOR_HOVER_BG);
-  strokeRectPx(ctx, rect, ui.skillSlot === s.index ? COLOR_SELECTED : COLOR_BORDER);
-
-  const m = TEXT.SMALL;
-  const iconX = rect.x + TEXT_PAD_X;
-  const iconY = rect.y + TEXT_PAD_X;
-  strokeRectPx(ctx, { x: iconX, y: iconY, w: SKILL_ICON_SIZE, h: SKILL_ICON_SIZE }, COLOR_BORDER);
-  const color = s.stone ? COLOR_SKILL : COLOR_EMPTY;
-  const icon = s.stone ? SKILL_DEFS[s.stone.skillKey].icon : String(s.index + 1);
-  drawText(ctx, icon, iconX + SKILL_ICON_SIZE / 2, iconY + SKILL_ICON_BASELINE, m, color, "center");
-
-  const textX = iconX + SKILL_ICON_SIZE + TEXT_PAD_X;
-  const maxWidth = rect.x + rect.w - textX - TEXT_PAD_X;
-  drawText(ctx, truncateText(skillKeyLabel(s.index), maxWidth, m), textX, rect.y + TILE_LINE1_Y, m, COLOR_DIM);
-  const runes = slotModifierView(state, s.index).length;
-  if (runes > 0) drawText(ctx, `符${runes}`, rect.x + rect.w - TEXT_PAD_X, rect.y + TILE_LINE1_Y, m, COLOR_DIM, "right");
-  const name = s.stone ? SKILL_DEFS[s.stone.skillKey].name : "空";
-  drawText(ctx, truncateText(name, rect.w - TEXT_PAD_X * 2, m), rect.x + TEXT_PAD_X, rect.y + rect.h - 3, m, color);
-}
-
-function drawStoneHeader(ctx: CanvasRenderingContext2D, skills: SkillsLayout): void {
-  const h = skills.stoneHeader;
-  const m = TEXT.SMALL;
-  drawText(ctx, `スキル石 ${skills.stoneOrder.length}`, h.x + TEXT_PAD_X, h.y + h.h / 2 + ROW_BASELINE_OFFSET, m, COLOR_SKILL);
-  fillRectPx(ctx, { x: h.x, y: h.y + h.h - 1, w: h.w, h: 1 }, COLOR_HEADER_RULE);
-}
-
-function drawStoneRow(ctx: CanvasRenderingContext2D, row: StoneRowLayout, ui: InventoryUi): void {
-  const { rect, stone } = row;
-  if (isDestroyPending(ui, salvageKey(stone.id))) fillRectPx(ctx, rect, COLOR_DESTROY_BG);
-  else if (ui.hoverStoneId === stone.id) fillRectPx(ctx, rect, COLOR_HOVER_BG);
-  const m = TEXT.SMALL;
-  const baseline = rect.y + rect.h / 2 + ROW_BASELINE_OFFSET;
-  const meta = row.equippedSlot >= 0 ? `${row.equippedSlot + 1}` : "";
-  if (meta) drawText(ctx, meta, rect.x + rect.w - TEXT_PAD_X, baseline, m, COLOR_SELECTED, "right");
-  const maxWidth = rect.w - textWidth(meta, m) - TEXT_PAD_X * 3;
-  drawText(ctx, truncateText(stoneLabel(stone), maxWidth, m), rect.x + TEXT_PAD_X, baseline, m, COLOR_SKILL);
-}
-
-/**
- * 気力型は「コスト n / 間隔 s」、再使用型は「再使用 s」（docs/COMBAT_DESIGN.md B-6: 負担の表示を資源で出し分ける）。
- * コストは最大気力で切り詰めた実際の値を出し、切り詰めたときはそう書く
- */
-function burdenText(state: GameState, def: SkillDef, params: Readonly<CastParams>): string {
-  const interval = formatCooldown(castInterval(def, params));
-  const burden = castBurden(def, params);
-  // 定刻・燃料化で資源が差し替わるので def.resource ではなく params.resource で出し分ける
-  if (params.resource !== "mana") return `再使用 ${formatCooldown(burden.cooldown)}`;
-  const capped = effectiveManaCost(state, burden.cost);
-  const note = capped.clamped ? COST_CLAMPED_NOTE : "";
-  return `コスト ${Math.round(capped.cost)}${note}  間隔 ${interval}`;
-}
-
-/** 武器技なら「〇〇専用」。今の武器種と違えば撃てないことを赤で出す */
-function weaponArtLines(state: GameState, def: Readonly<SkillDef>): TipLine[] {
-  // 共通技は今の武器の型で形が変わる（skills/arts/transform.ts）。変わらない型・技では出さない
-  const transform = transformLabel(currentForm(state).key, def.key);
-  if (def.moveset === undefined) return transform === null ? [] : [{ text: transform, color: COLOR_WEAPON_ART }];
-  const label = weaponArtLabel(def.moveset);
-  if (def.moveset === state.stats.moveset) return [{ text: label, color: COLOR_WEAPON_ART }];
-  return [{ text: `${label}（今の武器種では撃てない）`, color: COLOR_WEAPON_ART_OFF }];
-}
-
-/** 石の要点: 名前・動詞・負担・変異・付いている刻印符。詳しく: 攻撃の素性・リンク・使い込み・噛む */
-function stoneDetailLines(state: GameState, stone: SkillStone): { lines: TipLine[]; more: TipLine[] } {
-  const def = SKILL_DEFS[stone.skillKey];
-  const slot = state.skills.profile.loadout.indexOf(stone.id);
-  // 装備画面での移す / 外すは次のステップまで slot.modifiers に入らないので、runModifiers から直接読む。符はスロットの物なので、装着していない石には付かない
-  const modifiers = slot >= 0 ? effectiveSlotModifiers(state.skills, slot, boonGrantedModifiers(state)) : [];
-  const params = resolveCast(def, stone, modifiers, Math.max(0, slot));
-  const lines: TipLine[] = [
-    { text: stoneLabel(stone), color: COLOR_SKILL },
-    ...weaponArtLines(state, def),
-    { text: burdenText(state, def, params), color: COLOR_DIM },
-    DETAIL_GAP_LINE,
-    { text: def.verb, color: COLOR_TEXT },
-  ];
-  for (const v of stone.variants) lines.push({ text: formatVariant(v, def, params.resource), color: COLOR_TEXT });
-  if (slot >= 0) {
-    for (const m of slotModifierView(state, slot)) {
-      const d = MODIFIERS[m.key];
-      lines.push({ text: `${m.active ? "+" : "x"} ${d.name}: ${modifierVerb(m.key, def, params.resource)}`, color: m.active ? d.color : COLOR_EMPTY });
+function paperFibers(): Fiber[] {
+  if (fibers !== null) return fibers;
+  const out: Fiber[] = [];
+  for (let y = FIBER_INSET; y < VIEW_H - FIBER_INSET; y++) {
+    for (let x = FIBER_INSET; x < VIEW_W - FIBER_INSET; x++) {
+      const v = tileHash(x + FIBER_SEED_X, y + FIBER_SEED_Y) / HASH_SCALE;
+      if (v < FIBER_A_RATE) out.push({ x, y, w: v < FIBER_A_WIDE ? 2 : 1, color: MENU_INK.fiberA });
+      else if (v > FIBER_B_RATE) out.push({ x, y, w: 1, color: MENU_INK.fiberB });
     }
   }
-  const linkLine: TipLine[] = slot >= 0 ? [{ text: `リンク ${usedLinks(state.skills, slot)}/${slotLinks(slot)}`, color: COLOR_DIM }] : [];
-  const attackLine = skillAttackLine(def.key);
-  const more: TipLine[] = [
-    ...(attackLine === null ? [] : [{ text: attackLine, color: COLOR_DIM }]),
-    ...linkLine,
-    { text: wearSummary(stone), color: WEAR_TUNING.color },
-    ...stoneSynergyLines(state, stone, slot, modifiers),
-  ];
-  return { lines, more };
+  fibers = out;
+  return out;
 }
 
-/** スキル石の計算式の頁。ステータスを参照する量が無ければそう書く（テストが欄に収まるかを見る） */
-export function stoneFormulaLines(stone: SkillStone, formulas: readonly ScalingFormula[]): DetailLine[] {
-  const head: TipLine = { text: stoneLabel(stone), color: COLOR_SKILL };
-  if (formulas.length === 0) return [head, captionLine(NO_FORMULA_TEXT)];
-  return [head, captionLine(FORMULA_CAPTION), ...formulas.map((f): DetailLine => ({ chunks: formulaChunks(f) }))];
+/** 墨染めの帳（見本 E.html の paper()） */
+function drawPaper(ctx: CanvasRenderingContext2D): void {
+  px(ctx, 0, 0, VIEW_W, VIEW_H, MENU_INK.paper);
+  for (const f of paperFibers()) px(ctx, f.x, f.y, f.w, 1, f.color);
 }
 
-/** 詳細欄の対象: 刻印符 → 乗せた石 → 乗せたスロット → 選択中のスロット */
-function skillDetail(state: GameState, ui: InventoryUi, skills: SkillsLayout): DetailContent {
-  const rune = runeTooltipLines(state, ui, skills.runeList);
-  if (rune) return { lines: rune, actions: ["クリック: 別のスロットへ移す", "Shift+クリック 2 回: 外す（消える）"] };
-  const hoveredStone = findStone(state.skills.profile, ui.hoverStoneId);
-  const onSlot = ui.hoverSkillSlot !== null;
-  const stone = hoveredStone ?? stoneInSlot(state.skills.profile, ui.skillSlot);
-  if (!stone) {
-    return {
-      lines: [{ text: `スキル ${ui.skillSlot + 1}: 空き`, color: COLOR_DIM }],
-      actions: ["スキル石をクリックで装着"],
-    };
+const CORNER = 8;
+
+/** 四隅の金具 1 つ（fx / fy = 向き） */
+function drawCorner(ctx: CanvasRenderingContext2D, cx: number, cy: number, fx: 1 | -1, fy: 1 | -1): void {
+  const p = (i: number, j: number, w: number, h: number, c: string): void =>
+    px(ctx, fx > 0 ? cx + i : cx + CORNER - i - w, fy > 0 ? cy + j : cy + CORNER - j - h, w, h, c);
+  p(0, 0, 8, 2, MENU_INK.goldLo);
+  p(0, 0, 2, 8, MENU_INK.goldLo);
+  p(0, 0, 7, 1, MENU_INK.gold);
+  p(0, 0, 1, 7, MENU_INK.gold);
+  p(1, 1, 5, 1, MENU_INK.goldHi);
+  p(1, 1, 1, 5, MENU_INK.goldHi);
+  p(2, 2, 3, 3, MENU_INK.gold);
+  p(3, 3, 1, 1, MENU_INK.shu);
+}
+
+/** 朱と金の漆の縁（見本 E.html の frame()） */
+function drawFrame(ctx: CanvasRenderingContext2D): void {
+  box(ctx, 0, 0, VIEW_W, VIEW_H, MENU_INK.frame1);
+  box(ctx, 1, 1, VIEW_W - 2, VIEW_H - 2, MENU_INK.frame2);
+  box(ctx, 2, 2, VIEW_W - 4, VIEW_H - 4, MENU_INK.frame3);
+  drawCorner(ctx, 0, 0, 1, 1);
+  drawCorner(ctx, VIEW_W - CORNER, 0, -1, 1);
+  drawCorner(ctx, 0, VIEW_H - CORNER, 1, -1);
+  drawCorner(ctx, VIEW_W - CORNER, VIEW_H - CORNER, -1, -1);
+}
+
+// -----------------------------------------------------------------------------
+// 見出し・荷札・操作案内
+// -----------------------------------------------------------------------------
+
+function drawFaceChips(ctx: CanvasRenderingContext2D, ui: Readonly<InventoryUi>): void {
+  const face = rootFace(ui);
+  for (const chip of FACE_CHIPS) {
+    const on = chip.face === face;
+    const r = chip.rect;
+    px(ctx, r.x, r.y, r.w, r.h, on ? MENU_INK.card2 : MENU_INK.paper);
+    box(ctx, r.x, r.y, r.w, r.h, on ? MENU_INK.gold : MENU_INK.rule);
+    if (on) px(ctx, r.x + 2, r.y + r.h - 1, r.w - 4, 1, MENU_INK.focus);
+    menuText(ctx, chip.label, r.x + r.w / 2, HEADER_Y, { size: "SMALL", color: on ? MENU_INK.focus : MENU_INK.sub, role: "ornament", align: "center" });
   }
-  const { lines, more } = stoneDetailLines(state, stone);
-  const fromList = hoveredStone !== null && !onSlot;
-  const actions = fromList ? ["クリック: 装着", "Shift+クリック 2 回: 分解"] : ["クリック: 選ぶ", "Shift+クリック: 外す"];
-  const formulas = skillFormulas(state.stats, stone.skillKey);
-  return {
-    lines: insertBeforeGap(lines, { chunks: mainReferenceChunks(formulas) }),
-    more,
-    formulas: stoneFormulaLines(stone, formulas),
-    actions,
-  };
 }
 
+function drawHeader(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>): void {
+  drawFaceChips(ctx, ui);
+  const header = viewModule(view).header(state, ui, view);
+  const right = header.right;
+  const crumbsW = (right === null ? TEXT_RIGHT : TEXT_RIGHT - HEADER_RIGHT_W) - HEADER_CRUMBS_X;
+  menuText(ctx, header.crumbs, HEADER_CRUMBS_X, HEADER_Y, { size: "SMALL", color: MENU_INK.text, role: "label", maxW: crumbsW });
+  if (right !== null) menuText(ctx, right, TEXT_RIGHT, HEADER_Y, { size: "SMALL", color: MENU_INK.sub, role: "label", align: "right", maxW: HEADER_RIGHT_W });
+  px(ctx, TEXT_X, HEADER_RULE_Y, TEXT_W, 1, MENU_INK.rule);
+}
+
+/** 荷札（焦点の 1 つにだけ付く 2 行）。一時の知らせは 2 行目に出す */
+function drawTag(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>, focus: MenuHit | null): void {
+  const tag = viewModule(view).tag(state, ui, view, focus);
+  const aside = tag.aside;
+  if (tag.title !== "") {
+    const w = aside === null ? TEXT_W : TEXT_W - TAG_ASIDE_W;
+    menuText(ctx, `${TAG_MARK}${tag.title}`, TEXT_X, TAG_TITLE_Y, { size: "BODY", color: MENU_INK.focus, role: "sentence", maxW: w });
+  }
+  if (aside !== null) menuText(ctx, aside, TEXT_RIGHT, TAG_TITLE_Y + 1, { size: "SMALL", color: MENU_INK.sub, role: "label", align: "right", maxW: TAG_ASIDE_W });
+  const note = ui.note;
+  if (note !== null) {
+    menuText(ctx, note.text, TEXT_X, TAG_SUB_Y, { size: "SMALL", color: MENU_INK.focus, role: "sentence", maxW: TEXT_W });
+    return;
+  }
+  if (tag.sub !== "") menuText(ctx, tag.sub, TEXT_X, TAG_SUB_Y, { size: "SMALL", color: MENU_INK.text, role: "sentence", maxW: TEXT_W });
+}
+
+/** 操作案内。1 段目の「戻る」は「閉じる」 */
+function guideVerbs(state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>): GuideVerb[] {
+  const verbs = viewModule(view).guide(state, view);
+  return verbs.map((v) => (v === "back" && ui.stack.length <= 1 ? "close" : v));
+}
+
+function drawGuide(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>): void {
+  const text = menuGuideText(guideVerbs(state, ui, view), rootFace(ui));
+  menuText(ctx, text, TEXT_X, GUIDE_Y, { size: "SMALL", color: MENU_INK.sub, role: "sentence", maxW: TEXT_W });
+}
+
+// -----------------------------------------------------------------------------
+// 頁の振り分け
+// -----------------------------------------------------------------------------
+
+function drawPage(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>, hits: readonly MenuHit[]): void {
+  switch (view.kind) {
+    case "attire":
+      drawAttire(ctx, state, ui, view, hits);
+      return;
+    case "crest":
+      drawCrest(ctx, state, ui, view, hits);
+      return;
+    case "candidates":
+      drawCandidates(ctx, state, ui, view, hits);
+      return;
+    case "flow":
+      drawFlow(ctx, state, ui, view, hits);
+      return;
+    case "flowBoard":
+      drawFlowBoard(ctx, state, ui, view, hits);
+      return;
+    case "skills":
+      drawSkillPage(ctx, state, ui, view, hits);
+      return;
+    case "act":
+      drawActPage(ctx, state, ui, view, hits);
+      return;
+    case "sheet":
+      drawSheet(ctx, state, ui, view, hits);
+      return;
+  }
+}
+
+/** 装備画面。閉じていれば何もしない */
+export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
+  if (!ui.open) return;
+  const view = topView(ui);
+  if (view === null) return;
+  const hits = menuHits(state, ui);
+  drawPaper(ctx);
+  drawPage(ctx, state, ui, view, hits);
+  drawHeader(ctx, state, ui, view);
+  drawTag(ctx, state, ui, view, focusedHit(hits, view.focus));
+  drawGuide(ctx, state, ui, view);
+  const hold = ui.hold;
+  const held = hold === null ? null : focusedHit(hits, hold.id);
+  if (held !== null) drawHoldRing(ctx, held.rect, holdRatio(ui));
+  drawFrame(ctx);
+}

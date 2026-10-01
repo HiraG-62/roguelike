@@ -10,6 +10,7 @@ import {
   type BudOffer,
   type Equipment,
   type Item,
+  LOOT_SLOTS,
   type Profile,
   type ProfileMeta,
   type Provenance,
@@ -343,7 +344,23 @@ function sanitizeMeta(v: unknown): ProfileMeta {
   if (clears > 0) meta.clears = clears;
   const bestClearTier = positiveCount(v.bestClearTier);
   if (clears > 0 && bestClearTier > 0) meta.bestClearTier = bestClearTier;
+  const seenAt = sanitizeSeenAt(v.seenAt);
+  if (seenAt !== undefined) meta.seenAt = seenAt;
   return meta;
+}
+
+/** 新着の判定の時刻（ui/seen.ts）。装備できる部位の key で、有限かつ 0 以上の数だけ通す。1 つも無ければ書かない */
+function sanitizeSeenAt(v: unknown): Partial<Record<Slot, number>> | undefined {
+  if (!isRecord(v)) return undefined;
+  const out: Partial<Record<Slot, number>> = {};
+  let count = 0;
+  for (const slot of LOOT_SLOTS) {
+    const t = v[slot];
+    if (typeof t !== "number" || !Number.isFinite(t) || t < 0) continue;
+    out[slot] = t;
+    count += 1;
+  }
+  return count > 0 ? out : undefined;
 }
 
 function isMovesetKey(v: string): v is MovesetKey {

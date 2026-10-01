@@ -428,7 +428,7 @@ function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, 
 function drainEchoes(s: GameState): void {
   const pending = s.runEvents.pendingEchoes;
   if (!TRAIT_COLORS.some((c) => pending[c] > 0)) return;
-  const save = inventoryUi.echo.save;
+  const save = inventoryUi.craft;
   for (const c of TRAIT_COLORS) {
     save.echoes[c] += pending[c];
     pending[c] = 0;
@@ -744,7 +744,7 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
   const open = hubOpenFor(spot);
   sfx.play("uiClick");
   if (open.kind === "inventory") {
-    openInventoryAt(session.state, inventoryUi, open.tab, open.bud);
+    openInventoryAt(session.state, inventoryUi, open.entry);
     return;
   }
   if (open.kind === "altar") {
@@ -774,14 +774,12 @@ function tickHubBanner(dt: number): void {
 function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean, dt: number): void {
   tickHubBanner(dt);
   // 装備画面は stepHub より前に処理する（開いている間は paused で拠点の時間が止まる。Tab は拠点でも使える）
-  updateInventoryUi(session.state, inventoryUi, frame, dt);
-  if (inventoryUi.open) {
+  // Esc で閉じた同じフレームに拠点から出ないよう、開いていたかを先に見る
+  const wasOpen = inventoryUi.open;
+  updateInventoryUi(session.state, inventoryUi, frame, dt, { back: escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
+  if (wasOpen || inventoryUi.open) {
     // 装備画面で押した Enter を、閉じた後の出撃の長押しに数えない
     resetHoldLatch(departLatch);
-    if (escape) {
-      inventoryUi.open = false;
-      session.state.paused = false;
-    }
     drainSfx(session.state);
     drainEchoes(session.state);
     return;
@@ -1798,13 +1796,11 @@ startLoop(
         }
 
         // 装備画面は step の pause 判定より前に処理する（paused を UI が切り替える）
-        updateInventoryUi(cur, inventoryUi, frame, dt);
-        if (inventoryUi.open) loadoutDirty = true;
-        if (inventoryUi.open) {
-          if (hotkeys.escape) {
-            inventoryUi.open = false;
-            cur.paused = false;
-          }
+        // Esc で閉じた同じフレームにポーズメニューを開かないよう、開いていたかを先に見る
+        const wasOpen = inventoryUi.open;
+        updateInventoryUi(cur, inventoryUi, frame, dt, { back: hotkeys.escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
+        if (wasOpen || inventoryUi.open) {
+          loadoutDirty = true;
           drainSfx();
           break;
         }

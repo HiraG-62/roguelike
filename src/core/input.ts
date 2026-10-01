@@ -512,6 +512,14 @@ export class PlayerInput {
     return this.isDown("confirm") || this.lastGamepadFrame.confirmHeld;
   }
 
+  /**
+   * 直近 snapshot() で右クリックが押されたか（装備画面の「戻る」）。右クリックは射撃の既定にも割り当てがあるが、
+   * 装備画面の間はゲームが止まっている。記録しない入力なので FrameInput には足さない
+   */
+  menuBackClickPressed(): boolean {
+    return this.framePressed.includes("Mouse2");
+  }
+
   attachKeyboard(target: Window): void {
     target.addEventListener("keydown", (ev) => {
       if (ev.repeat) return;
