@@ -10,7 +10,7 @@ import type { Enemy, GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
-import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
+import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
 import { ARC, BOSS, DEEP, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
@@ -134,12 +134,15 @@ describe("depth 2 の難度調整", () => {
 
 /**
  * 開始部屋以外で kind="normal" かつ doorTiles を持つ部屋を探し、封鎖する種類（伏兵）にする
- * （開放型フロアでは通常の部屋は封鎖しない）
+ * （開放型フロアでは通常の部屋は封鎖しない）。洞窟の塊は矩形の中心が壁のことがあり、そこにプレイヤーを立たせても
+ * 部屋に入ったことにならない（封鎖が掛からない）ので、矩形の中心が部屋の内側にあるものだけを選ぶ
  */
 function findLockableRoom(state: GameState): { room: RoomState; index: number } | null {
   for (let i = 1; i < state.rooms.length; i++) {
     const room = state.rooms[i]!;
     if (room.kind !== "normal" || room.cleared || room.doorTiles.length === 0) continue;
+    const center = rectCenterPx(room.rect);
+    if (!insideRoom(state, room, center.x, center.y, ROOM.enterMargin)) continue;
     room.kind = "ambush";
     return { room, index: i };
   }

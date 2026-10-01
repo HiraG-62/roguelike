@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 // system の循環参照は core/game を先に読むと解ける（他の描画のテストと同じ順）
 import { createGame } from "../core/game";
+import { createRng } from "../core/rng";
 import { createEmptyProfile } from "../loot/types";
 import { Tile, createMap, toIndex, type GameMap } from "../map/grid";
 import { withFixedLayout } from "../map/layout/select";
@@ -84,12 +85,17 @@ interface Floor {
 
 const FLOOR_CACHE = new Map<string, Floor>();
 
-/** 本物の生成器で作った階（階の型を固定）。同じ引数なら使い回す */
+/**
+ * 本物の生成器で作った階（階の型を固定）。同じ引数なら使い回す。
+ * createGame が 1 階目を作る時に敵（陣）の配りで rng を進めるので、そのまま buildFloor すると
+ * 地図が敵の配り方に左右される。置物の規則を見るテストなので、rng を seed から引き直して地図だけを決める
+ */
 function floorOf(depth: number, kind: FloorKind, layout?: FloorLayout, seed = 1): Floor {
   const key = `${depth}:${kind}:${layout ?? ""}:${seed}`;
   const cached = FLOOR_CACHE.get(key);
   if (cached) return cached;
   const state = createGame(seed, String(seed), createEmptyProfile(), createDefaultSkillProfile(), { ...defaultRunSetup(), startDepth: depth });
+  state.rng = createRng(seed);
   if (layout) withFixedLayout(layout, () => buildFloor(state, kind));
   else buildFloor(state, kind);
   const floor = { map: state.map, theme: mapThemeFor(state.depth, state.floorKind) };
@@ -446,6 +452,7 @@ describe("mapDecor: 決定性", () => {
   it("同じ seed で別に作った 2 つの階から、同じ置物が決まる", () => {
     const a = floorOf(7, "rooms", "court", 1);
     const state = createGame(1, "1", createEmptyProfile(), createDefaultSkillProfile(), { ...defaultRunSetup(), startDepth: 7 });
+    state.rng = createRng(1);
     withFixedLayout("court", () => buildFloor(state, "rooms"));
     const key = (p: DecorPlacement): string => `${p.kind}@${p.tx},${p.ty}`;
     expect(allPlacements(state.map, mapThemeFor(state.depth, state.floorKind)).map(key)).toEqual(allPlacements(a.map, a.theme).map(key));
@@ -478,6 +485,16 @@ function findSeam(map: GameMap, theme: MapTheme, axis: "x" | "y"): { cx: number;
     const cy = Math.floor(p.ty / CHUNK_TILES);
     if (axis === "x" ? cx < 1 : cy < 1) continue;
     return { cx, cy, p };
+  }
+  return null;
+}
+
+/** 置物の位置は seed で変わるので、条件に合う置物がある階が出るまで seed を進めて探す（見つからなければ null） */
+const SEARCH_SEEDS = 12;
+function floorWith(depth: number, kind: FloorKind, layout: FloorLayout, has: (map: GameMap, theme: MapTheme) => boolean): Floor | null {
+  for (let seed = 1; seed <= SEARCH_SEEDS; seed++) {
+    const floor = floorOf(depth, kind, layout, seed);
+    if (has(floor.map, floor.theme)) return floor;
   }
   return null;
 }
@@ -517,10 +534,12 @@ describe("mapDecor: チャンクの境目", () => {
     { name: "章 3 廃城（炎・cavern）", depth: 12, kind: "forge", layout: "cavern" },
     { name: "章 4 異界（drunk）", depth: 17, kind: "cave", layout: "drunk" },
   ] as const)("$name: 隣り合う 2 チャンクは、同じ範囲を 1 枚で焼いた結果と一致する（左右・上下）", ({ depth, kind, layout }) => {
-    const { map, theme } = floorOf(depth, kind, layout, 1);
     for (const axis of ["x", "y"] as const) {
+      const floor = floorWith(depth, kind, layout, (m, t) => findSeam(m, t, axis) !== null);
+      expect(floor, `${axis} 方向の境に根元がある置物がある階`).not.toBeNull();
+      if (!floor) continue;
+      const { map, theme } = floor;
       const seam = findSeam(map, theme, axis);
-      expect(seam, `${axis} 方向の境に根元がある置物`).not.toBeNull();
       if (!seam) continue;
       const r = sameSeamPixels(map, theme, seam.cx, seam.cy, axis);
       expect(r.diff, `${axis} 方向の継ぎ目の不一致ドット数`).toBe(0);
@@ -528,11 +547,15 @@ describe("mapDecor: チャンクの境目", () => {
   });
 
   it("チャンクの外に根元がある背の高い置物も、はみ出す分は描かれる（根元の下のチャンクの上端に出る）", () => {
-    const { map, theme } = floorOf(7, "rooms", "court", 1);
-    const mask = buildDecorExclude(map);
-    const list = placementsIn(map, theme, mask, 0, 0, map.width - 1, map.height - 1);
     // 下のチャンクの先頭のマス行に根元がある、背の高い置物（絵の上端が上のチャンクに入る）
-    const tall = list.find((p) => TALL_PROPS.has(p.kind) && p.ty % CHUNK_TILES === 0 && p.ty >= CHUNK_TILES);
+    const findTall = (map: GameMap, theme: MapTheme): DecorPlacement | undefined =>
+      allPlacements(map, theme).find((p) => TALL_PROPS.has(p.kind) && p.ty % CHUNK_TILES === 0 && p.ty >= CHUNK_TILES);
+    const floor = floorWith(7, "rooms", "court", (m, t) => findTall(m, t) !== undefined);
+    expect(floor, "背の高い置物が先頭の行に立つ階がある").not.toBeNull();
+    if (!floor) return;
+    const { map, theme } = floor;
+    const mask = buildDecorExclude(map);
+    const tall = findTall(map, theme);
     expect(tall, "チャンクの先頭の行に根元がある背の高い置物").toBeDefined();
     if (!tall) return;
     const cx = Math.floor(tall.tx / CHUNK_TILES);
