@@ -316,3 +316,79 @@ describe("playerRig: 回さない武器（書）の上向き", () => {
     expect(Math.abs(a.front.hand.y - b.front.hand.y)).toBeLessThan(0.01);
   });
 });
+
+describe("playerRig: 術を放つ振り（castOff。書の左の段）", () => {
+  const book: Stance = { grip: "one", body: "light", restDeg: 0, restHand: [-3, 9], swayDeg: 2, braced: true };
+  const DEG = Math.PI / 180;
+  /** 振りの姿勢（拳が体の中心の 4px 上から reach px。伸び切りの突き） */
+  const swingAt = (aim: number, reach = 10) => ({ frame: 0, flipX: false, flipY: false, angle: aim, dx: Math.cos(aim) * reach, dy: -4 + Math.sin(aim) * reach, behind: false }) as const;
+  const cast: RigInput = { ...base, stance: book, unrotated: true, castOff: true };
+  const rest = (i: RigInput) => solveRig({ ...i, swing: undefined, castOff: undefined }).front.hand;
+
+  it("本を持つ主の手は待機の位置のまま、後ろの手が照準の側へ突き出て体の前に描かれる", () => {
+    for (const deg of [0, 30, -10]) {
+      const aim = deg * DEG;
+      const rig = solveRig({ ...cast, aim, swing: swingAt(aim) });
+      expect(rig.front.hand, `${deg} 度: 本は待機の位置`).toEqual(rest({ ...cast, aim }));
+      expect(rig.front.bare, "本は描く").toBe(false);
+      expect(rig.back.bare, `${deg} 度: 後ろの手は素手`).toBe(true);
+      expect(rig.back.behind, `${deg} 度: 体の前`).toBe(false);
+      expect(rig.castShoulder, `${deg} 度: 腕を本の上に描く付け根`).toBeDefined();
+      const from = rig.castShoulder ?? base.shoulderB;
+      // 照準の向きへ出ている（付け根から手への向きと照準の向きの内積が正）
+      const dot = (rig.back.hand.x - from.x) * Math.cos(aim) + (rig.back.hand.y - from.y) * Math.sin(aim);
+      expect(dot, `${deg} 度: 照準の側`).toBeGreaterThan(ARM_REACH * 0.8);
+      expect(rig.back.hand.x, `${deg} 度: 掌は前の肩より前`).toBeGreaterThan(base.shoulderF.x);
+    }
+  });
+
+  it("付け根は後ろの肩と前の肩の間（体を捻る）で、掌は腕の長さを越えない", () => {
+    const rig = solveRig({ ...cast, swing: swingAt(0, 20) });
+    const from = rig.castShoulder;
+    expect(from).toBeDefined();
+    if (!from) return;
+    expect(from.x).toBeGreaterThan(base.shoulderB.x);
+    expect(from.x).toBeLessThan(base.shoulderF.x);
+    expect(Math.hypot(rig.back.hand.x - from.x, rig.back.hand.y - from.y)).toBeLessThanOrEqual(UPPER_ARM + FOREARM);
+  });
+
+  it("左向きでも照準（左）を写した前へ突き出す", () => {
+    const rig = solveRig({ ...cast, facingRight: false, aim: Math.PI, swing: swingAt(Math.PI) });
+    expect(rig.back.hand.x).toBeGreaterThan(base.shoulderF.x);
+    expect(rig.back.behind).toBe(false);
+  });
+
+  it("真上・真下を狙っても掌は前上・前下に留まる（頭の前・本を持つ拳に重ならない）", () => {
+    const up = solveRig({ ...cast, aim: -90 * DEG, swing: swingAt(-90 * DEG) });
+    const from = up.castShoulder ?? base.shoulderB;
+    expect(up.back.hand.x - from.x, "上: 前へ出る").toBeGreaterThan(ARM_REACH * 0.8);
+    expect(up.back.hand.y, "上: 付け根より上").toBeLessThan(from.y);
+    const down = solveRig({ ...cast, aim: 90 * DEG, swing: swingAt(90 * DEG) });
+    expect(down.back.hand.y, "下: 付け根より下").toBeGreaterThan(from.y);
+    expect(down.back.hand.x - from.x, "下: 前へ寄る").toBeGreaterThan(ARM_REACH * 0.5);
+  });
+
+  it("構え直しの後半は後ろの手を体の脇（体の後ろ）へ戻し、本は待機の位置のまま", () => {
+    const early = solveRig({ ...cast, swing: swingAt(0), restBlend: 0.3 });
+    expect(early.back.behind).toBe(false);
+    expect(early.castShoulder).toBeDefined();
+    const late = solveRig({ ...cast, swing: swingAt(0), restBlend: 0.7 });
+    expect(late.back.behind).toBe(true);
+    expect(late.castShoulder).toBeUndefined();
+    expect(late.front.hand).toEqual(rest(cast));
+  });
+
+  it("術を持たない段（右の段）は今までどおり本を照準へ突き出し、後ろの手は体の脇", () => {
+    const rig = solveRig({ ...cast, castOff: undefined, swing: swingAt(0) });
+    expect(rig.front.hand.x, "本が前へ出る").toBeGreaterThan(rest(cast).x + 3);
+    expect(rig.back.behind).toBe(true);
+    expect(rig.castShoulder).toBeUndefined();
+  });
+
+  it("待機（振りが無い）では castOff が立っていても待機の構え", () => {
+    const rig = solveRig({ ...cast, swing: undefined });
+    expect(rig.front.hand).toEqual(rest(cast));
+    expect(rig.castShoulder).toBeUndefined();
+    expect(rig.back.behind).toBe(true);
+  });
+});

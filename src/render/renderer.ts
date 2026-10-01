@@ -580,6 +580,8 @@ interface PlayerSwing {
   readonly step: number;
   /** 手に持つ武器と体の動きの形（poseShape。当たり判定の形を武器の構えで読み替えたもの） */
   readonly pose: HitShape["kind"];
+  /** 段が術（cast）を放つ。書の左の段は本を構えたまま後ろの手を突き出す（playerRig の castOff） */
+  readonly cast: boolean;
 }
 
 interface SwingPlan {
@@ -2303,10 +2305,10 @@ export class Renderer {
     const moveset = playerMoveset(state);
     const atlas = weaponAtlas(moveset.key);
     const punch = atlas ? stanceFromMeta(weaponStanceMeta(atlas)).punch === true : false;
-    const of = (s: { shape: HitShape; reach: number; heavy: boolean } | undefined, phase: SwingPhase, t: number, step: number): PlayerSwing => {
+    const of = (s: { shape: HitShape; reach: number; heavy: boolean; cast?: unknown } | undefined, phase: SwingPhase, t: number, step: number): PlayerSwing => {
       const shape = s?.shape ?? SHAPE_ARC;
       const reach = s?.reach ?? 0;
-      return { phase, t, shape, reach, heavy: s?.heavy ?? false, step, pose: poseShape(shape.kind, reach, punch) };
+      return { phase, t, shape, reach, heavy: s?.heavy ?? false, step, pose: poseShape(shape.kind, reach, punch), cast: phase !== "none" && s?.cast !== undefined };
     };
     const first = moveset.steps[0];
     if (p.attack.charging) {
@@ -2410,6 +2412,7 @@ export class Renderer {
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
       restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
       unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
+      castOff: swing.cast,
       kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
     };
@@ -2456,8 +2459,11 @@ export class Renderer {
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
-    // 銃口の印を持つ武器（銃・杖・投げ物）は、描いた銃口から閃光と弾を出す
-    this.rigMuzzle = this.rigMuzzleAt(weapon, rig.front, toScreen, p.body.pos);
+    // 銃口の印を持つ武器（銃・杖・投げ物）は、描いた銃口から閃光と弾を出す。術を放つ段（castOff）は突き出した後ろの掌から
+    const castPalm = swing.cast ? toScreen(rig.back.hand) : null;
+    this.rigMuzzle = castPalm
+      ? { ...castPalm, dist: Math.hypot(castPalm.x - p.body.pos.x, castPalm.y + PLAYER_SHOT_LIFT - p.body.pos.y) }
+      : this.rigMuzzleAt(weapon, rig.front, toScreen, p.body.pos);
 
     const blink = p.invulnTimer > 0 && !dashing && p.hitFlash <= 0 && state.tick % 6 < 3;
     const white = p.hitFlash > 0 || dashing ? this.rigWhiteCopy() : null;
@@ -2487,7 +2493,8 @@ export class Renderer {
   ): void {
     // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く。
     // 両手持ちの添え手が体の前にあれば、腕は武器の下に描いて柄を握る拳だけを武器の上に重ね直す（後ろの腕が武器より手前に浮かない）
-    const backFront = !twoHanded && !rig.back.behind;
+    // 術を放つ後ろの腕（castShoulder）は捻った付け根から引き、前の武器（胸の前の本）の上・前の腕の下に描く
+    const backFront = !twoHanded && !rig.back.behind && !rig.castShoulder;
     const backUnderWeapon = twoHanded && !rig.back.behind;
     if (!rig.back.bare && rig.back.behind) heldWeapon(rig.back);
     if (rig.back.behind) arm(shoulderB, rig.back, true);
@@ -2500,6 +2507,7 @@ export class Renderer {
     if (backFront) arm(shoulderB, rig.back, true);
     if (backUnderWeapon) arm(shoulderB, rig.back, true);
     if (!rig.front.behind) heldWeapon(rig.front);
+    if (rig.castShoulder) arm(rig.castShoulder, rig.back, true);
     if (backUnderWeapon) this.rigHand(rig.back.hand, handColors);
     if (!frontArmBehind) arm(shoulderF, rig.front, false);
   }
