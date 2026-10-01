@@ -19,7 +19,7 @@
 ### 次にやること（推奨順。ユーザーに提示済み）
 
 1. **実機で遊んで重さと見た目を確かめる**（GPU のある環境での描画の ms。重ければ `mapLight.ts` の暗がりの全画面合成を詰める）
-2. **階の生成時間の測り直し**: 静かな状態で `buildFloor` を型ごとに測る（`src/qa/layoutMetrics.ts`、フル QA の「階の型ごとの計測」）。目標は平均 40ms・最大 80ms。重い型は `map/layout/shapes.ts` の `caStep` / `tidy` / `connectAll` と finalize / validate
+2. ~~階の生成時間の測り直し~~（2026-10-01 済。ブランチ `perf/floor-gen-time`）: 暖機後・型ごと 80 seed で地図の生成は平均 11〜25ms・最大 70ms 以下（目標内）。prefab は断片の向きの格子を使い回して 26→14ms。buildFloor 全体は平均 30〜57ms（残りは容器の置き場 `containers.ts` と陣の配置 `jinSpawn.ts`。目標の外なので据え置き）。フル QA の「最大 1〜1.9 秒」は並行作業の負荷によるもの
 3. **版を上げる**: `node scripts/bump.mjs patch`（0.0.16α）。[Unreleased] が大きいので 1 と 2 の後に
 4. 深さによる敵の数の差（深度 1〜3 で目標の約 −20%、16〜19 で +31%。`JIN.tilesPerJin` / `maxJins`。40 本以上のテストが敵数を前提にしているので一緒に直す）
 5. 小さめ: 階段を章ごとの絵に（置物の絵の続き）/ 縁を描き直す矩形の端で床の汚しが少し切れる（`frontLip.ts` / `mapDecor.ts`、全体の 1〜1.5% の点）/ 章 2 の封鎖の扉は差し色も赤で外周が目立ちにくい
