@@ -84,6 +84,12 @@ describe("actorSprites: 全ジョブの体", () => {
  */
 const UNDRAWN_WEAPONS: readonly MovesetKey[] = [];
 
+/**
+ * 回さない絵（向き 1）の武器種。開いた書は照準へ回すと頁が横倒しになって本に見えないので、
+ * 常に頁を見せる 1 枚を構えたまま突き出す（docs/ideas/tome-rework.md 1 章）
+ */
+const UNROTATED_WEAPONS: readonly MovesetKey[] = ["book"];
+
 describe("actorSprites: 全武器種の手に持つ武器", () => {
   it("どの武器種も手に持つ絵と、形の正しい構えを持つ", () => {
     for (const key of MOVESET_KEYS) {
@@ -94,7 +100,7 @@ describe("actorSprites: 全武器種の手に持つ武器", () => {
       const atlas = weaponAtlas(key);
       expect(atlas, key).toBe(`wpn${capital(key)}`);
       if (!atlas) continue;
-      expect(ACTOR_SHEETS[`${atlas}.held`]?.dirs, key).toBe(32);
+      expect(ACTOR_SHEETS[`${atlas}.held`]?.dirs, key).toBe(UNROTATED_WEAPONS.includes(key) ? 1 : 32);
       const stance = stanceFromMeta(weaponStanceMeta(atlas));
       expect(stance, `${key} の構えが既定のまま（meta.stance の形が崩れている）`).not.toBe(DEFAULT_STANCE);
     }

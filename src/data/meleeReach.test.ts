@@ -25,11 +25,13 @@ const MAX_CHARGE_REACH_MUL = 1;
 
 /**
  * 武器の外まで届くのが個性の段（武器種 → 段の名前の一覧。"*" は全段）。
- * 鞭は縄（whipRope.ts とエフェクトが描く）、鎖鎌・連接棍の鎖投げは鎖、鎌鼬と扇子は風、杖の渦巻きは術、刀の居合は刃の先へ飛ぶ一閃
+ * 鞭は縄（whipRope.ts とエフェクトが描く）、鎖鎌・連接棍の鎖投げは鎖、鎌鼬と扇子は風、杖の渦巻きは術、刀の居合は刃の先へ飛ぶ一閃、
+ * 書は頁から出る文字の刃・術
  */
 const BEYOND_BLADE: Partial<Record<MovesetKey, readonly string[]>> = {
   whip: ["*"],
   fan: ["*"],
+  book: ["*"],
   chainSickle: ["r:0", "dash", "branch:kamaitachi", "branch:chainBind"],
   flail: ["r:3", "branch:dragCrush"],
   wand: ["branch:vortex"],
