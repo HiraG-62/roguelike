@@ -24,7 +24,7 @@ import {
   gracesOf,
   grantColor,
 } from "../system/boons";
-import type { BoonKey } from "../system/boonDefs";
+import { BOON_ACTIONS, type BoonKey } from "../system/boonDefs";
 import {
   BOON_GRADE_LABEL,
   type BoonGrade,
@@ -37,6 +37,9 @@ import {
 } from "../system/boonGrade";
 import { linkHintText } from "../meta/linkHint";
 import { type KeywordAffinity, affinity, buildProfile } from "../system/keywords";
+import { BOON_ACTION_GLYPH, boonCrestHint } from "../ui/boonHint";
+import { crestShape } from "../ui/crestShape";
+import { FOLDED_BAND_W, MENU_INK, blinkOn, box, brackets, drawFoldedBands, menuText } from "./crestDraw";
 import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
 
 /**
@@ -78,6 +81,12 @@ const CORE_FRAME_INSET = 3;
 const CORE_SUBTITLE = "芯 ・ 探索に 1 つ";
 const CORE_TITLE = "探索の芯を選ぶ";
 const SUBTITLE_SEP = " ・ ";
+
+/** 紋の写し（E8a）: 畳んだ帯 6 本を中央に、行動の札 5 枚を左に。y 18〜34（札の上、題の上） */
+const CREST_HINT_Y = 18;
+const CREST_HINT_BANDS = 6;
+const ACTION_CHIP = { x: 8, y: 20, w: 16, h: 12, pitch: 20 } as const;
+const ACTION_BLINK_PERIOD = 0.5;
 
 const TITLE_Y = 44;
 const HINT_Y = 52;
@@ -260,6 +269,7 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   // 今のビルドの飢えを埋める / 余りを食う語を明るくする（並びは抽選順のまま。優劣は付けない）
   const build = buildProfile(state);
   const count = choiceCardCount(c);
+  drawCrestHint(ctx, state, c);
   c.options.forEach((key, i) => {
     const def = boonDef(key);
     const grade = choiceGrade(c, i);
@@ -269,6 +279,31 @@ export function drawBoonChoice(ctx: CanvasRenderingContext2D, state: GameState):
   if (c.replace) drawPassCard(ctx, c.options.length, count, c.hover === c.options.length);
   drawCurseOffer(ctx, state);
   drawLinkHint(ctx, state);
+}
+
+/**
+ * 紋の写し: 今の紋の畳んだ帯を薄く敷き、焦点の札で太る帯に ▲、加護の札が乗る行動の札を点滅させる。
+ * 錬磨・入れ替えは足す札ではないので出さない。state は読むだけ（点滅は state.time）
+ */
+function drawCrestHint(ctx: CanvasRenderingContext2D, state: GameState, c: Readonly<BoonChoice>): void {
+  if (c.mode === "temper" || c.replace) return;
+  const focus = c.options[c.hover];
+  const hint = focus === undefined ? null : boonCrestHint(state, focus);
+  const x0 = Math.round((VIEW_W - CREST_HINT_BANDS * FOLDED_BAND_W) / 2);
+  drawFoldedBands(ctx, crestShape(state), x0, CREST_HINT_Y, { faint: true, rising: hint?.rising });
+  BOON_ACTIONS.forEach((action, i) => {
+    const x = ACTION_CHIP.x + i * ACTION_CHIP.pitch;
+    const lit = hint?.action === action && blinkOn(state.time, ACTION_BLINK_PERIOD);
+    box(ctx, x, ACTION_CHIP.y, ACTION_CHIP.w, ACTION_CHIP.h, lit ? MENU_INK.gold : MENU_INK.dim);
+    if (lit) brackets(ctx, x, ACTION_CHIP.y, ACTION_CHIP.w, ACTION_CHIP.h, MENU_INK.focus);
+    menuText(ctx, BOON_ACTION_GLYPH[action], x + ACTION_CHIP.w / 2, ACTION_CHIP.y + ACTION_CHIP.h / 2, {
+      size: "SMALL",
+      color: lit ? MENU_INK.goldHi : MENU_INK.sub,
+      role: "ornament",
+      align: "center",
+      baseline: "middle",
+    });
+  });
 }
 
 /** 札の 3 行目: 錬磨は「格 2 → 3」、それ以外は格と注記（加護は今の枠の埋まり具合を添える） */

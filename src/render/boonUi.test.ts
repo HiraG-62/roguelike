@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGame } from "../core/game";
 import { BOON } from "../data/tuning";
 import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, boonDef, grantBoon } from "../system/boons";
@@ -15,6 +15,7 @@ import {
   boonHudOrder,
   boonMark,
   curseOfferView,
+  drawBoonChoice,
 } from "./boonUi";
 
 describe("祝福カードの印", () => {
@@ -173,5 +174,59 @@ describe("系譜の札・加護の枠・錬磨の表示（段取り 7a）", () =
     state.boonChoice = { ...base, options: ["emberSeed"], mode: "temper" };
     expect(curseOfferView(state), "錬磨に呪いの札なし").toBe("none");
     expect(temperLine(2), "錬磨の行は格 2 → 3").not.toBe(temperLine(3));
+  });
+});
+
+/** Canvas の偽物（呼び出しを数えるだけ）。3 択の描画のスモークテスト用 */
+function fakeContext(): { ctx: CanvasRenderingContext2D; calls: Map<string, number> } {
+  const calls = new Map<string, number>();
+  const target: Record<string | symbol, unknown> = {};
+  const ctx = new Proxy(target, {
+    get(obj, prop) {
+      if (prop in obj) return obj[prop];
+      if (prop === "measureText") return () => ({ width: 8 });
+      if (prop === "getTransform") return () => ({ a: 1, d: 1, e: 0, f: 0 });
+      if (prop === "getImageData") return (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) });
+      return (..._args: unknown[]) => {
+        const name = String(prop);
+        calls.set(name, (calls.get(name) ?? 0) + 1);
+      };
+    },
+    set(obj, prop, value) {
+      obj[prop] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, calls };
+}
+
+describe("3 択の紋の写し（E8a）", () => {
+  beforeAll(() => {
+    vi.stubGlobal("document", {
+      createElement: () => ({ width: 0, height: 0, getContext: () => fakeContext().ctx }),
+      fonts: { check: () => true, load: () => Promise.resolve([]) },
+    });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("3 択の描画は例外なく fillText を直接使わない", () => {
+    const state = createGame(1);
+    const keys = BOON_KEYS.filter((k) => !BOONS[k].cursed && BOONS[k].card === "grace").slice(0, 3);
+    const { ctx, calls } = fakeContext();
+    const view = { options: keys, curseHover: false, timer: 1, curseTaken: false, curse: null };
+    // 焦点なし / 各札に焦点 / 点滅の両位相 / 錬磨（写しを出さない）
+    for (const hover of [-1, 0, 1, 2]) {
+      for (const time of [0, 0.6]) {
+        state.time = time;
+        state.boonChoice = { ...view, hover };
+        drawBoonChoice(ctx, state);
+      }
+    }
+    state.boonChoice = { ...view, hover: 0, mode: "temper" };
+    drawBoonChoice(ctx, state);
+    expect(calls.get("fillRect") ?? 0, "何かを描いている").toBeGreaterThan(0);
+    expect(calls.get("fillText") ?? 0, "fillText を直接使わない").toBe(0);
   });
 });
