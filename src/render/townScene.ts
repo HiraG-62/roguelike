@@ -593,13 +593,19 @@ export class TownLayer {
    * 物の絵は 1 フレームに TOWN_ART_PER_FRAME 枚まで作る（出来るまで道は無し・物は仮の箱）。毎フレーム呼んでよい
    */
   prepare(view: TownHubView): void {
+    this.sync(view);
+    this.advance();
+  }
+
+  /**
+   * 配置・景色が変わっていれば並びを作り直すだけ（焼き進めない）。1 フレームに描く口が 5 つあり、
+   * それぞれで焼き進めると 1 フレームの予算が 5 倍になって開いた直後に固まるので、焼き進めるのは prepare（drawRoads）だけ
+   */
+  private sync(view: TownHubView): void {
     const { layout, look } = view.town;
     const changed = this.layout !== layout;
     if (changed) this.roadJob = createRoadBake(layout.roads, layout.ground.width, layout.ground.height);
-    if (!changed && this.lookKey === look.key) {
-      this.advance();
-      return;
-    }
+    if (!changed && this.lookKey === look.key) return;
     this.layout = layout;
     this.lookKey = look.key;
     this.placements = buildTownPlacements(layout, look);
@@ -614,7 +620,6 @@ export class TownLayer {
       this.pending.push(p.art);
     }
     if (changed) this.road = null;
-    this.advance();
   }
 
   /** 1 フレームぶんの作業: 道を焼き進め、物の絵を作る */
@@ -650,7 +655,7 @@ export class TownLayer {
     }
   }
 
-  /** 参道・辻の石畳。ground の直後に描く */
+  /** 参道・辻の石畳。ground の直後に描く（1 フレームで最初に呼ばれる口なので、ここだけが焼き進める） */
   drawRoads(ctx: CanvasRenderingContext2D, view: TownHubView): void {
     this.prepare(view);
     const road = this.road;
@@ -660,13 +665,13 @@ export class TownLayer {
 
   /** 体より奥の物（足元の y がプレイヤーの足元以下。地面の物を含む）。world 層の drawHubSpots の位置 */
   drawBack(ctx: CanvasRenderingContext2D, state: GameState, view: TownHubView): void {
-    this.prepare(view);
+    this.sync(view);
     this.drawPlacements(ctx, state, true);
   }
 
   /** 体より手前の物（足元の y がプレイヤーの足元より下）。drawPlayer の直後 */
   drawFront(ctx: CanvasRenderingContext2D, state: GameState, view: TownHubView): void {
-    this.prepare(view);
+    this.sync(view);
     this.drawPlacements(ctx, state, false);
   }
 
@@ -704,7 +709,7 @@ export class TownLayer {
 
   /** 使える建物の提灯・灯籠・篝火・石段の奥の発光。加算合成で、体や弾の上に重ねて夜の灯りに見せる */
   drawGlow(ctx: CanvasRenderingContext2D, state: GameState, view: TownHubView): void {
-    this.prepare(view);
+    this.sync(view);
     const v = viewOf(state);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -726,7 +731,7 @@ export class TownLayer {
 
   /** 名札。全設備を常に出す（建っていれば明るく、未建設は薄く「（建設予定）」、近い台は選択色）。最後に描く */
   drawLabels(ctx: CanvasRenderingContext2D, view: TownHubView): void {
-    this.prepare(view);
+    this.sync(view);
     for (const label of this.labels) {
       const near = label.spot !== null && view.near !== null && label.spot === view.near;
       const color = !label.built ? LABEL_PLANNED_COLOR : near ? LABEL_NEAR_COLOR : LABEL_BUILT_COLOR;

@@ -152,7 +152,7 @@ export function shelfCount(codex: CodexSave): number {
 function shelfDecor(codex: CodexSave): HubDecor[] {
   const shelves = shelfCount(codex);
   if (shelves <= 0) return [];
-  return [{ key: "shelf", label: `記録室の書架 ${shelves} 段` }];
+  return [{ key: "shelf", label: `記録の蔵の書架 ${shelves} 段` }];
 }
 
 function titleDecor(src: HubProgressSource): HubDecor[] {

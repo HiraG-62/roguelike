@@ -39,10 +39,15 @@ export function weaponIconSheetDir(moveset: MovesetKey): { key: string; dir: num
 
 const ATLASES = MOVESET_KEYS.map((key) => weaponAtlas(key));
 const bank = new ActorSpriteBank();
+/** focus は 1 回だけ（ATLASES は変わらないので 2 回目以降は何もしないのに、カードごと・毎フレームに鍵の配列と文字列を作っていた） */
+let focused = false;
 
 /** 武器種のアイコンのセル。アトラスがまだ読めていない・絵が無い間は undefined（呼び側が旧い絵で代わりに描く） */
 export function weaponIconCell(moveset: MovesetKey): ActorCell | undefined {
-  bank.focus(ATLASES);
+  if (!focused) {
+    bank.focus(ATLASES);
+    focused = true;
+  }
   const pick = weaponIconSheetDir(moveset);
   if (!pick) return undefined;
   return bank.cell(pick.key, pick.dir, 0);

@@ -459,6 +459,22 @@ describe("TownLayer（絵の作り直しとフレーム分け）", () => {
     expect(f.made.length, "絵の canvas の数 = 鍵の数 + 道").toBe(keys.size + 1);
   });
 
+  it("1 フレームに描く口を全部通しても、焼き進めるのは 1 フレームぶんだけ", () => {
+    art.real = true;
+    const v = view(fixtureLayout(), look({ built: ALL_BUILT, lanterns: 8, bustle: 4, trophies: [1, 2, 3], stele: 1, wellTier: 2 }));
+    const once = new TownLayer(fakeFactory().make);
+    once.prepare(v);
+    const layer = new TownLayer(fakeFactory().make);
+    const { ctx } = fakeCtx();
+    const state = fakeState(10 * T);
+    layer.drawRoads(ctx, v);
+    layer.drawBack(ctx, state, v);
+    layer.drawFront(ctx, state, v);
+    layer.drawGlow(ctx, state, v);
+    expect(layer.pendingCount, "残りは prepare 1 回と同じ").toBe(once.pendingCount);
+    expect(layer.pendingCount, "まだ作り終わっていない").toBeGreaterThan(0);
+  });
+
   it("TownLook.key が同じなら作り直さず、変わった時だけ物の絵を作り直す（道は作り直さない）", () => {
     art.real = true;
     const f = fakeFactory();
