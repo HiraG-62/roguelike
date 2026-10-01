@@ -77,7 +77,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 - 作り直しの判定は描画側だけで行う（state に印を足さない）。画面内のチャンクについて毎フレーム「チャンク + 周り 2 マスの分類（壁 / 穴 / 通れる）の簡易ハッシュ」を取り（9 チャンク × 400 マスの読み出し、数十 µs）、焼いた時の値と違えば作り直す。`state.map` の同一性が変わったら全部捨てる。`map.shallow` は生成時に固定なので鍵に入れない
 - 実際に分類が変わるのは隠し部屋が開くとき（`src/system/hiddenRoom.ts:117-119` の Wall → Floor）だけ。階段の出現（`boss.ts:426`・`specialRooms.ts:1303`）・泉（`roomTypes.ts:307`）は「通れる」のままなので作り直さない（階段と泉は上から毎フレーム描く）。**画面内のチャンクの分類が変わったら同期で焼き直す**（まれな出来事。1 回 25ms 以下を目標）
 - 封鎖の扉（`state.lockedTiles`）・地形（`state.terrain`）・扉の印・伏兵の暗い床・隠し部屋のひびは焼かない
-- 拠点（`state.sandbox`）は今の描画（Puny のタイル）のまま。門前町の段で置き換える
+- 拠点（`state.sandbox`）は門前町の様式 `town` の焼き付け（`drawTownGround`。旧来の Puny のタイルの描画は 2026-10-02 に削除）
 
 ### 1-4. メモリと時間の見積もり
 
@@ -197,17 +197,17 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 | 対象 | 場所 | 扱い | 理由 / 置き換え先 |
 | --- | --- | --- | --- |
-| Puny の床・壁 16 形（`tile.puny.*`） | `data/tiles.ts:100-126` | 残す（拠点だけ） | 門前町の段で置き換える |
+| Puny の床・壁 16 形（`tile.puny.*`）・拠点の `tile.hub.*`・`BIOME_TILESET`・`DERIVED_SPRITES` | `data/tiles.ts` | **門前町の段で置き換えた（2026-10-02）**。`tiles.ts` から削除 | 拠点の床は `townTheme` の焼き付け、建物は `townScene.ts` |
 | 9 バイオームの派生床・壁（`tile.<biome>.*`） | `data/tiles.ts:188-236` の `BIOME_TILESET` / `biomeDerived` | 捨てる（段 3）。`BIOME_TILESET` は `hub` だけ残す | 焼き付けのテーマに置き換わる。読み込み時の再配色 160 枚が消える |
 | 下水の水面から作る地形（`terrain.bog` と `TERRAIN_FROM_BOG`） | `data/tiles.ts:219-240` | 捨てる（段 3） | dual-grid の地形アトラス（`terrainTex.ts`） |
 | 階段 `stairs`・扉 `door` | `TILE_SPRITES` | 当面残す。扉は段 3 で結界の帯へ、階段は置物の絵のレーンで密度 2 の章別の絵へ | 上描きで毎フレーム描く |
-| 台座 `prop.*`・拠点の設備 `hub.*` | `TILE_SPRITES` | 残す | 地図の一新の範囲外 |
+| 台座 `prop.*` | `TILE_SPRITES` | 残す（拠点の設備 `hub.*` は 2026-10-02 に削除） | 地図の一新の範囲外 |
 | `SHEET_LUT`・`imageLut.ts` の `applyLut` | Kenney の暗化 | 残す | 台座・拠点で使う |
 | `tileAtlas.ts` の `expandTileAtlas` | | 残す（扱う量が減るだけ） | |
 | `imageAtlas.ts` | | 残す | |
-| `renderMath.ts` の `wallMask` / `wallStyle` / `floorVariant` | | 残す（拠点の描画と平塗りの代わり） | |
+| `renderMath.ts` の `wallMask` / `wallStyle` / `floorVariant` | | 削除した（2026-10-02。拠点の旧描画だけが使っていた） | |
 | `renderMath.ts` の `crackPixels` | | 残す | 隠し部屋のひびの上描き |
-| `renderer.ts` の `drawTiles` の中身（`renderer.ts:1087-1147`） | | 拠点用に `drawTilesLegacy` として残し、階段・泉・扉・印・封鎖・ひびは `drawTileOverlays` に分ける | |
+| `renderer.ts` の `drawTiles` の中身（`renderer.ts:1087-1147`） | | 拠点用に `drawTilesLegacy` として残し（**2026-10-02 に削除**。拠点は `drawTownGround`）、階段・泉・扉・印・封鎖・ひびは `drawTileOverlays` に分ける | |
 | `renderer.ts` の `drawPit`（仮の単色、`renderer.ts:1150-1159`） | | 捨てる（拠点に穴は無い） | 焼き付けの穴 |
 | `pitLook.ts` | | 置き換える（章 4・深み → abyss、`MapTheme.pit` を正にする。ミニマップの色は残す） | |
 | `terrainUi.ts` の `drawTile` / `STYLE` | | 置き換える（dual-grid）。崩れる床と煙は残す | |

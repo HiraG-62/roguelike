@@ -23,7 +23,6 @@ const READY_TIMEOUT_MS = 120_000;
 
 /** 既定で撮る一覧（5-2 節の 12 枚 + river + court） */
 const SHOTS = [
-  ["hub", "kind=hub"],
   ["hub-new", "kind=hub&scene=new"],
   ["hub-full", "kind=hub&scene=full"],
   ["d3-cave", "depth=3&kind=cave"],

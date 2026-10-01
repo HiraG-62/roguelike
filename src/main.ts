@@ -145,7 +145,7 @@ import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice
 import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { HUB, META } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
-import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
+import { availableSpots, builtFacilities, facilityBuiltBanner, newlyBuilt } from "./meta/hub";
 import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { type TownLook, townLook } from "./meta/townLook";
 import { drawHubOverlay } from "./render/hubUi";
@@ -680,7 +680,6 @@ const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す�
  * （`state` に入れると、ループ先頭の死亡判定や endRun が拠点を 1 ランとして記録してしまう）
  */
 let hub: HubSession | null = null;
-let hubDecor: HubDecor[] = [];
 /** 門前町の景色（拠点へ入る・設備の画面から戻るたびに保存データから導き直す） */
 let hubTown: TownLook | null = null;
 let hubBanner: string | null = null;
@@ -737,9 +736,7 @@ function returnToHub(): void {
     return;
   }
   // 実績の画面で称号を名乗り替えると看板が変わる
-  const src = hubSource();
-  hubDecor = hubDecorations(src);
-  hubTown = townLook(src, loadHub());
+  hubTown = townLook(hubSource(), loadHub());
   resetHoldLatch(departLatch);
   menuReturn = "hub";
   screen = "hub";
@@ -1051,13 +1048,14 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
   const h = session.hub;
-  const town = hubTown === null ? undefined : { layout: h.layout, look: hubTown };
-  const spots = { spots: h.layout.spots, available: h.available, near: h.near, town };
+  // 景色は openHub / returnToHub が導く。拠点を開かずに描く経路が万一あっても、町なしの旧来の描画へは落とさない
+  const look = hubTown ?? (hubTown = townLook(hubSource(), loadHub()));
+  const spots = { spots: h.layout.spots, available: h.available, near: h.near, town: { layout: h.layout, look } };
   // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
   renderer.setHubView(spots);
   renderGame(s, inventoryUi.open ? null : lastAim);
   renderer.setHubView(null);
-  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, donated: hubDonated, ...rackLabels(session) });
+  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, banner: hubBanner, donated: hubDonated, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }

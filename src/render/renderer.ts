@@ -37,14 +37,11 @@ import {
   crackPixels,
   damageTextStyle,
   easeOutCubic,
-  floorVariant,
   floorWipeCover,
   computeViewScale,
   lerp,
   pulse,
   spriteFeetY,
-  wallMask,
-  wallStyle,
   type HudLayout,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
@@ -110,8 +107,7 @@ import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
-import { type HubSpotsView, drawHubSpots } from "./hubUi";
-import { TownLayer, type TownHubView, townViewOf } from "./townScene";
+import { TownLayer, type TownHubView } from "./townScene";
 import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { MapChunkCache, type MapView } from "./mapChunks";
@@ -156,8 +152,6 @@ const COLOR_BLACK = "#000000";
 const COLOR_KEYSTONE = "#d08cff";
 const COLOR_WARN = "#ff6060";
 const COLOR_DOOR_EDGE = "#ff3030";
-/** 拠点の床・壁の素材の組（data/tiles.ts の BIOME_TILESET.hub が作る tile.hub.*） */
-const HUB_TILE = "hub";
 const COLOR_SLOWMO = "#2040a0";
 const COLOR_DESAT = "#808080";
 const COLOR_AURA_DAMAGE = "#ff6040";
@@ -167,9 +161,6 @@ const COLOR_AURA_INVULN = "#ffe080";
 /** スプライトキー */
 const SPR = {
   player: "player",
-  floor: "floor",
-  wallTop: "wallTop",
-  wallFace: "wallFace",
   stairs: "stairs",
   stairsGlow: "stairsGlow",
   door: "door",
@@ -723,7 +714,7 @@ export class Renderer {
   private rigMuzzle: { x: number; y: number; dist: number } | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
-  /** 迷宮の地図（床・壁・穴）の焼き済みチャンク。拠点は使わない（drawTilesLegacy） */
+  /** 地図（床・壁・穴）の焼き済みチャンク。迷宮は章の様式、拠点は門前町の様式（見た目用の地図 ground）で焼く */
   private readonly mapChunks = new MapChunkCache();
   /** 拠点（門前町）の道・建物・灯籠・名札（docs/ideas/hub-town-impl.md 4 章）。拠点を開いた時に絵を作る */
   private readonly townLayer = new TownLayer();
@@ -748,7 +739,7 @@ export class Renderer {
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
   /** 拠点の台（setHubView）。拠点以外では null */
-  private hubView: HubSpotsView | null = null;
+  private hubView: TownHubView | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -860,9 +851,8 @@ export class Renderer {
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
     drawExitHints(ctx, state);
-    const town = townViewOf(this.hubView);
+    const town = this.hubView;
     if (town) this.townLayer.drawBack(ctx, state, town);
-    else if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
@@ -1009,7 +999,7 @@ export class Renderer {
    * 拠点の台を world 層で描くための表示用の値（main.ts が拠点を描く間だけ渡し、描いたら null に戻す）。
    * 台は GameState に無いので、state を読むだけの原則を崩さずに渡す窓口
    */
-  setHubView(view: HubSpotsView | null): void {
+  setHubView(view: TownHubView | null): void {
     this.hubView = view;
   }
 
@@ -1107,12 +1097,10 @@ export class Renderer {
   // タイル
   // ---------------------------------------------------------------------------
 
-  /** 拠点は今の Puny のタイル、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節） */
+  /** 拠点は門前町の床、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節）。拠点は town を渡してから描く（main.ts の drawHubScreen） */
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
     if (state.sandbox === true) {
-      const town = townViewOf(this.hubView);
-      if (town) this.drawTownGround(town, viewX, viewY);
-      else this.drawTilesLegacy(state, viewX, viewY);
+      if (this.hubView) this.drawTownGround(this.hubView, viewX, viewY);
       return;
     }
     const view = this.setMapView(viewX, viewY);
@@ -1177,7 +1165,7 @@ export class Renderer {
   }
 
   settleMap(state: GameState): void {
-    const town = state.sandbox === true ? townViewOf(this.hubView) : null;
+    const town = state.sandbox === true ? this.hubView : null;
     if (state.sandbox === true && !town) return;
     const cam = state.camera;
     const view = this.setMapView(Math.round(cam.pos.x - cam.offset.x - VIEW_W / 2), Math.round(cam.pos.y - cam.offset.y - VIEW_H / 2));
@@ -1186,45 +1174,6 @@ export class Renderer {
       return;
     }
     this.mapChunks.settle(state.map, this.mapTheme(state), view);
-  }
-
-  /** 拠点の床と壁（タイルごとの drawImage）。階段・泉・扉の印などの上描きは drawTileOverlays */
-  private drawTilesLegacy(state: GameState, viewX: number, viewY: number): void {
-    const { map } = state;
-    const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
-    const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
-    const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
-    const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-    // PNG 取り込みの拠点版（tile.hub.floor）があればそれを、無ければピクセルマップ
-    const floor = this.atlas[`tile.${HUB_TILE}.floor`] ?? this.sprite(SPR.floor);
-    const wallFace = this.sprite(SPR.wallFace);
-    const wallTop = this.sprite(SPR.wallTop);
-
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        const tile = getTile(map, x, y);
-        const px = x * TILE_SIZE;
-        const py = y * TILE_SIZE;
-        if (tile === Tile.Wall) {
-          const style = wallStyle(map, x, y);
-          // 周囲 8 マスが壁の岩盤は、PNG の有無にかかわらず描かない（壁の模様で画面が埋まらないように）
-          if (style === "none") continue;
-          // PNG 取り込み（tile.hub.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
-          const masked = this.atlas[`tile.${HUB_TILE}.wall.${wallMask(map, x, y)}`];
-          if (masked) {
-            this.blit(masked, 0, px, py);
-          } else if (style === "face") {
-            this.blit(wallFace, 0, px, py);
-          } else if (style === "top") {
-            this.blit(wallTop, 0, px, py);
-          }
-          continue;
-        }
-        // 拠点に穴は無い（迷宮の穴は焼き付け）。万一あれば何も描かない
-        if (tile === Tile.Pit) continue;
-        this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
-      }
-    }
   }
 
   /**

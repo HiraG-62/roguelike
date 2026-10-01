@@ -138,14 +138,8 @@ const LABEL_PLANNED_COLOR = COLOR_DIM;
 // 型
 // ---------------------------------------------------------------------------
 
-/** 門前町の配置と景色が付いた拠点の表示値 */
-export type TownHubView = Omit<HubSpotsView, "town"> & { town: NonNullable<HubSpotsView["town"]> };
-
-/** town が付いていれば型を絞って返す（renderer の分岐用） */
-export function townViewOf(view: HubSpotsView | null): TownHubView | null {
-  if (!view?.town) return null;
-  return view as TownHubView;
-}
+/** 門前町の配置と景色が付いた拠点の表示値（拠点は常にこれで描く） */
+export type TownHubView = HubSpotsView;
 
 /** 絵の canvas を作る入り口。テストでは差し替える */
 export type TownImageFactory = (pixels: Uint32Array, w: number, h: number) => CanvasImageSource;
@@ -663,7 +657,7 @@ export class TownLayer {
     ctx.drawImage(road.img, road.x, road.y, road.w, road.h);
   }
 
-  /** 体より奥の物（足元の y がプレイヤーの足元以下。地面の物を含む）。world 層の drawHubSpots の位置 */
+  /** 体より奥の物（足元の y がプレイヤーの足元以下。地面の物を含む）。world 層の drawTownBack の位置 */
   drawBack(ctx: CanvasRenderingContext2D, state: GameState, view: TownHubView): void {
     this.sync(view);
     this.drawPlacements(ctx, state, true);

@@ -46,14 +46,14 @@ describe("未建設の設備の手がかり（nearUnbuiltSpot）", () => {
     const available = new Set(all);
     available.delete("library");
     const at = spots.library;
-    expect(nearUnbuiltSpot({ x: at.x, y: at.y + 8 }, { spots, available, near: null })).toBe("library");
+    expect(nearUnbuiltSpot({ x: at.x, y: at.y + 8 }, { spots, available })).toBe("library");
   });
 
   it("建っている台や、遠い所では null", () => {
     const at = spots.library;
-    expect(nearUnbuiltSpot({ x: at.x, y: at.y + 8 }, { spots, available: all, near: null })).toBeNull();
+    expect(nearUnbuiltSpot({ x: at.x, y: at.y + 8 }, { spots, available: all })).toBeNull();
     const available = new Set(all);
     available.delete("library");
-    expect(nearUnbuiltSpot({ x: at.x + 400, y: at.y }, { spots, available, near: null })).toBeNull();
+    expect(nearUnbuiltSpot({ x: at.x + 400, y: at.y }, { spots, available })).toBeNull();
   });
 });

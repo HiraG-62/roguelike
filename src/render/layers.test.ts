@@ -84,13 +84,16 @@ describe("描画の層の順", () => {
     expect(world.indexOf("drawInvertedTint"), "地図の直後").toBe(world.indexOf("drawTiles") + 1);
   });
 
-  it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
+  it("門前町の物は world 層で描く（体より奥は敵・自分より下、手前は自分より上。HUD より下）", () => {
     const world = LAYER_CONTENTS.world;
-    const at = world.indexOf("drawHubSpots");
-    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
-    expect(at, "ランの床の物の後").toBeGreaterThan(world.indexOf("drawRunWorld"));
-    expect(at, "敵より前（下）").toBeLessThan(world.indexOf("drawEnemies"));
-    expect(at, "自分より前（下）").toBeLessThan(world.indexOf("drawPlayer"));
+    const back = world.indexOf("drawTownBack");
+    expect(back, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(back, "ランの床の物の後").toBeGreaterThan(world.indexOf("drawRunWorld"));
+    expect(back, "敵より前（下）").toBeLessThan(world.indexOf("drawEnemies"));
+    expect(back, "自分より前（下）").toBeLessThan(world.indexOf("drawPlayer"));
+    const front = world.indexOf("drawTownFront");
+    expect(front, "体より手前の物は自分の後").toBeGreaterThan(world.indexOf("drawPlayer"));
+    expect(front, "弾より前（下）").toBeLessThan(world.indexOf("drawProjectiles"));
   });
 });
 

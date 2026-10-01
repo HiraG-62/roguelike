@@ -1,6 +1,6 @@
 // 地図の見た目の確認用（docs/ideas/map-visual-impl.md 5-2 節）。ゲーム本体からは import しない。
 // クエリ: ?depth=&kind=&seed=&tx=&ty=&layout= で階を作って 1 回描き、window.__mapShotReady = true。
-// kind=hub で拠点（scene=new は空の保存の門前町、scene=full は全部建った門前町。無ければ旧来の拠点）。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
+// kind=hub で拠点（門前町。scene=new は空の保存、scene=full（既定）は全部建った景色）。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
 // 実時間（performance.now）を使うのは計測だけで、ゲームの描画・state には入れない。
 import { createGame } from "../core/game";
 import { VIEW_H, VIEW_W } from "../core/view";
@@ -21,7 +21,6 @@ import { createHub } from "../system/hub";
 import { defaultRunSetup } from "../system/runSetup";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { Renderer } from "../render/renderer";
-import type { HubSpotsView } from "../render/hubUi";
 import { type TownHubView, TownLayer, canvasFromTownPixels } from "../render/townScene";
 
 interface MapBench {
@@ -157,15 +156,13 @@ function measureTownOpen(view: TownHubView): TownOpenCost {
 
 function buildHub(renderer: Renderer, q: URLSearchParams): GameState {
   const scene = q.get("scene");
-  const built = scene === "new" ? builtFacilities(NEW_TOWN_SOURCE) : FACILITY_KEYS;
+  const isNew = scene === "new";
+  const built = isNew ? builtFacilities(NEW_TOWN_SOURCE) : FACILITY_KEYS;
   const available = availableSpots(built);
   const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), available);
   const near = (q.get("near") as HubSpotKey | null) ?? null;
-  const view: HubSpotsView = { spots: session.hub.layout.spots, available, near };
-  if (scene === "new" || scene === "full") {
-    view.town = { layout: session.hub.layout, look: townLookFor(scene) };
-    window.__townOpen = measureTownOpen({ ...view, town: view.town });
-  }
+  const view: TownHubView = { spots: session.hub.layout.spots, available, near, town: { layout: session.hub.layout, look: townLookFor(isNew ? "new" : "full") } };
+  window.__townOpen = measureTownOpen(view);
   renderer.setHubView(view);
   placeCamera(session.state, q);
   return session.state;

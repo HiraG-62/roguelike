@@ -23,7 +23,6 @@ import {
   isBehindPlayer,
   stelePosition,
   townArtKey,
-  townViewOf,
   trophyPositions,
 } from "./townScene";
 import { MAP_DOTS, TILE_DOTS } from "./mapTypes";
@@ -121,15 +120,6 @@ const ALL_BUILT = new Set<FacilityKey>(FACILITY_KEYS);
 function view(layout: HubLayout, lk: TownLook, near: HubSpotKey | null = null): TownHubView {
   return { spots: layout.spots, available: new Set<HubSpotKey>(HUB_SPOT_KEYS), near, town: { layout, look: lk } };
 }
-
-describe("townViewOf", () => {
-  it("town が付いていれば返し、無ければ null", () => {
-    const layout = fixtureLayout();
-    expect(townViewOf(view(layout, look()))).not.toBeNull();
-    expect(townViewOf({ spots: layout.spots, available: new Set(), near: null })).toBeNull();
-    expect(townViewOf(null)).toBeNull();
-  });
-});
 
 describe("buildTownPlacements（描く物の配置）", () => {
   const layout = fixtureLayout();

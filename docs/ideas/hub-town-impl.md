@@ -2,7 +2,7 @@
 
 作成日: 2026-10-01。前提: `docs/ideas/hub-design.md`（拠点の元の設計）、`docs/ideas/map-overhaul-ideas.md` C11、`docs/ideas/map-visual-impl.md`（迷宮の描画）、`docs/ideas/title-ideas.md`（タイトルの「門」）。
 
-**状況: 段 0・段 1 を実装済み（2026-10-02）。残り: 旧来の 1 部屋の描画（`drawTilesLegacy`・拠点専用の古いタイル・`drawHubSpots`）の削除と、実機での見え方の確認。ユーザーの決定（2026-10-01）**: 方向は「門前町」。不満は「見た目が地味・古い」「設備の配置が分かりにくい」。7 章はすべて推奨どおり（石段で出撃・長押しも残す / 表示名を建物名に / 30x24 / 宵 / 町の入口の名札と GLOSSARY だけ「門前町」）。
+**状況: 段 0・段 1 を実装済み、段 2 の削除を済み（2026-10-02。`drawTilesLegacy`・`drawHubSpots`・`tile.puny.*` / `tile.hub.*` / `hub.*` の素材・`BIOME_TILESET`・`wallStyle` / `wallMask` / `floorVariant`・右上の飾りの一覧 `drawDecor` を削除。拠点は常に town ありで描く）。残り: 資料の仕上げ（GLOSSARY・IDEAS・CHANGELOG）と実機での見え方の確認。ユーザーの決定（2026-10-01）**: 方向は「門前町」。不満は「見た目が地味・古い」「設備の配置が分かりにくい」。7 章はすべて推奨どおり（石段で出撃・長押しも残す / 表示名を建物名に / 30x24 / 宵 / 町の入口の名札と GLOSSARY だけ「門前町」）。
 
 ## 1. 結論
 
@@ -96,7 +96,7 @@
 | C1 地面と描画の枠（implementer） | 新規 `render/townScene.ts` + test | `mapTypes.ts`、`data/mapThemes.ts`、`mapTheme.ts`、`mapLight.ts`、`renderer.ts`（drawTiles の sandbox 分岐・drawHubSpots の置き換え・drawPlayer の後・settleMap）、`hubUi.ts`、`tools/mapShot.ts`（hub-new / hub-full） | 仮の絵で町が描ける。名札が全設備に出る。`npm run map:shot -- --only hub-new` |
 | C2 建物と小物の絵（pixel-artist） | `render/townArt.ts`、新規 `data/sprites/townProps.ts` + test | なし | 全 `HubLotKey` の建った絵・空き地・井戸 4 段・提灯・鳥居と石段・幟・小物。`npm run sprite -- lint` |
 
-- **段 2（統合役 + reviewer）**: `drawTilesLegacy` と拠点専用の古いタイルを削除、資料（CODE_MAP・GLOSSARY・IDEAS・map-visual-impl・CHANGELOG）、`map:shot` の撮り比べをユーザーに見せる
+- **段 2（統合役 + reviewer）**: 削除は済み（2026-10-02。`hubDecorations` / `HubDecor`〔meta/hub.ts〕は呼ぶ所が無くなったので段 3 で消せる）。残り: 資料（CODE_MAP・GLOSSARY・IDEAS・map-visual-impl・CHANGELOG）、`map:shot` の撮り比べをユーザーに見せる
 
 ## 7. ユーザーに聞いたこと（2026-10-01、すべて推奨で決定）
 
