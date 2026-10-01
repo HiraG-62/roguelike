@@ -316,5 +316,8 @@ export const HUB = BALANCE.world.HUB;
 /** ボスの間（src/system/bossHall.ts）。拠点から倒したボスに挑み直す練習の場 */
 export const BOSS_HALL = BALANCE.world.BOSS_HALL;
 
+/** ボス階の専用の部屋の並べ方（src/map/layout/lordHall.ts） */
+export const LORD_HALL = BALANCE.world.LORD_HALL;
+
 /** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
 export const HUB_DECOR = BALANCE.world.HUB_DECOR;
