@@ -7,7 +7,8 @@
     "trainingRuns": "このラン数に達すると訓練場が建つ（試し場を見つけても建つ）",
     "seed": "拠点の乱数の種。拠点と借り物の武器を毎回同じにする",
     "bannerSeconds": "設備が建ったときの知らせを出す秒",
-    "rackBorrowHold": "武器掛けで決定を押し続けて借りるまでの秒"
+    "rackBorrowHold": "武器掛けで決定を押し続けて借りるまでの秒",
+    "gateNearMargin": "石段（出撃の口）の矩形をこのタイル数だけ広げた範囲に入ると nearGate が立つ（門の名札・案内を出す距離）"
   },
   "interactRadius": 20,
   "departHold": 0.8,
@@ -16,5 +17,6 @@
   "trainingRuns": 3,
   "seed": 1213547009,
   "bannerSeconds": 3,
-  "rackBorrowHold": 0.6
+  "rackBorrowHold": 0.6,
+  "gateNearMargin": 2
 }
