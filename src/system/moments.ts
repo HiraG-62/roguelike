@@ -5,7 +5,7 @@ import { enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
 import { FORM, MOMENT } from "../data/tuning";
 import { type FormKey, MOMENT_TEXT, type RiposteSource } from "../data/weaponForms";
 import type { ButtonKey, MovesetDef } from "../data/weapons";
-import { addFloatingText } from "./effects";
+import { addHeadLabel } from "./effects";
 import { noteFinisherMana, onManaSource } from "./manaSources";
 import { isEngaged } from "./engagement";
 import { onFormSwing } from "./tomeBell";
@@ -42,9 +42,16 @@ export function createMoment(): MomentState {
   return { firstStrikeArmed: true, idleSec: 0, lastHitLane: null, lastHitAt: 0, swingRiposte: false, backstabUntil: 0, wardUntil: 0 };
 }
 
+/**
+ * 自分の状態になる瞬間（充溢・装填・強装填）だけ、頭上に小さく出す。
+ * 先制・放出・双撃は音とイベントで足りるので文字にしない（戦闘中の文字を増やさないため）
+ */
+const SHOWN_MOMENTS: ReadonlySet<MomentTextKey> = new Set<MomentTextKey>(["brim", "reload", "primed"]);
+
 function showMoment(state: GameState, pos: Vec, key: MomentTextKey): void {
+  if (!SHOWN_MOMENTS.has(key)) return;
   const look = MOMENT[key];
-  addFloatingText(state, pos, MOMENT_TEXT[key], look.color, look.scale, look.life);
+  addHeadLabel(state, pos, MOMENT_TEXT[key], look.color, look.life);
 }
 
 /** 毎ステップ（player.ts の updatePlayer）。戦意を進めて満ちた瞬間に充溢を出し、先制の構えを戻す */

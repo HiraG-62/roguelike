@@ -89,7 +89,8 @@ describe("装備ドロップと拾得", () => {
     expect(state.floorItems, "床から消える").toHaveLength(0);
     expect(state.profile.stash.map((it) => it.id), "倉庫に入る").toContain(item.id);
     expect(state.sfx.some((s) => s === "pickup" || s === "lootRare"), "拾得音").toBe(true);
-    expect(state.texts.some((t) => t.text === item.name), "名前の浮き文字").toBe(true);
+    expect(state.texts.some((t) => t.text === item.name), "名前は浮き文字にしない（戦闘の文字を増やさない）").toBe(false);
+    expect(state.log.some((l) => l.text.includes(item.name)), "名前は左下のログに出る").toBe(true);
   });
 
   it("インタラクトを押していなければ注目していても拾わない", () => {

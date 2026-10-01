@@ -5,6 +5,7 @@ import {
   type CoinSource,
   type EconomyState,
   type Enemy,
+  type FloatTextKind,
   type GameState,
   type Jin,
   type Pickup,
@@ -105,7 +106,7 @@ export function gainCoins(state: GameState, amount: number, source: CoinSource):
   const eco = state.economy;
   eco.coins += n;
   if (source !== "spill") eco.earned[source] += n;
-  sayAtPlayer(state, `銭 +${n}`, ECONOMY.coin.color);
+  sayAtPlayer(state, `銭 +${n}`, ECONOMY.coin.color, "label");
   pushSfx(state, "coinPickup");
   pushEvent(state, { kind: "onCoinPickup", actor: "player", pos: { ...state.player.body.pos }, source: playerSource("coin"), amount: n, tag: source });
   return n;
@@ -145,9 +146,10 @@ export function spendKeys(state: GameState, n: number): boolean {
   return true;
 }
 
-function sayAtPlayer(state: GameState, text: string, color: string): void {
+/** 銭は戦闘中に何度も拾うので小さい label、鍵・瓶は告知として読める大きさで出す */
+function sayAtPlayer(state: GameState, text: string, color: string, kind: FloatTextKind = "notice"): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE, kind);
 }
 
 /** 平均 mean を揺らぎの範囲で引き、小数部を確率で切り上げた整数（rng 2 回。mean が 0 以下なら引かない） */

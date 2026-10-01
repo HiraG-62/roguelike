@@ -363,7 +363,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 防御 | `AttrKey` の `def` | ステータスの 6 種目。防御力・魔防を底上げし、盾の技・反撃系のスキルなど係数で参照する行動も伸ばす。5 色（紅蒼翠金冥）とは対応しない別軸（`COMBAT_ATTR_KEYS` は防御を除く 5 種） | `loot/types.ts`、`docs/STATS_AND_SCALING.md` |
 | 〜耐性 / 全属性耐性 | `PlayerStats.resist` | 属性ごとの軽減 %（50 を超えた分は半分、上限 75、下限 −100）。全属性耐性は無属性を除く。書付「体」の体の性能に耐性 2 行（炎/氷/雷、毒/闇/光）で出す | `loot/affixes.ts` res_*、`ui/sheetBody.ts` |
 | 弱点 / 耐性（浮き文字） | `ELEMENT.weakText` / `resistText` | 敵の耐性が負 / 正の属性で当てたとき | `system/elementCombat.ts` |
-| ダメージ数字の種類（2026-09-24 第 3 弾） | `FloatTextKind`: crit / weak / resist / dot / reaction / normal | 会心 / 弱点 / 耐性 / 継続 / 反応 / 通常の 6 種で色と大きさを変える（会心 > 反応 > 弱点 > 耐性 の優先順で 1 つ選ぶ）。継続（dot）は 0.5 秒ぶんを敵ごとに束ねて小さく表示 | `system/effects.ts` damageTextKind |
+| 浮き文字の種類（2026-09-24 第 3 弾・2026-10 整理） | `FloatTextKind`: ダメージの数字 crit / weak / resist / dot / reaction / normal、文字 status（敵の状態）/ label（技名・自分の状態。省略時）/ notice（告知）| 数字は会心 > 反応 > 弱点 > 耐性 の優先順で 1 つ選び、色と縁取りを変える（大きさは通常と同じ。会心だけ出た瞬間に弾む）。継続（dot）は 0.5 秒ぶんを敵ごとに束ねて小さく表示。撃破のスコア・コンボの節目・先制 / 放出 / 双撃・刻印符の発動語・祝福や遺物の獲得は浮き文字にしない（HUD・音・ログ）| `system/effects.ts` damageTextKind |
 | 弱点の印 / ？ | `weaknessMark` | 敵の頭上の弱点の色。このランでその種類を倒すまでは「？」 | `render/elementUi.ts` |
 | 属性の変換（近接・射撃の n% を炎属性に変換） | `cv_infuse*` / `PlayerStats.infuse` | 通常攻撃の一部を属性として扱う変換 | `loot/affixes.ts` |
 | 無の刻印 | `cv_infuseNone` / `skillNeutral` | スキルの属性の n% を無属性に変換する | `loot/affixes.ts` |

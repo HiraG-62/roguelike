@@ -186,7 +186,7 @@ function collectToll(state: GameState, r: Reaper): void {
   p.hp = Math.max(1, p.hp - toll);
   r.departed = true;
   spawnBurst(state, r.pos, c.color, 24, 120, 0.6, 2.5);
-  addFloatingText(state, { x: p.body.pos.x, y: p.body.pos.y - 16 }, `取り立て -${toll}`, c.color, 1.3, 1.4);
+  addFloatingText(state, { x: p.body.pos.x, y: p.body.pos.y - 16 }, `取り立て -${toll}`, c.color, 1.3, 1.4, "notice");
   pushLog(state, "取り立て屋は生命の一部を受け取り、去っていった。", c.color);
   pushSfx(state, "reaperAppear");
 }

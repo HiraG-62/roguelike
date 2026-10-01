@@ -8,7 +8,7 @@ import { behaviorOf } from "./behaviors/registry";
 import { ACTION, BOON_LINEAGE, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
-import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
+import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing, addHeadLabel } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
 import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effects";
 import { cameraKick } from "./camera";
@@ -294,7 +294,7 @@ function holdsVaultRelease(state: GameState, kind: VaultKind): boolean {
 /** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */
 function shatterFreeze(state: GameState, enemy: Enemy): void {
   removeStatus(state, { kind: "enemy", enemy }, "freeze");
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
+  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6, "status");
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
   pushShatterEvent(state, enemy);
@@ -361,7 +361,6 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   spawnBurst(state, enemy.body.pos, "#ffffff", 6, 90, 0.25, 1.5);
   // 攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5）
   spawnDirectional(state, enemy.body.pos, dir, def.color, KILL_DIRECTIONAL_PARTICLES, KILL_DIRECTIONAL_SPEED);
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 6 }, `+${gained}`, "#ffd75f", 1.1, 0.8);
   hitstop(state, FEEL.hitstopKill);
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, dir, FEEL.kickHeavy);
@@ -398,7 +397,7 @@ function lastKillFx(state: GameState, enemy: Enemy): void {
   state.slowmo = Math.max(state.slowmo, c.slowmo);
   state.flash = Math.max(state.flash, c.flash);
   const pos = { x: enemy.body.pos.x, y: enemy.body.pos.y - c.textOffsetY };
-  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife, "notice");
   spawnRing(state, enemy.body.pos, c.ringRadius, c.color, c.ringLife);
   spawnBurst(state, enemy.body.pos, c.color, c.particles, 220, 0.6, 2.5);
   shake(state, FEEL.shakeSpecial);
@@ -579,7 +578,7 @@ export function damagePlayer(
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
 
-  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3);
+  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HURT, 12, 150, 0.4, 2);
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeHurt);
@@ -650,7 +649,7 @@ function payDeferredDamage(state: GameState): void {
   const due = list.filter((d) => d.due <= state.time).reduce((sum, d) => sum + d.amount, 0);
   if (due <= 0) return;
   p.deferredDamage = list.filter((d) => d.due > state.time);
-  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE);
+  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE, undefined, "normal");
   damagePlayerDot(state, due, { kind: "deferred", key: "" });
 }
 
@@ -729,7 +728,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   gainEnergy(state, ENERGY.just);
   gainMana(state, MANA.onJust);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);
+  addHeadLabel(state, p.body.pos, "見切り！", COLOR_JUST, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   justFx(state);
   state.flash = Math.max(state.flash, 0.2);
@@ -765,7 +764,7 @@ export function healPlayer(state: GameState, amount: number, opts: HealOptions =
   const gained = p.hp - before;
   if (gained <= 0 || opts.silent) return gained;
   const shown = Math.round(gained);
-  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2);
+  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HEAL, 10, 80, 0.5, 2);
   pushSfx(state, "heal");
   return gained;

@@ -215,6 +215,9 @@ export const MINIMAP = BALANCE.feel.MINIMAP;
 /** 地図の光と暗がり（src/render/mapLight.ts） */
 export const MAP_LIGHT = BALANCE.feel.MAP_LIGHT;
 
+/** 浮き文字の種類ごとの大きさ・寿命・重複の抑え方（src/render/floatText.ts・system/effects.ts） */
+export const FLOAT_TEXT = BALANCE.feel.FLOAT_TEXT;
+
 /** 持ち物メニューの情報の予算（src/ui/menuBudget.ts・tryOn.ts。docs/ideas/inventory-v2/E-merged.md 4 章） */
 export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
 

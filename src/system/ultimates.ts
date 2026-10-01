@@ -183,7 +183,7 @@ function castFx(state: GameState, def: UltimateDef): void {
     spawnBurst(state, pos, FLASH_WHITE, FLASH_PARTICLES, FLASH_SPEED, FLASH_LIFE, FLASH_SIZE);
   }, true);
   addUltFx(state, def.key, "cast", CAST_INDEX, pos, { angle: angle(state.player.facing) });
-  addFloatingText(state, pos, def.name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE);
+  addFloatingText(state, pos, def.name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE, "notice");
 }
 
 /** 行為の見た目の出来事の出どころ（一撃の行為の並び・持続の終わりの行為の並びの番号） */

@@ -1170,7 +1170,7 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
   applyCurse(state, index);
   shake(state, ambush ? AMBUSH_SHAKE : LOCK_SHAKE);
   if (ambush) announceAmbush(state);
-  else addFloatingText(state, p2(state), "封鎖", "#ff8080", 1.2, 0.8);
+  else addFloatingText(state, p2(state), "封鎖", "#ff8080", 1.2, 0.8, "notice");
   pushSfx(state, "roomLock");
 }
 
@@ -1190,7 +1190,7 @@ const HORDE_TEXT_LIFE = 1.2;
 /** 巣窟の封鎖: 大きく揺らして名前を出す */
 function announceHorde(state: GameState): void {
   shake(state, HORDE_SHAKE);
-  addFloatingText(state, p2(state), "巣窟！", ROOM_KIND.hordeColor, HORDE_TEXT_SCALE, HORDE_TEXT_LIFE);
+  addFloatingText(state, p2(state), "巣窟！", ROOM_KIND.hordeColor, HORDE_TEXT_SCALE, HORDE_TEXT_LIFE, "notice");
   pushLog(state, "巣窟に踏み込んだ。群れが湧き出す。", ROOM_KIND.hordeColor);
   pushSfx(state, "ambush");
 }
@@ -1200,7 +1200,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   room.cleared = true;
   for (const t of room.doorTiles) state.lockedTiles.delete(t);
   state.score += ROOM.clearBonus;
-  addFloatingText(state, p2(state), roomClearText(state, index), "#ffd75f", 1.5, 1);
+  addFloatingText(state, p2(state), roomClearText(state, index), "#ffd75f", 1.5, 1, "notice");
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
   roomClearFx(state, index);
@@ -1346,7 +1346,7 @@ function healOnDescend(state: GameState): void {
 
 /** 反転層に初めて着いた */
 function announceInverted(state: GameState): void {
-  addFloatingText(state, p2(state), "反転層", FLOOR_KIND.invertedColor, 2, 1.6);
+  addFloatingText(state, p2(state), "反転層", FLOOR_KIND.invertedColor, 2, 1.6, "notice");
   pushLog(state, "世界が裏返った。反転層では敵が精鋭になりやすく、遺物は反転しやすい。", FLOOR_KIND.invertedColor);
 }
 
@@ -1369,7 +1369,7 @@ export function ascend(state: GameState): void {
   onContractsFloorReached(state);
   state.flash = 1;
   const label = FLOOR_KIND_LABEL[state.floorKind];
-  addFloatingText(state, p2(state), `地下 ${state.depth} 階へ帰還`, FLOOR_KIND.ascendColor, 2, 1.2);
+  addFloatingText(state, p2(state), `地下 ${state.depth} 階へ帰還`, FLOOR_KIND.ascendColor, 2, 1.2, "notice");
   pushSfx(state, "descend");
   pushLog(state, `浅い層へ戻った（地下${state.depth}階・${label}、帰還 ${strata.returns}/${FLOOR_KIND.ascendMaxReturns}）。`, FLOOR_KIND.ascendColor);
 }

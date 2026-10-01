@@ -7,7 +7,7 @@ import { ARMOR_K, ARMOR_MAX_REDUCTION, ELEMENT, GENRE } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
 import type { PlayerStats } from "../loot/types";
-import { addFloatingText } from "./effects";
+import { addFloatingTextOnce } from "./effects";
 import { applyStatus } from "./statusEffects";
 
 /**
@@ -131,13 +131,9 @@ export function outgoingElement(stats: Readonly<PlayerStats>, enemy: Enemy, atk:
 export function showAffinity(state: GameState, enemy: Enemy, affinity: ElementAffinity): void {
   if (affinity === "neutral") return;
   const text = affinity === "weak" ? ELEMENT.weakText : ELEMENT.resistText;
-  const r2 = ELEMENT.textDedupeRadius * ELEMENT.textDedupeRadius;
-  const shown = state.texts.some(
-    (t) => t.text === text && t.life > t.maxLife / 2 && (t.pos.x - enemy.body.pos.x) ** 2 + (t.pos.y - enemy.body.pos.y) ** 2 <= r2,
-  );
-  if (shown) return;
   const color = affinity === "weak" ? ELEMENT.weakColor : ELEMENT.resistColor;
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - ELEMENT.mark.offsetY }, text, color, ELEMENT.textScale, ELEMENT.textLife);
+  const pos = { x: enemy.body.pos.x, y: enemy.body.pos.y - ELEMENT.mark.offsetY };
+  if (!addFloatingTextOnce(state, pos, text, color, ELEMENT.textScale, ELEMENT.textLife, "status", { radius: ELEMENT.textDedupeRadius })) return;
   pushSfx(state, affinity === "weak" ? "weakHit" : "resistHit");
 }
 

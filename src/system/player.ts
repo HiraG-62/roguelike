@@ -32,7 +32,7 @@ import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
 import { EARTH_WALL_SLAM_KEY } from "./boonDefs/earth";
-import { addFloatingText, markShotBullet, shake, spawnBurst, spawnLine } from "./effects";
+import { markShotBullet, shake, spawnBurst, spawnLine, addHeadLabel } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
 import { type HitWeight, hitFamily } from "./effects";
 import { currentBullet } from "../loot/bullets";
@@ -978,7 +978,7 @@ function startBranch(state: GameState, index: number): void {
   // 弾・付随効果は振り始めに出す（予約のまま捨てられた派生では出さない）
   onBranchStart(state, branch);
   // 派生成立の合図（docs/ideas/combat-feel-design.md D-1）
-  addFloatingText(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextScale, FEEL.branchTextLife);
+  addHeadLabel(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextLife);
   pushSfx(state, "branch");
 }
 
@@ -1414,7 +1414,7 @@ export function isCounterable(e: Enemy): boolean {
 
 function showCounter(state: GameState, pos: Vec): void {
   const c = ACTION.counter;
-  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  addHeadLabel(state, pos, c.text, c.color, c.textLife);
   spawnBurst(state, pos, c.color, c.particles, 150, 0.35, 2);
   pushSfx(state, "counter");
 }

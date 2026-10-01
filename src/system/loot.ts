@@ -247,7 +247,6 @@ function pickUpStone(state: GameState, stone: SkillStone, pos: Vec): boolean {
   }
   saveSkillProfile(profile);
   const label = stoneLabel(stone);
-  addFloatingText(state, pos, label, SKILL.drop.stoneColor, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
   pushSfx(state, "lootRare");
   return true;
@@ -262,7 +261,6 @@ function pickUp(state: GameState, item: Item, pos: Vec): boolean {
   }
   saveProfile(state.profile);
   const color = itemColor(item);
-  addFloatingText(state, pos, item.name, color, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `${item.name}を拾った。`, color);
   pushSfx(state, RARE_RARITIES.has(item.rarity) ? "lootRare" : "pickup");
   return true;
@@ -294,7 +292,6 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
   applyStats(state, computeStats(state.profile.equipment, state.depth));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);
-  addFloatingText(state, state.player.body.pos, "芽吹き", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `${item.name}が芽吹いた。`, BUD_TEXT_COLOR);
   return chosen;
 }

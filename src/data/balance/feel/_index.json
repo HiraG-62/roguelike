@@ -1,4 +1,4 @@
 {
   "_note": "見た目・音の演出専用の数値（ロジックの結果に影響しない）。秒・px・倍率が中心",
-  "_order": ["FEEL", "EFFECTS", "MINIMAP", "FX_ATTACK", "MUSIC", "FX_WAVE3", "SFX_WAVE3", "TELEGRAPH", "MENU_BUDGET", "MAP_LIGHT"]
+  "_order": ["FEEL", "EFFECTS", "MINIMAP", "FX_ATTACK", "MUSIC", "FX_WAVE3", "SFX_WAVE3", "TELEGRAPH", "MENU_BUDGET", "MAP_LIGHT", "FLOAT_TEXT"]
 }

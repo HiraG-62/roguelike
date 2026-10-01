@@ -471,7 +471,7 @@ function bulwarkBreak(state: GameState, e: Enemy): void {
   if (stagger) stagger.time *= ELITE.bulwarkStaggerMul;
   const vulnerable = { kind: "vulnerable" as const, stacks: 1, duration: ELITE.bulwarkVulnerableTime, potency: 0 };
   applyStatus(state, { kind: "enemy", enemy: e }, vulnerable, "env");
-  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ELITE_COLOR.bulwark, 1.2, 0.8);
+  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ELITE_COLOR.bulwark, 1.2, 0.8, "status");
 }
 
 /** 報復の: 怯んだ瞬間に輪の予告を出し、少し後に衝撃波を返す */
@@ -504,7 +504,7 @@ function tickTimed(state: GameState, e: Enemy, w: EliteWork, dt: number): void {
   w.timer -= dt;
   if (w.timer > 0) return;
   e.poise.max *= ELITE.timedPoiseMul;
-  addFloatingText(state, e.body.pos, TIMED_OUT_TEXT, ELITE_COLOR.timed, 1.3, 1);
+  addFloatingText(state, e.body.pos, TIMED_OUT_TEXT, ELITE_COLOR.timed, 1.3, 1, "status");
   spawnRing(state, e.body.pos, 30, ELITE_COLOR.timed, 0.4);
   pushSfx(state, "enemyWindup");
 }
@@ -532,14 +532,14 @@ function devourNearby(state: GameState, e: Enemy): void {
   consumeCorpse(state, corpse);
   e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * ELITE.devourHeal));
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, DEVOUR_TEXT, ELITE_COLOR.devouring, 1, 0.8);
+  addFloatingText(state, e.body.pos, DEVOUR_TEXT, ELITE_COLOR.devouring, 1, 0.8, "status");
 }
 
 function breakShield(state: GameState, e: Enemy): void {
   const max = e.shieldMax ?? 0;
   e.maxHp -= max;
   e.shieldMax = 0;
-  addFloatingText(state, e.body.pos, BREAK_TEXT, ELITE_COLOR.shielded, 1.3, 0.8);
+  addFloatingText(state, e.body.pos, BREAK_TEXT, ELITE_COLOR.shielded, 1.3, 0.8, "status");
   spawnBurst(state, e.body.pos, ELITE_COLOR.shielded, 14, 120, 0.4, 2);
   pushSfx(state, "hitHeavy");
   if (e.hp <= 0 || e.phase === "spawning") return;
@@ -602,7 +602,7 @@ function canBlock(e: Enemy): boolean {
 }
 
 function showBlock(state: GameState, e: Enemy, dir: Vec): void {
-  addFloatingText(state, e.body.pos, BLOCK_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.6);
+  addFloatingText(state, e.body.pos, BLOCK_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.6, "status");
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, BLOCK_PARTICLES, 90, 0.25, 1.5);
   // 盾で受けた反動で少しだけ下がる
   e.knock = scale(normalize(dir), ENEMY_AI.knight.blockPushback);
@@ -611,7 +611,7 @@ function showBlock(state: GameState, e: Enemy, dir: Vec): void {
 
 /** GUARD BREAK の表示（盾を抜いた / 盾の上から怯みが溢れた） */
 function showGuardBreak(state: GameState, e: Enemy): void {
-  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8);
+  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8, "status");
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, GUARD_BREAK_PARTICLES, 130, 0.35, 2);
   pushSfx(state, "hitHeavy");
   pushSfx(state, "guardBreak");
@@ -624,7 +624,7 @@ function routIfBroken(state: GameState, e: Enemy): void {
   const target = { kind: "enemy" as const, enemy: e };
   applyStatus(state, target, { kind: "vulnerable", stacks: 1, duration: ROUT_TIME, potency: 0 }, "env");
   applyStatus(state, target, { kind: "fear", stacks: 1, duration: ROUT_TIME, potency: 0 }, "env");
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, ROUT_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.8);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, ROUT_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.8, "status");
 }
 
 /**
@@ -646,7 +646,7 @@ export function interceptEnemyDamage(
   // 潜行中（土潜り・天井吊り・影踏み）には当たらない
   if (e.hidden) return 0;
   if (bossArmorBlocks(state, e)) {
-    addFloatingText(state, e.body.pos, NULLIFY_TEXT, "#8fd0ff", 1, 0.5);
+    addFloatingText(state, e.body.pos, NULLIFY_TEXT, "#8fd0ff", 1, 0.5, "status");
     return 0;
   }
   // 旗の加護・鏡の騎士の写し身の守り（掛からないときは値を丸めない）
@@ -852,7 +852,7 @@ function snatch(state: GameState, e: Enemy, target: LootTarget): void {
     state.skills.floorStones = state.skills.floorStones.filter((fs) => fs !== target.entry);
     carried.stones.push(target.entry);
   }
-  addFloatingText(state, e.body.pos, SNATCH_TEXT, ELITE_GREEDY.color, FLOAT_TEXT_SCALE, FLOAT_TEXT_LIFE);
+  addFloatingText(state, e.body.pos, SNATCH_TEXT, ELITE_GREEDY.color, FLOAT_TEXT_SCALE, FLOAT_TEXT_LIFE, "status");
   spawnBurst(state, e.body.pos, ELITE_GREEDY.color, SNATCH_PARTICLES, 60, 0.3, 1.5);
   pushSfx(state, "greedySnatch");
 }

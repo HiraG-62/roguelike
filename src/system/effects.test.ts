@@ -191,13 +191,14 @@ describe("死に方", () => {
 });
 
 describe("コンボの浮き文字", () => {
-  it("コンボ数の段で大きさと色が変わる", () => {
+  it("コンボ数の段で色だけが変わり、大きさは変えない", () => {
     expect(comboTier(5), "10 未満は段なし").toBeUndefined();
     const low = comboDamageText(10, "#ffffff", 1, false);
     const high = comboDamageText(100, "#ffffff", 1, false);
-    expect(low.scale, "10 コンボで少し大きい").toBeGreaterThan(1);
-    expect(high.scale, "100 コンボはもっと大きい").toBeGreaterThan(low.scale);
-    expect(high.color, "色も変わる").not.toBe("#ffffff");
+    expect(low.scale, "10 コンボでも大きくしない").toBe(1);
+    expect(high.scale, "100 コンボでも大きくしない").toBe(1);
+    expect(high.color, "色は変わる").not.toBe("#ffffff");
+    expect(low.color, "段ごとに色が違う").not.toBe(high.color);
   });
 
   it("会心の色はコンボの色で上書きしない", () => {
@@ -382,11 +383,11 @@ describe("ダメージ文字の種類（7-19）", () => {
     expect(dotTextColor(new Set<StatusKind>())).toBe(FX_WAVE3.damageText.dot.other);
   });
 
-  it("ダメージ以外の浮き文字は種類を持たない", () => {
+  it("種類を省いた浮き文字は label（小さく短く出る文字）になる", () => {
     const state = arena(25);
     state.texts = [];
     addFloatingText(state, { x: 0, y: 0 }, "見切り！", "#fff");
-    expect(state.texts[0]?.kind).toBeUndefined();
+    expect(state.texts[0]?.kind).toBe("label");
   });
 });
 

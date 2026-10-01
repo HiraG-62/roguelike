@@ -31,7 +31,7 @@ export function clearRun(state: GameState): void {
   state.deathTimer = 0;
   state.slowmo = Math.max(state.slowmo, BOSS.defeatSlowmo);
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - SURFACE_TEXT_LIFT }, "踏破", ARC.surfaceColor, SURFACE_TEXT_SCALE, CLEAR_TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - SURFACE_TEXT_LIFT }, "踏破", ARC.surfaceColor, SURFACE_TEXT_SCALE, CLEAR_TEXT_LIFE, "notice");
   pushLog(state, `踏破した（地下${state.depth}階）。地上へ戻った。`, ARC.surfaceColor);
   pushSfx(state, "bossDefeat");
   recordRunOnce(state);
@@ -66,7 +66,7 @@ export function updateFinale(state: GameState): void {
   if (!isFinalDepth(state.depth) || !state.boss?.defeated || hasSurfaceGate(state)) return;
   if (!placeSurfaceGate(state)) return;
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - SURFACE_TEXT_LIFT }, "地上への道", ARC.surfaceColor, SURFACE_TEXT_SCALE, SURFACE_TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - SURFACE_TEXT_LIFT }, "地上への道", ARC.surfaceColor, SURFACE_TEXT_SCALE, SURFACE_TEXT_LIFE, "notice");
   pushLog(state, "地上への道が開いた。乗り続けると踏破になる。", ARC.surfaceColor);
 }
 

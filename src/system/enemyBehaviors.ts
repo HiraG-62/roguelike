@@ -207,7 +207,7 @@ export function finishEating(state: GameState, e: Enemy, def: EnemyDef): void {
   e.maxHp += bonus;
   e.hp += bonus;
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, "成長", s.color, 1, 0.8);
+  addFloatingText(state, e.body.pos, "成長", s.color, 1, 0.8, "status");
   spawnBurst(state, e.body.pos, s.color, 10, 70, 0.3, 1.5);
 }
 
@@ -249,14 +249,14 @@ export function ringBell(state: GameState, e: Enemy): void {
   pushSfx(state, "enemyWindup");
   if (left > 0) {
     ai.counter = left;
-    addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, String(left), g.color, 1.2, 0.8);
+    addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, String(left), g.color, 1.2, 0.8, "status");
     return;
   }
   ai.counter = g.rings;
   const corpse = nearestCorpse(state, e.body.pos, Infinity, e.roomIndex);
   if (!corpse) return;
   reviveCorpse(state, corpse);
-  addFloatingText(state, corpse.pos, "蘇生", g.color, 1.1, 0.9);
+  addFloatingText(state, corpse.pos, "蘇生", g.color, 1.1, 0.9, "status");
 }
 
 // -----------------------------------------------------------------------------
@@ -289,7 +289,7 @@ export function transformIfBroken(state: GameState, e: Enemy, def: EnemyDef): bo
   initEnemyPoise(e, state.depth);
   const h = ENEMY_AI.hollowArmor;
   spawnBurst(state, e.body.pos, h.color, 24, 150, 0.5, 2.5);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 12 }, "鎧割れ", h.color, 1.3, 1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 12 }, "鎧割れ", h.color, 1.3, 1, "status");
   shake(state, 5);
   pushSfx(state, "guardBreak");
   // 割れた瞬間は隙（自傷扱い: 拘束上限を数えない）

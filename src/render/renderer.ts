@@ -48,6 +48,7 @@ import {
   type HudLayout,
 } from "./renderMath";
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
+import { floatTextAlpha, floatTextPx, floatTextShake } from "./floatText";
 import { WARM_GLYPHS } from "./warmGlyphs";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, dotsOf, drawFrame, enemySpriteKey, getSprite, mergeAtlas, snapTo, spriteFrame } from "./sprites";
 import { expandTileAtlas } from "./tileAtlas";
@@ -63,7 +64,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
-import { EFFECTS, FX_ATTACK, TELEGRAPH } from "../data/tuning";
+import { EFFECTS, FLOAT_TEXT, FX_ATTACK, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -129,8 +130,6 @@ const COMBO_MULT_GAP = 10;
 /** 死亡画面のレイアウト */
 const DEATH_TITLE_RISE = 24;
 const DEATH_STAT_LINE = 16;
-/** 浮遊文字のドット倍率の上限（クリティカルの弾みで巨大化しすぎないように） */
-const FLOAT_TEXT_MAX_M = 3;
 
 /** HUD の階層表示用（system/roomTypes.ts の FLOOR_KIND_LABEL は英語のまま別用途で使われるため、表示専用にここで持つ） */
 const FLOOR_KIND_LABEL_JA: Readonly<Record<FloorKind, string>> = {
@@ -336,12 +335,6 @@ const REAPER_TRAIL_LEN = 10;
 const REAPER_TRAIL_STEP = 0.05;
 const REAPER_TRAIL_ALPHA = 0.35;
 const REAPER_TRAIL_SHRINK = 0.5;
-/** ダメージ数字 */
-const TEXT_BASE_SIZE = 8;
-const CRIT_SHAKE_SPEED = 45;
-const CRIT_SHAKE_AMP = 1.5;
-const CRIT_POP_TIME = 0.15;
-const CRIT_POP_SCALE = 0.5;
 /** HUD 右上の視認性 */
 const HUD_PANEL_ALPHA = 0.55;
 const HUD_PANEL_PAD = 3;
@@ -1532,23 +1525,19 @@ export class Renderer {
   private drawTexts(state: GameState): void {
     const { ctx } = this;
     const pt = pixelText();
-    const maxM = Math.max(FLOAT_TEXT_MAX_M, TEXT.SMALL);
+    const maxM = Math.max(FLOAT_TEXT.maxMul, TEXT.SMALL);
     for (let i = 0; i < state.texts.length; i++) {
       const t = state.texts[i];
       if (!t) continue;
       const fade = Math.min(1, (t.life / t.maxLife) * 2);
       const style = damageTextStyle(t.text, t.color, t.scale, t.kind);
       const age = t.maxLife - t.life;
-      let scale = t.scale;
       let x = Math.round(t.pos.x);
       const y = Math.round(t.pos.y);
-      if (style.crit) {
-        scale *= 1 + CRIT_POP_SCALE * (1 - clamp01(age / CRIT_POP_TIME));
-        x += Math.round(Math.sin(state.time * CRIT_SHAKE_SPEED + i) * CRIT_SHAKE_AMP * fade);
-      }
-      ctx.globalAlpha = fade;
-      // 連続的な scale をドット整数倍率へ量子化（ドットの粒を崩さない）
-      const m = Math.min(maxM, pt.sizeFor(TEXT_BASE_SIZE * scale));
+      if (style.crit) x += floatTextShake(state.time, i, fade);
+      ctx.globalAlpha = fade * floatTextAlpha(t.kind);
+      // 大きさは種類で決める（t.scale は縁取りの重さだけに使う）。連続値をドット整数倍率へ量子化（ドットの粒を崩さない）
+      const m = Math.min(maxM, pt.sizeFor(floatTextPx(t.kind, style.crit, age)));
       if (style.numeric) {
         drawText(ctx, t.text, x - 1, y, m, style.outline, "center");
         drawText(ctx, t.text, x + 1, y, m, style.outline, "center");

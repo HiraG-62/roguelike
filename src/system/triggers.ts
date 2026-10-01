@@ -8,7 +8,7 @@ import { ruleConditionsMet } from "./rules";
 import { ultimateReady } from "./ultimates";
 import { scaled } from "./attributes";
 import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
-import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { spawnBurst, spawnRing, addFloatingTextOnce } from "./effects";
 import { isEngaged } from "./engagement";
 import { gainMana } from "./mana";
 import { addPoise } from "./poise";
@@ -171,11 +171,11 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
       return;
     case "damageBuff":
       applyTimedMul(p.buffs.damage, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "強化", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "強化", TEXT_COLOR_BUFF, 1, 0.6, "label", { sameWord: true });
       return;
     case "speedBuff":
       applyTimedMul(p.buffs.speed, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "加速", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "加速", TEXT_COLOR_BUFF, 1, 0.6, "label", { sameWord: true });
       return;
     case "energy":
       gainEnergy(state, t.magnitude);
@@ -183,7 +183,7 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
     case "invuln":
       // 上限で切る: 被弾時・ゲージ満タンの無敵を重ねて常時無敵にしない
       p.buffs.invuln = Math.max(p.buffs.invuln, Math.min(TRIGGER.invulnMax, t.duration ?? t.magnitude));
-      addFloatingText(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6, "label", { sameWord: true });
       return;
     default:
       runExtendedEffect(state, t, ctx);
@@ -196,7 +196,7 @@ function runExtendedEffect(state: GameState, t: EffectParams, ctx: TriggerContex
   switch (t.effect) {
     case "restoreMana":
       gainMana(state, t.magnitude);
-      addFloatingText(state, p.body.pos, "気力", TEXT_COLOR_MANA, 0.8, 0.5);
+      addFloatingTextOnce(state, p.body.pos, "気力", TEXT_COLOR_MANA, 0.8, 0.5, "label", { sameWord: true });
       return;
     case "addPoise":
       for (const e of effectTargets(state, ctx)) addPoise(state, e, t.magnitude);
@@ -268,7 +268,7 @@ function cleanseOne(state: GameState): void {
   const kind = afflictionList(state.player.status)[0];
   if (kind === undefined) return;
   removeStatus(state, { kind: "player" }, kind);
-  addFloatingText(state, state.player.body.pos, "解除", TEXT_COLOR_BUFF, 0.8, 0.5);
+  addFloatingTextOnce(state, state.player.body.pos, "解除", TEXT_COLOR_BUFF, 0.8, 0.5, "label", { sameWord: true });
 }
 
 /** 敵の状態異常の残り秒を延ばす（行動停止と怯み値の系統は除く。上限 TRIGGER.extendMax） */

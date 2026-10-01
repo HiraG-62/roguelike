@@ -604,12 +604,17 @@ export interface FloatingText {
   life: number;
   maxLife: number;
   scale: number;
-  /** 浮き文字の種類（docs/ideas/meta-and-weapons.md 7-19。描画が縁取りと揺れを変える）。省略は normal */
+  /** 浮き文字の種類（docs/ideas/meta-and-weapons.md 7-19。描画が大きさ・縁取り・揺れを変える）。省略は label */
   kind?: FloatTextKind;
+  /** 自分の頭上の技名（system/effects.ts の addHeadLabel）。新しい語が出たら前の語を消して 1 つだけにする */
+  head?: boolean;
 }
 
-/** ダメージ文字の種類: 通常 / 会心 / 弱点 / 耐性 / 状態異常の継続 / 反応 */
-export type FloatTextKind = "normal" | "crit" | "weak" | "resist" | "dot" | "reaction";
+/**
+ * 浮き文字の種類。ダメージの数字: 通常 / 会心 / 弱点 / 耐性 / 状態異常の継続 / 反応。
+ * 文字: status = 敵の状態（弱点・反応名・粉砕…）/ label = 技名・自分の状態・拾い物の名前 / notice = 告知（奥義名・CLEAR・ボスや部屋）
+ */
+export type FloatTextKind = "normal" | "crit" | "weak" | "resist" | "dot" | "reaction" | "status" | "label" | "notice";
 
 /** 撃破の演出の種類（src/system/effects.ts が最後の一撃と状態異常から決める）。burst は従来の飛び散りだけ */
 export type DeathFxKind = "burst" | "ash" | "shatter" | "discharge" | "melt" | "blood" | "sever" | "void" | "holy";
@@ -713,6 +718,8 @@ export interface EffectsState {
   reaperThreat: number;
   /** 次の鼓動までの残り秒 */
   heartbeatTimer: number;
+  /** 同じ語を続けて出さないための、語ごとに最後に出した state.time（addFloatingTextOnce の sameWordSec。使うまで作らない: 階の構築の指紋 floorIdentity.test.ts が state 全体を JSON にするため） */
+  wordAt?: Record<string, number>;
 }
 
 /** 継続ダメージの浮き文字の束（敵 1 体ぶん） */

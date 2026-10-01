@@ -84,7 +84,7 @@ import { applyBoonsToStats, boonGrantedModifiers, boonManaCostMul, hasBoon, onBo
 import { refreshResonance, resonanceStatsDiffer } from "./resonance";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, gainEnergy, healSustained, registerComboHit } from "./combat";
-import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { addFloatingText, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -112,7 +112,6 @@ const TEXT_LIFE = 0.4;
 const LABEL_SCALE = 1;
 const LABEL_LIFE = 1.4;
 const RING_LIFE = 0.15;
-const PARRY_TEXT_SCALE = 1.5;
 const PARRY_TEXT_LIFE = 0.7;
 /** パリィ成功直後、同じ攻撃の続きで被弾しないための無敵 */
 const PARRY_AFTER_INVULN = 0.2;
@@ -971,7 +970,7 @@ function castBlock(state: GameState, key: SkillKey, target: Vec, params: Readonl
 
 /** 連携の成立を知らせる（浮き文字と効果音） */
 function announceCombo(state: GameState, combo: ComboDef): void {
-  addFloatingText(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, LABEL_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, PARRY_TEXT_LIFE);
   pushSfx(state, "synergy");
   noteSkillCombo(state, combo.key);
 }
@@ -1085,7 +1084,7 @@ function heatUp(state: GameState, slot: SkillSlotState, r: ResolvedSlot): void {
   slot.intervalLeft = Math.max(slot.intervalLeft, o.lockTime);
   const p = state.player;
   p.hp = Math.max(1, p.hp - p.maxHp * o.hpFraction);
-  addFloatingText(state, p.body.pos, OVERHEAT_TEXT, COLOR_OVERHEAT, LABEL_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, OVERHEAT_TEXT, COLOR_OVERHEAT, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_OVERHEAT, SPARK_COUNT, SPARK_SPEED, SPARK_LIFE, SPARK_SIZE);
 }
 
@@ -1140,7 +1139,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.bloodPact.buffScaling);
     state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * potency };
     state.skills.lifesteal = { time, mul: b.lifesteal * potency };
-    addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
+    addHeadLabel(state, p.body.pos, "血の契約", COLOR_BLOOD, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
@@ -1152,7 +1151,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.haste.buffScaling);
     state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * potency };
     state.skills.exhaustTimer = 0;
-    addFloatingText(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, LABEL_SCALE, PARRY_TEXT_LIFE);
+    addHeadLabel(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5);
   },
   chainHook: (state, slot, params, dir) => startActive(state, slot, "chainHook", params, dir, SKILL.chainHook.extendTime * params.timeMul),
@@ -1326,7 +1325,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "parry");
@@ -1656,7 +1655,6 @@ function updateRunes(state: GameState, dt: number): void {
       continue;
     }
     picked.add(rune.id);
-    addFloatingText(state, rune.pos, def.name, def.color, LABEL_SCALE, LABEL_LIFE);
     pushLog(state, `刻印符「${def.name}」をスキル ${slot + 1} に付けた。`, def.color);
     pushSfx(state, "runeAttach");
   }

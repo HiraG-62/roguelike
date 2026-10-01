@@ -213,7 +213,7 @@ function recordOf(state: GameState, kind: BetKind): BetRecord {
 
 function say(state: GameState, text: string): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, B.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, B.color, TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 /** 張った結果。open = 賭けが残った（倍々勝負の勝ち・腕の型） */

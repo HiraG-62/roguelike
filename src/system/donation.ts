@@ -37,12 +37,12 @@ export function donate(state: GameState, shrinePos: Vec): number {
   const at = { x: p.x, y: p.y - TEXT_LIFT };
   const amount = donationAmount(state.economy.coins);
   if (amount <= 0 || !spendCoins(state, amount, "donation")) {
-    addFloatingText(state, at, EMPTY_TEXT, ECONOMY.donation.color, TEXT_SCALE, ECONOMY.donation.textLife);
+    addFloatingText(state, at, EMPTY_TEXT, ECONOMY.donation.color, TEXT_SCALE, ECONOMY.donation.textLife, "notice");
     return 0;
   }
   state.economy.donated += amount;
   spawnBurst(state, shrinePos, ECONOMY.donation.color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
-  addFloatingText(state, at, `寄進 ${amount}`, ECONOMY.donation.color, TEXT_SCALE, ECONOMY.donation.textLife);
+  addFloatingText(state, at, `寄進 ${amount}`, ECONOMY.donation.color, TEXT_SCALE, ECONOMY.donation.textLife, "notice");
   pushSfx(state, "pedestalUse");
   return amount;
 }

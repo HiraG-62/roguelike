@@ -3,7 +3,7 @@ import { GOOD_STATUS_KINDS, NEUTRAL_STATUS_KINDS, type StatusApply, type StatusK
 import { type Vec, add, normalize, scale, sub } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { healPlayer } from "../system/combat";
-import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "../system/effects";
 import { overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
@@ -310,7 +310,7 @@ function castVerdict(state: GameState, ctx: CastCtx): void {
     const dir = sub(e.body.pos, ctx.origin);
     if (hasStatus(e.status, "silence")) {
       removeStatus(state, { kind: "enemy", enemy: e }, "silence");
-      addFloatingText(state, e.body.pos, "処断", COLOR_VERDICT, TEXT_SCALE, TEXT_LIFE);
+      addFloatingText(state, e.body.pos, "処断", COLOR_VERDICT, TEXT_SCALE, TEXT_LIFE, "status");
       skillHit(state, e, ctx.params, { base: power, kind: "melee", dir, knockback: v.knockback, stagger: true, applies: null, from: ctx.origin });
       continue;
     }
@@ -460,7 +460,7 @@ function castScarRoar(state: GameState, ctx: CastCtx): void {
   spawnRing(state, ctx.origin, radius, COLOR_SCAR, RING_LIFE * 2);
   shake(state, SHAKE_HEAVY);
   pushSfx(state, "explode");
-  if (effects.length > 0) addFloatingText(state, p.body.pos, `傷返し ${effects.length}`, COLOR_SCAR, TEXT_SCALE, TEXT_LIFE);
+  if (effects.length > 0) addHeadLabel(state, p.body.pos, `傷返し ${effects.length}`, COLOR_SCAR, TEXT_LIFE);
   for (const e of enemiesInRadius(state, ctx.origin, radius)) {
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: s.knockback, stagger: true, poise: s.poise * kinds, from: ctx.origin });
     for (const eff of effects) {

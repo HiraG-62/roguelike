@@ -249,7 +249,7 @@ export function readPlayer(state: GameState, e: Enemy): PlayerRead {
  */
 export function bossDown(state: GameState, e: Enemy, time: number, text: string, color: string): boolean {
   if (!applyStagger(state, e, time, { selfInflicted: true })) return false;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - DOWN_TEXT_LIFT }, text, color, DOWN_TEXT_SCALE, DOWN_TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - DOWN_TEXT_LIFT }, text, color, DOWN_TEXT_SCALE, DOWN_TEXT_LIFE, "status");
   shake(state, FEEL.shakeHeavy);
   pushSfx(state, "wallHit");
   noteBossDown(state, e);

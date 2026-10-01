@@ -121,7 +121,7 @@ export function onNemesisDeath(state: GameState, e: Enemy): void {
   const pos = { ...e.body.pos };
   for (let i = 0; i < NEMESIS.rewardItems; i++) dropItem(state, pos, NEMESIS.rewardBoost);
   for (let i = 0; i < NEMESIS.rewardKeys; i++) dropKey(state, pos);
-  addFloatingText(state, pos, "仇討ち", NEMESIS.color, AVENGE_TEXT_SCALE, AVENGE_TEXT_LIFE);
+  addFloatingText(state, pos, "仇討ち", NEMESIS.color, AVENGE_TEXT_SCALE, AVENGE_TEXT_LIFE, "notice");
   pushLog(state, `仇を討った: ${nemesisName(e)}`, NEMESIS.color);
   pushSfx(state, "questComplete");
 }

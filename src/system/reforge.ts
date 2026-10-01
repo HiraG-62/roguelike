@@ -8,7 +8,7 @@ import { type FormKey, MOMENT_TEXT, formOfKey } from "../data/weaponForms";
 import { MOVESETS } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { cardIndexAt } from "./boons";
-import { addFloatingText } from "./effects";
+import { addHeadLabel } from "./effects";
 
 /**
  * 改鋳の 3 択と、改鋳の挙動の切り替え（docs/ideas/weapon-forms-impl.md 3-6）。
@@ -28,9 +28,6 @@ export interface ReforgeChoice {
 /** 札ごとの選ぶ入力（祝福の 3 択と同じ並び: スキル 1・スキル 2・攻撃） */
 const PICK_SECOND = 1;
 const PICK_THIRD = 2;
-/** 改鋳の浮き文字の大きさと残る秒 */
-const GRANT_TEXT_SCALE = 1.4;
-const GRANT_TEXT_LIFE = 1.2;
 /** 装填の窓をダッシュで閉じた合図（強装填と同じ音） */
 const DASH_RELOAD_SFX = "chargeLevel";
 
@@ -122,7 +119,6 @@ export function grantReforge(state: GameState, key: ReforgeKey): void {
   if (state.reforges.includes(key)) return;
   state.reforges.push(key);
   const def = REFORGES[key];
-  addFloatingText(state, state.player.body.pos, def.name, REFORGE.textColor, GRANT_TEXT_SCALE, GRANT_TEXT_LIFE);
   pushLog(state, `改鋳: ${def.name} - ${def.desc}`, REFORGE.textColor);
   pushSfx(state, "boonSelect");
 }
@@ -149,7 +145,7 @@ function dashReload(state: GameState): void {
   m.sinceGain = 0;
   if (!REFORGE.pistol.pistolDash.primes) return;
   m.primed = true;
-  addFloatingText(state, p.body.pos, MOMENT_TEXT.primed, MOMENT.primed.color, MOMENT.primed.scale, MOMENT.primed.life);
+  addHeadLabel(state, p.body.pos, MOMENT_TEXT.primed, MOMENT.primed.color, MOMENT.primed.life);
   pushSfx(state, DASH_RELOAD_SFX);
 }
 

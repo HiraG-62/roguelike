@@ -8,7 +8,7 @@ import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, MO
 import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
-import { addFloatingText, shake, spawnBurst, spawnRing } from "../system/effects";
+import { addFloatingText, shake, spawnBurst, spawnRing, addHeadLabel } from "../system/effects";
 import { canAffordSkill, paySkillCost } from "../system/keystones";
 import { circlesOverlap } from "../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../system/statusEffects";
@@ -49,7 +49,6 @@ export const SHAPE_COLOR: Readonly<Record<Wave3SkillKey, string>> = {
   pyreForm: COLOR_PYRE,
 };
 
-const TEXT_SCALE = 1;
 const TEXT_LIFE = 1.2;
 const NOTICE_SCALE = 0.9;
 const NOTICE_LIFE = 0.4;
@@ -220,7 +219,7 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
   const color = SHAPE_COLOR[key];
   spawnRing(state, p.body.pos, p.body.radius * 3, color, RING_LIFE);
   spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
-  addFloatingText(state, p.body.pos, SKILL_NAME[key], color, TEXT_SCALE, TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, SKILL_NAME[key], color, TEXT_LIFE);
   pushSfx(state, "formShift");
   if (key === "siegeForm") openFire(state, rs.shape, params);
   if (key === "pyreForm") ensurePyreProcs(state, params);
@@ -294,7 +293,7 @@ export function endShape(state: GameState, cause: ShapeEndCause): void {
   // 差し替えた近接の型の段は装備の武器種では引けないので、振りの途中なら止める
   if (shape.moveset && state.player.attack.phase !== "none") cancelAttack(state);
   rs.formRecover = shape.recover;
-  addFloatingText(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], NOTICE_SCALE, TEXT_LIFE / 2);
+  addHeadLabel(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], TEXT_LIFE / 2);
 }
 
 /** 砲身化・業火の化身をもう一度撃った: 払わずに解く（自傷なし） */

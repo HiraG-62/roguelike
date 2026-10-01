@@ -531,6 +531,7 @@ import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
 import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
 import j_feel_MENU_BUDGET from "./feel/MENU_BUDGET.json";
 import j_feel_MAP_LIGHT from "./feel/MAP_LIGHT.json";
+import j_feel_FLOAT_TEXT from "./feel/FLOAT_TEXT.json";
 import j_jobs__index from "./jobs/_index.json";
 import j_jobs_JOB from "./jobs/JOB.json";
 import j_jobs_attributes from "./jobs/attributes.json";
@@ -1468,9 +1469,6 @@ export const feel = {
     "hitSpark": j_feel_EFFECTS_hitSpark,
     "comboTiers": j_feel_EFFECTS_comboTiers,
     "comboMilestones": j_feel_EFFECTS_comboMilestones,
-    "comboMilestoneScale": j_feel_EFFECTS__index["comboMilestoneScale"],
-    "comboMilestoneLife": j_feel_EFFECTS__index["comboMilestoneLife"],
-    "comboMilestoneRise": j_feel_EFFECTS__index["comboMilestoneRise"],
     "clearWave": j_feel_EFFECTS_clearWave,
     "eliteBurst": j_feel_EFFECTS_eliteBurst,
     "bossLight": j_feel_EFFECTS_bossLight,
@@ -1505,6 +1503,7 @@ export const feel = {
   "TELEGRAPH": j_feel_TELEGRAPH,
   "MENU_BUDGET": j_feel_MENU_BUDGET,
   "MAP_LIGHT": j_feel_MAP_LIGHT,
+  "FLOAT_TEXT": j_feel_FLOAT_TEXT,
 };
 
 export const jobs = {
@@ -2611,6 +2610,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/EFFECTS/synergyGlow.json",
   "feel/EFFECTS/weakCrack.json",
   "feel/FEEL.json",
+  "feel/FLOAT_TEXT.json",
   "feel/FX_ATTACK/_index.json",
   "feel/FX_ATTACK/blast.json",
   "feel/FX_ATTACK/bolt.json",

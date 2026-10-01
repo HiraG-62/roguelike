@@ -155,7 +155,7 @@ function mauled(state: GameState, m: Merchant, e: Enemy, dt: number): void {
   e.hitFlash = HURT_FLASH;
   if (m.alarmed) return;
   m.alarmed = true;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, HELP_LINE, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, HELP_LINE, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE, "notice");
   pushLog(state, HELP_LOG, ECONOMY.market.color);
 }
 

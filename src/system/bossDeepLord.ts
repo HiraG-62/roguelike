@@ -115,7 +115,7 @@ function color(): string {
 }
 
 function floatText(state: GameState, e: Enemy, text: string): void {
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, text, color(), TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, text, color(), TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------

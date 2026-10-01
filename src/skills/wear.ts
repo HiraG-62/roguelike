@@ -1,5 +1,4 @@
 import { type GameState, pushLog, pushSfx } from "../core/state";
-import { addFloatingText } from "../system/effects";
 import { SKILL_DEFS, wearBudCount } from "./data";
 import { saveSkillProfile, stoneInSlot } from "./persistence";
 import { WEAR_TUNING as W } from "./tuning2";
@@ -12,8 +11,6 @@ import type { SkillStone, StoneWear, WearBud } from "./types";
  */
 
 const PERCENT = 100;
-const TEXT_SCALE = 1;
-const TEXT_LIFE = 1.4;
 
 export const WEAR_BUD_LABEL: Readonly<Record<WearBud, string>> = {
   power: "威力",
@@ -52,7 +49,6 @@ export function noteWearCast(state: GameState, slot: number): WearBud | null {
 function announceBud(state: GameState, stone: Readonly<SkillStone>): void {
   const name = SKILL_DEFS[stone.skillKey].name;
   const text = `芽: 威力 +${Math.round(W.powerPerBud * PERCENT)}%`;
-  addFloatingText(state, state.player.body.pos, text, W.color, TEXT_SCALE, TEXT_LIFE);
   pushLog(state, `「${name}」の石が使い込まれた。${text}`, W.color);
   pushSfx(state, "runeAttach");
 }

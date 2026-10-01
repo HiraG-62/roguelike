@@ -175,7 +175,7 @@ function spitIfInterrupted(state: GameState, e: Enemy): void {
   if (!ai || (ai.digest ?? 0) <= 0) return;
   if (e.phase === "recover" && ai.move === KS_SWALLOW) return;
   ai.digest = 0;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, SPIT_TEXT, SWALLOW_TEXT_COLOR, 1.5, 1.1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, SPIT_TEXT, SWALLOW_TEXT_COLOR, 1.5, 1.1, "notice");
   spawnBurst(state, e.body.pos, kingColor(), 14, 120, 0.4, 2);
 }
 
@@ -308,7 +308,7 @@ function swallow(state: GameState, e: Enemy): void {
   prey.hp = 0;
   prey.vanished = true;
   ai.digest = (ai.digest ?? 0) + 1;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, SWALLOW_TEXT, SWALLOW_TEXT_COLOR, 1.5, 1.1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, SWALLOW_TEXT, SWALLOW_TEXT_COLOR, 1.5, 1.1, "notice");
   spawnBurst(state, prey.body.pos, kingColor(), 14, 90, 0.4, 2);
   pushSfx(state, "wallHit");
 }

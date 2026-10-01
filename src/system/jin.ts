@@ -98,7 +98,7 @@ function deathLoss(state: GameState, jin: Jin, e: Enemy): number {
 function breakLeader(state: GameState, jin: Jin, leader: Enemy, loss: number): void {
   jin.morale = Math.max(0, Math.min(jin.morale - loss, jin.moraleMax * JIN.morale.leaderBreakRatio));
   jin.leaderFell = true;
-  addFloatingText(state, lifted(leader.body.pos), JIN_TEXT.leaderDown, JIN.rout.leaderColor, LEADER_TEXT_SCALE, LEADER_TEXT_LIFE);
+  addFloatingText(state, lifted(leader.body.pos), JIN_TEXT.leaderDown, JIN.rout.leaderColor, LEADER_TEXT_SCALE, LEADER_TEXT_LIFE, "notice");
 }
 
 /**
@@ -132,7 +132,7 @@ export function routJin(state: GameState, jin: Jin): void {
   for (const e of fleeing) startRout(e, jin, target);
   settleJin(state, jin, "rout");
   // 塊に乗った陣の「敗走」は clearRoom が出す（二重に出さない）
-  if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE);
+  if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE, "notice");
 }
 
 function startRout(e: Enemy, from: Jin, target: Refuge | null): void {
@@ -338,7 +338,7 @@ function callSecondWave(state: GameState, jin: Jin): void {
   const woken = jinMembers(state, jin).filter((e) => e.phase === "idle");
   if (woken.length === 0) return;
   for (const e of woken) e.phase = "chase";
-  addFloatingText(state, lifted(centroid(woken)), JIN_TEXT.secondWave, JIN.wake.color, SECOND_WAVE_TEXT_SCALE, SECOND_WAVE_TEXT_LIFE);
+  addFloatingText(state, lifted(centroid(woken)), JIN_TEXT.secondWave, JIN.wake.color, SECOND_WAVE_TEXT_SCALE, SECOND_WAVE_TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------

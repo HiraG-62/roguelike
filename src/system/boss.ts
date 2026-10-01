@@ -255,7 +255,7 @@ export function phaseShift(state: GameState, e: Enemy, text: string, color: stri
   state.projectiles = state.projectiles.filter((p) => p.owner !== "enemy");
   state.flash = Math.max(state.flash, PHASE_FLASH);
   shake(state, FEEL.shakeSpecial);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, text, color, 1.6, 1.2);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, text, color, 1.6, 1.2, "notice");
   spawnBurst(state, e.body.pos, color, 30, 180, 0.6, 2.5);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "bossPhaseChange");
@@ -428,7 +428,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   state.flash = 1;
   state.slowmo = Math.max(state.slowmo, BOSS.defeatSlowmo);
   shake(state, FEEL.shakeSpecial);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} 撃破`, DEFEAT_TEXT_COLOR, 1.8, 2);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 20 }, `${b.name} 撃破`, DEFEAT_TEXT_COLOR, 1.8, 2, "notice");
   pushLog(state, defeatLogText(b), DEFEAT_TEXT_COLOR);
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");

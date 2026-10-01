@@ -193,7 +193,7 @@ function checkArmor(state: GameState, e: Enemy): void {
   if (followersOf(state, e).length > 0) return;
   ai.counter = UNARMORED;
   const g = BOSS.frostGiant;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 18 }, ARMOR_BREAK_TEXT, g.color, 1.5, 1.2);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 18 }, ARMOR_BREAK_TEXT, g.color, 1.5, 1.2, "status");
   spawnBurst(state, e.body.pos, g.color, 30, 180, 0.6, 2.5);
   shake(state, FEEL.shakeSpecial);
   pushSfx(state, "guardBreak");

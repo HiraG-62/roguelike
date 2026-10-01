@@ -36,7 +36,7 @@ export function provokeMerchant(state: GameState, e: Enemy): void {
   m.provoked = true;
   pushSfx(state, "merchantProvoked");
   if (e.phase === "idle") e.phase = "chase";
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, PROVOKED_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, PROVOKED_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 /** 品を扇に投げる（strike の終わりに 1 回） */

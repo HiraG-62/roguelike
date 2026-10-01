@@ -161,7 +161,7 @@ function returnMana(state: GameState, e: Enemy, def: EnemyDef): void {
   const gained = gainMana(state, amount);
   spawnLine(state, e.body.pos, state.player.body.pos, MANA_TEXT_COLOR, 0.3);
   spawnBurst(state, e.body.pos, MANA_TEXT_COLOR, 8, 80, 0.4, 1.5);
-  if (gained > 0) addFloatingText(state, e.body.pos, `気力 +${Math.round(gained)}`, MANA_TEXT_COLOR, 1, 0.8);
+  if (gained > 0) addFloatingText(state, e.body.pos, `気力 +${Math.round(gained)}`, MANA_TEXT_COLOR, 1, 0.8, "status");
 }
 
 /** 群れの長・楽団長が倒れると、取り巻きは怯えて逃げる */
@@ -274,7 +274,7 @@ function scheduleTwinRevive(state: GameState, e: Enemy, def: EnemyDef): void {
   ai.move = TWIN_REVIVE_PENDING;
   ai.timer = t.reviveTime;
   ai.target = { ...e.body.pos };
-  addFloatingText(state, partner.body.pos, `${t.reviveTime} 秒で蘇る`, t.color, 1, 1);
+  addFloatingText(state, partner.body.pos, `${t.reviveTime} 秒で蘇る`, t.color, 1, 1, "status");
 }
 
 /** 生き残った方が蘇生の時計を進める。時間切れで相方が蘇る */
@@ -325,7 +325,7 @@ export function vanish(state: GameState, e: Enemy): void {
   e.vanished = true;
   e.hp = 0;
   spawnBurst(state, e.body.pos, ENEMY_AI.timid.color, 12, 90, 0.4, 2);
-  addFloatingText(state, e.body.pos, VANISH_TEXT, ENEMY_AI.timid.color, 1, 0.8);
+  addFloatingText(state, e.body.pos, VANISH_TEXT, ENEMY_AI.timid.color, 1, 0.8, "status");
 }
 
 /** プレイヤーが特定の状態異常のとき足が速くなる */

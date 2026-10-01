@@ -8,7 +8,7 @@ import type { SkillResource } from "../skills/types";
 import { boonGradeMul } from "./boonGrade";
 import { hasBoon } from "./boons";
 import { damageEnemy, rollOutgoing } from "./combat";
-import { addFloatingText } from "./effects";
+import { addFloatingTextOnce } from "./effects";
 import { scaled } from "./attributes";
 import { estimateModifiers } from "./modifiers";
 import { circlesOverlap } from "./physics";
@@ -167,7 +167,7 @@ function trackEclipse(state: GameState, slot: number): void {
   if (new Set(r.castSeq).size !== equipped) return;
   r.castSeq = [];
   r.eclipseTimer = BOON.eclipseWindow;
-  addFloatingText(state, state.player.body.pos, ECLIPSE_TEXT, BOON.cardColor.law, TEXT_SCALE, TEXT_LIFE);
+  addFloatingTextOnce(state, state.player.body.pos, ECLIPSE_TEXT, BOON.cardColor.law, TEXT_SCALE, TEXT_LIFE, "label", { sameWord: true });
 }
 
 export function equippedSlotCount(state: GameState): number {

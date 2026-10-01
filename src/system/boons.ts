@@ -45,7 +45,6 @@ import {
   resetBoonRulesForFloor,
   updateBoonRules,
 } from "./boonRules";
-import { addFloatingText } from "./effects";
 import { STATUS_BOON_TAGS, affinity, buildProfile, statsBoonTags } from "./keywords";
 import { applyStats } from "./player";
 
@@ -352,7 +351,7 @@ export function offerTemper(state: GameState): boolean {
   return true;
 }
 
-/** 錬磨で 1 枚の格を上げる（極致で止まる）。浮き文字は「錬磨 至高 火種」 */
+/** 錬磨で 1 枚の格を上げる（極致で止まる）。ログは「錬磨: 火種 - 至高」 */
 export function temperBoon(state: GameState, key: BoonKey): void {
   if (!hasBoon(state, key)) return;
   const def = boonDef(key);
@@ -361,16 +360,12 @@ export function temperBoon(state: GameState, key: BoonKey): void {
   state.boonRun.grades[key] = grade;
   applyBoonsToStats(state);
   const color = grantColor(def, grade);
-  const text = `${TEMPER_LABEL} ${BOON_GRADE_LABEL[grade]} ${def.name}`;
-  addFloatingText(state, state.player.body.pos, text, color, 1.4, 1.2);
   pushLog(state, `${TEMPER_LABEL}: ${def.name} - ${BOON_GRADE_LABEL[grade]}`, color);
   pushSfx(state, "boonSelect");
 }
 
 const TEMPER_LABEL = "錬磨";
-const TEXT_SCALE = 1.1;
-const TEXT_LIFE = 0.6;
-/** 入れ替えで新しい札を取らなかったときの浮き文字 */
+/** 入れ替えで新しい札を取らなかったときのログ */
 const PASS_LABEL = "見送り";
 
 // -----------------------------------------------------------------------------
@@ -952,7 +947,7 @@ function openReplace(state: GameState, c: BoonChoice, key: BoonKey, grade: BoonG
 function resolveReplace(state: GameState, r: Readonly<BoonReplace>, index: number): void {
   const out = r.outgoing[index];
   if (out === undefined) {
-    addFloatingText(state, state.player.body.pos, PASS_LABEL, BOON.cardColor.grace, TEXT_SCALE, TEXT_LIFE);
+    pushLog(state, PASS_LABEL, BOON.cardColor.grace);
     return;
   }
   removeBoon(state, out);
@@ -974,7 +969,6 @@ export function grantBoon(state: GameState, key: BoonKey, grade: BoonGrade = 1):
   const color = grantColor(def, kept);
   const label = BOON_GRADE_LABEL[kept];
   const name = label === "" ? def.name : `${label} ${def.name}`;
-  addFloatingText(state, state.player.body.pos, name, color, 1.4, 1.2);
   pushLog(state, `祝福: ${name} - ${def.desc}`, color);
   pushSfx(state, "lootRare");
   pushSfx(state, def.cursed ? "boonSelectCursed" : "boonSelect");

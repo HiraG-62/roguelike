@@ -3,7 +3,7 @@ import { GOOD_STATUS_KINDS, NEUTRAL_STATUS_KINDS, type StatusApply, type StatusK
 import { type Vec, add, dist, normalize, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { addFloatingText, spawnBurst } from "../system/effects";
+import { addFloatingText, spawnBurst, addHeadLabel } from "../system/effects";
 import { overlapsShotWall } from "../system/physics";
 import { enemiesInRadius, findStatus, removeStatus } from "../system/statusEffects";
 import { SKILL } from "./data";
@@ -165,7 +165,7 @@ function unravelHit(state: GameState, s: SkillShot, e: Enemy): void {
   for (const k of kinds) removeStatus(state, { kind: "enemy", enemy: e }, k);
   const n = kinds.length;
   const power = s.power + skillPower(state, u.perKind, s.params) * n;
-  if (n > 0) addFloatingText(state, e.body.pos, `綻び ${n}`, s.color, TEXT_SCALE, TEXT_LIFE);
+  if (n > 0) addFloatingText(state, e.body.pos, `綻び ${n}`, s.color, TEXT_SCALE, TEXT_LIFE, "status");
   basicHit(state, s, e, power, n > 0 ? u.poise * n : u.poiseEmpty);
 }
 
@@ -189,7 +189,7 @@ function harvestHit(state: GameState, s: SkillShot, e: Enemy): void {
   const bossMul = enemyDef(e.defKey).boss ? SKILL.harvest.bossMul : 1;
   const remaining = e.maxHp * ratio * poison.stacks * poison.time * bossMul;
   removeStatus(state, { kind: "enemy", enemy: e }, "poison");
-  addFloatingText(state, e.body.pos, "収穫", s.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, e.body.pos, "収穫", s.color, TEXT_SCALE, TEXT_LIFE, "status");
   basicHit(state, s, e, s.power + remaining);
 }
 
@@ -214,5 +214,5 @@ function stripHit(state: GameState, s: SkillShot, e: Enemy): void {
   removeStatus(state, { kind: "enemy", enemy: e }, "weaken");
   const buff = state.player.buffs.damage;
   state.player.buffs.damage = { time: Math.max(buff.time, time), mul: Math.max(buff.time > 0 ? buff.mul : 1, st.buffMul) };
-  addFloatingText(state, state.player.body.pos, "剥奪", s.color, TEXT_SCALE, TEXT_LIFE);
+  addHeadLabel(state, state.player.body.pos, "剥奪", s.color, TEXT_LIFE);
 }
