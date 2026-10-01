@@ -44,7 +44,7 @@ import {
 } from "./menuState";
 
 /**
- * 装備画面の金床の構え（拠点の鍛冶場で開く装束。docs/ideas/inventory-v2/E-impl.md 4-3 E7、E-merged.md 6 章 W7）。
+ * 装備画面の金床の構え（拠点の鍛冶屋で開く装束。docs/ideas/inventory-v2/E-impl.md 4-3 E7、E-merged.md 6 章 W7）。
  * 装束の頁（ATTIRE_VIEW）が anvil を持つ間ここへ任せる。部位の位置は装束と同じ（ATTIRE_PART_RECTS）で、人影の代わりに金床、腰の石の代わりに残響の壺 5。
  * 段は 部位（slot = null）→ 札（その部位の装備中の物 + 倉庫。forge = null）→ 操作（forge.subjectId を鍛える。手続きは forge.ts）。
  * 戻るは 選ぶ行 → 相手 → 操作 → 札 → 部位 の順に 1 段ずつ。結果は荷札の 2 行目に 1 行（「前 → 後」。crafting が組む文）。
@@ -448,7 +448,7 @@ function anvilEdge(state: Readonly<GameState>, ui: InventoryUi, view: AttireView
 // 見出し・荷札・案内
 // -----------------------------------------------------------------------------
 
-const ANVIL_HEAD = "鍛冶場";
+const ANVIL_HEAD = "鍛冶屋";
 const HUB_LABEL = "拠点";
 const CRUMB_SEP = " › ";
 const EMPTY_PART = "空き";

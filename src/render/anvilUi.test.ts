@@ -76,7 +76,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
   };
 }
 
-/** 6 部位に着せ、倉庫に右手 7 つ（頁送りが出る）を置いた鍛冶場の画面 */
+/** 6 部位に着せ、倉庫に右手 7 つ（頁送りが出る）を置いた鍛冶屋の画面 */
 function anvilScene(): { state: GameState; ui: InventoryUi; root: ViewOf<"attire"> } {
   const state = createGame(1);
   state.sandbox = true;

@@ -147,6 +147,7 @@ import { HUB, META } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
 import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
+import { type TownLook, townLook } from "./meta/townLook";
 import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
 import type { MovesetKey } from "./data/weapons";
@@ -680,6 +681,8 @@ const ALTAR_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 試す�
  */
 let hub: HubSession | null = null;
 let hubDecor: HubDecor[] = [];
+/** 門前町の景色（拠点へ入る・設備の画面から戻るたびに保存データから導き直す） */
+let hubTown: TownLook | null = null;
 let hubBanner: string | null = null;
 let hubBannerTimer = 0;
 /** 井戸に出す寄進の総額（拠点へ入るたびに保存データから読み直す） */
@@ -701,6 +704,7 @@ function openHub(): void {
   hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
   saveHub(markFacilitiesSeen(hubSave, built));
   hubDonated = donatedOf(hubSave);
+  hubTown = townLook(src, hubSave);
   hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
   noteLegacyRunes(hub);
   inventoryUi.open = false;
@@ -733,7 +737,9 @@ function returnToHub(): void {
     return;
   }
   // 実績の画面で称号を名乗り替えると看板が変わる
-  hubDecor = hubDecorations(hubSource());
+  const src = hubSource();
+  hubDecor = hubDecorations(src);
+  hubTown = townLook(src, loadHub());
   resetHoldLatch(departLatch);
   menuReturn = "hub";
   screen = "hub";
@@ -1045,7 +1051,8 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
 function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
   const s = session.state;
   const h = session.hub;
-  const spots = { spots: h.layout.spots, available: h.available, near: h.near };
+  const town = hubTown === null ? undefined : { layout: h.layout, look: hubTown };
+  const spots = { spots: h.layout.spots, available: h.available, near: h.near, town };
   // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
   renderer.setHubView(spots);
   renderGame(s, inventoryUi.open ? null : lastAim);
