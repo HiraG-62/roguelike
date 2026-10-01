@@ -117,6 +117,24 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 .notes .sub b { color: var(--text); font-weight: 700; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; border: 1px solid var(--line); }
+.tune { margin: 4px 0 0; padding-left: 1.2em; color: var(--muted); font-size: 13.5px; }
+.tune:empty { display: none; }
+.area { margin-top: 10px; }
+.area h3 { font-family: var(--font-dot); font-weight: 400; font-size: 15px; margin: 0 0 4px; color: var(--text); }
+.area-scroll { overflow-x: auto; max-width: 100%; }
+.area table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.area th, .area td { border-bottom: 1px solid var(--line); padding: 5px 6px; text-align: right; vertical-align: top; }
+.area thead th { color: var(--muted); font-weight: 400; font-size: 12px; border-bottom-color: var(--faint); }
+.area th[scope="row"], .area thead th:first-child { text-align: left; }
+.area th[scope="row"] { font-weight: 700; }
+.area tr.cur th, .area tr.cur td { background: var(--panel-2); }
+.area tr.cur th[scope="row"] { box-shadow: inset 3px 0 0 var(--accent); }
+.area .avg { display: block; color: var(--faint); font-size: 11.5px; }
+.area .note { color: var(--faint); font-size: 12px; margin: 6px 0 0; }
+@media (max-width: 480px) {
+  .area table { font-size: 12px; }
+  .area th, .area td { padding: 4px 3px; }
+}
 .status { font-size: 12.5px; color: var(--faint); margin-top: 6px; min-height: 1.4em; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -144,6 +162,7 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
       <span class="group-label">生成</span>
       <button type="button" data-gen="cave">今の洞窟</button>
       <button type="button" data-gen="skel">骨組み + 形の語彙</button>
+      <button type="button" data-gen="skelw">骨組み + 形の語彙（広め）</button>
       <button type="button" data-gen="rooms">今の回廊</button>
     </div>
     <div class="group" role="group" aria-label="seed と視点">
@@ -186,6 +205,17 @@ figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
     <ul id="vDesc"></ul>
     <p class="sub" id="tDesc"></p>
     <p class="sub" id="gDesc"></p>
+    <ul class="tune" id="gTune"></ul>
+    <div class="area" id="area">
+      <h3 id="areaTitle">歩ける面積</h3>
+      <div class="area-scroll">
+        <table>
+          <thead><tr><th scope="col">生成</th><th scope="col">床（マス）</th><th scope="col">割合</th><th scope="col">主の道（歩）</th><th scope="col">行き止まり</th><th scope="col">最大の部屋（マス）</th></tr></thead>
+          <tbody id="areaBody"></tbody>
+        </table>
+      </div>
+      <p class="note">上 = この seed、下の小さい数 = seed 1〜20 の平均。床 = 壁でないマス（地形も含む）で、割合は地図全体 64x40 = 2560 マスに対して。主の道 = 開始 → 主の間の最短の歩数（上下左右に 1 マス = 1 歩）。今の洞窟・回廊はグラフが無いので、左端の中ほどに近い床から歩いて一番遠い床まで。行き止まり = 床を細線にした端の数（6 マス未満のひげと、開始・主の間の近くは除く）。最大の部屋 = 5x5 が丸ごと入る広がりのうち一番広いものの面積。</p>
+    </div>
     <div class="legend" id="legend"></div>
     <p class="status" id="status"></p>
   </section>
@@ -430,6 +460,46 @@ function genRooms(seed) {
 // 骨組み + 形の語彙: 主の道・ループ・寄り道のグラフ → 形の塊 → 曲線の通路 → 縁だけ崩す
 const SHAPES = ["gourd", "crescent", "ring", "fan", "compound", "circle", "pond", "double"];
 const SHAPE_LABEL = { circle: "円広間", gourd: "瓢箪", crescent: "三日月", ring: "環", fan: "扇", compound: "合成塊", pond: "池の広間", double: "二重円" };
+// 形の語彙の内外判定（n = ノード。座標はマス単位）
+function shapeInside(n, x, y) {
+  const dx = x - n.x, dy = y - n.y, d = Math.hypot(dx, dy);
+  const ux = Math.cos(n.ang), uy = Math.sin(n.ang);
+  switch (n.shape) {
+    case "circle": case "ring": case "pond": case "double": return d < n.r;
+    case "gourd": {
+      const c1x = n.x - ux * n.r * 0.6, c1y = n.y - uy * n.r * 0.6, c2x = n.x + ux * n.r * 0.65, c2y = n.y + uy * n.r * 0.65;
+      if (Math.hypot(x - c1x, y - c1y) < n.r * 0.62 || Math.hypot(x - c2x, y - c2y) < n.r * 0.55) return true;
+      const t = Math.max(0, Math.min(1, ((x - c1x) * (c2x - c1x) + (y - c1y) * (c2y - c1y)) / ((c2x - c1x) ** 2 + (c2y - c1y) ** 2)));
+      return Math.hypot(x - (c1x + (c2x - c1x) * t), y - (c1y + (c2y - c1y) * t)) < n.r * 0.24;
+    }
+    case "crescent": return d < n.r && Math.hypot(x - (n.x + ux * n.r * 0.6), y - (n.y + uy * n.r * 0.6)) > n.r * 0.72;
+    case "fan": {
+      const ax = n.x - ux * n.r * 0.7, ay = n.y - uy * n.r * 0.7;
+      const vx = x - ax, vy = y - ay, vd = Math.hypot(vx, vy);
+      if (vd < n.r * 0.45) return true;
+      return vd < n.r * 1.6 && (vx * ux + vy * uy) / (vd || 1) > Math.cos(0.72);
+    }
+    case "compound": return n.parts.some((p) => Math.hypot(x - n.x - p.dx, y - n.y - p.dy) < p.r);
+  }
+  return false;
+}
+// 形の中の壁（環の芯・二重円の内壁）
+function shapeHole(n, x, y) {
+  const d = Math.hypot(x - n.x, y - n.y);
+  if (n.shape === "ring") return d < n.r * 0.4;
+  if (n.shape === "double") {
+    if (d < n.r * 0.6 || d > n.r * 0.78) return false;
+    const a = Math.atan2(y - n.y, x - n.x);
+    for (let k = 0; k < 3; k++) {
+      let da = Math.abs(a - (n.ang + k * Math.PI * 2 / 3)) % (Math.PI * 2);
+      if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da < 0.26) return false;
+    }
+    return true;
+  }
+  return false;
+}
+const SKEL_OPT = { rad: { main: 1.75, loop: 1.45, branch: 1.25 }, bendMain: 9, bendSub: 6 };
 function genSkeleton(seed) {
   const rng = mulberry32(seed * 7919 + 13);
   const g = new Uint8Array(MAP_W * MAP_H).fill(1);
@@ -473,66 +543,39 @@ function genSkeleton(seed) {
       for (let k = 0; k < cnt; k++) n.parts.push({ dx: (rng() - 0.5) * n.r * 1.2, dy: (rng() - 0.5) * n.r * 1.0, r: n.r * (0.42 + rng() * 0.25) });
     }
   }
-  const inside = (n, x, y) => {
-    const dx = x - n.x, dy = y - n.y, d = Math.hypot(dx, dy);
-    const ux = Math.cos(n.ang), uy = Math.sin(n.ang);
-    switch (n.shape) {
-      case "circle": case "ring": case "pond": case "double": return d < n.r;
-      case "gourd": {
-        const c1x = n.x - ux * n.r * 0.6, c1y = n.y - uy * n.r * 0.6, c2x = n.x + ux * n.r * 0.65, c2y = n.y + uy * n.r * 0.65;
-        if (Math.hypot(x - c1x, y - c1y) < n.r * 0.62 || Math.hypot(x - c2x, y - c2y) < n.r * 0.55) return true;
-        const t = Math.max(0, Math.min(1, ((x - c1x) * (c2x - c1x) + (y - c1y) * (c2y - c1y)) / ((c2x - c1x) ** 2 + (c2y - c1y) ** 2)));
-        return Math.hypot(x - (c1x + (c2x - c1x) * t), y - (c1y + (c2y - c1y) * t)) < n.r * 0.24;
-      }
-      case "crescent": return d < n.r && Math.hypot(x - (n.x + ux * n.r * 0.6), y - (n.y + uy * n.r * 0.6)) > n.r * 0.72;
-      case "fan": {
-        const ax = n.x - ux * n.r * 0.7, ay = n.y - uy * n.r * 0.7;
-        const vx = x - ax, vy = y - ay, vd = Math.hypot(vx, vy);
-        if (vd < n.r * 0.45) return true;
-        return vd < n.r * 1.6 && (vx * ux + vy * uy) / (vd || 1) > Math.cos(0.72);
-      }
-      case "compound": return n.parts.some((p) => Math.hypot(x - n.x - p.dx, y - n.y - p.dy) < p.r);
-    }
-    return false;
-  };
-  const hole = (n, x, y) => {
-    const d = Math.hypot(x - n.x, y - n.y);
-    if (n.shape === "ring") return d < n.r * 0.4;
-    if (n.shape === "double") {
-      if (d < n.r * 0.6 || d > n.r * 0.78) return false;
-      const a = Math.atan2(y - n.y, x - n.x);
-      for (let k = 0; k < 3; k++) {
-        let da = Math.abs(a - (n.ang + k * Math.PI * 2 / 3)) % (Math.PI * 2);
-        if (da > Math.PI) da = Math.PI * 2 - da;
-        if (da < 0.26) return false;
-      }
-      return true;
-    }
-    return false;
-  };
+  return carveSkeleton(g, ter, nodes, edges, rng, seed, SKEL_OPT);
+}
+// 塊を彫る → 辺を曲線の通路で結ぶ → 形の中の壁を戻す → 縁だけ崩す → 池を水に
+function carveSkeleton(g, ter, nodes, edges, rng, seed, opt) {
   for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
-    for (const n of nodes) if (inside(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 0; break; }
+    for (const n of nodes) if (shapeInside(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 0; break; }
+  // 区画の仕切り（広め版だけ）: 隣り合う塊の間に岩の壁を残し、辺で結んだ所以外は繋がらない（偶然のループを作らない）
+  const part = opt.partition ? partitionWalls(g, nodes, opt.partition) : null;
+  if (opt.apron) carveApron(g, nodes, seed, opt.apron, part);
+  const spine = new Uint8Array(g.length);
   // 辺: 二次ベジェの曲線の通路（主の道は太く、寄り道は細く）
   for (const [a, b, kind] of edges) {
     const A = nodes[a], B = nodes[b];
     const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
     const len = Math.hypot(B.x - A.x, B.y - A.y) || 1;
     const px = -(B.y - A.y) / len, py = (B.x - A.x) / len;
-    const bend = (rng() - 0.5) * (kind === "main" ? 9 : 6);
+    const bend = (rng() - 0.5) * (kind === "main" ? opt.bendMain : opt.bendSub);
     const cx = mx + px * bend, cy = my + py * bend;
-    const rad = kind === "main" ? 1.75 : kind === "loop" ? 1.45 : 1.25;
+    const rad = opt.rad[kind];
     for (let t = 0; t <= 1.0001; t += 1 / 80) {
       const qx = (1 - t) * (1 - t) * A.x + 2 * (1 - t) * t * cx + t * t * B.x;
       const qy = (1 - t) * (1 - t) * A.y + 2 * (1 - t) * t * cy + t * t * B.y;
       const r = rad + Math.sin(t * 9 + a) * 0.25;
       for (let y = Math.floor(qy - r - 1); y <= qy + r + 1; y++) for (let x = Math.floor(qx - r - 1); x <= qx + r + 1; x++) {
         if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) continue;
-        if (Math.hypot(x + 0.5 - qx, y + 0.5 - qy) < r) g[idx(x, y)] = 0;
+        const dd = Math.hypot(x + 0.5 - qx, y + 0.5 - qy);
+        if (dd < r) { g[idx(x, y)] = 0; if (part) part[idx(x, y)] = 0; }
+        if (dd < SPINE_R) spine[idx(x, y)] = 1;
       }
     }
   }
   for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
-    for (const n of nodes) if (hole(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 1; break; }
+    for (const n of nodes) if (shapeHole(n, x + 0.5, y + 0.5)) { g[idx(x, y)] = 1; break; }
   // 縁の崩し: 縁のマスだけ 22% で反転 → セルオートマトン 1 回
   let e = g.slice();
   for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
@@ -542,7 +585,21 @@ function genSkeleton(seed) {
   e = caStep(e, 5, 4);
   // 二重円・環の芯は崩しで消えないよう戻す
   for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++)
-    for (const n of nodes) if (hole(n, x + 0.5, y + 0.5) && n.shape === "ring") e[idx(x, y)] = 1;
+    for (const n of nodes) if (shapeHole(n, x + 0.5, y + 0.5) && n.shape === "ring") e[idx(x, y)] = 1;
+  // 仕切りの壁を戻し（広め版だけ）、通路の芯（環の芯は除く）・主の間の内壁の切れ目・環の芯の周りを開け直す。
+  // 縁の崩しや仕切りでグラフの辺が途切れ、ノードが最大連結成分から落ちて消えないように
+  if (part) for (let i = 0; i < e.length; i++) if (part[i]) e[i] = 1;
+  {
+    for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+      const i = idx(x, y);
+      if (spine[i] && !nodes.some((n) => n.shape === "ring" && shapeHole(n, x + 0.5, y + 0.5))) e[i] = 0;
+      for (const n of nodes) {
+        if (n.shape === "double" && doubleGate(n, x + 0.5, y + 0.5)) e[i] = 0;
+        // 環は芯の周りの回廊を開け直す（通路が芯に突き当たっても回り込める）
+        if (n.shape === "ring") { const d = Math.hypot(x + 0.5 - n.x, y + 0.5 - n.y); if (d >= n.r * 0.4 && d < n.r * 0.62) e[i] = 0; }
+      }
+    }
+  }
   border(e); keepLargest(e);
   // 池の広間は中の円を水に
   for (const n of nodes) if (n.shape === "pond") {
@@ -552,6 +609,44 @@ function genSkeleton(seed) {
     }
   }
   return { solid: e, ter, graph: { nodes, edges } };
+}
+const SPINE_R = 1.0; // 通路の芯の半径（マス）。縁を崩した後にここを床へ戻す
+// 二重円の内壁の切れ目（3 か所）とその前後
+function doubleGate(n, x, y) {
+  const d = Math.hypot(x - n.x, y - n.y);
+  if (d < n.r * 0.5 || d > n.r * 0.86) return false;
+  const a = Math.atan2(y - n.y, x - n.x);
+  for (let k = 0; k < 3; k++) {
+    let da = Math.abs(a - (n.ang + k * Math.PI * 2 / 3)) % (Math.PI * 2);
+    if (da > Math.PI) da = Math.PI * 2 - da;
+    if (da < 0.2) return true;
+  }
+  return false;
+}
+// 2 つの塊の境（中心からの距離 − 半径 が等しい線。大きい塊ほど区画が広い）から half マス以内を壁にする。
+// 返り値は壁の印で、通路が通った所は後で消す
+function partitionWalls(g, nodes, half) {
+  const mark = new Uint8Array(g.length);
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    let sa = 1e9, sb = 1e9;
+    for (const n of nodes) {
+      const s = Math.hypot(x + 0.5 - n.x, y + 0.5 - n.y) - n.r;
+      if (s < sa) { sb = sa; sa = s; } else if (s < sb) sb = s;
+    }
+    if (sb - sa < half * 2) { g[idx(x, y)] = 1; mark[idx(x, y)] = 1; }
+  }
+  return mark;
+}
+// 塊の周りの広間: 形の外側 r × scale まで、雑音で不揃いに床を足す（形の芯は残るので語彙は読める）
+function carveApron(g, nodes, seed, opt, part) {
+  for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+    if (part && part[idx(x, y)]) continue;
+    for (const n of nodes) {
+      if (n.shape === "crescent" || n.shape === "double") continue;
+      const d = Math.hypot(x + 0.5 - n.x, y + 0.5 - n.y);
+      if (d < n.r * opt.scale && vnoise(x, y, 3.5, seed + 401) > opt.cut) { g[idx(x, y)] = 0; break; }
+    }
+  }
 }
 
 function clearanceMap(g) {
@@ -606,11 +701,239 @@ function focusSpots(m) {
   }
   return out;
 }
+// 骨組み + 形の語彙（広め）: 5 列 x 3 段の区画にノードを敷き詰める。主の道は左端の開始から右端の主の間へ蛇行し、
+// 空いた区画からループ 2 本と寄り道を作る。塊は大きく、通路は太く、塊の周りに不揃いな広間を足して床を今の洞窟並みにする
+const WIDE_COLS = 5, WIDE_ROWS = 3;
+const WIDE_ROCK = 0.15; // 主の道とループが使わなかった区画のうち、岩のまま残す割合
+const SKELW_OPT = { rad: { main: 2.3, loop: 2.0, branch: 1.75 }, bendMain: 5, bendSub: 4, partition: 1.0, apron: { scale: 1.3, cut: 0.5 } };
+function genSkeletonWide(seed) {
+  const rng = mulberry32(seed * 6151 + 29);
+  const g = new Uint8Array(MAP_W * MAP_H).fill(1);
+  const ter = new Uint8Array(MAP_W * MAP_H);
+  const nodes = [], edges = [];
+  const C = WIDE_COLS, R = WIDE_ROWS;
+  const slot = new Int32Array(C * R).fill(-1);
+  const slotX = (c) => 7 + c * (MAP_W - 14) / (C - 1);
+  const slotY = (r) => 7.5 + r * (MAP_H - 15) / (R - 1);
+  const add = (c, r, role, kind) => {
+    nodes.push({ x: slotX(c) + (rng() - 0.5) * 4.5, y: slotY(r) + (rng() - 0.5) * 3.5, c, r, role, kind });
+    slot[c * R + r] = nodes.length - 1;
+    return nodes.length - 1;
+  };
+  const adj4 = (c, r) => [[c + 1, r], [c - 1, r], [c, r + 1], [c, r - 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < C && b < R);
+  // 主の道: 列ごとに 1〜2 区画。段を変えるのは同じ列の中だけ（辺は上下左右の隣だけで、斜めに他の区画を横切らない）
+  const path = [];
+  let r = Math.floor(rng() * R);
+  for (let c = 0; c < C; c++) {
+    path.push(add(c, r, "主の道", "main"));
+    if (c > 0 && c < C - 1 && rng() < 0.5) {
+      r = r === 0 ? 1 : r === R - 1 ? R - 2 : (rng() < 0.5 ? r - 1 : r + 1);
+      path.push(add(c, r, "主の道", "main"));
+    }
+  }
+  for (let i = 1; i < path.length; i++) edges.push([path[i - 1], path[i], "main"]);
+  nodes[path[0]].role = "開始";
+  nodes[path[path.length - 1]].role = "主の間";
+  nodes[path[path.length - 2]].role = "前室";
+  const pos = (ni) => path.indexOf(ni);
+  // ループ: 空き区画 1〜2 個を通って主の道の 2〜4 先へ戻る道（2 本まで）
+  for (let k = 0; k < 2; k++) {
+    const cands = [];
+    for (let s = 0; s < C * R; s++) {
+      if (slot[s] >= 0) continue;
+      const c1 = (s / R) | 0, r1 = s % R;
+      const from = adj4(c1, r1).map(([a, b]) => slot[a * R + b]).filter((v) => v >= 0 && pos(v) >= 0);
+      // 1 区画のループ
+      for (const a of from) for (const b of from) if (pos(b) - pos(a) >= 2 && pos(b) - pos(a) <= 4) cands.push([a, [s], b]);
+      // 2 区画のループ
+      for (const [c2, r2] of adj4(c1, r1)) {
+        const s2 = c2 * R + r2; if (slot[s2] >= 0) continue;
+        const to = adj4(c2, r2).map(([a, b]) => slot[a * R + b]).filter((v) => v >= 0 && pos(v) >= 0);
+        for (const a of from) for (const b of to) if (pos(b) - pos(a) >= 2 && pos(b) - pos(a) <= 4) cands.push([a, [s, s2], b]);
+      }
+    }
+    if (!cands.length) break;
+    const [a, mids, b] = cands[Math.floor(rng() * cands.length)];
+    let prev = a;
+    for (const s of mids) { const ni = add((s / R) | 0, s % R, "ループ", "loop"); edges.push([prev, ni, "loop"]); prev = ni; }
+    edges.push([prev, b, "loop"]);
+  }
+  // 寄り道: 残りの区画を隣の区画から行き止まりとして生やす（主の間からは生やさない）。空き区画の一部は岩のまま残す
+  const ROCK = -2;
+  for (let s = 0; s < C * R; s++) if (slot[s] === -1 && rng() < WIDE_ROCK) slot[s] = ROCK;
+  for (let pass = 0; pass < 3; pass++) {
+    for (let s = 0; s < C * R; s++) {
+      if (slot[s] !== -1) continue;
+      const c1 = (s / R) | 0, r1 = s % R;
+      const from = adj4(c1, r1).map(([a, b]) => slot[a * R + b]).filter((v) => v >= 0 && nodes[v].role !== "主の間");
+      if (!from.length) continue;
+      const base = from[Math.floor(rng() * from.length)];
+      const ni = add(c1, r1, "寄り道", "branch");
+      edges.push([base, ni, "branch"]);
+    }
+  }
+  // 形を割り当てる（開始は円、主の間は二重円。主の道とループは語彙の袋から、寄り道は扇・円・池・合成塊）
+  const bag = SHAPES.filter((s) => s !== "double");
+  for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+  let bi = 0;
+  const SIDE = ["fan", "circle", "pond", "compound"];
+  for (const n of nodes) {
+    n.ang = rng() * Math.PI * 2;
+    if (n.role === "開始") { n.shape = "circle"; n.r = 4.8; }
+    else if (n.role === "主の間") { n.shape = "double"; n.r = 7.8; n.x = Math.min(n.x, MAP_W - 8); }
+    else if (n.kind === "branch") { n.shape = SIDE[Math.floor(rng() * SIDE.length)]; n.r = 4.6 + rng() * 1.2; }
+    else { n.shape = bag[bi++ % bag.length]; n.r = 5.8 + rng() * 1.4; }
+    if (n.shape === "compound") {
+      n.parts = [];
+      const cnt = 3 + Math.floor(rng() * 2);
+      for (let k = 0; k < cnt; k++) n.parts.push({ dx: (rng() - 0.5) * n.r * 1.2, dy: (rng() - 0.5) * n.r * 1.0, r: n.r * (0.42 + rng() * 0.25) });
+    }
+  }
+  // 主の間の内壁の切れ目の 1 つを前室へ向ける（区画の仕切りで外周が途切れても中へ入れるように）
+  const boss = nodes[path[path.length - 1]], pre = nodes[path[path.length - 2]];
+  boss.ang = Math.atan2(pre.y - boss.y, pre.x - boss.x);
+  return carveSkeleton(g, ter, nodes, edges, rng, seed, SKELW_OPT);
+}
+
+// =====================================================================
+// 面積の計測（歩ける床・主の道・行き止まり・一番広い部屋）
+// =====================================================================
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+function bfsDist(solid, from) {
+  const d = new Int32Array(solid.length).fill(-1);
+  const q = new Int32Array(solid.length);
+  let qh = 0, qt = 0;
+  d[from] = 0; q[qt++] = from;
+  while (qh < qt) {
+    const c = q[qh++], x = c % MAP_W, y = (c / MAP_W) | 0;
+    for (const [dx, dy] of N4) {
+      const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue;
+      const ni = idx(nx, ny); if (solid[ni] || d[ni] >= 0) continue;
+      d[ni] = d[c] + 1; q[qt++] = ni;
+    }
+  }
+  return d;
+}
+function nearestFloor(solid, x, y) {
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < solid.length; i++) {
+    if (solid[i]) continue;
+    const dd = Math.hypot(i % MAP_W + 0.5 - x, ((i / MAP_W) | 0) + 0.5 - y);
+    if (dd < bd) { bd = dd; best = i; }
+  }
+  return best;
+}
+// 床の細線化（Zhang-Suen）。8 近傍の並び P2..P9 = 北から時計回り
+const RING8 = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+function ringBits(sk, x, y) {
+  const p = [];
+  for (const [dx, dy] of RING8) p.push(inMap(x + dx, y + dy) && sk[idx(x + dx, y + dy)] ? 1 : 0);
+  let b = 0, a = 0;
+  for (let k = 0; k < 8; k++) { b += p[k]; if (!p[k] && p[(k + 1) % 8]) a++; }
+  return { p, a, b };
+}
+function thin(solid) {
+  const sk = new Uint8Array(solid.length);
+  for (let i = 0; i < solid.length; i++) sk[i] = solid[i] ? 0 : 1;
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let step = 0; step < 2; step++) {
+      const del = [];
+      for (let y = 1; y < MAP_H - 1; y++) for (let x = 1; x < MAP_W - 1; x++) {
+        if (!sk[idx(x, y)]) continue;
+        const { p, a, b } = ringBits(sk, x, y);
+        if (b < 2 || b > 6 || a !== 1) continue;
+        const [p2, , p4, , p6, , p8] = p;
+        if (step === 0 ? (p2 * p4 * p6 || p4 * p6 * p8) : (p2 * p4 * p8 || p2 * p6 * p8)) continue;
+        del.push(idx(x, y));
+      }
+      for (const i of del) sk[i] = 0;
+      if (del.length) changed = true;
+    }
+  }
+  return sk;
+}
+// 行き止まり: 細線の端点。部屋の角へ伸びるひげ（DEAD_END_MIN マス未満で分岐点へ戻る枝）は刈ってから数える
+const DEAD_END_MIN = 6;
+function skeletonEnds(solid) {
+  const sk = thin(solid);
+  const isEnd = (x, y) => { const { a, b } = ringBits(sk, x, y); return b === 1 || (b === 2 && a === 1); };
+  const isJunction = (x, y) => { const { a, b } = ringBits(sk, x, y); return b >= 3 && a >= 3; };
+  for (let iter = 0, pruned = true; pruned && iter < 12; iter++) {
+    pruned = false;
+    for (let i = 0; i < sk.length; i++) {
+      if (!sk[i]) continue;
+      const x0 = i % MAP_W, y0 = (i / MAP_W) | 0;
+      if (!isEnd(x0, y0)) continue;
+      const trail = [i], seen = new Set([i]);
+      let cx = x0, cy = y0, hitJunction = false;
+      while (trail.length < DEAD_END_MIN) {
+        let next = -1;
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]]) {
+          const nx = cx + dx, ny = cy + dy; if (!inMap(nx, ny)) continue;
+          const ni = idx(nx, ny); if (!sk[ni] || seen.has(ni)) continue;
+          next = ni; break;
+        }
+        if (next < 0) break;
+        cx = next % MAP_W; cy = (next / MAP_W) | 0;
+        if (isJunction(cx, cy)) { hitJunction = true; break; }
+        trail.push(next); seen.add(next);
+      }
+      if (hitJunction && trail.length < DEAD_END_MIN) { for (const t of trail) sk[t] = 0; pruned = true; }
+    }
+  }
+  const ends = [];
+  for (let i = 0; i < sk.length; i++) if (sk[i] && isEnd(i % MAP_W, (i / MAP_W) | 0)) ends.push(i);
+  return ends;
+}
+// 一番広い部屋: 5x5 の床が丸ごと入る中心（壁から 3 マス以上）を 8 連結でまとめ、その 5x5 の和集合の広さ
+function largestRoom(solid) {
+  const clear = clearanceMap(solid);
+  const lab = new Int32Array(solid.length).fill(-1);
+  let best = 0;
+  for (let i = 0; i < solid.length; i++) {
+    if (clear[i] < 3 || lab[i] >= 0) continue;
+    const comp = [i]; lab[i] = i;
+    for (let h = 0; h < comp.length; h++) {
+      const c = comp[h], x = c % MAP_W, y = (c / MAP_W) | 0;
+      for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) {
+        const nx = x + k, ny = y + j; if (!inMap(nx, ny)) continue;
+        const ni = idx(nx, ny); if (clear[ni] < 3 || lab[ni] >= 0) continue;
+        lab[ni] = i; comp.push(ni);
+      }
+    }
+    const cover = new Set();
+    for (const c of comp) {
+      const x = c % MAP_W, y = (c / MAP_W) | 0;
+      for (let j = -2; j <= 2; j++) for (let k = -2; k <= 2; k++) cover.add(idx(x + k, y + j));
+    }
+    best = Math.max(best, cover.size);
+  }
+  return best;
+}
+// 開始と主の間: 骨組みはグラフのノード、今の洞窟・回廊は左端の中ほどに近い床から歩いて一番遠い床（実装の「階段 = 最も遠い部屋」に寄せる）
+const END_SKIP = 6;
+function mapStats(m) {
+  const solid = m.solid;
+  let floor = 0;
+  for (let i = 0; i < solid.length; i++) if (!solid[i]) floor++;
+  const g = m.graph;
+  const sn = g && g.nodes.find((n) => n.role === "開始");
+  const bn = g && g.nodes.find((n) => n.role === "主の間");
+  const start = sn ? nearestFloor(solid, sn.x, sn.y) : nearestFloor(solid, 6, MAP_H / 2);
+  const ds = bfsDist(solid, start);
+  let goal = bn ? nearestFloor(solid, bn.x, bn.y) : start;
+  if (!bn) for (let i = 0; i < ds.length; i++) if (ds[i] > ds[goal]) goal = i;
+  const dg = bfsDist(solid, goal);
+  const ends = skeletonEnds(solid).filter((i) => ds[i] > END_SKIP && dg[i] > END_SKIP);
+  return { floor, ratio: floor / solid.length, path: ds[goal], deadEnds: ends.length, room: largestRoom(solid), ends };
+}
+const GEN_FN = { cave: genCave, skel: genSkeleton, skelw: genSkeletonWide, rooms: genRooms };
 const mapCache = new Map();
 function getMap(gen, seed) {
   const key = gen + ":" + seed;
   if (mapCache.has(key)) return mapCache.get(key);
-  const m = gen === "cave" ? genCave(seed) : gen === "rooms" ? genRooms(seed) : genSkeleton(seed);
+  const m = GEN_FN[gen](seed);
   m.clear = clearanceMap(m.solid);
   placeTerrain(m, seed);
   for (let i = 0; i < m.solid.length; i++) if (m.solid[i]) m.ter[i] = 0;
@@ -1787,9 +2110,61 @@ const VARIANTS = [
 ];
 const GENS = {
   cave: "今の洞窟: 全面に 45% の壁を撒いてセルオートマトン 5 回 → 最大連結成分（CAVE.json の base と同じ数値）。形に意図がなく、塊が似た不定形になる。",
-  skel: "骨組み + 形の語彙: 開始 → 主の間の主の道（6 ノード）、ループ 1 本、寄り道 2 本のグラフを先に作る。ノードに円・瓢箪・三日月・環・扇・合成塊・池の広間・二重円（主の間）を置き、辺を曲線の通路で結び、最後にセルオートマトン 1 回で縁だけ崩す。生成が変わるのでリプレイの版を上げる段（D4）。",
+  skel: "骨組み + 形の語彙: 開始 → 主の間の主の道（6 ノード）、ループ 1 本、寄り道 2 本のグラフを先に作る。ノードに円・瓢箪・三日月・環・扇・合成塊・池の広間・二重円（主の間）を置き、辺を曲線の通路で結び、最後にセルオートマトン 1 回で縁だけ崩す（崩した後に通路の芯・主の間の切れ目・環の芯の周りを開け直し、ノードが途切れて消えないようにする）。生成が変わるのでリプレイの版を上げる段（D4）。",
+  skelw: "骨組み + 形の語彙（広め）: 骨組みの意図（主の道・ループ・寄り道が読める、塊に形の語彙）はそのままに、歩ける床の割合を今の洞窟と同じくらい（約 56%）まで広げた案。",
   rooms: "今の回廊: 矩形の部屋 + 幅 2 の L 字通路。木構造でループは偶然だけ。",
 };
+const GEN_SHORT = { cave: "今の洞窟", skel: "骨組み", skelw: "骨組み（広め）", rooms: "今の回廊" };
+const GEN_TUNE = {
+  skelw: [
+    "ノードを 9 から 11〜15 に: 5 列 x 3 段の区画に敷き、主の道は左端の開始 → 右端の主の間へ、列の中でだけ段を変えて蛇行（5〜8 ノード）。空き区画を通るループを 2 本、残りを寄り道にする（空き区画の 15% は岩のまま）。",
+    "塊を大きく（主の道・ループ r 5.8〜7.2、主の間 7.8、寄り道 4.6〜5.8）、通路を太く（幅 約 4.6 / 4.0 / 3.5 マス）、塊の周りに雑音で不揃いな広間を足す（r x 1.3 まで。三日月・二重円は形を保つため足さない）。",
+    "詰めると隣の塊がくっついて偶然のループになるので、塊の境に幅 2 マスの岩の仕切りを残し、辺で結んだ所だけ通路で開ける。縁を崩した後に通路の芯・主の間の切れ目（1 つは前室向き）・環の芯の周りを開け直し、ノードが途切れないようにした（seed 1〜200 で全ノード到達）。",
+  ],
+};
+// 面積の数字（この seed は地図ごとに 1 回、20 seed の平均はページを開いて最初の 1 回だけ）
+const STAT_KEYS = ["floor", "ratio", "path", "deadEnds", "room"];
+const AVG_SEEDS = 20;
+function statsOf(m) { if (!m.stats) m.stats = mapStats(m); return m.stats; }
+let avgStats = null;
+function averageStats() {
+  if (avgStats) return avgStats;
+  avgStats = {};
+  for (const gen of Object.keys(GEN_FN)) {
+    const acc = { floor: 0, ratio: 0, path: 0, deadEnds: 0, room: 0 };
+    for (let sd = 1; sd <= AVG_SEEDS; sd++) {
+      const s = mapStats(GEN_FN[gen](sd));
+      for (const k of STAT_KEYS) acc[k] += s[k] / AVG_SEEDS;
+    }
+    avgStats[gen] = acc;
+  }
+  return avgStats;
+}
+// 平均の行き止まりだけ小数 1 桁（0〜5 程度なので丸めると差が消える）
+function fmtStat(k, v, isAvg) {
+  if (k === "ratio") return (v * 100).toFixed(1) + "%";
+  if (k === "deadEnds" && isAvg) return v.toFixed(1);
+  return String(Math.round(v));
+}
+function updateAreaTable() {
+  document.getElementById("areaTitle").textContent = "歩ける面積（seed " + st.seed + " と 20 seed の平均）";
+  const body = document.getElementById("areaBody"); body.textContent = "";
+  const avg = averageStats();
+  for (const gen of Object.keys(GEN_FN)) {
+    const s = statsOf(getMap(gen, st.seed));
+    const tr = document.createElement("tr");
+    if (gen === st.gen) { tr.className = "cur"; tr.setAttribute("aria-current", "true"); }
+    const th = document.createElement("th"); th.scope = "row"; th.textContent = GEN_SHORT[gen]; tr.appendChild(th);
+    for (const k of STAT_KEYS) {
+      const td = document.createElement("td");
+      td.textContent = fmtStat(k, s[k]);
+      const sm = document.createElement("span"); sm.className = "avg"; sm.textContent = fmtStat(k, avg[gen][k], true);
+      td.appendChild(sm);
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
 const st = { variant: 1, theme: 0, gen: "skel", seed: 7, focusIdx: 0, focusPoint: null, compare: false, split: 240, mag: null };
 try {
   const saved = JSON.parse(localStorage.getItem("mapPreview.v1") || "null");
@@ -1908,7 +2283,18 @@ function updateText() {
     const shapes = scene.map.graph.nodes.map((n) => n.role + "=" + SHAPE_LABEL[n.shape]).join("・");
     gtxt += " この seed の塊: " + shapes + "。";
   }
+  if (st.gen === "skelw" && scene.map.graph) {
+    const nodes = scene.map.graph.nodes;
+    const cnt = (kind) => nodes.filter((n) => n.kind === kind).length;
+    const shapeCount = {};
+    for (const n of nodes) shapeCount[SHAPE_LABEL[n.shape]] = (shapeCount[SHAPE_LABEL[n.shape]] || 0) + 1;
+    gtxt += " この seed: 主の道 " + cnt("main") + "・ループ " + cnt("loop") + "・寄り道 " + cnt("branch") + " ノード。塊: " +
+      Object.entries(shapeCount).map(([k, v]) => k + " " + v).join("・") + "。";
+  }
   gEl.appendChild(document.createTextNode(gtxt));
+  const tu = document.getElementById("gTune"); tu.textContent = "";
+  for (const line of GEN_TUNE[st.gen] || []) { const li = document.createElement("li"); li.textContent = line; tu.appendChild(li); }
+  updateAreaTable();
   const lg = document.getElementById("legend"); lg.textContent = "";
   const c = th.c;
   for (const [name, col] of [["床 暗", c.fD], ["床 基", c.fB], ["床 明", c.fL], ["天面", c.top], ["側面", c.side], ["光", c.light], ["差し色", c.accent]]) {
