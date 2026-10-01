@@ -1,0 +1,25 @@
+{
+  "_note": "持ち物メニュー（装束・紋・候補・系統・スキル・加護・金床）の情報の予算（docs/ideas/inventory-v2/E-merged.md 4 章）。全画面に同じ上限を掛け、render のテストが ui/menuBudget.ts で数えて比べる。書付だけは予算の外。表示専用でロジックの結果には影響しない",
+  "_fields": {
+    "textLines": "画面が出す文の行の上限（見出し 1・荷札 2・操作案内 1）。札の名前・丸印の 1 字・珠は数えない。行",
+    "compareTextLines": "比べる場面（候補）だけの文の行の上限（荷札 1 + 差 3 + 見出し・操作案内）。行",
+    "bodyLines": "BODY（10px 以上）の行の上限。荷札の 1 行目だけで、他は SMALL。行",
+    "numbers": "UI が出す数の上限（階・件数「2/4」・段の数・残響の量）。性質の文に含まれる値は文の行で縛るので数えない。個",
+    "candidates": "候補の 1 頁の枚数。送りで次の頁。枚",
+    "diffRows": "候補の差の行（得る・失う）の上限。残りは「ほか n」。行",
+    "innateDiffs": "候補の地金の差（▲▼）の上限。個",
+    "morphRows": "比べるときの動く紋の行の上限。動く帯を必ず残す。行",
+    "bands": "紋の帯の本数。stepped = 段の立った系統、undercurrent = 伏流（源か糧を 1 つ以上持つが段の立っていない系統）。本",
+    "beads": "1 本の帯の珠の上限。source = 源、sink = 糧、amplifier = 強め。超えたら畳んだ珠。個"
+  },
+  "textLines": 4,
+  "compareTextLines": 6,
+  "bodyLines": 1,
+  "numbers": 4,
+  "candidates": 5,
+  "diffRows": 3,
+  "innateDiffs": 2,
+  "morphRows": 6,
+  "bands": { "stepped": 4, "undercurrent": 2 },
+  "beads": { "source": 4, "sink": 4, "amplifier": 2 }
+}

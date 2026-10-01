@@ -27,10 +27,13 @@ import {
   applyResonanceStats,
   countKeywords,
   countProfiles,
+  easeOfRing,
   hueResonates,
   refreshResonance,
   TWIN_RING_IMPLICIT,
+  resonanceBySource,
   resonanceEaseOf,
+  resonanceOrigins,
   resonanceStepOf,
   resonanceSteps,
   resonanceSummary,
@@ -406,3 +409,71 @@ function equipRune(state: GameState, skill: SkillKey, m: ModifierKey): void {
   if (!slot) throw new Error("slot missing");
   slot.runModifiers = [m];
 }
+
+describe("出どころ付きの共鳴の数え（resonanceBySource）", () => {
+  /** 本物の state（祝福・ジョブ・型・遺物・石）で数え、身元の無い数えと突き合わせる */
+  function richState(): GameState {
+    const state = bareArena();
+    state.profile.equipment.ring = relicWith("ring", AFFIXES.filter((d) => d.slots.includes("ring") && d.keywords !== undefined).slice(0, 2));
+    state.boons = BOON_KEYS.slice(0, 6);
+    equipRune(state, SKILL_KEYS[0] ?? "dashStrike", MODIFIER_KEYS[0] ?? "wide");
+    return state;
+  }
+
+  it("語ごとの出どころの数が countKeywords の数と一致し、段が resonanceSteps と一致する", () => {
+    const state = richState();
+    const by = resonanceBySource(state);
+    const counts = countKeywords(state);
+    for (const k of KEYWORDS) {
+      expect(by[k].produces.length, `${k} の源`).toBe(counts[k].produces);
+      expect(by[k].consumes.length, `${k} の糧`).toBe(counts[k].consumes);
+      expect(by[k].amplifies.length, `${k} の強め`).toBe(counts[k].amplifies);
+    }
+    const expected = new Map(resonanceSteps(counts, resonanceEaseOf(state)).map((s) => [s.keyword, s.step] as const));
+    for (const k of KEYWORDS) expect(by[k].step, `${k} の段`).toBe(expected.get(k) ?? 0);
+  });
+
+  it("refreshResonance が置く段（boonRun.resonance）と同じ段になる", () => {
+    const state = richState();
+    refreshResonance(state);
+    const by = resonanceBySource(state);
+    const fromBy = KEYWORDS.filter((k) => by[k].step > 0).map((k) => ({ keyword: k, step: by[k].step }));
+    expect(fromBy).toEqual(state.boonRun.resonance.map((s) => ({ keyword: s.keyword, step: s.step })));
+  });
+
+  it("出どころの身元は種類と識別子を持つ（遺物 = id と部位、石 = 枠の位置、祝福 = key、ジョブ・型）", () => {
+    const state = richState();
+    const origins = resonanceOrigins(state).map((o) => o.origin);
+    const ring = state.profile.equipment.ring;
+    expect(origins.find((o) => o.kind === "relic"), "遺物").toEqual({ kind: "relic", id: ring?.id, slot: "ring" });
+    expect(origins.find((o) => o.kind === "stone")?.index, "石の枠の位置").toBe(0);
+    expect(origins.filter((o) => o.kind === "boon").map((o) => o.id), "祝福").toEqual(state.boons);
+    expect(origins.find((o) => o.kind === "job")?.id, "ジョブ").toBe(state.job);
+    expect(origins.find((o) => o.kind === "form"), "型").toBeDefined();
+  });
+
+  it("語の写しはキャッシュの同じ参照で、出どころが変わらなければ数え直さない", () => {
+    const state = richState();
+    const a = resonanceOrigins(state).map((o) => o.profile);
+    const b = resonanceOrigins(state).map((o) => o.profile);
+    expect(a.length).toBe(b.length);
+    a.forEach((p, i) => expect(p, `${i} 番目の参照`).toBe(b[i]));
+    refreshResonance(state);
+    expect(refreshResonance(state), "出どころが変わらなければ数え直さない").toBe(false);
+  });
+
+  it("素手の封印中は遺物の出どころが無い", () => {
+    const state = richState();
+    state.origin = "unarmed";
+    state.depth = 1;
+    expect(resonanceOrigins(state).some((o) => o.origin.kind === "relic")).toBe(false);
+  });
+
+  it("easeOfRing: 双頭の指輪の implicit を ringEaseMax で切り、指輪なし・別の implicit は 0", () => {
+    const ring = relicWith("ring", []);
+    expect(easeOfRing(null)).toBe(0);
+    expect(easeOfRing({ ...ring, implicit: { key: TWIN_RING_IMPLICIT, value: 1 } })).toBe(1);
+    expect(easeOfRing({ ...ring, implicit: { key: TWIN_RING_IMPLICIT, value: 9 } })).toBe(RESONANCE.ringEaseMax);
+    expect(easeOfRing({ ...ring, implicit: { key: "implicit.boneRing", value: 3 } })).toBe(0);
+  });
+});

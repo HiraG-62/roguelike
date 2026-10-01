@@ -528,6 +528,7 @@ import j_feel_MUSIC from "./feel/MUSIC.json";
 import j_feel_FX_WAVE3 from "./feel/FX_WAVE3.json";
 import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
 import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
+import j_feel_MENU_BUDGET from "./feel/MENU_BUDGET.json";
 import j_jobs__index from "./jobs/_index.json";
 import j_jobs_JOB from "./jobs/JOB.json";
 import j_jobs_attributes from "./jobs/attributes.json";
@@ -1489,6 +1490,7 @@ export const feel = {
   "FX_WAVE3": j_feel_FX_WAVE3,
   "SFX_WAVE3": j_feel_SFX_WAVE3,
   "TELEGRAPH": j_feel_TELEGRAPH,
+  "MENU_BUDGET": j_feel_MENU_BUDGET,
 };
 
 export const jobs = {
@@ -2582,6 +2584,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/FX_ATTACK/slash.json",
   "feel/FX_ATTACK/sprite.json",
   "feel/FX_WAVE3.json",
+  "feel/MENU_BUDGET.json",
   "feel/MINIMAP.json",
   "feel/MUSIC.json",
   "feel/SFX_WAVE3.json",

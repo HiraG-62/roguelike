@@ -210,6 +210,9 @@ export const RUN_MOD = BALANCE.world.RUN_MOD;
 /** ミニマップ */
 export const MINIMAP = BALANCE.feel.MINIMAP;
 
+/** 持ち物メニューの情報の予算（src/ui/menuBudget.ts・tryOn.ts。docs/ideas/inventory-v2/E-merged.md 4 章） */
+export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
+
 /**
  * アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃）。
  * 数値・色は src/data/balance/combat/ の "ACTION"、表示文言（浮き文字）は src/data/actionText.ts。

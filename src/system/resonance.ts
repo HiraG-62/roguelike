@@ -6,8 +6,9 @@ import { JOBS } from "../data/jobs";
 import { REFORGES } from "../data/reforges";
 import { RESONANCE } from "../data/tuning";
 import { formOfKey } from "../data/weaponForms";
-import { SLOTS, TRAIT_COLORS, type Item, type PlayerStats, type TraitColor } from "../loot/types";
+import { SLOTS, TRAIT_COLORS, type Item, type PlayerStats, type Slot, type TraitColor } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
+import type { ModifierKey, SkillKey } from "../skills/types";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { keystoneKeywords, relicKeywords, skillKeywords } from "./keywords";
@@ -88,32 +89,83 @@ export interface KeywordCount {
 // 数え
 // -----------------------------------------------------------------------------
 
-/** 数えの出どころ。武器の型は祝福を畳む前の stats の武器種で決める（buildProfile と同じ） */
-function resonanceSources(state: Readonly<GameState>): KeywordProfile[] {
-  const out: KeywordProfile[] = [];
+/** 出どころの種類（遺物・スキル石・祝福・ジョブ・武器の型・改鋳・ラン内の誓約） */
+export type ResonanceOriginKind = "relic" | "stone" | "boon" | "job" | "form" | "reforge" | "keystone";
+
+/** 出どころ 1 つの身元（画面が「どの部位・どの石か」を指すための識別子。語の写しは持たない） */
+export interface ResonanceOrigin {
+  kind: ResonanceOriginKind;
+  /** 遺物 = Item.id / 石 = 石の skillKey / それ以外 = その key */
+  id: string;
+  /** 遺物の部位 */
+  slot?: Slot;
+  /** 石の枠の位置 */
+  index?: number;
+}
+
+/** 身元つきの出どころ。profile は数えに使う語の写し（キャッシュ済みの参照） */
+export interface OriginProfile {
+  origin: ResonanceOrigin;
+  profile: KeywordProfile;
+}
+
+/** 出どころ 1 つを見つけるたびに呼ぶ。place は遺物なら部位、石なら枠の位置 */
+type SourceVisitor = (profile: KeywordProfile, kind: ResonanceOriginKind, id: string, place: Slot | number | undefined) => void;
+
+/**
+ * 数えの出どころを順に渡す。武器の型は祝福を畳む前の stats の武器種で決める（buildProfile と同じ）。
+ * 毎ステップ呼ばれる（refreshResonance）ので、身元の組み立ては呼び出し側に任せ、ここでは何も確保しない
+ */
+function forEachSource(state: Readonly<GameState>, visit: SourceVisitor): void {
   // 素手の起点で封じられている間の遺物は効かないので数えない
   const equipment = equipmentSealed(state) ? null : state.profile.equipment;
   for (const slot of SLOTS) {
     const item = equipment?.[slot];
-    if (item) out.push(cachedProfile(RELIC_PROFILES, relicSignature(item), () => relicKeywords(item)));
+    if (item) visit(relicProfileOf(item), "relic", item.id, slot);
   }
   const rs = state.skills;
   for (let i = 0; i < rs.slots.length; i++) {
     const stone = stoneInSlot(rs.profile, i);
     if (!stone) continue;
-    const modifiers = rs.slots[i]?.modifiers ?? [];
-    out.push(cachedProfile(SKILL_PROFILES, `${stone.skillKey}|${modifiers.join(",")}`, () => skillKeywords(SKILL_DEFS[stone.skillKey], modifiers)));
+    visit(stoneProfileOf(stone.skillKey, rs.slots[i]?.modifiers ?? []), "stone", stone.skillKey, i);
   }
-  for (const key of state.boons) out.push(BOONS[key].keywords);
-  out.push(JOBS[state.job].keywords);
+  for (const key of state.boons) visit(BOONS[key].keywords, "boon", key, undefined);
+  visit(JOBS[state.job].keywords, "job", state.job, undefined);
   const form = formOfKey((state.boonRun.baseStats ?? state.stats).moveset);
-  if (form.keywords) out.push(form.keywords);
+  if (form.keywords) visit(form.keywords, "form", form.key, undefined);
   // 持ち替えた型の改鋳は効かないので数えない
   for (const key of state.reforges) {
     const def = REFORGES[key];
-    if (def.form === form.key && def.keywords) out.push(def.keywords);
+    if (def.form === form.key && def.keywords) visit(def.keywords, "reforge", key, undefined);
   }
-  for (const key of state.runKeystones) out.push(cachedProfile(KEYSTONE_PROFILES, key, () => keystoneKeywords(key)));
+  for (const key of state.runKeystones) visit(cachedProfile(KEYSTONE_PROFILES, key, () => keystoneKeywords(key)), "keystone", key, undefined);
+}
+
+function resonanceSources(state: Readonly<GameState>): KeywordProfile[] {
+  const out: KeywordProfile[] = [];
+  forEachSource(state, (profile) => out.push(profile));
+  return out;
+}
+
+/** 遺物 1 つの語の写し（性質の key だけで決まるのでキャッシュを共有する） */
+export function relicProfileOf(item: Readonly<Item>): KeywordProfile {
+  return cachedProfile(RELIC_PROFILES, relicSignature(item), () => relicKeywords(item));
+}
+
+/** スキル石 1 つ（と枠の刻印符）の語の写し */
+export function stoneProfileOf(skillKey: SkillKey, modifiers: readonly ModifierKey[]): KeywordProfile {
+  return cachedProfile(SKILL_PROFILES, `${skillKey}|${modifiers.join(",")}`, () => skillKeywords(SKILL_DEFS[skillKey], modifiers));
+}
+
+/** 今の出どころを身元つきで（画面の出どころの珠・試着の基準）。数えは resonanceSources と同じ並び */
+export function resonanceOrigins(state: Readonly<GameState>): OriginProfile[] {
+  const out: OriginProfile[] = [];
+  forEachSource(state, (profile, kind, id, place) => {
+    const origin: ResonanceOrigin = { kind, id };
+    if (typeof place === "string") origin.slot = place;
+    else if (typeof place === "number") origin.index = place;
+    out.push({ origin, profile });
+  });
   return out;
 }
 
@@ -172,7 +224,12 @@ export const TWIN_RING_IMPLICIT = "implicit.twinRing";
  */
 export function resonanceEaseOf(state: Readonly<GameState>): number {
   if (equipmentSealed(state)) return 0;
-  const implicit = state.profile.equipment.ring?.implicit;
+  return easeOfRing(state.profile.equipment.ring);
+}
+
+/** 指輪 1 つが成立させる語の数（双頭の指輪でなければ 0。試着が「この指輪に替えたら」を数えるのにも使う） */
+export function easeOfRing(ring: Readonly<Pick<Item, "implicit">> | null | undefined): number {
+  const implicit = ring?.implicit;
   if (implicit?.key !== TWIN_RING_IMPLICIT) return 0;
   return Math.min(RESONANCE.ringEaseMax, Math.max(0, Math.floor(implicit.value)));
 }
@@ -217,6 +274,46 @@ export function resonanceSteps(counts: Readonly<Record<Keyword, KeywordCount>>, 
     if (step > 0) out.push({ keyword, step, produces: c.produces, consumes: c.consumes, amplifies: c.amplifies });
   }
   return out;
+}
+
+// -----------------------------------------------------------------------------
+// 出どころ付きの数え（持ち物メニューの紋・試着）
+// -----------------------------------------------------------------------------
+
+/** 語 1 つの源 / 糧 / 強めの出どころの列（出どころ 1 つにつき動詞ごとに最大 1。countProfiles と同じ規則） */
+export interface KeywordOrigins {
+  produces: ResonanceOrigin[];
+  consumes: ResonanceOrigin[];
+  amplifies: ResonanceOrigin[];
+}
+
+/** 語 1 つの出どころと段。step は resonanceSteps と同じ（双頭の指輪の ease を含む。数えない語は 0） */
+export interface KeywordResonance extends KeywordOrigins {
+  keyword: Keyword;
+  step: number;
+}
+
+export type ResonanceBySource = Record<Keyword, KeywordResonance>;
+
+/** 身元つきの出どころの並びから、語ごとの出どころの列と段を作る。純関数（state を読まない・変えない） */
+export function resonanceBySourceOf(sources: readonly Readonly<OriginProfile>[], ease = 0): ResonanceBySource {
+  const out = Object.fromEntries(
+    KEYWORDS.map((keyword): [Keyword, KeywordResonance] => [keyword, { keyword, step: 0, produces: [], consumes: [], amplifies: [] }]),
+  ) as ResonanceBySource;
+  for (const { origin, profile } of sources) {
+    for (const k of new Set(profile.produces)) out[k].produces.push(origin);
+    for (const k of new Set(profile.consumes)) out[k].consumes.push(origin);
+    for (const k of new Set(profile.amplifies)) out[k].amplifies.push(origin);
+  }
+  // 段は既存の数え（countProfiles + resonanceSteps）に任せ、規則を二重に持たない
+  const steps = resonanceSteps(countProfiles(sources.map((s) => s.profile)), ease);
+  for (const s of steps) out[s.keyword].step = s.step;
+  return out;
+}
+
+/** 今のビルドの語ごとの出どころと段（boonRun.resonance と同じ段になる） */
+export function resonanceBySource(state: Readonly<GameState>): ResonanceBySource {
+  return resonanceBySourceOf(resonanceOrigins(state), resonanceEaseOf(state));
 }
 
 function sameSteps(a: readonly ResonanceStep[], b: readonly ResonanceStep[]): boolean {
