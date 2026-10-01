@@ -6,6 +6,7 @@ import { enemyDef } from "../data/enemies";
 import { MOVESETS } from "../data/weapons";
 import { createEnemy } from "../system/enemies";
 import { createEmptyProfile, type Item } from "../loot/types";
+import { withFixedLayout } from "../map/layout/select";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -138,7 +139,8 @@ describe("player actions", () => {
 describe("floor / rooms", () => {
   it("通常の部屋は入っても封鎖されず、部屋の敵を全滅させると制圧になる（開放型フロア）", async () => {
     const { rectCenterPx } = await import("../map/grid");
-    const state = createGame(11);
+    // seed 11 の旧生成の階は部屋 1 に敵がいる（階の型の地図では部屋 1 が空で最初から制圧済みのことがある）
+    const state = withFixedLayout("legacy", () => createGame(11));
     const room = state.rooms[1]!;
     state.player.body.pos = rectCenterPx(room.rect);
     state.player.invulnTimer = 999;

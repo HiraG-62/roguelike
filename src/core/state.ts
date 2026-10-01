@@ -2,6 +2,7 @@ import type { AttackProfile } from "./element";
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
 import type { GameMap, Rect } from "../map/grid";
+import type { FloorLayout } from "../map/layout/types";
 import type { FloorItem, LootRuntime, PendingBud, PlayerStats, Profile } from "../loot/types";
 import type { StatusApply, StatusBag } from "./status";
 import type { TerrainKind, TerrainLayer } from "./terrain";
@@ -1111,6 +1112,8 @@ export interface GameState {
   floorKind: FloorKind;
   /** このフロアの面積の倍率（基準の大きさ = 1。省略時は 1。buildFloor が BALANCE.world.MAP_SIZE の範囲で抽選。system/floor.ts） */
   floorAreaMul?: number;
+  /** このフロアで実際に使った階の型（旧生成器は "legacy"）。次の階の chooseLayout が同じ型を続けないために読む。system/floor.ts */
+  floorLayout?: FloorLayout;
   /** shrine の泉を使った代償。次にロックする部屋のエリート率が上がる */
   cursed: boolean;
   /** 探索済みタイル（ミニマップ用）。1 = 探索済み */

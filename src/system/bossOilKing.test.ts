@@ -10,6 +10,7 @@ import { OIL_CHARGE, OIL_FIREBOMB, OIL_JAR, OIL_SLAM } from "./bossOilKing";
 import { updateEnemies } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { buildFloor } from "./floor";
+import { withFixedLayout } from "../map/layout/select";
 import { updateHazards } from "./hazards";
 import { isStaggered, windupCommitted } from "./poise";
 import { updateStatusEffects } from "./statusEffects";
@@ -30,7 +31,8 @@ const MID_DIST = BOSS.rules.nearDist + 30;
 
 /** 油壺の王の階を作り、部屋を封鎖してプレイヤーを王の横に置く */
 function oilFloor(seed = 21): { state: GameState; boss: Enemy } {
-  const state = createGame(seed);
+  // 1 階を旧生成に固定して型の抽選で乱数を引かせない（ボス階の形と他の敵の配置を seed のまま保つ）
+  const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = OIL_KING_DEPTH;
   buildFloor(state);
   const boss = bossEnemy(state);

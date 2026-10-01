@@ -12,6 +12,7 @@ import { buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, withBaseAre
 import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
 import { MAP_SHAPE, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
+import { withFixedLayout } from "../map/layout/select";
 
 const SEARCH_SEEDS = 300;
 const NON_BOSS_DEPTH = 7;
@@ -119,9 +120,10 @@ describe("フロア種別", () => {
   });
 
   it("洞窟フロア: 通常の塊は入っても封鎖されず、封鎖する種類（巣窟）の塊は扉の内側から外へ出られない", () => {
-    const state = createGame(3);
+    // 旧生成器の洞窟（"legacy"）の塊で見る。階の型の抽選は乱数の流れを変えるので固定する
+    const state = withFixedLayout("legacy", () => createGame(3));
     state.depth = 3;
-    descend(state, "cave");
+    withFixedLayout("legacy", () => descend(state, "cave"));
     expect(state.depth).toBe(4);
     expect(state.floorKind).toBe("cave");
     const normal = state.rooms.findIndex((r, i) => i > 0 && r.kind === "normal" && !r.cleared);

@@ -14,11 +14,15 @@ import {
   Tile,
   getTile,
   inBounds,
+  isPassableTile,
   isWalkable,
   rectCenterPx,
   rectContainsPx,
   toIndex,
 } from "../map/grid";
+import { generateLayoutMap } from "../map/layout/index";
+import { chooseLayout } from "../map/layout/select";
+import type { FloorLayout, LayoutContext } from "../map/layout/types";
 import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
 import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
@@ -32,7 +36,7 @@ import { fireTrigger } from "./triggers";
 import { circlesOverlap, isSolidTile, overlapsTiles, overlapsWall } from "./physics";
 import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
-import { deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
+import { chapterOf, deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
 import { announceDeep } from "./deep";
 import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
@@ -106,12 +110,15 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   const stolen = takeGreedyLoot(state);
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.floorAreaMul = rollAreaMul(state.rng, state.depth);
-  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind, state.floorAreaMul));
+  // 型の抽選は面積の抽選の後（docs/ideas/map-gen-impl.md 2-5 の乱数の順）。前の階の型は上書きする前に読む
+  state.map = generateFloorMap(state, chooseLayout(state.rng, floorLayoutContext(state)));
+  state.floorLayout = state.map.layout ?? LEGACY_LAYOUT;
   // 洞窟の最後の塊（階段の部屋）が狭いと階の主の戦いが窮屈になるので広げる（rooms 型・major は何もしない。乱数を使わない）
   if (!isBossDepth(state.depth) && !skipsFloorLord(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
     carveArena(state.map, state.map.rooms.length - 1, FLOOR_LORD.arenaRadius);
   }
-  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
+  const inAnyRoom = roomTileMask(state.map);
+  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i], inAnyRoom));
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
@@ -205,12 +212,12 @@ function clearEmptyOpenRooms(state: GameState): void {
   });
 }
 
-function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined): RoomState {
+function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined, inAnyRoom: Uint8Array): RoomState {
   return {
     rect,
     cleared: false,
     locked: false,
-    doorTiles: tileList ? findBlobDoorTiles(map, tileList) : findDoorTiles(map, rect),
+    doorTiles: tileList ? findBlobDoorTiles(map, tileList, inAnyRoom) : findDoorTiles(map, rect),
     kind: "normal",
     wave: 0,
     used: false,
@@ -267,6 +274,44 @@ function generatorOptions(depth: number, kind: FloorKind, areaMul: number): Gene
   return { ...base, lastRoomMin: min };
 }
 
+/** 旧生成器（フロア種別の MAP_SHAPE の rooms / cave）の型名 */
+const LEGACY_LAYOUT: FloorLayout = "legacy";
+
+/** この階の型を選ぶ文脈。previous は前の階で実際に使った型（state.floorLayout を上書きする前に読む） */
+export function floorLayoutContext(state: GameState): LayoutContext {
+  return {
+    depth: state.depth,
+    chapter: chapterOf(state.depth),
+    isDeep: isDeepDepth(state.depth),
+    isBossFloor: isBossDepth(state.depth),
+    floorKind: state.floorKind,
+    previous: state.floorLayout,
+  };
+}
+
+/**
+ * 型 layout でこの階の地図を作る（docs/ideas/map-gen-impl.md 2-5）。型の生成器が作れなければ（検査に全部落ちた）
+ * 同じ rng のまま旧生成器へ落ちる。返す地図の layout は実際に使った型。型の areaScale で地図が要求より小さいことがある
+ */
+export function generateFloorMap(state: GameState, layout: FloorLayout): GameMap {
+  const options = generatorOptions(state.depth, state.floorKind, state.floorAreaMul ?? 1);
+  switch (layout) {
+    case "legacy":
+      return legacyFloorMap(state, options);
+    case "lordHall":
+      // ボス階の専用の部屋（docs/ideas/lordhall-design.md）ができるまで旧生成器で作る
+      return legacyFloorMap(state, options);
+    default:
+      return generateLayoutMap(layout, state.rng, options.width, options.height) ?? legacyFloorMap(state, options);
+  }
+}
+
+function legacyFloorMap(state: GameState, options: GeneratorOptions): GameMap {
+  const map = generateMap(mapShapeOf(state.floorKind), state.rng, options);
+  map.layout = LEGACY_LAYOUT;
+  return map;
+}
+
 /** 最後の部屋（階段の部屋。毎階、階の主かボスが出る）。部屋が 1 つしか無ければ -1 */
 function bossRoomIndex(state: GameState): number {
   const last = state.rooms.length - 1;
@@ -319,10 +364,20 @@ function doorMarksOf(map: GameMap): DoorMarks {
 }
 
 /**
- * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
- * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える
+ * どれかの部屋の所属タイルか（1 = 所属）。階ごとに 1 回作って全部の部屋の扉探しで共有する
+ * （部屋ごとに「他の部屋のタイルの Set」を作り直すと、部屋の数の 2 乗で重くなるため）
  */
-export function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
+export function roomTileMask(map: GameMap): Uint8Array {
+  const mask = new Uint8Array(map.tiles.length);
+  for (const list of map.roomTiles ?? []) for (const t of list) mask[t] = 1;
+  return mask;
+}
+
+/**
+ * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
+ * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える。inAnyRoom は roomTileMask(map)
+ */
+export function findBlobDoorTiles(map: GameMap, tiles: readonly number[], inAnyRoom: Uint8Array = roomTileMask(map)): number[] {
   const { mark, stamp } = doorMarksOf(map);
   const roomStamp = stamp;
   const doorStamp = stamp + 1;
@@ -341,20 +396,15 @@ export function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): numbe
       doors.push(ni);
     }
   }
-  return dropPocketDoors(map, tiles, doors).sort((a, b) => a - b);
+  return dropPocketDoors(map, tiles, doors, inAnyRoom).sort((a, b) => a - b);
 }
 
 /**
  * 袋の扉を除く: 扉の候補から、部屋の外の床を 8 近傍で辿っても他の部屋のタイルに行き着かない成分（塊の中の首・柱の裏の窪み・
  * 主の間に取り込まれた床）に属するものを外す。封鎖しても外へ出られないので、閉じると部屋の中に見えない壁ができるだけになる
  */
-function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly number[]): number[] {
+function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly number[], inAnyRoom: Uint8Array): number[] {
   const own = new Set(tiles);
-  const others = new Set<number>();
-  for (const list of map.roomTiles ?? []) {
-    if (list === tiles) continue;
-    for (const t of list) others.add(t);
-  }
   const seen = new Set<number>();
   const keep: number[] = [];
   const doorSet = new Set(doors);
@@ -371,7 +421,8 @@ function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly
         if (!isWalkable(map, x + dx, y + dy)) continue;
         const ni = toIndex(map, x + dx, y + dy);
         if (own.has(ni) || seen.has(ni)) continue;
-        if (others.has(ni)) {
+        // 自分のタイルは上で除いたので、ここで部屋の所属なら他の部屋
+        if (inAnyRoom[ni] === 1) {
           exit = true;
           continue;
         }
@@ -798,7 +849,8 @@ function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | nu
     for (const c of CARDINALS) {
       const nx = x + c.x;
       const ny = y + c.y;
-      if (!inBounds(map, nx, ny) || getTile(map, nx, ny) === Tile.Wall) continue;
+      // 穴も塞ぐ（川・池の向こう岸の敵は歩いて届かないので寄せる）
+      if (!inBounds(map, nx, ny) || !isPassableTile(getTile(map, nx, ny))) continue;
       const ni = toIndex(map, nx, ny);
       if (reach[ni] !== 0) continue;
       const isBone = bone.has(ni);
@@ -817,12 +869,12 @@ function reachesEnemy(state: GameState, reach: Uint8Array, e: Enemy): boolean {
   return inBounds(state.map, tx, ty) && reach[toIndex(state.map, tx, ty)] === REACH_FLOOR;
 }
 
-/** 壁をすり抜ける敵が壁の中にいる（通り抜けの途中。寄せると毎秒瞬間移動するので見逃す） */
+/** 壁をすり抜ける敵が壁（か穴）の中にいる（通り抜けの途中。寄せると毎秒瞬間移動するので見逃す） */
 function phasingInWall(state: GameState, e: Enemy): boolean {
   if (!enemyDef(e.defKey).phasing) return false;
   const tx = Math.floor(e.body.pos.x / TILE_SIZE);
   const ty = Math.floor(e.body.pos.y / TILE_SIZE);
-  return !inBounds(state.map, tx, ty) || getTile(state.map, tx, ty) === Tile.Wall;
+  return !inBounds(state.map, tx, ty) || !isPassableTile(getTile(state.map, tx, ty));
 }
 
 /**

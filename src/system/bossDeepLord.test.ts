@@ -22,6 +22,7 @@ import { damageEnemy } from "./combat";
 import { createEnemy, updateEnemies } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { buildFloor } from "./floor";
+import { withFixedLayout } from "../map/layout/select";
 import { updateHazards } from "./hazards";
 import { isStaggered, windupCommitted } from "./poise";
 import { findStatus, updateStatusEffects } from "./statusEffects";
@@ -35,7 +36,8 @@ const MAX_STEPS = 2400;
 const K = BOSS.deepLord;
 
 function lordFloor(dx = -70, seed = 21): { state: GameState; boss: Enemy; rect: Rect } {
-  const state = createGame(seed);
+  // 開始の階は旧生成器（"legacy"）で作る（階の型の抽選は乱数の流れを変え、主の間の形が seed ごとに揺れるため）
+  const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = FINAL_DEPTH;
   buildFloor(state);
   const boss = bossEnemy(state);

@@ -10,6 +10,7 @@ import { KS_INFLATE, KS_JUMP, KS_SWALLOW, inflateRadius, kingSlimeAirTime, split
 import { updateEnemies } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { buildFloor } from "./floor";
+import { withFixedLayout } from "../map/layout/select";
 import { updateHazards } from "./hazards";
 import { applyStagger, windupCommitted } from "./poise";
 import { updateStatusEffects } from "./statusEffects";
@@ -21,7 +22,8 @@ const KS = BOSS.kingSlime;
 
 /** スライム王の階を作り、部屋を封鎖してプレイヤーを王の横（dx）に置く */
 function kingFloor(dx = -70, seed = 21): { state: GameState; boss: Enemy } {
-  const state = createGame(seed);
+  // 1 階を旧生成に固定して型の抽選で乱数を引かせない（ボス階の形と他の敵の配置を seed のまま保つ）
+  const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = BOSS.interval;
   buildFloor(state);
   const boss = bossEnemy(state);

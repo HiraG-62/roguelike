@@ -36,6 +36,7 @@ import {
   startsEmptySpecial,
 } from "./specialRooms";
 import { withInput } from "./testHelpers";
+import { withFixedLayout } from "../map/layout/select";
 
 const IDLE = withInput({});
 const DEPTH = 5;
@@ -44,7 +45,8 @@ const SETTLE_STEPS = 90;
 
 /** 回廊のフロアの真ん中の部屋を kind にして準備する。ランイベントと長居の代償は止めておく */
 function roomOf(kind: RoomKind, seed = 3): { state: GameState; room: RoomState; index: number } {
-  const state = createGame(seed);
+  // 開始の階は旧生成器（"legacy"）で作る（階の型の抽選は乱数の流れを変え、部屋の地形が seed ごとに揺れるため）
+  const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = DEPTH;
   buildFloor(state, "rooms");
   const index = state.rooms.findIndex((r, i) => i > 1 && i < state.rooms.length - 1 && r.rect.w >= 9 && r.rect.h >= 9);

@@ -14,6 +14,7 @@ import { createNemesisRun, placeNemesis } from "./nemesis";
 import { type RunMetaSetup, emptyRunMeta } from "./runMeta";
 import type { RunSetup } from "./runSetup";
 import { withInput } from "./testHelpers";
+import { withFixedLayout } from "../map/layout/select";
 
 const SEED = 4242;
 
@@ -23,7 +24,8 @@ function metaWith(elites: EliteKind[] = [], depth = 5, key = "wolf"): RunMetaSet
 
 function start(startDepth: number, runMeta?: RunMetaSetup, seed = SEED): GameState {
   const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth, ...(runMeta ? { runMeta } : {}) };
-  return withBaseAreaMul(() => createGame(seed, String(seed), createEmptyProfile(), createDefaultSkillProfile(), setup));
+  // 旧生成器（"legacy"）の階で見る（階の型の抽選は乱数の流れを変え、陣の並びが seed ごとに揺れるため）
+  return withFixedLayout("legacy", () => withBaseAreaMul(() => createGame(seed, String(seed), createEmptyProfile(), createDefaultSkillProfile(), setup)));
 }
 
 function nemeses(state: GameState): Enemy[] {
@@ -31,7 +33,7 @@ function nemeses(state: GameState): Enemy[] {
 }
 
 function goDown(state: GameState): void {
-  withBaseAreaMul(() => descend(state));
+  withFixedLayout("legacy", () => withBaseAreaMul(() => descend(state)));
 }
 
 describe("仇", () => {

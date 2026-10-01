@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { rectCenterPx } from "../map/grid";
+import { withFixedLayout } from "../map/layout/select";
 import { createGame } from "../core/game";
 import { LOOT_DROP, PICKUP, STASH_CAPACITY } from "../data/tuning";
 import type { GameState } from "../core/state";
@@ -195,7 +196,8 @@ describe("装備ドロップと拾得", () => {
   });
 
   it("部屋を制圧すると制圧の音が鳴る（報酬は深度別の確率）", () => {
-    const state = createGame(11);
+    // seed 11 の旧生成の階は部屋 1 に敵がいる（階の型の地図では部屋 1 が空で最初から制圧済みのことがある）
+    const state = withFixedLayout("legacy", () => createGame(11));
     const room = state.rooms[1]!;
     state.player.body.pos = rectCenterPx(room.rect);
     step(state, withInput({}), FIXED_DT);

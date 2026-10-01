@@ -5,6 +5,7 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { enemyDef } from "../data/enemies";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
+import { withFixedLayout } from "../map/layout/select";
 import { createEnemy } from "./enemies";
 import { withBaseAreaMul } from "./floor";
 
@@ -21,10 +22,11 @@ export function increasedWith(partial: Partial<IncreasedTable>): IncreasedTable 
 
 /**
  * 敵のいない開始部屋に立った状態。クリティカルは切っておく（乱数で数値がぶれないように）。
- * マップは基準の大きさ（面積の倍率 1）で作る（広いマップの生成は重く、形のばらつきで小さな検証が揺れるため）
+ * マップは基準の大きさ（面積の倍率 1）・旧生成器（"legacy"。階の型の抽選で乱数を引かない）で作る
+ * （広いマップの生成は重く、形のばらつきで小さな検証が揺れるため）
  */
 export function arena(seed = 5, stats: Partial<PlayerStats> = {}): GameState {
-  const state = withBaseAreaMul(() => createGame(seed));
+  const state = withFixedLayout("legacy", () => withBaseAreaMul(() => createGame(seed)));
   state.enemies = [];
   state.stats = { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [], increased: createIncreased(), more: [], ...stats };
   state.player.maxHp = state.stats.maxHp;

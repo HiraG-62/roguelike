@@ -4,6 +4,7 @@ import type { Enemy, GameState, HiddenRoom, Merchant, Ware, WareKind } from "../
 import { dist } from "../core/vec";
 import { BOSS, ECONOMY, HIDDEN_ROOM } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
+import { withFixedLayout } from "../map/layout/select";
 import { tileOf } from "../map/pathing";
 import { unownedSkillKeys } from "./blackMarket";
 import { damageEnemy } from "./combat";
@@ -202,7 +203,8 @@ describe("旅商人が襲われる・助ける", () => {
 function withHidden(seed: number, depth = 3): { state: GameState; hr: HiddenRoom } {
   const state = arena(seed);
   state.depth = depth;
-  buildFloor(state, "rooms");
+  // 旧生成の rooms の階（型の抽選で乱数を引くと、買った反転の遺物の中身まで seed から変わる）
+  withFixedLayout("legacy", () => buildFloor(state, "rooms"));
   state.hiddenRoom = null;
   const rng = state.rng;
   state.rng = { ...rng, chance: () => true };
