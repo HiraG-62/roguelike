@@ -3,6 +3,7 @@ import {
   ARM_REACH,
   DEFAULT_STANCE,
   FOREARM,
+  IDLE_PERIOD,
   type RigInput,
   type Stance,
   UPPER_ARM,
@@ -256,6 +257,31 @@ describe("playerRig: 二刀の後ろの手の前後", () => {
     for (const restBlend of [0.2, 0.5, 0.8]) {
       const rig = solveRig({ ...dual, step: 1, swing, restBlend });
       expect(rig.back.behind, `寄せる割合 ${restBlend}`).toBe(true);
+    }
+  });
+});
+
+describe("playerRig: 待機で体の前に構える手（restFront）", () => {
+  const rest: Stance = { ...DEFAULT_STANCE, grip: "dual", body: "light", restDeg: -20, restHand: [7, 5], swayDeg: 5, offHand: [2, 6], offDeg: -10 };
+
+  it("呼吸の揺れで武器の向きが上寄りの境目をまたいでも、前の手は体の前のまま", () => {
+    for (let k = 0; k < 32; k++) {
+      const time = (IDLE_PERIOD * k) / 32;
+      const rig = solveRig({ ...base, stance: { ...rest, restFront: true }, time });
+      expect(rig.front.behind, `時刻 ${time}`).toBe(false);
+    }
+  });
+
+  it("restFront の無い構えは、同じ揺れで上寄りの向きになると今までどおり体の後ろへ回る", () => {
+    const behinds = [0, IDLE_PERIOD * 0.75].map((time) => solveRig({ ...base, stance: rest, time }).front.behind);
+    expect(behinds, "揺れの谷で後ろへ回る").toEqual([false, true]);
+  });
+
+  it("振りから構えへ戻す後半は、寄せた角が境目をまたいでも前の手は体の前", () => {
+    const swing = { frame: 0, flipX: false, flipY: false, angle: -1.4, dx: 0, dy: -10, behind: true } as const;
+    for (const restBlend of [0.5, 0.7, 0.9, 1]) {
+      const rig = solveRig({ ...base, stance: { ...rest, restFront: true }, swing, restBlend, time: IDLE_PERIOD * 0.75 });
+      expect(rig.front.behind, `寄せる割合 ${restBlend}`).toBe(false);
     }
   });
 });

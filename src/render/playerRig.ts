@@ -136,6 +136,11 @@ export interface Stance {
   readonly punch?: boolean;
   /** 二刀の後ろの手を体の前に構える（拳の両拳の構え）。省けば後ろの手は体の後ろ */
   readonly offFront?: boolean;
+  /**
+   * 待機・歩きの主の手を、武器の向きによらず体の前に描く（爪）。待機の向きが上寄りで、呼吸の揺れで境目
+   * （BEHIND_SIN）をまたぐと、手前の手が体の後ろへ出入りして見え隠れするため
+   */
+  readonly restFront?: boolean;
   /** 撃った反動の大きさ（1 = 片手銃。大筒・長銃は大きく、二丁拳銃は小さく）。省けば 1 */
   readonly recoil?: number;
 }
@@ -180,6 +185,7 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(r.braced === true ? { braced: true } : {}),
     ...(r.punch === true ? { punch: true } : {}),
     ...(r.offFront === true ? { offFront: true } : {}),
+    ...(r.restFront === true ? { restFront: true } : {}),
     ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
   };
 }
@@ -360,7 +366,9 @@ export function solveRig(i: RigInput): RigPose {
     const idle: RigInput = { ...i, swing: undefined };
     const swingMain = mainPart(i);
     const restMain = mainPart(idle);
-    const main = blendPart(swingMain, restMain, k);
+    const blended = blendPart(swingMain, restMain, k);
+    // 待機で体の前に構える手は、構え直しの後半（待機の側）に入ったら、寄せた角が境目をまたいでも後ろへ戻さない
+    const main = i.stance.restFront === true && k >= 0.5 ? { ...blended, behind: false } : blended;
     const back = blendPart(backPart(i, swingMain), backPart(idle, restMain), k);
     // 両手持ちの添え手は寄せた主の手から引き直す（柄から離れない）
     return { front: main, back: i.stance.grip === "two" && i.offGrip !== null ? backPart(i, main) : back };
@@ -383,7 +391,7 @@ function restPart(i: RigInput): HeldPart {
   const s = i.stance;
   const angle = s.restDeg * DEG + sway(i.time, s.swayDeg);
   const hand = withinReach({ x: i.shoulderF.x + s.restHand[0], y: i.shoulderF.y + s.restHand[1] }, i.shoulderF);
-  return part(hand, angle, s.restMirror ?? false);
+  return part(hand, angle, s.restMirror ?? false, false, s.restFront === true ? false : undefined);
 }
 
 function mainPart(i: RigInput): HeldPart {
