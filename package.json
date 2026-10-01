@@ -22,7 +22,8 @@
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:build": "node scripts/electron-build.mjs",
     "sync:claude": "node scripts/sync-claude-global.mjs",
-    "map:shot": "node scripts/map-shot.mjs"
+    "map:shot": "node scripts/map-shot.mjs",
+    "hitch:probe": "node scripts/hitch-probe.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
