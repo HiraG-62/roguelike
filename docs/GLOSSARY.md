@@ -425,6 +425,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 
 | 表記 | 内部名 | 意味 | 出典 |
 | --- | --- | --- | --- |
+| 墨淵（ぼくえん）/ BOKUEN | `GAME_NAME` / `APP_DIR_NAME` | ゲーム名（2026-10-01 決定）。題字は墨書きの絵（`data/sprites/titleLogo.ts`）、添えの英字は BOKUEN、Electron のセーブのフォルダも `BOKUEN`。旧名 DEPTHBREAKER は使わない | `src/main.ts`、`electron/main.ts`、`render/titleLogo.ts` |
 | 図鑑 | codex | 見た・起きたものの記録。タブは 敵 / 遺物 / 祝福 / 連携 / 場所（2026-09-24 第 3 弾で「反応」「連鎖」タブを「連携」1 頁へ統合）。未発見は「？？？」と片側だけのヒント（反応なら「燃焼 + ？」） | `meta/codex.ts` |
 | 連携（図鑑タブ・発見） | `LinkKind` / `CodexTab` の `link` | スキルの連携（`ComboKey`）・状態異常の反応（`ReactionKey`）・2 語以上の連鎖の 3 系統をまとめた発見の単位。id は「系統:key」。初めて成立したランの階とシードを記録し、5 / 15 / 30 種の節目で図鑑の頁と称号が開く | `meta/links.ts`、`meta/codex.ts` |
 | 手がかり | - | 祝福 3 択（選択画面）に常時出る、今のビルドで成立し得る未発見の連携を片側伏せた行。「手がかり: 〜」 | `render/boonUi.ts`、`render/chainUi.ts` |

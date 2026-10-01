@@ -147,7 +147,7 @@ GameState
 
 ## 永続化キー（保存先）
 
-保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\DEPTHBREAKER\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
+保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\BOKUEN\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |

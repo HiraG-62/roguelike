@@ -65,7 +65,7 @@ import {
   buildHistoryEntry,
   cancelSeedInput,
   commitSeedInput,
-  computeTitleStats,
+  computeTitleRecord,
   createSeedInputState,
   cycleIndex,
   edgeDir,
@@ -85,6 +85,7 @@ import {
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
+  type MenuHotkeys,
   type PauseMenuItem,
   type ReplaySpeed,
   type SettingsGaugeItem,
@@ -151,7 +152,23 @@ import { drawRackScreen } from "./render/rackUi";
 import type { MovesetKey } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
-import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
+import {
+  type TitleAction,
+  type TitleMenuItem,
+  type TitleRecordTarget,
+  type TitleStart,
+  type TitleStartKind,
+  activateTitleItem,
+  backTitleMenu,
+  beginTitleStart,
+  createTitleMenu,
+  moveTitleCursor,
+  pointTitleItem,
+  stepTitleStart,
+  titleItemAt,
+  titleMenuHotkey,
+} from "./ui/title";
+import type { TitleView } from "./render/titleUi";
 import { type HallOutcome, type HallRun, createHallRun, hallOutcome, stepHall } from "./system/bossHall";
 import { addHallResult, hallRecordOf } from "./meta/hubStore";
 import { HALL_LIST_HINT, HALL_TITLE, hallFightHint, hallKeyOfEntry, hallResultHint, hallResultLines, hallTabs } from "./ui/bossHall";
@@ -162,7 +179,9 @@ if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not 
 /** 明示的に型を確定した参照。関数宣言の中から参照すると const の絞り込みが引き継がれないため */
 const canvas: HTMLCanvasElement = canvasEl;
 
-const GAME_NAME = "DEPTHBREAKER";
+/** 窓のタイトルや読み上げ用の名前（タイトル画面の題字は絵で持つ） */
+const GAME_NAME = "墨淵";
+canvas.setAttribute("aria-label", GAME_NAME);
 const SEED_PARAM = "seed";
 /** 死亡演出が出そろうまでリスタート入力を受け付けない */
 const DEATH_INPUT_DELAY = 0.6;
@@ -329,6 +348,9 @@ const seedInput = createSeedInputState(initialSeedText());
 let committedSeedText = seedInput.text;
 
 let titleTime = 0;
+/** タイトルのメニューのカーソルと、開始の演出（旅人が門へ歩く 2.4 秒）の経過。演出中は null でない */
+const titleMenu = createTitleMenu();
+let titleStart: TitleStart | null = null;
 let pauseCursor = 0;
 let settingsCursor = 0;
 /** キー設定画面の選択行（KEYBINDS_ROWS の index）・列（主 / 副 / 予備）・スクロール・取得モード */
@@ -1223,10 +1245,126 @@ function drawKeybindsOverlay(ctx: CanvasRenderingContext2D): void {
   );
 }
 
-/** タイトルに出す称号と、マウスが乗っているメニュー項目 */
-function titleMetaView(): { title: string | null; hovered: TitleMenuItem | null } {
-  const aim = lastAim;
-  return { title: currentTitleLabel(achievementSave, questSave), hovered: aim ? titleMenuItemAt(aim.x, aim.y) : null };
+/** タイトルの描画に渡すもの（称号・前回の記録・メニューのカーソル・開始の演出） */
+function titleView(): TitleView {
+  return {
+    menu: titleMenu,
+    record: computeTitleRecord(profile),
+    title: currentTitleLabel(achievementSave, questSave),
+    dailySeed: dailySeedText(new Date()),
+    start: titleStart,
+  };
+}
+
+/** 開始の演出が終わったら、拠点かデイリーの起点画面へ進む */
+function finishTitleStart(kind: TitleStartKind, frame: FrameInput): void {
+  titleStart = null;
+  menuReturn = "title";
+  if (kind === "hub") {
+    openHub();
+    return;
+  }
+  openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
+}
+
+function beginTitleRun(kind: TitleStartKind): void {
+  sfx.play("uiClick");
+  titleStart = beginTitleStart(kind);
+}
+
+function openTitleSettings(frame: FrameInput): void {
+  sfx.play("uiClick");
+  returnScreen = "title";
+  settingsCursor = 0;
+  enterMenu("settings", frame.move.x, frame.move.y);
+}
+
+function openTitleRecord(target: TitleRecordTarget, frame: FrameInput): void {
+  sfx.play("uiClick");
+  menuReturn = "title";
+  if (target === "history") {
+    openHistory();
+    return;
+  }
+  openListScreen(TITLE_MENU_SCREEN[target], frame.move.x, frame.move.y);
+}
+
+function runTitleAction(action: TitleAction, frame: FrameInput): void {
+  switch (action.kind) {
+    case "start":
+      beginTitleRun(action.start);
+      return;
+    case "settings":
+      openTitleSettings(frame);
+      return;
+    case "open":
+      openTitleRecord(action.target, frame);
+      return;
+    case "none":
+      // 記録を開く / 戻る は階層の移動だけ
+      sfx.play("uiClick");
+      return;
+  }
+}
+
+/** タイトルの 1 フレーム: 演出中は進めるだけ。通常は ホットキー → カーソル（↑↓・パッド・マウスのなぞり）→ 決定 */
+function updateTitleFrame(frame: FrameInput, hotkeys: MenuHotkeys, dt: number): void {
+  titleTime += dt;
+  if (titleStart) {
+    const skip = frame.confirmPressed || frame.clickPressed;
+    if (stepTitleStart(titleStart, dt, skip)) finishTitleStart(titleStart.kind, frame);
+    return;
+  }
+  if (seedInput.active) {
+    if (frame.confirmPressed) {
+      committedSeedText = commitSeedInput(seedInput, committedSeedText);
+      syncSeedUrl(committedSeedText);
+    } else if (hotkeys.escape) {
+      cancelSeedInput(seedInput, committedSeedText);
+    }
+    return;
+  }
+  if (hotkeys.n) {
+    sfx.play("uiClick");
+    startSeedInput(seedInput);
+    return;
+  }
+  if (hotkeys.h) {
+    openTitleRecord("history", frame);
+    return;
+  }
+  if (hotkeys.d) {
+    beginTitleRun("daily");
+    return;
+  }
+  if (hotkeys.o) {
+    openTitleSettings(frame);
+    return;
+  }
+  const hotRecord = titleMenuHotkey(hotkeys);
+  if (hotRecord) {
+    openTitleRecord(hotRecord, frame);
+    return;
+  }
+
+  // マウスが実際に動いた時だけ、乗った行へカーソルを移す（キーボード操作を上書きしないため）
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  menuAimPrev = aim;
+  const hovered = aim ? titleItemAt(aim.x, aim.y, titleMenu.level) : null;
+  if (aimMoved && hovered !== null && pointTitleItem(titleMenu, hovered)) sfx.play("menuMove");
+  const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevY = frame.move.y;
+  if (moveTitleCursor(titleMenu, navY)) sfx.play("menuMove");
+  if (hotkeys.escape && backTitleMenu(titleMenu)) {
+    sfx.play("uiClose");
+    return;
+  }
+  // ボタンの外のクリックでは何も起きない（誤クリックで画面が変わらない）
+  const clicked = frame.clickPressed && hovered !== null;
+  if (clicked && hovered !== null) pointTitleItem(titleMenu, hovered);
+  if (!frame.confirmPressed && !clicked) return;
+  runTitleAction(activateTitleItem(titleMenu), frame);
 }
 
 /** 依頼の達成音（8-10）はラン中に達成へ届いた瞬間に 1 回だけ。判定は meta/quests.ts を読むだけ */
@@ -1350,52 +1488,7 @@ startLoop(
 
     switch (screen) {
       case "title": {
-        titleTime += dt;
-        if (seedInput.active) {
-          if (frame.confirmPressed) {
-            committedSeedText = commitSeedInput(seedInput, committedSeedText);
-            syncSeedUrl(committedSeedText);
-          } else if (hotkeys.escape) {
-            cancelSeedInput(seedInput, committedSeedText);
-          }
-          break;
-        }
-        if (hotkeys.n) {
-          sfx.play("uiClick");
-          startSeedInput(seedInput);
-          break;
-        }
-        if (hotkeys.h) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openHistory();
-          break;
-        }
-        if (hotkeys.d) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
-          break;
-        }
-        if (hotkeys.o) {
-          sfx.play("uiClick");
-          returnScreen = "title";
-          settingsCursor = 0;
-          enterMenu("settings", frame.move.x, frame.move.y);
-          break;
-        }
-        const clickedMenu = frame.clickPressed && frame.aimScreen ? titleMenuItemAt(frame.aimScreen.x, frame.aimScreen.y) : null;
-        const menuItem = titleMenuHotkey(hotkeys) ?? clickedMenu;
-        if (menuItem) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openListScreen(TITLE_MENU_SCREEN[menuItem], frame.move.x, frame.move.y);
-          break;
-        }
-        if (frame.confirmPressed || frame.clickPressed) {
-          sfx.play("uiClick");
-          openHub();
-        }
+        updateTitleFrame(frame, hotkeys, dt);
         break;
       }
 
@@ -1850,7 +1943,7 @@ startLoop(
     updateCursorVisibility(state);
 
     if (screen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -1920,7 +2013,7 @@ startLoop(
       return;
     }
     if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
       else drawKeybindsOverlay(ctx);
       drawGamepadConnectedHint(ctx);
@@ -1946,7 +2039,7 @@ startLoop(
 
     const cur = state;
     if (!cur) {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       drawGamepadConnectedHint(ctx);
       return;
     }

@@ -2,9 +2,20 @@
  * タイトル・ポーズ・設定・履歴・死亡サマリーの描画。ロジックは src/ui/title.ts。
  * 文字は pixelText.ts のドット風描画（TEXT のサイズ段階）、配色は renderer.ts の作法（#e0e0 系）に合わせる。
  */
-import { VIEW_H, VIEW_W } from "../core/view";
+import { RENDER_SCALE, VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
-import type { ReplayAvailability, RunItemSummary, SeedInputState, TitleStats } from "../ui/title";
+import type {
+  ReplayAvailability,
+  RunItemSummary,
+  SeedInputState,
+  TitleMainItem,
+  TitleMenuLevel,
+  TitleMenuState,
+  TitleRecord,
+  TitleRecordItem,
+  TitleStart,
+  TitleStartView,
+} from "../ui/title";
 import {
   KEYBINDS_ROWS,
   PADBINDS_ROWS,
@@ -16,9 +27,15 @@ import {
   isDailyEntry,
   isSettingsGaugeItem,
   keybindsLayout,
-  TITLE_MENU_ITEMS,
-  titleMenuRects,
-  type TitleMenuItem,
+  TITLE_CHAPTER_NAMES,
+  TITLE_MAIN_ITEMS,
+  TITLE_MENU_FIRST_Y,
+  TITLE_MENU_PANEL,
+  TITLE_MENU_TEXT_X,
+  titleItemTextY,
+  titleMenuGap,
+  titleMenuItems,
+  titleStartView,
   pauseMenuLayout,
   settingsGaugeRect,
   settingsLayout,
@@ -28,27 +45,24 @@ import {
   type SettingsGaugeItem,
 } from "../ui/title";
 import { HITSTOP_SCALE_MAX, type Settings } from "../ui/settings";
-import { actionKeyLabel, formatBindingCode, keyLabel, moveKeyLabel, type Keybinds, type RebindableAction } from "../core/input";
+import { actionKeyLabel, formatBindingCode, type Keybinds, type RebindableAction } from "../core/input";
 import { PAD_ACTIONS, formatPadCode, type PadAction, type PadBinds } from "../core/padBinds";
-import { TEXT, drawText, drawTextShadow, textLineHeight, truncateText } from "./pixelText";
+import { TEXT, drawText, textLineHeight, textWidth, truncateText, wrapText } from "./pixelText";
+import { drawTitleLogo } from "./titleLogo";
+import { TITLE_DEFAULT_TINT, drawFlame, drawTitleScene } from "./titleScene";
+import { Pen } from "./titlePaint";
 import { APP_VERSION } from "../version";
 import { hurtLabel } from "../meta/deathReport";
 
 const COLOR_BG = "#08080c";
 const COLOR_TITLE = "#ffd75f";
-const COLOR_TITLE_SHADOW = "#3a1a08";
-const TITLE_Y = 80;
-const TITLE_SHADOW_OFFSET = 2;
 const COLOR_TEXT = "#e0e0e0";
 const COLOR_DIM = "#808080";
 const COLOR_VERSION = "#808080";
 /** 画面端からの余白（右下の操作一覧） */
 const SCREEN_MARGIN = 8;
-/** 画面端からバージョン表示までの余白 */
-const VERSION_MARGIN = 6;
 /** ポーズパネル下端からバージョン表示のベースラインまで */
 const PAUSE_VERSION_GAP = 14;
-const COLOR_ACCENT = "#6a8cff";
 const COLOR_CURSOR = "#ffffff";
 const COLOR_OVERLAY = "rgba(0,0,0,0.65)";
 const COLOR_PANEL_BG = "rgba(12,12,18,0.94)";
@@ -58,9 +72,6 @@ const COLOR_DAILY_BEST = "#ffd75f";
 const COLOR_REPLAY = "#ff6a6a";
 const COLOR_CURSOR_BG = "rgba(106,140,255,0.22)";
 
-/** PRESS ENTER の点滅周期（秒） */
-const BLINK_PERIOD_SECONDS = 1.0;
-const PARTICLE_COUNT = 36;
 const LINE_H = 9;
 
 const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
@@ -133,229 +144,273 @@ function fillBg(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }
 
-/** タイトル背景: 奥の霞・ダンジョンのシルエット・漂う粒子 */
-const SKY_TOP = "#0c0a16";
-const SKY_GLOW = "rgba(120,70,160,0.35)";
-const SKY_GLOW_Y_RATIO = 0.62;
-const SKY_GLOW_R_RATIO = 0.55;
-const SILHOUETTE_FAR = "#15121f";
-const SILHOUETTE_NEAR = "#07060b";
-const WINDOW_COLOR = "#ffb050";
-const WINDOW_ALPHA = 0.55;
-/** 遠景・近景のシルエットの基準高さ（画面下端から） */
-const FAR_BASE_H = 70;
-const NEAR_BASE_H = 38;
-/** 塔の幅・間隔（px） */
-const TOWER_STEP_FAR = 22;
-const TOWER_STEP_NEAR = 34;
-const TOWER_W_FAR = 14;
-const TOWER_W_NEAR = 20;
-const TOWER_EXTRA_FAR = 60;
-const TOWER_EXTRA_NEAR = 44;
-const MERLON_W = 3;
-const ARCH_R = 6;
-const WINDOW_W = 2;
-const WINDOW_H = 3;
-/** 窓を灯す確率（ハッシュ値 0..1 に対する閾値） */
-const WINDOW_CHANCE = 0.35;
-/** 粒子（ゆっくり昇る残り火） */
-const EMBER_COLOR = "255,190,120";
-const EMBER_ALPHA_MAX = 0.35;
-const EMBER_RISE_MIN = 3;
-const EMBER_RISE_STEP = 1.7;
-const EMBER_SWAY = 6;
-const EMBER_SWAY_SPEED = 0.7;
-const DUST_COLOR = "rgba(255,255,255,0.10)";
-const HASH_MUL_A = 0x27d4eb2d;
-const HASH_MUL_B = 0x85ebca6b;
-const HASH_DENOM = 0x100000000;
+// ---------------------------------------------------------------------------
+// タイトル画面（案 A「門」）。絵は render/titleScene.ts と titleLogo.ts、ここは UI（メニュー・石碑・シード・案内）と
+// 開始の演出（寄りと暗転）をまとめる。論理座標 480x270。動きは表示用の時間 time だけで、state.rng は使わない
+// ---------------------------------------------------------------------------
 
-let titleBackdrop: HTMLCanvasElement | null = null;
+/** 添えの英字（題字は絵で、窓のタイトルなどの文字列は main.ts の GAME_NAME） */
+const TITLE_LATIN_NAME = "BOKUEN";
+const TITLE_INK = "#14121a";
+const TITLE_TX = "#e8e2d4";
+const TITLE_SUB = "#9a948a";
+const TITLE_DIM = "#5c5852";
+const TITLE_GOLD = "#c8a050";
+const TITLE_GOLD_LO = "#7a5a28";
+const TITLE_SHU = "#c83a2a";
+const TITLE_FOCUS = "#fff4d0";
+const MENU_PANEL_BG = "#060508";
+const MENU_PANEL_ALPHA = 0.7;
+const MENU_SELECT_BG = "#2a1a14";
+const MENU_SELECT_ALPHA = 0.55;
+const MENU_TEXT_W = 96;
+const MENU_FLAME_X = 12;
+const MENU_FLAME_Y = 9;
+const MENU_HEAD_Y = 13;
+const MENU_HEAD_X = 2;
+const MENU_ROW_PAD = 1;
+const MENU_HOTKEY_INSET = 8;
+const MENU_DESC_X = 22;
+const MENU_DESC_Y = 202;
+const MENU_DESC_W = 106;
+const MENU_DESC_LINES = 2;
+const MENU_DESC_LINE_H = 10;
+/** 題字・添え・称号の位置 */
+const LOGO_TOP = 12;
+const SUB_GAP = 5;
+const SUB_LETTER_GAP = 2;
+const HONOR_Y = 63;
+const HONOR_ALPHA = 0.85;
+/** 石碑（前回と最深）の外枠と内側の文字の位置 */
+const STONE = { x: 356, y: 132, w: 108, h: 82 };
+const STONE_TEXT_X = 366;
+const STONE_TEXT_W = 90;
+const STONE_LINE_H = 12;
+const STONE_FIRST_Y = 141;
+const STONE_RULE_Y = 181;
+const STONE_BEST_Y = 186;
+const STONE_RUNS_Y = 197;
+const FIRST_RUN_X = 460;
+const FIRST_RUN_Y = 190;
+/** 下の帯: シード（左）・操作の案内（中央）・版（右）の y と左右の余白 */
+const FOOT_Y = 254;
+const FOOT_MARGIN_X = 16;
+const FOOT_VERSION_X = 466;
+const SEED_TEXT_W = 90;
+const SEED_GAP = 6;
+const SEED_CURSOR_PERIOD = 2;
+/** 開始の演出で寄る先（門の奥）と、メニューの文章 */
+const ZOOM_FOCUS_X = 240;
+const ZOOM_FOCUS_Y = 150;
 
-/** 決定的な 0..1 の擬似乱数（描画専用。ゲーム rng は使わない） */
-function hash01(i: number, salt: number): number {
-  let h = Math.imul(i + salt * 97, HASH_MUL_A);
-  h = Math.imul(h ^ (h >>> 15), HASH_MUL_B);
-  h ^= h >>> 13;
-  return (h >>> 0) / HASH_DENOM;
-}
+/** 奥の灯の色（章 1〜4・最深の間の順。TITLE_CHAPTER_NAMES と同じ添字） */
+const CHAPTER_TINTS: readonly string[] = ["#c8e878", "#ffb45a", "#ff7a2a", "#b27cff", "#f0ece0"];
 
-/** 城壁と塔の稜線。塔の頂上は胸壁、根元はアーチで抜く */
-function drawSkyline(
-  ctx: CanvasRenderingContext2D,
-  color: string,
-  baseH: number,
-  step: number,
-  towerW: number,
-  extra: number,
-  salt: number,
-  windows: boolean,
-): void {
-  const baseY = VIEW_H - baseH;
-  ctx.fillStyle = color;
-  ctx.fillRect(0, baseY, VIEW_W, baseH);
-  for (let x = 0, i = 0; x < VIEW_W + step; x += step, i++) {
-    const h = Math.round(hash01(i, salt) * extra);
-    const w = towerW + Math.round(hash01(i, salt + 1) * towerW * 0.5);
-    const top = baseY - h;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, top, w, h + 1);
-    for (let mx = x; mx < x + w; mx += MERLON_W * 2) ctx.fillRect(mx, top - MERLON_W, MERLON_W, MERLON_W);
-    if (!windows) continue;
-    if (hash01(i, salt + 2) < WINDOW_CHANCE && h > WINDOW_H * 4) {
-      ctx.fillStyle = WINDOW_COLOR;
-      ctx.globalAlpha = WINDOW_ALPHA;
-      ctx.fillRect(x + Math.floor(w / 2) - 1, top + WINDOW_H * 2, WINDOW_W, WINDOW_H);
-      ctx.globalAlpha = 1;
-    }
-  }
-  // 近景の城壁にはアーチの抜き
-  if (!windows) return;
-  ctx.globalCompositeOperation = "destination-out";
-  for (let x = step / 2; x < VIEW_W; x += step) {
-    ctx.beginPath();
-    ctx.arc(x, VIEW_H - ARCH_R, ARCH_R, Math.PI, 0);
-    ctx.rect(x - ARCH_R, VIEW_H - ARCH_R, ARCH_R * 2, ARCH_R);
-    ctx.fill();
-  }
-  ctx.globalCompositeOperation = "source-over";
-}
-
-/** 背景は一度だけ描いてキャッシュする（毎フレームのグラデーション生成を避ける） */
-function backdrop(): HTMLCanvasElement {
-  if (titleBackdrop) return titleBackdrop;
-  const canvas = document.createElement("canvas");
-  canvas.width = VIEW_W;
-  canvas.height = VIEW_H;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("2D context unavailable");
-  const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-  sky.addColorStop(0, COLOR_BG);
-  sky.addColorStop(1, SKY_TOP);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  const gy = VIEW_H * SKY_GLOW_Y_RATIO;
-  const glow = ctx.createRadialGradient(VIEW_W / 2, gy, 0, VIEW_W / 2, gy, VIEW_W * SKY_GLOW_R_RATIO);
-  glow.addColorStop(0, SKY_GLOW);
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  drawSkyline(ctx, SILHOUETTE_FAR, FAR_BASE_H, TOWER_STEP_FAR, TOWER_W_FAR, TOWER_EXTRA_FAR, 1, false);
-  drawSkyline(ctx, SILHOUETTE_NEAR, NEAR_BASE_H, TOWER_STEP_NEAR, TOWER_W_NEAR, TOWER_EXTRA_NEAR, 7, true);
-  titleBackdrop = canvas;
-  return canvas;
-}
-
-/** 時間だけを種にした粒子: 横に流れる塵 + ゆっくり昇る残り火。乱数は使わない */
-function drawParticles(ctx: CanvasRenderingContext2D, time: number): void {
-  ctx.fillStyle = DUST_COLOR;
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const speed = 4 + (i % 5) * 2.5;
-    const laneY = (i * 41) % VIEW_H;
-    const x = ((i * 53 + time * speed * 12) % (VIEW_W + 20)) - 10;
-    const size = 1 + (i % 3);
-    ctx.fillRect(x, laneY, size, size);
-  }
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const rise = EMBER_RISE_MIN + (i % 4) * EMBER_RISE_STEP;
-    const y = VIEW_H - ((hash01(i, 3) * VIEW_H + time * rise) % VIEW_H);
-    const x = hash01(i, 4) * VIEW_W + Math.sin(time * EMBER_SWAY_SPEED + i) * EMBER_SWAY;
-    // 上に行くほど消える
-    const alpha = EMBER_ALPHA_MAX * (y / VIEW_H);
-    ctx.fillStyle = `rgba(${EMBER_COLOR},${alpha.toFixed(3)})`;
-    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
-  }
-}
-
-/** タイトルに重ねるメタ進行の表示 */
-export interface TitleMetaView {
-  /** 名乗っている称号（無ければ null） */
-  title: string | null;
-  /** マウスが乗っているメニュー項目 */
-  hovered: TitleMenuItem | null;
-}
-
-const TITLE_LABEL_Y = 96;
-const COLOR_MENU_BG = "rgba(12,12,18,0.85)";
-const COLOR_MENU_HOVER = "rgba(106,140,255,0.35)";
-
-const TITLE_MENU_LABEL: Readonly<Record<TitleMenuItem, string>> = {
-  codex: "C 図鑑",
-  quests: "Q 依頼",
-  achievements: "A 実績",
-  tips: "T Tips",
+const TITLE_ITEM_LABEL: Readonly<Record<TitleMainItem | TitleRecordItem, string>> = {
+  hub: "拠点へ",
+  daily: "デイリー",
+  records: "記録",
+  settings: "設定",
+  history: "探索履歴",
+  codex: "図鑑",
+  quests: "依頼",
+  achievements: "実績",
+  tips: "Tips ノート",
+  back: "戻る",
 };
 
-/** 図鑑・依頼・実績のボタン（当たり判定は ui/title.ts の titleMenuRects と同じ矩形） */
-function drawTitleMenu(ctx: CanvasRenderingContext2D, hovered: TitleMenuItem | null): void {
-  const rects = titleMenuRects();
-  TITLE_MENU_ITEMS.forEach((item, i) => {
-    const r = rects[i];
-    if (!r) return;
-    const hot = item === hovered;
-    ctx.fillStyle = hot ? COLOR_MENU_HOVER : COLOR_MENU_BG;
-    ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.strokeStyle = hot ? COLOR_TITLE : COLOR_BORDER;
-    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-    drawText(ctx, TITLE_MENU_LABEL[item], r.x + r.w / 2, r.y + r.h / 2, TEXT.SMALL, hot ? COLOR_CURSOR : COLOR_TEXT, "center", "middle");
+/** 記録の下の各項目のホットキー表記（メニューキーは固定で、キー設定の対象ではない） */
+const TITLE_ITEM_HOTKEY: Readonly<Partial<Record<TitleRecordItem, string>>> = {
+  history: "H",
+  codex: "C",
+  quests: "Q",
+  achievements: "A",
+  tips: "T",
+  back: "Esc",
+};
+
+const TITLE_MAIN_DESC: Readonly<Record<TitleMainItem, (dailySeed: string) => string>> = {
+  hub: () => "装備を整えて、井戸から出立",
+  daily: (seed) => `今日のシード ${seed}（誰でも同じ地図）`,
+  records: () => "探索履歴・図鑑・依頼・実績・Tips ノート",
+  settings: () => "音・画面揺れ・キー・パッド",
+};
+
+const TITLE_FIRST_RUN_TEXT = "はじめての探索";
+const TITLE_HINT_MAIN = "↑↓ 選ぶ　Enter 決定";
+const TITLE_HINT_RECORDS = "↑↓ 選ぶ　Enter 決定　Esc 戻る";
+
+/** タイトルの描画に要るもの（ロジックは ui/title.ts、main.ts が毎フレーム組む） */
+export interface TitleView {
+  menu: TitleMenuState;
+  record: TitleRecord;
+  /** 名乗っている称号（無ければ null） */
+  title: string | null;
+  /** 今日のシード（デイリーの説明に出す） */
+  dailySeed: string;
+  /** 開始の演出中なら、その経過 */
+  start: TitleStart | null;
+}
+
+let zoomBuffer: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+
+/** 寄りの演出用の裏画面（寄るときだけ作る。論理座標を RENDER_SCALE 倍で持つ） */
+function zoomSurface(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+  if (zoomBuffer) return zoomBuffer;
+  const canvas = document.createElement("canvas");
+  canvas.width = VIEW_W * RENDER_SCALE;
+  canvas.height = VIEW_H * RENDER_SCALE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D context unavailable");
+  zoomBuffer = { canvas, ctx };
+  return zoomBuffer;
+}
+
+function chapterTint(record: TitleRecord): string {
+  if (!record.last) return TITLE_DEFAULT_TINT;
+  return CHAPTER_TINTS[record.last.chapter] ?? TITLE_DEFAULT_TINT;
+}
+
+function drawLetterSpaced(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, gap: number, color: string): void {
+  const chars = [...text];
+  const widths = chars.map((ch) => textWidth(ch, TEXT.SMALL));
+  const total = widths.reduce((a, b) => a + b, 0) + gap * (chars.length - 1);
+  let x = cx - total / 2;
+  chars.forEach((ch, i) => {
+    drawText(ctx, ch, x, y, TEXT.SMALL, color, "left", "top");
+    x += (widths[i] ?? 0) + gap;
   });
 }
 
-export function drawTitle(
-  ctx: CanvasRenderingContext2D,
-  time: number,
-  gameName: string,
-  seedInput: SeedInputState,
-  stats: TitleStats,
-  meta: TitleMetaView = { title: null, hovered: null },
-): void {
-  ctx.drawImage(backdrop(), 0, 0);
-  drawParticles(ctx, time);
+/** 題字と添えの英字（BOKUEN）と称号 */
+function drawLogoBlock(ctx: CanvasRenderingContext2D, time: number, title: string | null): void {
+  const box = drawTitleLogo(ctx, VIEW_W / 2, LOGO_TOP, time);
+  drawLetterSpaced(ctx, TITLE_LATIN_NAME, VIEW_W / 2, box.y + box.h + SUB_GAP, SUB_LETTER_GAP, TITLE_GOLD);
+  if (title === null) return;
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = prev * HONOR_ALPHA;
+  drawText(ctx, `称号「${title}」`, VIEW_W / 2, HONOR_Y, TEXT.SMALL, TITLE_SUB, "center", "top");
+  ctx.globalAlpha = prev;
+}
 
-  drawTextShadow(ctx, gameName, VIEW_W / 2, TITLE_Y, TEXT.BIG, COLOR_TITLE, COLOR_TITLE_SHADOW, "center", TITLE_SHADOW_OFFSET);
-
-  const blinkOn = Math.sin((time / BLINK_PERIOD_SECONDS) * Math.PI * 2) > 0;
-  if (blinkOn) drawText(ctx, "Enter で拠点へ", VIEW_W / 2, 112, TEXT.BODY, COLOR_TEXT, "center");
-
-  const seedColor = seedInput.active ? COLOR_ACCENT : COLOR_DIM;
-  // URL の ?seed= は常に同期しているので、アドレスバーをコピーすればシードを共有できる
-  const seedLabel = seedInput.active
-    ? `シード: ${seedInput.text}_`
-    : `シード: ${seedInput.text}  (N: 編集 / URL で共有)`;
-  drawText(ctx, seedLabel, VIEW_W / 2, 132, TEXT.SMALL, seedColor, "center");
-  if (meta.title !== null) drawText(ctx, `称号「${meta.title}」`, VIEW_W / 2, TITLE_LABEL_Y, TEXT.SMALL, COLOR_TITLE, "center");
-  drawTitleMenu(ctx, meta.hovered);
-
-  // 右下: 操作一覧
-  const controls = [
-    "Enter / クリック: 拠点へ   D: デイリーシード",
-    "N: シード編集   H: 履歴   O: 設定",
-    "C: 図鑑   Q: 依頼   A: 実績   T: Tips ノート",
-    `${moveKeyLabel()}: 移動、${keyLabel("dash", { first: true })}: ダッシュ`,
-    `${keyLabel("attack")}: 攻撃 1、${keyLabel("shoot")}: 攻撃 2、${keyLabel("special")}: 奥義`,
-  ];
-  const lineH = Math.max(LINE_H, textLineHeight(TEXT.SMALL));
-  // 右下の隅にバージョン表示、その上に操作一覧
-  drawVersion(ctx, VIEW_W - VERSION_MARGIN, VIEW_H - VERSION_MARGIN, "right");
-  let cy = VIEW_H - SCREEN_MARGIN - controls.length * lineH;
-  for (const line of controls) {
-    drawText(ctx, line, VIEW_W - 8, cy, TEXT.SMALL, COLOR_DIM, "right");
-    cy += lineH;
+/** 縦のメニュー（左の帯）。カーソルは小さな炎 */
+function drawTitleMenu(ctx: CanvasRenderingContext2D, time: number, menu: TitleMenuState, dailySeed: string): void {
+  const pen = new Pen(ctx);
+  const baseAlpha = ctx.globalAlpha;
+  const panel = TITLE_MENU_PANEL;
+  ctx.globalAlpha = baseAlpha * MENU_PANEL_ALPHA;
+  pen.rect(panel.x, panel.y, panel.w, panel.h, MENU_PANEL_BG);
+  ctx.globalAlpha = baseAlpha;
+  pen.rect(panel.x, panel.y, 1, panel.h, TITLE_GOLD_LO);
+  const gap = titleMenuGap(menu.level);
+  if (menu.level === "records") {
+    drawText(ctx, TITLE_ITEM_LABEL.records, TITLE_MENU_TEXT_X - MENU_HEAD_X, TITLE_MENU_FIRST_Y - MENU_HEAD_Y, TEXT.SMALL, TITLE_GOLD, "left", "top");
   }
+  titleMenuItems(menu.level).forEach((item, i) => {
+    const selected = i === menu.index;
+    const y = titleItemTextY(menu.level, i);
+    if (selected) {
+      ctx.globalAlpha = baseAlpha * MENU_SELECT_ALPHA;
+      pen.rect(TITLE_MENU_TEXT_X - 6, y - MENU_ROW_PAD, MENU_TEXT_W, gap - 2, MENU_SELECT_BG);
+      ctx.globalAlpha = baseAlpha;
+      pen.rect(TITLE_MENU_TEXT_X - 6, y - MENU_ROW_PAD, 1, gap - 2, TITLE_SHU);
+      drawFlame(pen, time, TITLE_MENU_TEXT_X - MENU_FLAME_X, y + MENU_FLAME_Y, 0);
+    }
+    drawText(ctx, TITLE_ITEM_LABEL[item], TITLE_MENU_TEXT_X, y, TEXT.SMALL, selected ? TITLE_FOCUS : TITLE_SUB, "left", "top");
+    const hotkey = menu.level === "records" ? TITLE_ITEM_HOTKEY[item as TitleRecordItem] : undefined;
+    if (hotkey) drawText(ctx, hotkey, TITLE_MENU_TEXT_X + MENU_TEXT_W - MENU_HOTKEY_INSET, y, TEXT.SMALL, TITLE_DIM, "right", "top");
+  });
+  if (menu.level === "records") return;
+  const current = TITLE_MAIN_ITEMS[menu.index];
+  if (!current) return;
+  const lineH = Math.max(MENU_DESC_LINE_H, textLineHeight(TEXT.SMALL));
+  wrapText(TITLE_MAIN_DESC[current](dailySeed), MENU_DESC_W, TEXT.SMALL)
+    .slice(0, MENU_DESC_LINES)
+    .forEach((line, i) => drawText(ctx, line, MENU_DESC_X, MENU_DESC_Y + i * lineH, TEXT.SMALL, TITLE_DIM, "left", "top"));
+}
 
-  // 左下: 統計
-  const statLines = [
-    `挑戦回数: ${stats.runs}`,
-    `最深到達: ${stats.bestDepth}`,
-    `最高スコア: ${stats.bestScore}`,
-    `総撃破: ${stats.totalKills}`,
-    `倉庫: ${stats.stashCount}`,
-  ];
-  let sy = VIEW_H - 8 - (statLines.length - 1) * lineH;
-  for (const line of statLines) {
-    drawText(ctx, line, 8, sy, TEXT.SMALL, COLOR_TEXT);
-    sy += lineH;
+/** 石碑: 前回（階・章・終わり方）と最深・探索の回数。記録が無ければ「はじめての探索」 */
+function drawTitleStone(ctx: CanvasRenderingContext2D, record: TitleRecord, lit: boolean): void {
+  if (!record.last && record.runs === 0) {
+    drawText(ctx, TITLE_FIRST_RUN_TEXT, FIRST_RUN_X, FIRST_RUN_Y, TEXT.SMALL, TITLE_SUB, "right", "top");
+    return;
   }
+  const pen = new Pen(ctx);
+  pen.rect(STONE.x, STONE.y, STONE.w, STONE.h, TITLE_INK);
+  pen.rect(STONE.x + 1, STONE.y + 1, STONE.w - 2, STONE.h - 2, "#1c1a22");
+  pen.rect(STONE.x + 1, STONE.y + 1, STONE.w - 2, 1, "#3a3644");
+  pen.rect(STONE.x + 3, STONE.y + 3, STONE.w - 6, STONE.h - 6, lit ? TITLE_GOLD : TITLE_GOLD_LO);
+  pen.rect(STONE.x + 4, STONE.y + 4, STONE.w - 8, STONE.h - 8, "#16141c");
+  const line = (text: string, y: number, color: string): void => {
+    drawText(ctx, truncateText(text, STONE_TEXT_W, TEXT.SMALL), STONE_TEXT_X, y, TEXT.SMALL, color, "left", "top");
+  };
+  const rowH = Math.max(STONE_LINE_H, textLineHeight(TEXT.SMALL));
+  if (record.last) {
+    const { depth, chapter, outcome } = record.last;
+    line("前回", STONE_FIRST_Y, TITLE_DIM);
+    line(`地下 ${depth} 階　${TITLE_CHAPTER_NAMES[chapter] ?? ""}`, STONE_FIRST_Y + rowH, TITLE_TX);
+    line(outcome, STONE_FIRST_Y + rowH * 2, TITLE_SUB);
+    pen.rect(STONE_TEXT_X, STONE_RULE_Y, STONE_TEXT_W - 2, 1, "#2a2630");
+  }
+  line(`最深　地下 ${record.bestDepth} 階`, STONE_BEST_Y, TITLE_GOLD);
+  line(`探索 ${record.runs} 回`, STONE_RUNS_Y, TITLE_DIM);
+}
+
+/** 下の帯: シード（編集中は入力欄）・操作の案内・版 */
+function drawTitleFoot(ctx: CanvasRenderingContext2D, time: number, seedInput: SeedInputState, level: TitleMenuLevel): void {
+  if (seedInput.active) {
+    const cursor = Math.floor(time * SEED_CURSOR_PERIOD) % 2 ? "_" : " ";
+    const w = drawTextWidth(ctx, `シード ${seedInput.text}${cursor}`, FOOT_MARGIN_X, TITLE_FOCUS);
+    drawText(ctx, "Enter 確定　Esc 取消", FOOT_MARGIN_X + w + SEED_GAP, FOOT_Y, TEXT.SMALL, TITLE_DIM, "left", "top");
+  } else {
+    const w = drawTextWidth(ctx, `シード ${truncateText(seedInput.text, SEED_TEXT_W, TEXT.SMALL)}`, FOOT_MARGIN_X, TITLE_SUB);
+    drawText(ctx, "N 編集", FOOT_MARGIN_X + w + SEED_GAP, FOOT_Y, TEXT.SMALL, TITLE_DIM, "left", "top");
+    drawText(ctx, level === "records" ? TITLE_HINT_RECORDS : TITLE_HINT_MAIN, VIEW_W / 2, FOOT_Y, TEXT.SMALL, TITLE_DIM, "center", "top");
+  }
+  drawText(ctx, APP_VERSION, FOOT_VERSION_X, FOOT_Y, TEXT.SMALL, TITLE_DIM, "right", "top");
+}
+
+/** 左寄せで描いて幅を返す */
+function drawTextWidth(ctx: CanvasRenderingContext2D, text: string, x: number, color: string): number {
+  drawText(ctx, text, x, FOOT_Y, TEXT.SMALL, color, "left", "top");
+  return textWidth(text, TEXT.SMALL);
+}
+
+function paintTitle(ctx: CanvasRenderingContext2D, time: number, seedInput: SeedInputState, view: TitleView, sv: TitleStartView): void {
+  drawTitleScene(ctx, { time, tint: chapterTint(view.record), walk: sv.walk, stepping: sv.stepping, boost: sv.boost });
+  if (sv.uiAlpha <= 0) return;
+  ctx.globalAlpha = sv.uiAlpha;
+  drawLogoBlock(ctx, time, view.title);
+  drawTitleMenu(ctx, time, view.menu, view.dailySeed);
+  const recordsFocus = view.menu.level === "records" || TITLE_MAIN_ITEMS[view.menu.index] === "records";
+  drawTitleStone(ctx, view.record, recordsFocus);
+  drawTitleFoot(ctx, time, seedInput, view.menu.level);
+  ctx.globalAlpha = 1;
+}
+
+/** 開始の演出: 画面全体を門の奥へ寄せる（裏画面に描いてから切り出して拡大） */
+function drawZoomed(ctx: CanvasRenderingContext2D, time: number, seedInput: SeedInputState, view: TitleView, sv: TitleStartView): void {
+  const buf = zoomSurface();
+  buf.ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  buf.ctx.imageSmoothingEnabled = false;
+  buf.ctx.globalAlpha = 1;
+  paintTitle(buf.ctx, time, seedInput, view, sv);
+  const sw = (VIEW_W * RENDER_SCALE) / sv.zoom;
+  const sh = (VIEW_H * RENDER_SCALE) / sv.zoom;
+  const sx = Math.max(0, Math.min(VIEW_W * RENDER_SCALE - sw, ZOOM_FOCUS_X * RENDER_SCALE - sw / 2));
+  const sy = Math.max(0, Math.min(VIEW_H * RENDER_SCALE - sh, ZOOM_FOCUS_Y * RENDER_SCALE - sh / 2));
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.drawImage(buf.canvas, sx, sy, sw, sh, 0, 0, VIEW_W, VIEW_H);
+}
+
+export function drawTitle(ctx: CanvasRenderingContext2D, time: number, seedInput: SeedInputState, view: TitleView): void {
+  const sv = titleStartView(view.start);
+  if (sv.zoom > 1) drawZoomed(ctx, time, seedInput, view, sv);
+  else paintTitle(ctx, time, seedInput, view, sv);
+  if (sv.fade <= 0) return;
+  ctx.fillStyle = `rgba(0,0,0,${sv.fade.toFixed(3)})`;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }
 
 const HISTORY_TOP_Y = 36;

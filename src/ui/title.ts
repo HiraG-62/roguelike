@@ -9,7 +9,8 @@ import { isDailySeedText, isPlayable, type ReplayData } from "../core/replay";
 import { KEYBIND_SLOTS, REBINDABLE_ACTIONS, type RebindableAction } from "../core/input";
 import { PAD_ACTIONS, type PadAction } from "../core/padBinds";
 import type { GameStatus } from "../core/state";
-import { conqueredBy } from "../system/chapters";
+import { chapterOf, conqueredBy, isFinalDepth } from "../system/chapters";
+import { hurtLabel } from "../meta/deathReport";
 import { VIEW_H, VIEW_W } from "../core/view";
 
 // ---------------------------------------------------------------------------
@@ -487,31 +488,137 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0,
 }
 
 // ---------------------------------------------------------------------------
-// タイトルのメニュー（図鑑・依頼・実績・Tips ノート）。ボタンの外をクリックしたら従来どおり拠点へ入る
+// タイトルのメニュー（案 A「門」。docs/ideas/title-ideas.md）。
+// 4 項目「拠点へ / デイリー / 記録 / 設定」と、記録の下の階層「探索履歴 / 図鑑 / 依頼 / 実績 / Tips ノート / 戻る」。
+// カーソルは ↑↓・パッド・マウスのなぞりで動かし、決定で開く。ボタンの外のクリックでは何も起きない。
 // ---------------------------------------------------------------------------
 
-export const TITLE_MENU_ITEMS = ["codex", "quests", "achievements", "tips"] as const;
-export type TitleMenuItem = (typeof TITLE_MENU_ITEMS)[number];
+export const TITLE_MAIN_ITEMS = ["hub", "daily", "records", "settings"] as const;
+export type TitleMainItem = (typeof TITLE_MAIN_ITEMS)[number];
 
-const TITLE_MENU_Y = 146;
-const TITLE_MENU_W = 72;
-const TITLE_MENU_H = 16;
-const TITLE_MENU_GAP = 8;
+export const TITLE_RECORD_ITEMS = ["history", "codex", "quests", "achievements", "tips", "back"] as const;
+export type TitleRecordItem = (typeof TITLE_RECORD_ITEMS)[number];
 
-/** TITLE_MENU_ITEMS と同じ順のボタンの矩形（画面中央に横並び） */
-export function titleMenuRects(): Rect[] {
-  const n = TITLE_MENU_ITEMS.length;
-  const total = n * TITLE_MENU_W + (n - 1) * TITLE_MENU_GAP;
-  const x0 = (VIEW_W - total) / 2;
-  return TITLE_MENU_ITEMS.map((_, i) => ({ x: x0 + i * (TITLE_MENU_W + TITLE_MENU_GAP), y: TITLE_MENU_Y, w: TITLE_MENU_W, h: TITLE_MENU_H }));
+/** 記録の下の階層で、戻る以外の項目（開く先の画面） */
+export type TitleRecordTarget = Exclude<TitleRecordItem, "back">;
+/** ホットキー（C / Q / A / T）で開く項目。H は履歴で、main.ts が別に拾う */
+export type TitleMenuItem = Extract<TitleRecordItem, "codex" | "quests" | "achievements" | "tips">;
+
+export type TitleMenuLevel = "main" | "records";
+
+export interface TitleMenuState {
+  level: TitleMenuLevel;
+  index: number;
 }
 
-export function titleMenuItemAt(x: number, y: number): TitleMenuItem | null {
-  const index = titleMenuRects().findIndex((r) => pointInRect(x, y, r));
-  return TITLE_MENU_ITEMS[index] ?? null;
+/** 記録を閉じて戻ったとき、カーソルを置く主メニューの項目 */
+const TITLE_RECORDS_MAIN_INDEX = TITLE_MAIN_ITEMS.indexOf("records");
+
+export function createTitleMenu(): TitleMenuState {
+  return { level: "main", index: 0 };
 }
 
-/** ホットキー（C / Q / A / T）で開くメニュー項目 */
+export function titleMenuItems(level: TitleMenuLevel): readonly (TitleMainItem | TitleRecordItem)[] {
+  return level === "records" ? TITLE_RECORD_ITEMS : TITLE_MAIN_ITEMS;
+}
+
+/** カーソルを上下に動かす（端で回る）。動いたら true */
+export function moveTitleCursor(menu: TitleMenuState, delta: number): boolean {
+  if (delta === 0) return false;
+  const n = titleMenuItems(menu.level).length;
+  menu.index = cycleIndex(menu.index, delta, n);
+  return true;
+}
+
+/** マウスが乗った行へカーソルを置く。動いたら true */
+export function pointTitleItem(menu: TitleMenuState, index: number): boolean {
+  if (index === menu.index || index < 0 || index >= titleMenuItems(menu.level).length) return false;
+  menu.index = index;
+  return true;
+}
+
+/** 記録の下の階層から主メニューへ戻る（Esc / B）。戻ったら true */
+export function backTitleMenu(menu: TitleMenuState): boolean {
+  if (menu.level === "main") return false;
+  menu.level = "main";
+  menu.index = TITLE_RECORDS_MAIN_INDEX;
+  return true;
+}
+
+export type TitleStartKind = "hub" | "daily";
+
+/** 決定したときに main.ts がすること */
+export type TitleAction =
+  | { kind: "start"; start: TitleStartKind }
+  | { kind: "settings" }
+  | { kind: "open"; target: TitleRecordTarget }
+  | { kind: "none" };
+
+/** カーソルの項目を決定する。記録 / 戻る は階層の移動だけでここで済ませ、none を返す */
+export function activateTitleItem(menu: TitleMenuState): TitleAction {
+  const item = titleMenuItems(menu.level)[menu.index];
+  switch (item) {
+    case "hub":
+      return { kind: "start", start: "hub" };
+    case "daily":
+      return { kind: "start", start: "daily" };
+    case "settings":
+      return { kind: "settings" };
+    case "records":
+      menu.level = "records";
+      menu.index = 0;
+      return { kind: "none" };
+    case "back":
+      backTitleMenu(menu);
+      return { kind: "none" };
+    case "history":
+    case "codex":
+    case "quests":
+    case "achievements":
+    case "tips":
+      return { kind: "open", target: item };
+    default:
+      return { kind: "none" };
+  }
+}
+
+/** メニューの面（左の暗い帯）。描画と当たり判定が同じ矩形を見る */
+export const TITLE_MENU_PANEL: Rect = { x: 14, y: 122, w: 118, h: 104 };
+/** 項目の文字の左端と、最初の項目の文字の上端（行の矩形はその 2px 上から） */
+export const TITLE_MENU_TEXT_X = 34;
+export const TITLE_MENU_FIRST_Y = 130;
+const TITLE_MENU_ROW_PAD = 2;
+const TITLE_MENU_GAP_MAIN = 16;
+const TITLE_MENU_GAP_RECORDS = 13;
+
+/** 階層ごとの行間（記録の下は 6 行 + 見出しが面に収まるよう詰める） */
+export function titleMenuGap(level: TitleMenuLevel): number {
+  return level === "records" ? TITLE_MENU_GAP_RECORDS : TITLE_MENU_GAP_MAIN;
+}
+
+/** 項目の文字の上端 y */
+export function titleItemTextY(level: TitleMenuLevel, index: number): number {
+  return TITLE_MENU_FIRST_Y + index * titleMenuGap(level);
+}
+
+/** titleMenuItems と同じ順の当たり判定の矩形（面の幅いっぱい） */
+export function titleItemRects(level: TitleMenuLevel): Rect[] {
+  const gap = titleMenuGap(level);
+  return titleMenuItems(level).map((_, i) => ({
+    x: TITLE_MENU_PANEL.x,
+    y: titleItemTextY(level, i) - TITLE_MENU_ROW_PAD,
+    w: TITLE_MENU_PANEL.w,
+    h: gap,
+  }));
+}
+
+/** 座標に対応する項目 index。どの項目にも乗っていなければ null */
+export function titleItemAt(x: number, y: number, level: TitleMenuLevel): number | null {
+  const found = titleItemRects(level).findIndex((r) => pointInRect(x, y, r));
+  return found === -1 ? null : found;
+}
+
+/** ホットキー（C / Q / A / T）で開く項目 */
 export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t">): TitleMenuItem | null {
   if (hotkeys.c) return "codex";
   if (hotkeys.q) return "quests";
@@ -521,24 +628,113 @@ export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t"
 }
 
 // ---------------------------------------------------------------------------
-// タイトルの統計
+// タイトルの石碑（前回と最深）と、奥の灯の色になる章
 // ---------------------------------------------------------------------------
 
-export interface TitleStats {
-  runs: number;
-  bestDepth: number;
-  bestScore: number;
-  totalKills: number;
-  stashCount: number;
+/** 章の名前（添字は titleChapterIndex。章 1〜4 と最深の間。色の表は描画側 render/titleUi.ts） */
+export const TITLE_CHAPTER_NAMES = ["苔の洞", "地下寺院", "廃城", "深みの異界", "最深の間"] as const;
+/** 最深の間の添字（章の階数の外にある 1 階なので、章の関数とは別に扱う） */
+const TITLE_FINAL_CHAPTER = TITLE_CHAPTER_NAMES.length - 1;
+
+/** 深度 → TITLE_CHAPTER_NAMES の添字。深み（最深の間より下）は最後の章のまま */
+export function titleChapterIndex(depth: number): number {
+  if (isFinalDepth(depth)) return TITLE_FINAL_CHAPTER;
+  return Math.min(chapterOf(depth) - 1, TITLE_FINAL_CHAPTER - 1);
 }
 
-export function computeTitleStats(profile: Profile): TitleStats {
+/** 前回の終わり方（石碑の 2 行目）。力尽きたなら最後の被弾の相手に敗北 */
+export function titleOutcomeText(entry: Readonly<Pick<RunHistoryEntry, "cause" | "killer">>): string {
+  if (entry.cause === "abandoned") return "離脱";
+  if (entry.cause === "cleared") return "踏破";
+  return entry.killer ? `${hurtLabel(entry.killer)}に敗北` : "力尽きた";
+}
+
+export interface TitleLast {
+  depth: number;
+  chapter: number;
+  outcome: string;
+}
+
+export interface TitleRecord {
+  /** 前回の探索（記録が無ければ null） */
+  last: TitleLast | null;
+  bestDepth: number;
+  runs: number;
+}
+
+/** 石碑に出す記録。単一の指標（スコア・総撃破）は出さず、前回・最深・回数だけ */
+export function computeTitleRecord(profile: Profile): TitleRecord {
+  const entry = profile.meta.history?.[0];
+  const last = entry ? { depth: entry.depth, chapter: titleChapterIndex(entry.depth), outcome: titleOutcomeText(entry) } : null;
+  return { last, bestDepth: profile.meta.bestDepth, runs: profile.meta.runs };
+}
+
+// ---------------------------------------------------------------------------
+// 開始の演出（旅人が石段へ歩く → 門の奥へ寄る → 暗転）。合計 TITLE_START_SECONDS、もう一度決定で飛ばす
+// ---------------------------------------------------------------------------
+
+export const TITLE_START_SECONDS = 2.4;
+const START_WALK_SECONDS = 1.1;
+/** 歩く足の絵を出し続ける秒数（歩き終わりの少し先まで） */
+const START_STEP_SECONDS = 1.2;
+const START_UI_FADE_RATE = 2.5;
+const START_BOOST_FROM = 0.6;
+const START_BOOST_SPAN = 1.2;
+const START_ZOOM_FROM = 0.7;
+const START_ZOOM_SPAN = 1.4;
+/** 寄りの最大倍率は 1 + この値 */
+const START_ZOOM_GAIN = 3.2;
+const START_FADE_FROM = 1.8;
+const START_FADE_SPAN = 0.6;
+const EASE_OUT_POWER = 3;
+const EASE_IN_POWER = 2.2;
+
+export interface TitleStart {
+  kind: TitleStartKind;
+  /** 経過秒 */
+  t: number;
+}
+
+export function beginTitleStart(kind: TitleStartKind): TitleStart {
+  return { kind, t: 0 };
+}
+
+/** 演出を進める。skip（もう一度決定）か時間切れで終わりなら true */
+export function stepTitleStart(start: TitleStart, dt: number, skip: boolean): boolean {
+  start.t = skip ? TITLE_START_SECONDS : start.t + dt;
+  return start.t >= TITLE_START_SECONDS;
+}
+
+export interface TitleStartView {
+  /** メニュー・石碑・題字の濃さ（演出が始まると速く消える） */
+  uiAlpha: number;
+  /** 旅人の歩み（0 = 石畳の手前、1 = 石段の入口） */
+  walk: number;
+  /** 足を動かすか */
+  stepping: boolean;
+  /** 奥の灯の強まり（0..1） */
+  boost: number;
+  /** 画面の寄り（1 = 寄らない） */
+  zoom: number;
+  /** 黒の被せ（0..1） */
+  fade: number;
+}
+
+const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+
+export const TITLE_IDLE_VIEW: TitleStartView = { uiAlpha: 1, walk: 0, stepping: false, boost: 0, zoom: 1, fade: 0 };
+
+/** 演出の経過秒から見た目の値を引く。null なら待機の見た目 */
+export function titleStartView(start: Readonly<TitleStart> | null): TitleStartView {
+  if (!start) return TITLE_IDLE_VIEW;
+  const t = Math.max(0, start.t);
   return {
-    runs: profile.meta.runs,
-    bestDepth: profile.meta.bestDepth,
-    bestScore: profile.meta.bestScore,
-    totalKills: profile.meta.totalKills,
-    stashCount: profile.stash.length,
+    uiAlpha: clamp01(1 - t * START_UI_FADE_RATE),
+    walk: 1 - Math.pow(1 - clamp01(t / START_WALK_SECONDS), EASE_OUT_POWER),
+    stepping: t < START_STEP_SECONDS,
+    boost: clamp01((t - START_BOOST_FROM) / START_BOOST_SPAN),
+    zoom: 1 + Math.pow(clamp01((t - START_ZOOM_FROM) / START_ZOOM_SPAN), EASE_IN_POWER) * START_ZOOM_GAIN,
+    fade: clamp01((t - START_FADE_FROM) / START_FADE_SPAN),
   };
 }
 

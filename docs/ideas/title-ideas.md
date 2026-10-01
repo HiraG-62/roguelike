@@ -1,6 +1,8 @@
 # タイトル画面の一新とゲーム名（設計書）
 
 作成日: 2026-10-01
+
+**決定と実装（2026-10-01）**: 案 A「門」、ゲーム名は「墨淵（ぼくえん）」・添えの英字 BOKUEN（DEPTHBREAKER は英題としても残さない）、題字は墨書き（Yuji Boku を点にした生成物 `src/data/sprites/titleLogo.ts`、生成は `scripts/title/gen-logo.mjs`）。Electron のセーブのフォルダは `BOKUEN`（移行なし）。C の墓標の間（探索履歴の作り直し）は未定
 見本: `docs/ideas/previews/title/index.html`（1 ページで 4 案と名前の候補を切り替え。`?plan=A〜D&name=0〜11&style=dot|brush&rec=0|1`、または `#A`〜`#D`）
 撮影: 作業時の scratchpad のみ（リポジトリには入れない）
 

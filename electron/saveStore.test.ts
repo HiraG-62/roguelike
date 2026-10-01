@@ -15,7 +15,7 @@ let clock = 1000;
 const now = (): number => clock++;
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "depthbreaker-save-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "bokuen-save-"));
   dir = path.join(root, "save");
   clock = 1000;
 });

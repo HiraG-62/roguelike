@@ -37,3 +37,12 @@
 - 取得日: 2026-09-26〜27
 - 使用箇所: `public/assets/sfx/*.ogg`（未使用。ゲーム側の読み込みを入れたら鳴る）
 - 改変: 無音カット・EQ・音量の正規化（ローカルの生成ツールで処理。プロンプトと seed は生成ツール側の manifest に記録）
+
+## Yuji Boku（タイトル画面の題字「墨淵」の字形）
+
+- 作者: Yuji Boku プロジェクトの作者（Google Fonts 配布）
+- URL: https://fonts.google.com/specimen/Yuji+Boku
+- ライセンス: SIL Open Font License 1.1
+- 取得日: 2026-10-01
+- 使用箇所: `src/data/sprites/titleLogo.ts`（フォントで書いた「墨淵」を二値の点にした生成物。フォント本体は同梱せず、実行時にも読まない。作り方は `scripts/title/gen-logo.mjs`）
+- 改変: 40px で描いた字形をアルファ閾値で二値化し、紙色に塗り直して使用

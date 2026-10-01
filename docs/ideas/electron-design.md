@@ -172,7 +172,7 @@ electron/
   vite.main.config.ts     lib: { entry: main.ts, formats: ["es"] } → dist-electron/main.js。external: electron, node:*
   vite.preload.config.ts  lib: { entry: preload.ts, formats: ["cjs"] } → dist-electron/preload.cjs
 tsconfig.electron.json    module ESNext / moduleResolution bundler / lib ES2022+DOM / types ["node"] / include electron/** と src/save/{bridge,fileEnvelope}.ts
-electron-builder.yml      productName DEPTHBREAKER / files: dist/**, dist-electron/**, package.json / win.target: dir（Steam 用の展開済みフォルダ）/ asar: true / directories.output: release
+electron-builder.yml      productName BOKUEN / files: dist/**, dist-electron/**, package.json / win.target: dir（Steam 用の展開済みフォルダ）/ asar: true / directories.output: release
 scripts/electron-dev.mjs  Vite の JS API で dev サーバを起動 → 2 つの lib ビルド → electron を VITE_DEV_SERVER_URL 付きで spawn
 scripts/electron-build.mjs  vite build → 2 つの lib ビルド → electron-builder --dir
 ```
@@ -210,9 +210,9 @@ scripts/electron-build.mjs  vite build → 2 つの lib ビルド → electron-b
 
 ### 4.5 userData と Steam の準備
 
-- **`app.setPath("userData", path.join(app.getPath("appData"), "DEPTHBREAKER"))` を `ready` 前に必ず呼ぶ**。既定は dev では `package.json` の `name`（`roguelike`）、パッケージ後は `productName` になり、**dev とリリースでセーブの場所が変わってしまう**ため
-- 保存先: `%APPDATA%\DEPTHBREAKER\save\*.json`（`profile.json` …）。バックアップ `*.json.bak`、書き込み途中 `*.json.tmp`、読めなかったファイルは `*.json.corrupt-<epoch>` に改名して保全
-- Steam Cloud（Auto-Cloud）はルート `WinAppDataRoaming` + パス `DEPTHBREAKER/save` + パターン `*.json` で今の構成がそのまま使える。`window.json` は `save/` の外なので同期されない。`settings.json` / `keybinds.json` も `save/` に置く（同期させたくなければ Steam 側のパターンで除外）
+- **`app.setPath("userData", path.join(app.getPath("appData"), "BOKUEN"))` を `ready` 前に必ず呼ぶ**。既定は dev では `package.json` の `name`（`roguelike`）、パッケージ後は `productName` になり、**dev とリリースでセーブの場所が変わってしまう**ため
+- 保存先: `%APPDATA%\BOKUEN\save\*.json`（`profile.json` …）。バックアップ `*.json.bak`、書き込み途中 `*.json.tmp`、読めなかったファイルは `*.json.corrupt-<epoch>` に改名して保全
+- Steam Cloud（Auto-Cloud）はルート `WinAppDataRoaming` + パス `BOKUEN/save` + パターン `*.json` で今の構成がそのまま使える。`window.json` は `save/` の外なので同期されない。`settings.json` / `keybinds.json` も `save/` に置く（同期させたくなければ Steam 側のパターンで除外）
 - Steamworks（`steamworks.js` などの native module）は main プロセスに入れる想定。renderer は `sandbox: true` のままでよい。今は入れない
 - 配布物: `electron-builder --dir` の `release/win-unpacked/` を Steam にそのまま上げられる。インストーラ（nsis）が要るのは Steam 外で配る場合だけ
 
@@ -283,7 +283,7 @@ Electron 版: ストア ── saveStorage() ──> GuardedStorage(FileStorage)
   ```
 - IPC チャネル名（preload と main で共有する定数を `electron/ipc.ts` に置く）: `save:readAll`（sendSync）/ `save:write` / `save:remove`（invoke）/ `save:writeAllSync`（sendSync）/ `save:openFolder`（invoke）
 - テスト（`electron/saveStore.test.ts`。`os.tmpdir()` 配下に一時ディレクトリを作って実施）: 「write したキーを readAll で読み戻せる」「write は前の版を .bak に残す」「本体が壊れていれば .bak から読み、本体を .corrupt-* に改名する」「未知のキーは write で例外」「import.json があれば取り込んで import.done-* に改名する」「save/ が無ければ作る」
-- 完了条件: `npm run check` 成功（electron の tsc ステップを含む）。`npm run electron:dev` でウィンドウが開き、装備を拾って 1 秒後に `%APPDATA%\DEPTHBREAKER\save\profile.json` が更新される。`npm run electron:build` で `release/win-unpacked/DEPTHBREAKER.exe` が起動し、同じ save/ を読む。F11 でフルスクリーン、ウィンドウを閉じて再起動しても装備が残る
+- 完了条件: `npm run check` 成功（electron の tsc ステップを含む）。`npm run electron:dev` でウィンドウが開き、装備を拾って 1 秒後に `%APPDATA%\BOKUEN\save\profile.json` が更新される。`npm run electron:build` で `release/win-unpacked/BOKUEN.exe` が起動し、同じ save/ を読む。F11 でフルスクリーン、ウィンドウを閉じて再起動しても装備が残る
 
 ### 6.3 レーン C（後続・任意）: 設定画面の「セーブデータを書き出す / 読み込む / セーブフォルダを開く」
 
