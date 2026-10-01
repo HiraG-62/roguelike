@@ -12,6 +12,18 @@
 6. **QA**: `qa-runner`（`/qa`）で `npm run check` と、数値合わせの段で `npm run qa:full`。数値の問題は `balance-tuner` へ
 7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、報告の「資料に必要な変更」を CLAUDE.md などに反映して（`/agent-docs`）、`git add <所有ファイル>` で論理単位ごとにコミット。`docs/HANDOFF.md`・`IDEAS.md` の「現状」・`docs/ideas/README.md` を更新（`/handoff-docs`）
 
+## ブランチと PR（2026-10-01、ユーザーの指示）
+
+master に直接コミットしない。改修は必ずブランチを切り、ユーザーの承認を得てから master へ PR を出す。
+
+1. **ブランチを切る**: 改修を始める前に、最新の master から `<type>/<短い英語名>`（例: `feat/inventory-rework`、`fix/resonance-label`）を切る。クラウドセッションが自動で作る `claude/...` ブランチはそのまま使ってよい。1 ブランチ = 1 つの改修（無関係な変更を混ぜない）
+2. **ブランチ上で進める**: コミットの作法は CLAUDE.md の「バージョニング・コミット・PR」のまま。並列レーンの worktree はこのブランチから切り、統合役がこのブランチへ取り込む
+3. **承認を求める**: `npm run check` が通ったら、変更点の箇条書きと「PR を出してよいか」をユーザーに聞く。承認が出るまで push も PR も出さない
+4. **push と PR**: 承認後に push し、`gh pr create --base master` で PR を出す（タイトル・本文は日本語、概要 / 変更 / 確認の 3 節）
+   - ローカルは `git push` が deny 設定なので、`! git push -u origin <ブランチ名>` をユーザーに提示して実行してもらい、その後に PR を作る（`gh pr create` に push させて回避しない）
+   - クラウドセッションは自分で push してよい
+5. **マージはユーザーが行う**: エージェントは PR をマージしない。レビューの指摘は同じブランチに追加コミットして push する。マージ後は master を最新にしてから次のブランチを切る
+
 ## リリース手順（check → bump → tag）
 
 1. まとまった変更を統合し、各コミットを済ませる（`git status --short` が空に近い状態）
