@@ -151,13 +151,13 @@ describe("門前町の配置", () => {
     expect(ys, "上（門）から下へ").toEqual([...ys].sort((a, b) => a - b));
   });
 
-  it("当たりの地図と ground の違いは、敷地・鳥居の柱・石灯籠だけ", () => {
+  it("当たりの地図と ground の違いは、敷地と鳥居の柱だけ（見えない壁を作らない）", () => {
     let diff = 0;
     layout.map.tiles.forEach((tile, i) => {
       if (tile !== layout.ground.tiles[i]) diff += 1;
     });
     const walled = HUB_LOT_KEYS.filter((k) => k !== "yard").reduce((n, k) => n + layout.lots[k].w * layout.lots[k].h, 0);
-    expect(diff, "差は敷地 + 柱 2 + 石灯籠 2").toBe(walled + 4);
+    expect(diff, "差は敷地 + 柱 2").toBe(walled + 2);
   });
 
   it("部屋は外周の壁を除いた 1 つ", () => {

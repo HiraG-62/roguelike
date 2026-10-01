@@ -56,14 +56,29 @@ export interface TownGlow {
   kind: TownGlowKind;
 }
 
-/** 物の絵を描く。同じ kind なら同じ画素 */
+/**
+ * 描いた物の控え。絵と灯の点は同じ描画から出るので、灯の点を引くために絵をもう一度描かない（拠点を開いた瞬間の手間を半分に）。
+ * 種類は有限（敷地 10 × 建つ前後・井戸 4 段・幟 4 色・碑の位階・小物 6 など）。返す画素は呼び出し側が書き換えない前提で共有する
+ */
+const drawnCache = new Map<string, Drawn>();
+
+function drawnOf(kind: TownObjectKind): Drawn {
+  const id = JSON.stringify(kind);
+  const hit = drawnCache.get(id);
+  if (hit) return hit;
+  const made = drawObject(kind);
+  drawnCache.set(id, made);
+  return made;
+}
+
+/** 物の絵を描く。同じ kind なら同じ画素（控えを共有するので書き換えない） */
 export function townObjectPixels(kind: TownObjectKind): TownPixels {
-  return drawObject(kind).pixels;
+  return drawnOf(kind).pixels;
 }
 
 /** 物の灯の位置。描画レーンが発光（提灯の揺らぎ・窓の灯・石段の奥の章の色）を重ねる */
 export function townObjectGlows(kind: TownObjectKind): readonly TownGlow[] {
-  return drawObject(kind).glows;
+  return drawnOf(kind).glows;
 }
 
 /** 敷地の大きさ（マス。docs/ideas/hub-town-impl.md 3 章の配置図）。絵の幅はこれに合わせる */

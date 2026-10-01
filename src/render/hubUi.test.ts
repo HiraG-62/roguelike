@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HUB } from "../data/tuning";
 import { buildHubMap, type HubSpotKey } from "../map/hubMap";
 import { nearGate, spotPrompt, nearUnbuiltSpot } from "./hubUi";
 
@@ -18,16 +19,18 @@ describe("石段の案内（nearGate）", () => {
   const gate = { x: 13, y: 1, w: 4, h: 2 };
   const T = 16;
 
-  it("石段の矩形の中と、その周り 3 マスまでは近い。それより離れると遠い", () => {
+  it("石段の矩形の中と、その周り HUB.gateNearMargin マスまでは近い。それより離れると遠い", () => {
+    const r = HUB.gateNearMargin * T;
     expect(nearGate({ x: 15 * T, y: 1.5 * T }, gate), "矩形の中").toBe(true);
-    expect(nearGate({ x: 15 * T, y: 3 * T + 40 }, gate), "南へ 40px").toBe(true);
-    expect(nearGate({ x: 15 * T, y: 3 * T + 60 }, gate), "南へ 60px").toBe(false);
-    expect(nearGate({ x: 13 * T - 40, y: 2 * T }, gate), "西へ 40px").toBe(true);
-    expect(nearGate({ x: 13 * T - 60, y: 2 * T }, gate), "西へ 60px").toBe(false);
+    expect(nearGate({ x: 15 * T, y: 3 * T + r - 1 }, gate), "南へ範囲の内").toBe(true);
+    expect(nearGate({ x: 15 * T, y: 3 * T + r + 1 }, gate), "南へ範囲の外").toBe(false);
+    expect(nearGate({ x: 13 * T - (r - 1), y: 2 * T }, gate), "西へ範囲の内").toBe(true);
+    expect(nearGate({ x: 13 * T - (r + 1), y: 2 * T }, gate), "西へ範囲の外").toBe(false);
   });
 
   it("矩形の角からは直線距離で測る（斜めに離れると遠い）", () => {
-    expect(nearGate({ x: 13 * T - 35, y: 3 * T + 35 }, gate), "角から約 49px").toBe(false);
+    const d = HUB.gateNearMargin * T * 0.8;
+    expect(nearGate({ x: 13 * T - d, y: 3 * T + d }, gate), "角から範囲の 1.13 倍").toBe(false);
   });
 
   it("石段が無い拠点（矩形が空）では出さない", () => {

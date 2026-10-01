@@ -84,8 +84,8 @@ const TRIAL_TOP = 22;
 const DECOR_TOP = 22;
 const DECOR_W = 130;
 const DECOR_MAX_LINES = 6;
-/** 石段の案内を出す、石段の矩形までの距離（論理 px。3 マス） */
-const GATE_PROMPT_RANGE = TILE_SIZE * 3;
+/** 石段の案内を出す、石段の矩形までの距離（論理 px。HubRun.nearGate と同じ HUB.gateNearMargin マス） */
+const GATE_PROMPT_RANGE = TILE_SIZE * HUB.gateNearMargin;
 const GATE_PROMPT_TEXT = "石段: 出撃";
 
 function spotLabel(spot: HubSpotKey): string {
