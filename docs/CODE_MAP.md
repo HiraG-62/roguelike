@@ -11,7 +11,7 @@ src/
   system/   ゲームロジック（state を読み書き）
   loot/     装備（生成・集計・クラフト・永続化）。純関数中心
   skills/   スキル石・刻印符のデータと型、設置物、スキル被弾処理
-  map/      グリッド（grid）・部屋+通路生成（generator。地形の配置 planTerrain も。面積の倍率で広げる scaleGeneratorOptions）・洞窟生成（cave）・拠点の 1 部屋（hubMap）・隠し部屋のポケットの計画（hidden）・視線と距離場（pathing / sightBlock）・陣形の並び（formation。`layoutOffsets` / `rotateToFacing`）。純関数
+  map/      グリッド（grid）・部屋+通路生成（generator。地形の配置 planTerrain も。面積の倍率で広げる scaleGeneratorOptions）・洞窟生成（cave）・拠点の 1 部屋（hubMap）・隠し部屋のポケットの計画（hidden）・視線と距離場（pathing / sightBlock）・陣形の並び（formation。`layoutOffsets` / `rotateToFacing`）・階の型 8 種（layout/。`types.ts` が型・下書き・枠の共通の形。`docs/ideas/map-gen-impl.md`）。純関数
   render/   Canvas 描画（state を読むだけ）
   ui/       画面ロジック（DOM 非依存。タイトル・起点・拠点・装備画面・設定・リプレイ保存）
   audio/    Web Audio 合成の効果音と音楽

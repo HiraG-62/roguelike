@@ -1,3 +1,5 @@
+import type { FloorLayout } from "./layout/types";
+
 /** タイル種別。数値にしておくと 1 次元配列（Uint8Array）に詰められる */
 export const Tile = {
   Wall: 0,
@@ -5,6 +7,8 @@ export const Tile = {
   StairsDown: 2,
   /** 泉（shrine 部屋の中央）。歩ける */
   Fountain: 3,
+  /** 穴（川・池・奈落）。体は通れないが、弾・視線・爆風は越える（docs/ideas/map-gen-impl.md 2-2） */
+  Pit: 4,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -34,6 +38,10 @@ export interface GameMap {
    * 持つ場合 rooms[i] は塊に内接する矩形（中心・湧き位置の目安）
    */
   roomTiles?: number[][];
+  /** 浅い地形（見本の浅瀬・断片の「~」）。タイルごとの地形番号（0 = なし）。地形の自然配置より先に写す */
+  shallow?: Uint8Array;
+  /** この地図を作った階の型（旧生成器は "legacy"）。描画・QA の型別の集計に使う */
+  layout?: FloorLayout;
 }
 
 export function createMap(width: number, height: number): GameMap {
@@ -63,8 +71,13 @@ export function setTile(map: GameMap, x: number, y: number, tile: Tile): void {
   map.tiles[toIndex(map, x, y)] = tile;
 }
 
+/** 体が通れるタイルか（壁でも穴でもない） */
+export function isPassableTile(tile: number): boolean {
+  return tile !== Tile.Wall && tile !== Tile.Pit;
+}
+
 export function isWalkable(map: GameMap, x: number, y: number): boolean {
-  return getTile(map, x, y) !== Tile.Wall;
+  return isPassableTile(getTile(map, x, y));
 }
 
 export function rectCenter(r: Rect): Point {
