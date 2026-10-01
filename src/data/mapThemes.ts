@@ -1,6 +1,6 @@
 // マップの見た目のテーマの表（docs/ideas/map-visual-impl.md 2-1・2-2 節）。
 // 色・様式・バイオームの寄せ・穴の色。派生色の計算や深みの変異は render/mapTheme.ts。
-// 章の暗さ（dark）は本来 MAP_LIGHT.json（段 2 の光のレーン）の値を引く。そこが入るまでの置き場として DARK_OF_STYLE を持つ
+// 章の暗さ（dark）は MAP_LIGHT.json（feel/）の値を render/mapLight.ts の mapDarkFor が引く
 import type { FloorKind } from "../core/state";
 import type {
   DecalKind,
@@ -167,16 +167,6 @@ export const STYLE_DEFS: Readonly<Record<MapStyle, StyleDef>> = {
     decals: [],
     flags: NO_FLAGS,
   },
-};
-
-/** 章の暗さ（2-1 節の表）。MAP_LIGHT.json が入ったらそちらの値（chapterDark / finalDark / deepDark）へ置き換える。castleFrost は章 3 と同じ */
-export const DARK_OF_STYLE: Readonly<Record<MapStyle, number>> = {
-  moss: 0.1,
-  temple: 0.2,
-  castleFire: 0.3,
-  castleFrost: 0.3,
-  deep: 0.4,
-  final: 0.15,
 };
 
 /** 深みの変異「血の月」の配色（見本の THEMES の blood）。様式の配色をまるごと置き換える */

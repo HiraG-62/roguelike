@@ -4,7 +4,6 @@ import type { FloorKind } from "../core/state";
 import {
   BIOME_DEFS,
   BLOOD_COLORS,
-  DARK_OF_STYLE,
   FOG_TINT,
   GLOW_PROPS,
   PIT_COLORS,
@@ -19,6 +18,7 @@ import {
 } from "../data/mapThemes";
 import { DEEP } from "../data/tuning";
 import { chapterOf, deepFloorOf, isDeepDepth, isFinalDepth } from "../system/chapters";
+import { mapDarkFor } from "./mapLight";
 import { pack } from "./mapNoise";
 import type { DecalKind, MapPalette, MapPropKind, MapStyle, MapTheme, MapThemeFlags, PitTheme } from "./mapTypes";
 
@@ -280,12 +280,13 @@ export function mapThemeFor(depth: number, floorKind: FloorKind): MapTheme {
   const key = [style, floorKind, ...mutated.tags].join(":");
   const cached = THEME_CACHE.get(key);
   if (cached) return cached;
-  const theme = buildTheme(key, style, floorKind, mutated.colors, mutated.darkAdd);
+  // 様式 deep は章 4 と深みで暗さが違うが、深みは変異が必ず 1 つ付くので key が分かれる（mapLight.test.ts が検査）
+  const theme = buildTheme(key, style, floorKind, mutated.colors, mapDarkFor(style, depth) + mutated.darkAdd);
   THEME_CACHE.set(key, theme);
   return theme;
 }
 
-function buildTheme(key: string, style: MapStyle, floorKind: FloorKind, mutatedColors: PackedColors, darkAdd: number): MapTheme {
+function buildTheme(key: string, style: MapStyle, floorKind: FloorKind, mutatedColors: PackedColors, dark: number): MapTheme {
   const def: StyleDef = STYLE_DEFS[style];
   const variant = mergeVariant(BIOME_DEFS[floorKind], style);
   let colors = mutatedColors;
@@ -303,7 +304,7 @@ function buildTheme(key: string, style: MapStyle, floorKind: FloorKind, mutatedC
     sideH: def.sideH,
     edgeNoise: def.edgeNoise,
     voidBeyond: def.voidBeyond,
-    dark: DARK_OF_STYLE[style] + darkAdd,
+    dark,
     palette: derivePalette(colors),
     pit: pitFor(style, floorKind),
     props: mergeProps(def.props, variant),

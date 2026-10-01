@@ -55,6 +55,16 @@ describe("描画の層の順", () => {
     expect(at, "敵より前").toBeLessThan(world.indexOf("drawEnemies"));
   });
 
+  it("地図の光は地形の直後で、予告・敵・弾・自分より前（予告・弾・体は暗がりを受けない）", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawMapLight");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "地形の層より後").toBeGreaterThan(world.indexOf("drawTerrainLayer"));
+    for (const name of ["drawGroundHazards", "drawEnemies", "drawProjectiles", "drawPlayer"]) {
+      expect(at, `${name} より前`).toBeLessThan(world.indexOf(name));
+    }
+  });
+
   it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
     const world = LAYER_CONTENTS.world;
     const at = world.indexOf("drawHubSpots");

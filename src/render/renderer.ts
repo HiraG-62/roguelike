@@ -114,6 +114,7 @@ import { drawFieldPickup } from "./coinUi";
 import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
 import { type PitLook, pitLook } from "./pitLook";
 import { MapChunkCache, type MapView } from "./mapChunks";
+import { MapLightLayer, mapLights } from "./mapLight";
 import { mapThemeFor } from "./mapTheme";
 import type { MapTheme } from "./mapTypes";
 import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
@@ -732,6 +733,8 @@ export class Renderer {
   private readonly mapChunks = new MapChunkCache();
   /** 地図を描く画面（ワールド座標の左上）。毎フレーム使い回す */
   private readonly mapView: MapView = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
+  /** 地図だけを暗くして光源の周りを抜く層（drawMapLight。拠点は掛けない） */
+  private readonly mapLight = new MapLightLayer();
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
   private hudKeyCache = "";
   private hudKeystoneText = "";
@@ -840,6 +843,7 @@ export class Renderer {
     this.drawTiles(state, -ox, -oy);
     drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, state.sandbox !== true || `tile.${tileBiome(state.floorKind, true)}.floor` in this.atlas);
     drawTerrainLayer(ctx, state, -ox, -oy, this.atlas);
+    this.drawMapLight(state, -ox, -oy);
     this.drawTileOverlays(state, -ox, -oy);
     drawGroundMarks(ctx, state, this.fxSprites);
     this.drawPickups(state);
@@ -1101,6 +1105,14 @@ export class Renderer {
     const view = this.setMapView(viewX, viewY);
     this.mapChunks.update(state.map, this.mapTheme(state), view, this.wipeActive);
     this.mapChunks.drawGround(this.ctx, view);
+  }
+
+  /** 章の暗さと光源の周りの明るさ。地図（床・壁・穴・地形）だけを覆い、この後に描く予告・弾・敵・自分は暗くならない */
+  private drawMapLight(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) return;
+    const view = this.setMapView(viewX, viewY);
+    const theme = this.mapTheme(state);
+    this.mapLight.draw(this.ctx, view, mapLights(state, view, theme, this.mapChunks.lightsIn(view)), theme.dark);
   }
 
   /** 迷宮の地図のテーマ（章の様式 × バイオーム。mapThemeFor は同じ引数で同じ参照を返す） */

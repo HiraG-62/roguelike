@@ -212,6 +212,9 @@ export const RUN_MOD = BALANCE.world.RUN_MOD;
 /** ミニマップ */
 export const MINIMAP = BALANCE.feel.MINIMAP;
 
+/** 地図の光と暗がり（src/render/mapLight.ts） */
+export const MAP_LIGHT = BALANCE.feel.MAP_LIGHT;
+
 /** 持ち物メニューの情報の予算（src/ui/menuBudget.ts・tryOn.ts。docs/ideas/inventory-v2/E-merged.md 4 章） */
 export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
 

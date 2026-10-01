@@ -112,6 +112,8 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 ### 1-8. 暗がりと光
 
+（実装メモ 2026-10-01: 光の色の円は別 canvas に描いて全画面へ soft-light を掛けると headless で約 +11ms だったため、光源ごとに world へ直接 soft-light で重ねる形にした。溶岩・炎・階段・泉の光の半径と強さも `MAP_LIGHT.json` に置いた）
+
 - 新規 `src/render/mapLight.ts` の `MapLightLayer`: 960x540（密度 2）の canvas に毎フレーム `rgba(0,0,0,dark)` を塗り、光源ごとに段つきの円（見本の 4 段: 0.12 / 0.38 / 0.7 の閾値 → 抜く量 1/3・2/3・1。縦 1.15 倍の楕円、ディザなし、半径と強さで作り置き）を `destination-out` で抜き、world に 1 回で描く。光の色は同じ形の色つきの円を `soft-light`・不透明度 `lightTint × 段` で重ねる
 - 位置: `drawTerrainLayer` の直後（`drawMapLight`）。その後に描くもの（階段・扉の印・地面の印・拾い物・床のアイテム・予告・敵・自分・弾・浮き文字）は暗くならない。**予告・弾・敵の体は常に明るい**が描き順だけで成り立つ
 - 光源（`mapLights(state, view, theme, chunkLights): MapLight[]`、純関数）: プレイヤー（半径 32px・0.55）、焼いたチャンクが返す置物と側面の蛍苔、溶岩の地形と溶岩の穴（2 マスおき）、炎の地形、階段、泉。画面内でプレイヤーに近い順に `maxLights` まで
