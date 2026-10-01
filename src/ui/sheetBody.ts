@@ -158,12 +158,6 @@ export function sheetMoveset(state: Readonly<GameState>, steps: number): Moveset
   return MOVESET_KEYS[index] ?? current;
 }
 
-/** その武器種で選んでいる奥義の並びの位置 */
-export function chosenUltimateIndex(state: Readonly<GameState>, moveset: MovesetKey): number {
-  const chosen = ultimateChoice(state.profile, moveset).key;
-  return Math.max(0, ULTIMATES[moveset].findIndex((d) => d.key === chosen));
-}
-
 const RUN_LOCKED_TEXT = "ラン中は奥義を変えられない";
 
 /** 奥義を選んで保存する。知らせを返す（選べなければ理由、変わらなければ null） */

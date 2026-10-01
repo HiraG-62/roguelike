@@ -16,24 +16,11 @@ import { effectiveManaCost, effectiveSlotModifiers, formatCooldown, slotModifier
 import { boonGrantedModifiers } from "../system/boons";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import { synergyBuild } from "../ui/synergyBuild";
-import { chosenUltimate } from "../system/ultimates";
-import { MOVESETS } from "../data/weapons";
 import type { ColorBarSegment } from "../loot/describe";
 import { baseDef } from "../loot/bases";
 import { ultimateChoice } from "../loot/profile";
 import type { Profile } from "../loot/types";
-import {
-  type ActionFormulas,
-  type LoadoutSources,
-  type FormulaChunk,
-  type ScalingFormula,
-  actionListRows,
-  itemModifierRows,
-  attributeReferences,
-  formulaChunks,
-  itemFormulas,
-  referenceChunks,
-} from "../ui/scalingText";
+import { type FormulaChunk, type ScalingFormula, formulaChunks } from "../ui/scalingText";
 import { itemAttackLine, skillAttackLine } from "./elementUi";
 import { COLOR_DIM, COLOR_EMPTY, COLOR_GROWN, COLOR_INSCRIPTION, COLOR_TEXT, COLOR_WARN, GROWN_MARK, type TipLine, traitTipLine } from "./lootUiParts";
 
@@ -107,55 +94,15 @@ export function conflictLinesFor(state: Readonly<GameState>, item: Item): string
     .map((group) => conflictText(group.map((d) => d.name)));
 }
 
-/** 装備中の排他衝突（要約の先頭に出す） */
-export function equippedConflictLines(state: GameState): string[] {
-  const keys: string[] = [];
-  for (const slot of SLOTS) {
-    const eq = state.profile.equipment[slot];
-    if (eq) keys.push(...keystoneKeysOf(eq));
-  }
-  return keystoneConflicts(keys).map((group) => conflictText(group.map((d) => d.name)));
-}
-
 // ---------------------------------------------------------------------------
 // 計算式の頁（docs/COMBAT_DESIGN.md A-10）。式の組み立ては ui/scalingText.ts
 // ---------------------------------------------------------------------------
 
 const FORMULA_CAPTION = "計算式（今のステータスでの基礎の値）";
-const REFERENCE_CAPTION = "ステータスを参照している行動（今の装備・スキル）";
 const NO_FORMULA_TEXT = "ステータスで変わらない";
-
-/** 今の武器種・銃の弾・装着中のスキル石 */
-function loadoutSources(state: GameState): LoadoutSources {
-  const skills: SkillKey[] = [];
-  for (let i = 0; i < SKILL.slots; i++) {
-    const stone = stoneInSlot(state.skills.profile, i);
-    if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
-  }
-  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills, ultimate: chosenUltimate(state) };
-}
-
-/** ステータスごとに参照している行動の行（「筋力: 大剣の連撃・地裂き」） */
-function referenceLines(state: GameState): DetailLine[] {
-  return attributeReferences(state.stats, loadoutSources(state)).map((ref) => ({ chunks: referenceChunks(ref) }));
-}
-
-/** 行動ごとの式。先頭の式の頭に行動名を付け、残り（怯み値など）は行動名なしで続ける。値だけの派生は 1 段落にまとめる */
-function actionFormulaLines(actions: readonly ActionFormulas[]): DetailLine[] {
-  return actionListRows(actions).map((chunks): DetailLine => ({ chunks }));
-}
 
 function captionLine(text: string): TipLine {
   return { text, color: COLOR_DIM };
-}
-
-/** 武器なら行動ごとの式、武器でなければステータスを参照している行動（テストが欄に収まるかを見る） */
-export function itemFormulaLines(state: GameState, item: Item): DetailLine[] {
-  const head: TipLine = { text: item.name, color: itemColor(item) };
-  const actions = itemFormulas(state.stats, item);
-  if (actions.length === 0) return [head, captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
-  const modifiers = itemModifierRows(state.stats, item).map((chunks): DetailLine => ({ chunks }));
-  return [head, captionLine(FORMULA_CAPTION), ...actionFormulaLines(actions), ...modifiers];
 }
 
 /** 床の遺物のツールチップ（render/dropTooltip.ts）用に、要点と詳しくを全部並べた行 */
@@ -190,11 +137,6 @@ export function itemDetailLines(state: GameState, item: Item): { lines: TipLine[
   // 同じ部位は入れ替わる前提で外したビルドと比べる（装備中なら「これが抜けたら何が欠けるか」）
   more.push(...synergyTipLines(describeSynergy(item, synergyBuild(state, { slot: item.slot }))));
   return { lines, more };
-}
-
-/** 何も乗せていないときの計算式の頁: ステータスごとに参照している行動（テストが欄に収まるかを見る） */
-export function summaryFormulaLines(state: GameState): DetailLine[] {
-  return [captionLine(REFERENCE_CAPTION), ...referenceLines(state)];
 }
 
 // ---------------------------------------------------------------------------

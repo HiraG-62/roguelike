@@ -30,7 +30,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
             （state を読むだけ。state.rng を使わない）
 ```
 
-画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備 / スキル / クラフト画面は `src/ui/inventory.ts`。どちらも DOM 非依存でテストされる。
+画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備画面（装束と紋。頁の積み重ね）は `src/ui/inventory.ts` と `menuState.ts` などの `src/ui/menu*.ts`、頁ごとのファイルは `docs/CODE_MAP.md` の ui 節。どちらも DOM 非依存でテストされる。
 
 拠点（`docs/ideas/hub-design.md`）: タイトルの Enter → 拠点 → 井戸 → 起点画面 → 依頼の 3 択 → ラン。死亡画面の T とポーズの「拠点へ」は拠点へ戻り、拠点の Esc はタイトルへ。拠点の台は既存の画面（装備画面の各タブ・一覧画面・起点画面・履歴）を開き、その画面の Esc は拠点へ戻る（`main.ts` の `menuReturn`。タイトルから開いたときはタイトルへ）。台と画面の対応表・祭壇の一覧・長押しの判定は `src/ui/hubFlow.ts`。拠点の `GameState`（`sandbox`）は `main.ts` の `state` とは別の変数に持ち、リプレイの記録は従来どおり `beginRun` の後に始まる（拠点での装備変更はラン開始時のスナップショットに入る）。
 
@@ -38,7 +38,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTraits.ts`（死骸・取り巻き・気力奪取・双子復活・臆病など敵に横断する仕組み）、`system/enemyBehaviors.ts`（新 behavior 1 つにつき関数 1 つの実装）、`system/bossTwins.ts` / `system/bossFrostGiant.ts`（ボス 2 体の専用ロジック。共通処理は `system/boss.ts`）、`system/boonDefs.ts`（祝福のデータ定義。系譜 `lineage`/`after`、結び `duo` を含む）、`system/boonRules.ts`（拡張分の祝福ルール `onBoonXxxRules`。`system/boons.ts` の既存フックから呼ぶ）、`system/statusReactions.ts`（状態異常や地形の層が出会ったときの反応 `ReactionKey`）、`core/terrain.ts` + `system/terrain.ts`（床の地形の層の型・一覧と効果。配置は `map/generator.ts` の `planTerrain`）、`system/traitHooks.ts`（装備の性質・トリガー文法拡張が読む倍率・フック）、`loot/traitContext.ts`（性質が装備全体や来歴など「自分の外」を読むための文脈）、`skills/{tuning,defs,modifiers,combos,actions,shots,summons,geom}.ts`（大拡張のスキル・刻印符・連携のデータと発動処理。`skills/data.ts` の `SKILL_DEFS`/`MODIFIERS` に混ぜ込む形）、`render/terrainUi.ts`（地形の層の描画）。
 
-memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マップ・敵第 2 弾）で入ったシステム: `data/weapons.ts`（武器種 10・射撃の型 8 の形・当たり判定・語。数値は tuning の `WEAPON`）、`system/spawner.ts`（徘徊の目的地選びと増援の抽選。tuning の `ROAM`）、`system/engagement.ts`（「封鎖中 または 交戦中」の唯一の判定。祝福・誓約・性質・トリガー条件・縛りが共通で見る）、`map/pathing.ts`（視線判定と距離場ベースの経路。マップごとに派生データをキャッシュする純関数。徘徊と敵の気付き・回り込み、QA bot が使う）、`system/enemyWave3.ts`（敵第 2 弾の behavior）/ `system/enemyTerrain.ts`（地形の層を絡めた敵の攻撃）、`system/bossKit.ts`（ボスの共通補助関数）+ 専用ロジック 4 本（`bossLibrarian.ts` 図書館主 / `bossMirrorKnight.ts` 鏡の騎士 / `bossOilKing.ts` 油の王 / `bossBroodMother.ts` 巣母）、`system/reaperVariants.ts`（死神のローテーション 5 体の専用ロジック）、`meta/`（`codex.ts`/`codexStore.ts` 図鑑、`quests.ts`/`questStore.ts` 依頼、`achievements.ts` 実績と称号、`runRecord.ts` がラン中の出来事を `state.codexRun` / `questRun` へ積むだけの記録係、`listScreen.ts`/`screens.ts` が図鑑・依頼一覧・実績の共通タブ画面）、`ui/quests.ts`（起点直後の依頼 3 択の状態）、`ui/skillRunes.ts`（スキルタブの刻印符所持一覧の付け外し）、`ui/synergyPanel.ts`（網タブの語一覧の状態）、`render/dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`render/skillRuneUi.ts` / `render/synergyUi.ts` / `render/chainUi.ts`（それぞれ刻印符所持一覧・網タブ・直近の連鎖の描画）、`render/questUi.ts` / `render/codexUi.ts`（依頼 3 択・図鑑一覧画面の描画）。
+memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マップ・敵第 2 弾）で入ったシステム: `data/weapons.ts`（武器種 10・射撃の型 8 の形・当たり判定・語。数値は tuning の `WEAPON`）、`system/spawner.ts`（徘徊の目的地選びと増援の抽選。tuning の `ROAM`）、`system/engagement.ts`（「封鎖中 または 交戦中」の唯一の判定。祝福・誓約・性質・トリガー条件・縛りが共通で見る）、`map/pathing.ts`（視線判定と距離場ベースの経路。マップごとに派生データをキャッシュする純関数。徘徊と敵の気付き・回り込み、QA bot が使う）、`system/enemyWave3.ts`（敵第 2 弾の behavior）/ `system/enemyTerrain.ts`（地形の層を絡めた敵の攻撃）、`system/bossKit.ts`（ボスの共通補助関数）+ 専用ロジック 4 本（`bossLibrarian.ts` 図書館主 / `bossMirrorKnight.ts` 鏡の騎士 / `bossOilKing.ts` 油の王 / `bossBroodMother.ts` 巣母）、`system/reaperVariants.ts`（死神のローテーション 5 体の専用ロジック）、`meta/`（`codex.ts`/`codexStore.ts` 図鑑、`quests.ts`/`questStore.ts` 依頼、`achievements.ts` 実績と称号、`runRecord.ts` がラン中の出来事を `state.codexRun` / `questRun` へ積むだけの記録係、`listScreen.ts`/`screens.ts` が図鑑・依頼一覧・実績の共通タブ画面）、`ui/quests.ts`（起点直後の依頼 3 択の状態）、`ui/skillRunes.ts`（スキルの頁の刻印符の部品）、`render/dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`render/chainUi.ts`（直近の連鎖の描画）、`render/questUi.ts` / `render/codexUi.ts`（依頼 3 択・図鑑一覧画面の描画）。
 
 0.0.8α（`docs/COMBAT_DESIGN.md` A-8・A-9）で入ったシステム: `core/element.ts`（攻撃ジャンル `AttackGenre`〔範囲軸 `AttackRange` × 質軸 `AttackQuality`〕と属性 `Element` 7 種の型・表示名。ロジックは持たない）、`system/elementCombat.ts`（`combat.ts` の `rollOutgoing` / `mitigate` から呼ぶ、質軸で防御 / 魔防を選ぶ計算と属性倍率、弱点 / 耐性ヒットの浮き文字）、`data/enemyDefense.ts`（敵ごとの防御・魔防・属性耐性・弱点。ボスは段階ごとの上書き `stages`）、`render/elementUi.ts`（武器 / 射撃の型 / スキルのジャンル表示、敵の頭上の弱点の印。このランで倒すまでは「？」）。ジョブは `data/jobs.ts`（`JOB_KEYS` / `JobDef`: ステータスの偏り・得意な武器種・固有ルール 2 つ・初期スキル石・弱点）+ `system/jobs.ts`（`applyJobStats` が起点と同じ畳み込みに合流、`jobRules` が `collectRules` へ、`startJob` が初期スキル石を未所持のときだけ倉庫へ）。
 
@@ -94,7 +94,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 Profile（永続: roguelike.profile.v1）
   ├─ equipment: Record<Slot, Item | null>     Slot = weapon / gun / armor / boots / ring / amulet
   ├─ stash: Item[]                            上限 STASH_CAPACITY
-  ├─ meta（runs・bestDepth・totalKills・bestScore・history?: RunHistoryEntry[]）
+  ├─ meta（runs・bestDepth・totalKills・bestScore・history?: RunHistoryEntry[]・seenAt?: 部位ごとに候補を最後に見た時刻）
   └─ ultimates?（武器種ごとに選んだ奥義の key。無ければその武器種の 1 本目）
 
 Item ─ base / rarity / implicit / affixes: AffixRoll[]（key + value、トリガーやキーストーンも AffixRoll で表す）
@@ -151,7 +151,7 @@ GameState
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |
-| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件。履歴は段取り 9 から任意項目 9 欄〔死因 `killer`・仇の種 `grudge`・仇討ち `avenged`・位階 `tier`・`job`・被弾 `hurts`・見切り `justDodges`・カウンター `counters`・無傷の階 `noHurtFloors`。0・空は書かない〕と、`cause` の `"cleared"`〔踏破〕。メタに任意項目 `clears`〔踏破の回数〕/ `bestClearTier`〔踏破した最高位階〕）・武器掛けで選ぶ奥義 `ultimates`（sanitize は `sanitizeUltimateChoices`） | `loot/profile.ts` |
+| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件。履歴は段取り 9 から任意項目 9 欄〔死因 `killer`・仇の種 `grudge`・仇討ち `avenged`・位階 `tier`・`job`・被弾 `hurts`・見切り `justDodges`・カウンター `counters`・無傷の階 `noHurtFloors`。0・空は書かない〕と、`cause` の `"cleared"`〔踏破〕。メタに任意項目 `clears`〔踏破の回数〕/ `bestClearTier`〔踏破した最高位階〕）・武器掛けで選ぶ奥義 `ultimates`（sanitize は `sanitizeUltimateChoices`）・メタの任意項目 `seenAt`〔`Partial<Record<Slot, number>>`。装備画面の候補の新着の判定。その部位の候補を最後に見た時刻で、`item.foundAt` がこれより後なら新着。有限で 0 以上の数だけ通し、空なら書かない。`ui/seen.ts` が読み書きし、version は変えない〕 | `loot/profile.ts` |
 | `roguelike.skills.v1` | スキル石とスロット（刻印符は 2026-09-30 からラン内だけ。旧 `runes` と石の `links` は読み捨て、旧 `link` の芽は `power` へ写す。旧スキル key は `skills/legacyKeys.ts` で写す） | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
 | `roguelike.settings.v1` | ミュート・音量・音楽の音量・画面揺れ | `ui/settings.ts` |

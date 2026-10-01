@@ -6,7 +6,7 @@ import type { EffectRow } from "./effectsList";
 const REACHED_INFO = "到達";
 
 /**
- * 効果の頁の先頭に出す到達の行。装備だけで数えた量が 0 の軸は出さない（狙っていない軸を並べない）。
+ * 書付「体」に出す到達の行。装備だけで数えた量が 0 の軸は出さない（狙っていない軸を並べない）。
  * 拠点でもラン中でも同じ値（stats.reach は装備だけ）
  */
 export function reachRows(stats: Readonly<PlayerStats>): EffectRow[] {

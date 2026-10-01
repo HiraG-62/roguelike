@@ -9,7 +9,6 @@ import type { SkillStone } from "../skills/types";
 import { BOONS, LINEAGE_LABEL } from "../system/boonDefs";
 import {
   FORGE_STEP_PROMPT,
-  type ForgeStep,
   executeForge,
   forgeCostText,
   forgeDonor,
@@ -179,11 +178,6 @@ export function pairStones(state: Readonly<GameState>, subject: Extract<SheetSub
 /** 1 品の書付の物（1 品でなければ null） */
 export function sheetItemOf(state: Readonly<GameState>, view: Readonly<SheetView>): Item | null {
   return view.subject.kind === "item" ? sheetItem(state, view.subject.itemId) : null;
-}
-
-/** 今の鍛冶の段（手続きが無ければ null） */
-export function sheetForgeStep(state: Readonly<GameState>, view: Readonly<SheetView>): ForgeStep | null {
-  return view.forge === null ? null : forgeStep(state.profile, view.forge);
 }
 
 // -----------------------------------------------------------------------------

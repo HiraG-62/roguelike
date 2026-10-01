@@ -28,7 +28,7 @@ import { ATTR_KEYS, ATTR_LABEL, type AttrKey } from "../loot/types";
  * Tips ノートの「武器種」タブは meta/tips.ts の TIP_DEFS へこの本文を差し込む
  */
 
-/** 奥義の種類の短い表記（docs/GLOSSARY.md「一撃 / 持続」）。ui/statusTab.ts の ULTIMATE_KIND_LABEL と同じ語だが、
+/** 奥義の種類の短い表記（docs/GLOSSARY.md「一撃 / 持続」）。ui/sheetBody.ts の ULTIMATE_KIND_LABEL と同じ語だが、
  * meta 層から ui 層へ依存しないようここに小さく持つ */
 const ULTIMATE_KIND_LABEL: Readonly<Record<UltimateDef["kind"], string>> = { instant: "一撃", sustain: "持続" };
 

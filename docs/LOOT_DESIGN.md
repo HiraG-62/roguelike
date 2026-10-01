@@ -247,8 +247,8 @@ docs/ideas/loot-identity.md の推奨案「揺らぎ・来歴」に置き換え�
 
 ## UI（担当: src/ui・src/render）
 
-- 表示情報は `describeItem(item)`（名前・副題・一言・色の帯・性質の行〔色・反転・芽・揺らぎ段階〕・余白・来歴の年表・銘）を使う。共鳴は装備画面の流れタブ（`ui/synergyPanel.ts`）と HUD が出す
-- 装備タブ（`ui/inventory.ts` / `render/inventoryUi.ts`）: スロット 6 の一覧・倉庫、ツールチップは `describeItem` をそのまま行にする（名前 → 銘 → 副題 → 一言 → 固有 → 性質 → 余白 → 誓約の競合 → 来歴）。倉庫行・スロットは遺物 1 つの色の帯（`lootUiParts.ts`）を左端に出す。誓約の競合があれば先頭に警告を出す
-- 芽（`render/budUi.ts` / `ui/bud.ts`）: 戦闘中は右下に一定秒数だけ 2 択カードを出し、以後は点滅アイコンだけに切り替える。装備画面では 2 択のモーダル（`layoutBudModal` で当たり判定を共有）。提示は `state.pendingBud`、選択は `chooseBud(state, index)`
-- 残響タブ（`ui/echoTab.ts` / `render/echoTabUi.ts`）: 状態機械（対象を倉庫から選ぶ → 操作を選ぶ → 性質〔・色 / 移し先〕を選ぶ → 実行ボタン）。装備中の遺物は対象にできない。実行を押すまで何も消費しない。クラフト本体は `craftEcho` / `applyEchoResult` / `ECHO_OPS` / `ECHO_LABEL` / `ECHO_OP_LABEL`
-- 3 タブの共通部品は `render/lootUiParts.ts`（色の帯・性質の行・枠の色定数）に集約
+- 表示情報は `describeItem(item)`（名前・副題・一言・色の帯・性質の行〔色・反転・芽・揺らぎ段階〕・余白・来歴の年表・銘）を使う。共鳴は装備画面の紋（`ui/crest.ts`）と HUD が出す
+- 装備画面の装束（`ui/attire.ts`）と候補（`ui/candidates.ts`）: 6 部位と腰の石から着る物を選び、倉庫の候補を 5 枚ずつ並べる。全文は書付（`ui/sheet.ts` / `render/sheetUi.ts`）が `describeItem` をそのまま行にする（名前 → 銘 → 副題 → 一言 → 固有 → 性質 → 余白 → 誓約の競合 → 来歴。`render/itemTips.ts`）。遺物 1 つの色の帯（`lootUiParts.ts`）を札の左端に出す。誓約の競合があれば先頭に警告を出す
+- 芽（`render/budUi.ts`）: 戦闘中は右下に一定秒数だけ 2 択カードを出し、以後は点滅アイコンだけに切り替える。装備画面では芽のある部位の候補の先頭に並ぶ「芽吹き」の 2 択の札（`ui/candidates.ts`）。提示は `state.pendingBud`、選択は `chooseBud(state, index)`
+- 鍛冶の手続き（`ui/forge.ts`）: 役割（対象 → 操作 → 性質〔・色 / 移し先〕→ 実行）を書付の下端（`ui/sheet.ts`）と拠点の金床の構え（`ui/anvil.ts`）が使う。注ぎ・煽り・移し・呼び戻しは装備中の遺物にも使え、砕くのは倉庫の遺物だけ（長押し）。実行するまで何も消費しない。クラフト本体は `craftEcho` / `applyEchoResult` / `ECHO_OPS` / `ECHO_LABEL` / `ECHO_OP_LABEL`
+- 装備画面の共通部品は `render/lootUiParts.ts`（色の定数・性質の行・枠）に集約

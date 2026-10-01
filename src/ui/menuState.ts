@@ -166,24 +166,8 @@ export interface ViewModule<V extends MenuView> {
   leave(state: GameState, ui: InventoryUi, view: V): void;
 }
 
-/** 荷札・見出しの空の値（空実装の頁と、焦点が無いとき） */
+/** 荷札の空の値（焦点が無いとき） */
 export const EMPTY_TAG: Readonly<MenuTag> = { title: "", sub: "", aside: null };
-export const EMPTY_HEADER: Readonly<MenuHeader> = { crumbs: "", right: null };
-
-/** 空実装の頁の部品（後の段が中身を入れるまで、積まれても何もしない。戻るで外れる） */
-export function stubView<V extends MenuView>(): ViewModule<V> {
-  return {
-    layout: () => [],
-    act: () => undefined,
-    header: () => ({ ...EMPTY_HEADER }),
-    tag: () => ({ ...EMPTY_TAG }),
-    guide: () => ["back"],
-    sheetFor: () => null,
-    back: () => false,
-    edge: () => false,
-    leave: () => undefined,
-  };
-}
 
 /** 今いちばん上の頁（閉じていれば null） */
 export function topView(ui: Readonly<InventoryUi>): MenuView | null {

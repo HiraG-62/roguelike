@@ -1,7 +1,6 @@
 import type { GameState } from "../core/state";
 import { BOONS, type BoonDef, type LineageKey } from "../system/boonDefs";
 import { BOON_GRADE_LABEL, boonGradeOf } from "../system/boonGrade";
-import { ownedCore } from "../system/boonCores";
 import { isDeepDepth } from "../system/chapters";
 import { countPer } from "../system/modifiers";
 
@@ -39,22 +38,6 @@ function boonRow(state: GameState, def: Readonly<BoonDef>): EffectRow {
   const count = temperCount(state, def);
   const note = isDeepDepth(state.depth) && hasCap(def) ? DEEP_UNCAPPED_NOTE : "";
   return { key: `boon:${def.key}`, name: def.name, info: count === null ? grade : `${grade}・${count}`, detail: def.desc + note };
-}
-
-/** 持っている祝福（芯を除く）。名前・格（研鑽は今の数えも）・効果の短い説明 */
-export function boonRows(state: GameState): EffectRow[] {
-  return state.boons
-    .map((key) => BOONS[key])
-    .filter((def) => def.core !== true)
-    .map((def) => boonRow(state, def));
-}
-
-const CORE_INFO = "芯";
-
-/** 持っている芯（1 ランに 1 つ）。無ければ空配列 */
-export function coreRows(state: GameState): EffectRow[] {
-  const def = ownedCore(state);
-  return def ? [{ key: `core:${def.key}`, name: def.name, info: CORE_INFO, detail: def.desc }] : [];
 }
 
 /** その系譜の札（融合の札は両方の系譜に入る）。持っている順 */

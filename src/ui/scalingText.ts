@@ -6,7 +6,7 @@ import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { ATTR_KEYS, ATTR_LABEL, type AttrKey, type AttrRatio, type Item, type PlayerStats, type Scaling } from "../loot/types";
 import { type DamageTag, dedupeMore, moreApplies } from "../core/damage";
-import { INCREASED_LABEL, UNARMED_MORE, formatMoreMul } from "../loot/stats";
+import { INCREASED_LABEL, formatMoreMul } from "../loot/stats";
 import { SKILL, SKILL_DEFS } from "../skills/data";
 import { ART_DEFS, isArtKey } from "../skills/arts";
 import type { ArtSkillKey } from "../skills/arts/keys";
@@ -48,7 +48,7 @@ export interface ActionFormulas {
   name: string;
   formulas: ScalingFormula[];
   /**
-   * 式を畳んで値だけ出す量（右の 2 段目以降・派生の怯み値）。行動が多い武器種でも計算式の頁を詳細欄 1 枚に収めるため。
+   * 式を畳んで値だけ出す量（右の 2 段目以降・派生の怯み値）。行動が多い武器種でも計算式の頁を書付の欄 1 枚に収めるため。
    * 係数の形は同じ武器種の左の段の怯み値と同じ流儀なので、式はそちらで読める
    */
   folded?: ScalingFormula[];
@@ -79,7 +79,6 @@ const NAME_SEP = "・";
 export const NO_SCALING_NOTE = "（ステータスで変わらない）";
 export const NO_REFERENCE_TEXT = "ステータスで変わらない";
 export const MAIN_REFERENCE_HEAD = "主に参照: ";
-export const NOT_REFERENCED_TEXT = "今は参照されない";
 const EPS = 1e-9;
 
 // ---------------------------------------------------------------------------
@@ -141,7 +140,7 @@ export function buffFormula(stats: Readonly<PlayerStats>, label: string, s: Read
 
 function termChunk(term: ScalingTerm, first: boolean): FormulaChunk {
   const negative = term.coef < 0;
-  // 詳細欄の幅（DETAIL_W）に 1 行で収めるため、項は記号と詰めて前の項に空白なしでつなぐ
+  // 書付の計算式の欄の幅に 1 行で収めるため、項は記号と詰めて前の項に空白なしでつなぐ
   const sign = first ? (negative ? MINUS : "") : negative ? MINUS : PLUS;
   const pieces: FormulaPiece[] = [];
   if (sign !== "") pieces.push({ text: sign });
@@ -215,7 +214,7 @@ export function actionChunks(action: Readonly<ActionFormulas>, f: Readonly<Scali
   return [{ pieces: [{ text: action.name, tone: "name" }] }, ...formulaChunks(f), ...foldedChunks(action, false)];
 }
 
-/** 行動を詳細欄の行（片の列の列）にする。1 行目は行動名 + 最初の式（畳んだ量は 1 行目の末尾）、残りの式は 1 行ずつ */
+/** 行動を書付の行（片の列の列）にする。1 行目は行動名 + 最初の式（畳んだ量は 1 行目の末尾）、残りの式は 1 行ずつ */
 export function actionRows(action: Readonly<ActionFormulas>): FormulaChunk[][] {
   const [first, ...rest] = action.formulas;
   if (first === undefined) return [[{ pieces: [{ text: action.name, tone: "name" }] }, ...foldedChunks(action, true)]];
@@ -240,7 +239,7 @@ function sameActionFormulas(a: Readonly<ActionFormulas>, b: Readonly<ActionFormu
 
 /**
  * 連続する行動で式が同じなら 1 つにまとめる（「膝蹴り・フック」）。左の連撃の段は「1〜2 段目」に畳み済みなので、
- * これは右レーンの段のため。連刃は 6〜8 段あり、右の段を 1 つずつ出すと詳細欄 1 枚に収まらない
+ * これは右レーンの段のため。連刃は 6〜8 段あり、右の段を 1 つずつ出すと書付の欄 1 枚に収まらない
  */
 function mergeSameActions(actions: readonly ActionFormulas[]): ActionFormulas[] {
   const out: ActionFormulas[] = [];
@@ -256,8 +255,8 @@ function mergeSameActions(actions: readonly ActionFormulas[]): ActionFormulas[] 
 }
 
 /**
- * 行動の列を詳細欄の行にする。式を持たない行動（値だけに畳んだ派生）は続けて 1 つの段落に詰める。
- * 派生は 4〜5 本あり、1 本 1 行だと行動の多い武器種（拳・双剣）が詳細欄 1 枚に収まらないため
+ * 行動の列を書付の行にする。式を持たない行動（値だけに畳んだ派生）は続けて 1 つの段落に詰める。
+ * 派生は 4〜5 本あり、1 本 1 行だと行動の多い武器種（拳・双剣）が書付の欄 1 枚に収まらないため
  */
 export function actionListRows(actions: readonly ActionFormulas[]): FormulaChunk[][] {
   const rows: FormulaChunk[][] = [];
@@ -430,7 +429,7 @@ function sameFormulas(a: readonly ScalingFormula[], b: readonly ScalingFormula[]
   return a.length === b.length && a.every((f, i) => formulaText(f) === formulaText(b[i] ?? f));
 }
 
-/** 連撃の段。式が同じ隣り合う段は「1〜3 段目」にまとめる（詳細欄の行を減らす） */
+/** 連撃の段。式が同じ隣り合う段は「1〜3 段目」にまとめる（書付の行を減らす） */
 function comboStepFormulas(stats: Readonly<PlayerStats>, steps: readonly MeleeStepDef[]): ActionFormulas[] {
   const out: ActionFormulas[] = [];
   let from = 0;
@@ -544,12 +543,6 @@ export function itemMoveset(item: Readonly<Item>): { moveset: MovesetDef; bullet
   return { moveset: MOVESETS[base.moveset], bullet: bulletOfBase(base.key) };
 }
 
-/** 武器の行動ごとの式。武器でなければ空 */
-export function itemFormulas(stats: Readonly<PlayerStats>, item: Readonly<Item>): ActionFormulas[] {
-  const m = itemMoveset(item);
-  return m === null ? [] : movesetFormulas(stats, m.moveset, m.bullet);
-}
-
 // ---------------------------------------------------------------------------
 // 増と倍（docs/ideas/scaling-impl.md 2-1）。基礎の値の後に掛かるものの内訳。合計の 1 つの数にはまとめない
 // ---------------------------------------------------------------------------
@@ -582,14 +575,6 @@ export function modifierRows(stats: Readonly<PlayerStats>, attack: AttackTag, sk
   const more = dedupeMore(stats.more).filter((m) => moreApplies(m, only) && Math.abs(m.mul - 1) >= EPS && !skipSources.includes(m.source));
   if (more.length > 0) rows.push(modifierRow(MORE_HEAD, more.map((m) => `${m.label} ${TIMES}${formatMoreMul(m.mul)}`)));
   return rows;
-}
-
-/** 武器の攻撃（銃は射撃、それ以外は近接）に掛かる増と倍の行。武器でなければ空 */
-export function itemModifierRows(stats: Readonly<PlayerStats>, item: Readonly<Item>): FormulaChunk[][] {
-  const m = itemMoveset(item);
-  if (m === null) return [];
-  // 武器を持てば素手ではなくなるので、今が素手でも素手の倍は出さない
-  return modifierRows(stats, isGun(m.moveset) ? "ranged" : "melee", [UNARMED_MORE.source]);
 }
 
 const PCT_SCALE = 100;
@@ -756,11 +741,3 @@ export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<
     return { attr, names };
   });
 }
-
-/** 「筋力: 大剣の連撃・地裂き」。参照が無ければ「筋力: 今は参照されない」 */
-export function referenceChunks(ref: Readonly<AttributeReference>): FormulaChunk[] {
-  const head: FormulaChunk = { pieces: [{ text: ATTR_LABEL[ref.attr], attr: ref.attr }, { text: ":" }] };
-  if (ref.names.length === 0) return [head, { pieces: [{ text: NOT_REFERENCED_TEXT, tone: "dim" }] }];
-  return [head, ...ref.names.map((name, i): FormulaChunk => ({ pieces: [{ text: i < ref.names.length - 1 ? `${name}${NAME_SEP}` : name }], glue: i > 0 }))];
-}
-

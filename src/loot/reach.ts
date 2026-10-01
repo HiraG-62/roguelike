@@ -14,7 +14,7 @@ export interface ReachDef {
   readonly key: ReachKey;
   /** 表示名（無尽 / 燎原 / 常在） */
   readonly name: string;
-  /** 測る量の名（効果の頁の detail に出す） */
+  /** 測る量の名（書付「体」の到達の行の detail に出す） */
   readonly measureLabel: string;
   /** 届いたときの効果（効果そのもの） */
   readonly effect: string;

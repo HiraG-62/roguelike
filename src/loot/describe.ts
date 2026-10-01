@@ -96,7 +96,7 @@ function fluxLevelOf(roll: AffixRoll): FluxLevel {
 /**
  * ステータスが何を伸ばすかの一言（動詞）。装備の性質の行と装備画面のステータス表示で共有する。
  * ステータスそのものの効果は体の性能（技巧 → 移動・ダッシュ、体力 → 生命・状態異常への抵抗、精神 → 気力）だけで、
- * 威力・怯み値などは行動ごとの係数で決まる。どの行動が参照するかは詳細欄の計算式の頁（ui/scalingText.ts）に出す
+ * 威力・怯み値などは行動ごとの係数で決まる。どの行動が参照するかは書付「体」の計算式の欄（ui/scalingText.ts）に出す
  */
 export const ATTRIBUTE_HINT: Readonly<Record<AttrKey, string>> = {
   str: "係数で参照する行動だけが上がる",
@@ -293,7 +293,7 @@ export function itemKindName(item: Pick<Item, "baseKey">): string {
 }
 
 /**
- * 地金の行。性質の行と違い、ステータスの一言は付けない（詳細欄の幅を性質に回す）。
+ * 地金の行。性質の行と違い、ステータスの一言は付けない（書付・荷札の幅を性質に回す）。
  * depth は今いる階の深度（持ち込むと地金は深度で決め直すので、効く値を見せる。拠点・倉庫は 1）
  */
 export function innateLines(item: Pick<Item, "innate" | "innateLuck" | "itemLevel" | "slot">, depth = 1): string[] {
