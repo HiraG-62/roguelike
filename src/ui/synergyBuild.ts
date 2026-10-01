@@ -12,7 +12,7 @@ import { skillKeywords, statsKeywords } from "../system/keywords";
 /**
  * 今のビルドの要素（遺物・スキル石・祝福）と語の和（docs/ideas/synergy-web.md 4-a）。
  * 遺物の書付・石の相性の行が「これを外した / 入れ替えた場合」の穴を見るのに使う。
- * 旧「網」タブ（ui/synergyPanel.ts）から、タブを消しても残る部分だけを移した
+ * 旧「網」タブ（今は紋の面 ui/crest.ts）から、タブを消しても残る部分だけを移した
  */
 
 /** 外す要素（ツールチップで「これを外した / 入れ替えた場合」の穴を見るため） */
