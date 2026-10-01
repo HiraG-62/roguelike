@@ -294,6 +294,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 - `tools/map-shot.html` + `src/tools/mapShot.ts`: クエリ `?depth=&kind=&seed=&tx=&ty=` で `createGame(seed, …, { …defaultRunSetup(), startDepth: depth })` → `buildFloor(state, kind)` → カメラを (tx, ty) か最初の部屋へ → `renderer.settleMap(state)` → `render` を 1 回 → `window.__mapShotReady = true`。`?bench=1` なら 300 フレーム横へ流し、地図の描画（`drawWorldLayer` の地図の部分）と焼きの ms の平均を `window.__mapBench` に出す。`vite build` の入力は `index.html` だけなので配布物に入らない
 - `scripts/map-shot.mjs`: `vite --port 5199` を子で起こし、playwright（`PLAYWRIGHT_MODULE` か `npm root -g` の `playwright`）を `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` で読み、1920x1080（バックバッファ）で撮って scratchpad に PNG を出す。リポジトリには入れない
+- `map:shot` は探索ログが空なので、ミニマップの確認には使えない（未踏の面だけになる）
 - 撮る 12 枚: 拠点 / 深度 3 cave / 深度 4 swamp / 深度 5 ボス階 / 深度 7 rooms（寺院）/ 深度 8 mine / 深度 12 forge / 深度 13 glacier / 深度 17 cave / 深度 18 dark / 深度 21 / 深度 23。加えて river（穴と浅瀬）と court を 1 枚ずつ。各段の終わりに前後を並べてユーザーに見せる
 - 性能の確認: `?bench=1` で、段 1 の前（今の描画）と段 3 の後を比べ、地図の描画の平均 ms が増えていないこと
 

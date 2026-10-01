@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FloorKind } from "../core/state";
-import { pitLook, pitTheme } from "./pitLook";
+import { PIT_OF_KIND } from "../data/mapThemes";
+import { mapThemeFor } from "./mapTheme";
+import { pitLook, pitLookAt, pitLookOf, pitTheme, pitThemeAt } from "./pitLook";
 
 const KINDS: readonly FloorKind[] = ["rooms", "cave", "dark", "forge", "ossuary", "swamp", "glacier", "mine", "meadow"];
 
@@ -42,5 +44,28 @@ describe("穴の見た目（pitLook）", () => {
         ).toBe(true);
       }
     }
+  });
+
+  it("深さつきの引きは MapTheme.pit と必ず一致する", () => {
+    for (const depth of [1, 3, 5, 6, 10, 11, 15, 16, 20, 21, 22, 30]) {
+      for (const kind of KINDS) {
+        expect(pitThemeAt(depth, kind), `深度 ${depth} の ${kind}`).toBe(mapThemeFor(depth, kind).pit);
+      }
+    }
+  });
+
+  it("章 4・最深の間より先は奈落、章 1〜3 はバイオームの対応", () => {
+    for (const kind of KINDS) {
+      expect(pitThemeAt(16, kind), `${kind} 章 4`).toBe("abyss");
+      expect(pitThemeAt(23, kind), `${kind} 深み`).toBe("abyss");
+      expect(pitThemeAt(3, kind), `${kind} 章 1`).toBe(PIT_OF_KIND[kind]);
+      expect(pitThemeAt(8, kind), `${kind} 章 2`).toBe(PIT_OF_KIND[kind]);
+    }
+  });
+
+  it("色は PIT_COLORS の deep 色から作り、表の移行前と同じ色になる", () => {
+    expect(pitLookOf("water").mini, "水").toEqual([30, 54, 73]);
+    expect(pitLookAt(3, "swamp"), "深さつきでも同じ見た目").toBe(pitLookOf("water"));
+    expect(pitLook("forge", false), "旧い呼び方でも同じ見た目").toBe(pitLookOf("lava"));
   });
 });

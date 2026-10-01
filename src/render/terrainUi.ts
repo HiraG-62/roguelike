@@ -2,10 +2,9 @@ import type { GameState } from "../core/state";
 import { type TerrainKind, terrainCode } from "../core/terrain";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type GameMap, TILE_SIZE, Tile, toIndex } from "../map/grid";
-import { isDeepDepth } from "../system/chapters";
 import { tileHash } from "./renderMath";
 import { TERRAIN_RUBBLE } from "../data/tuning";
-import { type PitTheme, pitTheme } from "./pitLook";
+import { type PitTheme, pitThemeAt } from "./pitLook";
 import type { SpriteAtlas } from "./sprites";
 import {
   PIT_NONE,
@@ -88,7 +87,7 @@ export function drawTerrainLayer(ctx: CanvasRenderingContext2D, state: GameState
   const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
   const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
   const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-  const theme = pitTheme(state.floorKind, isDeepDepth(state.depth));
+  const theme = pitThemeAt(state.depth, state.floorKind);
   // 頂点 (vx, vy) は 4 マス (vx-1, vy-1) (vx, vy-1) (vx-1, vy) (vx, vy) の角。表示するマス x0..x1 は頂点 x0..x1+1 で覆える
   for (let vy = y0; vy <= y1 + 1; vy++) {
     for (let vx = x0; vx <= x1 + 1; vx++) {
