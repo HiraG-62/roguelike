@@ -18,10 +18,10 @@ import {
 } from "./boonUi";
 
 describe("祝福カードの印", () => {
-  it("枯れを満たすなら「潤い」、溢れを使うなら「受け皿」、どちらでもなければ「新たな流れ」", () => {
+  it("枯れを満たすなら「潤い」、溢れを使うなら「受け皿」、どちらでもなければ「新たな系統」", () => {
     expect(boonMark({ fills: ["burn"], feeds: [] }), "潤い").toBe("fill");
     expect(boonMark({ fills: [], feeds: ["kill"] }), "受け皿").toBe("feed");
-    expect(boonMark({ fills: [], feeds: [] }), "新たな流れ").toBe("fresh");
+    expect(boonMark({ fills: [], feeds: [] }), "新たな系統").toBe("fresh");
     expect(boonMark({ fills: ["burn"], feeds: ["kill"] }), "両方なら穴を先に").toBe("fill");
   });
 

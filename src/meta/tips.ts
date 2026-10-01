@@ -172,10 +172,10 @@ const RELIC_TIPS: readonly TipDef[] = [
     term: "共鳴",
     category: "relic",
     body:
-      `同じ流れ（燃焼・近接など）の源が ${RESONANCE.minSources} つ以上、糧が ${RESONANCE.minSinks} つ以上そろうと、その流れが共鳴して段が立つ。` +
+      `同じ系統（燃焼系・近接系など）の源が ${RESONANCE.minSources} つ以上、糧が ${RESONANCE.minSinks} つ以上そろうと、その系統が共鳴して段が立つ。` +
       "遺物・スキル石・祝福・流儀・武器の型・改鋳・誓約をそれぞれ 1 つと数える。" +
       `源と糧が増えるほど、強めるものがあるほど段が上がる（上限 ${RESONANCE.maxSteps}）。` +
-      "段ごとにその流れの与ダメージが伸びる（ダッシュ・見切り・気力・回復・障壁は、その性能が伸びる）。",
+      "段ごとにその系統の与ダメージが伸びる（ダッシュ・見切り・気力・回復・障壁は、その性能が伸びる）。",
   },
   { key: "colorless", term: "無色", category: "relic", body: "旧い遺物に残る、脱色された性質。色を持たない。" },
   { key: "provenance", term: "来歴", category: "relic", body: "装備している間に起きた出来事の記録。節目に達すると芽が出る。" },
@@ -189,7 +189,7 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "transfer", term: "移し", category: "relic", body: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われ、受け手の余白を 1 使う。" },
   { key: "recall", term: "呼び戻し", category: "relic", body: "過去の芽で選ばなかった方を取り直す。代わりに選んでいた方を失う。1 つの遺物に 1 回だけ。" },
   { key: "pour", term: "注ぎ", category: "relic", body: "遺物を捧げ、その来歴の半分を同じ部位の別の遺物へ注ぐ。捧げた遺物は消える。" },
-  { key: "flow", term: "流れ", category: "relic", body: "燃焼・ダッシュ・瀕死などの状況の単位。源はその状況を起こす側、糧はその状況で強くなる側。源だけなら溢れ、糧だけなら枯れ。" },
+  { key: "flow", term: "系統", category: "relic", body: "燃焼系・ダッシュ系・瀕死系などの状況のまとまり。源はその状況を起こす側、糧はその状況で強くなる側。源だけなら溢れ、糧だけなら枯れ。" },
 ];
 
 const SKILL_TIPS: readonly TipDef[] = [
@@ -210,7 +210,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "core", term: "芯", category: "run", body: "1 回の探索に 1 つだけ持てる大型の祝福。遊び方を変える効果と代償を持ち、芯と重なる祝福が以後出やすい。" },
   { key: "cursed", term: "呪い付き", category: "run", body: "強い効果と代償を併せ持つ祝福。" },
   { key: "takeCurse", term: "呪いを受けて 4 択", category: "run", body: "祝福の 3 択で呪い付きの祝福を 1 つ受ける代わりに、4 枚目の候補が加わる。" },
-  { key: "lineage", term: "系譜", category: "run", body: "祝福の流れ（灰燼・霜枷・雷鳴・月蝕・大地・刃鳴・輪廻・眷属・財宝）。祝福の出口で系譜を選ぶと、その系譜の札が 3 枚並ぶ。同じ系譜の札を 4 枚持つと真髄が確定で並ぶ。" },
+  { key: "lineage", term: "系譜", category: "run", body: "祝福の 9 つの筋（灰燼・霜枷・雷鳴・月蝕・大地・刃鳴・輪廻・眷属・財宝）。祝福の出口で系譜を選ぶと、その系譜の札が 3 枚並ぶ。同じ系譜の札を 4 枚持つと真髄が確定で並ぶ。" },
   {
     key: "graceSlots",
     term: "加護",

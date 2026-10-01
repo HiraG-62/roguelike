@@ -112,7 +112,7 @@ export type BoonMark = (typeof BOON_MARKS)[number];
 export const BOON_MARK_LABEL: Readonly<Record<BoonMark, string>> = {
   fill: "潤い",
   feed: "受け皿",
-  fresh: "新たな流れ",
+  fresh: "新たな系統",
 };
 const BOON_MARK_COLOR: Readonly<Record<BoonMark, string>> = {
   fill: "#80e0ff",

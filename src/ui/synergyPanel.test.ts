@@ -69,7 +69,7 @@ describe("網タブ: レイアウトと当たり判定", () => {
   });
 });
 
-describe("シナジータブ: 流れごとの源 / 糧", () => {
+describe("系統タブ: 系統ごとの源 / 糧", () => {
   it("語の並びは KEYWORDS 順で固定", () => {
     const words = synergyWords(buildOf([]));
     expect(words.map((w) => w.key)).toEqual([...KEYWORDS]);
@@ -145,7 +145,7 @@ describe("網タブ: 入力", () => {
   });
 });
 
-describe("流れタブ: 共鳴中の語", () => {
+describe("系統タブ: 共鳴中の系統", () => {
   it("共鳴していなければ行を出さない。していれば段の高い順（同段は KEYWORDS 順）", () => {
     const state = createGame(1);
     state.boonRun.resonance = [];

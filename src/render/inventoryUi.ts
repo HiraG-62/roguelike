@@ -128,7 +128,7 @@ export const COLOR_INNATE = "#c8b48a";
 export const INNATE_HEAD = "地金: ";
 const INNATE_JOINER = "、";
 
-const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "流れ" };
+const TAB_LABEL: Record<InventoryUi["tab"], string> = { equipment: "装備", status: "ステータス", skills: "スキル", echo: "残響", web: "系統" };
 const TAB_UNDERLINE_H = 1;
 const HELP_LABEL = "？ ヘルプ";
 const COLOR_HELP = "#8fd0ff";
@@ -539,7 +539,7 @@ export function synergyTipLines(d: SynergyDescription): TipLine[] {
   const head: string[] = [];
   if (d.produces.length > 0) head.push(`源 ${glyphs(d.produces)}`);
   if (d.consumes.length > 0) head.push(`糧 ${glyphs(d.consumes)}`);
-  const lines: TipLine[] = [{ text: `流れ: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
+  const lines: TipLine[] = [{ text: `系統: ${head.join("  ")}`, color: meshes ? COLOR_SYNERGY : COLOR_DIM }];
   const detail: string[] = [];
   if (d.partners.length > 0) detail.push(`相性: ${d.partners.join(WORD_SEP)}`);
   if (d.fills.length > 0) detail.push(`潤い: ${labels(d.fills)}`);

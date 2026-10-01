@@ -94,7 +94,7 @@ export function helpLines(tab: InventoryTab): TipLine[] {
     case "echo":
       return [head("操作"), ...ECHO_HELP.map(body), dim(TIPS_POINTER)];
     case "web":
-      return [head("流れ"), ...WEB_HELP.map((l) => ({ ...l }))];
+      return [head("系統"), ...WEB_HELP.map((l) => ({ ...l }))];
   }
 }
 

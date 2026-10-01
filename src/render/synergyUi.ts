@@ -60,12 +60,12 @@ const LABEL_GAP = 3;
 const COUNT_PAD = 2;
 /** ？ のヘルプに出す凡例と操作（画面には常時出さない） */
 export const WEB_HELP: readonly { text: string; color: string }[] = [
-  { text: "方向キー / スティック / マウス: 流れを選ぶ", color: COLOR_TEXT },
+  { text: "方向キー / スティック / マウス: 系統を選ぶ", color: COLOR_TEXT },
   { text: "暖色 = 溢れ（源だけで糧がない）", color: STATE_COLOR.surplus },
   { text: "寒色の点滅 = 枯れ（糧だけで源がない）", color: STATE_COLOR.hunger },
   { text: "右下の数 = 源の数 / 糧の数", color: COLOR_DIM },
   { text: "名前の色: 遺物 / 装備全体 / スキル石 / 祝福", color: COLOR_DIM },
-  { text: "グリッドの下: 共鳴している流れと段", color: COLOR_DIM },
+  { text: "グリッドの下: 共鳴している系統と段", color: COLOR_DIM },
 ];
 
 export function drawSynergyTab(ctx: CanvasRenderingContext2D, state: GameState, ui: SynergyPanelUi): void {
