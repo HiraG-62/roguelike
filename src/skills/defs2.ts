@@ -3,11 +3,10 @@ import type { StatusApply } from "../core/status";
 import { STATUS } from "../data/tuning";
 import { WAVE2_SKILL_TUNING as T } from "./tuning2";
 import type { SkillDef, Wave2SkillKey } from "./types";
-import { cooldownSkill, manaSkill } from "./resource";
+import { manaSkill } from "./resource";
 
 /**
- * スキル第 2 弾の定義（地形を作る・壊す・燃やす / 烙印・崩勢・濡れ・彩痕・吸魔・宣告を使う /
- * 属性が巡る / 武器種で形が変わる / 変身 / 空間）。data.ts の SKILL_DEFS に展開する。
+ * スキル第 2 弾の定義（地形を作る・壊す・燃やす / 烙印・濡れ・彩痕・宣告を使う / 属性が巡る / 空間）。data.ts の SKILL_DEFS に展開する。
  * 発動は skills/actions2.ts。数値は skills/tuning2.ts
  */
 
@@ -15,14 +14,8 @@ import { cooldownSkill, manaSkill } from "./resource";
 const APPLIES = {
   waterJar: [{ kind: "wet", stacks: T.waterJar.wetStacks, duration: STATUS.wet.duration, potency: 0 }],
   oilPot: [{ kind: "oiled", stacks: 1, duration: STATUS.oiled.duration, potency: 0 }],
-  scorchLine: [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: T.scorchLine.burnPotency, ratio: T.scorchLine.burnPotencyRatio }],
-  iceSlide: [{ kind: "chill", stacks: 1, duration: STATUS.chill.duration, potency: 0 }],
-  bogCall: [{ kind: "poison", stacks: 1, duration: STATUS.poison.duration, potency: 0 }],
   brandSear: [{ kind: "brand", stacks: T.brandSear.brandStacks, duration: STATUS.brand.duration, potency: 0 }],
-  breakKick: [{ kind: "broken", stacks: 1, duration: STATUS.broken.duration, potency: 0 }],
-  tideSlash: [{ kind: "wet", stacks: T.tideSlash.wetStacks, duration: STATUS.wet.duration, potency: 0 }],
   hueEtch: [{ kind: "hue", stacks: 1, duration: STATUS.hue.duration, potency: 0 }],
-  siphonMark: [{ kind: "siphon", stacks: 1, duration: STATUS.siphon.duration, potency: 0 }],
   doomSentence: [{ kind: "doom", stacks: 1, duration: STATUS.doom.duration, potency: 0 }],
 } as const satisfies Partial<Record<Wave2SkillKey, readonly StatusApply[]>>;
 
@@ -52,31 +45,6 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     ...manaSkill(T.oilPot),
     applies: APPLIES.oilPot,
   },
-  scorchLine: {
-    key: "scorchLine",
-    name: "焼き払い",
-    icon: "焼",
-    verb: "前方へ炎の帯を走らせ、通り道の床を燃やす（油・草むらは燃え広がる）",
-    tags: ["fire", "area"],
-    keywords: kw(["area"], [], ["burn"]),
-    damageKind: "ranged",
-    axes: ["areaVsDamage", "cooldownVsDamage", "durationVsPotency"],
-    ...manaSkill(T.scorchLine),
-    applies: APPLIES.scorchLine,
-    combos: ["oilScorch"],
-  },
-  iceSlide: {
-    key: "iceSlide",
-    name: "凍て道",
-    icon: "滑",
-    verb: "カーソル方向へ滑り、通った床を氷床にする。通り道の敵を冷やす",
-    tags: ["movement", "cold"],
-    keywords: kw(["dash", "chill"]),
-    damageKind: "melee",
-    axes: ["cooldownVsDamage", "areaVsDamage"],
-    ...cooldownSkill(T.iceSlide),
-    applies: APPLIES.iceSlide,
-  },
   levelGround: {
     key: "levelGround",
     name: "地均し",
@@ -98,18 +66,6 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     damageKind: "ranged",
     axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
     ...manaSkill(T.emberDraw),
-  },
-  bogCall: {
-    key: "bogCall",
-    name: "沼呼び",
-    icon: "沼",
-    verb: "カーソル地点に毒沼を湧かせる（中の敵は毒と腐食を受ける）",
-    tags: ["area", "placed"],
-    keywords: kw(["poison", "placed", "area"]),
-    damageKind: "ranged",
-    axes: ["areaVsDamage", "durationVsPotency"],
-    ...manaSkill(T.bogCall),
-    applies: APPLIES.bogCall,
   },
   // ---- 状態異常 ----
   brandSear: {
@@ -136,42 +92,6 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     ...manaSkill(T.brandBlast),
     combos: ["brandChain"],
   },
-  breakKick: {
-    key: "breakKick",
-    name: "崩し蹴り",
-    icon: "蹴",
-    verb: "蹴りで大きく怯ませ崩勢を付ける。崩勢中の敵は壁まで吹き飛ぶ",
-    tags: ["melee"],
-    keywords: kw(["stagger", "wall"], ["stagger"]),
-    damageKind: "melee",
-    axes: ["cooldownVsDamage", "areaVsDamage"],
-    ...manaSkill(T.breakKick),
-    applies: APPLIES.breakKick,
-  },
-  collapseHammer: {
-    key: "collapseHammer",
-    name: "崩落槌",
-    icon: "崩",
-    verb: "前方を叩く。崩勢中の敵はその場で怯む（怯みが長く、解けても堅守が付かない）",
-    tags: ["melee", "area"],
-    keywords: kw(["stagger", "area"], ["stagger"]),
-    damageKind: "melee",
-    axes: ["areaVsDamage", "cooldownVsDamage"],
-    ...manaSkill(T.collapseHammer),
-    combos: ["breakCollapse"],
-  },
-  tideSlash: {
-    key: "tideSlash",
-    name: "水刃",
-    icon: "水",
-    verb: "前方へ水の斬撃を飛ばし、敵を濡らす（濡れた敵は感電が広がり、冷えると凍る）",
-    tags: ["projectile"],
-    keywords: kw(["bullet"], [], ["shock", "chill"]),
-    damageKind: "ranged",
-    axes: ["areaVsDamage", "cooldownVsDamage", "speedVsDamage"],
-    ...manaSkill(T.tideSlash),
-    applies: APPLIES.tideSlash,
-  },
   flashFreeze: {
     key: "flashFreeze",
     name: "瞬凍",
@@ -188,9 +108,9 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     key: "hueEtch",
     name: "彩刻",
     icon: "刻",
-    verb: "前方を斬り、装備の共鳴の色の彩痕を刻む（同じ色の共鳴なら受けるダメージが増える）",
+    verb: "前方を斬り、共鳴している状態異常の色の彩痕を刻む（その状態異常が共鳴している間、受けるダメージが増える）",
     tags: ["melee"],
-    keywords: kw(["melee", "reaction"], ["crimson", "azure", "jade", "gold", "umbra"]),
+    keywords: kw(["melee", "reaction"], ["burn", "chill", "poison", "shock", "vulnerable"]),
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage"],
     ...manaSkill(T.hueEtch),
@@ -208,18 +128,6 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     ...manaSkill(T.hueRelease),
     combos: ["hueBloom"],
   },
-  siphonMark: {
-    key: "siphonMark",
-    name: "吸魔の矢",
-    icon: "魔",
-    verb: "当てた敵に吸魔を付ける（その敵への命中で気力が戻り、倒すと残り時間に応じて戻る）",
-    tags: ["projectile"],
-    keywords: kw(["mana", "bullet"], ["kill"]),
-    damageKind: "ranged",
-    axes: ["cooldownVsDamage", "durationVsPotency"],
-    ...manaSkill(T.siphonMark),
-    applies: APPLIES.siphonMark,
-  },
   doomSentence: {
     key: "doomSentence",
     name: "死の宣告",
@@ -232,7 +140,7 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     ...manaSkill(T.doomSentence),
     applies: APPLIES.doomSentence,
   },
-  // ---- 属性・武器種 ----
+  // ---- 属性 ----
   shiftingEdge: {
     key: "shiftingEdge",
     name: "移ろい刃",
@@ -243,52 +151,6 @@ export const WAVE2_SKILL_DEFS: Record<Wave2SkillKey, SkillDef> = {
     damageKind: "melee",
     axes: ["areaVsDamage", "cooldownVsDamage"],
     ...manaSkill(T.shiftingEdge),
-  },
-  weaponArt: {
-    key: "weaponArt",
-    name: "極意",
-    icon: "極",
-    verb: "装備中の武器種で形が変わる大技（剣 十文字 / 槍 槍衾 / 鞭 先端打ち / 杖 魔弾 …）。属性は武器と同じになる",
-    tags: ["melee", "area"],
-    keywords: kw(["melee", "stagger"]),
-    damageKind: "melee",
-    axes: ["areaVsDamage", "cooldownVsDamage"],
-    ...manaSkill(T.weaponArt),
-    combos: ["formArt"],
-  },
-  // ---- 変身 ----
-  titanForm: {
-    key: "titanForm",
-    name: "剛の型",
-    icon: "剛",
-    verb: "しばらく武器が大剣になる（変身の瞬間に周りを打つ）。切れた後は少し遅くなる",
-    tags: ["form", "area"],
-    keywords: kw(["stagger", "area"], [], ["melee"]),
-    damageKind: "melee",
-    axes: ["durationVsPotency", "cooldownVsDamage"],
-    ...cooldownSkill(T.titanForm),
-  },
-  swiftForm: {
-    key: "swiftForm",
-    name: "迅の型",
-    icon: "迅",
-    verb: "しばらく武器が双剣になる（変身の瞬間に周りを打つ）。切れた後は少し遅くなる",
-    tags: ["form", "area"],
-    keywords: kw(["combo"], [], ["melee"]),
-    damageKind: "melee",
-    axes: ["durationVsPotency", "cooldownVsDamage"],
-    ...cooldownSkill(T.swiftForm),
-  },
-  spiritForm: {
-    key: "spiritForm",
-    name: "霊の型",
-    icon: "霊",
-    verb: "しばらく武器が杖になる（変身の瞬間に周りを打つ）。切れた後は少し遅くなる",
-    tags: ["form", "area"],
-    keywords: kw(["area"], [], ["melee", "mana"]),
-    damageKind: "melee",
-    axes: ["durationVsPotency", "cooldownVsDamage"],
-    ...cooldownSkill(T.spiritForm),
   },
   // ---- 空間 ----
   wardStake: {

@@ -2,26 +2,31 @@ import type { FrameInput } from "../core/input";
 import { ultimateReady } from "../system/ultimates";
 import { EMPTY_INPUT } from "../core/input";
 import { createRng, type Rng } from "../core/rng";
-import type { Enemy, EnemyPhase, GameState, RoomState } from "../core/state";
+import type { Enemy, EnemyPhase, GameState, RoomState, Ware } from "../core/state";
 import { PX_PER_METER } from "../core/units";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type Vec, dist, isZero, length, normalize, sub } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import type { AttrKey } from "../loot/types";
+import { isAllied } from "../system/rules";
+import { bossArmorBlocks } from "../system/boss";
 import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
-import { isSolidTile, overlapsWall } from "../system/physics";
+import { circlesOverlap, isSolidTile, overlapsWall } from "../system/physics";
+import { canStartParry } from "../system/parry";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
+import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
 import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
-import { allocateAttribute } from "../ui/attributeAlloc";
 import { SKILL } from "../skills/data";
+import { ART_DEFS, isArtKey } from "../skills/arts";
+import type { ArtSkillKey } from "../skills/arts/keys";
+import type { ArtAct } from "../skills/arts/types";
 import type { SkillKey } from "../skills/types";
 import { statsBulletHas } from "../loot/bullets";
 
@@ -55,11 +60,11 @@ const FAST_ATTACKER_INTERVAL = 1.0;
 /** windup/strike でない先読み回避を、どの頻度で「そもそも評価するか」（人間の警戒レベルのばらつき相当） */
 const PREEMPTIVE_DODGE_CHANCE = 0.5;
 /**
- * 自分中心・短射程の近接スキル（`skillEngageRange` で radius ベースの射程を使うもの）。
+ * 自分中心・短射程の近接スキル（技は isCloseArt。ほかは `skillEngageRange` で radius ベースの射程を使うパリィ）。
  * これらを撃つと必ず DANGER_RANGE 圏内で被弾判定を受けるため、詠唱直後は評価を待たず
  * 必ず離脱を試みる（ヒット＆アウェイ）
  */
-const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["whirl", "quake", "parry", "lunge"]);
+const MELEE_SKILL_KEYS: ReadonlySet<SkillKey> = new Set(["parry"]);
 /**
  * 溜めのある武器種・銃の弾（src/data/weapons.ts）: 押しっぱなしのままだと撃たない / 振らないので、
  * この秒数だけ溜めたら離す（大剣は 2 段目、チャージ射撃は 2 段目に届く長さ）
@@ -99,6 +104,18 @@ const ART_STRIKE_MARGIN = 6;
 const ULTIMATE_RANGE = 8 * PX_PER_METER;
 /** この割合以下の HP でハートが見えていれば拾いに行く */
 const LOW_HP_RATIO = 0.3;
+/**
+ * 瓶（docs/ideas/economy-impl.md 2-3・5 章）: 生命がこの割合以下で 1 本以上持っていれば飲む。
+ * 飲めない間（振りの最中・ダッシュ中・クールダウン）は tryDrink が無視するので毎フレーム押してよい
+ */
+const FLASK_HP_RATIO = 0.4;
+/**
+ * 市の台座に触れたとみなす半径（px）。system/merchants.ts の台座の判定（契約者の台座と同じ 9）と揃える。
+ * 触れた時点で買い物は済んでいる（払えず断られても台座は残るので、bot は 1 度触れたら諦めて先へ進む）
+ */
+const WARE_TOUCH_RADIUS = 9;
+/** 1 つの階で市へ寄り道に使う秒の上限（届かない台座を追い続けて探索を止めない） */
+const MARKET_GIVE_UP = 30;
 /** 詰まり判定のチェック間隔（秒） */
 const STUCK_CHECK_INTERVAL = 0.4;
 /** この間隔で動いた距離がこれ未満なら「壁に引っかかった」とみなす（px） */
@@ -112,6 +129,10 @@ const NON_ENGAGEABLE_PHASES: ReadonlySet<EnemyPhase> = new Set(["idle", "spawnin
  * 引っかかっている遠い追跡者へ直進して詰まらないよう、近い敵だけを相手にする（遠い敵は来るまで探索を続ける）
  */
 const ENGAGE_RANGE = 240;
+/** 閉じた扉・穴の判定で線分をたどる刻み（px）。タイルより細かければ扉・穴を飛び越えない */
+const LOCK_PROBE_STEP = 4;
+/** 届かないハートの経路を引き直すまでの間隔（秒）。毎フレーム BFS しないため */
+const HEART_PATH_RETRY = 1;
 /** 部屋の目標地点にこの距離まで来ても制圧できていなければ、その部屋の残りの敵を探しに行く（px） */
 const ROOM_ARRIVE_DIST = TILE_SIZE * 2;
 /**
@@ -138,11 +159,6 @@ const SKILL_ENGAGE_RANGE = 150;
 const MELEE_SKILL_RANGE_MARGIN = 20;
 const SKILL_SLOT_COUNT = 4;
 const SKILL_PRESSED_KEYS = ["skill1Pressed", "skill2Pressed", "skill3Pressed", "skill4Pressed"] as const;
-/**
- * ラン内ステータス振り分け（`allocateAttribute`、src/ui/attributeAlloc.ts）の決定的な優先順位。
- * 「体力 → 筋力 → 技巧 → 精神 → 霊力 → 防御」の順で 1 点ずつ振り、末尾まで行ったら先頭に戻る（循環）
- */
-const ALLOC_PRIORITY: readonly AttrKey[] = ["vit", "str", "dex", "mnd", "spi", "def"];
 
 /** bot が手番をまたいで保持する内部状態 */
 export interface BotState {
@@ -161,8 +177,6 @@ export interface BotState {
   wanderTimer: number;
   stuckTimer: number;
   lastCheckPos: Vec;
-  /** ラン内ステータス振り分けで、ALLOC_PRIORITY の何番目を次に選ぶか（循環） */
-  allocCursor: number;
   /**
    * bot がスキルスロットを押した回数の累計（発動回数/分などの QA 指標用。ラン全体で単調増加）。
    * QA 側で runOnce 終了時に経過時間と合わせて発動頻度を出す想定
@@ -178,6 +192,12 @@ export interface BotState {
   parryTimer: number;
   /** この階で隠し部屋の扉を追った累計秒（HIDDEN_DOOR_GIVE_UP で諦める。階が変わると 0） */
   hiddenDoorTime: number;
+  /** 触れに行った（買えた・買えなかったを問わず済ませた）市の台座。階ごとに台座は作り直されるので WeakSet で捨てられる */
+  triedWares: WeakSet<Ware>;
+  /** この階で市の台座を追った累計秒（MARKET_GIVE_UP で諦める。階が変わると 0） */
+  marketTime: number;
+  /** 届かないハートの経路を次に引き直せるまでの秒（heartWaypoint） */
+  heartRetry: number;
 }
 
 export function createBotState(seed: number): BotState {
@@ -194,13 +214,15 @@ export function createBotState(seed: number): BotState {
     wanderTimer: 0,
     stuckTimer: 0,
     lastCheckPos: { x: 0, y: 0 },
-    allocCursor: 0,
     skillCastAttempts: 0,
     triedDropIds: new Set(),
     artTimer: 0,
     laneQueue: [],
     parryTimer: 0,
     hiddenDoorTime: 0,
+    triedWares: new WeakSet(),
+    marketTime: 0,
+    heartRetry: 0,
   };
 }
 
@@ -240,6 +262,18 @@ function boonChoiceInput(state: GameState): FrameInput {
   if (!choice || choice.options.length === 0) return input;
   if (choice.timer < BOON_CHOICE_WAIT) return input;
   const index = pickBoonIndex(choice);
+  if (index === 0) input.skill1Pressed = true;
+  else if (index === 1) input.skill2Pressed = true;
+  else input.attackPressed = true;
+  return input;
+}
+
+/** 改鋳の 3 択への入力。祝福の 3 択と同じ押し方（skill1 / skill2 / attack）で、装備中の型の札を選ぶ */
+function reforgeChoiceInput(state: GameState): FrameInput {
+  const input = freshInput();
+  const choice = state.reforgeChoice;
+  if (!choice || choice.timer < BOON_CHOICE_WAIT) return input;
+  const index = Math.max(0, choice.options.findIndex((k) => REFORGES[k].form === playerMoveset(state).form));
   if (index === 0) input.skill1Pressed = true;
   else if (index === 1) input.skill2Pressed = true;
   else input.attackPressed = true;
@@ -361,31 +395,24 @@ function blobTargetPoint(state: GameState, tiles: ReadonlySet<number>): Vec {
 }
 
 /**
- * 現在の目標部屋を選ぶ。まだクリアされていなければ前回と同じ部屋を維持し続ける
- * （毎ティック最寄りを選び直すと、僅差の 2 部屋の間で目標が振動して経路が安定しない）
+ * 現在の目標部屋を選ぶ。階段は階の主（state.boss）を倒すまで現れない（system/floorLord.ts・boss.ts）ので、
+ * 「全部屋を掃除してから階段」だと 1 階で 60〜80 体と戦って時間を溶かし、到達深度が伸びない。
+ * そこで 封鎖中の部屋（戦闘中・封鎖の解除待ち）→ 未撃破の主の部屋 → 無ければ null（階段へ）の順にする。
+ * 途中で出会う敵は nearestEngagedEnemy が今までどおり相手にする
  */
-function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
+export function chooseTargetRoomIndex(state: GameState, bot: BotState): number | null {
   if (shouldRushStairs(state, bot)) {
     bot.targetRoomIndex = null;
     return null;
   }
-  const current = bot.targetRoomIndex;
-  if (current !== null) {
-    const room = state.rooms[current];
-    if (room && !room.cleared) return current;
+  const locked = state.rooms.findIndex((room) => room.locked);
+  if (locked >= 0) {
+    bot.targetRoomIndex = locked;
+    return locked;
   }
-  const pos = state.player.body.pos;
-  let best = -1;
-  let bestDist = Infinity;
-  state.rooms.forEach((room, i) => {
-    if (room.cleared) return;
-    const d = dist(roomTargetPoint(state, room), pos);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  });
-  bot.targetRoomIndex = best >= 0 ? best : null;
+  const boss = state.boss;
+  const hasLivingBoss = boss !== null && !boss.defeated && state.rooms[boss.roomIndex] !== undefined;
+  bot.targetRoomIndex = hasLivingBoss ? boss.roomIndex : null;
   return bot.targetRoomIndex;
 }
 
@@ -413,20 +440,49 @@ function shouldRushStairs(state: GameState, bot: BotState): boolean {
  * 含めてしまうと、フロア生成時点で全部屋に散らばった敵まで直線的に狙って
  * 壁に頭を突っ込んだまま止まってしまう（実際にこれで詰まるバグを確認した）
  */
-function nearestEngagedEnemy(state: GameState): Enemy | null {
+export function nearestEngagedEnemy(state: GameState): Enemy | null {
   let best: Enemy | null = null;
   let bestDist = Infinity;
   for (const e of state.enemies) {
     if (e.hp <= 0 || NON_ENGAGEABLE_PHASES.has(e.phase)) continue;
+    // 敗走中の敵は攻撃してこないので追わない（逃げる敵を追い続けて探索の時間を溶かさない）。従魔（眷属）は味方なので狙わない
+    if (e.rout || isAllied(state, e)) continue;
+    // 氷の鎧・門柱が立つ間の本体は殴っても通らない。無敵の本体を殴り続けて詰まらないよう、ほかの敵（門柱・取り巻き）を狙う
+    if (bossArmorBlocks(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     // 壁の向こうの敵へ直進すると壁に張り付いたまま動けない。見えない敵は回り込んで来るのを待つ
-    if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos)) continue;
+    if (d > ENGAGE_RANGE || !lineOfSight(state.map, state.player.body.pos, e.body.pos) || crossesLockedTile(state, state.player.body.pos, e.body.pos)) continue;
+    // 穴（川・池）は視線が通るので見えてしまうが、直進すると縁で止まる。後回しにして、封鎖中の部屋なら探索の経路で回り込む
+    if (crossesPit(state, state.player.body.pos, e.body.pos)) continue;
     if (d < bestDist) {
       bestDist = d;
       best = e;
     }
   }
   return best;
+}
+
+/** 線分が封鎖中の扉（lockedTiles）を通るか（視線はマップの壁しか見ないので、閉じた扉越しの敵を狙わないために足す） */
+function crossesLockedTile(state: GameState, a: Vec, b: Vec): boolean {
+  if (state.lockedTiles.size === 0) return false;
+  return segmentTouches(state.map, a, b, (index) => state.lockedTiles.has(index));
+}
+
+/** 線分が穴のタイルを通るか（視線は穴を越えるが体は越えられないので、穴越しの敵へ直進しないために足す） */
+export function crossesPit(state: GameState, a: Vec, b: Vec): boolean {
+  const tiles = state.map.tiles;
+  return segmentTouches(state.map, a, b, (index) => tiles[index] === Tile.Pit);
+}
+
+/** 線分 a→b を LOCK_PROBE_STEP ごとに見て、どれかのタイルで hit が真か */
+function segmentTouches(map: GameMap, a: Vec, b: Vec, hit: (index: number) => boolean): boolean {
+  const n = Math.max(1, Math.ceil(dist(a, b) / LOCK_PROBE_STEP));
+  for (let k = 0; k <= n; k++) {
+    const tx = Math.floor((a.x + ((b.x - a.x) * k) / n) / TILE_SIZE);
+    const ty = Math.floor((a.y + ((b.y - a.y) * k) / n) / TILE_SIZE);
+    if (inBounds(map, tx, ty) && hit(toIndex(map, tx, ty))) return true;
+  }
+  return false;
 }
 
 function isThreatening(e: Enemy): boolean {
@@ -438,32 +494,21 @@ function isThreatening(e: Enemy): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * スキルの有効射程。frag/thunder/gravityWell/frostField/chainHook は明示的な maxRange/range を
- * 持つのでそれを使う。lunge は突進距離 + ヒット判定の余白。旋風斬り・地裂き・パリィ・回転弾幕は
- * 自分中心の近接 AoE（半径のみで maxRange を持たない）なので、半径に接近余地を足した短い射程を使う。
+ * スキルの有効射程。gravityWell/frostField/chainHook は明示的な maxRange/range を持つのでそれを使う。
+ * パリィは自分中心の近接 AoE（半径のみで maxRange を持たない）なので、半径に接近余地を足した短い射程を使う。
+ * 技は行為の列から出す（artEngageRange）。
  * これが無く一律 SKILL_ENGAGE_RANGE（150px）で判定していたときは、旋風斬り（半径28）等を遠距離から
  * 発動して素通り（空振り）することがあった（QA 2026-09-23 スキル由来与ダメ比率の伸び悩みの一因）。
- * バフ・地雷・撃ち抜きなど距離の意味が薄い／別ロジックで判定するものは既定値のまま
+ * バフ・地雷など距離の意味が薄い／別ロジックで判定するものは既定値のまま
  */
 function skillEngageRange(resolved: ResolvedSlot): number {
   const key: SkillKey = resolved.def.key;
+  if (isArtKey(key)) return artEngageRange(key);
   switch (key) {
-    case "whirl":
-      return SKILL.whirl.radius + MELEE_SKILL_RANGE_MARGIN;
-    case "quake":
-      return SKILL.quake.radius + MELEE_SKILL_RANGE_MARGIN;
     case "parry":
       return SKILL.parry.radius + MELEE_SKILL_RANGE_MARGIN;
-    case "spiral":
-      return SKILL.spiral.speed * SKILL.spiral.life;
-    case "lunge":
-      return SKILL.lunge.distance + SKILL.lunge.hitPad;
     case "chainHook":
       return SKILL.chainHook.range;
-    case "frag":
-      return SKILL.frag.maxRange;
-    case "thunder":
-      return SKILL.thunder.maxRange;
     case "gravityWell":
       return SKILL.gravityWell.maxRange;
     case "frostField":
@@ -473,6 +518,51 @@ function skillEngageRange(resolved: ResolvedSlot): number {
   }
 }
 
+/** 行為 1 つの届く距離（自分から。照準地点へ出る行為・与ダメを持たない行為は 0 で、castRange か既定値に任せる） */
+function actReach(act: ArtAct): number {
+  if (act.anchor === "target") return 0;
+  switch (act.kind) {
+    case "ring":
+    case "pull":
+      return act.radius + MELEE_SKILL_RANGE_MARGIN;
+    case "arc":
+      return act.reach + MELEE_SKILL_RANGE_MARGIN;
+    case "line":
+      return act.length;
+    case "dash":
+      return Math.abs(act.distance);
+    case "shot":
+      return act.speed * act.life;
+    case "chain":
+      return act.range;
+    case "blink":
+    case "buff":
+    case "detonate":
+      return 0;
+  }
+}
+
+/** 技の有効射程: 照準地点を使うなら castRange、そうでなければ行為の届く距離の最大（どれも 0 なら既定値） */
+function artEngageRange(key: ArtSkillKey): number {
+  const def = ART_DEFS[key];
+  if (def.castRange !== undefined) return def.castRange;
+  const reach = Math.max(0, ...def.acts.map(actReach));
+  return reach > 0 ? reach : SKILL_ENGAGE_RANGE;
+}
+
+/** 自分中心の近接の技か（照準地点を使わず、与ダメを持つ行為がすべて自分の周りの円か前方の扇） */
+function isCloseArt(key: ArtSkillKey): boolean {
+  const def = ART_DEFS[key];
+  if (def.castRange !== undefined) return false;
+  const hitting = def.acts.filter((a) => a.damage !== undefined);
+  return hitting.length > 0 && hitting.every((a) => a.kind === "ring" || a.kind === "arc");
+}
+
+/** 撃った直後に離脱する近接スキルか */
+function isMeleeSkill(key: SkillKey): boolean {
+  return isArtKey(key) ? isCloseArt(key) : MELEE_SKILL_KEYS.has(key);
+}
+
 /**
  * このスロットを今フレーム押せるか。GCD・最低間隔・射程・（マナ型なら）canAffordSkill 相当の
  * 判定・（CD 型なら）チャージ残数を見る。発動中の別スキルやパリィ失敗硬直中も不可
@@ -480,7 +570,7 @@ function skillEngageRange(resolved: ResolvedSlot): number {
 function canCastSlotNow(state: GameState, index: number, distanceToTarget: number): boolean {
   const rs = state.skills;
   // 砲身化・業火の化身の最中に同じ石を押すと自分で解いてしまうので押さない
-  if (rs.parryFailTimer > 0 || rs.stunTimer > 0 || slotBodyBlocked(state, index) || slotTogglesForm(state, index)) return false;
+  if (rs.parryFailTimer > 0 || slotBodyBlocked(state, index) || slotTogglesForm(state, index)) return false;
   const slot = rs.slots[index];
   if (!slot || slot.intervalLeft > 0) return false;
   const resolved = resolveSlot(state, index);
@@ -501,19 +591,6 @@ function chooseSkillSlot(state: GameState, distanceToTarget: number): number {
 function pressSkillSlot(input: FrameInput, index: number): void {
   const key = SKILL_PRESSED_KEYS[index];
   if (key) input[key] = true;
-}
-
-/**
- * ラン内ステータス振り分け（src/ui/attributeAlloc.ts）。振り分け UI は装備画面（Tab）へ移り、
- * 探索中の攻撃・スキルキーを奪わなくなったため、bot は画面操作を模す（キーを押す）のではなく
- * `allocateAttribute` を直接呼んで、未消化の点を ALLOC_PRIORITY の順で即座に消化する
- */
-function drainAttributePoints(state: GameState, bot: BotState): void {
-  while (state.runAttributes.unspent > 0) {
-    const attr = ALLOC_PRIORITY[bot.allocCursor % ALLOC_PRIORITY.length]!;
-    bot.allocCursor++;
-    allocateAttribute(state, attr);
-  }
 }
 
 /** target 方向への正規化ベクトル。真上に乗っていれば無入力 */
@@ -640,6 +717,25 @@ function ensurePath(state: GameState, bot: BotState, goal: Vec): void {
   bot.pathIndex = 0;
 }
 
+/**
+ * ハートへ向かう次のウェイポイント。閉じた扉の向こうなど経路で届かないハートへは壁越しに押し続けず null を返す。
+ * 経路は使い回し、届かなかったときも HEART_PATH_RETRY 秒は引き直さない（毎フレーム BFS しない）
+ */
+function heartWaypoint(state: GameState, bot: BotState, heart: Vec, dt: number): Vec | null {
+  bot.heartRetry = Math.max(0, bot.heartRetry - dt);
+  const reusable =
+    bot.path !== null && bot.pathGoal !== null && dist(bot.pathGoal, heart) <= GOAL_CHANGE_THRESHOLD && bot.pathIndex < bot.path.length;
+  if (!reusable) {
+    if (bot.heartRetry > 0) return null;
+    ensurePath(state, bot, heart);
+    if (bot.path === null) {
+      bot.heartRetry = HEART_PATH_RETRY;
+      return null;
+    }
+  }
+  return currentWaypoint(bot, state.player.body.pos) ?? heart;
+}
+
 /** 経路上の次のウェイポイント。到達済みの分は進める */
 function currentWaypoint(bot: BotState, pos: Vec): Vec | null {
   const path = bot.path;
@@ -730,7 +826,7 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     pressSkillSlot(input, skillIndex);
     bot.skillCastAttempts++;
     const resolved = resolveSlot(state, skillIndex);
-    if (resolved && MELEE_SKILL_KEYS.has(resolved.def.key)) {
+    if (resolved && isMeleeSkill(resolved.def.key)) {
       // ヒット&アウェイ: 自分中心の近接スキルは撃った時点で敵の DANGER_RANGE 圏内にいる。
       // 評価の確率判定を待たず、必ず逆方向へ動いて距離を取る（ダッシュは温存し歩行のみ）
       input.move = normalize(sub(pos, enemy.body.pos));
@@ -764,13 +860,21 @@ function nextRightStep(state: GameState, moveset: MovesetDef): ActionStepDef | u
   return index === undefined ? undefined : moveset.steps2[index];
 }
 
-/** 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに右を押し続ける（次の右段が受け流しのときだけ）。押したら true */
+/**
+ * 受け流し: 敵の予備動作を危険距離で見たら、確率で回避の代わりに受け流す。
+ * 次の右段が剣の構えの受け流しなら右を押し続け、そうでなければ全武器共通の受け流し（parryPressed）を 1 回押す。押したら true
+ */
 function tryParryInput(state: GameState, bot: BotState, enemy: Enemy, d: number, input: FrameInput): boolean {
+  if (enemy.phase !== "windup" || d >= DANGER_RANGE) return false;
   const s = nextRightStep(state, playerMoveset(state));
-  if (s?.kind !== "hold" || !s.hold.parry || actionCooldownLeft(state, s) > 0 || state.player.attack.phase !== "none") return false;
-  if (enemy.phase !== "windup" || d >= DANGER_RANGE || !bot.rng.chance(PARRY_CHANCE)) return false;
-  bot.parryTimer = PARRY_HOLD;
-  input.shootHeld = true;
+  if (s?.kind === "hold" && s.hold.parry) {
+    if (actionCooldownLeft(state, s) > 0 || state.player.attack.phase !== "none" || !bot.rng.chance(PARRY_CHANCE)) return false;
+    bot.parryTimer = PARRY_HOLD;
+    input.shootHeld = true;
+    return true;
+  }
+  if (!canStartParry(state) || !bot.rng.chance(PARRY_CHANCE)) return false;
+  input.parryPressed = true;
   return true;
 }
 
@@ -853,6 +957,8 @@ function explorationInput(state: GameState, bot: BotState, dt: number): FrameInp
   if (roomIndex !== null) {
     goal = roomTargetPoint(state, state.rooms[roomIndex]!);
     if (dist(goal, pos) < ROOM_ARRIVE_DIST) bot.arrivedRoomIndex = roomIndex;
+    // 封鎖中の部屋にもう入っているなら、部屋の目標地点を経ずに残りの敵へ向かう（大きな塊の部屋で目標地点に着けず敵を探さないのを防ぐ）
+    if (state.rooms[roomIndex]?.locked) bot.arrivedRoomIndex = roomIndex;
     if (bot.arrivedRoomIndex === roomIndex) goal = nearestRoomEnemy(state, roomIndex) ?? goal;
   } else {
     if (!bot.stairsPos) bot.stairsPos = findStairsPos(state);
@@ -869,7 +975,7 @@ function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
   let best: Vec | null = null;
   let bestDist = Infinity;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.roomIndex !== roomIndex) continue;
+    if (e.hp <= 0 || e.roomIndex !== roomIndex || isAllied(state, e)) continue;
     const d = dist(e.body.pos, state.player.body.pos);
     if (d < bestDist) {
       bestDist = d;
@@ -881,21 +987,28 @@ function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
 
 /**
  * 1 ステップぶんの FrameInput を作る。
- * 優先順位: 低 HP でハートが見えていれば回収 > 交戦中の最寄りの敵 > 探索（未クリア部屋 → 階段）
+ * 優先順位: 低 HP でハートが見えていれば回収 > 交戦中の最寄りの敵 > 隠し部屋の扉 > 市の瓶 > 探索（未クリア部屋 → 階段）。
+ * 瓶は上の優先順位とは別に、低 HP なら flaskPressed を重ねる（botInput）
  */
 export function botInput(state: GameState, bot: BotState, dt: number): FrameInput {
+  const input = decideInput(state, bot, dt);
+  // 瓶は行動の種類に関わらず低 HP で飲む（戦闘中・回収中でも命綱として押す）
+  if (state.status === "playing" && !state.boonChoice && !state.reforgeChoice && shouldDrinkFlask(state)) input.flaskPressed = true;
+  return input;
+}
+
+function decideInput(state: GameState, bot: BotState, dt: number): FrameInput {
   if (state.status !== "playing") return freshInput();
 
   // 祝福 3 択の間は他の処理が止まる（core/game.ts の step 参照）ので最優先で処理する
   if (state.boonChoice) return boonChoiceInput(state);
+  // 改鋳の 3 択も同じく step を止める。祝福と同じ待ちの後、装備中の型の札（無ければ 1 枚目）を選ぶ
+  if (state.reforgeChoice) return reforgeChoiceInput(state);
 
   // 装備の芽（state.pendingBud）は boonChoice と違い core/game.ts の step を止めない
   // （system/loot.ts の chooseBud を呼ぶ副作用が要るだけで、FrameInput とは無関係）ため、
   // ここでは何もしない。芽の選択・出現回数の計測は呼び出し側（qa/simulation.test.ts の
   // runOnce）が state.pendingBud を見て chooseBud(state, 0) を直接呼んでいる
-
-  // ラン内ステータス振り分けも同様に FrameInput 非依存の直接呼び出し（drainAttributePoints 参照）
-  drainAttributePoints(state, bot);
 
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;
@@ -909,12 +1022,14 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     bot.stuckTimer = 0;
     bot.lastCheckPos = { ...state.player.body.pos };
     bot.hiddenDoorTime = 0;
+    bot.marketTime = 0;
   }
 
   const p = state.player;
   if (p.hp / p.maxHp <= LOW_HP_RATIO) {
     const heart = pickHeartTarget(state);
-    if (heart) return moveOnlyInput(steerToward(state, bot, heart, dt));
+    const waypoint = heart ? heartWaypoint(state, bot, heart, dt) : null;
+    if (waypoint) return moveOnlyInput(steerToward(state, bot, waypoint, dt));
   }
 
   // 砲身化の構え中は動けない。bot は砲撃を狙わず、ダッシュで構えを解いて立ち往生しない
@@ -929,7 +1044,56 @@ export function botInput(state: GameState, bot: BotState, dt: number): FrameInpu
     return hiddenDoorInput(state, bot, hiddenDoor, dt);
   }
 
+  // 市: 瓶が上限未満で払えるときだけ、瓶の台座へ寄って買う（他は買わない = 銭を温存する人の基準値）
+  const ware = pickFlaskWare(state, bot);
+  if (ware) {
+    bot.marketTime += dt;
+    return withDropPickup(state, bot, marketInput(state, bot, ware, dt));
+  }
+
   return withDropPickup(state, bot, explorationInput(state, bot, dt));
+}
+
+/** 瓶を飲むか: 1 本以上持っていて、生命が FLASK_HP_RATIO 以下 */
+export function shouldDrinkFlask(state: GameState): boolean {
+  const p = state.player;
+  return p.flasks > 0 && p.hp / p.maxHp <= FLASK_HP_RATIO;
+}
+
+/**
+ * 寄って買う瓶の台座。瓶が上限未満・払える・まだ触れていない台座のうち最も近いもの。
+ * 死神が迫って階段を急ぐときと、寄り道の秒を使い切ったときは寄らない
+ */
+function pickFlaskWare(state: GameState, bot: BotState): Ware | null {
+  if (state.player.flasks >= state.stats.flaskMax || bot.marketTime > MARKET_GIVE_UP) return null;
+  const pos = state.player.body.pos;
+  let best: Ware | null = null;
+  let bestDist = Infinity;
+  for (const merchant of state.economy.merchants) {
+    // 怒った商人は売らない
+    if (merchant.provoked) continue;
+    for (const ware of merchant.wares) {
+      if (ware.kind !== "flask" || ware.used || bot.triedWares.has(ware) || ware.price > state.economy.coins) continue;
+      const d = dist(ware.pos, pos);
+      if (d >= bestDist) continue;
+      best = ware;
+      bestDist = d;
+    }
+  }
+  if (best === null || shouldRushStairs(state, bot)) return null;
+  return best;
+}
+
+/** 台座へ経路で歩く。触れたら（買い物は step の中で済む）その台座は済ませたことにして探索へ戻る */
+function marketInput(state: GameState, bot: BotState, ware: Ware, dt: number): FrameInput {
+  const body = state.player.body;
+  if (circlesOverlap(ware.pos.x, ware.pos.y, WARE_TOUCH_RADIUS, body.pos.x, body.pos.y, body.radius)) {
+    bot.triedWares.add(ware);
+    return freshInput();
+  }
+  ensurePath(state, bot, ware.pos);
+  const waypoint = currentWaypoint(bot, body.pos) ?? ware.pos;
+  return moveOnlyInput(steerToward(state, bot, waypoint, dt));
 }
 
 /** 手の届くドロップ品で最も近いもの（まだ拾おうとしていないもの） */

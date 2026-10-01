@@ -1,5 +1,7 @@
 # グラフィック精細化と配布素材の導入（設計）
 
+> 履歴（2026-10-01）: 迷宮の床・壁・地形はマップの見た目の一新（`docs/ideas/map-visual-impl.md`）の焼き付けに置き換わり、ここに出てくる `BIOME_TILESET` の拠点以外・`tile.<biome>.*`・`terrain.*` の派生・`drawBiomeTint` は削除した。拠点の `tile.hub.*` と台座・設備の素材だけが残る
+
 作成日: 2026-09-26
 前提: `docs/ASSETS.md`、`src/data/sprites.ts`（PALETTE 56 色・SPRITES 約 100 キー）、`src/render/sprites.ts`（`buildAtlas` / `recolorFrames` / `TintCache`）、`src/render/renderer.ts`（`drawTiles` 867〜910・`drawEnemy` 1153〜1261・`drawPlayer` 1776〜1811）、`src/render/terrainUi.ts`、`src/render/darkness.ts`、`src/render/runUi.ts`（`drawBiomeTint` 35・`drawRoomProps` 108）、`src/render/renderMath.ts`（`tileHash` 10・`wallStyle` 25）、`src/core/view.ts`、`src/map/grid.ts`、`src/data/tuning.ts` の `FLOOR_KIND`、`src/render/sprites.test.ts`、`src/main.ts:216` を読んだ。`vite.config.ts` は存在しない（Vite 既定: `public/` がそのまま配信される）。
 

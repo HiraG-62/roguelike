@@ -45,6 +45,45 @@ describe("描画の層の順", () => {
     expect(layerOf("drawSkillGround"), "スキルの設置物はワールド").toBe(layerIndex("world"));
   });
 
+  it("地図の上描き（階段・泉・扉の印・封鎖）は地形の後、床の印・拾い物・敵より前", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawTileOverlays");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "地図の床・壁より後").toBeGreaterThan(world.indexOf("drawTiles"));
+    expect(at, "地形の層より後").toBeGreaterThan(world.indexOf("drawTerrainLayer"));
+    expect(at, "床の印より前").toBeLessThan(world.indexOf("drawGroundMarks"));
+    expect(at, "敵より前").toBeLessThan(world.indexOf("drawEnemies"));
+  });
+
+  it("地図の光は地形の直後で、予告・敵・弾・自分より前（予告・弾・体は暗がりを受けない）", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawMapLight");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "地形の層より後").toBeGreaterThan(world.indexOf("drawTerrainLayer"));
+    for (const name of ["drawGroundHazards", "drawEnemies", "drawProjectiles", "drawPlayer"]) {
+      expect(at, `${name} より前`).toBeLessThan(world.indexOf(name));
+    }
+  });
+
+  it("手前の縁は自分の後で、弾・光線・図形より前（弾と光線は縁より上）", () => {
+    const world = LAYER_CONTENTS.world;
+    const at = world.indexOf("drawFrontLip");
+    expect(at, "world 層にある").toBeGreaterThanOrEqual(0);
+    expect(at, "自分より後").toBeGreaterThan(world.indexOf("drawPlayer"));
+    expect(at, "自分のオーラより後").toBeGreaterThan(world.indexOf("drawPlayerAuras"));
+    expect(at, "敵より後").toBeGreaterThan(world.indexOf("drawEnemies"));
+    for (const name of ["drawProjectiles", "drawLasers", "drawShapes"]) {
+      expect(at, `${name} より前`).toBeLessThan(world.indexOf(name));
+    }
+    expect(at, "光の層（地図の暗がり）より後").toBeGreaterThan(world.indexOf("drawMapLight"));
+  });
+
+  it("バイオームの色調は描かない（反転層の紫だけを地図の直後に重ねる）", () => {
+    const world = LAYER_CONTENTS.world;
+    expect(world.includes("drawBiomeTint"), "旧い色調").toBe(false);
+    expect(world.indexOf("drawInvertedTint"), "地図の直後").toBe(world.indexOf("drawTiles") + 1);
+  });
+
   it("拠点の台は world 層で描く（HUD より下、敵・自分より下）", () => {
     const world = LAYER_CONTENTS.world;
     const at = world.indexOf("drawHubSpots");

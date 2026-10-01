@@ -1,0 +1,15 @@
+{
+  "thunderToll": {
+    "nova": { "radius": 72, "scaling": { "base": 26, "spi": 1.8, "mnd": 1.2 }, "poise": 60, "poiseRatio": { "spi": 0.9, "mnd": 0.6 }, "knockback": 260 },
+    "shock": { "stacks": 2, "duration": 4, "potency": 3 }
+  },
+  "spiritCall": {
+    "pull": { "radius": 90, "toDistance": 24 },
+    "nova": { "radius": 38, "scaling": { "base": 18, "spi": 1.2, "mnd": 1 }, "poise": 30, "poiseRatio": { "spi": 0.5, "mnd": 0.4 }, "knockback": 120 }
+  },
+  "requiem": {
+    "drainPerSec": 12.5, "minSec": 1,
+    "mul": { "incoming": 0.85 },
+    "aura": { "radius": 44, "interval": 0.6, "scaling": { "base": 4, "spi": 0.5, "mnd": 0.3 }, "poise": 5 }
+  }
+}

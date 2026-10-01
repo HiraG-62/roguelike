@@ -42,6 +42,7 @@ const FIXED_ACTIONS: readonly string[] = [
 /**
  * 振り直し前（6b1b778）の [基礎値での威力, Σ係数]。キーは balance JSON のパス。
  * 生成: 6b1b778 の weapons / skills / combat.json から Scaling を全部拾って評価した値
+ * （段取り 7c で技へ吸収した手書きのスキルの行は外した）
  */
 const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.sword.branches.crossCut.step.scaling": [16.5, 1.3],
@@ -58,7 +59,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.twinBlades.steps[1].scaling": [4.65, 0.45],
   "weapons.WEAPON.movesets.twinBlades.steps[2].scaling": [3.1, 0.3],
   "weapons.WEAPON.movesets.twinBlades.steps[3].scaling": [4.65, 0.45],
-  "weapons.WEAPON.movesets.twinBlades.steps[4].scaling": [9.5, 0.9],
+  "weapons.WEAPON.movesets.twinBlades.steps[5].scaling": [9.5, 0.9],
   "weapons.WEAPON.movesets.twinBlades.dashAttack.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.twinBlades.steps2[0].step.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.twinBlades.branches.flurry.step.scaling": [4, 0.4],
@@ -81,7 +82,7 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.fists.steps[1].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[2].scaling": [5.2, 0.6],
   "weapons.WEAPON.movesets.fists.steps[3].scaling": [3.4, 0.4],
-  "weapons.WEAPON.movesets.fists.steps[4].scaling": [11, 1.2],
+  "weapons.WEAPON.movesets.fists.steps[5].scaling": [11, 1.2],
   "weapons.WEAPON.movesets.fists.dashAttack.scaling": [12, 1.2],
   "weapons.WEAPON.movesets.fists.steps2[0].step.scaling": [10, 1],
   "weapons.WEAPON.movesets.fists.branches.uppercut.step.scaling": [12, 1.2],
@@ -180,27 +181,17 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.PLAYER_MELEE[1].scaling": [7.8, 0.6],
   "weapons.PLAYER_MELEE[2].scaling": [15.6, 1.2],
   "weapons.ACTION_DASH_ATTACK.scaling": [11.2, 0.8],
-  "skills.SKILL.whirl.damage": [8.9, 0.8],
-  "skills.SKILL.lunge.damage": [18.4, 1.6],
-  "skills.SKILL.frag.damage": [33.8, 2.8],
-  "skills.SKILL.railshot.damage": [39, 3.2],
   "skills.SKILL.parry.damage": [12, 1.2],
   "skills.SKILL.bloodPact.buff": [1, 0.02],
-  "skills.SKILL.quake.damage": [24.7, 2.4],
-  "skills.SKILL.thunder.damage": [26.7, 2.8],
   "skills.SKILL.gravityWell.tickDamage": [3.3, 0.4],
   "skills.SKILL.gravityWell.burstDamage": [20.1, 2],
   "skills.SKILL.mines.damage": [22.1, 2.4],
   "skills.SKILL.haste.buff": [1, 0.02],
   "skills.SKILL.chainHook.damage": [15.6, 1.6],
-  "skills.SKILL.spiral.damage": [5.5, 0.6],
   "skills.SKILL.frostField.tickDamage": [4.3, 0.6],
   "skills.EXTRA_SKILL_TUNING.unravel.damage": [12, 1.2],
   "skills.EXTRA_SKILL_TUNING.unravel.perKind": [10, 1],
   "skills.EXTRA_SKILL_TUNING.kindle.damage": [7, 0.6],
-  "skills.EXTRA_SKILL_TUNING.prismShard.damage": [11, 1.2],
-  "skills.EXTRA_SKILL_TUNING.fullMoon.damage": [50, 4],
-  "skills.EXTRA_SKILL_TUNING.dregsBlade.damage": [11, 1.2],
   "skills.EXTRA_SKILL_TUNING.powderKeg.damage": [26, 2.4],
   "skills.EXTRA_SKILL_TUNING.swordGrave.damage": [12, 1.4],
   "skills.EXTRA_SKILL_TUNING.iceBreaker.damage": [19, 1.8],
@@ -215,40 +206,20 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "skills.EXTRA_SKILL_TUNING.lastStand.damage": [18, 1.6],
   "skills.EXTRA_SKILL_TUNING.comboChain.damage": [9, 1],
   "skills.EXTRA_SKILL_TUNING.grudge.damage": [11, 1.4],
-  "skills.EXTRA_SKILL_TUNING.guillotine.damage": [19, 1.8],
-  "skills.EXTRA_SKILL_TUNING.ricochet.damage": [12, 1],
-  "skills.EXTRA_SKILL_TUNING.galeSlash.damage": [14, 1.4],
-  "skills.EXTRA_SKILL_TUNING.scatterSigil.damage": [5, 0.5],
-  "skills.EXTRA_SKILL_TUNING.stomp.damage": [8, 1],
-  "skills.EXTRA_SKILL_TUNING.threadReel.damage": [9, 1],
-  "skills.EXTRA_SKILL_TUNING.meteorDive.damage": [30, 2.8],
-  "skills.EXTRA_SKILL_TUNING.swallowFlip.damage": [14, 1.6],
   "skills.EXTRA_SKILL_TUNING.backflow.damage": [10, 1.2],
   "skills.EXTRA_SKILL_TUNING.scarRoar.damage": [10, 1.2],
   "skills.EXTRA_SKILL_TUNING.turret.damage": [8, 1],
-  "skills.EXTRA_MODIFIER_TUNING.landing.damage": [5, 0.4],
   "skills.WAVE2_SKILL_TUNING.waterJar.damage": [8, 1],
   "skills.WAVE2_SKILL_TUNING.oilPot.damage": [5, 0.6],
-  "skills.WAVE2_SKILL_TUNING.scorchLine.damage": [15, 1.8],
-  "skills.WAVE2_SKILL_TUNING.iceSlide.damage": [10, 1.2],
   "skills.WAVE2_SKILL_TUNING.levelGround.damage": [16, 2],
   "skills.WAVE2_SKILL_TUNING.emberDraw.damage": [11.5, 1.5],
-  "skills.WAVE2_SKILL_TUNING.bogCall.damage": [6.5, 0.9],
   "skills.WAVE2_SKILL_TUNING.brandSear.damage": [11.5, 1.3],
   "skills.WAVE2_SKILL_TUNING.brandBlast.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.breakKick.damage": [11, 1.2],
-  "skills.WAVE2_SKILL_TUNING.collapseHammer.damage": [19, 2],
-  "skills.WAVE2_SKILL_TUNING.tideSlash.damage": [11, 1.2],
   "skills.WAVE2_SKILL_TUNING.flashFreeze.damage": [10.5, 1.3],
   "skills.WAVE2_SKILL_TUNING.hueEtch.damage": [11, 1.2],
   "skills.WAVE2_SKILL_TUNING.hueRelease.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.siphonMark.damage": [8, 1],
   "skills.WAVE2_SKILL_TUNING.doomSentence.damage": [10, 1.2],
   "skills.WAVE2_SKILL_TUNING.shiftingEdge.damage": [13, 1.4],
-  "skills.WAVE2_SKILL_TUNING.weaponArt.damage": [20, 2],
-  "skills.WAVE2_SKILL_TUNING.titanForm.damage": [14, 1.6],
-  "skills.WAVE2_SKILL_TUNING.swiftForm.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.spiritForm.damage": [10, 1.2],
   "skills.WAVE2_SKILL_TUNING.wardStake.damage": [5.5, 0.7],
   "skills.WAVE2_SKILL_TUNING.mire.damage": [4, 0.6],
   "skills.WAVE2_SKILL_TUNING.mire.tickDamage": [2, 0.3],
@@ -314,6 +285,18 @@ const CAST_TABLE = /\.cast\.throw\.scaling$/;
 
 /** 武器 Wave 4（2026-09-25）で足した武器種の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
 const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./;
+
+/** 段取り 5d で足した書・鈴の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
+const TOME_BELL_TABLE = /^weapons\.WEAPON\.movesets\.(book|handbell)\./;
+
+/**
+ * 連刃の段数の拡張（段取り 5b-F）で終撃の手前に足した左の段（双剣・拳の 5 段目。爪は WAVE4_TABLE）。
+ * 終撃の段は 6 段目へ下がったので、上の PINNED は steps[5] を指す。秒間威力の目安は data/weapons.test.ts が見る
+ */
+const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
+
+/** 陰陽師・巫女（段取り 5d-O）のジョブ固有の派生の係数表。振り直しの後に足した行動 */
+const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
 
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
@@ -393,6 +376,9 @@ describe("振り直しで基礎値の値は変わらない", () => {
       // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
       if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
       if (WAVE4_TABLE.test(path)) continue;
+      if (TOME_BELL_TABLE.test(path)) continue;
+      if (FLURRY_EXTRA_TABLE.test(path)) continue;
+      if (NEW_JOB_BRANCH_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);

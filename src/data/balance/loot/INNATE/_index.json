@@ -1,15 +1,13 @@
 {
-  "_note": "地金（装備に既定で宿るステータス・防御力・耐性。性質とは別の層）。予算（点）を深度で抽選し、点を「項目数 × 値」に配る。予算が決まってから配るので、値も項目数も両方多いは起きにくい。序盤のインフレは depthScale と hardCap で抑える。抽選は src/loot/innate.ts",
+  "_note": "【段取り 7e】budget.perDepth 0.35 → 0.9: 段取り 7d で無条件の数値の性質を地金へ移したのに予算が据え置きで、probe の地力 ÷ 敵の生命が深度 10 で 0.55・20 で 0.42 だった（目標 0.85〜0.9）。0.5 では深度 20 で 0.47 止まり。ただし筋・技は 20 を超えると半分にしか効かない（ATTR.knee1）ので、深度 20 は 0.9 でも頭打ち。armor.perPoint を各部位とも約 50% 下げた（0.8 → 0.4 / 1.2 → 0.65 / 0.4 → 0.22）: 予算が増えても防御が敵の攻撃の伸びを食わないように（実効の防御は base と防御 def の派生が主で、perPoint の効きは小さい）。地金（装備に既定で宿るステータス・防御力・耐性。性質とは別の層）。予算（点）を深度で抽選し、点を「項目数 × 値」に配る。予算が決まってから配るので、値も項目数も両方多いは起きにくい。序盤のインフレは depthScale で抑える。予算に上限は無く、深み（ENEMY_SCALE.deepDepth 以降）は敵の生命と同じ指数で伸びる。持ち込んだ遺物の地金は、今の深度の期待値 × 拾った時の上振れ（Item.innateLuck）を拾った時の配分で配り直す（innateAt）。抽選は src/loot/innate.ts",
   "_fields": {
-    "budget": "予算の期待値と振れ幅。期待値 = min(base + perDepth × 深度, cap) × depthScale。抽選は三角分布（下端 = 期待値 × lowScale、頂 = 期待値、上端 = 期待値 × highScale + ドロップ元の boost × boostScale）を四捨五入した点",
+    "budget": "予算の期待値と振れ幅。期待値 = (base + perDepth × 深度) × depthScale（深み以降は × ENEMY_SCALE.deepHpGrowth^(深度 − deepDepth)）。抽選は三角分布（下端 = 期待値 × lowScale、頂 = 期待値、上端 = 期待値 × highScale + ドロップ元の boost × boostScale）を四捨五入した点",
     "budget.base": "深度 0 での予算の期待値（点）",
     "budget.perDepth": "深度 1 あたりの予算の期待値の伸び（点）",
-    "budget.cap": "予算の期待値の上限（点）",
-    "budget.lowScale": "三角分布の下端（期待値に掛ける倍率）",
+    "budget.lowScale": "三角分布の下端（期待値に掛ける倍率）。lowScale + highScale = 2 で上振れ（抽選値 ÷ 期待値）の平均が 1 になる",
     "budget.highScale": "三角分布の上端（期待値に掛ける倍率）",
     "budget.boostScale": "ボス・宝物庫などの boost 1 あたり、上端に足す点",
     "depthScale": "深度ごとの予算の期待値への倍率（線形補間。範囲外は端の値）。序盤を締める",
-    "hardCap": "予算の絶対上限 = base + perDepth × 深度（点）",
     "maxLines": "部位ごとの項目数の上限（防御力の確定行は数えない）",
     "extraLineChance": "項目数を 1 増やす確率（割合 0..1）。予算は同じなので 1 項目の値は薄まる",
     "linesPerPoint": "予算がこの点に達するごとに項目数の基本値が 1 増える（項目数 = 1 + floor(予算 / これ)）",
@@ -26,5 +24,5 @@
   "leanWeight": 3,
   "resistWeight": 0.5,
   "weaponLeanTop": 2,
-  "_order": ["budget", "depthScale", "hardCap", "maxLines", "extraLineChance", "linesPerPoint", "pointValue", "armor", "leanWeight", "resistWeight", "resistLines", "slotLean", "weaponLeanTop"]
+  "_order": ["budget", "depthScale", "maxLines", "extraLineChance", "linesPerPoint", "pointValue", "armor", "leanWeight", "resistWeight", "resistLines", "slotLean", "weaponLeanTop"]
 }

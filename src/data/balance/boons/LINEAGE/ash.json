@@ -1,0 +1,26 @@
+{
+  "_fields": {
+    "dpsRatio": "付ける燃焼の強さ（毎秒のダメージ）。近接 1 段目の威力に掛ける割合（0..1）。装備の燃焼の強さ（burnDps）の方が強ければそちら。格で伸びる。目安 0.3〜0.5",
+    "duration": "付ける状態異常・置く地形の持続。秒",
+    "radius": "効果の半径（爆発・広げる・置く地形）。px（10px = 1m）。格で広がる",
+    "ratio": "ダメージ。近接 1 段目の威力に掛ける割合。格で伸びる",
+    "icd": "Rule の内部 CD。秒（BOON.ruleMinIcd が下限）",
+    "detonateMul": "起爆の倍率。燃焼の強さ × 残り秒 × これを即時に与える。格で伸びる。目安 1.5",
+    "potency": "広げる燃焼の強さの倍率（元の強さ × これ）。格で伸びる。1 = そのまま",
+    "increased": "増。0.1 = +10%",
+    "every": "研鑽の数えの何回で 1 段か（回）",
+    "perStep": "研鑽 1 段あたりの量（倍なら 0.01 = ×1.01 ずつ、状態異常の強さなら 0.02 = +2%）",
+    "stackMore": "燃焼の重ね 1 につき与ダメに掛かる倍の上乗せ（0.04 = 重ね 5 で ×1.2）"
+  },
+  "emberSeed": { "dpsRatio": 0.4, "duration": 3 },
+  "ashCircle": { "radius": 24, "duration": 4, "increased": 0.2 },
+  "fireWalk": { "radius": 20, "duration": 3 },
+  "firePillar": { "dpsRatio": 0.3, "duration": 3, "ratio": 0.6, "radius": 32, "icd": 0.6 },
+  "scorchedEarth": { "detonateMul": 1.5, "radius": 160 },
+  "wildfire": { "potency": 0.5, "radius": 32, "duration": 3, "icd": 0.3 },
+  "burnSpread": { "potency": 1, "radius": 40, "duration": 3 },
+  "embers": { "radius": 16, "duration": 3 },
+  "ashCinder": { "every": 5, "perStep": 0.01 },
+  "ashBlaze": { "every": 10, "perStep": 0.02 },
+  "ashInferno": { "potency": 1, "radius": 64, "duration": 3, "stackMore": 0.04 }
+}

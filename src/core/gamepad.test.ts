@@ -195,7 +195,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(f2.shootHeld).toBe(true);
   });
 
-  it("B(1) or RB(5) は dashPressed、Y(3) は specialPressed", () => {
+  it("B(1) は dashPressed、RB(5) は parryPressed（ダッシュにはならない）、Y(3) は specialPressed", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -205,7 +205,9 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(input.read().dashPressed).toBe(true);
 
     stubPads({ index: 0, buttons: makeButtons([5]), axes: [0, 0, 0, 0] });
-    expect(input.read().dashPressed).toBe(true);
+    const rb = input.read();
+    expect(rb.parryPressed, "RB は受け流し").toBe(true);
+    expect(rb.dashPressed, "RB はダッシュにならない").toBe(false);
 
     stubPads({ index: 0, buttons: makeButtons([3]), axes: [0, 0, 0, 0] });
     expect(input.read().specialPressed).toBe(true);
@@ -237,7 +239,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     expect(held.skill1Held).toBe(true);
   });
 
-  it("LB 中も RT(攻撃) / LT(固有技) / RB(ダッシュ) は効く", () => {
+  it("LB 中も RT(攻撃) / LT(固有技) / RB(受け流し) は効く", () => {
     const target = new FakeEventTarget();
     const input = new GamepadInput();
     input.attach(target as unknown as Window);
@@ -247,7 +249,7 @@ describe("GamepadInput ボタンのエッジ検出", () => {
     const f = input.read();
     expect(f.attackPressed).toBe(true);
     expect(f.shootHeld).toBe(true);
-    expect(f.dashPressed).toBe(true);
+    expect(f.parryPressed).toBe(true);
   });
 
   it("右スティック押し込み(11) / D-pad 上(12) はスキルに使わない", () => {
@@ -316,6 +318,40 @@ describe("GamepadInput 拾う（右スティック押し込み）", () => {
     stubPads({ index: 0, buttons: makeButtons([BTN_RSTICK]), axes: [0, 0, 0, 0] });
     expect(input.read().interactPressed).toBe(true);
     expect(input.read().interactPressed).toBe(false);
+  });
+});
+
+describe("GamepadInput 瓶（十字キー上）", () => {
+  const BTN_DPAD_UP = 12;
+  const BTN_DPAD_LEFT = 14;
+
+  function readWith(pressed: readonly number[]): ReturnType<GamepadInput["read"]> {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons(pressed), axes: [0, 0, 0, 0] });
+    return input.read();
+  }
+
+  it("十字キー上で flaskPressed が立ち、移動の上入力も残る（メニューの上移動は変わらない）", () => {
+    const frame = readWith([BTN_DPAD_UP]);
+    expect(frame.flaskPressed, "瓶").toBe(true);
+    expect(frame.move.y, "上へ").toBeLessThan(0);
+  });
+
+  it("十字キーの左では瓶は立たない", () => {
+    expect(readWith([BTN_DPAD_LEFT]).flaskPressed).toBe(false);
+  });
+
+  it("押しっぱなしでは 2 フレーム目に立たない（押した瞬間だけ）", () => {
+    const target = new FakeEventTarget();
+    const input = new GamepadInput();
+    input.attach(target as unknown as Window);
+    connect(target);
+    stubPads({ index: 0, buttons: makeButtons([BTN_DPAD_UP]), axes: [0, 0, 0, 0] });
+    expect(input.read().flaskPressed).toBe(true);
+    expect(input.read().flaskPressed).toBe(false);
   });
 });
 

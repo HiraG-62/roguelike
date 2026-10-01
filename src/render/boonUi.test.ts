@@ -1,24 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGame } from "../core/game";
 import { BOON } from "../data/tuning";
-import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, boonDef } from "../system/boons";
+import { BOONS, BOON_KEYS, type BoonDef, type BoonKey, boonDef, grantBoon } from "../system/boons";
 import { isGraded } from "../system/boonGrade";
 import {
   BOON_MARKS,
   BOON_MARK_LABEL,
   boonCardColor,
   boonCardSubtitle,
+  boonChoiceHeading,
   boonGradeTipLine,
+  graceActionHead,
+  temperLine,
   boonHudOrder,
   boonMark,
   curseOfferView,
+  drawBoonChoice,
 } from "./boonUi";
 
 describe("祝福カードの印", () => {
-  it("枯れを満たすなら「潤い」、溢れを使うなら「受け皿」、どちらでもなければ「新たな流れ」", () => {
+  it("枯れを満たすなら「潤い」、溢れを使うなら「受け皿」、どちらでもなければ「新たな系統」", () => {
     expect(boonMark({ fills: ["burn"], feeds: [] }), "潤い").toBe("fill");
     expect(boonMark({ fills: [], feeds: ["kill"] }), "受け皿").toBe("feed");
-    expect(boonMark({ fills: [], feeds: [] }), "新たな流れ").toBe("fresh");
+    expect(boonMark({ fills: [], feeds: [] }), "新たな系統").toBe("fresh");
     expect(boonMark({ fills: ["burn"], feeds: ["kill"] }), "両方なら穴を先に").toBe("fill");
   });
 
@@ -33,8 +37,8 @@ function findDef(pred: (d: BoonDef) => boolean, what: string): BoonDef {
   return def;
 }
 
-/** 系譜・結び・呪いの注記を持たず、格の対象になる祝福 */
-const plainGraded = (): BoonDef => findDef((d) => isGraded(d) && !d.lineage && !d.duo && d.core !== true, "注記なしで格を持つ");
+/** 系譜の札で格の対象になる祝福 */
+const plainGraded = (): BoonDef => findDef((d) => isGraded(d) && d.lineage !== undefined && d.card !== undefined, "系譜の札で格を持つ");
 
 /** 芯を持たない今の定義でも試せるよう、一時的に芯にする（終わったら戻す） */
 function withTempCore<T>(key: BoonKey, run: () => T): T {
@@ -53,8 +57,8 @@ describe("祝福カードの格の表示", () => {
   it("大祝福・神威のカードは格の語と色で描かれ、並は今までの副題のまま", () => {
     const def = plainGraded();
     const plain = boonCardSubtitle(def, 1);
-    expect(plain.text, "注記の無い並は副題なし（希少度の語は出さない）").toBe("");
-    expect(boonCardColor(def, 1), "並は希少度の色").toBe(BOON.rarityColor[def.rarity]);
+    expect(plain.text.startsWith("大祝福"), "並は格の語を出さない").toBe(false);
+    expect(boonCardColor(def, 1), "並は札の種類の色").toBe(BOON.cardColor[def.card ?? "apex"]);
 
     const grand = boonCardSubtitle(def, 2);
     expect(grand.text.startsWith("大祝福"), "大祝福の語が先頭").toBe(true);
@@ -125,5 +129,104 @@ describe("芯の提示と HUD", () => {
     expect(order[0], "芯が先頭").toBe(coreKey);
     expect(order, "残りは取得順").toEqual([coreKey, ...keys.filter((k) => k !== coreKey)]);
     expect(boonHudOrder(keys), "芯が無ければ取得順のまま").toEqual(keys);
+  });
+});
+
+describe("系譜の札・加護の枠・錬磨の表示（段取り 7a）", () => {
+  it("並の札は札の種類の色、至高・極致は格の色", () => {
+    const law = findDef((d) => d.card === "law" && !d.cursed, "摂理");
+    expect(boonCardColor(law, 1), "摂理の色").toBe(BOON.cardColor.law);
+    const grace = findDef((d) => d.card === "grace" && !d.cursed, "加護");
+    expect(boonCardColor(grace, 1), "加護の色").toBe(BOON.cardColor.grace);
+    expect(boonCardColor(grace, 4), "至高の色").toBe(BOON.gradeColor.supreme);
+    expect(boonCardColor(grace, 5), "極致の色").toBe(BOON.gradeColor.pinnacle);
+  });
+
+  it("加護の行動の見出しは今の枚数と枠で変わり、副題に載る", () => {
+    const state = createGame(1);
+    const before = graceActionHead(state, "primary");
+    grantBoon(state, "emberSeed");
+    const after = graceActionHead(state, "primary");
+    expect(after, "1 枚宿ると見出しが変わる").not.toBe(before);
+    const sub = boonCardSubtitle(BOONS.emberSeed, 1, after);
+    expect(sub.text.endsWith(after), "副題の末尾に行動の見出し").toBe(true);
+    expect(boonCardSubtitle(BOONS.emberSeed, 1).text, "見出しを渡さなくても注記は出る").not.toBe("");
+  });
+
+  it("融合の札は系譜ではなく融合の注記を出す", () => {
+    const fused = boonCardSubtitle(BOONS.thunderBlast, 1);
+    expect(fused.text.startsWith("融合"), "融合の注記").toBe(true);
+    expect(fused.text, "系譜の札とは違う注記").not.toBe(boonCardSubtitle(BOONS.emberSeed, 1).text);
+  });
+
+  it("錬磨・入れ替えの第 2 段・系譜の提示は題が変わり、呪いの札を出さない", () => {
+    const state = createGame(1);
+    const base = { hover: -1, curseHover: false, timer: 1, curseTaken: false, curse: null };
+    const plain = boonChoiceHeading(state, { ...base, options: ["emberSeed"] });
+    const lineage = boonChoiceHeading(state, { ...base, options: ["emberSeed"], lineage: "ash" });
+    const temper = boonChoiceHeading(state, { ...base, options: ["emberSeed"], mode: "temper" });
+    const replace = boonChoiceHeading(state, {
+      ...base,
+      options: ["emberSeed"],
+      replace: { incoming: "frostBreath", incomingGrade: 1, action: "primary", outgoing: ["emberSeed"] },
+    });
+    expect(new Set([plain.title, lineage.title, temper.title, replace.title]).size, "4 つの題は別").toBe(4);
+    state.boonChoice = { ...base, options: ["emberSeed"], mode: "temper" };
+    expect(curseOfferView(state), "錬磨に呪いの札なし").toBe("none");
+    expect(temperLine(2), "錬磨の行は格 2 → 3").not.toBe(temperLine(3));
+  });
+});
+
+/** Canvas の偽物（呼び出しを数えるだけ）。3 択の描画のスモークテスト用 */
+function fakeContext(): { ctx: CanvasRenderingContext2D; calls: Map<string, number> } {
+  const calls = new Map<string, number>();
+  const target: Record<string | symbol, unknown> = {};
+  const ctx = new Proxy(target, {
+    get(obj, prop) {
+      if (prop in obj) return obj[prop];
+      if (prop === "measureText") return () => ({ width: 8 });
+      if (prop === "getTransform") return () => ({ a: 1, d: 1, e: 0, f: 0 });
+      if (prop === "getImageData") return (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) });
+      return (..._args: unknown[]) => {
+        const name = String(prop);
+        calls.set(name, (calls.get(name) ?? 0) + 1);
+      };
+    },
+    set(obj, prop, value) {
+      obj[prop] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, calls };
+}
+
+describe("3 択の紋の写し（E8a）", () => {
+  beforeAll(() => {
+    vi.stubGlobal("document", {
+      createElement: () => ({ width: 0, height: 0, getContext: () => fakeContext().ctx }),
+      fonts: { check: () => true, load: () => Promise.resolve([]) },
+    });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("3 択の描画は例外なく fillText を直接使わない", () => {
+    const state = createGame(1);
+    const keys = BOON_KEYS.filter((k) => !BOONS[k].cursed && BOONS[k].card === "grace").slice(0, 3);
+    const { ctx, calls } = fakeContext();
+    const view = { options: keys, curseHover: false, timer: 1, curseTaken: false, curse: null };
+    // 焦点なし / 各札に焦点 / 点滅の両位相 / 錬磨（写しを出さない）
+    for (const hover of [-1, 0, 1, 2]) {
+      for (const time of [0, 0.6]) {
+        state.time = time;
+        state.boonChoice = { ...view, hover };
+        drawBoonChoice(ctx, state);
+      }
+    }
+    state.boonChoice = { ...view, hover: 0, mode: "temper" };
+    drawBoonChoice(ctx, state);
+    expect(calls.get("fillRect") ?? 0, "何かを描いている").toBeGreaterThan(0);
+    expect(calls.get("fillText") ?? 0, "fillText を直接使わない").toBe(0);
   });
 });

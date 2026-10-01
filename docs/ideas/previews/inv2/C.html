@@ -1,0 +1,1782 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>一つずつ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  /* ページの外側 */
+  --page-bg: #0a090c; --page-panel: #141216; --page-line: #3a3640;
+  --page-tx: #e8e2d4; --page-sub: #9a948a; --page-dim: #5c5852;
+  --page-accent: #c83a2a; --page-focus: #fff4d0; --page-over: #ff7a70; --page-ok: #8fd08a;
+  /* G4: 墨染めの帳 + 朱と金の漆の縁 */
+  --paper: #141216; --fa: #1c1a20; --fb: #100e12;
+  --card: #1e1b22; --card2: #2a2630; --rule: #3a3640;
+  --tx: #e8e2d4; --sub: #9a948a; --dim: #5c5852; --ink: #141216;
+  --focus: #fff4d0; --shu: #c83a2a; --gold: #c8a050; --gold-hi: #f0d890; --gold-lo: #7a5a28;
+  --fr1: #2a282c; --fr2: #b0342c; --fr3: #c8a050;
+  --up: #8fd08a; --down: #ff7a70;
+  --shadow-card: #17151a; --shadow-ink: #2e2a34; --night: #0c0b0e;
+  /* 系の色（core/keywords の分類） */
+  --kw-act: #d8d0bc;
+  --kw-melee: var(--kw-act); --kw-ranged: var(--kw-act); --kw-dash: var(--kw-act); --kw-just: var(--kw-act);
+  --kw-combo: var(--kw-act); --kw-finisher: var(--kw-act); --kw-counter: var(--kw-act); --kw-still: var(--kw-act);
+  --kw-placed: var(--kw-act); --kw-area: var(--kw-act); --kw-bullet: var(--kw-act); --kw-explode: var(--kw-act); --kw-wall: var(--kw-act);
+  --kw-mana: #7890f0; --kw-energy: #c8a050; --kw-crit: #fff4d0;
+  --kw-lowHp: #ff7a70; --kw-hurt: #ff7a70; --kw-kill: #ff7a70; --kw-stagger: #ff7a70; --kw-elite: #ff7a70;
+  --kw-heal: #8fd08a; --kw-ward: #8fd08a; --kw-clear: #8fd08a; --kw-reaction: #8fd08a;
+  --kw-burn: #f07038; --kw-chill: #80c8f0; --kw-shock: #e6dc50; --kw-poison: #98d048; --kw-bleed: #e0485a;
+  --kw-vulnerable: #f088b8; --kw-weaken: #b898c0; --kw-fear: #b080f0; --kw-silence: #8c90f0;
+  --kw-elDark: #9a5ae0;
+  /* 系譜の色 */
+  --ln-ash: #e0582e; --ln-frost: #9fd6f0; --ln-thunder: #e6dc50; --ln-moon: #a078e0; --ln-earth: #b88a48;
+  --ln-blade: #b8c0c8; --ln-cycle: #6cc08a; --ln-horde: #b04868; --ln-wealth: #e0a030;
+  --card-law: #c8a050; --card-temper: #8fd08a; --card-core: #d8d0bc; --card-cursed: #9a5ae0; --card-grace: #c83a2a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page-bg); color: var(--page-tx);
+  font-family: 'DotGothic16', 'IPAGothic', 'MS Gothic', 'Osaka-Mono', monospace;
+  font-size: 14px; line-height: 1.6; -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 1000px; margin: 0 auto; padding: 12px 16px 32px; }
+a { color: var(--page-focus); }
+.back { display: inline-block; margin-bottom: 6px; font-size: 14px; }
+h1 { font-size: 20px; font-weight: normal; margin: 0 0 4px; letter-spacing: 1px; }
+.lead p { margin: 0 0 2px; color: var(--page-sub); }
+.lead p b { color: var(--page-tx); font-weight: normal; }
+.scenes { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 10px 0 8px; align-items: center; }
+.scenes .lab { color: var(--page-sub); font-size: 13px; margin-right: 2px; }
+.btn {
+  font: inherit; font-size: 13px; color: var(--page-tx); background: var(--page-panel);
+  border: 1px solid var(--page-line); padding: 3px 8px; cursor: pointer; line-height: 1.4; border-radius: 0;
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+.btn:hover { border-color: var(--page-sub); }
+.btn[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); }
+.btn:focus-visible, .stage:focus-visible { outline: 2px solid var(--page-focus); outline-offset: 2px; }
+.stage { width: 100%; overflow: hidden; outline: none; background: var(--page-bg); border: 1px solid var(--page-line); display: flex; justify-content: center; }
+.pad { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
+.pad .btn { min-width: 40px; }
+.readout { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.readout .box { background: var(--page-panel); border: 1px solid var(--page-line); padding: 8px 12px; }
+.readout h2 { font-size: 14px; font-weight: normal; margin: 0 0 2px; color: var(--page-focus); }
+.readout p { margin: 0; }
+.readout .sub { color: var(--page-sub); font-size: 13px; }
+.meters { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 2px 0 4px; }
+.meter b { font-weight: normal; color: var(--page-ok); }
+.meter.over b { color: var(--page-over); }
+.keys { color: var(--page-sub); font-size: 13px; margin-top: 8px; }
+.keys b { color: var(--page-tx); font-weight: normal; }
+@media (min-width: 760px) { .readout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* ===== ゲーム画面（480x270 の論理座標。zoom で整数倍） ===== */
+.screen { position: relative; width: 480px; height: 270px; overflow: hidden; flex: none; background: var(--night);
+  font-size: 12px; line-height: 12px; color: var(--tx); cursor: default; -webkit-user-select: none; user-select: none; }
+.screen canvas.bg { position: absolute; left: 0; top: 0; width: 480px; height: 270px; image-rendering: pixelated; }
+.px { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.ab { position: absolute; }
+.ln { position: absolute; height: 14px; line-height: 14px; font-size: 12px; white-space: nowrap; overflow: hidden; color: var(--tx); display: block; text-align: left; }
+.ln.c { text-align: center; }
+.ln.r { text-align: right; }
+.ln .gb, .ln .ic, .ln .kc, .ln .hint { vertical-align: top; margin-top: 1px; }
+.ln .hint .kc { margin-top: 0; }
+.ln img.ic { display: inline-block; }
+.ln.t16 { height: 18px; line-height: 18px; font-size: 16px; }
+.ln.s8 { height: 10px; line-height: 10px; font-size: 8px; color: var(--sub); }
+.ln .sp { display: inline-block; width: 6px; height: 1px; flex: none; }
+.sub { color: var(--sub); } .dim { color: var(--dim); } .gold { color: var(--gold); } .shu { color: var(--down); } .up { color: var(--up); }
+.lose { color: var(--down); } .gain { color: var(--gold-hi); }
+.nm { display: inline; }
+
+/* 札（主役） */
+.card { position: absolute; background: var(--card); box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--fr2), inset 0 0 0 3px var(--fr3); }
+.card.paper { background-color: var(--card); background-repeat: repeat; }
+.card.rev { background-color: var(--card2); box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--fr3), inset 0 0 0 3px var(--fr2); }
+.card.cur { box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--rule); background: #18161b; }
+.card.cand { box-shadow: inset 0 0 0 1px var(--fr1), inset 0 0 0 2px var(--focus), inset 0 0 0 3px var(--gold); }
+.corner { position: absolute; width: 8px; height: 8px; }
+.corner.tl { left: 0; top: 0; } .corner.tr { right: 0; top: 0; transform: scaleX(-1); }
+.corner.bl { left: 0; bottom: 0; transform: scaleY(-1); } .corner.br { right: 0; bottom: 0; transform: scale(-1, -1); }
+.shadow { position: absolute; background: var(--shadow-card); box-shadow: inset 0 0 0 1px var(--fr1); cursor: pointer; }
+
+/* 印（アイコン）: 12px */
+.ic { flex: none; }
+.gb { display: inline-block; width: 12px; height: 12px; font-size: 12px; line-height: 12px; text-align: center; vertical-align: top; flex: none; overflow: hidden; }
+.gb.s { background: var(--c); color: var(--ink); }
+.gb.k { box-shadow: inset 0 0 0 1px var(--c); color: var(--c); font-size: 8px; line-height: 12px; }
+.gb.a { box-shadow: inset 0 0 0 1px var(--c), inset 0 0 0 2px var(--card), inset 0 0 0 3px var(--c); color: var(--c); font-size: 8px; line-height: 12px; }
+.row { display: flex; gap: 2px; align-items: center; }
+.shelfic { position: absolute; width: 12px; height: 12px; font-size: 12px; line-height: 12px; text-align: center; color: var(--dim); box-shadow: inset 0 0 0 1px var(--fr1); }
+.shelfic.on { color: var(--ink); background: var(--focus); box-shadow: inset 0 0 0 1px var(--gold); }
+.kc { display: inline-block; height: 14px; padding: 0 4px 0 5px; line-height: 14px; color: var(--tx); box-shadow: inset 0 0 0 1px var(--sub); margin-right: 3px; flex: none; }
+.hint { margin-right: 14px; display: inline-flex; align-items: center; flex: none; color: var(--sub); }
+.hint:last-child { margin-right: 0; }
+.hold { position: absolute; height: 2px; background: var(--gold); width: 0; }
+.hold.go { animation: holdfill 0.45s steps(5) forwards; }
+@keyframes holdfill { to { width: 100%; } }
+.hole { display: inline-block; width: 12px; height: 12px; line-height: 12px; font-size: 8px; text-align: center; box-shadow: inset 0 0 0 1px var(--dim); color: var(--dim); background: var(--paper); }
+.hole.on { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold-hi); font-size: 12px; }
+.pdot { position: absolute; width: 4px; height: 4px; background: var(--dim); }
+.pdot.on { background: var(--focus); width: 4px; height: 4px; box-shadow: 0 0 0 1px var(--shu); }
+.pbar { position: absolute; height: 2px; background: var(--rule); }
+.ptick { position: absolute; width: 1px; height: 4px; background: var(--dim); }
+.big-glyph { position: absolute; width: 48px; height: 48px; font-size: 32px; line-height: 48px; text-align: center; color: var(--ink); background: var(--c); }
+.big-glyph-ring { position: absolute; width: 56px; height: 56px; box-shadow: inset 0 0 0 1px var(--c), inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--c); }
+.sglyph { position: absolute; font-size: 24px; line-height: 24px; width: 24px; text-align: center; color: var(--ink); }
+
+/* 俯瞰の点 */
+.dot { position: absolute; width: 4px; height: 4px; }
+.dot.eq { box-shadow: 0 0 0 1px var(--shu); }
+.dot.junk { background: transparent !important; }
+.dot.junk::before, .dot.junk::after { content: ""; position: absolute; width: 1px; height: 1px; background: var(--dim); }
+.dot.junk::before { left: 0; top: 0; box-shadow: 1px 1px 0 var(--dim), 2px 2px 0 var(--dim), 3px 3px 0 var(--dim); }
+.dot.junk::after { right: 0; top: 0; box-shadow: -1px 1px 0 var(--dim), -2px 2px 0 var(--dim), -3px 3px 0 var(--dim); }
+.dot.fav::after { content: ""; position: absolute; left: 1px; top: -3px; width: 2px; height: 2px; background: var(--gold-hi); }
+.dot.new { animation: blink 1s steps(2) infinite; }
+.dot.sunk { opacity: 0.18; }
+@keyframes blink { 50% { background: var(--focus); } }
+.curs { position: absolute; box-shadow: 0 0 0 1px var(--focus); pointer-events: none; }
+.notch { position: absolute; width: 5px; height: 5px; }
+.notch.off { box-shadow: inset 0 0 0 1px var(--dim); }
+.spot-dot { position: absolute; width: 4px; height: 4px; }
+.spot-dot.empty { box-shadow: inset 0 0 0 1px var(--dim); }
+svg.threads { position: absolute; left: 0; top: 0; width: 480px; height: 270px; shape-rendering: crispEdges; pointer-events: none; }
+.knot { position: absolute; width: 7px; height: 7px; }
+.focus-ring { position: absolute; box-shadow: 0 0 0 1px var(--focus), 0 0 0 2px var(--ink); pointer-events: none; }
+
+/* 段のアニメ（小さく） */
+.a-l { animation: inL 0.12s steps(3); } .a-r { animation: inR 0.12s steps(3); }
+.a-u { animation: inU 0.12s steps(3); } .a-d { animation: inD 0.12s steps(3); }
+.a-zin { animation: zin 0.15s steps(3); } .a-zout { animation: zout 0.15s steps(3); }
+.a-flip { animation: flip 0.12s steps(3); }
+.a-come { animation: come 0.12s steps(3); }
+@keyframes inL { from { transform: translateX(-18px); } to { transform: none; } }
+@keyframes inR { from { transform: translateX(18px); } to { transform: none; } }
+@keyframes inU { from { transform: translateY(-12px); } to { transform: none; } }
+@keyframes inD { from { transform: translateY(12px); } to { transform: none; } }
+@keyframes zin { from { transform: scale(0.88); } to { transform: none; } }
+@keyframes zout { from { transform: scale(1.12); } to { transform: none; } }
+@keyframes flip { from { transform: scaleX(0.1); } to { transform: none; } }
+@keyframes come { from { transform: translateX(-40px); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .a-l, .a-r, .a-u, .a-d, .a-zin, .a-zout, .a-flip, .a-come, .dot.new, .hold.go { animation: none !important; }
+  .hold.go { width: 100%; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <a class="back" href="index.html">← 4 案の一覧へ</a>
+  <h1>C 一つずつ（見台）</h1>
+  <div class="lead">
+    <p><b>見台に載るのは、いつも 1 つだけ。</b>一覧を文字で並べず、繰る（←→）と影で並びを体に覚えさせ、全体は文字の無い点の絵（俯瞰・全景）で見る。比べる時だけ 2 枚目が来て、違うところしか書かない。</p>
+    <p><b>代償:</b> 倉庫を名前のリストで眺められず、3 つ以上を同時に比べられない。速さより静けさを取る（大量の整理は俯瞰で）。</p>
+  </div>
+  <div class="scenes" id="scenes">
+    <span class="lab">場面</span>
+    <button class="btn" data-scene="run">ラン中に開く</button>
+    <button class="btn" data-scene="floor">床の遺物（G 長押し）</button>
+    <button class="btn" data-scene="pick">祝福の 3 択</button>
+    <button class="btn" data-scene="hub">拠点の倉庫</button>
+  </div>
+  <div class="stage" id="stage" tabindex="0" aria-label="見台の見本。クリックしてからキーで操作する">
+    <div class="screen" id="screen"></div>
+  </div>
+  <div class="pad" id="pad" aria-label="押して操作するボタン">
+    <button class="btn" tabindex="-1" data-k="ArrowLeft">←</button>
+    <button class="btn" tabindex="-1" data-k="ArrowRight">→</button>
+    <button class="btn" tabindex="-1" data-k="ArrowUp">↑</button>
+    <button class="btn" tabindex="-1" data-k="ArrowDown">↓</button>
+    <button class="btn" tabindex="-1" data-k="Enter">決定</button>
+    <button class="btn" tabindex="-1" data-k="Shift" data-holdkey="1">比べる（押す間）</button>
+    <button class="btn" tabindex="-1" data-k="f">裏返す</button>
+    <button class="btn" tabindex="-1" data-k="Tab">引く</button>
+    <button class="btn" tabindex="-1" data-k="z">寄る</button>
+    <button class="btn" tabindex="-1" data-k="Escape">戻る</button>
+    <button class="btn" tabindex="-1" data-k="q">島で絞る</button>
+    <button class="btn" tabindex="-1" data-k="g" data-holdkey="1">G</button>
+  </div>
+  <section class="readout">
+    <div class="box">
+      <h2 id="ro-title">今の段</h2>
+      <p id="ro-aim"></p>
+    </div>
+    <div class="box">
+      <h2>情報の予算（この画面を数えた値 / 案の上限）</h2>
+      <div class="meters" id="ro-meters"></div>
+      <p class="sub">文字 = 12px 以上の行（SMALL 8px は別に数える）。アイコン = 絵・系の印・棚や部位の印・穴（キーの印は操作の行に含め、影・位置の点・俯瞰の点・糸は地として数えない）。数字 = 画面に出た数の個数。</p>
+    </div>
+  </section>
+  <p class="keys" id="keys"></p>
+</main>
+<script>
+'use strict';
+// ============================================================
+// データ（名前はコードの実名: loot/named.ts・loot/affixes.ts・system/boonDefs/*.ts・skills/*・core/keywords.ts）
+// 表示の s は札の表に出す短い 1 行（15 字以内）、t は裏に出す全文
+// ============================================================
+const KW = {
+  melee: ['剣', '近接'], ranged: ['射', '射撃'], dash: ['駆', 'ダッシュ'], just: ['見', '見切り'], combo: ['連', 'コンボ'],
+  finisher: ['終', '終撃'], counter: ['返', 'カウンター'], still: ['溜', '静止'], mana: ['気', '気力'], energy: ['奥', '奥義ゲージ'],
+  lowHp: ['瀕', '瀕死'], heal: ['癒', '回復'], hurt: ['傷', '被弾'], ward: ['護', '障壁'], burn: ['炎', '燃焼'], chill: ['氷', '冷気'],
+  shock: ['雷', '感電'], poison: ['毒', '毒'], bleed: ['血', '出血'], vulnerable: ['脆', '脆弱'], stagger: ['怯', '怯み'],
+  reaction: ['応', '反応'], placed: ['置', '設置物'], area: ['円', '範囲'], explode: ['爆', '爆発'], kill: ['撃', '撃破'],
+  clear: ['制', '制圧'], elDark: ['闇', '闇属性'],
+};
+const KW_ORDER = Object.keys(KW);
+const kwName = (k) => `${KW[k][1]}系`;
+// 共鳴の数え（balance/RESONANCE: 源 2・糧 2 で 1 段、源 + 糧 が 3 増えるごとに +1、強め 1 で +1、上限 3）
+const RES = { minSrc: 2, minSink: 2, every: 3, max: 3 };
+
+const SLOTS = ['main', 'head', 'armor', 'boots', 'ring', 'amulet'];
+const SLOT_LABEL = { main: '右手', head: '頭', armor: '体', boots: '足', ring: '指輪', amulet: '首飾り' };
+const SLOT_GLYPH = { main: '右', head: '頭', armor: '体', boots: '足', ring: '指', amulet: '首' };
+const COLOR_ADJ = { crimson: '紅を帯びた', azure: '蒼く冴えた', jade: '翠に芽吹く', gold: '金に閃く', umbra: '冥く淀んだ' };
+const TRAIT_ORDER = ['crimson', 'azure', 'jade', 'gold', 'umbra'];
+const TRAIT_HEX = { crimson: '#e8553a', azure: '#3a8ee8', jade: '#49c46b', gold: '#f2c84b', umbra: '#9a5ae0', named: '#c8a050', none: '#9a948a' };
+const ATTR = [['str', '筋', '筋力'], ['dex', '技', '技巧'], ['vit', '体', '体力'], ['mnd', '精', '精神'], ['spi', '霊', '霊力'], ['def', '防', '防御']];
+const ACT = ['primary', 'secondary', 'dash', 'skill', 'ultimate'];
+const ACT_SHORT = { primary: '左', secondary: '右', dash: '駆', skill: '技', ultimate: '奥' };
+const ACT_LONG = { primary: '左', secondary: '右', dash: 'ダッシュ', skill: 'スキル', ultimate: '奥義' };
+const LINEAGES = ['ash', 'frost', 'thunder', 'moon', 'earth', 'blade', 'cycle', 'horde', 'wealth'];
+const LN = { ash: ['灰燼', '灰'], frost: ['霜枷', '霜'], thunder: ['雷鳴', '雷'], moon: ['月蝕', '月'], earth: ['大地', '地'], blade: ['刃鳴', '刃'], cycle: ['輪廻', '輪'], horde: ['眷属', '眷'], wealth: ['財宝', '財'] };
+const CARD = { grace: '加護', law: '摂理', temper: '研鑽', apex: '真髄', core: '芯', cursed: '呪い付き' };
+const CARD_GLYPH = { law: '理', temper: '研', core: '芯', cursed: '呪' };
+
+const A = (t, s, c, kw) => ({ t, s, c, ...(kw || {}) });
+const ITEMS0 = [
+  // ---- 装備中 ----
+  { id: 'e1', slot: 'main', base: '打刀', wk: '刀', inscr: '王殺しの不屈', flux: '揺', margin: 0, depth: 6, innate: { str: 3 }, prov: '撃破 812 / ボス 2', af: [
+    A('終撃の与ダメージ +18%', '終撃の与ダメ +18%', 'crimson', { co: ['finisher'] }),
+    A('12%の確率で炎上（4ダメージ/秒）', '12% で炎上を付ける', 'crimson', { p: ['burn'] }),
+    A('瀕死の間、与ダメージ +12%', '瀕死の間 与ダメ +12%', 'umbra', { co: ['lowHp'] })] },
+  { id: 'e2', slot: 'head', base: '額冠', named: '星読みの眼', flux: '名', margin: 1, depth: 8, innate: { mnd: 1 }, flavor: '星の巡りに比べれば、振りかぶる腕などゆっくりだ。', af: [
+    A('予備動作中の敵への与ダメージ +20%', '予備動作へ与ダメ +20%', 'gold', { co: ['counter'] })] },
+  { id: 'e3', slot: 'armor', base: '鎖帷子', flux: '静', margin: 2, depth: 4, innate: { def: 2 }, af: [
+    A('怯み中の敵へのダメージ +15%', '怯み中の敵へ +15%', 'crimson', { co: ['stagger'] }),
+    A('15%の確率で炎上（3ダメージ/秒）', '15% で炎上を付ける', 'crimson', { p: ['burn'] })] },
+  { id: 'e4', slot: 'boots', base: '草鞋', named: '旅人の靴', flux: '名', margin: 1, depth: 5, flavor: '道のりは靴底に溜まる。蹴り出す一歩のために。', af: [
+    A('歩いた距離を溜め、次に当てた一撃で使い切る', '歩いた道を一撃に溜める', 'named', { co: ['dash'] }),
+    A('先制の後 2 秒間、与ダメージ +10%', '先制の後 与ダメ +10%', 'azure')] },
+  { id: 'e5', slot: 'ring', base: '黒鉄の指輪', named: '鐘の舌', flux: '名', margin: 1, depth: 9, grace: 'ultimate', flavor: '九つまでは余韻。十で、鐘は割れるほど鳴る。', af: [
+    A('終撃 10 回ごとに、周りの敵を鐘の音で打つ', '終撃 10 回目で周りを打つ', 'named', { p: ['area'] }),
+    A('終撃の与ダメージ +16%', '終撃の与ダメ +16%', 'crimson', { co: ['finisher'] })] },
+  { id: 'e6', slot: 'amulet', base: '琥珀の首飾り', flux: '荒', margin: 1, depth: 7, innate: { vit: 1 }, af: [
+    A('過駆動: 攻撃速度・連射速度 +60%。攻撃のたびに生命を1消費する。', '過駆動: 攻速 +60%', 'oath'),
+    A('残り火: 燃えている敵を倒すと、足元に炎を 3 秒置く、炎耐性 -10%', '残り火: 撃破で足元に炎', 'crimson', { p: ['burn'], co: ['burn', 'kill'] }),
+    A('撃破時8%の確率で爆発（14ダメージ）', '撃破時 8% で爆発', 'crimson', { p: ['explode'], co: ['kill'] })] },
+  // ---- 倉庫 ----
+  { id: 's1', slot: 'main', base: '太刀', wk: '刀', flux: '荒', margin: 3, depth: 12, isNew: true, innate: { dex: 4 }, af: [
+    A('18%の確率で感電、6ダメージが連鎖', '18% で感電が連鎖', 'gold', { p: ['shock'] }),
+    A('先制の後 2 秒間、与ダメージ +15%', '先制の後 与ダメ +15%', 'gold')] },
+  { id: 's2', slot: 'main', base: '打刀', wk: '刀', flux: '揺', margin: 1, depth: 7, innate: { str: 2 }, af: [
+    A('見切りの後 3 秒間、与ダメージ +14%', '見切りの後 与ダメ +14%', 'gold', { co: ['just'] }),
+    A('返し波: カウンター時、衝撃波を放つ（22 ダメージ）', '返し波: 反撃で衝撃波', 'crimson', { p: ['area'], co: ['counter'] })] },
+  { id: 's3', slot: 'main', base: '太刀', wk: '刀', named: '空の鞘', flux: '名', margin: 2, depth: 9, mark: 'fav', grace: 'dash', flavor: '刃は抜かれない。抜かれぬまま、通り過ぎたものを斬っている。', af: [
+    A('左右の振りが出ない', '左右の振りが出ない', 'named'),
+    A('ダッシュのたび、周りの敵を斬る', 'ダッシュで周りを斬る', 'named', { co: ['dash'], am: ['dash'] })] },
+  { id: 's4', slot: 'main', base: '脇差', wk: '刀', flux: '揺', margin: 2, depth: 5, innate: { dex: 2 }, af: [
+    A('18%の確率で炎上（3ダメージ/秒）', '18% で炎上を付ける', 'crimson', { p: ['burn'] }),
+    A('構え: 近接を振っている間、被ダメージ -6%', '構え: 振る間 被ダメ −6%', 'jade', { p: ['ward'], co: ['melee'] })] },
+  { id: 's5', slot: 'main', base: '打刀', wk: '刀', flux: '静', margin: 3, depth: 3, mark: 'junk', innate: { str: 1 }, af: [
+    A('怯み中の敵へのダメージ +9%', '怯み中の敵へ +9%', 'crimson', { co: ['stagger'] })] },
+  { id: 's6', slot: 'main', base: '斬馬刀', wk: '大剣', flux: '荒', margin: 2, depth: 10, innate: { str: 5 }, af: [
+    A('終撃の与ダメージ +24%', '終撃の与ダメ +24%', 'crimson', { co: ['finisher'] }),
+    A('腐爆: 状態異常が 2 種以上の敵への近接命中で爆発する（30 ダメージ）、近接ダメージ -10%', '腐爆: 2 種以上で爆発', 'umbra', { p: ['explode'], co: ['reaction'] })] },
+  { id: 's7', slot: 'main', base: '双短刀', wk: '双剣', named: '双頭の蛇', flux: '名', margin: 1, depth: 11, grace: 'secondary', innate: { dex: 3 }, flavor: '右の牙と左の牙。交互に噛むほど、毒は深く回る。', af: [
+    A('左右を交互に当てるほど与ダメージが育つ（同じ側で 0 に戻る）', '交互に当てて与ダメが育つ', 'named', { co: ['combo'] }),
+    A('双撃の後 2 秒間、与ダメージ +16%', '双撃の後 与ダメ +16%', 'azure', { co: ['combo'] })] },
+  { id: 's21', slot: 'main', base: '打刀', wk: '刀', flux: '反', margin: 2, depth: 8, af: [
+    A('崩れ雷: 敵を怯ませると連鎖雷を呼ぶ（12 ダメージ）', '崩れ雷: 怯ませて雷', 'gold', { p: ['shock'], co: ['stagger'] })] },
+  { id: 's8', slot: 'head', base: '鉢金', flux: '揺', margin: 2, depth: 11, isNew: true, innate: { def: 2 }, af: [
+    A('見切りの息吹: 見切りで気力 +6、ダッシュ再使用時間 +10%', '見切りで気力 +6', 'azure', { p: ['mana'], co: ['just'] })] },
+  { id: 's9', slot: 'head', base: '三度笠', flux: '静', margin: 1, depth: 4, af: [
+    A('籠城: 交戦中の部屋で被ダメージ -8%', '籠城: 交戦中 被ダメ −8%', 'jade', { p: ['ward'], co: ['clear'] })] },
+  { id: 's10', slot: 'head', base: '角兜', named: '骸の冠', flux: '名', margin: 1, depth: 10, flavor: '死者は冠の主に道を譲る。踏まれると、弾けて。', af: [
+    A('倒した敵の骸を踏むと、骸が弾けて爆発する', '骸を踏むと弾ける', 'named', { p: ['explode'], co: ['kill'] })] },
+  { id: 's22', slot: 'head', base: '頭巾', flux: '静', margin: 2, depth: 2, mark: 'junk', af: [
+    A('地形の上に立つ間、与ダメージ +6%', '地形の上で与ダメ +6%', 'jade')] },
+  { id: 's11', slot: 'armor', base: '狂戦士の皮鎧', flux: '静', margin: 1, depth: 5, af: [
+    A('奥義ゲージ満タン時に被弾: 0.2秒間無敵', '満ゲージの被弾で無敵', 'gold', { p: ['ward'], co: ['energy', 'hurt'] }),
+    A('幕引き: 殲滅の瞬間に敵弾をすべて消し、奥義ゲージ +12', '幕引き: 殲滅で弾を消す', 'gold', { p: ['energy'], co: ['clear'] })] },
+  { id: 's12', slot: 'armor', base: '法衣', flux: '揺', margin: 2, depth: 6, mark: 'junk', af: [
+    A('気力が満ちている間、スキル威力 +12%', '気力満ちてスキル +12%', 'azure', { co: ['mana'] })] },
+  { id: 's13', slot: 'armor', base: '鱗鎧', named: '起死の鱗', flux: '名', margin: 1, depth: 12, isNew: true, flavor: '死の淵で、鱗は一枚だけ時を止める。', af: [
+    A('瀕死で被弾すると、周りの敵と自分を凍らせ、障壁を張る', '瀕死の被弾で周りを凍結', 'named', { p: ['ward'], co: ['lowHp'] })] },
+  { id: 's14', slot: 'boots', base: '雪沓', flux: '荒', margin: 2, depth: 10, isNew: true, af: [
+    A('霜の轍: ダッシュの軌跡に氷床を 2 秒残す、ダッシュ距離 -10%', '霜の轍: 軌跡に氷床', 'azure', { p: ['chill'], co: ['dash'] })] },
+  { id: 's15', slot: 'boots', base: '忍び足袋', flux: '揺', margin: 1, depth: 6, af: [
+    A('見切りの後 3 秒間、与ダメージ +12%', '見切りの後 与ダメ +12%', 'gold', { co: ['just'] })] },
+  { id: 's16', slot: 'ring', base: 'ルビーの指輪', flux: '揺', margin: 2, depth: 7, mark: 'fav', af: [
+    A('燃焼の重ねの上限 +2', '燃焼の重ね上限 +2', 'crimson', { am: ['burn'] }),
+    A('10%の確率で炎上（3ダメージ/秒）', '10% で炎上を付ける', 'crimson', { p: ['burn'] })] },
+  { id: 's17', slot: 'ring', base: '金の指輪', named: '招き猫', flux: '名', margin: 1, depth: 8, flavor: '右手で銭を招き、左手で落とし物を招く。', af: [
+    A('銭を遠くから引き寄せ、拾う銭が増える', '銭を招き 多く拾う', 'named'),
+    A('懐: 持ち金が 50 以上の間、与ダメージ +8%', '懐: 持ち金で与ダメ +8%', 'crimson')] },
+  { id: 's18', slot: 'ring', base: '骨の指輪', flux: '静', margin: 3, depth: 3, mark: 'junk', af: [
+    A('連鎖係数 +8%', '連鎖係数 +8%', 'gold', { am: ['reaction'] })] },
+  { id: 's19', slot: 'amulet', base: '珊瑚の首飾り', named: '重ねの首飾り', flux: '名', margin: 1, depth: 9, flavor: '滅多に刺さらない。刺さったときは、三度刺さっている。', af: [
+    A('状態異常を付ける確率が半分になり、付くときは 3 重ねで付く', '状態異常が 3 重に刺さる', 'named', { am: ['burn', 'poison', 'bleed'] }),
+    A('命中時 10% で毒にする', '10% で毒にする', 'umbra', { p: ['poison'] })] },
+  { id: 's20', slot: 'amulet', base: '翡翠の首飾り', flux: '揺', margin: 2, depth: 11, isNew: true, af: [
+    A('土の息: 地形の上に立つ間、毎秒生命 +1、最大生命 -10', '土の息: 地形で毎秒回復', 'jade', { p: ['heal'] })] },
+];
+// 床に落ちている遺物（場面 a）
+const FLOOR0 = { id: 'f1', slot: 'main', base: '太刀', wk: '刀', flux: '揺', margin: 2, depth: 9, isNew: true, innate: { dex: 3 }, af: [
+  A('終撃の与ダメージ +18%', '終撃の与ダメ +18%', 'crimson', { co: ['finisher'] }),
+  A('20%の確率で冷気（2秒）', '20% で冷気を付ける', 'azure', { p: ['chill'] }),
+  A('溜めの命中で怯み値 +30%', '溜めの命中 怯み +30%', 'azure', { co: ['still'] })] };
+
+// スキル石（skills/data.ts の名前・字・動詞・気力）
+const STONES0 = [
+  { id: 'st1', n: '旋風斬り', g: '円', res: '気力 20', poise: 7, v: ['範', '範囲 +16% / ダメージ −12%'], s: 'その場で回って周りを 3 度斬る', verb: 'その場で回って周りの敵を 3 度斬る', p: ['melee', 'area'] },
+  { id: 'st2', n: '燃え種爆ぜ', g: '爆', res: '気力 14', poise: 10, v: ['再', 'コスト −9% / ダメージ −8%'], s: '周りの燃焼を爆発に変える', verb: 'カーソル周りの燃焼をすべて爆発に変える（残りの燃焼が多いほど強い）', p: ['explode'], co: ['burn'] },
+  { id: 'st3', n: '鎖鎌', g: '鎖', res: '気力 12', poise: 15, v: ['速', '発動時間 −9% / ダメージ −6%'], s: '鎖で最初の敵を引き寄せる', verb: '鎖を伸ばし、最初に当たった敵を手元へ引き寄せる', p: ['melee'] },
+  { id: 'st4', n: '墜星', g: '墜', res: '再使用 9s', poise: 12, v: ['範', '範囲 +8% / ダメージ −6%'], s: '跳んで着地点に闇の円', verb: '闇に紛れて跳び、着地点に闇の円を広げる', p: ['melee', 'dash', 'elDark'], isNew: true },
+  { id: 'st5', n: '伝染', g: '伝', res: '気力 14', poise: 0, v: ['持', '持続 +20% / 効果量 −12%'], s: '状態異常を周りへ写す', verb: 'カーソル近くの敵の状態異常を、周りの敵へ持続半分で写す（元の敵からは消えない）', p: ['reaction', 'area'], co: ['burn', 'poison', 'bleed'], isNew: true },
+  { id: 'st6', n: '綻び', g: '綻', res: '気力 16', poise: 8, v: ['再', 'コスト −12% / ダメージ −10%'], s: '状態異常を消して強く打つ', verb: '命中した敵の状態異常をすべて消し、種類が多いほど強く打つ', p: ['ranged'], co: ['burn', 'chill', 'shock', 'poison', 'bleed'] },
+  { id: 'st7', n: '結界杭', g: '杭', res: '気力 15', poise: 3, v: ['回', '回数 +1 / ダメージ −15%'], s: '杭を結ぶ線で敵を削る', verb: 'カーソル地点に杭を打つ（最大 3）。杭同士を結ぶ線に触れた敵を削り、3 本の内側の敵を脆くする', p: ['vulnerable', 'placed'], am: ['area'] },
+  { id: 'st8', n: '旋風斬り', g: '円', res: '気力 20', poise: 7, v: ['再', 'コスト −12% / ダメージ −10%'], s: 'その場で回って周りを 3 度斬る', verb: 'その場で回って周りの敵を 3 度斬る', p: ['melee', 'area'] },
+];
+const RUNES = {
+  ghost: { n: '分身', g: '分', verb: '撃った位置から0.3秒後に60%の威力でもう一度発動、再使用時間 x1.2' },
+  charge: { n: '溜め', g: '溜', verb: '長押しで溜める（最大1.2秒）: ダメージ x1〜2.2、範囲 x1〜1.5', p: ['still'] },
+  refund: { n: '巡り', g: '巡', verb: '命中1回ごとに払った気力の15%を返す（払った額まで）、ダメージ x0.9' },
+  pierce: { n: '貫き', g: '貫', verb: '弾・鎖が+2体貫通' },
+};
+const SLOT_LINKS = [4, 3, 2, 2];
+
+// 祝福（system/boonDefs/*.ts の名前・説明・語）。s は札の表の短い文
+const BOONS0 = [
+  { id: 'b1', n: '火種', card: 'grace', ln: 'ash', act: 'primary', gr: '大祝福', s: '終撃で燃焼を付ける', d: '攻撃 1 の終撃が当たると燃焼を付ける（3秒）。', p: ['burn'], co: ['finisher'] },
+  { id: 'b2', n: '重ね刃', card: 'grace', ln: 'blade', act: 'primary', gr: '並', s: '分身が追撃する', d: '左の連撃が当たるたび、分身が同じ敵へ追撃する。', p: ['melee'], co: ['melee'] },
+  { id: 'b3', n: '断裂波', card: 'grace', ln: 'blade', act: 'secondary', gr: '並', s: '貫く衝撃波を放つ', d: '右の放出で照準方向へ貫通する衝撃波。', p: ['area'], co: ['melee'] },
+  { id: 'b4', n: '火渡り', card: 'grace', ln: 'ash', act: 'dash', gr: '並', s: '離れた所に炎を置く', d: 'ダッシュで離れた場所に半径2mの炎を置く（3秒）。', p: ['burn', 'placed'], co: ['dash'] },
+  { id: 'b5', n: '静電気', card: 'grace', ln: 'thunder', act: 'dash', gr: '神威', s: '終わりに連鎖雷', d: 'ダッシュの終わりに、自分から連鎖する雷を放つ。', p: ['shock'], co: ['dash'] },
+  { id: 'b6', n: '雷跳ね', card: 'grace', ln: 'thunder', act: 'skill', gr: '並', s: '当てた敵から雷', d: 'スキルが当たると、その敵から連鎖する雷が走る（0.4秒に1回）。', p: ['shock'], co: ['mana'] },
+  { id: 'b7', n: '焦土', card: 'grace', ln: 'ash', act: 'ultimate', gr: '並', s: '燃焼を起爆する', d: '奥義で半径16mの燃焼を起爆し、残りの燃焼ダメージの1.5倍を即座に与える。', p: ['explode'], co: ['energy', 'burn'] },
+  { id: 'b8', n: '延焼', card: 'law', ln: 'ash', gr: '神威', s: '燃える敵に当てると、周りへ燃焼が移る', d: '燃えている敵に近接・射撃・スキルを当てると、半径3.2mの敵へ燃焼が移る（強さ50%、0.3秒に1回）。', p: ['burn'], co: ['burn'] },
+  { id: 'b9', n: '落雷予告', card: 'law', ln: 'thunder', gr: '並', s: '麻痺させた敵に雷が落ちる', d: '敵を麻痺させると、その敵に雷が落ちる。', p: ['shock'], co: ['shock'] },
+  { id: 'b10', n: '連綿', card: 'temper', ln: 'blade', gr: '並', s: '最大コンボが伸びるほど近接が強い', tally: '最大コンボ 47', d: 'この探索の最大コンボ10につき近接の与ダメ+3%（上限なし）。', co: ['combo'], am: ['melee'] },
+  { id: 'b11', n: '拍の刻', card: 'core', s: 'コンボごとに与ダメが増える。被弾でコンボが切れる', d: 'コンボ1ごとに与ダメージ+2%（最大+80%）。代わりにコンボの猶予が-40%になり、被弾するとコンボが必ず0になる。', co: ['hurt'], am: ['combo'] },
+  { id: 'b12', n: '濡れ鼠', card: 'cursed', s: '水たまりで気力が満ちる。代わりに濡れが付く', d: '水たまりに踏み込むと気力が満ちる（6秒に1回）。その代わり、自分に濡れが3つ付く。', p: ['mana'], co: ['placed'] },
+];
+// 3 択の候補（system/boonDefs の実名）
+const OFFER = [
+  { id: 'o1', n: '霜息', card: 'grace', ln: 'frost', act: 'primary', gr: '並', s: '左の振りが当たると冷気を付ける', d: '攻撃 1 の振りが当たると冷気を付ける。', p: ['chill'], co: ['melee'] },
+  { id: 'o2', n: '抜き胴', card: 'grace', ln: 'blade', act: 'dash', gr: '並', s: 'ダッシュですり抜けた敵すべてを斬る', d: 'ダッシュですり抜けた敵すべてを斬る。', p: ['melee'], co: ['dash'] },
+  { id: 'o3', n: '燠火', card: 'law', ln: 'ash', gr: '並', s: '燃える敵を倒すと、その場に炎が残る', d: '燃えている敵を倒すと、その場に半径1.6mの炎が残る（3秒）。', p: ['burn', 'placed'], co: ['kill'] },
+];
+const FORM = { n: '剣', label: '応報', d: '敵の攻撃を待って取り、応報を溜めて放つ', p: ['melee', 'counter'], co: ['just'] };
+const JOB = { n: '剣士', d: '連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。' };
+const BASE_ATTR = { str: 9, dex: 6, vit: 8, mnd: 6, spi: 5, def: 4 };
+const JOB_ATTR = { str: 2 };
+
+// ============================================================
+// 倉庫の嵩増し（座標ハッシュで決まった並び。乱数は使わない）
+// ============================================================
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+const BASES = {
+  main: [['打刀', '刀'], ['太刀', '刀'], ['脇差', '刀'], ['斬馬刀', '大剣'], ['双短刀', '双剣']],
+  head: [['鉢金'], ['三度笠'], ['角兜'], ['頭巾'], ['額冠']],
+  armor: [['鎖帷子'], ['狂戦士の皮鎧'], ['法衣'], ['鱗鎧']],
+  boots: [['草鞋'], ['雪沓'], ['忍び足袋']],
+  ring: [['黒鉄の指輪'], ['ルビーの指輪'], ['金の指輪'], ['骨の指輪']],
+  amulet: [['琥珀の首飾り'], ['珊瑚の首飾り'], ['翡翠の首飾り']],
+};
+const STASH_TOTAL = 214;
+function buildItems() {
+  const pool = [];
+  ITEMS0.forEach((it) => { if (!it.named) it.af.forEach((a) => { if (a.c !== 'oath' && !pool.some((p) => p.t === a.t)) pool.push(a); }); });
+  const items = JSON.parse(JSON.stringify(ITEMS0));
+  const realStash = items.filter((i) => i.id.startsWith('s')).length;
+  const slotW = [0.26, 0.16, 0.15, 0.14, 0.15, 0.14];
+  for (let i = 0; i < STASH_TOTAL - realStash; i++) {
+    let r = hash(i, 1), si = 0;
+    while (si < 5 && r > slotW[si]) { r -= slotW[si]; si++; }
+    const slot = SLOTS[si];
+    const bl = BASES[slot];
+    const b = bl[Math.floor(hash(i, 2) * bl.length)];
+    const n = hash(i, 3) < 0.45 ? 1 : hash(i, 3) < 0.85 ? 2 : 3;
+    const af = [];
+    for (let j = 0; af.length < n && j < 12; j++) {
+      const a = pool[Math.floor(hash(i, 10 + j) * pool.length)];
+      if (!af.includes(a)) af.push(a);
+    }
+    const m = hash(i, 4);
+    items.push({ id: `g${i}`, slot, base: b[0], wk: b[1] || '', flux: ['静', '揺', '荒'][Math.floor(hash(i, 5) * 3)], margin: 1 + Math.floor(hash(i, 6) * 3), depth: 1 + Math.floor(hash(i, 7) * 14),
+      isNew: m < 0.04, mark: m < 0.04 ? null : m < 0.08 ? 'fav' : m < 0.22 ? 'junk' : null, innate: {}, af: JSON.parse(JSON.stringify(af)) });
+  }
+  return items;
+}
+function buildStones() {
+  const out = JSON.parse(JSON.stringify(STONES0));
+  const axes = [['範', '範囲 +12% / ダメージ −9%'], ['再', 'コスト −10% / ダメージ −8%'], ['速', '発動時間 −8% / ダメージ −5%'], ['持', '持続 +16% / 効果量 −10%']];
+  for (let i = 0; i < 40; i++) {
+    const src = STONES0[Math.floor(hash(i, 31) * STONES0.length)];
+    out.push({ ...JSON.parse(JSON.stringify(src)), id: `gs${i}`, v: axes[Math.floor(hash(i, 32) * axes.length)], isNew: false });
+  }
+  return out;
+}
+
+// ============================================================
+// 状態
+// ============================================================
+const S = {
+  mode: 'menu', hub: false, z: 0,
+  shelf: 'res', sub: null, idx: { res: 0, equip: 0, skill: 0, boon: 0 }, subIdx: 0,
+  flip: false, cmp: false, island: null,
+  over: { slot: 'main', i: 0, res: 0, stones: 0, boon: 0 }, whole: 0,
+  pick: 1, floorItem: null, anim: '', toast: '',
+  items: buildItems(), eq: { main: 'e1', head: 'e2', armor: 'e3', boots: 'e4', ring: 'e5', amulet: 'e6' },
+  stones: buildStones(),
+  slots: [{ st: 'st1', runes: ['ghost', 'charge'] }, { st: 'st2', runes: ['refund'] }, { st: 'st3', runes: ['pierce'] }, { st: null, runes: [] }],
+  boons: JSON.parse(JSON.stringify(BOONS0)),
+};
+
+// ============================================================
+// 文字の道具（全角 1em・半角 0.5em で幅を数え、禁則で折り返す）
+// ============================================================
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NUM_RE = /[+\-−]?\d+(?:\.\d+)?(?:%|s)?/g;
+const T = (s) => esc(s).replace(NUM_RE, (m) => `<span class="nm">${m}</span>`);
+const isHalf = (ch) => /[\x20-\x7e]/.test(ch);
+const emw = (s) => { let w = 0; for (const ch of s) w += isHalf(ch) ? 0.5 : 1; return w; };
+const NO_START = '、。，．）」』％%・ー：:/';
+function wrap(s, max) {
+  const toks = s.match(/[A-Za-z0-9+\-.%×]+|\s|[^\sA-Za-z0-9+\-.%×]/gu) || [];
+  const out = [];
+  let cur = '';
+  toks.forEach((t) => {
+    if (emw(cur + t) <= max || !cur.trim()) { cur += t; return; }
+    if (NO_START.includes(t[0]) && cur.length > 1) {
+      const chars = [...cur];
+      const last = chars.pop();
+      out.push(chars.join('').trimEnd());
+      cur = last + t;
+      return;
+    }
+    out.push(cur.trimEnd());
+    cur = t.trim() ? t : '';
+  });
+  if (cur.trim()) out.push(cur.trimEnd());
+  return out;
+}
+const fit = (s, max) => (emw(s) <= max ? s : `${[...s].reduce((a, ch) => (emw(a + ch) <= max - 1 ? a + ch : a), '')}…`);
+const uniq = (a) => KW_ORDER.filter((k) => a.includes(k));
+
+// ============================================================
+// ドット絵（16x16。. は透明、a は差し色）
+// ============================================================
+const SPR = {
+  katana: ['..............ww', '.............wws', '............wws.', '...........wws..', '..........wws...', '.........wws....', '........wws.....', '.......wws......',
+    '......wws.......', '.....wws........', '..g.wws.........', '...gg...........', '..aagg..........', '.aa..g..........', 'aa..............', 'k...............'],
+  great: ['.............www', '............wwws', '...........wwws.', '..........wwws..', '.........wwws...', '........wwws....', '.......wwws.....', '......wwws......',
+    '.....wwws.......', '.g..wwws........', '..gwwws.........', '...gg...........', '..aagg..........', '.aa...g.........', 'aa..............', 'g...............'],
+  twin: ['ww............ww', 'sww..........wws', '.sww........wws.', '..sww......wws..', '...sww....wws...', '....sww..wws....', '.....swwwws.....', '......swws......',
+    '......gwwg......', '.....g.ss.g.....', '....aa....aa....', '...aa......aa...', '..aa........aa..', '.ga..........ag.', '................', '................'],
+  head: ['................', '...g........g...', '....g......g....', '.....g....g.....', '......dddd......', '....dsswwssd....', '...dsswwwwssd...', '...dswwwwwwsd...',
+    '..ddssssssssdd..', '..daaaaaaaaaad..', '.daa.dkkkkd.aad.', '.da..dk..kd..ad.', '.da...k..k...ad.', '..a..........a..', '................', '................'],
+  armor: ['................', '....gg....gg....', '...gaag..gaag...', '..gaaaawwaaaag..', '..daaaawwaaaad..', '..dssssssssssd..', '..daaaaaaaaaad..', '..dssssssssssd..',
+    '...daaaaaaaad...', '...dssssssssd...', '...daaaaaaaad...', '...dssssssssd...', '....dddddddd....', '................', '................', '................'],
+  boots: ['................', '................', '.....dddd.......', '.....dssd.......', '.....dssd.......', '.....dasd.......', '.....dssd.......', '.....dasd.......',
+    '.....dssd.......', '.....dssdd......', '.....dsssdd.....', '.....dssssddd...', '.....aaaaaaaad..', '.....kkkkkkkkk..', '................', '................'],
+  ring: ['................', '.......aa.......', '......awwa......', '......gaag......', '.....gg..gg.....', '....g......g....', '...g........g...', '...g........g...',
+    '...g........g...', '...g........g...', '....g......g....', '.....gg..gg.....', '......gggg......', '................', '................', '................'],
+  amulet: ['..d..........d..', '...d........d...', '...d........d...', '....d......d....', '.....d....d.....', '......dggd......', '.......gg.......', '......gaag......',
+    '.....gaawag.....', '.....gaaaag.....', '......gaag......', '.......gg.......', '................', '................', '................', '................'],
+  stone: ['................', '.....dddddd.....', '....dawwaaad....', '...dawaaaaaad...', '..daaaaaaaaaad..', '..daaaaaaaaaad..', '..daaaaaaaaaad..', '..daaaaaaaaaad..',
+    '..daaaaaaaaaad..', '..daaaaaaaaaad..', '...daaaaaaaad...', '....daaaaaad....', '.....dddddd.....', '................', '................', '................'],
+  socket: ['................', '.....dddddd.....', '....d......d....', '...d........d...', '..d..........d..', '..d..........d..', '..d..........d..', '..d..........d..',
+    '..d..........d..', '..d..........d..', '...d........d...', '....d......d....', '.....dddddd.....', '................', '................', '................'],
+  doll: ['......dddd......', '.....dwwwwd.....', '.....dwwwwd.....', '......dwwd......', '....dssssssd....', '...dssssssssd...', '..dsd.ssss.dsd..', '..dsd.ssss.dsd..',
+    '..dw..ssss..wd..', '......ssss......', '......s..s......', '.....ds..sd.....', '.....ds..sd.....', '.....ds..sd.....', '....dds..sdd....', '....kkk..kkk....'],
+  ofuda: ['....dddddddd....', '....dwwwwwwd....', '....dwaaaawd....', '....dwwwwwwd....', '....dwkkkkwd....', '....dwwwwwwd....', '....dwkkkkwd....', '....dwwwwwwd....',
+    '....dwkkkkwd....', '....dwwwwwwd....', '....dwkkkkwd....', '....dwwwwwwd....', '....dwaaaawd....', '....dddddddd....', '................', '................'],
+};
+const PAL = { w: '#e8e2d4', s: '#9a948a', d: '#5c5852', k: '#141216', g: '#c8a050' };
+const sprCache = {};
+function spriteUrl(key, accent, sil) {
+  const ck = `${key}|${accent}|${sil ? 1 : 0}`;
+  if (sprCache[ck]) return sprCache[ck];
+  const cv = document.createElement('canvas');
+  cv.width = 16; cv.height = 16;
+  const c = cv.getContext('2d');
+  (SPR[key] || SPR.socket).forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '.') return;
+    c.fillStyle = sil ? sil : ch === 'a' ? accent : PAL[ch];
+    c.fillRect(x, y, 1, 1);
+  }));
+  sprCache[ck] = cv.toDataURL();
+  return sprCache[ck];
+}
+// 絵（アイコンとして数える）と影（数えない）
+const pic = (key, accent, size, extra) => `<img class="px ic" alt="" src="${spriteUrl(key, accent)}" width="${size}" height="${size}" ${extra || ''}>`;
+const sil = (key, size) => `<img class="px" alt="" src="${spriteUrl(key, '#000', '#2e2a34')}" width="${size}" height="${size}">`;
+
+// ============================================================
+// 物の見た目
+// ============================================================
+const itemById = (id) => S.items.find((i) => i.id === id) || (S.floorItem && S.floorItem.id === id ? S.floorItem : null);
+const stoneById = (id) => S.stones.find((s) => s.id === id);
+const boonById = (id) => S.boons.find((b) => b.id === id) || OFFER.find((b) => b.id === id);
+function dominant(it) {
+  const n = {};
+  it.af.forEach((a) => { n[a.c] = (n[a.c] || 0) + 1; });
+  if (it.named) return 'named';
+  let best = null, bc = 0;
+  TRAIT_ORDER.forEach((c) => { if ((n[c] || 0) > bc) { best = c; bc = n[c]; } });
+  return best || 'none';
+}
+const fullName = (it) => it.inscr || it.named || ((COLOR_ADJ[dominant(it)] || '') + it.base);
+function itemSprite(it) {
+  if (it.slot === 'main') return it.wk === '大剣' ? 'great' : it.wk === '双剣' ? 'twin' : 'katana';
+  return it.slot;
+}
+const itemAccent = (it) => TRAIT_HEX[dominant(it)];
+function kwProfile(obj) {
+  const p = [], co = [], am = [];
+  const add = (src) => { if (!src) return; (src.p || []).forEach((k) => p.push(k)); (src.co || []).forEach((k) => co.push(k)); (src.am || []).forEach((k) => am.push(k)); };
+  add(obj);
+  (obj.af || []).forEach(add);
+  return { p: uniq(p), co: uniq(co), am: uniq(am) };
+}
+const gb = (k, v) => `<span class="ic gb ${v}" style="--c:var(--kw-${k})">${esc(KW[k][0])}</span>`;
+function kwIcons(prof, max, only) {
+  const list = [...prof.p.map((k) => [k, 's']), ...prof.co.map((k) => [k, 'k']), ...prof.am.map((k) => [k, 'a'])].filter(([k]) => !only || k === only);
+  return list.slice(0, max).map(([k, v]) => gb(k, v)).join('');
+}
+function stoneProfile(st, runes) {
+  const prof = kwProfile(st);
+  (runes || []).forEach((r) => { prof.p = uniq([...prof.p, ...(RUNES[r].p || [])]); });
+  return prof;
+}
+const stoneAccent = (st) => { const k = (st.p || [])[0]; return k ? getKwHex(k) : '#9a948a'; };
+const KW_HEX_CACHE = {};
+function getKwHex(k) {
+  if (KW_HEX_CACHE[k]) return KW_HEX_CACHE[k];
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--kw-${k}`).trim();
+  const hex = v.startsWith('#') ? v : getComputedStyle(document.documentElement).getPropertyValue('--kw-act').trim();
+  KW_HEX_CACHE[k] = hex || '#d8d0bc';
+  return KW_HEX_CACHE[k];
+}
+const lnHex = (ln) => getComputedStyle(document.documentElement).getPropertyValue(`--ln-${ln}`).trim() || '#d8d0bc';
+const cardHex = (c) => getComputedStyle(document.documentElement).getPropertyValue(`--card-${c}`).trim() || '#d8d0bc';
+
+// ============================================================
+// 計算（state を変えない純関数。試着は写しで計算する）
+// ============================================================
+function sourcesOf(eq, slots, boons) {
+  const src = [];
+  SLOTS.forEach((sl) => { const it = eq[sl] && itemById(eq[sl]); if (it) src.push({ ref: { t: 'relic', id: it.id, slot: sl }, name: fullName(it), ...kwProfile(it) }); });
+  slots.forEach((s, i) => {
+    const st = s.st && stoneById(s.st);
+    if (st) src.push({ ref: { t: 'stone', id: st.id, slot: i }, name: st.n, ...stoneProfile(st, s.runes) });
+  });
+  boons.forEach((b) => src.push({ ref: { t: 'boon', id: b.id }, name: b.n, ...kwProfile(b) }));
+  src.push({ ref: { t: 'body' }, name: `${FORM.n}の型`, ...kwProfile(FORM) });
+  return src;
+}
+function resonance(eq, slots, boons) {
+  const src = sourcesOf(eq, slots, boons);
+  const out = {};
+  KW_ORDER.forEach((k) => {
+    const p = src.filter((s) => s.p.includes(k)), c = src.filter((s) => s.co.includes(k)), a = src.filter((s) => s.am.includes(k));
+    let step = 0;
+    if (p.length >= RES.minSrc && c.length >= RES.minSink) step = Math.min(RES.max, 1 + Math.floor((p.length + c.length - RES.minSrc - RES.minSink) / RES.every) + (a.length ? 1 : 0));
+    const needP = Math.max(0, RES.minSrc - p.length), needC = Math.max(0, RES.minSink - c.length);
+    // 次の段までの不足（段 0 は最低数、段 1〜2 は源 + 糧の合計の不足）
+    let next = null;
+    if (step === 0) next = { p: needP, c: needC };
+    else if (step < RES.max) { const tot = p.length + c.length - RES.minSrc - RES.minSink; next = { any: RES.every - (tot % RES.every) }; }
+    out[k] = { k, p, c, a, step, miss: needP + needC, next };
+  });
+  return out;
+}
+const curRes = () => resonance(S.eq, S.slots, S.boons);
+function resCards() {
+  const r = curRes();
+  const lit = KW_ORDER.filter((k) => r[k].step > 0).sort((x, y) => r[y].step - r[x].step);
+  const near = KW_ORDER.filter((k) => r[k].step === 0 && r[k].miss === 1);
+  return [...lit, ...near].map((k) => ({ t: 'res', k }));
+}
+function statsOf(eq) {
+  const s = { ...BASE_ATTR }, from = {};
+  ATTR.forEach(([k]) => { from[k] = { base: BASE_ATTR[k], job: JOB_ATTR[k] || 0, item: 0 }; s[k] += JOB_ATTR[k] || 0; });
+  SLOTS.forEach((sl) => { const it = eq[sl] && itemById(eq[sl]); if (it && it.innate) Object.entries(it.innate).forEach(([k, v]) => { s[k] += v; from[k].item += v; }); });
+  return { s, from };
+}
+const powL = (s) => 10 + s.str * 0.6;
+const powR = (s) => 8 + s.str * 0.3 + s.dex * 0.5;
+function graceCap(eq) {
+  const n = {};
+  ACT.forEach((a) => { n[a] = 2; });
+  SLOTS.forEach((sl) => { const it = eq[sl] && itemById(eq[sl]); if (it && it.grace) n[it.grace] = 3; });
+  return n;
+}
+function resChanges(r0, r1) {
+  return KW_ORDER.filter((k) => r0[k].step !== r1[k].step).sort((a, b) => Math.abs(r1[b].step - r0[b].step) - Math.abs(r1[a].step - r0[a].step) || r0[b].step - r0[a].step)
+    .slice(0, 2).map((k) => ({ k, s0: r0[k].step, s1: r1[k].step }));
+}
+// 遺物の差: 同じ性質は畳み、失う / 得るだけ
+function relicDiff(cur, cand) {
+  const ct = new Set((cur ? cur.af : []).map((a) => a.t)), nt = new Set(cand.af.map((a) => a.t));
+  const lose = cur ? cur.af.filter((a) => !nt.has(a.t)) : [];
+  const gain = cand.af.filter((a) => !ct.has(a.t));
+  const same = cand.af.length - gain.length;
+  const eq1 = { ...S.eq, [cand.slot]: cand.id };
+  const res = resChanges(resonance(S.eq, S.slots, S.boons), resonance(eq1, S.slots, S.boons));
+  const s0 = statsOf(S.eq).s, s1 = statsOf(eq1).s;
+  const marks = [];
+  const dl = powL(s1) - powL(s0), dr = powR(s1) - powR(s0);
+  if (Math.abs(dl) >= 0.5) marks.push([dl > 0, '左']);
+  if (Math.abs(dr) >= 0.5) marks.push([dr > 0, '右']);
+  const g0 = graceCap(S.eq), g1 = graceCap(eq1);
+  ACT.forEach((a) => { if (g0[a] !== g1[a]) marks.push([g1[a] > g0[a], ACT_LONG[a]]); });
+  return { lose: lose.map((a) => a.s), gain: gain.map((a) => a.s), same, res, marks };
+}
+function stoneDiff(cur, cand, slotIdx) {
+  const attrs = (st) => (st ? [st.s, st.res, `${st.v[0]}: ${st.v[1].split(' / ')[0]}`] : []);
+  const a0 = attrs(cur), a1 = attrs(cand);
+  const lose = a0.filter((x) => !a1.includes(x)), gain = a1.filter((x) => !a0.includes(x));
+  const same = a1.length - gain.length;
+  const sl1 = S.slots.map((s, i) => (i === slotIdx ? { ...s, st: cand.id } : s));
+  const res = resChanges(curRes(), resonance(S.eq, sl1, S.boons));
+  return { lose, gain, same, res, marks: [] };
+}
+function boonDiff(b) {
+  const res = resChanges(curRes(), resonance(S.eq, S.slots, [...S.boons, b]));
+  const marks = b.act ? [[true, ACT_LONG[b.act]]] : [];
+  return { res, marks };
+}
+
+// ============================================================
+// 棚と札
+// ============================================================
+const shelves = () => (S.hub ? ['res', 'equip', 'skill'] : ['res', 'equip', 'skill', 'boon']);
+const SHELF_NAME = { res: '共鳴', equip: '装備', skill: 'スキル', boon: '祝福' };
+const SHELF_GLYPH = { res: '共', equip: '装', skill: '技', boon: '祝' };
+function stashOf(slot) {
+  const eqIds = new Set(Object.values(S.eq));
+  return S.items.filter((i) => i.slot === slot && !eqIds.has(i.id) && (!S.island || islandOf(i) === S.island));
+}
+function stonesFree() {
+  const used = new Set(S.slots.map((s) => s.st));
+  return S.stones.filter((s) => !used.has(s.id));
+}
+function cardsOf(shelf, sub) {
+  if (sub) {
+    if (sub.kind === 'stash') return stashOf(sub.slot).map((i) => ({ t: 'relic', id: i.id, stash: true }));
+    if (sub.kind === 'stones') return stonesFree().map((s) => ({ t: 'stone', id: s.id, stash: true, slot: sub.slot }));
+    if (sub.kind === 'grace') return S.boons.filter((b) => b.card === 'grace' && b.act === sub.act).map((b) => ({ t: 'boon', id: b.id }));
+    if (sub.kind === 'origin') {
+      const r = curRes()[sub.k];
+      return [...r.p.map((x) => ({ ...x.ref, role: 'p' })), ...r.c.map((x) => ({ ...x.ref, role: 'c' }))].map((ref) => ({ ...ref, hl: sub.k }));
+    }
+  }
+  if (shelf === 'res') return resCards();
+  if (shelf === 'equip') return [...SLOTS.map((sl) => ({ t: 'relic', id: S.eq[sl], slot: sl })), { t: 'body' }];
+  if (shelf === 'skill') return S.slots.map((s, i) => ({ t: 'stone', id: s.st, slot: i }));
+  if (shelf === 'boon') return [...ACT.map((a) => ({ t: 'act', act: a })), ...S.boons.filter((b) => b.card !== 'grace').map((b) => ({ t: 'boon', id: b.id }))];
+  return [];
+}
+const curCards = () => cardsOf(S.shelf, S.sub);
+const curIdx = () => (S.sub ? S.subIdx : S.idx[S.shelf]);
+function setIdx(i) { if (S.sub) S.subIdx = i; else S.idx[S.shelf] = i; }
+function curCard() { const c = curCards(); return c[Math.min(curIdx(), c.length - 1)] || null; }
+function shelfLabel() {
+  if (!S.sub) return SHELF_NAME[S.shelf];
+  if (S.sub.kind === 'stash') return `倉庫 ${SLOT_LABEL[S.sub.slot]}`;
+  if (S.sub.kind === 'stones') return '石の在庫';
+  if (S.sub.kind === 'grace') return `加護 ${ACT_LONG[S.sub.act]}`;
+  if (S.sub.kind === 'origin') return `${kwName(S.sub.k)}の出どころ`;
+  return '';
+}
+
+// 札の表（名前・絵・印・本文 4 行まで）
+function faceOf(cd) {
+  if (!cd) return { pic: sil('socket', 64), name: '空き', kws: '', body: ['置ける物がない'] };
+  if (cd.t === 'res') {
+    const r = curRes()[cd.k];
+    const thumbs = (list) => list.slice(0, 2).map((x) => thumbOf(x.ref)).join('') + (list.length > 2 ? `<span class="sp"></span><span class="sub">ほか${T(String(list.length - 2))}</span>` : '');
+    const nx = r.next;
+    let need = '段は上限';
+    if (nx && nx.any) need = `次の段まで 源か糧 ${nx.any}`;
+    else if (nx && (nx.p || nx.c)) need = nx.p ? `段まで 源 ${nx.p}` : `段まで 糧 ${nx.c}`;
+    return {
+      pic: `<div class="big-glyph-ring" style="--c:var(--kw-${cd.k});left:4px;top:4px"></div><div class="big-glyph" style="--c:var(--kw-${cd.k});left:8px;top:8px">${esc(KW[cd.k][0])}</div>`,
+      picIc: true,
+      name: r.step ? `${kwName(cd.k)} ${r.step} 段` : kwName(cd.k),
+      kws: '',
+      body: [`<span class="sub">源</span><span class="sp"></span>${r.p.length ? thumbs(r.p) : '<span class="dim">なし</span>'}`,
+        `<span class="sub">糧</span><span class="sp"></span>${r.c.length ? thumbs(r.c) : '<span class="dim">なし</span>'}`,
+        T(need)],
+    };
+  }
+  if (cd.t === 'relic') {
+    const it = itemById(cd.id);
+    if (!it) return faceOf(null);
+    const lines = it.af.map((a) => (a.c === 'oath' ? `<span class="gold">${T(a.s)}</span>` : T(a.s)));
+    const body = lines.length > 4 ? [...lines.slice(0, 3), `<span class="sub">ほか ${lines.length - 3}</span>`] : lines;
+    const prof = kwProfile(it);
+    return { pic: pic(itemSprite(it), itemAccent(it), 64), name: fullName(it), kws: cd.hl ? kwIcons(prof, 4) : kwIcons(prof, 4), body };
+  }
+  if (cd.t === 'body') {
+    return { pic: pic('doll', '#c83a2a', 64), name: JOB.n, kws: kwIcons(kwProfile(FORM), 4),
+      body: [`${FORM.n}の型 · ${FORM.label}`, ...wrap(FORM.d, 15).slice(0, 2)] };
+  }
+  if (cd.t === 'stone') {
+    const slot = typeof cd.slot === 'number' ? S.slots[cd.slot] : null;
+    const st = cd.id ? stoneById(cd.id) : null;
+    const holes = cd.stash ? '' : holesHtml(cd.slot);
+    if (!st) return { pic: sil('socket', 64), name: '空き', kws: '', body: ['石を置ける'], holes };
+    const runes = cd.stash ? [] : (slot ? slot.runes : []);
+    return {
+      pic: `${pic('stone', stoneAccent(st), 64)}<div class="sglyph" style="left:20px;top:20px">${esc(st.g)}</div>`,
+      name: st.n, kws: kwIcons(stoneProfile(st, runes), 3),
+      body: [...wrap(st.s, 15).slice(0, 2).map(T), `<span class="sub">${T(st.res)}</span>`], holes,
+    };
+  }
+  if (cd.t === 'act') {
+    const cap = graceCap(S.eq)[cd.act];
+    const gs = S.boons.filter((b) => b.card === 'grace' && b.act === cd.act);
+    const body = [];
+    for (let i = 0; i < cap; i++) {
+      const b = gs[i];
+      body.push(b ? `${lnIcon(b.ln)}<span class="sp"></span>${esc(b.n)}<span class="sp"></span><span class="sub">${T(b.s)}</span>` : '<span class="dim">空き</span>');
+    }
+    return { pic: dollPic(cd.act, 64), name: ACT_LONG[cd.act], kws: '', body };
+  }
+  if (cd.t === 'boon') {
+    const b = boonById(cd.id);
+    const head = b.card === 'grace' ? `${LN[b.ln][0]} · ${ACT_LONG[b.act]} · ${b.gr}` : `${CARD[b.card]}${b.ln ? ` · ${LN[b.ln][0]}` : ''}`;
+    const desc = wrap(b.s, 15).slice(0, b.tally ? 2 : 3).map(T);
+    if (b.tally) desc.push(`<span class="gold">${T(`いま ${b.tally}`)}</span>`);
+    return { pic: pic('ofuda', b.ln ? lnHex(b.ln) : cardHex(b.card), 64), name: b.n, kws: kwIcons(kwProfile(b), 4), body: [`<span class="sub">${esc(head)}</span>`, ...desc] };
+  }
+  return faceOf(null);
+}
+// 札の裏（溢れた情報。本文 8 行まで）
+const BACK_MAX = 8;
+function backOf(cd) {
+  const W = 15;
+  let name = '', lines = [];
+  if (!cd) return { name: '空き', lines: [] };
+  if (cd.t === 'relic') {
+    const it = itemById(cd.id);
+    name = fullName(it);
+    const order = [...it.af.filter((a) => a.c === 'oath'), ...it.af.filter((a) => a.c === 'named'), ...it.af.filter((a) => a.c !== 'oath' && a.c !== 'named')];
+    order.forEach((a) => wrap(a.t, W).forEach((l) => lines.push(l)));
+    const inn = Object.entries(it.innate || {}).map(([k, v]) => `${ATTR.find((x) => x[0] === k)[1]} +${v}`).join(' ');
+    lines.push(`地金 ${inn || 'なし'}`);
+    lines.push(`揺らぎ ${it.flux} · 深度 ${it.depth} · 余白 ${it.margin}`);
+    if (it.prov) lines.push(`来歴 ${it.prov}`);
+    if (it.flavor) wrap(`銘「${it.flavor}」`, W).forEach((l) => lines.push(l));
+  } else if (cd.t === 'body') {
+    name = `${JOB.n}の体`;
+    const { s, from } = statsOf(S.eq);
+    ATTR.forEach(([k, , long]) => { const f = from[k]; lines.push(`${long} ${s[k]} = ${f.base}${f.job ? ` + 職 ${f.job}` : ''}${f.item ? ` + 装 ${f.item}` : ''}`); });
+    lines.push('耐性 炎 −10%');
+  } else if (cd.t === 'stone') {
+    const st = cd.id && stoneById(cd.id);
+    if (!st) return { name: '空き', lines: ['スロットの穴の数は残る'] };
+    name = st.n;
+    wrap(st.verb, W).forEach((l) => lines.push(l));
+    lines.push(`怯み値 ${st.poise}`);
+    wrap(`変異 ${st.v[0]}: ${st.v[1]}`, W).forEach((l) => lines.push(l));
+    if (!cd.stash && typeof cd.slot === 'number') S.slots[cd.slot].runes.forEach((r) => wrap(`${RUNES[r].n}: ${RUNES[r].verb}`, W).forEach((l) => lines.push(l)));
+  } else if (cd.t === 'act') {
+    name = `${ACT_LONG[cd.act]}の式`;
+    const { s } = statsOf(S.eq);
+    if (cd.act === 'primary') { lines.push(`威力 = 10 + 筋 ${s.str} × 0.6`); lines.push(`　　 = ${Math.round(powL(s))}`); lines.push(`怯み = 4 + 筋 ${s.str} × 0.15`); lines.push(`${FORM.n}の型 4 段`); }
+    else if (cd.act === 'secondary') { lines.push(`威力 = 8 + 筋 × 0.3 + 技 × 0.5`); lines.push(`　　 = ${Math.round(powR(s))}`); lines.push(`怯み = 6 + 筋 ${s.str} × 0.2`); }
+    else if (cd.act === 'dash') { lines.push('踏み込み 2 回 · 再使用 1.2s'); lines.push('無敵 0.2s'); }
+    else if (cd.act === 'skill') { lines.push('気力 60 / 80'); lines.push('回復 = 精 6 × 0.5 / s'); }
+    else { lines.push('一刀両断 · ゲージ 75 / 100'); lines.push(`威力 = 40 + 霊 ${s.spi} × 2`); }
+    S.boons.filter((b) => b.card === 'grace' && b.act === cd.act).forEach((b) => wrap(`${b.n}: ${b.d}`, W).forEach((l) => lines.push(l)));
+  } else if (cd.t === 'boon') {
+    const b = boonById(cd.id);
+    name = b.n;
+    wrap(b.d, W).forEach((l) => lines.push(l));
+    if (b.tally) lines.push(`いま ${b.tally}`);
+  } else if (cd.t === 'res') {
+    const r = curRes()[cd.k];
+    name = kwName(cd.k);
+    wrap(`源 ${r.p.length}: ${r.p.map((x) => x.name).join('・') || 'なし'}`, W).forEach((l) => lines.push(l));
+    wrap(`糧 ${r.c.length}: ${r.c.map((x) => x.name).join('・') || 'なし'}`, W).forEach((l) => lines.push(l));
+    lines.push(`強め ${r.a.length}`);
+  }
+  if (lines.length > BACK_MAX) lines = [...lines.slice(0, BACK_MAX - 1), `…ほか ${lines.length - BACK_MAX + 1} 行`];
+  return { name, lines: lines.map(T) };
+}
+function thumbOf(ref) {
+  if (ref.t === 'relic') { const it = itemById(ref.id); return pic(itemSprite(it), itemAccent(it), 12); }
+  if (ref.t === 'stone') { const st = stoneById(ref.id); return pic('stone', stoneAccent(st), 12); }
+  if (ref.t === 'boon') { const b = boonById(ref.id); return pic('ofuda', b.ln ? lnHex(b.ln) : cardHex(b.card), 12); }
+  return pic('doll', '#c83a2a', 12);
+}
+const lnIcon = (ln) => `<span class="ic gb s" style="--c:var(--ln-${ln})">${esc(LN[ln][1])}</span>`;
+function holesHtml(slotIdx) {
+  const s = S.slots[slotIdx];
+  let h = '';
+  for (let i = 0; i < SLOT_LINKS[slotIdx]; i++) {
+    const r = s.runes[i];
+    h += r ? `<span class="ic hole on">${esc(RUNES[r].g)}</span>` : '<span class="ic hole">·</span>';
+  }
+  return h;
+}
+// 人形（行動の札の絵）: 体の 5 か所のうち 1 つを灯す
+const SPOT = { primary: [3, 8], secondary: [12, 8], dash: [7.5, 14], skill: [7.5, 1.5], ultimate: [7.5, 5.5] };
+function dollPic(act, size) {
+  const k = size / 16;
+  const [sx, sy] = SPOT[act];
+  return `<div class="ab" style="left:0;top:0">${pic('doll', '#c83a2a', size)}</div><div class="ab" style="left:${Math.round(sx * k - 4)}px;top:${Math.round(sy * k - 4)}px;width:${Math.round(k * 2 + 4)}px;height:${Math.round(k * 2 + 4)}px;box-shadow:inset 0 0 0 2px var(--focus);background:var(--shu)"></div>`;
+}
+
+// ============================================================
+// 描画
+// ============================================================
+const scr = document.getElementById('screen');
+const ln = (x, y, w, html, cls) => `<div class="ln ${cls || ''}" style="left:${x}px;top:${y}px;width:${w}px">${html}</div>`;
+const kc = (k) => `<span class="kc">${esc(k)}</span>`;
+const hints = (list) => list.map(([k, v]) => `<span class="hint">${k.split(' ').map(kc).join('')}${esc(v)}</span>`).join('');
+let BG_URL = '';
+function backdrop() {
+  if (BG_URL) return BG_URL;
+  const cv = document.createElement('canvas');
+  cv.width = 480; cv.height = 270;
+  const c = cv.getContext('2d');
+  for (let ty = 0; ty < 270; ty += 16) for (let tx = 0; tx < 480; tx += 16) {
+    const v = hash(tx, ty);
+    c.fillStyle = v < 0.08 ? '#2c2c38' : v < 0.5 ? '#3a3a48' : '#40404e';
+    c.fillRect(tx, ty, 16, 16);
+    c.fillStyle = '#2a2a36';
+    c.fillRect(tx, ty + 15, 16, 1); c.fillRect(tx + 15, ty, 1, 16);
+    if (v > 0.8) { c.fillStyle = '#3c5a3a'; c.fillRect(tx + 4, ty + 9, 2, 1); c.fillRect(tx + 10, ty + 3, 1, 2); }
+  }
+  BG_URL = cv.toDataURL();
+  return BG_URL;
+}
+let FIBER = '';
+function fiber() {
+  if (FIBER) return FIBER;
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 64;
+  const c = cv.getContext('2d');
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    const v = hash(x + 911, y + 57);
+    if (v < 0.035) { c.fillStyle = '#26232a'; c.fillRect(x, y, v < 0.012 ? 2 : 1, 1); } else if (v > 0.975) { c.fillStyle = '#16141a'; c.fillRect(x, y, 1, 1); }
+  }
+  FIBER = cv.toDataURL();
+  return FIBER;
+}
+function cornerSvg() {
+  return '<svg width="8" height="8" viewBox="0 0 8 8"><rect x="0" y="0" width="8" height="2" fill="var(--gold-lo)"/><rect x="0" y="0" width="2" height="8" fill="var(--gold-lo)"/>'
+    + '<rect x="0" y="0" width="7" height="1" fill="var(--gold)"/><rect x="0" y="0" width="1" height="7" fill="var(--gold)"/><rect x="1" y="1" width="5" height="1" fill="var(--gold-hi)"/><rect x="1" y="1" width="1" height="5" fill="var(--gold-hi)"/>'
+    + '<rect x="2" y="2" width="3" height="3" fill="var(--gold)"/><rect x="3" y="3" width="1" height="1" fill="var(--shu)"/></svg>';
+}
+const corners = () => ['tl', 'tr', 'bl', 'br'].map((c) => `<span class="corner ${c}">${cornerSvg()}</span>`).join('');
+// 暗幕（墨 0.82）の上に置く。描画は state を読むだけ
+function frameBg(dim) {
+  return `<img class="px" alt="" src="${backdrop()}" width="480" height="270" style="position:absolute;left:0;top:0"><div class="ab" style="left:0;top:0;width:480px;height:270px;background:rgba(12,11,14,${dim})"></div>`;
+}
+function posDots(n, i, cx, y) {
+  if (n <= 1) return '';
+  if (n <= 20) {
+    const w = (n - 1) * 6 + 4, x0 = Math.round(cx - w / 2);
+    let h = '';
+    for (let j = 0; j < n; j++) h += `<div class="pdot ${j === i ? 'on' : ''}" style="left:${x0 + j * 6}px;top:${y}px"></div>`;
+    return h;
+  }
+  // 21 個以上は細い帯と目盛り
+  const w = 120, x0 = Math.round(cx - w / 2);
+  let h = `<div class="pbar" style="left:${x0}px;top:${y + 1}px;width:${w}px"></div>`;
+  for (let j = 0; j <= 4; j++) h += `<div class="ptick" style="left:${x0 + Math.round((w - 1) * j / 4)}px;top:${y}px"></div>`;
+  h += `<div class="pdot on" style="left:${x0 + Math.round((w - 4) * i / (n - 1))}px;top:${y}px"></div>`;
+  return h;
+}
+function shadowSprite(cd) {
+  if (!cd) return 'socket';
+  if (cd.t === 'relic') { const it = itemById(cd.id); return it ? itemSprite(it) : 'socket'; }
+  if (cd.t === 'stone') return cd.id ? 'stone' : 'socket';
+  if (cd.t === 'boon') return 'ofuda';
+  if (cd.t === 'act' || cd.t === 'body') return 'doll';
+  return 'stone';
+}
+
+function hintsFor(cd) {
+  if (S.flip) return [['F', '表'], ['←→', '繰る'], ['Esc', '戻る']];
+  if (!cd) return [['Esc', '戻る']];
+  if (S.sub && (S.sub.kind === 'stash' || S.sub.kind === 'stones')) return [['Shift', '比べる'], ['Enter', '付ける'], ['F', '裏']];
+  if (cd.t === 'res') return [['Enter', '出どころ'], ['F', '裏'], ['Tab', '引く']];
+  if (cd.t === 'relic' && !S.sub) return [['Enter', '倉庫'], ['F', '裏'], ['Tab', '引く']];
+  if (cd.t === 'stone' && !S.sub) return [['Enter', '石を替える'], ['F', '裏'], ['Tab', '引く']];
+  if (cd.t === 'act') return [['Enter', '加護'], ['F', '式'], ['Tab', '引く']];
+  return [['F', '裏'], ['Tab', '引く'], ['Esc', S.sub ? '戻る' : '閉じる']];
+}
+
+function renderCardScreen() {
+  const cards = curCards();
+  const i = Math.min(curIdx(), Math.max(0, cards.length - 1));
+  const cd = cards[i] || null;
+  let h = frameBg(0.84);
+  // 上帯: 棚の名と位置の点
+  const islandIc = S.sub && S.sub.kind === 'stash' && S.island ? gb(S.island, 's') + '<span class="sp"></span>' : '';
+  h += ln(100, 9, 280, `${islandIc}${T(shelfLabel())}`, 'c');
+  h += posDots(cards.length, i, 240, 26);
+  // 棚の印（今の棚だけ白金）
+  if (!S.sub) shelves().forEach((sh, j) => { h += `<div class="ic shelfic ${sh === S.shelf ? 'on' : ''}" style="left:10px;top:${96 + j * 20}px" data-shelf="${sh}">${esc(SHELF_GLYPH[sh])}</div>`; });
+  // 影（前後の札の絵だけ。文字なし）
+  const prev = cards[i - 1], next = cards[i + 1];
+  const anim = S.anim;
+  const shAnim = anim === 'a-l' || anim === 'a-r' ? anim : '';
+  if (i > 0) h += `<div class="shadow ${shAnim}" data-nav="-1" style="left:72px;top:70px;width:40px;height:140px"><div class="ab" style="left:4px;top:46px">${sil(shadowSprite(prev), 32)}</div></div>`;
+  if (i < cards.length - 1) h += `<div class="shadow ${shAnim}" data-nav="1" style="left:368px;top:70px;width:40px;height:140px"><div class="ab" style="left:4px;top:46px">${sil(shadowSprite(next), 32)}</div></div>`;
+  // 主役の札
+  const X = 140, Y = 40, W = 200, H = 196;
+  let inner = '';
+  if (S.flip) {
+    const bk = backOf(cd);
+    inner += ln(10, 10, 180, T(fit(bk.name, 11)), 't16 c');
+    inner += `<div class="ab" style="left:10px;top:31px;width:180px;height:1px;background:var(--rule)"></div>`;
+    bk.lines.forEach((l, j) => { inner += ln(10, 36 + j * 15, 180, l); });
+    h += `<div class="card rev ${anim}" id="main" style="left:${X}px;top:${Y}px;width:${W}px;height:${H}px">${corners()}${inner}</div>`;
+  } else {
+    const f = faceOf(cd);
+    inner += `<div class="ab ${f.picIc ? 'ic' : ''}" style="left:68px;top:10px;width:64px;height:64px">${f.pic}</div>`;
+    inner += ln(10, 80, 180, T(fit(f.name, 11)), 't16 c');
+    if (f.kws) inner += `<div class="ab row" style="left:10px;top:102px;width:180px;justify-content:center">${f.kws}</div>`;
+    f.body.slice(0, 4).forEach((l, j) => { inner += ln(10, 122 + j * 15, 180, l); });
+    if (f.holes) inner += `<div class="ab row" style="left:10px;top:177px;width:180px;justify-content:center;gap:4px">${f.holes}</div>`;
+    h += `<div class="card paper ${anim}" id="main" style="left:${X}px;top:${Y}px;width:${W}px;height:${H}px;background-image:url(${fiber()})">${corners()}${inner}</div>`;
+  }
+  h += ln(20, 249, 440, hints(hintsFor(cd)), 'c');
+  return h;
+}
+
+// 比べる（2 枚目が来る唯一の場面）
+function cmpPair() {
+  const cd = curCard();
+  if (S.mode === 'floor') { const cur = itemById(S.eq.main); return { kind: 'relic', slotName: SLOT_LABEL.main, curRef: cur, cand: S.floorItem, tag: '拾った' }; }
+  if (S.mode === 'pick') return { kind: 'boon', cand: OFFER[S.pick] };
+  if (!cd) return null;
+  if (cd.t === 'relic' && S.sub && S.sub.kind === 'stash') { const it = itemById(cd.id); return { kind: 'relic', slotName: SLOT_LABEL[it.slot], curRef: itemById(S.eq[it.slot]), cand: it, tag: '候補' }; }
+  if (cd.t === 'stone' && S.sub && S.sub.kind === 'stones') { const sl = S.sub.slot; return { kind: 'stone', slot: sl, curRef: S.slots[sl].st ? stoneById(S.slots[sl].st) : null, cand: stoneById(cd.id) }; }
+  return null;
+}
+function cmpCard(x, side, o) {
+  const W = 180, H = 156;
+  let inner = `<div class="ab ${o.picIc ? 'ic' : ''}" style="left:66px;top:8px;width:48px;height:48px">${o.pic}</div>`;
+  const nm = emw(o.name) <= 10 ? ln(10, 60, 160, T(o.name), 't16 c') : ln(10, 62, 160, T(fit(o.name, 13)), 'c');
+  inner += nm;
+  if (o.kws) inner += `<div class="ab row" style="left:10px;top:82px;width:160px;justify-content:center">${o.kws}</div>`;
+  o.lines.slice(0, 3).forEach((l, j) => { inner += ln(10, 100 + j * 15, 160, l); });
+  const cls = side === 'cand' ? 'card cand paper' : 'card cur';
+  const style = side === 'cand' ? `background-image:url(${fiber()})` : '';
+  const an = side === 'cur' && S.anim === 'a-come' ? 'a-come' : '';
+  return `<div class="${cls} ${an}" style="left:${x}px;top:40px;width:${W}px;height:${H}px;${style}">${side === 'cand' ? corners() : ''}${inner}</div>`;
+}
+const diffLines = (list, sign) => {
+  const cls = sign === '−' ? 'lose' : 'gain';
+  if (!list.length) return ['<span class="dim">なし</span>'];
+  const shown = list.length > 3 ? [...list.slice(0, 2), `ほか ${list.length - 2}`] : list;
+  return shown.map((s) => `<span class="${cls}">${sign}</span><span class="sp"></span>${T(fit(s, 12))}`);
+};
+function changesRow(d, same) {
+  const parts = [];
+  if (same) parts.push(`<span class="sub">同じ ${T(String(same))}</span>`);
+  d.res.forEach((r) => parts.push(`${gb(r.k, 's')}<span class="sp"></span>${esc(kwName(r.k))} ${T(`${r.s0}→${r.s1}`)}`));
+  if (d.marks.length) parts.push(d.marks.map(([up, a]) => `<span class="${up ? 'up' : 'shu'}">${up ? '▲' : '▼'}</span>${esc(a)}`).join('<span class="sp"></span>'));
+  if (!parts.length) parts.push('<span class="dim">共鳴は変わらない</span>');
+  return parts.join('<span class="sp"></span><span class="dim">·</span><span class="sp"></span>');
+}
+function renderCompare() {
+  const pr = cmpPair();
+  if (!pr) return null;
+  let h = frameBg(0.86);
+  let d, left, right, band, hl;
+  if (pr.kind === 'relic') {
+    d = relicDiff(pr.curRef, pr.cand);
+    left = { pic: pic(itemSprite(pr.curRef), '#5c5852', 48), name: fullName(pr.curRef), kws: kwIcons(kwProfile(pr.curRef), 4), lines: diffLines(d.lose, '−') };
+    right = { pic: pic(itemSprite(pr.cand), itemAccent(pr.cand), 48), name: fullName(pr.cand), kws: kwIcons(kwProfile(pr.cand), 4), lines: diffLines(d.gain, '+') };
+    band = `${esc(pr.slotName)}<span class="sp"></span><span class="sub">今 ⇄ ${esc(pr.tag)}</span>`;
+    hl = S.mode === 'floor' ? [['Enter', '長押し 付け替え'], ['G', '拾うだけ'], ['Esc', '戻る']] : [['Enter', '付け替え'], ['Shift', '離す'], ['F', '裏']];
+  } else if (pr.kind === 'stone') {
+    d = stoneDiff(pr.curRef, pr.cand, pr.slot);
+    left = pr.curRef ? { pic: `${pic('stone', '#5c5852', 48)}`, name: pr.curRef.n, kws: kwIcons(stoneProfile(pr.curRef, S.slots[pr.slot].runes), 3), lines: diffLines(d.lose, '−') }
+      : { pic: sil('socket', 48), name: '空き', kws: '', lines: ['<span class="dim">なし</span>'] };
+    right = { pic: pic('stone', stoneAccent(pr.cand), 48), name: pr.cand.n, kws: kwIcons(stoneProfile(pr.cand, S.slots[pr.slot].runes), 3), lines: diffLines(d.gain, '+') };
+    band = `スキル ${pr.slot + 1}<span class="sp"></span><span class="sub">今 ⇄ 候補</span>`;
+    hl = [['Enter', '付け替え'], ['Shift', '離す'], ['F', '裏']];
+  } else {
+    const b = pr.cand;
+    d = boonDiff(b);
+    if (b.act) {
+      const cap = graceCap(S.eq)[b.act];
+      const gs = S.boons.filter((x) => x.card === 'grace' && x.act === b.act);
+      const ls = gs.slice(0, 2).map((g) => `${lnIcon(g.ln)}<span class="sp"></span>${esc(g.n)}`);
+      ls.push(gs.length >= cap ? '<span class="lose">1 枚 外す</span>' : '<span class="up">空きに乗る</span>');
+      left = { pic: dollPic(b.act, 48), name: ACT_LONG[b.act], kws: '', lines: ls };
+      band = `${esc(ACT_LONG[b.act])}<span class="sp"></span><span class="sub">今 ⇄ 祝福</span>`;
+    } else {
+      const laws = S.boons.filter((x) => x.card === b.card);
+      left = { pic: pic('ofuda', '#5c5852', 48), name: CARD[b.card], kws: '', lines: laws.slice(0, 3).map((g) => `${g.ln ? lnIcon(g.ln) : ''}<span class="sp"></span>${esc(g.n)}`) };
+      band = `${esc(CARD[b.card])}<span class="sp"></span><span class="sub">今 ⇄ 祝福</span>`;
+    }
+    right = { pic: pic('ofuda', lnHex(b.ln), 48), name: b.n, kws: kwIcons(kwProfile(b), 4), lines: wrap(b.s, 11).slice(0, 3).map((s, j) => (j === 0 ? `<span class="gain">+</span><span class="sp"></span>${T(s)}` : `<span class="sp"></span><span class="sp"></span>${T(s)}`)) };
+    hl = [['Enter', '取る'], ['Shift', '離す'], ['←→', '回す']];
+  }
+  h += ln(100, 12, 280, band, 'c');
+  h += cmpCard(32, 'cur', left);
+  h += cmpCard(252, 'cand', right);
+  h += `<div class="ab ic" style="left:224px;top:110px;width:16px;height:14px;font-size:12px;line-height:14px;text-align:center;color:var(--gold)">⇄</div>`;
+  h += ln(20, 214, 440, changesRow(d, pr.kind === 'boon' ? 0 : d.same), 'c');
+  h += ln(20, 249, 440, hints(hl), 'c');
+  if (S.mode === 'floor') h += `<div class="hold" id="holdbar" style="left:180px;top:265px;max-width:120px"></div>`;
+  return h;
+}
+
+// ---- 俯瞰: 倉庫（点の絵） ----
+function islandOf(it) { const p = kwProfile(it); return p.p[0] || p.co[0] || p.am[0] || '-'; }
+function stashLayout() {
+  // 部位ごとに 1〜3 段。島（最初の系）で固め、島の間は 1 つ空ける
+  const rows = [];
+  const eqIds = new Set(Object.values(S.eq));
+  let y = 46;
+  SLOTS.forEach((sl) => {
+    const list = S.items.filter((i) => i.slot === sl);
+    const groups = {};
+    list.forEach((it) => { const k = islandOf(it); (groups[k] = groups[k] || []).push(it); });
+    const keys = Object.keys(groups).sort((a, b) => (a === '-') - (b === '-') || groups[b].length - groups[a].length);
+    const pts = [];
+    const heads = [];
+    let col = 0, line = 0;
+    const PER = 64;
+    keys.forEach((k, gi) => {
+      if (gi > 0) { col++; if (col >= PER) { col = 0; line++; } }
+      heads.push({ k, col, line, n: groups[k].length });
+      groups[k].sort((a, b) => (eqIds.has(b.id) - eqIds.has(a.id)) || (b.isNew - a.isNew)).forEach((it) => {
+        if (col >= PER) { col = 0; line++; }
+        pts.push({ it, x: 46 + col * 6, y: y + 14 + line * 7, eq: eqIds.has(it.id), k });
+        col++;
+      });
+    });
+    rows.push({ sl, y, pts, heads });
+    y += 14 + (line + 1) * 7 + 5;
+  });
+  return rows;
+}
+function renderStashOver() {
+  const rows = stashLayout();
+  const sl = S.over.slot;
+  const row = rows.find((r) => r.sl === sl);
+  S.over.i = Math.max(0, Math.min(S.over.i, row.pts.length - 1));
+  const cur = row.pts[S.over.i];
+  let h = frameBg(0.88);
+  const total = S.items.length - Object.keys(S.eq).length;
+  h += ln(100, 9, 280, `倉庫<span class="sp"></span>${T(String(total))}`, 'c');
+  rows.forEach((r) => {
+    h += `<div class="ic shelfic ${r.sl === sl ? 'on' : ''}" style="left:24px;top:${r.y + 12}px">${esc(SLOT_GLYPH[r.sl])}</div>`;
+    // 島の頭の印は今の部位の行だけ、大きい島から 4 つ
+    if (r.sl === sl) r.heads.filter((hd) => hd.k !== '-').slice(0, 4).forEach((hd) => { h += `<div class="ab" style="left:${46 + hd.col * 6}px;top:${r.y}px">${gb(hd.k, 's')}</div>`; });
+    r.pts.forEach((p) => {
+      const it = p.it;
+      const cls = ['dot', p.eq ? 'eq' : '', it.mark === 'junk' ? 'junk' : '', it.mark === 'fav' ? 'fav' : '', it.isNew ? 'new' : '', S.island && p.k !== S.island ? 'sunk' : ''].join(' ');
+      h += `<div class="${cls}" style="left:${p.x}px;top:${p.y}px;background:${TRAIT_HEX[dominant(it)]}"></div>`;
+    });
+  });
+  if (cur) h += `<div class="curs" style="left:${cur.x - 2}px;top:${cur.y - 2}px;width:8px;height:8px"></div>`;
+  if (cur) {
+    const prof = kwProfile(cur.it);
+    h += ln(60, 226, 360, `<span class="gold">▸</span><span class="sp"></span>${T(fit(fullName(cur.it), 14))}<span class="sp"></span>${kwIcons(prof, 2)}`, 'c');
+  }
+  h += ln(20, 249, 440, hints([['Enter', '寄る'], ['Q', S.island ? '絞りを解く' : '島で絞る'], ['Tab', '全景']]), 'c');
+  return h;
+}
+// ---- 俯瞰: 石の在庫 ----
+function stoneLayout() {
+  const used = new Set(S.slots.map((s) => s.st));
+  const groups = {};
+  S.stones.forEach((st) => { (groups[st.n] = groups[st.n] || []).push(st); });
+  const pts = [], heads = [];
+  let col = 0, line = 0;
+  const PER = 16;
+  Object.keys(groups).forEach((n, gi) => {
+    const g = groups[n].sort((a, b) => used.has(b.id) - used.has(a.id));
+    heads.push({ n, g: g[0].g, x: 120, y: 52 + line * 20, acc: stoneAccent(g[0]) });
+    col = 0;
+    g.forEach((st) => { pts.push({ st, x: 140 + col * 12, y: 54 + line * 20, eq: used.has(st.id) }); col++; if (col >= PER) { col = 0; line++; } });
+    line++;
+  });
+  return { pts, heads };
+}
+function renderStoneOver() {
+  const { pts, heads } = stoneLayout();
+  S.over.stones = Math.max(0, Math.min(S.over.stones, pts.length - 1));
+  const cur = pts[S.over.stones];
+  let h = frameBg(0.88);
+  h += ln(100, 9, 280, '石の在庫', 'c');
+  heads.forEach((hd) => { h += `<div class="ab ic" style="left:${hd.x}px;top:${hd.y}px;width:12px;height:12px;background:${hd.acc};color:var(--ink);font-size:12px;line-height:12px;text-align:center">${esc(hd.g)}</div>`; });
+  pts.forEach((p) => { h += `<div class="dot ${p.eq ? 'eq' : ''}" style="left:${p.x}px;top:${p.y}px;width:6px;height:6px;background:${stoneAccent(p.st)}"></div>`; });
+  if (cur) h += `<div class="curs" style="left:${cur.x - 2}px;top:${cur.y - 2}px;width:10px;height:10px"></div>`;
+  if (cur) h += ln(60, 226, 360, `<span class="gold">▸</span><span class="sp"></span>${esc(cur.st.n)}<span class="sp"></span><span class="sub">${esc(cur.st.v[0])}</span>`, 'c');
+  h += ln(20, 249, 440, hints([['Enter', '寄る'], ['Tab', '全景'], ['Esc', '札へ']]), 'c');
+  return h;
+}
+// ---- 俯瞰: 共鳴（系ごとに源の点・糧の点・段の刻み） ----
+function resOverRows() {
+  const r = curRes();
+  return KW_ORDER.filter((k) => r[k].step > 0 || r[k].miss <= 2).sort((a, b) => r[b].step - r[a].step || r[a].miss - r[b].miss || (r[b].p.length + r[b].c.length) - (r[a].p.length + r[a].c.length)).slice(0, 8).map((k) => r[k]);
+}
+function renderResOver() {
+  const rows = resOverRows();
+  S.over.res = Math.max(0, Math.min(S.over.res, rows.length - 1));
+  let h = frameBg(0.88);
+  h += ln(100, 9, 280, '共鳴', 'c');
+  rows.forEach((r, j) => {
+    const y = 44 + j * 21;
+    const c = `var(--kw-${r.k})`;
+    h += `<div class="ab" style="left:120px;top:${y}px">${gb(r.k, r.step ? 's' : 'k')}</div>`;
+    r.p.forEach((_, n) => { h += `<div class="dot" style="left:${144 + n * 8}px;top:${y + 4}px;background:${c}"></div>`; });
+    r.c.forEach((_, n) => { h += `<div class="dot" style="left:${144 + (r.p.length + 1) * 8 + n * 8}px;top:${y + 4}px;box-shadow:inset 0 0 0 1px ${c}"></div>`; });
+    for (let n = 0; n < RES.max; n++) h += `<div class="notch ${n < r.step ? '' : 'off'}" style="left:${330 + n * 8}px;top:${y + 3}px;${n < r.step ? `background:${c}` : ''}"></div>`;
+    if (j === S.over.res) h += `<div class="curs" style="left:116px;top:${y - 4}px;width:248px;height:20px"></div>`;
+  });
+  const cur = rows[S.over.res];
+  if (cur) h += ln(60, 226, 360, `<span class="gold">▸</span><span class="sp"></span>${esc(kwName(cur.k))}${cur.step ? ` ${T(String(cur.step))} 段` : ''}`, 'c');
+  h += ln(20, 249, 440, hints([['Enter', '寄る'], ['Tab', '全景'], ['Esc', '札へ']]), 'c');
+  return h;
+}
+// ---- 俯瞰: 祝福（人形の図） ----
+function boonOverTargets() {
+  return [...ACT.map((a) => ({ t: 'act', act: a })), ...S.boons.filter((b) => b.card !== 'grace').map((b) => ({ t: 'boon', id: b.id }))];
+}
+function lineageNotches(y) {
+  let h = '';
+  const x0 = 240 - Math.round((LINEAGES.length * 30 - 6) / 2);
+  LINEAGES.forEach((l, j) => {
+    const n = S.boons.filter((b) => b.ln === l).length;
+    for (let q = 0; q < 4; q++) h += `<div class="notch ${q < n ? '' : 'off'}" style="left:${x0 + j * 30 + q * 6}px;top:${y}px;${q < n ? `background:var(--ln-${l})` : ''}"></div>`;
+  });
+  return h;
+}
+function renderBoonOver() {
+  const tg = boonOverTargets();
+  S.over.boon = Math.max(0, Math.min(S.over.boon, tg.length - 1));
+  let h = frameBg(0.88);
+  h += ln(100, 9, 280, '祝福', 'c');
+  const DX = 200, DY = 52, K = 5;
+  h += `<div class="ab" style="left:${DX}px;top:${DY}px">${pic('doll', '#c83a2a', 80)}</div>`;
+  const cap = graceCap(S.eq);
+  const pos = {};
+  ACT.forEach((a, j) => {
+    const [sx, sy] = SPOT[a];
+    const x = Math.round(DX + sx * K - 2), y = Math.round(DY + sy * K - 2);
+    pos[`act:${a}`] = [x, y];
+    h += `<div class="ab ic gb s" style="--c:var(--focus);left:${x - 4}px;top:${y - 4}px">${esc(ACT_SHORT[a])}</div>`;
+    const gs = S.boons.filter((b) => b.card === 'grace' && b.act === a);
+    const right = a !== 'primary';
+    for (let q = 0; q < cap[a]; q++) {
+      const g = gs[q];
+      const dx = right ? x + 12 + q * 6 : x - 10 - q * 6;
+      h += `<div class="spot-dot ${g ? '' : 'empty'}" style="left:${dx}px;top:${y}px;${g ? `background:var(--ln-${g.ln})` : ''}"></div>`;
+    }
+  });
+  // 常時の札の点（周りの輪）
+  const cons = S.boons.filter((b) => b.card !== 'grace');
+  cons.forEach((b, j) => {
+    const ang = Math.PI / 2 + (j + 0.5) * (Math.PI * 2 / cons.length);
+    const x = Math.round(238 + Math.cos(ang) * 116), y = Math.round(116 + Math.sin(ang) * 72);
+    pos[`boon:${b.id}`] = [x, y];
+    h += `<div class="spot-dot" style="left:${x}px;top:${y}px;width:6px;height:6px;background:${cardHex(b.card)}"></div>`;
+  });
+  h += lineageNotches(212);
+  const t = tg[S.over.boon];
+  const key = t.t === 'act' ? `act:${t.act}` : `boon:${t.id}`;
+  const p = pos[key];
+  if (p) h += `<div class="curs" style="left:${p[0] - 6}px;top:${p[1] - 6}px;width:16px;height:16px"></div>`;
+  let label = '';
+  if (t.t === 'act') { const gs = S.boons.filter((b) => b.card === 'grace' && b.act === t.act); label = `${ACT_LONG[t.act]}<span class="sp"></span><span class="sub">${esc(gs.map((g) => g.n).join('・') || '加護なし')}</span>`; }
+  else { const b = boonById(t.id); label = `${esc(b.n)}<span class="sp"></span><span class="sub">${esc(CARD[b.card])}</span>`; }
+  h += ln(60, 226, 360, `<span class="gold">▸</span><span class="sp"></span>${label}`, 'c');
+  h += ln(20, 249, 440, hints([['Enter', '寄る'], ['Tab', '全景'], ['Esc', '札へ']]), 'c');
+  return h;
+}
+
+// ---- 全景（2 回引いた。自分の周りに物が並び、系の糸が結ぶ） ----
+const WPOS = {
+  relic: { main: [120, 46], head: [70, 76], armor: [52, 112], boots: [70, 148], ring: [120, 176], amulet: [172, 194] },
+  stone: [[344, 46], [392, 76], [410, 112], [392, 148]],
+};
+const KNOT_POS = [[240, 34], [332, 196], [148, 34]];
+function wholeLayout() {
+  const objs = [];
+  SLOTS.forEach((sl) => { const it = itemById(S.eq[sl]); objs.push({ key: `relic:${it.id}`, ref: { t: 'relic', id: it.id, slot: sl }, x: WPOS.relic[sl][0], y: WPOS.relic[sl][1], name: fullName(it), html: pic(itemSprite(it), itemAccent(it), 16) }); });
+  S.slots.forEach((s, i) => {
+    const st = s.st && stoneById(s.st);
+    objs.push({ key: `stone:${st ? st.id : `empty${i}`}`, ref: { t: 'stone', id: st ? st.id : null, slot: i }, x: WPOS.stone[i][0], y: WPOS.stone[i][1], name: st ? st.n : `スキル ${i + 1} 空き`, html: st ? pic('stone', stoneAccent(st), 16) : pic('socket', '#5c5852', 16) });
+  });
+  const DX = 208, DY = 66;
+  const WACT = { skill: [234, 50], primary: [190, 94], secondary: [278, 94], ultimate: [234, 84], dash: [234, 134] };
+  ACT.forEach((a) => {
+    objs.push({ key: `act:${a}`, ref: { t: 'act', act: a }, x: WACT[a][0], y: WACT[a][1], name: ACT_LONG[a], small: true,
+      html: `<span class="ic gb s" style="--c:var(--focus)">${esc(ACT_SHORT[a])}</span>`, act: a });
+  });
+  const cons = S.hub ? [] : S.boons.filter((b) => b.card !== 'grace');
+  cons.forEach((b, j) => { objs.push({ key: `boon:${b.id}`, ref: { t: 'boon', id: b.id }, x: 214 + j * 12, y: 176, name: b.n, dot: cardHex(b.card) }); });
+  const r = curRes();
+  const lit = KW_ORDER.filter((k) => r[k].step > 0).sort((a, b) => r[b].step - r[a].step).slice(0, 3);
+  const knots = lit.map((k, j) => ({ key: `knot:${k}`, ref: { t: 'res', k }, k, x: KNOT_POS[j][0], y: KNOT_POS[j][1], name: kwName(k), step: r[k].step }));
+  const near = KW_ORDER.filter((k) => r[k].step === 0 && r[k].miss === 1)[0] || null;
+  return { objs, knots, DX, DY, r, near };
+}
+function objCenter(o) { return o.dot ? [o.x + 3, o.y + 3] : o.small ? [o.x + 6, o.y + 6] : [o.x + 8, o.y + 8]; }
+function locate(ref, objs) {
+  if (ref.t === 'relic') return objs.find((o) => o.key === `relic:${ref.id}`);
+  if (ref.t === 'stone') return objs.find((o) => o.key === `stone:${ref.id}`);
+  if (ref.t === 'boon') {
+    const b = boonById(ref.id);
+    if (b.card === 'grace') return objs.find((o) => o.key === `act:${b.act}`);
+    return objs.find((o) => o.key === `boon:${b.id}`);
+  }
+  return { x: 234, y: 100, small: true };
+}
+function wholeTargets() { const L = wholeLayout(); return [...L.knots, ...L.objs]; }
+function renderWhole() {
+  const L = wholeLayout();
+  const tg = [...L.knots, ...L.objs];
+  S.whole = Math.max(0, Math.min(S.whole, tg.length - 1));
+  const foc = tg[S.whole];
+  let h = frameBg(0.9);
+  h += ln(100, 9, 280, '全景', 'c');
+  // 糸（段で太さが変わる。焦点に関わる糸だけ明るく）
+  let svg = '<svg class="threads" viewBox="0 0 480 270">';
+  L.knots.forEach((kn, j) => {
+    const c = getKwHex(kn.k);
+    const w = kn.step;
+    const touches = (o) => foc && (foc.key === kn.key || (o && foc.key === o.key));
+    const draw = (o, role) => {
+      if (!o) return;
+      const [ox, oy] = objCenter(o);
+      const kx = kn.x + 3 + j, ky = kn.y + 3 + j;
+      const on = touches(o);
+      const op = !foc || on || foc.key === kn.key ? 1 : 0.28;
+      svg += `<polyline points="${ox},${oy} ${kx},${oy} ${kx},${ky}" fill="none" stroke="${c}" stroke-width="${w}" ${role === 'c' ? 'stroke-dasharray="4 2"' : ''} opacity="${op}"/>`;
+    };
+    L.r[kn.k].p.forEach((x) => draw(locate(x.ref, L.objs), 'p'));
+    L.r[kn.k].c.forEach((x) => draw(locate(x.ref, L.objs), 'c'));
+  });
+  svg += '</svg>';
+  h += `<div class="ab" style="left:${L.DX}px;top:${L.DY}px">${pic('doll', '#c83a2a', 64)}</div>`;
+  h += svg;
+  const cap = graceCap(S.eq);
+  L.objs.forEach((o) => {
+    if (o.dot) { h += `<div class="spot-dot" style="left:${o.x}px;top:${o.y}px;width:6px;height:6px;background:${o.dot}"></div>`; return; }
+    h += `<div class="ab" style="left:${o.x}px;top:${o.y}px">${o.html}</div>`;
+    if (o.act && !S.hub) {
+      const gs = S.boons.filter((b) => b.card === 'grace' && b.act === o.act);
+      const right = o.act !== 'primary';
+      for (let q = 0; q < cap[o.act]; q++) { const g = gs[q]; h += `<div class="spot-dot ${g ? '' : 'empty'}" style="left:${right ? o.x + 14 + q * 5 : o.x - 6 - q * 5}px;top:${o.y + 4}px;${g ? `background:var(--ln-${g.ln})` : ''}"></div>`; }
+    }
+  });
+  L.knots.forEach((kn, j) => {
+    const c = getKwHex(kn.k);
+    h += `<div class="knot" style="left:${kn.x + j}px;top:${kn.y + j}px;background:${c};box-shadow:0 0 0 1px var(--ink)"></div>`;
+    const lx = kn.x + 12;
+    h += ln(lx, kn.y - 2, 96, `${esc(kn.name)}<span class="sp"></span>${T(String(kn.step))}`);
+  });
+  if (!S.hub) h += lineageNotches(222);
+  if (foc) {
+    const [cx, cy] = foc.ref.t === 'res' ? [foc.x + 3 + L.knots.indexOf(foc), foc.y + 3 + L.knots.indexOf(foc)] : objCenter(foc);
+    const r = foc.dot ? 6 : foc.small ? 8 : foc.ref.t === 'res' ? 6 : 10;
+    h += `<div class="focus-ring" style="left:${cx - r}px;top:${cy - r}px;width:${r * 2}px;height:${r * 2}px"></div>`;
+  }
+  const near = L.near ? `<span class="sp"></span><span class="sp"></span><span class="sub">あと${T(' 1')}: ${esc(kwName(L.near))}</span>` : '';
+  h += ln(20, 249, 440, `<span class="gold">▸</span><span class="sp"></span>${esc(fit(foc ? foc.name : '', 10))}${near}<span class="sp"></span><span class="sp"></span>${hints([['Enter', '寄る']])}`, 'c');
+  return h;
+}
+
+// ---- 3 択（扇に開いた 3 枚。焦点の 1 枚だけ大きく） ----
+function renderPick() {
+  let h = frameBg(0.86);
+  h += ln(100, 9, 280, '祝福', 'c');
+  const order = [(S.pick + 2) % 3, S.pick, (S.pick + 1) % 3];
+  [order[0], order[2]].forEach((oi, side) => {
+    const b = OFFER[oi];
+    const x = side === 0 ? 64 : 336;
+    h += `<div class="card cur" style="left:${x}px;top:72px;width:80px;height:130px" data-nav="${side === 0 ? -1 : 1}"><div class="ab" style="left:24px;top:24px">${pic('ofuda', lnHex(b.ln), 32)}</div>${ln(4, 110, 72, esc(b.n), 's8 c')}</div>`;
+  });
+  const b = OFFER[S.pick];
+  let inner = `<div class="ab" style="left:56px;top:10px">${pic('ofuda', lnHex(b.ln), 48)}</div>`;
+  inner += ln(8, 64, 144, esc(b.n), 't16 c');
+  inner += ln(8, 88, 144, `${lnIcon(b.ln)}<span class="sp"></span>${esc(LN[b.ln][0])} · ${esc(b.act ? ACT_LONG[b.act] : CARD[b.card])} · ${esc(b.gr)}`, 'c');
+  wrap(b.s, 11).slice(0, 3).forEach((l, j) => { inner += ln(10, 112 + j * 15, 140, T(l)); });
+  h += `<div class="card paper ${S.anim}" style="left:160px;top:40px;width:160px;height:196px;background-image:url(${fiber()})">${corners()}${inner}</div>`;
+  h += ln(20, 249, 440, hints([['←→', '回す'], ['Shift', '比べる'], ['Enter', '取る']]), 'c');
+  return h;
+}
+// ---- 床（拾う前の 3 行だけ） ----
+function renderFloor0() {
+  const it = S.floorItem;
+  let h = `<img class="px" alt="" src="${backdrop()}" width="480" height="270" style="position:absolute;left:0;top:0"><div class="ab" style="left:0;top:0;width:480px;height:270px;background:rgba(12,11,14,0.35)"></div>`;
+  h += `<div class="ab" style="left:200px;top:178px">${pic('doll', '#c83a2a', 16)}</div>`;
+  h += `<div class="ab" style="left:244px;top:186px">${pic(itemSprite(it), itemAccent(it), 16)}</div>`;
+  const d = relicDiff(itemById(S.eq.main), it);
+  const r = d.res[0];
+  const box = `<div class="ab" style="left:180px;top:118px;width:144px;height:56px;background:rgba(20,18,22,0.92);box-shadow:inset 0 0 0 1px var(--gold)"></div>`;
+  h += box;
+  h += ln(186, 122, 132, T(fullName(it)), 'c');
+  h += `<div class="ab row" style="left:186px;top:139px;width:132px;justify-content:center">${kwIcons(kwProfile(it), 4)}</div>`;
+  h += ln(186, 156, 132, r ? `${esc(kwName(r.k))} ${T(`${r.s0}→${r.s1}`)}` : '<span class="dim">共鳴は変わらない</span>', 'c');
+  h += ln(20, 249, 440, hints([['G', '長押し 比べる'], ['G', '拾う']]), 'c');
+  h += `<div class="hold" id="holdbar" style="left:180px;top:265px;max-width:120px"></div>`;
+  return h;
+}
+function renderClosed() {
+  let h = `<img class="px" alt="" src="${backdrop()}" width="480" height="270" style="position:absolute;left:0;top:0"><div class="ab" style="left:0;top:0;width:480px;height:270px;background:rgba(12,11,14,0.35)"></div>`;
+  h += `<div class="ab" style="left:224px;top:128px">${pic('doll', '#c83a2a', 16)}</div>`;
+  h += ln(20, 249, 440, hints([['Tab', '開く']]), 'c');
+  return h;
+}
+
+// ============================================================
+// 画面の種類（予算の表の行）と狙いの文
+// ============================================================
+const BUDGET = {
+  card: { label: '札（主役 1 枚）', lines: 7, small: 0, icons: 12, nums: 4 },
+  back: { label: '札の裏', lines: 11, small: 0, icons: 12, nums: null },
+  cmp: { label: '比べる（2 枚）', lines: 9, small: 0, icons: 14, nums: 6 },
+  over: { label: '俯瞰（点の絵）', lines: 2, small: 0, icons: 12, nums: 1 },
+  whole: { label: '全景（ビルドの絵）', lines: 4, small: 0, icons: 16, nums: 3 },
+  pick: { label: '3 択（祝福）', lines: 7, small: 2, icons: 12, nums: 2 },
+  floor: { label: '床（拾う前）', lines: 4, small: 0, icons: 12, nums: 2 },
+  closed: { label: '閉じている', lines: 1, small: 0, icons: 0, nums: 0 },
+};
+function screenKind() {
+  if (S.mode === 'closed') return 'closed';
+  if (S.mode === 'floor0') return 'floor';
+  if (S.mode === 'floor') return 'cmp';
+  if (S.mode === 'pick') return S.cmp ? 'cmp' : 'pick';
+  if (S.z === 2) return 'whole';
+  if (S.z === 1) return 'over';
+  if (S.cmp && cmpPair()) return 'cmp';
+  return S.flip ? 'back' : 'card';
+}
+function aimText() {
+  const k = screenKind();
+  const cd = curCard();
+  if (k === 'closed') return ['閉じている', 'Tab で開くと、最初の棚「共鳴」のいちばん段の高い系が載る。'];
+  if (k === 'floor') return ['床（拾う前）', '床では注目の遺物の上に、名前・系の印・変わる共鳴の 3 行だけ。G 長押しで見台が開き、拾った物と装備中の比べるから始まる。'];
+  if (k === 'pick') return ['3 択', '焦点の 1 枚だけ大きく（名・系譜・乗る行動・効果・格）、脇の 2 枚は名前だけ。Shift で乗る先の行動の札が隣に来て、外す 1 枚が要るかが分かる。'];
+  if (k === 'cmp') return [S.mode === 'floor' ? '比べる（床で拾った遺物）' : '比べる', '同じ性質は「同じ n」に畳み、左（今）には失う物を朱の −、右（候補）には得る物を金の + で 3 行まで。下に共鳴の段の変化と、変わる行動の ▲▼（数字なし）。'];
+  if (k === 'whole') return ['全景', '自分の絵の周りに遺物 6・石 4・行動 5。段の立った系ごとに色の糸が源（実線）と糧（点線）を結ぶ。←→ で焦点を移すと関わる糸だけ明るい。Enter でその物の札へ寄る。'];
+  if (k === 'over') {
+    if (S.shelf === 'equip') return ['俯瞰（倉庫）', '遺物 1 つ = 点 1 つ。色は響き、朱の枠は装備中、白く瞬くのは新着、上の金は愛用、× はがらくた。系の島で固まり、Q で今の島だけ残す。文字はカーソルの 1 行だけ。'];
+    if (S.shelf === 'skill') return ['俯瞰（石の在庫）', '石の種類ごとに点を並べる。朱の枠は今スロットにある石。'];
+    if (S.shelf === 'boon') return ['俯瞰（人形の図）', '体の 5 か所（左手・右手・足・額・胸 = 左・右・ダッシュ・スキル・奥義）に加護の点、周りに常時の札の点、下に 9 系譜の刻み。'];
+    return ['俯瞰（共鳴）', '系ごとに源の点（塗り）と糧の点（縁）、右に段の刻み。枯れた系は載らない。'];
+  }
+  if (k === 'back') return ['札の裏', '表に載らなかった全文・地金・揺らぎ・深度・来歴・銘、行動なら式。本文 8 行まで。'];
+  if (!cd) return ['札', ''];
+  if (S.sub && S.sub.kind === 'stash') return ['札（倉庫）', '同じ部位の候補を 1 枚ずつ繰る。Shift を押している間だけ装備中が左に来て、差だけを出す。多いときは Tab で俯瞰へ。'];
+  if (S.sub && S.sub.kind === 'stones') return ['札（石の在庫）', 'Shift を押している間だけ、今スロットにある石が左に来る。'];
+  if (S.sub && S.sub.kind === 'origin') return ['札（出どころ）', 'この系の源と糧になっている物を 1 枚ずつ。Esc で系の札へ戻る。'];
+  if (cd.t === 'res') return ['札（共鳴）', '開いて最初に載るのは、いちばん段の高い系。源と糧の出どころを小さな絵で、次の段までの不足を 1 行だけ。'];
+  if (cd.t === 'relic') return ['札（装備）', '1 部位ずつ大きく。性質は短い 1 行で 4 つまで、全文・地金・来歴は裏（F）。Enter で同じ部位の倉庫へ潜る。'];
+  if (cd.t === 'body') return ['札（体）', '装備の棚の最後は体の札。ステータスの出どころは裏に式で。'];
+  if (cd.t === 'stone') return ['札（スキル）', '石の絵・名前・形・気力。符の穴（4/3/2/2）が札の下辺に並ぶ。Enter で石の在庫へ。'];
+  if (cd.t === 'act') return ['札（行動）', '行動の札に加護が乗る。人形の灯った所がその行動。裏はその 1 つの行動の式だけ。'];
+  return ['札（祝福）', '常時の札（摂理・研鑽・芯・呪い付き）。全文は裏。'];
+}
+function measure() {
+  const lines = scr.querySelectorAll('.ln:not(.s8)');
+  let nl = 0;
+  lines.forEach((l) => { if (l.textContent.trim()) nl++; });
+  const small = scr.querySelectorAll('.ln.s8').length;
+  const icons = scr.querySelectorAll('.ic').length;
+  const nums = scr.querySelectorAll('.nm').length;
+  return { lines: nl, small, icons, nums };
+}
+function renderReadout() {
+  const k = screenKind();
+  const b = BUDGET[k];
+  const m = measure();
+  const [title, aim] = aimText();
+  const zl = ['札', '俯瞰', '全景'][S.z];
+  document.getElementById('ro-title').textContent = `今の段: ${title}${S.mode === 'menu' ? `（ズーム ${zl}）` : ''}`;
+  document.getElementById('ro-aim').textContent = aim;
+  const cell = (lab, v, lim) => `<span class="meter ${lim != null && v > lim ? 'over' : ''}">${lab} <b>${v}</b> / ${lim == null ? '—' : lim}</span>`;
+  document.getElementById('ro-meters').innerHTML = `<span class="meter">${esc(b.label)}</span>${cell('文字', m.lines, b.lines)}${b.small || m.small ? cell('SMALL', m.small, b.small) : ''}${cell('アイコン', m.icons, b.icons)}${cell('数字', m.nums, b.nums)}`;
+}
+function render() {
+  let h = '';
+  if (S.mode === 'closed') h = renderClosed();
+  else if (S.mode === 'floor0') h = renderFloor0();
+  else if (S.mode === 'floor') h = renderCompare();
+  else if (S.mode === 'pick') h = S.cmp ? renderCompare() : renderPick();
+  else if (S.z === 2) h = renderWhole();
+  else if (S.z === 1) h = S.shelf === 'equip' ? renderStashOver() : S.shelf === 'skill' ? renderStoneOver() : S.shelf === 'boon' ? renderBoonOver() : renderResOver();
+  else if (S.cmp && cmpPair()) h = renderCompare();
+  else h = renderCardScreen();
+  const zc = S.anim === 'a-zin' || S.anim === 'a-zout' ? S.anim : '';
+  scr.innerHTML = `<div class="ab ${zc}" style="left:0;top:0;width:480px;height:270px">${h}</div>`;
+  S.anim = '';
+  renderReadout();
+}
+
+// ============================================================
+// 操作（動詞 7 つ）
+// ============================================================
+function flick(d) {
+  if (S.mode === 'pick') { S.pick = (S.pick + d + 3) % 3; S.anim = d > 0 ? 'a-r' : 'a-l'; return render(); }
+  if (S.mode !== 'menu') return;
+  if (S.z === 2) { S.whole += d; const n = wholeTargets().length; S.whole = (S.whole + n) % n; return render(); }
+  if (S.z === 1) {
+    if (S.shelf === 'equip') S.over.i += d;
+    else if (S.shelf === 'skill') S.over.stones += d;
+    else if (S.shelf === 'boon') S.over.boon += d;
+    else S.over.res += d;
+    return render();
+  }
+  const n = curCards().length;
+  const i = curIdx() + d;
+  if (i < 0 || i >= n) return;
+  setIdx(i);
+  S.anim = d > 0 ? 'a-r' : 'a-l';
+  render();
+}
+function shelfStep(d) {
+  if (S.mode !== 'menu') return;
+  if (S.z === 1) {
+    if (S.shelf === 'equip') {
+      const rows = stashLayout();
+      const ri = SLOTS.indexOf(S.over.slot);
+      const ni = ri + d;
+      if (ni < 0 || ni >= SLOTS.length) return;
+      const cur = rows[ri].pts[S.over.i];
+      const tgt = rows[ni].pts;
+      let best = 0, bd = 1e9;
+      tgt.forEach((p, j) => { const dd = Math.abs(p.x - (cur ? cur.x : 46)) + Math.abs(p.y - (cur ? cur.y : 0)) * 0.1; if (dd < bd) { bd = dd; best = j; } });
+      S.over.slot = SLOTS[ni]; S.over.i = best;
+      return render();
+    }
+    if (S.shelf === 'res') { S.over.res += d; return render(); }
+    if (S.shelf === 'skill') { S.over.stones += d * 16; return render(); }
+    return flick(d);
+  }
+  if (S.z === 2) return flick(d);
+  if (S.sub) return;
+  const sh = shelves();
+  const j = sh.indexOf(S.shelf) + d;
+  if (j < 0 || j >= sh.length) return;
+  S.shelf = sh[j]; S.flip = false;
+  S.anim = d > 0 ? 'a-d' : 'a-u';
+  render();
+}
+function decide() {
+  if (S.mode === 'closed') return;
+  if (S.mode === 'pick') return takeBoon();
+  if (S.mode !== 'menu') return;
+  if (S.z === 2) {
+    const t = wholeTargets()[S.whole];
+    if (t) goToRef(t.ref);
+    return;
+  }
+  if (S.z === 1) return zoomInFromOver();
+  if (S.cmp && cmpPair()) return applySwap();
+  const cd = curCard();
+  if (!cd) return;
+  if (S.sub && (S.sub.kind === 'stash' || S.sub.kind === 'stones')) return applySwap();
+  if (S.sub) return;
+  if (cd.t === 'res') { S.sub = { kind: 'origin', k: cd.k }; S.subIdx = 0; }
+  else if (cd.t === 'relic') { S.sub = { kind: 'stash', slot: cd.slot }; S.subIdx = 0; }
+  else if (cd.t === 'stone') { S.sub = { kind: 'stones', slot: cd.slot }; S.subIdx = 0; }
+  else if (cd.t === 'act') { S.sub = { kind: 'grace', act: cd.act }; S.subIdx = 0; }
+  else return;
+  S.flip = false; S.anim = 'a-zin';
+  render();
+}
+function applySwap() {
+  const pr = cmpPair();
+  if (!pr) return;
+  if (pr.kind === 'relic') {
+    S.eq[pr.cand.slot] = pr.cand.id;
+    const left = Math.min(S.subIdx, stashOf(pr.cand.slot).length - 1);
+    S.subIdx = Math.max(0, left);
+    S.toast = `${fullName(pr.cand)} を付けた`;
+  } else if (pr.kind === 'stone') {
+    S.slots[pr.slot].st = pr.cand.id;
+    S.subIdx = Math.max(0, Math.min(S.subIdx, stonesFree().length - 1));
+  }
+  S.anim = 'a-flip';
+  render();
+}
+function zoomInFromOver() {
+  if (S.shelf === 'equip') {
+    const row = stashLayout().find((r) => r.sl === S.over.slot);
+    const p = row.pts[S.over.i];
+    if (!p) return;
+    if (p.eq) { S.sub = null; S.idx.equip = SLOTS.indexOf(p.it.slot); }
+    else { S.sub = { kind: 'stash', slot: p.it.slot }; S.subIdx = Math.max(0, stashOf(p.it.slot).findIndex((x) => x.id === p.it.id)); }
+  } else if (S.shelf === 'skill') {
+    const p = stoneLayout().pts[S.over.stones];
+    if (!p) return;
+    const si = S.slots.findIndex((s) => s.st === p.st.id);
+    if (si >= 0) { S.sub = null; S.idx.skill = si; } else { S.sub = { kind: 'stones', slot: S.sub && S.sub.kind === 'stones' ? S.sub.slot : 3 }; S.subIdx = Math.max(0, stonesFree().findIndex((x) => x.id === p.st.id)); }
+  } else if (S.shelf === 'boon') {
+    const t = boonOverTargets()[S.over.boon];
+    S.sub = null;
+    S.idx.boon = Math.max(0, cardsOf('boon', null).findIndex((c) => (t.t === 'act' ? c.act === t.act : c.id === t.id)));
+  } else {
+    const r = resOverRows()[S.over.res];
+    S.sub = null;
+    const j = resCards().findIndex((c) => c.k === r.k);
+    if (j >= 0) S.idx.res = j; else { S.sub = { kind: 'origin', k: r.k }; S.subIdx = 0; }
+  }
+  S.z = 0; S.flip = false; S.anim = 'a-zin';
+  render();
+}
+function goToRef(ref) {
+  S.sub = null; S.flip = false;
+  if (ref.t === 'res') { S.shelf = 'res'; S.idx.res = Math.max(0, resCards().findIndex((c) => c.k === ref.k)); }
+  else if (ref.t === 'relic') { S.shelf = 'equip'; S.idx.equip = SLOTS.indexOf(ref.slot); }
+  else if (ref.t === 'stone') { S.shelf = 'skill'; S.idx.skill = ref.slot; }
+  else if (ref.t === 'act') { S.shelf = 'boon'; S.idx.boon = ACT.indexOf(ref.act); }
+  else if (ref.t === 'boon') { S.shelf = 'boon'; S.idx.boon = Math.max(0, cardsOf('boon', null).findIndex((c) => c.id === ref.id)); }
+  S.z = 0; S.anim = 'a-zin';
+  render();
+}
+function pullBack() {
+  if (S.mode === 'closed') { S.mode = 'menu'; S.z = 0; S.shelf = 'res'; S.sub = null; S.anim = 'a-zin'; return render(); }
+  if (S.mode !== 'menu') return;
+  if (S.z >= 2) return;
+  if (S.z === 0) syncOverFromCard();
+  S.z += 1; S.flip = false; S.cmp = false; S.anim = 'a-zout';
+  if (S.z === 2) S.whole = 0;
+  render();
+}
+function pushIn() {
+  if (S.mode !== 'menu') return;
+  if (S.z === 0) return decide();
+  if (S.z === 1) return zoomInFromOver();
+  S.z = 1; S.anim = 'a-zin';
+  render();
+}
+function syncOverFromCard() {
+  const cd = curCard();
+  if (S.shelf === 'equip') {
+    let id = null, slot = 'main';
+    if (cd && cd.t === 'relic') { id = cd.id; slot = itemById(cd.id).slot; }
+    S.over.slot = slot;
+    const row = stashLayout().find((r) => r.sl === slot);
+    S.over.i = Math.max(0, row.pts.findIndex((p) => p.it.id === id));
+  } else if (S.shelf === 'skill') {
+    const pts = stoneLayout().pts;
+    S.over.stones = Math.max(0, pts.findIndex((p) => cd && p.st.id === cd.id));
+  } else if (S.shelf === 'boon') {
+    S.over.boon = Math.max(0, boonOverTargets().findIndex((t) => cd && (cd.t === 'act' ? t.act === cd.act : t.id === cd.id)));
+  } else if (S.shelf === 'res') {
+    S.over.res = Math.max(0, resOverRows().findIndex((r) => cd && r.k === cd.k));
+  }
+}
+function back() {
+  if (S.mode === 'floor') { S.mode = 'floor0'; S.anim = 'a-zout'; return render(); }
+  if (S.mode === 'floor0') { S.mode = 'closed'; return render(); }
+  if (S.mode === 'pick') { S.mode = 'menu'; S.shelf = 'boon'; S.z = 0; return render(); }
+  if (S.mode !== 'menu') return;
+  if (S.flip) { S.flip = false; S.anim = 'a-flip'; return render(); }
+  if (S.z > 0) { S.z -= 1; S.anim = 'a-zin'; return render(); }
+  if (S.sub) { S.sub = null; S.anim = 'a-zout'; return render(); }
+  S.mode = 'closed';
+  render();
+}
+function flip() {
+  if (S.mode !== 'menu' || S.z !== 0) return;
+  S.flip = !S.flip; S.anim = 'a-flip';
+  render();
+}
+function setCmp(on) {
+  if (S.cmp === on) return;
+  S.cmp = on;
+  if (on) S.anim = 'a-come';
+  render();
+}
+function islandToggle() {
+  if (S.mode !== 'menu' || S.z !== 1 || S.shelf !== 'equip') return;
+  if (S.island) { S.island = null; return render(); }
+  const row = stashLayout().find((r) => r.sl === S.over.slot);
+  const p = row.pts[S.over.i];
+  if (p && p.k !== '-') S.island = p.k;
+  render();
+}
+function takeBoon() {
+  const b = OFFER[S.pick];
+  const copy = JSON.parse(JSON.stringify(b));
+  if (b.act) {
+    const cap = graceCap(S.eq)[b.act];
+    const gs = S.boons.filter((x) => x.card === 'grace' && x.act === b.act);
+    if (gs.length >= cap) S.boons = S.boons.filter((x) => x.id !== gs[0].id);
+  }
+  S.boons.push(copy);
+  S.mode = 'menu'; S.cmp = false; S.z = 0; S.sub = null; S.shelf = 'boon';
+  S.idx.boon = b.act ? ACT.indexOf(b.act) : cardsOf('boon', null).findIndex((c) => c.id === copy.id);
+  S.anim = 'a-zin';
+  render();
+}
+
+// 長押し（床の G・付け替えの Enter）
+let holdT = null;
+function holdStart(kind) {
+  if (holdT) return;
+  const bar = document.getElementById('holdbar');
+  if (bar) bar.classList.add('go');
+  holdT = { kind, timer: setTimeout(() => { holdT = null; holdDone(kind); }, 450) };
+}
+function holdEnd(kind) {
+  if (!holdT || holdT.kind !== kind) return;
+  clearTimeout(holdT.timer);
+  holdT = null;
+  const bar = document.getElementById('holdbar');
+  if (bar) bar.classList.remove('go');
+  // 短く押した
+  if (kind === 'g') pickOnly();
+}
+function holdDone(kind) {
+  if (kind === 'g' && S.mode === 'floor0') { S.mode = 'floor'; S.anim = 'a-zin'; return render(); }
+  if (kind === 'enter' && S.mode === 'floor') {
+    const it = S.floorItem;
+    S.items.push(it);
+    S.eq.main = it.id;
+    S.mode = 'menu'; S.shelf = 'equip'; S.sub = null; S.idx.equip = 0; S.z = 0; S.cmp = false; S.anim = 'a-flip';
+    S.floorItem = null;
+    return render();
+  }
+}
+function pickOnly() {
+  if (S.mode !== 'floor0' && S.mode !== 'floor') return;
+  const it = S.floorItem;
+  if (!it) return;
+  S.items.push(it);
+  S.floorItem = null;
+  S.mode = 'menu'; S.shelf = 'equip'; S.sub = { kind: 'stash', slot: 'main' }; S.z = 0; S.cmp = false;
+  S.subIdx = Math.max(0, stashOf('main').findIndex((x) => x.id === it.id));
+  S.anim = 'a-zin';
+  render();
+}
+
+// ============================================================
+// 場面と入力
+// ============================================================
+function scene(name) {
+  S.items = buildItems(); S.stones = buildStones(); S.boons = JSON.parse(JSON.stringify(BOONS0));
+  S.eq = { main: 'e1', head: 'e2', armor: 'e3', boots: 'e4', ring: 'e5', amulet: 'e6' };
+  S.slots = [{ st: 'st1', runes: ['ghost', 'charge'] }, { st: 'st2', runes: ['refund'] }, { st: 'st3', runes: ['pierce'] }, { st: null, runes: [] }];
+  S.idx = { res: 0, equip: 0, skill: 0, boon: 0 }; S.sub = null; S.subIdx = 0; S.flip = false; S.cmp = false; S.island = null; S.z = 0;
+  S.hub = name === 'hub'; S.floorItem = null; S.pick = 1;
+  if (name === 'run') { S.mode = 'menu'; S.shelf = 'res'; }
+  if (name === 'floor') { S.mode = 'floor0'; S.floorItem = JSON.parse(JSON.stringify(FLOOR0)); }
+  if (name === 'pick') { S.mode = 'pick'; }
+  if (name === 'hub') { S.mode = 'menu'; S.shelf = 'equip'; S.z = 1; S.over.slot = 'main'; S.over.i = 0; }
+  document.querySelectorAll('[data-scene]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scene === name)));
+  S.anim = 'a-zin';
+  render();
+  try { localStorage.setItem('kendai-scene', name); } catch (e) { /* 見る人ごとの便利機能。失敗しても既定で動く */ }
+}
+const stage = document.getElementById('stage');
+function keyOk() {
+  const ae = document.activeElement;
+  return !ae || ae === document.body || ae === stage || stage.contains(ae) || (ae.dataset && ae.dataset.k);
+}
+function onKey(key, down, repeat, e) {
+  const k = key.length === 1 ? key.toLowerCase() : key;
+  if (k === 'Shift') { if (S.mode === 'menu' || S.mode === 'pick') setCmp(down); return true; }
+  if (k === 'g') {
+    if (S.mode === 'floor0') { if (down && !repeat) holdStart('g'); else if (!down) holdEnd('g'); return true; }
+    if (S.mode === 'floor' && down && !repeat) { pickOnly(); return true; }
+    return false;
+  }
+  if (k === 'Enter' && S.mode === 'floor') { if (down && !repeat) holdStart('enter'); else if (!down) holdEnd('enter'); return true; }
+  if (!down) return ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape', 'f', 'q', 'z', ' '].includes(k);
+  switch (k) {
+    case 'ArrowLeft': case 'a': flick(-1); return true;
+    case 'ArrowRight': case 'd': flick(1); return true;
+    case 'ArrowUp': case 'w': shelfStep(-1); return true;
+    case 'ArrowDown': case 's': shelfStep(1); return true;
+    case 'Enter': case ' ': if (!repeat) decide(); return true;
+    case 'Tab': if (e && e.shiftKey) pushIn(); else pullBack(); return true;
+    case 'z': pushIn(); return true;
+    case 'Escape': case 'Backspace': back(); return true;
+    case 'f': flip(); return true;
+    case 'q': islandToggle(); return true;
+    default: return false;
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if (!keyOk()) return;
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'BUTTON' && !ae.dataset.k && (e.key === 'Enter' || e.key === ' ')) return;
+  if (e.key === 'Tab' && ae !== stage) return;
+  if (onKey(e.key, true, e.repeat, e)) e.preventDefault();
+});
+document.addEventListener('keyup', (e) => { if (!keyOk()) return; if (onKey(e.key, false, false, e)) e.preventDefault(); });
+window.addEventListener('blur', () => { if (S.cmp) setCmp(false); });
+// マウス: 影のクリック・ホイールで繰る、主役のクリックで決定、ダブルクリックで裏、右ボタン押す間は比べる
+stage.addEventListener('click', (e) => {
+  stage.focus({ preventScroll: true });
+  const nav = e.target.closest('[data-nav]');
+  if (nav) return flick(Number(nav.dataset.nav));
+  const sh = e.target.closest('[data-shelf]');
+  if (sh) { const sv = shelves(); const d = sv.indexOf(sh.dataset.shelf) - sv.indexOf(S.shelf); if (d) shelfStep(Math.sign(d) * 1); return; }
+  if (e.target.closest('#main') && e.detail === 1) return;
+});
+stage.addEventListener('dblclick', (e) => { if (e.target.closest('#main')) flip(); });
+let wheelAt = 0;
+stage.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const now = performance.now();
+  if (now - wheelAt < 90) return;
+  wheelAt = now;
+  if (e.ctrlKey) { if (e.deltaY > 0) pullBack(); else pushIn(); return; }
+  flick(e.deltaY > 0 ? 1 : -1);
+}, { passive: false });
+stage.addEventListener('contextmenu', (e) => e.preventDefault());
+stage.addEventListener('pointerdown', (e) => { if (e.button === 2) setCmp(true); });
+window.addEventListener('pointerup', (e) => { if (e.button === 2) setCmp(false); });
+document.querySelectorAll('#pad [data-k]').forEach((b) => {
+  const key = b.dataset.k;
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); onKey(key, true, false, null); if (!b.dataset.holdkey) onKey(key, false, false, null); });
+  const up = () => { if (b.dataset.holdkey) onKey(key, false, false, null); };
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointerleave', (e) => { if (e.buttons) up(); });
+  b.addEventListener('click', (e) => e.preventDefault());
+});
+document.querySelectorAll('[data-scene]').forEach((b) => { b.onclick = () => { scene(b.dataset.scene); stage.focus({ preventScroll: true }); }; });
+document.getElementById('keys').innerHTML = [
+  ['繰る', '← →・ホイール・影のクリック'], ['棚を替える', '↑ ↓'], ['決定', 'Enter'], ['比べる', 'Shift を押している間・右ボタンを押している間'],
+  ['裏返す', 'F・札のダブルクリック'], ['引く / 寄る', 'Tab / Shift+Tab・Z・Ctrl+ホイール'], ['戻る', 'Esc'], ['島で絞る（倉庫の俯瞰）', 'Q'], ['床で拾う', 'G（長押しで比べる）'],
+].map(([a, b]) => `${esc(a)} <b>${esc(b)}</b>`).join('　');
+
+function fitScreen() {
+  const w = stage.clientWidth - 2;
+  const hMax = Math.max(270, window.innerHeight - 160);
+  let z = Math.min(w / 480, hMax / 270);
+  z = z >= 1 ? Math.floor(z) : Math.max(0.5, z);
+  scr.style.zoom = String(z);
+  stage.style.height = `${Math.ceil(270 * z) + 2}px`;
+}
+window.addEventListener('resize', fitScreen);
+fitScreen();
+let first = 'run';
+try { const v = localStorage.getItem('kendai-scene'); if (['run', 'floor', 'pick', 'hub'].includes(v)) first = v; } catch (e) { /* 既定で始める */ }
+scene(first);
+stage.focus({ preventScroll: true });
+</script>
+</body>
+</html>

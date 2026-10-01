@@ -1,17 +1,17 @@
-import { actionKeyLabel } from "../core/input";
+import { kingSlimeAirTime } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import type { BossState, Enemy, FloorKind, GameState, Hazard, Particle, Player, Projectile, RoomKind, RoomState } from "../core/state";
+import { type BossState, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
-import { BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
+import { ARC, BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
-import { describeResonance } from "../loot/describe";
+import { resonanceSummary } from "../system/resonance";
 import { RARITY_COLOR, SLOTS, type Rarity } from "../loot/types";
 import { TILE_SIZE, Tile, getTile, toIndex } from "../map/grid";
 import { comboMultiplier } from "../system/combat";
@@ -50,11 +50,11 @@ import {
 import { TEXT, baselineOffset, drawText, drawTextShadow, pixelText, textWidth, updateTextSizes } from "./pixelText";
 import { type Sprite, type SpriteAtlas, TintCache, buildAtlas, dotsOf, drawFrame, enemySpriteKey, getSprite, mergeAtlas, snapTo, spriteFrame } from "./sprites";
 import { expandTileAtlas } from "./tileAtlas";
-import { tileBiome } from "../data/tiles";
 import { isDark } from "../system/roomTypes";
 import { DarknessLayer } from "./darkness";
 import { Minimap, type RoomLookup, buildRoomLookup } from "./minimap";
 import { drawBoonChoice, drawBoonHud } from "./boonUi";
+import { drawReforgeChoice } from "./reforgeUi";
 import { drawChainHud } from "./chainUi";
 import { drawDropFocus } from "./dropTooltip";
 import { isStaggered } from "../system/poise";
@@ -62,7 +62,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
-import { EFFECTS, FX_ATTACK } from "../data/tuning";
+import { EFFECTS, FX_ATTACK, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -88,13 +88,16 @@ import {
 import { WEAPON_EDGE, weaponSpriteKey } from "../data/sprites/weapons";
 import { poseKey } from "../data/sprites/frameKit";
 import { drawWeaknessMark } from "./elementUi";
-import { drawUnspentHud } from "./attributeUi";
+import { drawFlaskHud } from "./flaskHud";
 import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
+import { drawJinHud, drawLeaderMark } from "./jinUi";
+import { drawMoraleHud } from "./moraleHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { drawDoubleChargeLine } from "./chargeLineUi";
+import { drawStrikeLine, telegraphColor } from "./telegraphLineUi";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
@@ -106,7 +109,15 @@ import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackCli
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { type HubSpotsView, drawHubSpots } from "./hubUi";
-import { doorMarkDone, drawBiomeTint, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
+import { drawFieldPickup } from "./coinUi";
+import { MERCHANT_SPRITE_KEYS } from "../data/sprites/economy";
+import { MapChunkCache, type MapView } from "./mapChunks";
+import { type LightView, MapLightLayer, mapLights } from "./mapLight";
+import { lipRects } from "./frontLip";
+import { colorB, colorG, colorR, mapThemeFor } from "./mapTheme";
+import type { MapTheme } from "./mapTypes";
+import { doorMarkDone, drawInvertedTint, drawInvertedTintAtop, drawRunHud, drawRunOverlay, drawRunSetupHud, drawRunWorld, specialDoorColor } from "./runUi";
+import { drawExitHints } from "./exitUi";
 import { FLOOR_KIND_LABEL } from "../system/roomTypes";
 
 /** コンボ表示（論理 px・y 座標） */
@@ -116,8 +127,6 @@ const COMBO_MULT_GAP = 10;
 /** 死亡画面のレイアウト */
 const DEATH_TITLE_RISE = 24;
 const DEATH_STAT_LINE = 16;
-const DEATH_HINT_GAP = 24;
-const COLOR_DEATH_HINT = "#a0a0a0";
 /** 浮遊文字のドット倍率の上限（クリティカルの弾みで巨大化しすぎないように） */
 const FLOAT_TEXT_MAX_M = 3;
 
@@ -144,6 +153,8 @@ const COLOR_BLACK = "#000000";
 const COLOR_KEYSTONE = "#d08cff";
 const COLOR_WARN = "#ff6060";
 const COLOR_DOOR_EDGE = "#ff3030";
+/** 拠点の床・壁の素材の組（data/tiles.ts の BIOME_TILESET.hub が作る tile.hub.*） */
+const HUB_TILE = "hub";
 const COLOR_SLOWMO = "#2040a0";
 const COLOR_DESAT = "#808080";
 const COLOR_AURA_DAMAGE = "#ff6040";
@@ -208,6 +219,10 @@ const LANDING_MAX_SCALE = 1.6;
 const KING_JUMP_HEIGHT = 40;
 const BONE_WALL_COLOR = "#e8e0c8";
 const BONE_WALL_EDGE = "#8a8068";
+/** 盗賊王の柵（木の色。骨の壁と見分ける） */
+const FENCE_WALL_COLOR = "#b08850";
+const FENCE_WALL_EDGE = "#5a3c20";
+const FENCE_SOURCE_KEY = "thiefKing";
 /** ボスのスプライトフレーム: kingSlime = 通常/潰れ/伸び/ジャンプ準備、boneLord = 待機2/杖を掲げる2 */
 const KING_FRAME = { idle: 0, squash: 1, stretch: 2, crouch: 3 } as const;
 const BONE_FRAME_RAISE = 2;
@@ -230,7 +245,7 @@ const HUD_RIGHT_LINE = 10;
 const HUD_RIGHT_X_PAD = 8;
 const HUD_REAPER_LINE = 3;
 const HUD_CURSED_LINE = 4;
-/** 共鳴の種類（describeResonance の 1 行目）。発現中だけ出す */
+/** 源と糧の共鳴（resonanceSummary）。共鳴している語があるときだけ出す */
 const HUD_RESONANCE_LINE = 5;
 /** 起点と位階（放浪者で縛りなしなら出さない） */
 const HUD_RUN_SETUP_LINE = 6;
@@ -238,8 +253,6 @@ const REAPER_TINT = 0.7;
 const BOSS_BANNER_NAME_GAP = 16;
 const ELITE_BAR_W = 20;
 const SHIELD_BAR_H = 2;
-/** boss.ts の STAGE_TWO と同じ（フェーズ 2） */
-const KING_STAGE_TWO = 2;
 const SHOCKWAVE_SPENT_ALPHA = 0.4;
 const LANDING_RX = 0.5;
 const LANDING_RY = 0.3;
@@ -343,8 +356,14 @@ const STAIRS_GLOW_MIN = 0.35;
 const STAIRS_GLOW_MAX = 0.85;
 const STAIRS_GLOW_FRAME_TIME = 0.4;
 const DOOR_EDGE_SPEED = 8;
-const DOOR_EDGE_MIN = 0.25;
+const DOOR_EDGE_MIN = 0.45;
 const DOOR_EDGE_MAX = 0.95;
+/** 封鎖の扉: 床の暗さ・格子の帯（太さと位置。16px に 3 本ずつ）・外周の線の太さ */
+const DOOR_SHADE_ALPHA = 0.45;
+const DOOR_BAR_ALPHA = 0.8;
+const DOOR_BAR_W = 2;
+const DOOR_BAR_OFFSETS = [2, 7, 12] as const;
+const DOOR_EDGE_W = 1;
 
 /** 影 */
 const SHADOW_ALPHA = 0.35;
@@ -397,8 +416,6 @@ const WINDUP_JITTER_SPEED = 60;
 const WINDUP_JITTER_Y_RATIO = 1.3;
 const WINDUP_BLINK_SPEED = 30;
 const WINDUP_RED_ALPHA = 0.55;
-const CHARGER_LINE_LEN = 120;
-const CHARGER_LINE_ALPHA = 0.35;
 const STAGGER_TILT = 0.25;
 const STAGGER_WOBBLE_SPEED = 14;
 const SPAWN_RING_GROW = 1;
@@ -493,8 +510,6 @@ const HUD_MANA_H = 2;
 const HUD_ENERGY_Y = 17;
 const HUD_ENERGY_H = 4;
 const HUD_TEXT_X = HUD_BAR_X + HUD_BAR_W + 4;
-/** HP の数値と未振り点の表示の間 */
-const HUD_UNSPENT_GAP = 6;
 const HUD_PIP_Y = 24;
 const HUD_KEYSTONE_Y = 36;
 const HUD_WARN_Y = 45;
@@ -718,12 +733,23 @@ export class Renderer {
   private rigMuzzle: { x: number; y: number; dist: number } | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
+  /** 迷宮の地図（床・壁・穴）の焼き済みチャンク。拠点は使わない（drawTilesLegacy） */
+  private readonly mapChunks = new MapChunkCache();
+  /** 地図を描く画面（ワールド座標の左上）。毎フレーム使い回す */
+  private readonly mapView: MapView = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
+  /** 地図だけを暗くして光源の周りを抜く層（drawMapLight。拠点は掛けない） */
+  private readonly mapLight = new MapLightLayer();
   /** HUD のキーストーン表示（装備が変わったときだけ作り直す） */
   private hudKeyCache = "";
   private hudKeystoneText = "";
   private hudConflictText = "";
   private readonly minimap = new Minimap();
   private readonly darkness = new DarknessLayer(VIEW_W, VIEW_H);
+  /** 縁を描き直す体の矩形（毎フレーム使い回す） */
+  private readonly lipRectBuf: LightView[] = [];
+  /** 封鎖の扉の差し色（lockedDoorColors がテーマの変わり目で作り直す） */
+  private doorTheme: MapTheme | null = null;
+  private doorAccent = "#ffffff";
   /** 部屋のタイル所属表（フロアが変わったときだけ作り直す） */
   private lookup: RoomLookup | null = null;
   /** 拠点の台（setHubView）。拠点以外では null */
@@ -809,7 +835,8 @@ export class Renderer {
         drawBoonHud(ctx, state, aimScreen);
         drawDropFocus(ctx, state, aimScreen, ox, oy, dropTooltip);
         drawBoonChoice(ctx, state);
-        if (state.status === "dead") this.drawDeath(state);
+        drawReforgeChoice(ctx, state);
+        if (runOver(state)) this.drawDeath(state);
       },
       cursor: () => {
         if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
@@ -823,8 +850,10 @@ export class Renderer {
     ctx.save();
     ctx.translate(ox, oy);
     this.drawTiles(state, -ox, -oy);
-    drawBiomeTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha, `tile.${tileBiome(state.floorKind, state.sandbox === true)}.floor` in this.atlas);
+    drawInvertedTint(ctx, state, -ox, -oy, FLOOR_KIND.tintAlpha);
     drawTerrainLayer(ctx, state, -ox, -oy, this.atlas);
+    this.drawMapLight(state, -ox, -oy);
+    this.drawTileOverlays(state, -ox, -oy);
     drawGroundMarks(ctx, state, this.fxSprites);
     this.drawPickups(state);
     this.drawFloorItems(state);
@@ -833,14 +862,17 @@ export class Renderer {
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
+    drawExitHints(ctx, state);
     if (this.hubView) drawHubSpots(ctx, this.hubView, 0, 0, (key) => this.atlasSprite(key));
     this.drawEnemies(state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
-    this.drawProjectiles(state);
-    this.drawLasers(state);
     drawPlayerAuras(ctx, state);
     this.drawPlayer(state);
+    // 南の壁の縁は体の後・弾の前（弾と光線は縁より上。docs/ideas/map-visual-impl.md 1-5 節）
+    this.drawFrontLip(state, -ox, -oy);
+    this.drawProjectiles(state);
+    this.drawLasers(state);
     this.drawReaper(state);
     drawSkillAir(ctx, state);
     drawThrownSkillAir(ctx, state, this.atlas);
@@ -1075,22 +1107,76 @@ export class Renderer {
   // タイル
   // ---------------------------------------------------------------------------
 
+  /** 拠点は今の Puny のタイル、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節） */
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) {
+      this.drawTilesLegacy(state, viewX, viewY);
+      return;
+    }
+    const view = this.setMapView(viewX, viewY);
+    this.mapChunks.update(state.map, this.mapTheme(state), view, this.wipeActive);
+    this.mapChunks.drawGround(this.ctx, view);
+  }
+
+  /** 章の暗さと光源の周りの明るさ。地図（床・壁・穴・地形）だけを覆い、この後に描く予告・弾・敵・自分は暗くならない */
+  private drawMapLight(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) return;
+    const view = this.setMapView(viewX, viewY);
+    const theme = this.mapTheme(state);
+    this.mapLight.draw(this.ctx, view, mapLights(state, view, theme, this.mapChunks.lightsIn(view)), theme.dark);
+  }
+
+  /** 南の壁の手前の縁（床へ張り出す 3px + 壁の天面の帯）。体と重なる所だけ、体の後に地図と同じ暗さで描き直す（焼いた画素は同じなので他は描かない）。拠点は無し */
+  private drawFrontLip(state: GameState, viewX: number, viewY: number): void {
+    if (state.sandbox === true) return;
+    const view = this.setMapView(viewX, viewY);
+    const rects = lipRects(state, view, this.lipRectBuf);
+    if (rects.length === 0) return;
+    this.mapLight.drawLitRects(this.ctx, view, rects, (g, area) => {
+      this.mapChunks.drawLip(g, view, area);
+      // ground は反転層の紫を重ねてから暗がりを受けるので、縁も同じ順（紫 → 暗がり）にする
+      drawInvertedTintAtop(g, state, area.x, area.y, area.w, area.h, FLOOR_KIND.tintAlpha);
+    });
+  }
+
+  /** 迷宮の地図のテーマ（章の様式 × バイオーム。mapThemeFor は同じ引数で同じ参照を返す） */
+  private mapTheme(state: GameState): MapTheme {
+    return mapThemeFor(state.depth, state.floorKind);
+  }
+
+  private setMapView(viewX: number, viewY: number): MapView {
+    this.mapView.x = viewX;
+    this.mapView.y = viewY;
+    return this.mapView;
+  }
+
+  /** 画面内の欲しいチャンクを予算なしで焼き上げる（撮影・ベンチ用。ゲーム中は呼ばない）。拠点は何もしない */
+  /** 今のジョブの体と武器種の高精細の絵が読めているか（撮影ツールが待つため。読めていなければ読み始める） */
+  playerArtReady(state: GameState): boolean {
+    const body = bodyAtlas(state.job);
+    const weapon = weaponAtlas(playerMoveset(state).key);
+    this.actorBank.focus([body, weapon]);
+    return this.actorBank.ready(body) && (weapon === undefined || this.actorBank.ready(weapon));
+  }
+
+  settleMap(state: GameState): void {
+    if (state.sandbox === true) return;
+    const cam = state.camera;
+    const view = this.setMapView(Math.round(cam.pos.x - cam.offset.x - VIEW_W / 2), Math.round(cam.pos.y - cam.offset.y - VIEW_H / 2));
+    this.mapChunks.settle(state.map, this.mapTheme(state), view);
+  }
+
+  /** 拠点の床と壁（タイルごとの drawImage）。階段・泉・扉の印などの上描きは drawTileOverlays */
+  private drawTilesLegacy(state: GameState, viewX: number, viewY: number): void {
     const { map } = state;
-    const { ctx } = this;
     const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
     const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
     const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
     const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
-    const biome = tileBiome(state.floorKind, state.sandbox === true);
-    // PNG 取り込みのバイオーム版（tile.<biome>.floor）があればそれを、無ければピクセルマップ
-    const floor = this.atlas[`tile.${biome}.floor`] ?? this.sprite(SPR.floor);
+    // PNG 取り込みの拠点版（tile.hub.floor）があればそれを、無ければピクセルマップ
+    const floor = this.atlas[`tile.${HUB_TILE}.floor`] ?? this.sprite(SPR.floor);
     const wallFace = this.sprite(SPR.wallFace);
     const wallTop = this.sprite(SPR.wallTop);
-    const stairs = this.sprite(SPR.stairs);
-    const door = this.sprite(SPR.door);
-    const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
-    this.stairsBuf.length = 0;
 
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
@@ -1101,8 +1187,8 @@ export class Renderer {
           const style = wallStyle(map, x, y);
           // 周囲 8 マスが壁の岩盤は、PNG の有無にかかわらず描かない（壁の模様で画面が埋まらないように）
           if (style === "none") continue;
-          // PNG 取り込み（tile.<biome>.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
-          const masked = this.atlas[`tile.${biome}.wall.${wallMask(map, x, y)}`];
+          // PNG 取り込み（tile.hub.wall.<mask>）があればそれを、無ければ従来のピクセルマップにフォールバック
+          const masked = this.atlas[`tile.${HUB_TILE}.wall.${wallMask(map, x, y)}`];
           if (masked) {
             this.blit(masked, 0, px, py);
           } else if (style === "face") {
@@ -1110,26 +1196,88 @@ export class Renderer {
           } else if (style === "top") {
             this.blit(wallTop, 0, px, py);
           }
+          continue;
+        }
+        // 拠点に穴は無い（迷宮の穴は焼き付け）。万一あれば何も描かない
+        if (tile === Tile.Pit) continue;
+        this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
+      }
+    }
+  }
+
+  /**
+   * 焼かない上描き（伏兵の暗い床・泉・扉の印・階段・封鎖の扉・隠し部屋のひび・階段の光）。
+   * 地形の層の後に描く（拠点も同じ。docs/ideas/map-visual-impl.md 1-7 節）
+   */
+  private drawTileOverlays(state: GameState, viewX: number, viewY: number): void {
+    const { map } = state;
+    const x0 = Math.max(0, Math.floor(viewX / TILE_SIZE));
+    const y0 = Math.max(0, Math.floor(viewY / TILE_SIZE));
+    const x1 = Math.min(map.width - 1, Math.ceil((viewX + VIEW_W) / TILE_SIZE));
+    const y1 = Math.min(map.height - 1, Math.ceil((viewY + VIEW_H) / TILE_SIZE));
+    const stairs = this.sprite(SPR.stairs);
+    const doorColors = state.lockedTiles.size > 0 ? this.lockedDoorColors(state) : null;
+    const doorEdgeAlpha = pulse(state.time, DOOR_EDGE_SPEED, DOOR_EDGE_MIN, DOOR_EDGE_MAX);
+    this.stairsBuf.length = 0;
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const tile = getTile(map, x, y);
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+        if (tile === Tile.Wall) {
           this.drawHiddenCrack(state, x, y, px, py);
           continue;
         }
-        this.blit(floor, floorVariant(x, y, floor.frames.length), px, py);
+        if (tile === Tile.Pit) continue;
         this.drawRoomFloor(state, toIndex(map, x, y), tile, px, py);
         if (tile === Tile.StairsDown) {
           this.blit(stairs, 0, px, py);
           this.stairsBuf.push(px, py);
         }
-        if (state.lockedTiles.has(toIndex(map, x, y))) {
-          this.blit(door, 0, px, py);
-          ctx.globalAlpha = doorEdgeAlpha;
-          ctx.strokeStyle = COLOR_DOOR_EDGE;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-          ctx.globalAlpha = 1;
-        }
+        if (doorColors && state.lockedTiles.has(toIndex(map, x, y))) this.drawLockedDoor(state, x, y, doorColors.accent, doorEdgeAlpha);
       }
     }
     this.drawStairsGlow(state);
+  }
+
+  /** 封鎖の扉の格子の色（章の差し色。テーマが変わったときだけ作り直す） */
+  private lockedDoorColors(state: GameState): { accent: string } {
+    const theme = this.mapTheme(state);
+    if (this.doorTheme !== theme) {
+      this.doorTheme = theme;
+      const c = theme.palette.accent;
+      this.doorAccent = `rgb(${colorR(c)},${colorG(c)},${colorB(c)})`;
+    }
+    return { accent: this.doorAccent };
+  }
+
+  /**
+   * 封鎖の扉: 暗い床 + 章の差し色の格子の帯 + 外周だけ赤く脈打つ線（赤 = 閉じている）。
+   * 外周は隣の封鎖マスに接する辺を引かない（幅の広い扉が 1 枚の枠に読める）
+   */
+  private drawLockedDoor(state: GameState, x: number, y: number, accent: string, edgeAlpha: number): void {
+    const { ctx } = this;
+    const { map } = state;
+    const px = x * TILE_SIZE;
+    const py = y * TILE_SIZE;
+    ctx.globalAlpha = DOOR_SHADE_ALPHA;
+    ctx.fillStyle = COLOR_BLACK;
+    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    ctx.globalAlpha = DOOR_BAR_ALPHA;
+    ctx.fillStyle = accent;
+    for (const o of DOOR_BAR_OFFSETS) {
+      ctx.fillRect(px + o, py, DOOR_BAR_W, TILE_SIZE);
+      ctx.fillRect(px, py + o, TILE_SIZE, DOOR_BAR_W);
+    }
+    ctx.globalAlpha = edgeAlpha;
+    ctx.fillStyle = COLOR_DOOR_EDGE;
+    const locked = (dx: number, dy: number): boolean => state.lockedTiles.has(toIndex(map, x + dx, y + dy));
+    if (!locked(0, -1)) ctx.fillRect(px, py, TILE_SIZE, DOOR_EDGE_W);
+    if (!locked(0, 1)) ctx.fillRect(px, py + TILE_SIZE - DOOR_EDGE_W, TILE_SIZE, DOOR_EDGE_W);
+    if (!locked(-1, 0)) ctx.fillRect(px, py, DOOR_EDGE_W, TILE_SIZE);
+    if (!locked(1, 0)) ctx.fillRect(px + TILE_SIZE - DOOR_EDGE_W, py, DOOR_EDGE_W, TILE_SIZE);
+    ctx.globalAlpha = 1;
   }
 
   /** 部屋の種類ごとの床表現: 伏兵の暗い床、泉、扉の手前のマーク */
@@ -1226,6 +1374,10 @@ export class Renderer {
   private drawPickups(state: GameState): void {
     const heart = this.sprite(SPR.heart);
     for (const pk of state.pickups) {
+      if (pk.kind !== "heart") {
+        drawFieldPickup(this.ctx, pk, this.atlas);
+        continue;
+      }
       const bob = Math.sin(pk.bobTime * PICKUP_BOB_SPEED) * PICKUP_BOB_AMOUNT;
       this.drawShadow(pk.pos.x, pk.pos.y + heart.h / 2, SHADOW_SMALL);
       this.blit(heart, 0, pk.pos.x - heart.w / 2, pk.pos.y - heart.h / 2 + bob);
@@ -1391,7 +1543,10 @@ export class Renderer {
     const { ctx } = this;
     const def = enemyDef(e.defKey);
     // 予備動作・攻撃の原画があれば形でテレグラフを読ませる（無ければ歩きのまま）
-    const key = enemySpriteKey(def.sprite, e.phase, (k) => k in this.atlas);
+    // 商人は種類（市・章の市…）ごとに衣の色違いの体を使う
+    const merchantKind = def.merchant ? state.economy.merchants.find((m) => m.enemyId === e.id)?.kind : undefined;
+    const body = (merchantKind && MERCHANT_SPRITE_KEYS[merchantKind]) ?? def.sprite;
+    const key = enemySpriteKey(body, e.phase, (k) => k in this.atlas);
     const sprite = this.sprite(key);
     const cx = e.body.pos.x;
     const cy = e.body.pos.y;
@@ -1467,10 +1622,10 @@ export class Renderer {
 
     const top = cy - sprite.h / 2 - 2;
     if (e.phase === "windup") {
-      drawText(ctx, "!", cx, top, TEXT.SMALL, COLOR_TELEGRAPH, "center");
+      drawText(ctx, "!", cx, top, TEXT.SMALL, telegraphColor(e), "center");
       // 予告の種類は system 側（enemyTelegraph）が決める。影で見せるものは hazards の landing が描く
       const tele = enemyTelegraph(e, def);
-      if (tele?.kind === "line") this.drawChargeLine(e);
+      if (tele?.kind === "line") drawStrikeLine(ctx, state, e, tele.length ?? TELEGRAPH.fallbackLength);
       if (tele?.kind === "laser") this.drawLaserTelegraph(state, e, def.windup);
       if (tele?.kind === "ring") this.drawRingTelegraph(cx, cy, tele.radius);
       this.drawWave3Telegraph(e, tele, CONE_WINDUP_ALPHA);
@@ -1480,12 +1635,13 @@ export class Renderer {
     if (staggered) {
       drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
     }
-    drawEnemyStatus(ctx, e, cx, e.elite ? top - ELITE_NAME_OFFSET : top);
+    drawEnemyStatus(ctx, e, cx, e.elite || e.grade === "strong" ? top - ELITE_NAME_OFFSET : top);
     // 属性の弱点の印（docs/COMBAT_DESIGN.md A-8）
     drawWeaknessMark(ctx, state, e, cx + sprite.w / 2, top);
     // ボスの座にいる敵（双子の妹が兄から継いだ後も）は上部バーだけで見せる
     if (showsBossBar(state, e)) return;
     const barY = cy + sprite.h / 2 - 2;
+    drawLeaderMark(ctx, state, e, cx, top);
     if (e.elite) {
       this.drawEliteBars(e, cx, barY);
       drawPoiseGauge(ctx, e, cx, barY + ELITE_BAR_H, ELITE_BAR_W);
@@ -1494,6 +1650,8 @@ export class Renderer {
     }
     if (e.hp < e.maxHp) this.drawBar(cx - 8, barY, 16, 2, e.hp / e.maxHp, COLOR_HP, COLOR_HP_BG);
     drawPoiseGauge(ctx, e, cx, barY + 2, 16);
+    // 精鋭でない猛（強）は名前だけ出す
+    this.drawEliteName(e, cx, top - ELITE_NAME_OFFSET);
   }
 
   /** 冷気・凍結・燃焼（drawEnemy が個別に重ねる色）以外の状態異常の色調（毒の緑・濡れの青・宣告の紫 …） */
@@ -1533,10 +1691,11 @@ export class Renderer {
     return spriteFrame(sprite, e.animTime, ENEMY_FRAME_TIME);
   }
 
-  /** King Slime の跳躍中の高さ */
+  /** スライム王の跳躍中の高さ（空中の秒は技ごとに system/bossKingSlime.ts が決める。跳ばない技では null） */
   private jumpLift(e: Enemy): number {
     if (e.defKey !== "kingSlime" || e.phase !== "strike") return 0;
-    const total = e.ai?.stage === KING_STAGE_TWO ? BOSS.kingSlime.phase2JumpTime : BOSS.kingSlime.jumpTime;
+    const total = kingSlimeAirTime(e);
+    if (total === null) return 0;
     const t = Math.min(1, Math.max(0, 1 - e.phaseTimer / total));
     return Math.sin(t * Math.PI) * KING_JUMP_HEIGHT;
   }
@@ -1573,9 +1732,10 @@ export class Renderer {
   }
 
   private drawEliteName(e: Enemy, cx: number, y: number): void {
-    if (!e.elite) return;
-    const name = eliteDisplayName(e);
-    this.shadowText(name, Math.round(cx), Math.round(y), ELITE_COLOR[e.elite], TEXT.SMALL);
+    // 精鋭は修飾子の色、精鋭でない猛（強）は陣の色。並は名前を出さない
+    const color = e.elite ? ELITE_COLOR[e.elite] : e.grade === "strong" ? JIN.hud.strongColor : undefined;
+    if (color === undefined) return;
+    this.shadowText(eliteDisplayName(e), Math.round(cx), Math.round(y), color, TEXT.SMALL);
   }
 
   /**
@@ -1857,11 +2017,13 @@ export class Renderer {
     const half = TILE_SIZE / 2;
     const x = Math.round(h.pos.x - half);
     const y = Math.round(h.pos.y - half);
-    ctx.fillStyle = BONE_WALL_EDGE;
+    const fence = h.sourceKey === FENCE_SOURCE_KEY;
+    const edge = fence ? FENCE_WALL_EDGE : BONE_WALL_EDGE;
+    ctx.fillStyle = edge;
     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-    ctx.fillStyle = BONE_WALL_COLOR;
+    ctx.fillStyle = fence ? FENCE_WALL_COLOR : BONE_WALL_COLOR;
     ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-    ctx.fillStyle = BONE_WALL_EDGE;
+    ctx.fillStyle = edge;
     ctx.fillRect(x + 4, y + half - 1, TILE_SIZE - 8, 2);
   }
 
@@ -1947,18 +2109,6 @@ export class Renderer {
     ctx.lineTo(r.aim.x, r.aim.y);
     ctx.stroke();
     ctx.lineWidth = 1;
-    ctx.globalAlpha = 1;
-  }
-
-  /** 突進方向の予告線 */
-  private drawChargeLine(e: Enemy): void {
-    const { ctx } = this;
-    ctx.strokeStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = CHARGER_LINE_ALPHA;
-    ctx.beginPath();
-    ctx.moveTo(e.body.pos.x, e.body.pos.y);
-    ctx.lineTo(e.body.pos.x + e.strikeDir.x * CHARGER_LINE_LEN, e.body.pos.y + e.strikeDir.y * CHARGER_LINE_LEN);
-    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -2054,7 +2204,7 @@ export class Renderer {
 
   private drawPlayer(state: GameState): void {
     const p = state.player;
-    if (state.status === "dead") return;
+    if (runOver(state)) return;
     const sprite = this.sprite(SPR.player);
     const cx = p.body.pos.x;
     const bottom = spriteFeetY(p.body.pos.y, p.body.radius) - PLAYER_SPRITE_LIFT;
@@ -2228,6 +2378,7 @@ export class Renderer {
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
       restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
       kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
     };
@@ -2859,8 +3010,7 @@ export class Renderer {
     drawManaBar(ctx, state, HUD_BAR_X, HUD_MANA_Y, HUD_BAR_W, HUD_MANA_H);
     const hpText = `${Math.ceil(p.hp)}/${p.maxHp}`;
     drawText(ctx, hpText, HUD_TEXT_X, HUD_HP_Y + HUD_HP_H, TEXT.SMALL, COLOR_TEXT);
-    // 未振りの点はマナバーの横（HP の数値の右）に。振るのは装備画面（Tab）
-    drawUnspentHud(ctx, state, HUD_TEXT_X + textWidth(hpText, TEXT.SMALL) + HUD_UNSPENT_GAP, HUD_HP_Y + HUD_HP_H);
+    drawMoraleHud(ctx, state, HUD_TEXT_X, HUD_ENERGY_Y);
 
     const sustaining = p.ultimate.active !== null;
     // 満タンの見た目は選んでいる奥義の cost 基準（持続中は上限に対する残り）
@@ -2874,6 +3024,8 @@ export class Renderer {
       ctx.strokeRect(HUD_BAR_X - 0.5, HUD_ENERGY_Y - 0.5, HUD_BAR_W + 1, HUD_ENERGY_H + 1);
     }
     this.drawDashPips(state);
+    // 瓶の枡はダッシュのチャージと同じ行の右端（左寄せのチャージと重ならない）
+    drawFlaskHud(ctx, state, HUD_BAR_X + HUD_BAR_W, HUD_PIP_Y - 1, this.atlas);
     this.drawKeystoneHud(state);
 
     // 拠点（sandbox）はミニマップと階層・スコア・シードの欄を出さない（右上は拠点の飾りが使う）
@@ -2896,6 +3048,7 @@ export class Renderer {
     this.drawBossHud(state);
     this.drawReaperHud(state);
     drawRunHud(ctx, state);
+    drawJinHud(ctx, state);
     drawRunSetupHud(ctx, state, rightX, rightY + line * HUD_RUN_SETUP_LINE);
     drawComboHud(ctx, state, hud);
 
@@ -2935,9 +3088,8 @@ export class Renderer {
     if (state.cursed) {
       this.shadowText("呪い: 次の部屋の精鋭 x2", rightX, rightY + line * HUD_CURSED_LINE, ROOM_KIND.cursedColor, m, "right");
     }
-    if (state.stats.resonance.kind !== "none") {
-      this.shadowText(describeResonance(state.stats.resonance)[0] ?? "", rightX, rightY + line * HUD_RESONANCE_LINE, COLOR_TEXT, m, "right");
-    }
+    const resonance = resonanceSummary(state);
+    if (resonance !== "") this.shadowText(resonance, rightX, rightY + line * HUD_RESONANCE_LINE, COLOR_TEXT, m, "right");
   }
 
   /** ボス戦中は画面上部にセグメント付きの HP バー。ロック直後は黒帯 + 名前のスライドイン */
@@ -3198,10 +3350,10 @@ export class Renderer {
     const cy = VIEW_H / 2;
     const statLine = Math.max(DEATH_STAT_LINE, this.textLine(TEXT.BODY));
     const summary = `地下 ${state.depth} 階 · 撃破 ${state.kills} · 最大コンボ ${state.combo.best}`;
-    drawText(ctx, "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, COLOR_HP, "center");
+    const cleared = state.status === "cleared";
+    drawText(ctx, cleared ? "踏破" : "力尽きた", cx, cy - DEATH_TITLE_RISE, TEXT.BIG, cleared ? ARC.surfaceColor : COLOR_HP, "center");
     drawText(ctx, summary, cx, cy, TEXT.BODY, COLOR_TEXT, "center");
     drawText(ctx, `スコア ${state.score}`, cx, cy + statLine, TEXT.BODY, COLOR_TEXT, "center");
-    drawText(ctx, `Enter: 同じシードで再挑戦   ${actionKeyLabel("restart")}: 新しいシード`, cx, cy + statLine + DEATH_HINT_GAP, TEXT.SMALL, COLOR_DEATH_HINT, "center");
   }
 }
 

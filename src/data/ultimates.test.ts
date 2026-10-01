@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { BASES } from "../loot/bases";
 import { BULLETS, bulletDef, bulletOfBase } from "../loot/bullets";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
-import { WEAPON_ART } from "../skills/reshapes";
 import { BOONS } from "../system/boonDefs";
 import { JOB_BRANCHES } from "./jobs";
 import { PLAYER, ULTIMATE } from "./tuning";
@@ -26,7 +25,6 @@ function takenNames(): Map<string, string> {
     const m = MOVESETS[k];
     for (const b of m.branches) add(b.name, `派生 ${k}.${b.key}`);
     for (const s of m.steps2) add(s.name, `右の段 ${k}`);
-    add(WEAPON_ART[k].name, `極意 ${k}`);
   }
   for (const b of Object.values(JOB_BRANCHES)) add(b.name, `ジョブ派生 ${b.key}`);
   for (const b of Object.values(BOONS)) add(b.name, `祝福 ${b.key}`);

@@ -3,13 +3,13 @@
  * ばらつきは renderMath.ts の座標ハッシュと state.time で作る。演出の状態は system/effects.ts が
  * state.effects（死に方・演出の印）に置いたものを読む
  */
-import type { DeathFx, FxMark, GameState, RoomState } from "../core/state";
+import { type DeathFx, type FxMark, type GameState, type RoomState, runOver } from "../core/state";
 import type { SpriteDots } from "../data/sprites/dots";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { EFFECTS, FX_WAVE3 } from "../data/tuning";
 import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE, Tile, getTile } from "../map/grid";
-import { deathColor } from "../system/effects";
+import { LORD_PULL_APPEAR, deathColor } from "../system/effects";
 import { TEXT, drawTextShadow } from "./pixelText";
 import {
   ashCrumble,
@@ -439,6 +439,48 @@ function drawBudBloom(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprit
   sprites.glow(m.pos.x, m.pos.y, m.color, BLOOM_GLOW_R, 0.6 * (1 - t));
 }
 
+/** 墨の渦の粒（外縁ほど大きく、中心へ向かって小さくなる）の大きさ（論理 px）と、章の色の縁の太さ */
+const PULL_DOT_MAX = 2;
+const PULL_DOT_MIN = 1;
+/** 地面の上の見た目なので渦を縦に潰す（見下ろしの斜め） */
+const PULL_SQUASH_Y = 0.7;
+/** 粒の最低の濃さ（中心側の粒も消えきらない） */
+const PULL_DOT_ALPHA_MIN = 0.4;
+const PULL_RING_ALPHA = 0.8;
+const PULL_GLOW_ALPHA = 0.7;
+
+/**
+ * 主の間への引き込み（lordPull）。元の位置では墨の渦が中心へ巻き込まれて消え、先では少し遅れて渦がほどけて広がる。
+ * 渦は章の色の縁を持つ墨の粒の腕で、章の色の輪と光が重なる。形は経過時間だけで決まる（乱数なし）
+ */
+function drawLordPull(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprites): void {
+  const c = FX_WAVE3.lordPull;
+  const appear = m.value === LORD_PULL_APPEAR;
+  const t = appear ? clamp01((m.age - c.delay) / c.life) : markT(m);
+  if (appear && m.age < c.delay) return;
+  // 消える渦は縮み、現れる渦は広がる。回る向きも逆（巻き込む / ほどく）
+  const radius = c.radius * (appear ? easeOutCubic(t) : 1 - easeOutCubic(t));
+  const fade = appear ? 1 - t : 1 - t * t;
+  const spin = (appear ? -1 : 1) * c.spin * t * Math.PI * 2;
+  for (let arm = 0; arm < c.arms; arm++) {
+    const base = (arm / c.arms) * Math.PI * 2 + spin;
+    for (let i = 1; i <= c.dots; i++) {
+      const u = i / c.dots;
+      const angle = base + u * c.turns * Math.PI * 2;
+      const x = Math.round(m.pos.x + Math.cos(angle) * radius * u);
+      const y = Math.round(m.pos.y + Math.sin(angle) * radius * u * PULL_SQUASH_Y);
+      const size = u > 0.5 ? PULL_DOT_MAX : PULL_DOT_MIN;
+      ctx.globalAlpha = fade * (PULL_DOT_ALPHA_MIN + (1 - PULL_DOT_ALPHA_MIN) * u);
+      ctx.fillStyle = c.inkColor;
+      ctx.fillRect(x, y, size, size);
+      ctx.fillStyle = m.color;
+      ctx.fillRect(x, y - 1, PULL_DOT_MIN, PULL_DOT_MIN);
+    }
+  }
+  drawRing(ctx, m.pos.x, m.pos.y, radius, m.color, fade * PULL_RING_ALPHA, c.ringWidth);
+  sprites.glow(m.pos.x, m.pos.y, m.color, c.glow, fade * PULL_GLOW_ALPHA);
+}
+
 function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMark, sprites: FxSprites): void {
   const t = markT(m);
   switch (m.kind) {
@@ -477,6 +519,9 @@ function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMar
     case "inscribe":
       drawRing(ctx, m.pos.x, m.pos.y, FX_WAVE3.inscribe.radius * easeOutCubic(t), m.color, 1 - t, 2);
       sprites.glow(m.pos.x, m.pos.y, m.color, FX_WAVE3.inscribe.radius / 2, 0.7 * (1 - t));
+      return;
+    case "lordPull":
+      drawLordPull(ctx, m, sprites);
       return;
     case "bossLight":
     case "critFlash":
@@ -618,7 +663,7 @@ function drawResonanceMantle(ctx: CanvasRenderingContext2D, x: number, y: number
   }
 }
 
-/** 誓約のオーラ: 細い輪を系統の数だけの弧に分けてゆっくり回す */
+/** 誓約のオーラ: 細い輪を組の数だけの弧に分けてゆっくり回す */
 function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, colors: readonly string[], time: number): void {
   if (colors.length === 0) return;
   const c = FX_WAVE3.keystoneAura;
@@ -633,9 +678,9 @@ function drawKeystoneAura(ctx: CanvasRenderingContext2D, x: number, y: number, c
 }
 
 export function drawPlayerAuras(ctx: CanvasRenderingContext2D, state: GameState): void {
-  if (state.status === "dead") return;
+  if (runOver(state)) return;
   const p = state.player.body.pos;
-  drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.stats.resonance), state.time);
+  drawResonanceMantle(ctx, p.x, p.y, resonanceMantleColors(state.boonRun.resonance), state.time);
   drawKeystoneAura(ctx, p.x, p.y, keystoneAuraColors(state.stats.keystones), state.time);
   ctx.globalAlpha = 1;
   ctx.lineWidth = 1;

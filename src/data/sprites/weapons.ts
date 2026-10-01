@@ -921,6 +921,81 @@ export const FAN_DIAG: Frame = [
   ".kk.........",
 ];
 
+// ---- 書: 開いた魔導書（浅い V 字の見開き、赤い革の表紙の縁と金の角、綴じ目の上に紫の印、下に頁の束） ----
+// 本は回さず常に頁を見せる（手に持つ絵の wpnBook.held と同じ。盾と同じく 3 枚とも同じ見開きで、拳の位置だけ違う）
+const BOOK_SIDE: Frame = [
+  "..kkkk..kkkk",
+  "..kyDDkkDDyk",
+  "..kDDDEDDDDk",
+  "..kDEDepDEDk",
+  "..kDEDpPDEDk",
+  ".kkEEEEEEEEk",
+  "kttyRRRRRRyk",
+  "kTTkkkkkkkk.",
+  ".kk.........",
+  "............",
+  "............",
+  "............",
+];
+const BOOK_DIAG: Frame = [
+  "............",
+  "............",
+  "............",
+  "..kkkk..kkkk",
+  "..kyDDkkDDyk",
+  "..kDDDEDDDDk",
+  "..kDEDepDEDk",
+  "..kDEDpPDEDk",
+  ".kkEEEEEEEEk",
+  "kttyRRRRRRyk",
+  "kTTkkkkkkkk.",
+  ".kk.........",
+];
+const BOOK_UP: Frame = [
+  "............",
+  "............",
+  "..kkkk..kkkk",
+  "..kyDDkkDDyk",
+  "..kDDDEDDDDk",
+  "..kDEDepDEDk",
+  "..kDEDpPDEDk",
+  "..kEEEEEEEEk",
+  "..kyRRRRRRyk",
+  "...kkkttkkk.",
+  ".....kTTk...",
+  "......kk....",
+];
+
+// ---- 手鈴: 朱塗りの柄に金の口金、段に重ねた金の小鈴（手元の段ほど広く、先へ細る） ----
+const HANDBELL_SIDE: Frame = [
+  "............",
+  ".....kk.....",
+  "....kyYk....",
+  "....kYYkkk..",
+  ".....kkyYk..",
+  ".kkkkkyYYkkk",
+  "kttrRykkkyYk",
+  "kTTRRYkyYkYk",
+  ".kkkkkkYYkk.",
+  "....kkyYkk..",
+  "....kyYYk...",
+  ".....kkk....",
+];
+const HANDBELL_DIAG: Frame = [
+  "........kkk.",
+  ".......kyYYk",
+  ".....kkkYYk.",
+  "....kyYkkk..",
+  "...kyYYkyYk.",
+  "...kkYkyYYk.",
+  "...kRkkYYk..",
+  "..krRk.kk...",
+  ".kkRk.......",
+  "kttk........",
+  "kTTk........",
+  ".kk.........",
+];
+
 /** 武器種ごとの持ち手（`weapon.<MovesetKey>`）。Record なので武器種を足すと型エラーで気付ける */
 const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   sword: held(SWORD_SIDE, SWORD_DIAG),
@@ -952,6 +1027,8 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   flail: held(FLAIL_SIDE, FLAIL_DIAG),
   ringBlades: held(RING_BLADES_SIDE, RING_BLADES_DIAG),
   fan: edged(FAN_SIDE, FAN_DIAG),
+  book: held(BOOK_SIDE, BOOK_DIAG, BOOK_UP),
+  handbell: held(HANDBELL_SIDE, HANDBELL_DIAG),
 };
 
 // -----------------------------------------------------------------------------

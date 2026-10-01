@@ -1,0 +1,10 @@
+{
+  "_fields": {
+    "jinChance": "大将のいない陣の決着で鍵を落とす確率。割合（0..1）",
+    "leaderJinChance": "大将のいる陣の決着で鍵を落とす確率。割合（0..1）",
+    "color": "床の鍵・浮き文字「鍵」の色"
+  },
+  "jinChance": 0.12,
+  "leaderJinChance": 0.5,
+  "color": "#e0c060"
+}

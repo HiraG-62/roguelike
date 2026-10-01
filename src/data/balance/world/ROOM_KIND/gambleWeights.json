@@ -1,7 +1,16 @@
 {
+  "_fields": {
+    "item": "賭け台の当たり「遺物」（gambleRarityBoost で底上げ）の重み。相対値",
+    "hearts": "当たり「ハート」（gambleHearts 個）の重み。相対値",
+    "rune": "当たり「刻印符」の重み。相対値",
+    "coins": "当たり「銭」（gambleCoinCost × gambleCoinWinMul）の重み。相対値",
+    "ambush": "外れ「伏兵」（部屋に増援が湧く）の重み。相対値",
+    "curse": "外れ「呪い」（次の部屋が呪われる）の重み。相対値"
+  },
   "item": 35,
   "hearts": 20,
   "rune": 15,
   "ambush": 15,
-  "curse": 15
+  "curse": 15,
+  "coins": 20
 }

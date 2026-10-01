@@ -1,99 +1,161 @@
-import type { Enemy, GameState, Player } from "../core/state";
+import type { DamageTag, MoreMul } from "../core/damage";
+import type { EventKind, EventSource } from "../core/events";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import type { DamageKind, Enemy, GameState, Player } from "../core/state";
 import { dist } from "../core/vec";
 import type { PlayerStats } from "../loot/types";
-import { KEYSTONE, PLAYER } from "../data/tuning";
-import { isEngaged } from "./engagement";
+import { KEYSTONE, PLAYER, STATUS } from "../data/tuning";
 
 /**
- * キーストーン判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える。
- * 数値だけのキーストーン（glassCannon / windWalker など）は computeStats 側で適用済み。
+ * 誓約の判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える（誓約 20。docs/ideas/relics-7d-plan.md 2-2）。
+ * 数値だけの誓約（硝子の砲・吸血など）は computeStats 側で適用済み。
  */
 export const KS = {
-  berserker: "ks_berserker",
+  glassCannon: "ks_glassCannon",
+  vampire: "ks_vampire",
+  overclock: "ks_overclock",
+  gambler: "ks_gambler",
+  readOath: "ks_readOath",
+  mushin: "ks_mushin",
+  instant: "ks_instant",
   blink: "ks_blink",
   pacifist: "ks_pacifist",
   bladeOath: "ks_bladeOath",
-  juggernaut: "ks_juggernaut",
-  gambler: "ks_gambler",
-  vampire: "ks_vampire",
-  overclock: "ks_overclock",
+  farOath: "ks_farOath",
   overdraw: "ks_overdraw",
   silentVow: "ks_silentVow",
-  thirst: "ks_thirst",
-  // ---- 2026-09 追加（docs/ideas/loot-expansion.md 2 章）----
-  pure: "ks_pure",
-  blight: "ks_blight",
-  contagion: "ks_contagion",
-  wedgeOath: "ks_wedgeOath",
-  unshaken: "ks_unshaken",
-  chokehold: "ks_chokehold",
-  readOath: "ks_readOath",
-  backwater: "ks_backwater",
-  reaperOath: "ks_reaperOath",
   chant: "ks_chant",
-  monochrome: "ks_monochrome",
-  colorless: "ks_colorless",
-  mirror: "ks_mirror",
-  discipline: "ks_discipline",
-  oblivion: "ks_oblivion",
-  // ---- 2026-09 第 2 弾（属性 / 武器 / 地形）。判定は src/system/traitHooks.ts ----
-  oneElement: "ks_oneElement",
-  weakOath: "ks_weakOath",
-  nullOath: "ks_nullOath",
-  ironOath: "ks_ironOath",
-  chargeOath: "ks_chargeOath",
-  stanceOath: "ks_stanceOath",
-  earthOath: "ks_earthOath",
-  slickOath: "ks_slickOath",
-  emberOath: "ks_emberOath",
+  pure: "ks_pure",
+  contagion: "ks_contagion",
+  unshaken: "ks_unshaken",
+  poverty: "ks_poverty",
+  goldCage: "ks_goldCage",
+  alms: "ks_alms",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
 
 /**
- * キーストーンの表示名（日本語）。key は src/loot/affixes.ts の KEYSTONES.key と揃える。
+ * 誓約の表示名（日本語）。key は src/loot/affixes.ts の KEYSTONES.key と揃える。
  * affixes.ts 側を import できないので、ここに小さな表として直接持つ
- * （ks_glassCannon / ks_windWalker は数値だけのキーストーンで KS には無いが、表示名はここで引く）
  */
 export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_glassCannon: "硝子の砲",
-  ks_berserker: "狂戦士",
-  ks_blink: "瞬歩",
-  ks_pacifist: "不殺",
-  ks_juggernaut: "不動",
-  ks_gambler: "賭博師",
   ks_vampire: "吸血",
   ks_overclock: "過駆動",
+  ks_gambler: "賭博師",
+  ks_readOath: "読み勝ちの誓い",
+  ks_mushin: "虚心",
+  ks_instant: "刹那",
+  ks_blink: "瞬歩",
+  ks_pacifist: "不殺",
   ks_bladeOath: "近間の誓い",
-  ks_windWalker: "風走り",
+  ks_farOath: "遠間の誓い",
   ks_overdraw: "過負荷",
   ks_silentVow: "静寂の誓い",
-  ks_thirst: "渇きの誓約",
-  ks_pure: "無垢の誓い",
-  ks_blight: "蝕みの誓約",
-  ks_contagion: "病みの誓い",
-  ks_wedgeOath: "楔の誓い",
-  ks_unshaken: "揺るがぬ誓い",
-  ks_chokehold: "締め上げの誓い",
-  ks_readOath: "読み勝ちの誓い",
-  ks_backwater: "背水の誓い",
-  ks_reaperOath: "死神の誓い",
   ks_chant: "詠唱の誓い",
-  ks_monochrome: "単色の誓い",
-  ks_colorless: "無色の誓い",
-  ks_mirror: "鏡の誓い",
-  ks_discipline: "修行の誓い",
-  ks_oblivion: "忘却の誓い",
-  ks_oneElement: "一色の誓い",
-  ks_weakOath: "弱点の誓い",
-  ks_nullOath: "無の誓い",
-  ks_ironOath: "鉄の誓い",
-  ks_chargeOath: "溜めの誓い",
-  ks_stanceOath: "構えの誓い",
-  ks_earthOath: "土の誓い",
-  ks_slickOath: "滑りの誓い",
-  ks_emberOath: "熾火の誓い",
+  ks_pure: "無垢の誓い",
+  ks_contagion: "病みの誓い",
+  ks_unshaken: "揺るがぬ誓い",
+  ks_poverty: "清貧",
+  ks_goldCage: "黄金の檻",
+  ks_alms: "喜捨",
 };
+
+// -----------------------------------------------------------------------------
+// 誓約の常時の倍（Modifier。system/modifiers.ts の collectModifiers が持っている誓約の順に集める）
+// -----------------------------------------------------------------------------
+
+/** 近接・射撃の 1 撃（proc〈燃焼・トリガーの衝撃波など〉には掛けない誓約の対象） */
+const STRIKE_TAGS: readonly DamageTag[] = ["melee", "ranged"];
+/** 遠間の誓いの境目の内側の相手 */
+const TARGET_NEAR: RuleCondition = { kind: "targetWithin", radius: KEYSTONE.farOathRangePx };
+
+/** 誓約の表示名（表に無ければ key） */
+function keystoneName(key: KeystoneKey): string {
+  return KEYSTONE_NAME[key] ?? key;
+}
+
+/** 誓約の Modifier の持ち主 */
+function keystoneOwner(key: KeystoneKey): EventSource {
+  return { kind: "keystone", key };
+}
+
+/**
+ * 誓約の倍を、proc 以外の 1 撃のタグごとに 1 つずつ（1 撃のタグは 1 つなので 2 重には掛からない）。
+ * first は id の添字の始まり（1 つの誓約が条件違いの倍を 2 つ持つとき id を分ける）
+ */
+function oathModifiers(key: KeystoneKey, amount: number, conditions: readonly RuleCondition[], first = 0): readonly Modifier[] {
+  const owner = keystoneOwner(key);
+  const label = keystoneName(key);
+  return STRIKE_TAGS.map((tag, i) => ({ id: ruleId(owner, first + i), kind: "more", tag, amount, if: conditions, owner, label }));
+}
+
+const KEYSTONE_MODIFIERS: Readonly<Partial<Record<string, readonly Modifier[]>>> = {
+  // 遠間: 近い敵へは下がり、遠い敵へは上がる（近間の誓いの裏返し）
+  [KS.farOath]: [
+    ...oathModifiers(KS.farOath, KEYSTONE.farOathNearMul, [TARGET_NEAR]),
+    ...oathModifiers(KS.farOath, KEYSTONE.farOathFarMul, [{ kind: "not", condition: TARGET_NEAR }], STRIKE_TAGS.length),
+  ],
+  // 清貧: 銭を持てない代わりの与ダメの増
+  [KS.poverty]: [
+    { id: ruleId(keystoneOwner(KS.poverty), 0), kind: "increased", tag: "all", amount: KEYSTONE.povertyIncreased, if: [], owner: keystoneOwner(KS.poverty), label: keystoneName(KS.poverty) },
+  ],
+  // 黄金の檻: 持ち金 N につき倍が 1 段（段は足し合わせ）
+  [KS.goldCage]: [
+    {
+      id: ruleId(keystoneOwner(KS.goldCage), 0),
+      kind: "more",
+      tag: "all",
+      amount: KEYSTONE.goldCageMul - 1,
+      per: { count: { kind: "coins" }, every: KEYSTONE.goldCageEvery, cap: KEYSTONE.goldCageCap },
+      if: [],
+      owner: keystoneOwner(KS.goldCage),
+      label: keystoneName(KS.goldCage),
+    },
+  ],
+};
+
+/** 持っている誓約の Modifier（持っている順） */
+export function keystoneModifiers(keys: readonly string[]): Modifier[] {
+  const out: Modifier[] = [];
+  for (const key of keys) out.push(...(KEYSTONE_MODIFIERS[key] ?? []));
+  return out;
+}
+
+/** 誓約の Rule を 1 つ作る（持ち主 + 添字で id を決める。確率 1・内部 CD なし） */
+function keystoneRule(key: KeystoneKey, index: number, when: EventKind, then: RuleEffect): Rule {
+  const owner = keystoneOwner(key);
+  return { id: ruleId(owner, index), when, if: [], then, chance: 1, icd: 0, scope: SCOPE_ANY, owner };
+}
+
+/** 誓約の Rule（「〜時: 〜」で書ける誓約。collectRules が装備の直後に集める） */
+const KEYSTONE_RULES: Readonly<Partial<Record<string, readonly Rule[]>>> = {
+  // 刹那: 見切りの瞬間、周りの敵を凍らせる（ボスは凍らせない）
+  [KS.instant]: [
+    keystoneRule(KS.instant, 0, "onJustDodge", {
+      kind: "nearbyEnemies",
+      status: "freeze",
+      magnitude: 0,
+      duration: KEYSTONE.instantSec,
+      radius: KEYSTONE.instantRadius,
+      skipBoss: true,
+      color: STATUS.chillColor,
+    }),
+  ],
+  // 喜捨: 払った額に応じて癒え、しばらく与ダメが上がる
+  [KS.alms]: [
+    keystoneRule(KS.alms, 0, "onCoinSpend", { kind: "heal", magnitude: KEYSTONE.almsHealPerCoin, scaleBy: "eventAmount" }),
+    keystoneRule(KS.alms, 1, "onCoinSpend", { kind: "damageBuff", magnitude: KEYSTONE.almsBuffPct, duration: KEYSTONE.almsBuffSec }),
+  ],
+};
+
+/** 持っている誓約の Rule（持っている順） */
+export function keystoneRules(keys: readonly string[]): Rule[] {
+  const out: Rule[] = [];
+  for (const key of keys) out.push(...(KEYSTONE_RULES[key] ?? []));
+  return out;
+}
 
 /** 誓約の判定に要る state の部分（テストで GameState 全体を作らずに済むよう絞る） */
 export interface KeystoneHolder {
@@ -109,12 +171,9 @@ export function hasKeystone(state: KeystoneHolder, key: KeystoneKey): boolean {
   return state.stats.keystones.includes(key);
 }
 
-/** ks_berserker: 失った HP の割合ぶん与ダメが増える */
-export function berserkerMul(state: GameState): number {
-  if (!hasKeystone(state, KS.berserker)) return 1;
-  const p = state.player;
-  if (p.maxHp <= 0) return 1;
-  return 1 + Math.max(0, 1 - p.hp / p.maxHp);
+/** 誓約の与ダメの倍（1 つの誓約につき 1 要素。source は "keystone:<key>"） */
+export function oathMore(key: KeystoneKey, mul: number): MoreMul {
+  return { source: `keystone:${key}`, label: KEYSTONE_NAME[key] ?? key, mul };
 }
 
 /** ks_gambler: 1 ヒットごとのランダム倍率 */
@@ -133,15 +192,36 @@ export function bladeOathMul(state: GameState, enemy: Enemy | null): number {
   return d <= KEYSTONE.bladeOathRangePx ? KEYSTONE.bladeOathNearMul : KEYSTONE.bladeOathFarMul;
 }
 
-/** 毎秒回復が有効か（berserker / vampire は無効。土の誓いは地形の上の回復に置き換える） */
-export function regenAllowed(state: GameState): boolean {
-  return !hasKeystone(state, KS.berserker) && !hasKeystone(state, KS.vampire) && !hasKeystone(state, KS.earthOath);
+/**
+ * ks_mushin（虚心）: 攻撃を当てずに mushinIdleSec 秒たった後の、近接・射撃の 1 撃の倍。
+ * 当てた瞬間に Player.moment.lastHitAt が進む（system/moments.ts）ので、倍が乗るのは溜めた後の 1 撃だけ。
+ * スキルは lastHitAt を進めないので対象外（進めない命中で倍が乗り続けないように）
+ */
+export function mushinMul(state: GameState, kind: DamageKind, skill: boolean): number {
+  if (!hasKeystone(state, KS.mushin) || skill || (kind !== "melee" && kind !== "ranged")) return 1;
+  return state.time - state.player.moment.lastHitAt >= KEYSTONE.mushinIdleSec ? KEYSTONE.mushinMul : 1;
 }
 
-/** 回復量の倍率。狂戦士は半減、背水の誓いは交戦中の部屋で 0（制圧時の回復は部屋が開いた後に入る） */
-export function healMul(state: GameState): number {
-  if (hasKeystone(state, KS.backwater) && isEngaged(state)) return 0;
-  return hasKeystone(state, KS.berserker) ? KEYSTONE.berserkerHealMul : 1;
+/**
+ * ks_poverty（清貧）: 銭を持てない。拾った銭 amount が換わる気力（清貧でなければ undefined = 銭のまま）。
+ * 気力を足すのは呼び出し側（system/economy.ts）。ここから mana.ts を読むと keywords.ts との循環で KS が未初期化になる
+ */
+export function povertyMana(state: KeystoneHolder, amount: number): number | undefined {
+  if (!hasKeystone(state, KS.poverty)) return undefined;
+  return amount * KEYSTONE.povertyManaPerCoin;
+}
+
+/** 毎秒回復が有効か（吸血は無効） */
+export function regenAllowed(state: GameState): boolean {
+  return !hasKeystone(state, KS.vampire);
+}
+
+/**
+ * 回復量の倍率。今は回復を削る誓約が無い（狂戦士・背水は段取り 7d で性質へ移した）。
+ * combat.ts の呼び出しは口として残す（誓約で戻すときにここへ足す）
+ */
+export function healMul(_state: GameState): number {
+  return 1;
 }
 
 /** ks_vampire: ハートを拾えない */
@@ -170,28 +250,24 @@ export function payOverclockShoot(state: GameState): void {
 // マナの誓約（排他グループ mana）。数値効果（スキル威力・自然回復）は affixes.ts の apply で適用済み
 // ---------------------------------------------------------------------------
 
-/** ks_thirst: 自然回復を捨てた代わりの、通常攻撃の命中で戻るマナの倍率 */
-const THIRST_ATTACK_MANA_MUL = 3;
-
 /**
  * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
- * ks_silentVow は 0、ks_thirst は THIRST_ATTACK_MANA_MUL、ks_chant は KEYSTONE.chantManaMul。
+ * ks_silentVow は 0、ks_chant は KEYSTONE.chantManaMul。
  * ジャスト回避と撃破の回収は通常攻撃ではないので対象外
  */
 export function attackManaMul(state: KeystoneHolder): number {
   if (hasKeystone(state, KS.silentVow)) return 0;
-  if (hasKeystone(state, KS.thirst)) return THIRST_ATTACK_MANA_MUL;
   // 詠唱の誓い: 通常攻撃はほとんど傷を付けない代わりにマナの蛇口になる
   if (hasKeystone(state, KS.chant)) return KEYSTONE.chantManaMul;
   return 1;
 }
 
 /**
- * マナの自然回復が有効か（ks_thirst は無効）。
- * 装備分は computeStats で 0 にしてあるが、精神の派生（attributes.ts）が後から足すので tickMana でも止める
+ * マナの自然回復が有効か。今は止める誓約が無い（渇きの誓約は段取り 7d で消えた）。
+ * mana.ts / elites.ts の呼び出しは口として残す
  */
-export function manaRegenAllowed(state: KeystoneHolder): boolean {
-  return !hasKeystone(state, KS.thirst);
+export function manaRegenAllowed(_state: KeystoneHolder): boolean {
+  return true;
 }
 
 /** ks_overdraw: マナの不足分を払うのに要る HP（不足が無ければ 0） */

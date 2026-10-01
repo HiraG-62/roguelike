@@ -1,9 +1,10 @@
 import { type Enemy, type FloorKind, type GameState, type RoomState, allocId, pushLog, pushSfx } from "../core/state";
 import { pushPlayerEvent } from "../core/events";
+import { FIXED_DT } from "../core/loop";
 import type { Rng } from "../core/rng";
-import { type Vec, normalize, sub } from "../core/vec";
+import { normalize, sub } from "../core/vec";
 import { enemiesForDepth, type EnemyDef } from "../data/enemies";
-import { ATTR_GAIN, BOSS, CAVE, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { BOSS, CAVE, DEEP, FLOOR_LORD, HEAL, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { type CaveShapeOptions, carveArena } from "../map/cave";
 import { DEFAULT_GENERATOR_OPTIONS, type GeneratorOptions, generateMap, scaleGeneratorOptions } from "../map/generator";
 import {
@@ -13,14 +14,19 @@ import {
   Tile,
   getTile,
   inBounds,
+  isPassableTile,
   isWalkable,
   rectCenterPx,
   rectContainsPx,
   toIndex,
 } from "../map/grid";
+import { generateLayoutMap } from "../map/layout/index";
+import { generateLordHallMap } from "../map/layout/lordHall";
+import { chooseLayout } from "../map/layout/select";
+import type { FloorLayout, LayoutContext } from "../map/layout/types";
 import { snapCamera } from "./camera";
 import { COLOR_HEAL, healPlayer } from "./combat";
-import { addFloatingText, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
+import { addFloatingText, lordPullFx, resetFloorEffects, roomClearFx, roomLockFx, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { findFreeSpot } from "./enemyTraits";
 import { heartsAllowed } from "./keystones";
@@ -28,27 +34,17 @@ import { coreBlocksHearts } from "./boonCores";
 import { dropDepthReward, dropRoomReward, updateFloorItems } from "./loot";
 import { recordProvenance } from "../loot/provenance";
 import { fireTrigger } from "./triggers";
-import { circlesOverlap, overlapsTiles, overlapsWall } from "./physics";
-import { announceBoss, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
+import { circlesOverlap, isSolidTile, overlapsTiles, overlapsWall } from "./physics";
+import { announceBoss, bossKeyForDepth, isBossDepth, setupBossRoom, updateBossIntro } from "./boss";
 import { setupFloorLordRoom } from "./floorLord";
+import { chapterOf, deepFloorOf, heartChanceOf, isDeepDepth, skipsFloorLord } from "./chapters";
+import { announceDeep } from "./deep";
 import { planHidden, updateHiddenRoom } from "./hiddenRoom";
 import { dropGreedyLootAtPlayer, finalizeLinks, rescueCarried, rollElite, takeGreedyLoot } from "./elites";
-import {
-  applyBoonFloorRules,
-  boonHeartsAllowed,
-  extraEliteRoll,
-  offerBoons,
-  stairsGradeBoost,
-  onBoonEnemySpawned,
-  onBoonHeartPickup,
-  onBoonRoomClear,
-  onBoonRoomLock,
-  onBoonWaveStart,
-  onBossSpawned,
-} from "./boons";
+import { applyBoonFloorRules, boonHeartsAllowed, stairsGradeBoost } from "./boons";
+import { isAllied } from "./rules";
 import { resetExplored, revealAround } from "./explore";
 import { descendMana } from "./mana";
-import { grantAttributePoints } from "../ui/attributeAlloc";
 import {
   FLOOR_KIND_LABEL,
   announceAmbush,
@@ -66,20 +62,13 @@ import {
   updateShrines,
   waveMul,
 } from "./roomTypes";
-import {
-  ROAMING_ROOM,
-  assignRoamers,
-  makeRoamer,
-  populateCorridors,
-  reinforceDue,
-  roamCap,
-  roamSpawnPoint,
-  roamerCount,
-  updateRoamers,
-} from "./spawner";
+import { updateRoamers } from "./spawner";
+import { roomClearText } from "./jin";
+import { createBossJin, planJins, updateJinPhases, updateLookouts, wakeJin } from "./jinSpawn";
 import { biomeEnemyWeight, isInvertedDepth, placeBiomeTerrain, placeOssuaryCorpses } from "./biomes";
 import {
   assignExtraRoomKinds,
+  placeDonationShrine,
   clearSpecialRoom,
   enterSpecialRoom,
   ensureForkStairs,
@@ -89,16 +78,24 @@ import {
   roomHooks,
   setupSpecialRoom,
   stairsChoiceAt,
+  stairsRewardAt,
   updateSpecialRooms,
 } from "./specialRooms";
+import { type ExitReward, applyDangerReward, applyExitArrival, applyExitDanger, offerArrivalChoices, replacesArrivalRelic } from "./exits";
 import { onFloorStart, onRoomCleared, onRoomLocked, onRunEnemySpawned } from "./runEvents";
 import { hasMod, onOriginDescend, refreshRunStats, tierScoreMul } from "./runSetup";
-import { gainShards, onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
-import { CONTRACT, FLOOR_KIND } from "../data/tuning";
+import { onContractsFloorReached, onContractsRoomCleared, placeContractor, updateContractors } from "./contractors";
+import { placeContainers } from "./containers";
+import { placeMerchants, updateMerchants } from "./merchants";
+import { grantFloorArrival, onRoomClearedCoins, updateCoinPickups } from "./economy";
+import { FLOOR_KIND } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
+import { onRelicFloorStart } from "./namedRelics";
+import { announceChapterAhead, clearRun, updateFinale } from "./finale";
+import { placeNemesis } from "./nemesis";
 
 const START_ROOM = 0;
-/** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の戦闘部屋にする */
+/** 開始部屋の次の部屋（rooms 型では通路で最初に繋がる部屋）は必ず通常の部屋（陣の候補）にする */
 const FIRST_FIGHT_ROOM = 1;
 const PICKUP_RADIUS = 6;
 const LOCK_SHAKE = 3;
@@ -114,12 +111,15 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   const stolen = takeGreedyLoot(state);
   state.floorKind = kind ?? chooseFloorKind(state.depth, state.rng);
   state.floorAreaMul = rollAreaMul(state.rng, state.depth);
-  state.map = generateMap(mapShapeOf(state.floorKind), state.rng, generatorOptions(state.depth, state.floorKind, state.floorAreaMul));
+  // 型の抽選は面積の抽選の後（docs/ideas/map-gen-impl.md 2-5 の乱数の順）。前の階の型は上書きする前に読む
+  state.map = generateFloorMap(state, chooseLayout(state.rng, floorLayoutContext(state)));
+  state.floorLayout = state.map.layout ?? LEGACY_LAYOUT;
   // 洞窟の最後の塊（階段の部屋）が狭いと階の主の戦いが窮屈になるので広げる（rooms 型・major は何もしない。乱数を使わない）
-  if (!isBossDepth(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
+  if (!isBossDepth(state.depth) && !skipsFloorLord(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
     carveArena(state.map, state.map.rooms.length - 1, FLOOR_LORD.arenaRadius);
   }
-  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i]));
+  const doorIndex = createDoorIndex(state.map);
+  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, i, doorIndex));
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
@@ -127,6 +127,7 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   state.floorTime = 0;
   state.reaper = null;
   state.enemies = [];
+  state.jins = [];
   state.projectiles = [];
   state.pickups = [];
   state.particles = [];
@@ -150,40 +151,56 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   snapCamera(state);
   dropGreedyLootAtPlayer(state, stolen);
 
-  const bossRoom = bossRoomIndex(state);
+  // 章の休符（章の 1 階目）は階の主を出さない。最後の部屋は主のいない通常の部屋になる
+  const lordless = !isBossDepth(state.depth) && skipsFloorLord(state.depth);
+  const bossRoom = lordless ? -1 : bossRoomIndex(state);
   const last = state.rooms.length - 1;
   const reserved = new Set([START_ROOM, FIRST_FIGHT_ROOM, last]);
   assignRoomKinds(state, reserved);
   assignExtraRoomKinds(state, reserved);
   applyBoonFloorRules(state, reserved);
+  // 出口の予告「危険」: 巣窟 / 闘技場 / 試練を 1 つ強制する（部屋の準備の前）
+  applyExitDanger(state, reserved);
   state.rooms.forEach((room, i) => {
     if (i === START_ROOM) return;
     if (i === bossRoom) {
       if (isBossDepth(state.depth)) setupBossRoom(state, i);
       else setupFloorLordRoom(state, i);
-      onBossSpawned(state);
       return;
     }
     if (room.kind === "shrine") setupShrine(state, room);
     setupSpecialRoom(state, room);
-    if (startsEmpty(room.kind)) return;
+    // 通常の部屋は陣（planJins）が受け持つ。特別な部屋で最初から敵がいる種類（巣・潮の間など）は従来どおり
+    if (startsEmpty(room.kind) || room.kind === "normal") return;
     populateRoom(state, room, i);
   });
+  // ボス階の専用の部屋は入口 → 前室 → 主の間の 1 本道で、道中の戦闘を置かない（docs/ideas/lordhall-design.md 8 章）
+  if (state.floorLayout !== LORD_HALL_LAYOUT) planJins(state, new Set([START_ROOM, bossRoom]));
   revealAround(state);
   // ここから下の乱数は部屋の中身が決まった後に引く（既存の部屋・敵の配置の乱数消費を変えない）
   const ends = new Set([START_ROOM, last]);
   placeBiomeTerrain(state, ends);
   placeOssuaryCorpses(state, ends);
   planForkStairs(state);
-  assignRoamers(state, new Set([START_ROOM, bossRoom]));
-  populateCorridors(state, pickEnemy, spawnCorridorRoamer);
   clearEmptyOpenRooms(state);
   onFloorStart(state);
   // 契約者と上り階段は最後に置く（それより前の乱数消費を変えない）
   placeContractor(state);
   placeAscend(state);
+  // 章の境の休符の祠は乱数を使わないので置く順は問わない（契約者の後ろに置いて既存の抽選に触れない）
+  placeDonationShrine(state);
   // 隠し部屋の計画は一番最後（それより前の乱数消費を変えないため）
   planHidden(state);
+  // 市の商人は隠し部屋の後（それより前の乱数消費を変えない。system/merchants.ts）
+  placeMerchants(state);
+  // 壺・木箱は商人の台座を避けて最後に置く（それより前の乱数消費を変えない。system/containers.ts）
+  placeContainers(state);
+  // 名のある遺物の階の到着（賽の目は装備しているときだけ乱数を引く。それより前の乱数消費を変えない）
+  onRelicFloorStart(state);
+  // 仇は陣が揃った後に足す（仇のいないランは何もしない。それより前の乱数消費を変えない。system/nemesis.ts）
+  placeNemesis(state);
+  // 出口の予告はこの階を作るためだけに使う。次の階へ持ち越さない
+  state.pendingExit = null;
 }
 
 /**
@@ -197,12 +214,13 @@ function clearEmptyOpenRooms(state: GameState): void {
   });
 }
 
-function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined): RoomState {
+function createRoomState(map: GameMap, rect: Rect, index: number, doorIndex: DoorIndex): RoomState {
+  const tileList = map.roomTiles?.[index];
   return {
     rect,
     cleared: false,
     locked: false,
-    doorTiles: tileList ? findBlobDoorTiles(map, tileList) : findDoorTiles(map, rect),
+    doorTiles: tileList ? roomBlobDoorTiles(doorIndex, index, tileList) : findDoorTiles(map, rect),
     kind: "normal",
     wave: 0,
     used: false,
@@ -259,6 +277,46 @@ function generatorOptions(depth: number, kind: FloorKind, areaMul: number): Gene
   return { ...base, lastRoomMin: min };
 }
 
+/** 旧生成器（フロア種別の MAP_SHAPE の rooms / cave）の型名 */
+const LEGACY_LAYOUT: FloorLayout = "legacy";
+/** ボス階の専用の部屋の型名 */
+const LORD_HALL_LAYOUT: FloorLayout = "lordHall";
+
+/** この階の型を選ぶ文脈。previous は前の階で実際に使った型（state.floorLayout を上書きする前に読む） */
+export function floorLayoutContext(state: GameState): LayoutContext {
+  return {
+    depth: state.depth,
+    chapter: chapterOf(state.depth),
+    isDeep: isDeepDepth(state.depth),
+    isBossFloor: isBossDepth(state.depth),
+    floorKind: state.floorKind,
+    previous: state.floorLayout,
+  };
+}
+
+/**
+ * 型 layout でこの階の地図を作る（docs/ideas/map-gen-impl.md 2-5）。型の生成器が作れなければ（検査に全部落ちた）
+ * 同じ rng のまま旧生成器へ落ちる。返す地図の layout は実際に使った型。型の areaScale で地図が要求より小さいことがある
+ */
+export function generateFloorMap(state: GameState, layout: FloorLayout): GameMap {
+  const options = generatorOptions(state.depth, state.floorKind, state.floorAreaMul ?? 1);
+  switch (layout) {
+    case "legacy":
+      return legacyFloorMap(state, options);
+    case "lordHall":
+      // 手描きの格子を並べるだけで乱数を引かない（docs/ideas/lordhall-design.md 5 章）
+      return generateLordHallMap(bossKeyForDepth(state.depth));
+    default:
+      return generateLayoutMap(layout, state.rng, options.width, options.height) ?? legacyFloorMap(state, options);
+  }
+}
+
+function legacyFloorMap(state: GameState, options: GeneratorOptions): GameMap {
+  const map = generateMap(mapShapeOf(state.floorKind), state.rng, options);
+  map.layout = LEGACY_LAYOUT;
+  return map;
+}
+
 /** 最後の部屋（階段の部屋。毎階、階の主かボスが出る）。部屋が 1 つしか無ければ -1 */
 function bossRoomIndex(state: GameState): number {
   const last = state.rooms.length - 1;
@@ -281,16 +339,10 @@ function findDoorTiles(map: GameMap, r: Rect): number[] {
   return tiles;
 }
 
-const NEIGHBORS_8 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [1, -1],
-  [-1, 1],
-  [-1, -1],
-] as const;
+/** 8 近傍の差分。x と y を別の表にして内側のループで組を分解しない（並びは扉の候補の順を変えないよう旧来と同じ） */
+const N8_DX = [1, -1, 0, 0, 1, 1, -1, -1] as const;
+const N8_DY = [0, 0, 1, -1, 1, -1, 1, -1] as const;
+const N8_COUNT = 8;
 
 /** findBlobDoorTiles の印。マップごとに 1 枚を使い回し、呼ぶたびに印の番号を 2 つ進める（部屋 = stamp、扉 = stamp + 1） */
 interface DoorMarks {
@@ -311,29 +363,197 @@ function doorMarksOf(map: GameMap): DoorMarks {
 }
 
 /**
- * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
- * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える
+ * どれかの部屋の所属タイルか（1 = 所属）。階ごとに 1 回作って全部の部屋の扉探しで共有する
+ * （部屋ごとに「他の部屋のタイルの Set」を作り直すと、部屋の数の 2 乗で重くなるため）
  */
-function findBlobDoorTiles(map: GameMap, tiles: readonly number[]): number[] {
+export function roomTileMask(map: GameMap): Uint8Array {
+  const mask = new Uint8Array(map.tiles.length);
+  for (const list of map.roomTiles ?? []) for (const t of list) mask[t] = 1;
+  return mask;
+}
+
+/**
+ * 塊の部屋の出入口 = 塊に 8 近傍で接する、塊の外の床（斜めのすり抜けも塞ぐ）。
+ * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える。inAnyRoom は roomTileMask(map)
+ */
+export function findBlobDoorTiles(map: GameMap, tiles: readonly number[], inAnyRoom: Uint8Array = roomTileMask(map)): number[] {
+  return dropPocketDoors(map, tiles, blobDoorCandidates(map, tiles), inAnyRoom).sort((a, b) => a - b);
+}
+
+/** 扉の候補: 塊に 8 近傍で接する、塊の外の床（重複なし。並びは塊のタイル順 × 近傍の順） */
+function blobDoorCandidates(map: GameMap, tiles: readonly number[]): number[] {
   const { mark, stamp } = doorMarksOf(map);
   const roomStamp = stamp;
   const doorStamp = stamp + 1;
+  const { width, height, tiles: cells } = map;
   for (const i of tiles) mark[i] = roomStamp;
   const doors: number[] = [];
   for (const i of tiles) {
-    const x = i % map.width;
-    const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_8) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!isWalkable(map, nx, ny)) continue;
-      const ni = toIndex(map, nx, ny);
-      if (mark[ni] === roomStamp || mark[ni] === doorStamp) continue;
+    const x = i % width;
+    const y = Math.floor(i / width);
+    for (let k = 0; k < N8_COUNT; k++) {
+      const nx = x + (N8_DX[k] ?? 0);
+      const ny = y + (N8_DY[k] ?? 0);
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const ni = ny * width + nx;
+      if (!isPassableTile(cells[ni] ?? Tile.Wall) || mark[ni] === roomStamp || mark[ni] === doorStamp) continue;
       mark[ni] = doorStamp;
       doors.push(ni);
     }
   }
-  return doors.sort((a, b) => a - b);
+  return doors;
+}
+
+/**
+ * 袋の扉を除く: 扉の候補から、部屋の外の床を 8 近傍で辿っても他の部屋のタイルに行き着かない成分（塊の中の首・柱の裏の窪み・
+ * 主の間に取り込まれた床）に属するものを外す。封鎖しても外へ出られないので、閉じると部屋の中に見えない壁ができるだけになる
+ */
+function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly number[], inAnyRoom: Uint8Array): number[] {
+  const own = new Set(tiles);
+  const seen = new Set<number>();
+  const keep: number[] = [];
+  const doorSet = new Set(doors);
+  for (const d of doors) {
+    if (seen.has(d)) continue;
+    const comp = [d];
+    seen.add(d);
+    let exit = false;
+    for (let head = 0; head < comp.length; head++) {
+      const i = comp[head] ?? 0;
+      const x = i % map.width;
+      const y = Math.floor(i / map.width);
+      for (let k = 0; k < N8_COUNT; k++) {
+        const nx = x + (N8_DX[k] ?? 0);
+        const ny = y + (N8_DY[k] ?? 0);
+        if (!isWalkable(map, nx, ny)) continue;
+        const ni = toIndex(map, nx, ny);
+        if (own.has(ni) || seen.has(ni)) continue;
+        // 自分のタイルは上で除いたので、ここで部屋の所属なら他の部屋
+        if (inAnyRoom[ni] === 1) {
+          exit = true;
+          continue;
+        }
+        seen.add(ni);
+        comp.push(ni);
+      }
+    }
+    if (!exit) continue;
+    for (const c of comp) if (doorSet.has(c)) keep.push(c);
+  }
+  return keep;
+}
+
+/** タイルの持ち主: どの部屋のタイルでもない */
+const NO_ROOM = -1;
+/** タイルの持ち主: 2 つ以上の部屋が同じタイルを持つ */
+const SHARED_ROOM = -2;
+/** 部屋の外の床の成分が、2 つ以上の部屋（の持ち主の値）に接する */
+const MANY_ROOMS = -3;
+/** 部屋の外の床でないタイルの成分番号 */
+const NO_COMPONENT = -1;
+
+/**
+ * 階ごとの扉探しの下ごしらえ。部屋ごとに袋の扉を探すと、部屋の外の床（通路網）を部屋の数だけ辿り直して重い
+ * （通路の多い型で buildFloor の半分を超えた）。部屋の外の床の 8 近傍の成分と「その成分が接する部屋」を 1 回だけ数えて共有する
+ */
+interface DoorIndex {
+  map: GameMap;
+  /** タイルの持ち主の部屋（NO_ROOM / 部屋の番号 / SHARED_ROOM） */
+  owner: Int32Array;
+  inAnyRoom: Uint8Array;
+  /** 部屋の外の床の成分（最初に塊の部屋の扉を探すときに作る） */
+  outside: OutsideComponents | null;
+}
+
+interface OutsideComponents {
+  /** タイルの成分番号（部屋の外の床でなければ NO_COMPONENT） */
+  label: Int32Array;
+  /** 成分ごとの接する部屋（NO_ROOM / 部屋の番号 / SHARED_ROOM / MANY_ROOMS） */
+  touches: number[];
+}
+
+function createDoorIndex(map: GameMap): DoorIndex {
+  const owner = new Int32Array(map.tiles.length).fill(NO_ROOM);
+  const inAnyRoom = new Uint8Array(map.tiles.length);
+  (map.roomTiles ?? []).forEach((list, room) => {
+    for (const t of list) {
+      inAnyRoom[t] = 1;
+      const o = owner[t] ?? NO_ROOM;
+      owner[t] = o === NO_ROOM || o === room ? room : SHARED_ROOM;
+    }
+  });
+  return { map, owner, inAnyRoom, outside: null };
+}
+
+/** 成分の接する部屋に room を足す。違う部屋が 2 つ揃ったら MANY_ROOMS */
+function mergeTouch(current: number, room: number): number {
+  return current === NO_ROOM || current === room ? room : MANY_ROOMS;
+}
+
+/** 部屋の外の床（通れる・どの部屋のタイルでもない）を 8 近傍でつないだ成分と、成分ごとの接する部屋（通れる部屋のタイルだけ数える） */
+function labelOutside(index: DoorIndex): OutsideComponents {
+  const { map, owner, inAnyRoom } = index;
+  const { width, height, tiles: cells } = map;
+  const label = new Int32Array(cells.length).fill(NO_COMPONENT);
+  const touches: number[] = [];
+  const queue = new Int32Array(cells.length);
+  for (let start = 0; start < cells.length; start++) {
+    if (label[start] !== NO_COMPONENT || inAnyRoom[start] === 1 || !isPassableTile(cells[start] ?? Tile.Wall)) continue;
+    const id = touches.length;
+    let touch = NO_ROOM;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    label[start] = id;
+    while (head < tail) {
+      const i = queue[head++] ?? 0;
+      const x = i % width;
+      const y = Math.floor(i / width);
+      for (let k = 0; k < N8_COUNT; k++) {
+        const nx = x + (N8_DX[k] ?? 0);
+        const ny = y + (N8_DY[k] ?? 0);
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const ni = ny * width + nx;
+        if (!isPassableTile(cells[ni] ?? Tile.Wall)) continue;
+        if (inAnyRoom[ni] === 1) {
+          touch = mergeTouch(touch, owner[ni] ?? NO_ROOM);
+          continue;
+        }
+        if (label[ni] !== NO_COMPONENT) continue;
+        label[ni] = id;
+        queue[tail++] = ni;
+      }
+    }
+    touches.push(touch);
+  }
+  return { label, touches };
+}
+
+/**
+ * 部屋 room（所属タイル tiles = map.roomTiles[room]）の扉。結果は findBlobDoorTiles と同じ。
+ * 扉の候補がどれも部屋の外の床で、部屋のタイルを他の部屋と共有していなければ、候補の成分が自分以外の部屋に接するかで袋を見分ける
+ * （袋の判定 = 成分を辿って他の部屋のタイルに行き着くか、と同じ）。そうでない珍しい形は部屋ごとに辿る元のやり方に任せる
+ */
+function roomBlobDoorTiles(index: DoorIndex, room: number, tiles: readonly number[]): number[] {
+  const doors = blobDoorCandidates(index.map, tiles);
+  if (!sharesComponents(index, room, tiles, doors)) {
+    return dropPocketDoors(index.map, tiles, doors, index.inAnyRoom).sort((a, b) => a - b);
+  }
+  index.outside ??= labelOutside(index);
+  const { label, touches } = index.outside;
+  return doors.filter((d) => leadsElsewhere(touches[label[d] ?? NO_COMPONENT] ?? NO_ROOM, room)).sort((a, b) => a - b);
+}
+
+/** 共有の成分で袋を見分けられるか: 部屋のタイルを他の部屋と共有せず、扉の候補がどれも他の部屋のタイルでない */
+function sharesComponents(index: DoorIndex, room: number, tiles: readonly number[], doors: readonly number[]): boolean {
+  for (const t of tiles) if (index.owner[t] !== room) return false;
+  for (const d of doors) if (index.inAnyRoom[d] === 1) return false;
+  return true;
+}
+
+/** 成分の接する部屋に、room 以外の部屋があるか */
+function leadsElsewhere(touch: number, room: number): boolean {
+  return touch === MANY_ROOMS || (touch !== NO_ROOM && touch !== room);
 }
 
 /** 部屋に置く敵の抽選回数。広い階（部屋も大きい）は 面積の倍率 ^ MAP_SIZE.roomEnemiesExp 倍（倍率 1 なら基準と同じ） */
@@ -344,9 +564,9 @@ export function enemyCount(state: GameState): number {
   return Math.min(maxEnemiesFor(state.depth), scaled);
 }
 
-/** 部屋の敵数の上限。無限の深み（FLOOR_KIND.deepDepth 以降）では上限を外して数でも押す */
+/** 部屋の敵数の上限。深み（最深の間の次の階から）では上限を上げて数でも押す */
 export function maxEnemiesFor(depth: number): number {
-  return ROOM.maxEnemies + (depth >= FLOOR_KIND.deepDepth ? FLOOR_KIND.deepMaxEnemiesBonus : 0);
+  return ROOM.maxEnemies + (isDeepDepth(depth) ? DEEP.maxEnemiesBonus : 0);
 }
 
 function populateRoom(state: GameState, room: RoomState, index: number): void {
@@ -364,10 +584,8 @@ function spawnGroup(state: GameState, room: RoomState, index: number, spawning: 
     if (!pos) continue;
     const e = createEnemy(state, def, pos, index, spawning);
     if (spawning) e.phaseTimer = ROOM.spawnTelegraph;
-    onBoonEnemySpawned(state, e);
     onRunEnemySpawned(state, e);
     rollElite(state, e);
-    if (extraEliteRoll(state, e)) rollElite(state, e);
     state.enemies.push(e);
   }
 }
@@ -398,21 +616,6 @@ export function pickEnemy(state: GameState): EnemyDef {
     if (roll <= 0) return def;
   }
   return pool[pool.length - 1] ?? pool[0]!;
-}
-
-/**
- * 通路に置く徘徊（spawner.ts の populateCorridors が呼ぶ）。部屋の湧きと同じフック
- * （祝福・ランイベント・エリート）を通してから push した敵を返す。roomIndex は
- * ROAMING_ROOM 固定なので、この階では最初からどの部屋にも属さない
- */
-function spawnCorridorRoamer(state: GameState, def: EnemyDef, pos: Vec): Enemy {
-  const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
-  onBoonEnemySpawned(state, e);
-  onRunEnemySpawned(state, e);
-  rollElite(state, e);
-  if (extraEliteRoll(state, e)) rollElite(state, e);
-  state.enemies.push(e);
-  return e;
 }
 
 const FREE_POINT_ATTEMPTS = 30;
@@ -492,7 +695,7 @@ export function insideRoom(state: GameState, room: RoomState, px: number, py: nu
   return ENTER_PROBES.every(([dx, dy]) => pxInRoomTiles(state, room, px + dx * margin, py + dy * margin));
 }
 
-/** 部屋のロック/解除・開放型の交戦と制圧、徘徊と増援、階段、ピックアップ */
+/** 部屋のロック/解除・開放型の交戦と制圧、徘徊と陣の進行、階段、ピックアップ */
 export function updateRooms(state: GameState, dt: number): void {
   revealAround(state);
   state.rooms.forEach((room, i) => {
@@ -505,23 +708,30 @@ export function updateRooms(state: GameState, dt: number): void {
   });
 
   updateRoamers(state, dt);
-  if (reinforceDue(state, dt)) spawnRoamReinforcement(state);
+  updateJinPhases(state);
+  updateLookouts(state);
   updateShrines(state);
   updateSpecialRooms(state, dt);
   updateContractors(state, dt);
+  updateMerchants(state, dt);
   ensureForkStairs(state);
   updateBossIntro(state, dt);
   updatePickups(state, dt);
   updateFloorItems(state, dt);
   updateHiddenRoom(state, dt);
   checkStairs(state);
+  updateFinale(state);
 }
 
+/** 封鎖中に扉の向こうへ取り残された敵がいないかを見る間隔（tick。約 1 秒。整数の tick で数えるので浮動小数の比較が無い） */
+const STRAY_CHECK_TICKS = Math.max(1, Math.round(1 / FIXED_DT));
+
 function updateLockedRoom(state: GameState, room: RoomState, index: number): void {
+  // 閉じた扉の向こう（壁すり抜けの敵が出た、塊が扉で分かれた）の敵は倒せず、制圧が永遠に終わらない。足元から届く側へ戻す
+  if (state.tick % STRAY_CHECK_TICKS === 0) pullStraysInside(state, room, index, false);
   if (roomAlive(state, index)) return;
   if (hasMoreWaves(room)) {
     startWave(state, room, () => spawnWave(state, room, index));
-    onBoonWaveStart(state, room);
     return;
   }
   clearRoom(state, room, index);
@@ -535,19 +745,74 @@ function updateOpenRoom(state: GameState, room: RoomState, index: number): void 
   const p = state.player.body.pos;
   if (!room.engaged) {
     if (insideRoom(state, room, p.x, p.y, ROOM.enterMargin)) enterRoom(state, room, index);
+    else if (lordProvoked(state, index)) summonIntoLordHall(state, room, index);
     else if (!roomLocks(state, index) && roomNoticed(state, index)) engageRoom(state, room, index);
   }
   if (room.cleared || room.locked || !room.engaged) return;
   if (!roomAlive(state, index)) clearRoom(state, room, index);
 }
 
+/** 部屋にまだ生きた敵がいるか（従魔は制圧の数に入れない） */
 function roomAlive(state: GameState, index: number): boolean {
-  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0);
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && !isAllied(state, e));
 }
 
 /** 部屋の敵のどれかがプレイヤーに気付いた（idle から抜けた） */
 function roomNoticed(state: GameState, index: number): boolean {
   return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && e.phase !== "idle");
+}
+
+/**
+ * ボス階の主の間が、封鎖前に傷を負ったか（門の通路は主の立つ中央へまっすぐ向くので、入らずに撃てる）。
+ * 主の間の敵は主（と双子の相方）だけで、封鎖前の主の間でプレイヤー以外に主を傷つけるものは無いので、
+ * 「HP が減った」をプレイヤーの攻撃の印にする（combat.ts の被弾の流れに手を入れずに済む）。
+ * 通常の階の階の主（陣の部屋）は対象にしない
+ */
+function lordProvoked(state: GameState, index: number): boolean {
+  const boss = state.boss;
+  if (state.floorLayout !== "lordHall" || !boss || boss.roomIndex !== index || boss.defeated) return false;
+  return state.enemies.some((e) => e.roomIndex === index && e.hp > 0 && e.hp < e.maxHp && !isAllied(state, e));
+}
+
+/**
+ * 封鎖前の狙撃への答え: 主の間の外にいるプレイヤーを主の間の口の内側へ引き込み、そのまま封鎖する。
+ * 主を起こして外へ追わせる案は採らない（ボスの技・記録・登場演出はどれも封鎖した主の間の中で戦う前提で、
+ * 外で戦うと封鎖の時刻が付かず記録が残らない・取り巻きや仕掛けが主の間に出る）。寄せ先が無ければ封鎖しない（締め出さない）
+ */
+function summonIntoLordHall(state: GameState, room: RoomState, index: number): void {
+  const to = summonSpot(state, room);
+  if (!to) return;
+  const body = state.player.body;
+  lordPullFx(state, body.pos, to);
+  body.pos = to;
+  body.vel = { x: 0, y: 0 };
+  snapCamera(state);
+  lockRoom(state, room, index);
+}
+
+/**
+ * 引き込み先: 部屋に入ったとみなされ（ROOM.enterMargin）、壁・扉・生きた敵に重ならない部屋のタイルの中心のうち、
+ * プレイヤーに一番近いもの（同じ距離は部屋タイルの走査順で先。乱数は使わない）
+ */
+function summonSpot(state: GameState, room: RoomState): { x: number; y: number } | null {
+  const p = state.player.body.pos;
+  const r = state.player.body.radius;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const t of roomTileIndices(state, room)) {
+    const c = tileCenterPx(state, t);
+    const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+    if (d >= bestD || !summonSpotFree(state, room, c.x, c.y, r)) continue;
+    best = c;
+    bestD = d;
+  }
+  return best;
+}
+
+function summonSpotFree(state: GameState, room: RoomState, x: number, y: number, r: number): boolean {
+  if (!insideRoom(state, room, x, y, ROOM.enterMargin)) return false;
+  if (overlapsWall(state, x, y, r) || circleOnDoorTiles(state, room, x, y, r)) return false;
+  return !state.enemies.some((e) => e.hp > 0 && circlesOverlap(x, y, r, e.body.pos.x, e.body.pos.y, e.body.radius));
 }
 
 /**
@@ -557,13 +822,22 @@ function roomNoticed(state: GameState, index: number): boolean {
 function engageRoom(state: GameState, room: RoomState, index: number): void {
   room.engaged = true;
   if (!roomAlive(state, index)) return;
-  for (const e of state.enemies) {
-    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
-  }
-  onBoonRoomLock(state, index);
+  wakeRoom(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   applyCurse(state, index);
+}
+
+/**
+ * 部屋の敵をまとめて起こす: 塊に乗った陣は wakeJin（気付いた者の近くだけ。残りは後詰）、陣に属さない敵（特別な部屋の湧き）も起こす
+ */
+function wakeRoom(state: GameState, index: number): void {
+  for (const jin of state.jins) {
+    if (jin.roomIndex === index) wakeJin(state, jin);
+  }
+  for (const e of state.enemies) {
+    if (e.roomIndex === index && e.jinId === undefined && e.phase === "idle") e.phase = "chase";
+  }
 }
 
 function enterRoom(state: GameState, room: RoomState, index: number): void {
@@ -697,29 +971,100 @@ function roomTileIndices(state: GameState, room: RoomState): number[] {
   return out;
 }
 
-/** 寄せ先に使えるか: 部屋に収まり、壁・扉・他の生きた敵に重ならない */
-function strayTargetFree(state: GameState, room: RoomState, e: Enemy, x: number, y: number): boolean {
+/** 寄せ先に使えるか: 部屋に収まり、壁・扉に重ならない。avoidEnemies なら他の生きた敵にも重ならない */
+function strayTargetFree(state: GameState, room: RoomState, e: Enemy, x: number, y: number, avoidEnemies: boolean): boolean {
   const r = e.body.radius;
   if (!room.tiles && !rectContainsPx(room.rect, x, y, r)) return false;
   if (!circleInRoomTiles(state, room, x, y, r)) return false;
   if (overlapsWall(state, x, y, r) || circleOnDoorTiles(state, room, x, y, r)) return false;
+  if (!avoidEnemies) return true;
   return !state.enemies.some((o) => o !== e && o.hp > 0 && circlesOverlap(x, y, r, o.body.pos.x, o.body.pos.y, o.body.radius));
 }
 
+/** タイル添字の中心（px） */
+function tileCenterPx(state: GameState, t: number): { x: number; y: number } {
+  return { x: ((t % state.map.width) + 0.5) * TILE_SIZE, y: (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE };
+}
+
+/** reachableFromPlayer の印: 届く床（寄せ先・敵の位置に使える） */
+const REACH_FLOOR = 1;
+/** reachableFromPlayer の印: 骨の壁（通り抜けて先を数えるが、寄せ先にも「届く敵の位置」にもしない） */
+const REACH_BONE_WALL = 2;
+
+/** 骨の壁（ボス・骨猪・柵が立てる一時の壁。lockedTiles に入る）のタイル */
+function boneWallTiles(state: GameState): ReadonlySet<number> {
+  const out = new Set<number>();
+  for (const h of state.hazards) if (h.kind === "boneWall") out.add(h.tile);
+  return out;
+}
+
 /**
- * 寄せ先。部屋の床タイルの中心から、プレイヤーから一番遠い空き地点を選ぶ
+ * プレイヤーのタイルから 4 近傍で歩いて届くタイルの印（壁と封鎖中の扉で塞がる）。
+ * 骨の壁は崩せば・待てば通れるので塞がない扱いにする（塞ぐと、骨の壁で区切られた側の敵や、
+ * 骨の壁に囲まれたプレイヤーの周りへ部屋の敵が毎秒寄せられて、壁で分断する技が成り立たない）。
+ * 配列はタイル数ぶんの 1 枚だけ。プレイヤーが部屋の外、または壁・扉の上にいるとき（押し出し中など）は判定できないので null
+ */
+function reachableFromPlayer(state: GameState, room: RoomState): Uint8Array | null {
+  const map = state.map;
+  const p = state.player.body.pos;
+  // 部屋の外にいる（扉の向こうへ出た）なら「届く側」は外の世界になってしまい、部屋の敵を全員外へ寄せかねない
+  if (!insideRoom(state, room, p.x, p.y, 0)) return null;
+  const sx = Math.floor(p.x / TILE_SIZE);
+  const sy = Math.floor(p.y / TILE_SIZE);
+  if (isSolidTile(state, sx, sy)) return null;
+  const bone = boneWallTiles(state);
+  const reach = new Uint8Array(map.tiles.length);
+  const queue: number[] = [toIndex(map, sx, sy)];
+  reach[queue[0] ?? 0] = REACH_FLOOR;
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head] ?? 0;
+    const x = i % map.width;
+    const y = Math.floor(i / map.width);
+    for (const c of CARDINALS) {
+      const nx = x + c.x;
+      const ny = y + c.y;
+      // 穴も塞ぐ（川・池の向こう岸の敵は歩いて届かないので寄せる）
+      if (!inBounds(map, nx, ny) || !isPassableTile(getTile(map, nx, ny))) continue;
+      const ni = toIndex(map, nx, ny);
+      if (reach[ni] !== 0) continue;
+      const isBone = bone.has(ni);
+      if (state.lockedTiles.has(ni) && !isBone) continue;
+      reach[ni] = isBone ? REACH_BONE_WALL : REACH_FLOOR;
+      queue.push(ni);
+    }
+  }
+  return reach;
+}
+
+/** 敵の中心のタイルに届けるか（マップ外は届かない） */
+function reachesEnemy(state: GameState, reach: Uint8Array, e: Enemy): boolean {
+  const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+  const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+  return inBounds(state.map, tx, ty) && reach[toIndex(state.map, tx, ty)] === REACH_FLOOR;
+}
+
+/** 壁をすり抜ける敵が壁（か穴）の中にいる（通り抜けの途中。寄せると毎秒瞬間移動するので見逃す） */
+function phasingInWall(state: GameState, e: Enemy): boolean {
+  if (!enemyDef(e.defKey).phasing) return false;
+  const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+  const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+  return !inBounds(state.map, tx, ty) || !isPassableTile(getTile(state.map, tx, ty));
+}
+
+/**
+ * 寄せ先: 部屋の床タイルのうち、届くもの（reach）の中でプレイヤーから一番遠い空き地点
  * （ROAM.minSpawnDist 以上離れた点があれば必ずそれが選ばれる。目の前に湧かせないため）。
  * 空きが無ければ部屋の中心付近の空き、それも無ければ中心
  */
-function strayTarget(state: GameState, room: RoomState, e: Enemy): { x: number; y: number } {
+function strayTarget(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array | null): { x: number; y: number } {
   const p = state.player.body.pos;
   let best: { x: number; y: number } | null = null;
   let bestD = -1;
   for (const t of roomTileIndices(state, room)) {
-    const x = ((t % state.map.width) + 0.5) * TILE_SIZE;
-    const y = (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE;
+    if (reach && reach[t] !== REACH_FLOOR) continue;
+    const { x, y } = tileCenterPx(state, t);
     const d = Math.hypot(x - p.x, y - p.y);
-    if (d <= bestD || !strayTargetFree(state, room, e, x, y)) continue;
+    if (d <= bestD || !strayTargetFree(state, room, e, x, y, true)) continue;
     best = { x, y };
     bestD = d;
     if (d >= ROAM.minSpawnDist) break;
@@ -730,16 +1075,57 @@ function strayTarget(state: GameState, room: RoomState, e: Enemy): { x: number; 
 }
 
 /**
- * 封鎖の瞬間に部屋の外にいる自室の生きた敵を中へ寄せる。roomAlive は roomIndex だけで数えるので、
- * 外に出た自室の敵（追跡で出た雑魚、抱えて逃げた強欲の）が残ると閉じた扉越しに倒せず制圧できなくなる。
- * 決定性のため敵 id 順に処理し、乱数は使わない
+ * 寄せ先: 届く部屋タイルのうち、敵の元の位置に一番近いタイルの中心（同じ距離は部屋タイルの走査順で先）。
+ * まず他の敵に重ならない所、無ければ重なってよい所、それも無ければ届く最寄りのタイルの中心。届くタイルが 1 つも無ければ null
  */
-function pullStraysInside(state: GameState, room: RoomState, index: number): void {
-  const strays = state.enemies
-    .filter((e) => e.roomIndex === index && e.hp > 0 && !enemyInRoom(state, room, e))
-    .sort((a, b) => a.id - b.id);
+function nearestReachableTarget(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array): { x: number; y: number } | null {
+  const from = e.body.pos;
+  const pick = (accept: (x: number, y: number) => boolean): { x: number; y: number } | null => {
+    let best: { x: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (const t of roomTileIndices(state, room)) {
+      if (reach[t] !== REACH_FLOOR) continue;
+      const c = tileCenterPx(state, t);
+      const d = (c.x - from.x) ** 2 + (c.y - from.y) ** 2;
+      // 近さで足切りしてから空きを調べる（空きの判定は生きた敵の全走査なので、全タイルでは呼ばない）
+      if (d >= bestD || !accept(c.x, c.y)) continue;
+      best = c;
+      bestD = d;
+    }
+    return best;
+  };
+  return (
+    pick((x, y) => strayTargetFree(state, room, e, x, y, true)) ??
+    pick((x, y) => strayTargetFree(state, room, e, x, y, false)) ??
+    pick(() => true)
+  );
+}
+
+/**
+ * 寄せる敵か。atLock（封鎖の瞬間）は部屋の外にいる自室の敵も対象。
+ * どちらでも、足元（プレイヤーのタイル）から歩いて届かない敵は対象にする（閉じた扉の向こうに残った・塊が扉で分かれた）。
+ * 壁の中を通り抜けている最中の敵は見逃す（reach が null = プレイヤーが判定できない位置なら部屋の外の判定だけ）
+ */
+function isStray(state: GameState, room: RoomState, e: Enemy, reach: Uint8Array | null, atLock: boolean): boolean {
+  if (atLock && !enemyInRoom(state, room, e)) return true;
+  if (!reach || reachesEnemy(state, reach, e)) return false;
+  return !phasingInWall(state, e);
+}
+
+/**
+ * 自室の生きた敵のうち、封鎖の扉越しに倒せなくなったものを中へ寄せる。roomAlive は roomIndex だけで数えるので、
+ * 外に出た自室の敵（追跡で出た雑魚、抱えて逃げた強欲の）や、扉で分かれた塊の向こうの敵が残ると制圧できなくなる。
+ * 封鎖の瞬間（atLock）の外の敵はプレイヤーから遠い所へ、それ以外は元の位置に一番近い届く所へ寄せる。
+ * 決定性のため敵 id 順に処理し、乱数は使わない。扉を閉じた後（lockedTiles に入った後）に呼ぶ
+ */
+function pullStraysInside(state: GameState, room: RoomState, index: number, atLock: boolean): void {
+  const own = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0 && !isAllied(state, e));
+  if (own.length === 0) return;
+  const reach = reachableFromPlayer(state, room);
+  const strays = own.filter((e) => isStray(state, room, e, reach, atLock)).sort((a, b) => a.id - b.id);
   for (const e of strays) {
-    const to = strayTarget(state, room, e);
+    const outside = atLock && !enemyInRoom(state, room, e);
+    const to = (reach && !outside ? nearestReachableTarget(state, room, e, reach) : null) ?? strayTarget(state, room, e, reach);
     e.body.pos.x = to.x;
     e.body.pos.y = to.y;
   }
@@ -747,16 +1133,14 @@ function pullStraysInside(state: GameState, room: RoomState, index: number): voi
 
 function lockRoom(state: GameState, room: RoomState, index: number): void {
   const rescued = pushEnemiesOffDoorTiles(state, room, index);
-  pullStraysInside(state, room, index);
   room.locked = true;
   for (const t of room.doorTiles) state.lockedTiles.add(t);
+  // 扉を閉じた後に寄せる（届くかどうかを閉じた扉込みで数えるため）
+  pullStraysInside(state, room, index, true);
   // 扉を閉じた後に置く（閉じる前だと扉タイルの上に落ちて、制圧まで壁の中に埋まる）
   dropGreedyLootAtPlayer(state, rescued);
   roomLockFx(state, index, room.kind === "horde");
-  for (const e of state.enemies) {
-    if (e.roomIndex === index && e.phase === "idle") e.phase = "chase";
-  }
-  onBoonRoomLock(state, index);
+  wakeRoom(state, index);
   pushPlayerEvent(state, "onRoomLock", "room", { tag: room.kind, room: index, source: { kind: "room", key: room.kind } });
   onRoomLocked(state, index);
   if (state.boss && state.boss.roomIndex === index) {
@@ -765,6 +1149,8 @@ function lockRoom(state: GameState, room: RoomState, index: number): void {
     if (!state.boss.major) {
       spawnCapped(state, room, index, true, Math.round(enemyCount(state) * FLOOR_LORD.escortRatio));
       finalizeLinks(state, index);
+      const escorts = state.enemies.filter((e) => e.roomIndex === index);
+      createBossJin(state, index, state.boss.enemyId, escorts);
     }
     return;
   }
@@ -793,6 +1179,8 @@ function spawnWave(state: GameState, room: RoomState, index: number): void {
   const count = Math.max(MIN_WAVE_ENEMIES, Math.round(enemyCount(state) * waveMul(room.kind)));
   for (let i = 0; i < count; i++) spawnGroup(state, room, index, true);
   finalizeLinks(state, index);
+  // 前の波の取り残しを次の波で放置しない（届かない敵は倒せず、この波も終われない）
+  pullStraysInside(state, room, index, false);
 }
 
 const HORDE_SHAKE = 6;
@@ -812,7 +1200,7 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   room.cleared = true;
   for (const t of room.doorTiles) state.lockedTiles.delete(t);
   state.score += ROOM.clearBonus;
-  addFloatingText(state, p2(state), "制圧", "#ffd75f", 1.5, 1);
+  addFloatingText(state, p2(state), roomClearText(state, index), "#ffd75f", 1.5, 1);
   state.flash = Math.max(state.flash, 0.25);
   pushSfx(state, "roomClear");
   roomClearFx(state, index);
@@ -820,18 +1208,19 @@ function clearRoom(state: GameState, room: RoomState, index: number): void {
   dropRoomReward(state, center);
   fireTrigger(state, "onRoomClear", { pos: { ...state.player.body.pos } });
   pushPlayerEvent(state, "onRoomClear", "room", { tag: room.kind, source: { kind: "room", key: room.kind } });
-  onBoonRoomClear(state, room);
   recordProvenance(state, { kind: "roomClear" });
   onContractsRoomCleared(state, room);
+  onRoomClearedCoins(state, room, index);
   onRoomCleared(state, room, index);
   clearSpecialRoom(state, room, center);
+  applyDangerReward(state, room, center);
   // 試練: rare 確定 + ハート確定
   if (room.kind === "challenge") {
     dropRareItem(state, center);
     dropHeart(state, center);
     return;
   }
-  if (state.rng.chance(ROOM.heartDropChance)) dropHeart(state, center);
+  if (state.rng.chance(heartChanceOf(state.depth))) dropHeart(state, center);
 }
 
 /** 報酬を置く点から階段までずらす量（タイル）。階段の上に置くと拾う前に降りてしまう */
@@ -877,14 +1266,15 @@ function p2(state: GameState): { x: number; y: number } {
 }
 
 function updatePickups(state: GameState, dt: number): void {
+  updateCoinPickups(state, dt);
   const p = state.player.body;
   for (const pk of state.pickups) {
+    if (pk.kind !== "heart") continue;
     pk.bobTime += dt;
     // ks_vampire: ハートは触れても消えない
     if (!heartsAllowed(state) || coreBlocksHearts(state)) continue;
     if (!circlesOverlap(pk.pos.x, pk.pos.y, pk.radius, p.pos.x, p.pos.y, p.radius)) continue;
     healPlayer(state, ROOM.heartHeal);
-    onBoonHeartPickup(state);
     spawnBurst(state, pk.pos, COLOR_HEAL, 12, 100, 0.4, 2);
     pk.radius = 0;
   }
@@ -898,31 +1288,37 @@ function checkStairs(state: GameState): void {
   if (getTile(state.map, tx, ty) !== Tile.StairsDown) return;
   // 上り階段で戻ってから降り直した階では 3 択を出さない（戻る → 降りるの往復で祝福を稼がせない）
   const fresh = state.depth + 1 > state.runEvents.strata.deepest;
-  descend(state, stairsChoiceAt(state, toIndex(state.map, tx, ty)));
-  // 祝福 3 択は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）
-  // ボス階を抜けた直後の提示は格が 1 段上がる
-  if (fresh) offerBoons(state, stairsGradeBoost(isBossDepth(state.depth - 1)));
+  const tile = toIndex(state.map, tx, ty);
+  const reward = stairsRewardAt(state, tile);
+  descend(state, stairsChoiceAt(state, tile), reward);
+  // 祝福の 3 択・錬磨は階段で降りたときだけ（descend 直呼びのテストや生成処理は止めない）。
+  // 3 択は祝福の出口を選んだ階だけ。ボス階を抜けた直後の提示は格が 1 段上がる
+  if (fresh) offerArrivalChoices(state, reward, stairsGradeBoost(isBossDepth(state.depth - 1)));
 }
 
-/** 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選） */
-export function descend(state: GameState, nextKind?: FloorKind): void {
+/**
+ * 次の階へ。nextKind は分岐路の階段の行き先（省略時は深度の規則で抽選）。
+ * reward は出口の予告（省略 = 予告なし）。初めて着いた階だけ、buildFloor と到着報酬で確定する
+ */
+export function descend(state: GameState, nextKind?: FloorKind, reward?: ExitReward): void {
   const strata = state.runEvents.strata;
-  // 上り階段で戻ってから降り直した階は、振り分け点・スコア・来歴・階層到達の報酬を二重に取らない
+  // 上り階段で戻ってから降り直した階は、スコア・来歴・階層到達の報酬を二重に取らない
   const fresh = state.depth + 1 > strata.deepest;
-  // buildFloor が state.boss を消すので、ボス撃破の判定は先に行う
-  if (fresh) grantAttributePoints(state, floorAttributePoints(state));
   state.depth += 1;
   strata.revisit = false;
   strata.fresh = fresh;
+  // buildFloor が危険な部屋づくりに読み、末尾で消す。降り直した階は報酬を二重に取らない
+  state.pendingExit = fresh ? (reward ?? null) : null;
   if (fresh) {
     strata.deepest = state.depth;
     recordProvenance(state, { kind: "floorClear" });
     state.score += Math.round(ROOM.clearBonus * state.depth * tierScoreMul(state));
   }
   buildFloor(state, nextKind);
-  // 起点の階ごとの報酬（死神の友の振り分け点）も初めての階だけ。降り直しでは stats の封印・解除だけ合わせ直す
+  // 起点の階ごとの報酬（死神の友の銭）も初めての階だけ
   if (fresh) onOriginDescend(state);
-  else refreshRunStats(state);
+  // 持ち込んだ遺物の地金を今の深度で決め直す（降り直しでも封印・解除を合わせ直す）
+  refreshRunStats(state);
   descendMana(state);
   if (fresh) healOnDescend(state);
   onContractsFloorReached(state);
@@ -930,11 +1326,15 @@ export function descend(state: GameState, nextKind?: FloorKind): void {
   const label = FLOOR_KIND_LABEL[state.floorKind];
   pushSfx(state, "descend");
   if (fresh) {
-    dropDepthReward(state);
-    gainShards(state, CONTRACT.shardsPerFloor);
+    // 遺物の出口は到着報酬の遺物を確定にして置き換える（二重に落とさない）
+    if (!replacesArrivalRelic(reward)) dropDepthReward(state);
+    grantFloorArrival(state);
+    applyExitArrival(state, reward);
   }
   pushLog(state, `地下${state.depth}階へ降りた（${label}）。`, DEPTH_COLOR);
   if (fresh && state.depth === FLOOR_KIND.invertedDepth) announceInverted(state);
+  if (fresh) announceChapterAhead(state);
+  if (fresh && deepFloorOf(state.depth) === 1) announceDeep(state);
 }
 
 /** 降階の回復（初めて着いた階だけ）。失った生命（maxHp - hp）の HEAL.descendHealRatio を戻す */
@@ -952,7 +1352,7 @@ function announceInverted(state: GameState): void {
 
 /**
  * 上り階段で 1 つ浅い階へ戻る（docs/ideas/run-expansion.md 4 章 #6）。戻った階は作り直され、敵は半分、
- * 死神の猶予は FLOOR_KIND.revisitReaperHeadStart 秒進んだ状態で始まる。祝福の 3 択・振り分け点・階層到達の報酬は出ない
+ * 死神の猶予は FLOOR_KIND.revisitReaperHeadStart 秒進んだ状態で始まる。祝福の 3 択・階層到達の報酬は出ない
  */
 export function ascend(state: GameState): void {
   const strata = state.runEvents.strata;
@@ -962,6 +1362,8 @@ export function ascend(state: GameState): void {
   strata.fresh = false;
   state.depth -= 1;
   buildFloor(state);
+  // 地金は今いる階の深度に合わせる（浅い階へ戻れば縮む）
+  refreshRunStats(state);
   thinRevisitedFloor(state);
   recordProvenance(state, { kind: "returned" });
   onContractsFloorReached(state);
@@ -988,42 +1390,9 @@ export function invertedLayer(state: GameState): boolean {
   return isInvertedDepth(state.depth);
 }
 
-/**
- * 階段で得るステータスの振り分け点（docs/COMBAT_DESIGN.md A-3）。階層到達 +1、この階の主を倒していれば
- * major なら perBoss、階の主なら perFloorLord（既定 0）。撃破の瞬間（boss.ts）ではなく降りるときにまとめて渡す
- * （ボス部屋は撃破しないと階段に届かない）
- */
-export function floorAttributePoints(state: GameState): number {
-  if (state.boss?.defeated !== true) return ATTR_GAIN.perFloor;
-  const bonus = state.boss.major ? ATTR_GAIN.perBoss : ATTR_GAIN.perFloorLord;
-  return ATTR_GAIN.perFloor + bonus;
-}
-
 // -----------------------------------------------------------------------------
 // 特別な部屋・ランイベントが使う湧かせ処理（specialRooms.ts の roomHooks へ差し込む）
 // -----------------------------------------------------------------------------
-
-/**
- * 時間経過の増援: 画面外の床に 1 抽選ぶん（群れは複数体）を徘徊として湧かせる。徘徊の上限（roamCap）を超えない。
- * 画面外なので予告（spawning）は付けない
- */
-function spawnRoamReinforcement(state: GameState): void {
-  const cap = roamCap(state.depth, state.floorAreaMul ?? 1);
-  if (roamerCount(state) >= cap) return;
-  const def = pickEnemy(state);
-  const n = def.swarm ? state.rng.int(def.swarm.min, def.swarm.max) : 1;
-  for (let k = 0; k < n && roamerCount(state) < cap; k++) {
-    const pos = roamSpawnPoint(state, def.radius);
-    if (!pos) return;
-    const e = createEnemy(state, def, pos, ROAMING_ROOM, false);
-    onBoonEnemySpawned(state, e);
-    onRunEnemySpawned(state, e);
-    rollElite(state, e);
-    if (extraEliteRoll(state, e)) rollElite(state, e);
-    state.enemies.push(e);
-    makeRoamer(state, e);
-  }
-}
 
 /** 部屋に追加で湧かせる（部屋の敵数の上限は守る） */
 function spawnReinforcements(state: GameState, index: number, rolls: number, spawning: boolean): void {
@@ -1041,7 +1410,6 @@ function spawnEnemyAt(state: GameState, def: EnemyDef, index: number): Enemy | n
   if (!pos) return null;
   const e = createEnemy(state, def, pos, index, true);
   e.phaseTimer = ROOM.spawnTelegraph;
-  onBoonEnemySpawned(state, e);
   onRunEnemySpawned(state, e);
   state.enemies.push(e);
   return e;
@@ -1057,4 +1425,5 @@ function installRoomHooks(): void {
   roomHooks.enemyCount = enemyCount;
   roomHooks.dropHeart = dropHeart;
   roomHooks.ascend = ascend;
+  roomHooks.surface = clearRun;
 }

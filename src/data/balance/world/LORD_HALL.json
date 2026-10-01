@@ -1,0 +1,13 @@
+{
+  "_note": "ボス階の専用の部屋（階の型 lordHall。map/layout/lordHall.ts。docs/ideas/lordhall-design.md）の並べ方。入口の間 → 参道 → 前室 → 門の通路 → 主の間を 1 本道で横に並べる",
+  "_fields": {
+    "margin": "外周の壁の厚さ。タイル",
+    "entryLength": "入口の間と前室をつなぐ参道の長さ。タイル",
+    "gateLength": "前室と主の間をつなぐ門の通路の長さ。3 以上にして前室の扉と主の間の扉を別のタイルにする。タイル",
+    "corridorWidth": "通路の幅。奇数にして部屋の中段に揃える。タイル"
+  },
+  "margin": 2,
+  "entryLength": 3,
+  "gateLength": 5,
+  "corridorWidth": 3
+}

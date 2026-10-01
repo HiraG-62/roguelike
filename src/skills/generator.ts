@@ -1,12 +1,11 @@
 import { type Rng, createRng } from "../core/rng";
 import type { MovesetKey } from "../data/weapons";
-import { artWeightFor } from "./arts";
 import { MODIFIERS, SKILL, SKILL_DEFS, SKILL_MIN_DEPTH, SKILL_WEIGHTS, canAttach } from "./data";
 import { modifierWeight } from "./modifiers";
-import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type RuneItem, type SkillKey, type SkillStone, type VariantRoll } from "./types";
+import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "./types";
 
 /**
- * スキル石の生成。レベル・tier は持たず、ロールされるのは変異軸とリンク数だけ。
+ * スキル石の生成。レベル・tier は持たず、ロールされるのは変異軸だけ（リンクはスロットで固定なので石は持たない）。
  * 外から渡された rng からは seed を 1 回だけ引き、中身は seed から決定的に作る。
  */
 
@@ -54,9 +53,12 @@ function rollVariants(rng: Rng, skillKey: SkillKey): VariantRoll[] {
   return out;
 }
 
-/** 抽選の重み。武器技は装備中の武器種なら厚く、違う武器種なら薄く（skills/arts/index.ts の artWeightFor） */
-export function skillWeight(key: SkillKey, moveset: MovesetKey | undefined): number {
-  return artWeightFor(key, moveset) ?? SKILL_WEIGHTS[key];
+/**
+ * 抽選の重み。段取り 7c で技は武器種の縛りを持たなくなったので、装備中の武器種では変えない
+ * （引数の武器種は呼び出し側の互換のために残す）
+ */
+export function skillWeight(key: SkillKey, _moveset?: MovesetKey): number {
+  return SKILL_WEIGHTS[key];
 }
 
 /** SKILL_WEIGHTS に従ってスキルの種類を選ぶ。拾った深度より深い層から出るスキル（SKILL_MIN_DEPTH）は除く */
@@ -73,14 +75,13 @@ function rollSkillKey(rng: Rng, depth: number, moveset: MovesetKey | undefined):
 export function stoneFromSeed(seed: number, opts: StoneOptions): SkillStone {
   const rng = createRng(seed);
   const skillKey = opts.skillKey ?? rollSkillKey(rng, opts.foundDepth, opts.moveset);
-  const links = weightedIndex(rng, SKILL.linkWeights);
   const variants = rollVariants(rng, skillKey);
   return {
     id: `s${seed.toString(ID_RADIX)}-${opts.now.toString(ID_RADIX)}`,
     seed,
     skillKey,
     variants,
-    links,
+    links: 0,
     foundDepth: opts.foundDepth,
     foundAt: opts.now,
   };
@@ -127,9 +128,4 @@ export function rollRuneDrop(
 ): ModifierKey | null {
   if (!rng.chance(runeDropChance(depth, source))) return null;
   return rollRuneModifier(rng, equipped);
-}
-
-/** 所持品の刻印符を作る。idSeed は床の刻印符の id など（now と合わせて一意にする。決定性に影響しない） */
-export function makeRuneItem(modifier: ModifierKey, idSeed: number, now: number): RuneItem {
-  return { id: `r${idSeed.toString(ID_RADIX)}-${now.toString(ID_RADIX)}`, modifier, foundAt: now };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JOB_KEYS } from "../data/jobs";
+import { UNIQUES } from "../loot/named";
 import { createEmptyProfile } from "../loot/types";
 import {
   ACHIEVEMENTS,
@@ -53,6 +54,17 @@ describe("実績: 判定", () => {
     expect(unlocked, "50 回はまだ").not.toContain("fiftyRuns");
     expect(save.unlocked.tenRuns, "解除の時刻").toBe(50);
     expect(evaluateAchievements(ctx, save, 60), "2 回目は無し").toEqual([]);
+  });
+
+  it("名のある遺物を 18 種そろえると「宝物庫の主」（key は旧名の relic25）", () => {
+    const withRelics = (keys: string[]): AchievementContext => {
+      const ctx = context();
+      return { ...ctx, codex: { ...ctx.codex, relics: keys } };
+    };
+    const all = UNIQUES.map((u) => u.key);
+    expect(UNIQUES.length, "名のある遺物は 18 種").toBe(18);
+    expect(evaluateAchievements(withRelics(all), createAchievementSave(), 1)).toContain("relic25");
+    expect(evaluateAchievements(withRelics(all.slice(1)), createAchievementSave(), 1), "17 種ではまだ").not.toContain("relic25");
   });
 
   it("すべての依頼を達成すると「何でも屋」と「百の出自」", () => {
@@ -124,7 +136,8 @@ describe("実績: 連携の発見", () => {
   it("発見数の節目で称号の実績が開き、スキルの連携をすべて決めると「型の極み」", () => {
     const ctx = context();
     const words = ["melee", "ranged", "dash", "burn", "chill", "shock", "poison", "bleed"];
-    const chains = words.flatMap((a) => words.map((b) => `${a}>${b}`)).slice(0, DISCOVERY.milestoneTitle);
+    // 30 種の 1 つ手前まで連鎖で埋める（スキルの連携を足すと必ず越える）
+    const chains = words.flatMap((a) => words.map((b) => `${a}>${b}`)).slice(0, DISCOVERY.milestoneGrand - 1);
     for (const key of chains) ctx.codex.chains[key] = 1;
     const save = createAchievementSave();
     const unlocked = evaluateAchievements(ctx, save, 1);
@@ -135,5 +148,29 @@ describe("実績: 連携の発見", () => {
     for (const key of Object.keys(COMBOS)) ctx.codex.combos[key] = 1;
     expect(evaluateAchievements(ctx, save, 2), "連携をすべて + 30 種を越えた").toEqual(expect.arrayContaining(["comboAll", "link30"]));
     expect(availableTitles(save, ctx.quests).some((t) => t.label === "連携の読み手"), "称号として名乗れる").toBe(true);
+  });
+});
+
+/** 統計の一部だけ差し替えた文脈（AchievementContext.meta は読み取り専用） */
+function contextWith(patch: Partial<AchievementContext["meta"]>): AchievementContext {
+  return { ...context(), meta: { ...createEmptyProfile().meta, ...patch } };
+}
+
+describe("実績: 踏破と仇討ち", () => {
+  it("踏破していなければ踏破の実績は解除されない（位階があっても clears が無ければ無効）", () => {
+    const unlocked = evaluateAchievements(contextWith({ bestClearTier: 20 }), createAchievementSave(), 1);
+    expect(unlocked.filter((k) => k === "clear" || k.startsWith("clearTier"))).toEqual([]);
+  });
+
+  it("位階 0 の踏破で踏破者、位階ごとに称号が開く", () => {
+    const save = createAchievementSave();
+    expect(evaluateAchievements(contextWith({ clears: 1 }), save, 1), "位階 0").toEqual(["clear"]);
+    expect(evaluateAchievements(contextWith({ clears: 2, bestClearTier: 5 }), save, 2), "位階 5").toEqual(["clearTier1", "clearTier5"]);
+    expect(evaluateAchievements(contextWith({ clears: 3, bestClearTier: 20 }), save, 3), "位階 20").toEqual(["clearTier10", "clearTier15", "clearTier20"]);
+  });
+
+  it("仇を討った履歴があれば仇討ちが解除される", () => {
+    const history = [{ date: 0, seedText: "a", depth: 3, kills: 0, score: 0, bestCombo: 0, durationSec: 0, avenged: true as const }];
+    expect(evaluateAchievements(contextWith({ history }), createAchievementSave(), 1)).toContain("avenge");
   });
 });

@@ -1,0 +1,21 @@
+{
+  "_note": "全ての型が出す共通の瞬間（先制・終撃・充溢・放出・応手・双撃。docs/ideas/weapon-forms-impl.md 3-3、src/system/moments.ts）。浮き文字の文言は src/data/weaponForms.ts の MOMENT_TEXT。応手は既存の「受け流し」「見切り！」「カウンター」を残し、応手そのものの浮き文字は出さない",
+  "_fields": {
+    "firstStrikeIdleSec": "先制が戻るまでの交戦の外の秒。交戦の外でこれだけ待った後の最初の一撃（近接・射撃・スキル）が先制（秒）",
+    "twinStrikeWindowSec": "双撃の窓。左右の違うレーンの命中がこの秒以内に続けば双撃（秒。連撃の窓 WEAPON.chainWindow に近い値）",
+    "brim": "充溢（戦意が満ちた瞬間）の浮き文字。color は色、scale は大きさ（1 = 等倍）、life は残る秒",
+    "release": "放出（戦意を使った瞬間）の浮き文字。項目は brim と同じ",
+    "twinStrike": "双撃（左右を交互に当てた）の浮き文字。項目は brim と同じ",
+    "firstStrike": "先制（交戦の最初の一撃）の浮き文字。項目は brim と同じ",
+    "reload": "装填（短銃の弾倉が空になり、装填の窓が開いた）の浮き文字。短銃は充溢の代わりにこれを出す。項目は brim と同じ",
+    "primed": "強装填（装填の窓の中で右を押せた）の浮き文字。項目は brim と同じ"
+  },
+  "firstStrikeIdleSec": 1.5,
+  "twinStrikeWindowSec": 0.8,
+  "brim": { "color": "#ffd060", "scale": 1.3, "life": 0.7 },
+  "release": { "color": "#ff9040", "scale": 1.4, "life": 0.6 },
+  "twinStrike": { "color": "#a0d0ff", "scale": 1.1, "life": 0.5 },
+  "firstStrike": { "color": "#ffe0a0", "scale": 1.2, "life": 0.6 },
+  "reload": { "color": "#c0c8d0", "scale": 1.2, "life": 0.6 },
+  "primed": { "color": "#ffb040", "scale": 1.4, "life": 0.6 }
+}

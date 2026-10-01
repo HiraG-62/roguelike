@@ -10,10 +10,10 @@ import {
 } from "../../skills/types";
 import { ACTION_TEXT } from "../actionText";
 import { ENEMIES } from "../enemies";
-import { JOB_KEYS } from "../jobs";
+import { DASH_FORM_KEYS, JOB_KEYS } from "../jobs";
 import { ACTION, PLAYER } from "../tuning";
 import { MOVESET_KEYS } from "../weapons";
-import { AFFIXES, CONVERSION_AFFIXES } from "../../loot/affixes";
+import { AFFIXES, CONVERSION_AFFIXES, INNATE_LINE_DEFS } from "../../loot/affixes";
 import { BASES, baseFamily } from "../../loot/bases";
 import { BULLET_PROFILE_KEYS } from "../../loot/bullets";
 import {
@@ -106,9 +106,13 @@ describe("敵のキー集合(段 1)", () => {
 describe("ジョブのキー集合(段 2)", () => {
   const nonNoneKeys = JOB_KEYS.filter((k) => k !== "none");
 
-  it("jobs の attributes / weakness のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
+  it("jobs の attributes / MANA_SOURCE のキー集合が「見習い」を除いた JOB_KEYS と一致する", () => {
     expect(diffKeySets("jobs.attributes", rowKeys(jobsJson.attributes), nonNoneKeys)).toEqual([]);
-    expect(diffKeySets("jobs.weakness", rowKeys(jobsJson.weakness), nonNoneKeys)).toEqual([]);
+    expect(diffKeySets("jobs.MANA_SOURCE", rowKeys(jobsJson.MANA_SOURCE), nonNoneKeys)).toEqual([]);
+  });
+
+  it("jobs の DASH_FORM のキー集合が DASH_FORM_KEYS と一致する", () => {
+    expect(diffKeySets("jobs.DASH_FORM", rowKeys(jobsJson.DASH_FORM), DASH_FORM_KEYS)).toEqual([]);
   });
 });
 
@@ -140,8 +144,6 @@ describe("PLAYER / ACTION（プレイヤーの移動・ダッシュ・生命・�
     expect(ACTION.counter.damageMul).toBe(combatJson.ACTION.counter.damageMul);
     expect(ACTION.counter.text).toBe(ACTION_TEXT.counter);
     expect(ACTION.lastKill.text).toBe(ACTION_TEXT.lastKill);
-    expect(ACTION.justCounter.text).toBe(ACTION_TEXT.justCounter);
-    expect(ACTION.reflect.text).toBe(ACTION_TEXT.reflect);
     expect(ACTION.dashAttack).toBe(BALANCE.weapons.ACTION_DASH_ATTACK);
   });
 });
@@ -155,8 +157,8 @@ describe("スキル・祝福のキー集合(段 3)", () => {
     const extraKeys = withoutNote(Object.keys(skillsJson.EXTRA_SKILL_TUNING));
     const wave2Keys = withoutNote(Object.keys(skillsJson.WAVE2_SKILL_TUNING));
     const wave3Keys = withoutNote(Object.keys(skillsJson.WAVE3_SKILL_TUNING));
-    // 技（skills/arts/）は ART.<武器種 | common>.<key>
-    const artKeys = Object.entries(skillsJson.ART).flatMap(([group, table]) => (group === "weights" || group.startsWith("_") ? [] : withoutNote(Object.keys(table))));
+    // 技（skills/arts/）は ART.common.<key>（ART.TRANSFORM は型の変形の数値、ART.weight は抽選の重み）
+    const artKeys = Object.entries(skillsJson.ART).flatMap(([group, table]) => (group !== "common" ? [] : withoutNote(Object.keys(table))));
     const allKeys = [...baseKeys, ...extraKeys, ...wave2Keys, ...wave3Keys, ...artKeys];
     expect(diffKeySets("skills(base+extra+wave2+wave3)", allKeys, SKILL_KEYS)).toEqual([]);
   });
@@ -169,11 +171,6 @@ describe("スキル・祝福のキー集合(段 3)", () => {
     expect(diffKeySets("skills.modifier(base+extra+wave2)", allKeys, MODIFIER_KEYS)).toEqual([]);
   });
 
-  it("満月の砲のコストと払い戻し基準は MANA.baseMax と一致する(数値をJSONへ展開したぶんの検査)", () => {
-    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.cost).toBe(BALANCE.combat.MANA.baseMax);
-    expect(skillsJson.EXTRA_SKILL_TUNING.fullMoon.refMana).toBe(BALANCE.combat.MANA.baseMax);
-  });
-
   it("狼化の遠吠え・業火の化身の燃焼秒は STATUS の値と一致する(数値をJSONへ展開したぶんの検査)", () => {
     expect(skillsJson.WAVE3_SKILL_TUNING.wolfForm.fearDuration).toBe(BALANCE.combat.STATUS.fear.duration);
     expect(skillsJson.WAVE3_SKILL_TUNING.pyreForm.burnDuration).toBe(BALANCE.combat.STATUS.burnDuration);
@@ -182,8 +179,8 @@ describe("スキル・祝福のキー集合(段 3)", () => {
 });
 
 describe("装備のキー集合(段 4)", () => {
-  it("loot の affixCurves のキー集合が AFFIXES / CONVERSION_AFFIXES の key と一致する", () => {
-    const affixKeys = [...AFFIXES, ...CONVERSION_AFFIXES].map((a) => a.key);
+  it("loot の affixCurves のキー集合が AFFIXES / CONVERSION_AFFIXES / INNATE_LINE_DEFS の key と一致する", () => {
+    const affixKeys = [...AFFIXES, ...CONVERSION_AFFIXES, ...INNATE_LINE_DEFS].map((a) => a.key);
     expect(diffKeySets("loot.affixCurves", Object.keys(lootJson.affixCurves), affixKeys)).toEqual([]);
   });
 

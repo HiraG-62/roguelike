@@ -1,0 +1,11 @@
+{
+  "layout": "line",
+  "minDepth": 2,
+  "weight": 1.5,
+  "spacing": 22,
+  "cooldownStagger": 0.15,
+  "slots": [
+    { "role": "charge", "grade": "strong", "share": 0.3, "min": 0, "max": 1 },
+    { "role": "charge", "grade": "normal", "share": 0.7, "min": 3 }
+  ]
+}

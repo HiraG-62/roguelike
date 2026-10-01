@@ -1,0 +1,7 @@
+{
+  "_note": "通貨のビルドの口の見本（docs/ideas/economy-impl.md 2-10）。持つ型の性質「懐」が読む",
+  "_fields": {
+    "pocketCoins": "性質「懐」が効き始める持ち金。銭（章 1 の瓶 1 本より少し多い。章ごとの倍率は掛けない）"
+  },
+  "pocketCoins": 50
+}

@@ -1,13 +1,15 @@
 import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
+import { type ExitReward, NO_EXIT, apprenticeExtraExits, rollExitRewards } from "./exits";
 import type { EliteKind, Enemy, FloorKind, GameState, RoomKind, RoomState } from "../core/state";
 import { allocId, pushLog, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { ENEMIES, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { keystoneDef } from "../loot/affixes";
-import { BOON, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { ARC, BOON, ECONOMY, FLOOR_KIND, ROOM_KIND, RUN_EVENT, TIER_REWARD } from "../data/tuning";
 import { createEchoWallet, shatterYield, stirTrait } from "../loot/crafting";
 import { generateItem } from "../loot/generator";
 import { type Item, TRAIT_COLORS, type TraitColor } from "../loot/types";
+import { dominantTraitColor } from "../loot/colors";
 import { forkStairsTiles } from "../map/generator";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenter, rectCenterPx, setTile, toIndex } from "../map/grid";
 import { MODIFIERS } from "../skills/data";
@@ -16,8 +18,11 @@ import type { ModifierKey } from "../skills/types";
 import { floorKindCandidates, pickFloorKinds } from "./biomes";
 import { BOONS, BOON_KEYS, grantBoon, hasBoon, offerBoons } from "./boons";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { COLOR_HEAL, healPlayer } from "./combat";
-import { ensureContractStats, spendShards } from "./contractors";
+import { ensureContractStats } from "./contractors";
+import { donate, donationSpot } from "./donation";
+import { chapterScale, gainCoins, spendCoins, spendKeys } from "./economy";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { eliteKindsFor, makeElite } from "./elites";
@@ -27,7 +32,7 @@ import { circlesOverlap, overlapsWall } from "./physics";
 import { spawnReaper } from "./reaper";
 import { altarKeystoneCandidates, equippedSkillKeys, refreshRunStats } from "./runSetup";
 import { applyStatus } from "./statusEffects";
-import { dropRune, grantRune } from "./skills";
+import { dropRune } from "./skills";
 import { placeTerrain } from "./terrain";
 import { dropRareItem } from "./roomTypes";
 
@@ -58,12 +63,18 @@ export type PropKind =
   | "ascend"
   /** 残響の鉱脈（ランイベント）。何度か触れられる */
   | "vein"
-  /** 封印庫の封印。欠片で解く */
+  /** 封印庫の封印。鍵 2 か銭で解く */
   | "seal"
+  /** 鍵付きの宝箱（宝物庫の遺物 1 つの代わり。鍵 1 で遺物と銭） */
+  | "lockedChest"
   /** 属性の祭壇の属性 */
   | "element"
   /** 反転の間の台 */
-  | "inverter";
+  | "inverter"
+  /** 寄進の祠（章の境の休符の開始部屋。触れるたび寄進する。system/donation.ts） */
+  | "donation"
+  /** 地上への道（最深の間の主を倒すと現れる。乗り続けると踏破。system/finale.ts） */
+  | "surface";
 
 /** 部屋に置く触れる物（台座・レバー・金床・宝箱・護衛対象） */
 export interface RoomProp {
@@ -103,6 +114,8 @@ export interface RoomSpecial {
 export interface StairsChoice {
   tile: number;
   nextKind: FloorKind;
+  /** 出口の予告（system/exits.ts）。隠し部屋・案内人の階段は none */
+  reward: ExitReward;
 }
 
 // -----------------------------------------------------------------------------
@@ -151,8 +164,11 @@ export const PROP_LABEL: Readonly<Record<PropKind, string>> = {
   ascend: "上り階段",
   vein: "残響の鉱脈",
   seal: "封印",
+  lockedChest: "鍵付きの宝箱",
   element: "属性",
   inverter: "反転の台",
+  donation: "寄進の祠",
+  surface: "地上への道",
 };
 
 export const ROOM_KIND_COLOR: Readonly<Partial<Record<RoomKind, string>>> = {
@@ -232,6 +248,8 @@ export function assignExtraRoomKinds(state: GameState, reserved: ReadonlySet<num
     const rule = ROOM_KIND.extra[kind];
     if (state.depth < rule.minDepth) continue;
     if (kind === "gamble" && state.origin === "gambler") continue;
+    // 解放制で封じた種類は抽選に入れない（乱数を引く前に飛ばすので、他の種類の抽選は封じが空の並びの部分列になる）
+    if (state.runMeta.lockedRooms.includes(kind)) continue;
     if (!state.rng.chance(rule.chance)) continue;
     place(kind);
   }
@@ -426,7 +444,7 @@ function sayAt(state: GameState, text: string, color: string): void {
 
 /**
  * 毎ステップ: 台座に触れたら使う。離れたらレバーを再び使えるようにする。
- * 上り階段だけは触れ続けて使う（通りすがりに戻らない）。戻ると部屋が作り直されるので、そこで打ち切る
+ * 上り階段・地上への道は触れ続けて使う（通りすがりに戻らない・終わらせない）。戻ると部屋が作り直されるので、そこで打ち切る
  */
 export function updateRoomProps(state: GameState, dt = 0): void {
   const body = state.player.body;
@@ -439,7 +457,11 @@ export function updateRoomProps(state: GameState, dt = 0): void {
       if (prop.used || prop.kind === "captive") continue;
       const touching = circlesOverlap(prop.pos.x, prop.pos.y, ROOM_KIND.propRadius, body.pos.x, body.pos.y, body.radius);
       if (prop.kind === "ascend") {
-        if (holdAscend(state, prop, touching, dt)) return;
+        if (holdProp(state, prop, touching, dt, FLOOR_KIND.ascendHold, roomHooks.ascend)) return;
+        continue;
+      }
+      if (prop.kind === "surface") {
+        if (holdProp(state, prop, touching, dt, ARC.surfaceHold, roomHooks.surface)) return;
         continue;
       }
       if (!touching) {
@@ -453,16 +475,19 @@ export function updateRoomProps(state: GameState, dt = 0): void {
   }
 }
 
-/** 上り階段に触れ続けた秒を数え、FLOOR_KIND.ascendHold に達したら戻る。戻ったら true */
-function holdAscend(state: GameState, prop: RoomProp, touching: boolean, dt: number): boolean {
+/**
+ * 乗り続けて使う台座（上り階段・地上への道）。触れている秒を数え、need に達したら done を呼んで true を返す
+ * （通りすがりに使わない。離れたら秒を 0 に戻す）
+ */
+function holdProp(state: GameState, prop: RoomProp, touching: boolean, dt: number, need: number, done: (state: GameState) => void): boolean {
   if (!touching) {
     prop.hold = 0;
     return false;
   }
   prop.hold = (prop.hold ?? 0) + dt;
-  if (prop.hold < FLOOR_KIND.ascendHold) return false;
+  if (prop.hold < need) return false;
   prop.used = true;
-  roomHooks.ascend(state);
+  done(state);
   return true;
 }
 
@@ -495,11 +520,17 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
     case "seal":
       openVault(state, prop);
       return;
+    case "lockedChest":
+      openLockedChest(state, prop);
+      return;
     case "element":
       takeElement(state, room, prop);
       return;
     case "inverter":
       useInverter(state, room, prop);
+      return;
+    case "donation":
+      donate(state, prop.pos);
       return;
     case "vein":
       mineVein(state, index, prop);
@@ -509,10 +540,48 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
   }
 }
 
-/** 封印庫: 欠片を払って封印を解くと、深い遺物が並ぶ */
+/**
+ * 章の境の休符（章の 1 階目）の開始部屋に寄進の祠を置く（floor.ts の buildFloor の末尾から。乱数は使わない）。
+ * 触れるたび寄進するので used にはならない（離れて触れ直すたびに 1 回）
+ */
+export function placeDonationShrine(state: GameState): void {
+  if (!isChapterRest(state.depth)) return;
+  const start = state.rooms[0];
+  const pos = start ? donationSpot(state, start) : null;
+  if (!start || !pos) return;
+  addProp(start, "donation", pos);
+}
+
+/**
+ * 宝物庫の鍵付きの宝箱を置く（roomTypes.ts の openTreasure から。遺物 1 つの代わり）。
+ * 部屋に入った瞬間に置くので、その部屋の台座として毎ステップの当たり判定に載る
+ */
+export function placeTreasureChest(room: RoomState, pos: Vec): void {
+  addProp(room, "lockedChest", pos);
+}
+
+/** 鍵付きの宝箱: 鍵 1 本で遺物 1 つと銭が出る。鍵が無ければ開かず、台座は残る */
+function openLockedChest(state: GameState, prop: RoomProp): void {
+  const c = ECONOMY.container;
+  if (!spendKeys(state, c.lockedChestKeys)) {
+    sayAt(state, `鍵が足りない（${c.lockedChestKeys}）`, c.chestColor);
+    return;
+  }
+  prop.used = true;
+  const coins = state.rng.int(c.lockedChestCoinsMin, c.lockedChestCoinsMax);
+  gainCoins(state, Math.round(coins * chapterScale(state.depth)), "container");
+  dropItem(state, { x: prop.pos.x, y: prop.pos.y + TILE_SIZE }, c.lockedChestBoost);
+  spawnBurst(state, prop.pos, c.chestColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
+  sayAt(state, "解錠", c.chestColor);
+  pushLog(state, "鍵付きの宝箱を開けた。", c.chestColor);
+  pushSfx(state, "treasureOpen");
+}
+
+/** 封印庫: 鍵 2 本か銭で封印を解くと、深い遺物が並ぶ（鍵があれば鍵から使う。鍵はほかに使い道が少ない） */
 function openVault(state: GameState, prop: RoomProp): void {
-  if (!spendShards(state, ROOM_KIND.vaultCost)) {
-    sayAt(state, `欠片が足りない（${ROOM_KIND.vaultCost}）`, ROOM_KIND.vaultColor);
+  const byKeys = spendKeys(state, ECONOMY.container.vaultKeys);
+  if (!byKeys && !spendCoins(state, ROOM_KIND.vaultCoinCost, "item")) {
+    sayAt(state, `鍵 ${ECONOMY.container.vaultKeys} か銭が足りない（${ROOM_KIND.vaultCoinCost}）`, ROOM_KIND.vaultColor);
     return;
   }
   prop.used = true;
@@ -522,7 +591,7 @@ function openVault(state: GameState, prop: RoomProp): void {
   }
   spawnBurst(state, prop.pos, ROOM_KIND.vaultColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, "封印が解けた", ROOM_KIND.vaultColor);
-  pushLog(state, "欠片で封印庫を開けた。", ROOM_KIND.vaultColor);
+  pushLog(state, byKeys ? "鍵で封印庫を開けた。" : "銭で封印庫を開けた。", ROOM_KIND.vaultColor);
   pushSfx(state, "treasureOpen");
 }
 
@@ -620,12 +689,9 @@ function takeKeystone(state: GameState, room: RoomState, prop: RoomProp): void {
 
 function takeRune(state: GameState, room: RoomState, prop: RoomProp): void {
   const key = prop.key as ModifierKey;
-  // 選んだ符は所持品へ入れる（石への付け外しは装備画面で自分で選ぶ）
-  if (!grantRune(state, key)) {
-    sayAt(state, "刻印符が満杯", ROOM_KIND.libraryColor);
-    return;
-  }
   consumeAll(room, "rune");
+  // 選んだ符は台座の足元へ落とす。刻印符はラン内だけの物で、拾うと付けられるスロットへ入る（他の符の入手と同じ入り口にそろえる）
+  dropRune(state, prop.pos, key);
   const name = MODIFIERS[key].name;
   spawnBurst(state, prop.pos, ROOM_KIND.libraryColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   sayAt(state, `刻印符: ${name}`, ROOM_KIND.libraryColor);
@@ -646,16 +712,13 @@ function rollGamble(state: GameState): GambleOutcome {
   return "item";
 }
 
-/** 最大 HP の一部を払って回す。当たり（遺物・ハート・刻印符）か外れ（伏兵・呪い） */
+/** 銭を払って回す。当たり（遺物・ハート・刻印符・銭）か外れ（伏兵・呪い） */
 function pullLever(state: GameState, room: RoomState, index: number, prop: RoomProp): void {
   const special = specialOf(room);
-  const p = state.player;
-  const cost = p.maxHp * ROOM_KIND.gambleHpCost;
-  if (p.hp <= cost) {
-    sayAt(state, "生命が足りない", ROOM_KIND.gambleColor);
+  if (!spendCoins(state, ROOM_KIND.gambleCoinCost, "bet")) {
+    sayAt(state, `銭が足りない（${ROOM_KIND.gambleCoinCost}）`, ROOM_KIND.gambleColor);
     return;
   }
-  p.hp -= cost;
   special.uses -= 1;
   if (special.uses <= 0) prop.used = true;
   const outcome = rollGamble(state);
@@ -667,6 +730,7 @@ const GAMBLE_TEXT: Readonly<Record<GambleOutcome, string>> = {
   item: "当たり: 遺物",
   hearts: "当たり: ハート",
   rune: "当たり: 刻印符",
+  coins: "当たり: 銭",
   ambush: "外れ: 伏兵",
   curse: "外れ: 呪い",
 };
@@ -683,6 +747,9 @@ function applyGamble(state: GameState, index: number, pos: Vec, outcome: GambleO
       return;
     case "rune":
       dropRune(state, below);
+      return;
+    case "coins":
+      gainCoins(state, ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleCoinWinMul, "bet");
       return;
     case "ambush":
       gambleAmbush(state, index);
@@ -709,11 +776,9 @@ function spawnHeart(state: GameState, pos: Vec): void {
   roomHooks.dropHeart(state, pos);
 }
 
-/** 共鳴の支配色（無ければ装備の性質で最も多い色、それも無ければ乱数） */
+/** 装備の性質で最も多い色（無ければ乱数） */
 function forgeColor(state: GameState): TraitColor {
-  const dominant = state.stats.resonance.colors[0];
-  if (dominant) return dominant;
-  return state.rng.pick(TRAIT_COLORS);
+  return dominantTraitColor(state.profile.equipment) ?? state.rng.pick(TRAIT_COLORS);
 }
 
 function useAnvil(state: GameState, prop: RoomProp): void {
@@ -760,7 +825,7 @@ function pxInRoom(state: GameState, room: RoomState, pos: Vec): boolean {
 /** 呪い付きの祝福を 1 つ受ける代わりに、祝福の 3 択を開く */
 function useCurseShrine(state: GameState, prop: RoomProp): void {
   prop.used = true;
-  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k) && !BOONS[k].after && !BOONS[k].duo);
+  const pool = BOON_KEYS.filter((k) => BOONS[k].cursed && !hasBoon(state, k));
   if (pool.length > 0) grantBoon(state, state.rng.pick(pool));
   spawnBurst(state, prop.pos, ROOM_KIND.curseShrineColor, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, 2);
   pushLog(state, "呪いを受けた。代わりに祝福を 1 つ選べる。", ROOM_KIND.curseShrineColor);
@@ -849,6 +914,8 @@ export interface RoomHooks {
   dropHeart: (state: GameState, pos: Vec) => void;
   /** 上り階段で浅い階へ戻る */
   ascend: (state: GameState) => void;
+  /** 地上への道に乗り続けた（踏破。system/finale.ts の clearRun） */
+  surface: (state: GameState) => void;
 }
 
 const noop = (): void => undefined;
@@ -858,6 +925,7 @@ export const roomHooks: RoomHooks = {
   enemyCount: () => 0,
   dropHeart: noop,
   ascend: noop,
+  surface: noop,
 };
 
 /** 封鎖しない部屋に入った（逃走）。true なら封鎖しない */
@@ -960,7 +1028,7 @@ export function clearSpecialRoom(state: GameState, room: RoomState, center: Vec)
       offerBoons(state, BOON.gradeBoostChallenge);
       return;
     case "resonance":
-      clearResonance(state, room, center);
+      clearResonance(state, center);
       return;
     case "escort":
       clearEscort(state, room, center);
@@ -994,14 +1062,13 @@ export function inFogRoom(state: GameState): boolean {
   return state.rooms.some((room) => room.kind === "fogRoom" && !room.cleared && pxInRoom(state, room, p));
 }
 
-/** 共鳴炉: 扉の色と今の共鳴の色が合えば報酬が倍 */
-export function resonanceMatches(state: GameState, room: RoomState): boolean {
-  const color = room.special?.color;
-  return color !== null && color !== undefined && state.stats.resonance.colors.includes(color);
+/** 共鳴炉: 何かの語が共鳴していれば報酬が増える（扉の色は飾り） */
+export function resonanceMatches(state: GameState): boolean {
+  return state.boonRun.resonance.length > 0;
 }
 
-function clearResonance(state: GameState, room: RoomState, center: Vec): void {
-  if (!resonanceMatches(state, room)) return;
+function clearResonance(state: GameState, center: Vec): void {
+  if (!resonanceMatches(state)) return;
   // 共鳴炉の上乗せは確定（部屋制圧の報酬は確率になったが、こちらは条件を満たした報酬なので絞らない）
   for (let i = 0; i < ROOM_KIND.resonanceBonusDrops; i++) dropBonusReward(state, center);
   sayAt(state, "共鳴炉が起動した", TRAIT_COLOR_TEXT);
@@ -1126,28 +1193,36 @@ export function escapeActive(state: GameState): boolean {
 // 分岐路
 // -----------------------------------------------------------------------------
 
+/** 位階の見返り「出口」: 踏破した最高位階に応じて分岐の階段が増える（乱数は引かない） */
+function tierPerkExits(state: GameState): number {
+  return state.runMeta.perks.includes("exit") ? TIER_REWARD.exitExtra : 0;
+}
+
 /**
  * 最後の部屋に 2〜3 個の階段を置き、それぞれに次のフロア種別を割り当てる（重複なし）。
  * ボス階は撃破後に階段が出るので、行き先だけ先に決めて tile は -1 にしておく（ensureForkStairs が置く）。
  * 次の階の候補が 1 つなら階段も 1 つ
  */
 export function planForkStairs(state: GameState): void {
-  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax);
+  // 見習いは階段が 1 本多い（増えた分は必ず祝福。system/exits.ts）
+  const count = state.rng.int(FLOOR_KIND.forkMin, FLOOR_KIND.forkMax) + apprenticeExtraExits(state) + tierPerkExits(state);
   const kinds = pickFloorKinds(state.depth + 1, state.rng, count);
+  // 出口の予告は行き先の抽選の直後に引く（乱数の順序を固定する）
+  const rewards = rollExitRewards(state, kinds.length);
   // この階に主（ボスか階の主）がいれば、階段は撃破後に出る（tile は -1 のまま。ensureForkStairs が置く）
   if (state.boss) {
-    state.stairs = kinds.map((nextKind) => ({ tile: -1, nextKind }));
+    state.stairs = kinds.map((nextKind, i) => ({ tile: -1, nextKind, reward: rewards[i] ?? NO_EXIT }));
     return;
   }
-  state.stairs = placeStairs(state, kinds);
+  state.stairs = placeStairs(state, kinds, rewards);
 }
 
-function placeStairs(state: GameState, kinds: readonly FloorKind[]): StairsChoice[] {
+function placeStairs(state: GameState, kinds: readonly FloorKind[], rewards: readonly ExitReward[]): StairsChoice[] {
   const lastIndex = state.rooms.length - 1;
   const last = state.rooms[lastIndex];
   if (!last) return [];
   const tiles = forkStairsTiles(state.map, last.rect, last.tiles, kinds.length, FLOOR_KIND.forkOffset);
-  return tiles.map((tile, i) => ({ tile, nextKind: kinds[i] ?? "rooms" }));
+  return tiles.map((tile, i) => ({ tile, nextKind: kinds[i] ?? "rooms", reward: rewards[i] ?? NO_EXIT }));
 }
 
 /**
@@ -1158,13 +1233,18 @@ export function ensureForkStairs(state: GameState): void {
   if (!state.stairs.some((s) => s.tile < 0)) return;
   if (!state.boss?.defeated) return;
   const placed = state.stairs.filter((s) => s.tile >= 0);
-  const kinds = state.stairs.filter((s) => s.tile < 0).map((s) => s.nextKind);
-  state.stairs = [...placed, ...placeStairs(state, kinds)];
+  const waiting = state.stairs.filter((s) => s.tile < 0);
+  state.stairs = [...placed, ...placeStairs(state, waiting.map((s) => s.nextKind), waiting.map((s) => s.reward))];
 }
 
 /** 階段タイルの行き先（分岐路に無い階段は undefined = 従来どおり抽選） */
 export function stairsChoiceAt(state: GameState, tile: number): FloorKind | undefined {
   return state.stairs.find((s) => s.tile === tile)?.nextKind;
+}
+
+/** 階段タイルの出口の予告（分岐路に無い階段は undefined = 予告なし） */
+export function stairsRewardAt(state: GameState, tile: number): ExitReward | undefined {
+  return state.stairs.find((s) => s.tile === tile)?.reward;
 }
 
 const FORK_EXTRA_DIRS = [
@@ -1214,14 +1294,14 @@ export function addForkStair(state: GameState, dryRun: boolean): boolean {
   const kind = floorKindCandidates(state.depth + 1).find((k) => !used.has(k));
   if (!kind) return false;
   if (state.stairs.some((s) => s.tile < 0)) {
-    if (!dryRun) state.stairs.push({ tile: -1, nextKind: kind });
+    if (!dryRun) state.stairs.push({ tile: -1, nextKind: kind, reward: NO_EXIT });
     return true;
   }
   const tile = freeStairTile(state, last);
   if (tile < 0) return false;
   if (dryRun) return true;
   setTile(state.map, tile % state.map.width, Math.floor(tile / state.map.width), Tile.StairsDown);
-  state.stairs.push({ tile, nextKind: kind });
+  state.stairs.push({ tile, nextKind: kind, reward: NO_EXIT });
   return true;
 }
 
@@ -1250,6 +1330,11 @@ export function placeAscend(state: GameState): void {
     addProp(last, "ascend", pos);
     return;
   }
+}
+
+/** 地上への道を部屋 room の pos に置く（最深の主の撃破後。system/finale.ts の placeSurfaceGate から） */
+export function placeSurface(room: RoomState, pos: Vec): void {
+  addProp(room, "surface", pos);
 }
 
 /** この階に上り階段を置けるか */

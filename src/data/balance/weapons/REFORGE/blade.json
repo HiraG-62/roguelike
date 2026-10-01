@@ -1,0 +1,7 @@
+{
+  "bladeRepel": { "staggerMul": 2, "knockbackMul": 2.5 },
+  "bladeWave": {
+    "sizeMul": 0.6,
+    "cast": {"key": "flyingCut", "throw": {"bullet": {"cooldownMul": 1, "damageMul": 1, "speedMul": 1.4, "lifeMul": 0.5, "radius": 4, "poiseMul": 1, "recoilMul": 0, "pellets": 0, "spreadDeg": 0, "pierceBonus": 99, "look": {"color": "#e0f0ff", "trail": "#80c0ff", "particles": 2}}, "scaling": {"base": 4, "str": 0.2, "dex": 0.3}, "poiseRatio": {"str": 0.1, "dex": 0.1}, "poise": 8, "count": 1, "spreadDeg": 0}}
+  }
+}

@@ -5,7 +5,7 @@ import type { GameState, RoomState } from "../core/state";
 import { createTerrainLayer } from "../core/terrain";
 import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FEEL, HUB, WEAPON } from "../data/tuning";
+import { FEEL, HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
 import { bulletOfBase } from "../loot/bullets";
@@ -14,8 +14,8 @@ import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
 import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
-import { computeStats } from "../loot/stats";
-import { type Item, type Profile, type Slot, uniformAttributes } from "../loot/types";
+import { UNARMED_MORE, computeStats } from "../loot/stats";
+import { type Item, type Profile, type Slot } from "../loot/types";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
 import { createCodexRun } from "../meta/codex";
@@ -24,6 +24,7 @@ import { createBoonRunState } from "./boons";
 import { snapCamera, updateCamera } from "./camera";
 import { cancelAttack } from "./combat";
 import { carryContractPatch, createContractState } from "./contractors";
+import { createEconomyState } from "./economy";
 import { updateEffects } from "./effects";
 import { createEnemy, updateEnemies } from "./enemies";
 import { resetExplored } from "./explore";
@@ -33,6 +34,8 @@ import { applyStats, createPlayer, updatePlayer } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { createRunEventState } from "./runEvents";
 import { defaultRunSetup, refreshRunStats } from "./runSetup";
+import { emptyRunMeta } from "./runMeta";
+import { createHurtLog } from "../core/hurt";
 import { createSkillRunState } from "./skills";
 import { DUMMY_KEY } from "./specialRooms";
 import { updateStatusEffects } from "./statusEffects";
@@ -106,6 +109,8 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     time: 0,
     map: layout.map,
     rooms: layout.map.rooms.map(hubRoom),
+    jins: [],
+    noises: [],
     lockedTiles: new Set(),
     player: createPlayer({ ...layout.playerStart }, stats),
     enemies: [],
@@ -137,6 +142,9 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     terrain: createTerrainLayer(),
     corpses: [],
     boss: null,
+    bossLog: [],
+    hurt: createHurtLog(),
+    nemesis: null,
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,
@@ -147,17 +155,20 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     boons: [],
     boonChoice: null,
     boonRun: createBoonRunState(),
+    reforges: [],
+    reforgeChoice: null,
     pendingBud: findPendingBud(profile),
-    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
     runKeystones: [],
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
     origin: setup.origin,
     job: "none",
     lockedRelics: [],
+    runMeta: emptyRunMeta(),
     stairs: [],
+    pendingExit: null,
     contracts: createContractState(),
-    shards: 0,
+    economy: createEconomyState(),
     events: [],
     pendingEvents: [],
     recent: {},
@@ -325,9 +336,9 @@ function enforceTrialWeapon(session: HubSession): void {
   const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
   if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
-  // 素手の威力の倍率は試す武器種には掛けない（素手のまま武器掛けで試したとき）
-  const unarmedMul = prev.unarmed ? WEAPON.unarmed.damageMul : 1;
-  state.stats = { ...prev, moveset, bullet, unarmed: false, meleeDamageMul: prev.meleeDamageMul / unarmedMul };
+  // 素手の威力の倍は試す武器種には掛けない（素手のまま武器掛けで試したとき）
+  const more = prev.more.filter((m) => m.source !== UNARMED_MORE.source);
+  state.stats = { ...prev, moveset, bullet, unarmed: false, more };
   // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
   carryContractPatch(prev, state.stats);
 }

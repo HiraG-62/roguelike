@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.35,
+  "weight": "medium",
   "steps2": [
     {"kind":"hold","key":"parry","cooldown":0.6,"hold":{"moveMul":0.5,"maxSec":0.25,"parry":{"windowSec":0.25,"recoverSec":0.2,"staggerPoise":40}}},
     {"kind":"swing","key":"returnCut","step":{"windup":0.035,"active":0.08,"recover":0.12,"scaling":{"base":5.2,"str":0.4,"dex":0.25},"poiseRatio":{"str":0.16,"dex":0.11},"poise":9,"reach":30,"size":12,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"lunge":10,"trail":"#c0e0ff"}},

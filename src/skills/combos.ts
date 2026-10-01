@@ -1,6 +1,5 @@
 import type { GameState } from "../core/state";
-import { type Vec, dist } from "../core/vec";
-import { fieldRadius, wellRadius } from "./placed";
+import type { Vec } from "../core/vec";
 import { COMBO_TUNING as C, EXTRA_SKILL_TUNING as T } from "./tuning";
 import { WAVE2_COMBO_TUNING as C2 } from "./tuning2";
 import type { CastParams, ComboKey, SkillDef, SkillKey } from "./types";
@@ -8,9 +7,10 @@ import type { CastParams, ComboKey, SkillDef, SkillKey } from "./types";
 /**
  * 連携（docs/ideas/skills-expansion.md 4 章）: スキル A を撃ってから一定秒以内にスキル B を手動で撃つと B が変化する。
  * 「直前の発動」は SkillRunState.lastCast（castSlot が記録。パリィは成功した瞬間）。
- * B 側の SkillDef.combos に key を並べ、ここに A・受付秒・変化（倍率なら apply、ルールなら CastParams.combo を各スキルが読む）を書く。
+ * B 側の SkillDef.combos（技は ArtSpec.combos）に key を並べ、ここに A・受付秒・変化（倍率なら apply、ルールなら CastParams.combo を各スキルが読む）を書く。
+ * B が技の連携は倍率（apply）だけで書く（技は params.combo を読まない）。
  * 反響・遅延の写しにも CastParams.combo が残る。連携は両方を手動で撃ったときだけ起きる（写しから新たな連携は起きない）。
- * 空間の連携（第 2 弾）は untimed にし、requiresAt で「照準地点が A の設置物の中か」を見る（A を直前に撃っていなくてよい）。
+ * untimed の連携は「直前に撃ったか」を見ず、requires / requiresAt だけで成立する（変身中の十字斬り）。
  */
 
 export interface ComboDef {
@@ -33,31 +33,13 @@ export interface ComboDef {
   requiresAt?: (state: GameState, target: Vec) => boolean;
 }
 
-/** 照準地点が引力球の中か */
-function insideWell(state: GameState, target: Vec): boolean {
-  return state.skills.wells.some((w) => dist(w.pos, target) <= wellRadius(w.params));
-}
-
-/** 照準地点が氷結地帯の中か */
-function insideField(state: GameState, target: Vec): boolean {
-  return state.skills.fields.some((f) => dist(f.pos, target) <= fieldRadius(f.params));
-}
-
 export const COMBOS: Record<ComboKey, ComboDef> = {
-  wellThunder: {
-    key: "wellThunder",
-    after: "gravityWell",
-    window: C.wellThunder.window,
-    name: "渦雷",
-    verb: "引力球の後の雷撃は球の中心へ吸われ、球の中の敵すべてに落ちる（感電 +1）",
-    requires: (state) => state.skills.wells.length > 0,
-  },
   hookWhirl: {
     key: "hookWhirl",
     after: "chainHook",
     window: C.hookWhirl.window,
     name: "引き回し",
-    verb: "鎖鎌の直後の旋風斬りは、引き寄せた敵を回転の中心に留める（押し出さない）",
+    verb: "鎖鎌の直後の旋風斬りは、範囲が広く引き寄せた敵を押し出さない",
     apply: (p) => ({ ...p, areaMul: p.areaMul * C.hookWhirl.areaMul, knockbackMul: 0 }),
   },
   parryRail: {
@@ -65,15 +47,15 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
     after: "parry",
     window: C.parryRail.window,
     name: "返し撃ち",
-    verb: "パリィ成功の直後の撃ち抜きは照準なしで撃ち、威力が上がる",
+    verb: "パリィ成功の直後の撃ち抜きは威力が上がる",
     apply: (p) => ({ ...p, timeMul: p.timeMul * C.parryRail.aimMul, damageMul: p.damageMul * C.parryRail.damageMul }),
   },
   diveQuake: {
     key: "diveQuake",
-    after: "meteorDive",
+    after: "commonMeteorDive",
     window: C.diveQuake.window,
     name: "落地裂",
-    verb: "墜星の着地直後の地裂きは溜めなしで出て、範囲が広い",
+    verb: "墜星の直後の地裂きは早く出て、範囲が広い",
     apply: (p) => ({ ...p, timeMul: p.timeMul * C.diveQuake.windupMul, areaMul: p.areaMul * C.diveQuake.areaMul }),
   },
   contagionUnravel: {
@@ -82,13 +64,6 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
     window: C.contagionUnravel.window,
     name: "総解き",
     verb: "伝染の直後の綻びは、命中した敵の周りの敵もまとめて綻ばせる",
-  },
-  pactWhirl: {
-    key: "pactWhirl",
-    after: "bloodPact",
-    window: C.pactWhirl.window,
-    name: "血風",
-    verb: "血の契約の後の旋風斬りは、当てるたびに出血を付ける",
   },
   frostBreaker: {
     key: "frostBreaker",
@@ -100,25 +75,18 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
   },
   shadowExploit: {
     key: "shadowExploit",
-    after: "shadowStep",
+    after: "commonBackstab",
     window: C.shadowExploit.window,
     name: "影刺し",
-    verb: "影渡りの直後の刺し穿ちは、脆弱でなくても必ず会心になる",
-  },
-  hasteSpiral: {
-    key: "hasteSpiral",
-    after: "haste",
-    window: C.hasteSpiral.window,
-    name: "疾風弾幕",
-    verb: "加速の後の回転弾幕は、撃っている間も遅くならない",
+    verb: "背取りの直後の刺し穿ちは、脆弱でなくても必ず会心になる",
   },
   reelStomp: {
     key: "reelStomp",
-    after: "threadReel",
+    after: "commonInhale",
     window: C.reelStomp.window,
     name: "手繰り踏み",
-    verb: "手繰り糸の直後の震脚は、範囲が広く大きく怯ませる",
-    apply: (p) => ({ ...p, areaMul: p.areaMul * T.stomp.comboAreaMul, poiseMul: p.poiseMul * T.stomp.comboPoiseMul }),
+    verb: "吸い風の直後の衝撃波は、範囲が広く大きく怯ませる",
+    apply: (p) => ({ ...p, areaMul: p.areaMul * C.reelStomp.areaMul, poiseMul: p.poiseMul * C.reelStomp.poiseMul }),
   },
   // ---- 第 2 弾 ----
   waterFreeze: {
@@ -133,7 +101,7 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
     after: "oilPot",
     window: C2.oilScorch.window,
     name: "走り火",
-    verb: "油流しの後の焼き払いは炎の帯が長く、威力が上がる",
+    verb: "油流しの後の炎の壁は威力が上がる",
     apply: (p) => ({ ...p, damageMul: p.damageMul * C2.oilScorch.damageMul }),
   },
   brandChain: {
@@ -145,10 +113,10 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
   },
   breakCollapse: {
     key: "breakCollapse",
-    after: "breakKick",
+    after: "commonRisingSlash",
     window: C2.breakCollapse.window,
     name: "崩し落とし",
-    verb: "崩し蹴りの直後の崩落槌は範囲が広く、大きく怯ませる",
+    verb: "昇り斬りの直後の地裂きは範囲が広く、大きく怯ませる",
     apply: (p) => ({ ...p, areaMul: p.areaMul * C2.breakCollapse.areaMul, poiseMul: p.poiseMul * C2.breakCollapse.poiseMul }),
   },
   hueBloom: {
@@ -158,33 +126,15 @@ export const COMBOS: Record<ComboKey, ComboDef> = {
     name: "彩爆",
     verb: "彩刻の後の色解きは範囲が広い",
   },
-  wellFrag: {
-    key: "wellFrag",
-    after: "gravityWell",
-    untimed: true,
-    window: C2.wellFrag.window,
-    name: "渦爆",
-    verb: "引力球の中へ投げたグレネードは球の中心へ吸われ、広く爆発する",
-    requiresAt: insideWell,
-  },
-  frostThunder: {
-    key: "frostThunder",
-    after: "frostField",
-    untimed: true,
-    window: C2.frostThunder.window,
-    name: "氷雷",
-    verb: "氷結地帯の中へ落とした雷撃は氷を伝い、地帯の中の敵すべてへ落ちる",
-    requiresAt: insideField,
-  },
   formArt: {
     key: "formArt",
-    // 第 3 弾の変身（左右クリックを差し替える 5 種。SkillRunState.shape）も変身として数える
-    after: ["titanForm", "swiftForm", "spiritForm", "wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
+    // 変身（左右クリックを差し替える 5 種。SkillRunState.shape）の最中なら成立する
+    after: ["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"],
     untimed: true,
     window: C2.formArt.window,
     name: "化身の極意",
-    verb: "変身中の極意は威力が上がる",
-    requires: (state) => state.skills.form !== null || state.skills.shape !== null,
+    verb: "変身中の十字斬りは威力が上がる",
+    requires: (state) => state.skills.shape !== null,
     apply: (p) => ({ ...p, damageMul: p.damageMul * C2.formArt.damageMul }),
   },
   levelMeteor: {

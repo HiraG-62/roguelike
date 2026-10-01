@@ -1,0 +1,17 @@
+{
+  "_note": "墨印（書の専用の印。docs/ideas/tome-rework.md 7 章）。書の左の 3 段の命中で 1 つずつ記し（持続・威力は movesets/book.json の applies）、射撃・スキルの命中で読まれる（反応「読誦」。system/inkMark.ts）。読むと印の付いた敵を中心に、重ねの数で広がる円の中の敵すべてに威力と怯み値が入り、気力が戻る。烙印（1 体への起爆）と違い、群れへ広げて次のスキルの気力に返す。倒した一撃でも読む",
+  "_fields": {
+    "maxStacks": "重ねられる上限（書の左の 3 段で満ちる数）",
+    "radiusBase": "読んだときの円の半径の基礎（px）",
+    "radiusPerStack": "1 重ねごとに足す半径（px）",
+    "poisePerStack": "円の中の敵それぞれに入る、1 重ねあたりの怯み値",
+    "manaPerStack": "読んだとき 1 重ねあたりに戻る気力（1 体の印を読むごと。気力の回収倍率が掛かる）",
+    "color": "読んだときの円と粒の色"
+  },
+  "maxStacks": 3,
+  "radiusBase": 16,
+  "radiusPerStack": 8,
+  "poisePerStack": 3,
+  "manaPerStack": 1,
+  "color": "#b090ff"
+}

@@ -1,0 +1,4 @@
+{
+  "artilleryCling": { "speed": 40, "range": 100 },
+  "artilleryChain": { "radius": 36, "magnitude": 0.8, "icd": 0.1 }
+}

@@ -52,7 +52,7 @@ function cast(state: GameState, skillKey: SkillKey, at: number): void {
 describe("連携の発見: id", () => {
   it("系統と key で往復し、今の定義に無い key は落とす", () => {
     expect(parseLinkId(linkId("reaction", "vaporize")), "往復").toEqual({ kind: "reaction", key: "vaporize" });
-    expect(isLinkId("combo:wellThunder"), "スキルの連携").toBe(true);
+    expect(isLinkId("combo:parryRail"), "スキルの連携").toBe(true);
     expect(isLinkId("chain:burn>kill"), "連鎖").toBe(true);
     expect(isLinkId("reaction:noSuch"), "未知の反応").toBe(false);
     expect(isLinkId("chain:burn"), "1 語は連鎖ではない").toBe(false);
@@ -104,9 +104,9 @@ describe("連携の発見: ラン中の記録", () => {
 
   it("スキルの連携は key を渡されればそのまま記録する", () => {
     const state = arena();
-    noteSkillCombo(state, "wellThunder");
-    expect(state.codexRun.combos.get("wellThunder"), "回数").toBe(1);
-    expect(state.questRun.linkKinds.has("combo:wellThunder"), "連携の発見").toBe(true);
+    noteSkillCombo(state, "parryRail");
+    expect(state.codexRun.combos.get("parryRail"), "回数").toBe(1);
+    expect(state.questRun.linkKinds.has("combo:parryRail"), "連携の発見").toBe(true);
   });
 
   it("スキルの連携は key が無くても、直前の発動と今撃った石から同じステップで引き直す", () => {
@@ -134,7 +134,7 @@ describe("連携の発見: ラン中の記録", () => {
     const a = arena(11);
     const b = arena(11);
     reactionEvent(a, "vaporize");
-    noteSkillCombo(a, "wellThunder");
+    noteSkillCombo(a, "parryRail");
     flush(a);
     flush(b);
     expect(a.rng.next(), "同じ seed の乱数列がそろう").toBe(b.rng.next());
@@ -144,25 +144,25 @@ describe("連携の発見: ラン中の記録", () => {
 describe("連携の発見: 図鑑への畳み込みと永続化", () => {
   it("スキルの連携の回数と初発見の階・シードを畳み、既にある初発見は上書きしない", () => {
     const run = createCodexRun();
-    run.combos.set("wellThunder", 2);
-    run.links.firstDepth.set("combo:wellThunder", 4);
+    run.combos.set("parryRail", 2);
+    run.links.firstDepth.set("combo:parryRail", 4);
     run.links.firstDepth.set("reaction:noSuch", 1);
     const save = createCodexSave();
     const added = recordCodex({ codexRun: run, boons: [], profile: createEmptyProfile(), seedText: "abc" }, save);
-    expect(save.combos.wellThunder, "回数").toBe(2);
-    expect(save.firstSeen["combo:wellThunder"], "初発見").toEqual({ depth: 4, seed: "abc" });
+    expect(save.combos.parryRail, "回数").toBe(2);
+    expect(save.firstSeen["combo:parryRail"], "初発見").toEqual({ depth: 4, seed: "abc" });
     expect(save.firstSeen["reaction:noSuch"], "未知の id は載せない").toBeUndefined();
     expect(added, "連携 1 件").toBe(1);
-    run.links.firstDepth.set("combo:wellThunder", 9);
+    run.links.firstDepth.set("combo:parryRail", 9);
     recordCodex({ codexRun: run, boons: [], profile: createEmptyProfile(), seedText: "xyz" }, save);
-    expect(save.firstSeen["combo:wellThunder"], "最初の記録のまま").toEqual({ depth: 4, seed: "abc" });
+    expect(save.firstSeen["combo:parryRail"], "最初の記録のまま").toEqual({ depth: 4, seed: "abc" });
   });
 
   it("保存して読み直すと同じ内容に戻り、旧データ（欄が無い）・壊れた初発見は黙って補う", () => {
     const storage = new MemoryStorage();
     const save = createCodexSave();
-    save.combos.wellThunder = 3;
-    save.firstSeen["combo:wellThunder"] = { depth: 2, seed: "s" };
+    save.combos.parryRail = 3;
+    save.firstSeen["combo:parryRail"] = { depth: 2, seed: "s" };
     saveCodex(save, storage);
     expect(loadCodex(storage), "往復").toEqual(save);
     const old = parseCodexSave({ version: 1, reactions: { vaporize: 1 } });
@@ -170,10 +170,10 @@ describe("連携の発見: 図鑑への畳み込みと永続化", () => {
     expect(old?.firstSeen, "旧データの初発見は空").toEqual({});
     const broken = parseCodexSave({
       version: 1,
-      combos: { wellThunder: 1, noSuch: 4 },
-      firstSeen: { "combo:wellThunder": { depth: 0, seed: "a" }, "reaction:vaporize": { depth: 3, seed: 7 }, bad: { depth: 1 } },
+      combos: { parryRail: 1, noSuch: 4 },
+      firstSeen: { "combo:parryRail": { depth: 0, seed: "a" }, "reaction:vaporize": { depth: 3, seed: 7 }, bad: { depth: 1 } },
     });
-    expect(broken?.combos, "未知の連携は捨てる").toEqual({ wellThunder: 1 });
+    expect(broken?.combos, "未知の連携は捨てる").toEqual({ parryRail: 1 });
     expect(broken?.firstSeen, "階の無い初発見は捨て、壊れたシードは空にする").toEqual({ "reaction:vaporize": { depth: 3, seed: "" } });
     storage.setItem(CODEX_KEY, "{broken");
     expect(loadCodex(storage), "壊れた JSON は空").toEqual(createCodexSave());
@@ -197,12 +197,12 @@ describe("連携の発見: 節目", () => {
 
   it("3 系統の発見を合わせて数え、図鑑の既知として写せる", () => {
     const save = createCodexSave();
-    save.combos.wellThunder = 1;
+    save.combos.parryRail = 1;
     save.reactions.vaporize = 2;
     save.chains["burn>kill"] = 1;
     save.chains["nope>x"] = 1;
     expect(discoveryCount(save), "3 系統で 3 種").toBe(3);
-    expect([...knownLinkIds(save)].sort(), "既知の id").toEqual(["chain:burn>kill", "combo:wellThunder", "reaction:vaporize"]);
+    expect([...knownLinkIds(save)].sort(), "既知の id").toEqual(["chain:burn>kill", "combo:parryRail", "reaction:vaporize"]);
   });
 
   it("節目に届くと頁「連携」が開き、次の節目が進む", () => {

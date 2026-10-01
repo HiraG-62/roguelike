@@ -5,12 +5,14 @@
 import { ENEMIES } from "../data/enemies";
 import { HUB, HUB_DECOR } from "../data/tuning";
 import type { HubSpotKey } from "../map/hubMap";
+import { hallBossKeys } from "../system/bossHallKeys";
 import { type AchievementSave, currentTitleLabel } from "./achievements";
 import { type CodexSave, type CodexTab, codexTabCount } from "./codex";
 import type { HubSave } from "./hubStore";
 import { type QuestSave, createQuestSave } from "./quests";
+import { steleLabel } from "./tierRewards";
 
-export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden"] as const;
+export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden", "hall"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
 export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
@@ -23,6 +25,7 @@ export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
   training: "訓練場",
   altar: "祭壇",
   garden: "庭",
+  hall: "ボスの間",
 };
 
 /** history・codex・achievements は archive */
@@ -37,6 +40,7 @@ export const FACILITY_OF_SPOT: Readonly<Record<HubSpotKey, FacilityKey>> = {
   codex: "archive",
   achievements: "archive",
   rack: "rack",
+  hall: "hall",
 };
 
 /** 最初から建っている設備。建った演出は出さない（初回に 4 枚のバナーが並ばないように） */
@@ -57,6 +61,9 @@ export interface HubProgressSource {
   achievements: AchievementSave;
   /** 依頼の報酬の称号を名乗っているときに名前を引くため。省略時は実績の称号だけ引ける */
   quests?: QuestSave;
+  /** 踏破の回数と最高位階（踏破の碑。profile.meta の写し。省略は踏破なし） */
+  clears?: number;
+  bestClearTier?: number;
 }
 
 /** 建っている設備。既存の保存データから導く純関数で、stats には触れない */
@@ -66,6 +73,7 @@ export function builtFacilities(src: HubProgressSource): FacilityKey[] {
   if (src.codex.roomKinds.includes(TRAINING_ROOM) || src.runs >= HUB.trainingRuns) built.add("training");
   if (src.codex.roomKinds.includes(ALTAR_ROOM)) built.add("altar");
   if (src.hasBud) built.add("garden");
+  if (hallBossKeys().some((k) => (src.codex.enemyKills[k] ?? 0) > 0)) built.add("hall");
   // 表示順を安定させるため FACILITY_KEYS の順で返す
   return FACILITY_KEYS.filter((k) => built.has(k));
 }
@@ -121,9 +129,15 @@ function titleDecor(src: HubProgressSource): HubDecor[] {
   return [{ key: "title", label: `看板「${label}」` }];
 }
 
-/** 拠点の飾り。ボスの記念品 → 書架 → 称号の看板の順 */
+/** 踏破の碑。踏破したことがあるときだけ（飾りは数行しか出ないので先頭に置く） */
+function steleDecor(src: HubProgressSource): HubDecor[] {
+  const label = steleLabel({ clears: src.clears, bestClearTier: src.bestClearTier });
+  return label === null ? [] : [{ key: "stele", label }];
+}
+
+/** 拠点の飾り。踏破の碑 → ボスの記念品 → 書架 → 称号の看板の順 */
 export function hubDecorations(src: HubProgressSource): HubDecor[] {
-  return [...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
+  return [...steleDecor(src), ...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
 }
 
 /** まだ「建った」演出を見せていない設備（最初から建っているものは除く） */

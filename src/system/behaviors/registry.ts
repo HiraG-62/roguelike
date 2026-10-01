@@ -3,11 +3,13 @@ import { ENEMY_AI } from "../../data/tuning";
 import type { EnemyBehaviorBase } from "./base";
 import {
   Absorber,
+  Backstepper,
   BannerBearer,
   Basilisk,
   BossDriven,
   ChainWarden,
   Charger,
+  Container,
   Flyer,
   FrostCrusher,
   GiantToad,
@@ -15,6 +17,8 @@ import {
   Keeper,
   Knight,
   Laser,
+  Leaper,
+  Merchant,
   MineLayer,
   Mimic,
   Rusher,
@@ -34,7 +38,7 @@ function freezeAll<T extends Record<string, EnemyBehaviorBase>>(table: T): Reado
 /** behavior → 振る舞い。Record なので EnemyBehavior を足して登録を忘れると型エラー */
 export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = freezeAll<Record<EnemyBehavior, EnemyBehaviorBase>>({
   chaser: new Rusher("chaser"),
-  shooter: new Keeper("shooter"),
+  shooter: new Backstepper("shooter"),
   charger: new Charger("charger"),
   knight: new Knight(),
   bomber: new Keeper("bomber"),
@@ -45,7 +49,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   kingSlime: new BossDriven("kingSlime"),
   boneLord: new BossDriven("boneLord"),
   kamikaze: new Rusher("kamikaze", 0),
-  echoStriker: new Keeper("echoStriker", ENEMY_AI.echoStriker.keepAway),
+  echoStriker: new Backstepper("echoStriker", ENEMY_AI.echoStriker.keepAway),
   packLeader: new Rusher("packLeader"),
   conductor: new Keeper("conductor", ENEMY_AI.conductor.keepAway),
   manaLeech: new Rusher("manaLeech"),
@@ -60,7 +64,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   twinBlade: new BossDriven("twinBlade"),
   twinBow: new BossDriven("twinBow"),
   frostGiant: new BossDriven("frostGiant"),
-  lobber: new Keeper("lobber", ENEMY_AI.lobber.keepAway),
+  lobber: new Backstepper("lobber", ENEMY_AI.lobber.keepAway),
   oiler: new Rusher("oiler"),
   bellImp: new Keeper("bellImp", ENEMY_AI.bellImp.keepAway),
   bannerBearer: new BannerBearer(),
@@ -68,7 +72,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   dropper: new Rusher("dropper"),
   absorber: new Absorber(),
   homunculus: new Keeper("homunculus", ENEMY_AI.homunculus.keepAway),
-  scribeImp: new Keeper("scribeImp", ENEMY_AI.scribeImp.keepAway),
+  scribeImp: new Backstepper("scribeImp", ENEMY_AI.scribeImp.keepAway),
   crossGolem: new Rusher("crossGolem", 0),
   windSprite: new WindSprite(),
   mineLayer: new MineLayer(),
@@ -89,6 +93,10 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   librarian: new BossDriven("librarian"),
   mirrorKnight: new BossDriven("mirrorKnight"),
   thiefKing: new BossDriven("thiefKing"),
+  deepLord: new BossDriven("deepLord"),
+  leaper: new Leaper(),
+  merchant: new Merchant(),
+  container: new Container(),
 });
 
 /** その敵の振る舞い */

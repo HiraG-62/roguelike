@@ -3,6 +3,7 @@ import {
   ARM_REACH,
   DEFAULT_STANCE,
   FOREARM,
+  IDLE_PERIOD,
   type RigInput,
   type Stance,
   UPPER_ARM,
@@ -257,5 +258,61 @@ describe("playerRig: 二刀の後ろの手の前後", () => {
       const rig = solveRig({ ...dual, step: 1, swing, restBlend });
       expect(rig.back.behind, `寄せる割合 ${restBlend}`).toBe(true);
     }
+  });
+});
+
+describe("playerRig: 待機で体の前に構える手（restFront）", () => {
+  const rest: Stance = { ...DEFAULT_STANCE, grip: "dual", body: "light", restDeg: -20, restHand: [7, 5], swayDeg: 5, offHand: [2, 6], offDeg: -10 };
+
+  it("呼吸の揺れで武器の向きが上寄りの境目をまたいでも、前の手は体の前のまま", () => {
+    for (let k = 0; k < 32; k++) {
+      const time = (IDLE_PERIOD * k) / 32;
+      const rig = solveRig({ ...base, stance: { ...rest, restFront: true }, time });
+      expect(rig.front.behind, `時刻 ${time}`).toBe(false);
+    }
+  });
+
+  it("restFront の無い構えは、同じ揺れで上寄りの向きになると今までどおり体の後ろへ回る", () => {
+    const behinds = [0, IDLE_PERIOD * 0.75].map((time) => solveRig({ ...base, stance: rest, time }).front.behind);
+    expect(behinds, "揺れの谷で後ろへ回る").toEqual([false, true]);
+  });
+
+  it("振りから構えへ戻す後半は、寄せた角が境目をまたいでも前の手は体の前", () => {
+    const swing = { frame: 0, flipX: false, flipY: false, angle: -1.4, dx: 0, dy: -10, behind: true } as const;
+    for (const restBlend of [0.5, 0.7, 0.9, 1]) {
+      const rig = solveRig({ ...base, stance: { ...rest, restFront: true }, swing, restBlend, time: IDLE_PERIOD * 0.75 });
+      expect(rig.front.behind, `寄せる割合 ${restBlend}`).toBe(false);
+    }
+  });
+});
+
+describe("playerRig: 回さない武器（書）の上向き", () => {
+  const book: Stance = { grip: "one", body: "light", restDeg: 0, restHand: [6, 5], swayDeg: 2, braced: true };
+  const UP = -Math.PI / 2;
+  const swingAt = (aim: number) => ({ frame: 0, flipX: false, flipY: false, angle: aim, dx: 0, dy: -10, behind: true }) as const;
+
+  it("真上を狙った振りでも、振り・戻しの間ずっと本は体の前に描く", () => {
+    for (const restBlend of [0, 0.3, 0.6, 1]) {
+      const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), restBlend, unrotated: true });
+      expect(rig.front.behind, `寄せる割合 ${restBlend}`).toBe(false);
+    }
+  });
+
+  it("回す武器（unrotated 無し）は今までどおり上向きで体の後ろへ回る", () => {
+    const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP) });
+    expect(rig.front.behind).toBe(true);
+  });
+
+  it("上向きでも拳は肩の真上でなく前へ倒した所（顔を隠さない）で、腕の長さを越えない", () => {
+    const rig = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), unrotated: true });
+    expect(rig.front.hand.x, "拳は前（+x）へ寄る").toBeGreaterThan(base.shoulderF.x + 3);
+    // 腕を伸ばしきらない上限は ARM_REACH より少し長い（playerRig の ARM_SPAN）
+    expect(Math.hypot(rig.front.hand.x - base.shoulderF.x, rig.front.hand.y - base.shoulderF.y)).toBeLessThanOrEqual(ARM_REACH + 0.5 + 1e-6);
+  });
+
+  it("真上寄りの度合いが違っても拳の高さは上限で揃う（連続）", () => {
+    const a = solveRig({ ...base, stance: book, aim: (-80 * Math.PI) / 180, swing: swingAt(UP), unrotated: true });
+    const b = solveRig({ ...base, stance: book, aim: UP, swing: swingAt(UP), unrotated: true });
+    expect(Math.abs(a.front.hand.y - b.front.hand.y)).toBeLessThan(0.01);
   });
 });

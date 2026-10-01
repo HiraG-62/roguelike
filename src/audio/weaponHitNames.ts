@@ -36,6 +36,8 @@ const WEAPON_HIT_KEYS_TABLE: Readonly<Record<MovesetKey, true>> = {
   flail: true,
   ringBlades: true,
   fan: true,
+  book: true,
+  handbell: true,
 };
 
 export const WEAPON_HIT_MOVESETS = Object.keys(WEAPON_HIT_KEYS_TABLE) as readonly MovesetKey[];

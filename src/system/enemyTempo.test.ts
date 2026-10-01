@@ -94,7 +94,7 @@ describe("連続攻撃", () => {
     expect(phasesUntilRecover(state, k)).toEqual(["chase", "windup", "strike", "windup", "strike", "recover"]);
   });
 
-  it("2 撃目の予備動作は followUps の windup（深度で縮み、60% 下限）", () => {
+  it("2 撃目の予備動作は depthStages の連撃の windup（深度で縮み、60% 下限）", () => {
     const state = tempoArena(3);
     const k = ready(placeEnemy(state, "knight", 30));
     const f = followUpOf("knight", 3);

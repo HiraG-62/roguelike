@@ -1,5 +1,10 @@
 {
-  "hitstopLight": 3,
+  "_fields": {
+    "hitstopLight": "通常命中のヒットストップの既定（ステップ。60Hz。段・重さが持たないときの値）。3→1（core-synthesis 3-6。止まる時間を絞り、重い命中だけ止める）",
+    "hitstopNormalMax": "通常命中（怯ませていない・終撃でない・会心でない）のヒットストップの上限（ステップ）。段の JSON の hitstop がこれを超えても切り詰める。0 で通常命中は止まらない。目安 0〜1"
+  },
+  "hitstopLight": 1,
+  "hitstopNormalMax": 1,
   "hitstopHeavy": 7,
   "hitstopKill": 6,
   "hitstopFinisher": 9,

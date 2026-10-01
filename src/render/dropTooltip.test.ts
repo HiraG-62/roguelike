@@ -43,7 +43,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const melee: AffixRoll = { key: "meleeDamagePct", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
+const melee: AffixRoll = { key: "damageVsStaggered", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {

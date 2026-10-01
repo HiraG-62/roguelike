@@ -1,4 +1,4 @@
 {
-  "_note": "ジョブ(docs/COMBAT_DESIGN.md A-9)。単位: 秒 / % は表示単位(+25%は25) / 倍率(1=等倍)。attributes は基礎値(各5)に足す偏り、weakness は掛け算の倍率(JobMulStat)。「見習い」(none)は数値を持たないので TS 側(src/data/jobs.ts)にそのまま残る",
-  "_order": ["JOB", "attributes", "weakness"]
+  "_note": "ジョブ(docs/COMBAT_DESIGN.md A-9)。単位: 秒 / % は表示単位(+25%は25) / 倍率(1=等倍)。attributes は基礎値(各5)に足す偏り、DASH_FORM はダッシュの形ごとの数値、MANA_SOURCE は流儀ごとの気力の源の量(docs/ideas/weapon-forms-impl.md 3-7)。「見習い」(none)は数値を持たないので TS 側(src/data/jobs.ts)にそのまま残る",
+  "_order": ["JOB", "attributes", "DASH_FORM", "MANA_SOURCE"]
 }

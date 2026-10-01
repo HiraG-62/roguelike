@@ -5,10 +5,15 @@ import type { GameState, RoomKind, RoomState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { BOSS, ELITE, FLOOR_KIND, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { SKILL } from "../skills/data";
+import type { ModifierKey } from "../skills/types";
 import { keystoneDef } from "../loot/affixes";
 import { TRAIT_COLORS } from "../loot/types";
 import { TILE_SIZE, isWalkable, rectCenterPx } from "../map/grid";
 import { BOONS } from "./boons";
+import { BOON_KEYS, type BoonKey } from "./boonDefs";
+import { RESONANCE_EXCLUDED, refreshResonance } from "./resonance";
+import { KEYWORDS } from "../core/keywords";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -31,6 +36,7 @@ import {
   startsEmptySpecial,
 } from "./specialRooms";
 import { withInput } from "./testHelpers";
+import { withFixedLayout } from "../map/layout/select";
 
 const IDLE = withInput({});
 const DEPTH = 5;
@@ -39,9 +45,11 @@ const SETTLE_STEPS = 90;
 
 /** 回廊のフロアの真ん中の部屋を kind にして準備する。ランイベントと長居の代償は止めておく */
 function roomOf(kind: RoomKind, seed = 3): { state: GameState; room: RoomState; index: number } {
-  const state = createGame(seed);
+  // 開始の階は旧生成器（"legacy"）で作る（階の型の抽選は乱数の流れを変え、部屋の地形が seed ごとに揺れるため）
+  const state = withFixedLayout("legacy", () => createGame(seed));
   state.depth = DEPTH;
-  buildFloor(state, "rooms");
+  // 深度 5 はボス階で専用の部屋（部屋 3 つ）になるので、真ん中の部屋が要るこの検査は旧生成器の形で作る
+  withFixedLayout("legacy", () => buildFloor(state, "rooms"));
   const index = state.rooms.findIndex((r, i) => i > 1 && i < state.rooms.length - 1 && r.rect.w >= 9 && r.rect.h >= 9);
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
@@ -190,7 +198,7 @@ describe("台座の部屋", () => {
     expect(state.sfx).toContain("pedestalUse");
   });
 
-  it("図書館: 刻印符 3 冊から 1 つを所持品へ取り（スキルには付かない）、残りは消える", () => {
+  it("図書館: 刻印符 3 冊から 1 つを床へ落とし、拾うと付けられるスロットへ入る。残りは消える", () => {
     const { state, room } = roomOf("library");
     const props = room.special?.props ?? [];
     expect(props.length).toBeGreaterThan(0);
@@ -198,37 +206,62 @@ describe("台座の部屋", () => {
     const pick = props[0];
     if (!pick) throw new Error("prop missing");
     standAt(state, pick.pos);
-    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toContain(pick.key);
+    expect(state.skills.runes.map((r) => r.modifier), "台座の足元に符が落ちる（拾う前）").toEqual([pick.key]);
     expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
+    for (let i = 0; i < Math.ceil((SKILL.drop.pickupDelay + FIXED_DT) / FIXED_DT); i++) step(state, IDLE, FIXED_DT);
+    expect(state.skills.runes, "拾って床から消える").toHaveLength(0);
+    expect(
+      state.skills.slots.some((slot) => slot.runModifiers.includes(pick.key as ModifierKey)),
+      "付けられるスロットの符になる",
+    ).toBe(true);
+    expect("runes" in state.skills.profile, "セーブ対象のプロフィールには持たない").toBe(false);
   });
 
-  it("賭博: 最大 HP の 1 割を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
+  it("賭博: 銭を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
     const { state, room } = roomOf("gamble");
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
     state.player.hp = state.player.maxHp;
-    const cost = state.player.maxHp * ROOM_KIND.gambleHpCost;
+    state.economy.coins = ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleUses;
     standAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses - 1);
-    expect(state.player.hp).toBeLessThanOrEqual(state.player.maxHp - cost + 1e-6);
+    expect(state.economy.spent.bet, "賭けの支出").toBe(ROOM_KIND.gambleCoinCost);
     standAt(state, lever.pos);
     expect(room.special.uses, "離れるまでは回らない").toBe(ROOM_KIND.gambleUses - 1);
     for (let i = 1; i < ROOM_KIND.gambleUses; i++) {
       stepOff(state, room);
       state.player.hp = state.player.maxHp;
+      state.economy.coins = Math.max(state.economy.coins, ROOM_KIND.gambleCoinCost);
       standAt(state, lever.pos);
     }
     expect(room.special.uses).toBe(0);
     expect(lever.used).toBe(true);
   });
 
-  it("賭博: HP が払えないと回らない", () => {
+  it("賭博: 銭が足りないと回らない", () => {
     const { state, room } = roomOf("gamble");
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
-    state.player.hp = 1;
+    state.economy.coins = ROOM_KIND.gambleCoinCost - 1;
     standAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses);
+    expect(state.economy.coins, "持ち金は減らない").toBe(ROOM_KIND.gambleCoinCost - 1);
+  });
+
+  it("賭博: 当たりの銭は代価の gambleCoinWinMul 倍で、賭けの稼ぎに積まれる", () => {
+    expect(ROOM_KIND.gambleWeights.coins, "銭の当たりの重み").toBeGreaterThan(0);
+    for (const seed of [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]) {
+      const { state, room } = roomOf("gamble", seed);
+      const lever = room.special?.props[0];
+      if (!lever || !room.special) throw new Error("lever missing");
+      state.player.hp = state.player.maxHp;
+      state.economy.coins = ROOM_KIND.gambleCoinCost;
+      standAt(state, lever.pos);
+      if (state.economy.earned.bet === 0) continue;
+      expect(state.economy.earned.bet, "銭の当たり").toBe(ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleCoinWinMul);
+      return;
+    }
+    throw new Error("銭の当たりが出る seed が無い");
   });
 
   it("鍛冶場: 金床を打つと残響が溜まり（main が保存へ移す）、炉の熱で燃焼が付く", () => {
@@ -306,13 +339,13 @@ describe("戦う特別な部屋", () => {
     expect(state.floorItems.some((f) => f.item.rarity === "rare" || f.item.rarity === "unique")).toBe(true);
   });
 
-  it("共鳴炉: 扉の色と共鳴の色が合えば、制圧の報酬が増える", () => {
+  it("共鳴炉: 何かの語が共鳴していれば、制圧の報酬が増える（扉の色は問わない）", () => {
     const drops = (match: boolean): number => {
       const { state, room, index } = roomOf("resonance");
-      const color = room.special?.color;
-      if (!color) throw new Error("color missing");
-      const other = TRAIT_COLORS.find((c) => c !== color) ?? color;
-      state.stats.resonance = { ...state.stats.resonance, kind: "dominant", colors: [match ? color : other] };
+      // 共鳴は毎ステップ数え直すので、源と糧の出どころ（祝福）を持たせる
+      state.boons = match ? resonatingBoons() : [];
+      refreshResonance(state);
+      expect(state.boonRun.resonance.length > 0, "前提: 共鳴").toBe(match);
       // 共鳴炉は封鎖しないので、入った瞬間に（敵がいなければ）制圧になる。入る前から数える
       const before = state.floorItems.length;
       enter(state, room);
@@ -418,19 +451,19 @@ describe("第 2 弾の部屋", () => {
     }
   });
 
-  it("封印庫: 欠片が足りなければ開かず、払えば深い遺物が並ぶ", () => {
+  it("封印庫: 銭が足りなければ開かず、払えば深い遺物が並ぶ", () => {
     const { state, room } = roomOf("vault");
     expect(room.cleared, "台座の部屋は制圧済み").toBe(true);
     const seal = propOf(room, "seal");
-    state.shards = ROOM_KIND.vaultCost - 1;
+    state.economy.coins = ROOM_KIND.vaultCoinCost - 1;
     standAt(state, seal.pos);
     expect(seal.used, "足りない").toBe(false);
     expect(state.floorItems.length).toBe(0);
     stepOff(state, room);
-    state.shards = ROOM_KIND.vaultCost;
+    state.economy.coins = ROOM_KIND.vaultCoinCost;
     standAt(state, seal.pos);
     expect(seal.used, "開いた").toBe(true);
-    expect(state.shards, "欠片").toBe(0);
+    expect(state.economy.coins, "銭").toBe(0);
     expect(state.floorItems.length, "遺物").toBe(ROOM_KIND.vaultDrops);
   });
 
@@ -550,3 +583,19 @@ describe("分岐路の追加と上り階段", () => {
     expect(ascendAllowed(state), "回数の上限").toBe(false);
   });
 });
+
+/** 同じ語を出すだけの祝福 2 枚と食うだけの祝福 2 枚（共鳴を 1 段立てる出どころ） */
+function resonatingBoons(): BoonKey[] {
+  for (const k of KEYWORDS) {
+    if (RESONANCE_EXCLUDED.includes(k)) continue;
+    const pure = (verb: "produces" | "consumes"): BoonKey[] =>
+      BOON_KEYS.filter((b) => {
+        const p = BOONS[b].keywords;
+        return p[verb].includes(k) && !p[verb === "produces" ? "consumes" : "produces"].includes(k);
+      });
+    const ps = pure("produces");
+    const cs = pure("consumes");
+    if (ps.length >= 2 && cs.length >= 2) return [...ps.slice(0, 2), ...cs.slice(0, 2)];
+  }
+  throw new Error("共鳴する祝福の組が無い");
+}

@@ -61,9 +61,9 @@ describe("武器種・銃の弾・必殺の係数", () => {
   });
 });
 
-/** スキルの数値ブロック（key → ブロック）。技（skills/arts/）の数値は ART.<武器種 | common>.<key> */
+/** スキルの数値ブロック（key → ブロック）。技（skills/arts/）の数値は ART.common.<key> */
 function skillBlocks(): Readonly<Record<string, unknown>> {
-  const artBlocks = Object.entries(BALANCE.skills.ART).flatMap(([group, table]) => (group === "weights" ? [] : Object.entries(table)));
+  const artBlocks = Object.entries(BALANCE.skills.ART).flatMap(([group, table]) => (group !== "common" ? [] : Object.entries(table)));
   return { ...SKILL, ...EXTRA_SKILL_TUNING, ...Object.fromEntries(artBlocks) };
 }
 
@@ -96,7 +96,7 @@ describe("スキルのジャンル", () => {
   });
 
   it("ジャンルの付与で既定ステータスの威力は変わらない（Scaling の数値は触っていない）", () => {
-    // 回帰の目印: 地裂き（範囲・物理）は基礎値で 12.7 + 1.6*5 + 0.8*5
-    expect(scaledAtBase(SKILL.quake.damage)).toBeCloseTo(12.7 + 1.6 * 5 + 0.8 * 5);
+    // 回帰の目印: 鎖鎌（近接・物理）は基礎値で 7.6 + 0.8*5 + 0.8*5
+    expect(scaledAtBase(SKILL.chainHook.damage)).toBeCloseTo(7.6 + 0.8 * 5 + 0.8 * 5);
   });
 });

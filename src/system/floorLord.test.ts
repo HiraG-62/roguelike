@@ -5,9 +5,10 @@ import { depthHpScale, enemyDef } from "../data/enemies";
 import { BOSS, FLOOR_LORD, HEAL } from "../data/tuning";
 import { Tile, getTile, rectCenter } from "../map/grid";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { createEnemy } from "./enemies";
 import { ascend, buildFloor, descend, updateRooms } from "./floor";
-import { bossRoomLocked, pickFloorLordDef, setupFloorLordRoom } from "./floorLord";
+import { bossRoomLocked, isCaptain, pickFloorLordDef, setupFloorLordRoom } from "./floorLord";
 import { updateReaper } from "./reaper";
 import { stairsTilesValid } from "./specialRooms";
 import { arena, slayFloorLord } from "./testHelpers";
@@ -34,15 +35,30 @@ describe("階の主（毎階）", () => {
     }
   });
 
-  it("毎階の最後の部屋に主が出て、5 の倍数（BOSS.interval）だけ major", () => {
-    for (let depth = 1; depth <= BOSS.interval * 2; depth++) {
+  it("毎階の最後の部屋に主が出て、5 の倍数（BOSS.interval）だけ major。章の 1 階目（休符）は主が出ない", () => {
+    for (let depth = 1; depth <= BOSS.interval * 3; depth++) {
       const state = floorAt(depth);
       const last = state.rooms.length - 1;
       if (last <= 0) continue; // 部屋が 1 つしか無い階はスキップ
+      if (isChapterRest(depth)) {
+        expect(state.boss, `depth=${depth} 休符に主はいない`).toBeNull();
+        continue;
+      }
       expect(state.boss, `depth=${depth} 主がいる`).not.toBeNull();
       expect(state.boss?.roomIndex, `depth=${depth} 最後の部屋`).toBe(last);
       expect(state.boss?.major, `depth=${depth} major`).toBe(isBossDepth(depth));
       expect(state.boss?.defeated, `depth=${depth} まだ倒していない`).toBe(false);
+    }
+  });
+
+  it("章の 1 階目（6 / 11 / 16）は階の主も階層ボスもおらず、最後の部屋に階段が残る", () => {
+    for (const depth of [6, 11, 16]) {
+      const state = floorAt(depth);
+      const last = state.rooms[state.rooms.length - 1];
+      if (!last) throw new Error("no last room");
+      const c = rectCenter(last.rect);
+      expect(state.boss, `depth=${depth}`).toBeNull();
+      expect(getTile(state.map, c.x, c.y), `depth=${depth} 階段がある`).toBe(Tile.StairsDown);
     }
   });
 
@@ -74,6 +90,36 @@ describe("階の主（毎階）", () => {
     expect(e.maxHp, "生命が底上げされている").toBeGreaterThan(baseHp * FLOOR_LORD.hpMulLair * 0.95);
     const basePoise = createEnemy(state, def, e.body.pos, roomIndex, false).poise.max;
     expect(e.poise.max, "怯み耐性が底上げされている").toBeGreaterThan(basePoise * FLOOR_LORD.poiseMul * 0.95);
+  });
+
+  it("浅い階（captainMaxDepth 以下）で通常敵を格上げした主は隊長: 号令のを添えた精鋭 2 つ・captainHpMul。深い階は「〜の長」", () => {
+    let captains = 0;
+    let chiefs = 0;
+    for (let seed = 0; seed < 30; seed++) {
+      for (const depth of [FLOOR_LORD.captainMaxDepth, FLOOR_LORD.captainMaxDepth + 1]) {
+        const state = arena(seed);
+        state.depth = depth;
+        const roomIndex = state.rooms.length - 1;
+        setupFloorLordRoom(state, roomIndex);
+        const e = state.enemies[0];
+        const name = state.boss?.name ?? "";
+        if (!e) throw new Error("no floor lord enemy");
+        const def = enemyDef(e.defKey);
+        if (name === def.name) continue; // 部屋主（lair）は名前も修飾子も従来どおり
+        if (isCaptain(depth, false)) {
+          captains++;
+          expect(name, "隊長の名").toBe(`${def.name}の隊長`);
+          expect(e.eliteExtra, "号令のを添える").toBe("commanding");
+          expect(e.elite, "主の修飾子は号令の以外").not.toBe("commanding");
+          continue;
+        }
+        chiefs++;
+        expect(name, "深い階は〜の長").toBe(`${def.name}の長`);
+        expect(e.eliteExtra, "添えは無い").toBeUndefined();
+      }
+    }
+    expect(captains, "隊長が出る").toBeGreaterThan(0);
+    expect(chiefs, "〜の長が出る").toBeGreaterThan(0);
   });
 
   it("階の主の部屋を封鎖すると取り巻きが増える（major は単騎のまま）", () => {
@@ -133,7 +179,8 @@ describe("階の主（毎階）", () => {
 
   it("初めて着いた階だけ、失った生命の HEAL.descendHealRatio を回復する", () => {
     const state = createGame(3);
-    const missing = 100;
+    // 生命 0 のまま生きている状態は、降階の stats の決め直し（生存中は最低 1）で丸められるので半分だけ減らす
+    const missing = state.player.maxHp / 2;
     state.player.hp = state.player.maxHp - missing;
     const before = state.player.hp;
     descend(state);

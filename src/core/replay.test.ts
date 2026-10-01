@@ -25,20 +25,21 @@ import { createEmptyProfile, type Item, type Profile } from "../loot/types";
 import { PROFILE_KEY, saveProfile } from "../loot/profile";
 import { MemoryStorage } from "../meta/testStorage";
 import { setSaveStorage } from "../save/backend";
-import { createDefaultSkillProfile, ownedRunes } from "../skills/persistence";
+import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { SKILL } from "../skills/data";
-import { dropRune } from "../system/skills";
+import { attachRune, moveRunModifier, removeRunModifier } from "../system/skills";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
-import { allocateAttribute } from "../ui/attributeAlloc";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
+import { type RunMetaSetup, emptyRunMeta, isEmptyRunMeta } from "../system/runMeta";
 import { ULTIMATES } from "../data/ultimates";
 import { DEFAULT_MOVESET, MOVESET_KEYS } from "../data/weapons";
 import { chosenUltimate } from "../system/ultimates";
+import { offerReforges } from "../system/reforge";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -185,6 +186,10 @@ describe("encodeInputs / decodeInputs", () => {
       skill4Pressed: true,
       skill3Held: true,
       skill4Held: true,
+      attackHeld: true,
+      interactPressed: true,
+      parryPressed: true,
+      flaskPressed: true,
       wheel: -3,
     });
     expect(decodeInputs(encodeInputs([all]))).toEqual([all]);
@@ -197,6 +202,25 @@ describe("encodeInputs / decodeInputs", () => {
     expect(decoded?.skill4Held, "skill4Held が落ちた").toBe(true);
     expect(decoded?.skill4Pressed, "skill4Pressed が立った").toBe(false);
     expect(decoded?.skill1Pressed, "skill1Pressed が立った").toBe(false);
+  });
+
+  it("受け流しのビットは他のボタンと混ざらず、押していない列では 0 のまま（REPLAY_VERSION 13）", () => {
+    const only = withInput({ parryPressed: true });
+    const decoded = decodeInputs(encodeInputs([only, withInput({})]));
+    expect(decoded[0]?.parryPressed, "parryPressed が落ちた").toBe(true);
+    expect(decoded[0]?.interactPressed, "interactPressed が立った").toBe(false);
+    expect(decoded[0]?.dashPressed, "dashPressed が立った").toBe(false);
+    expect(decoded[1]?.parryPressed, "押していないフレームは false").toBe(false);
+    expect(REPLAY_VERSION, "受け流しの入力を足した版").toBeGreaterThanOrEqual(13);
+  });
+
+  it("瓶のビットは他のボタンと混ざらず、押していないフレームでは 0 のまま", () => {
+    const only = withInput({ flaskPressed: true });
+    const decoded = decodeInputs(encodeInputs([only, withInput({})]));
+    expect(decoded[0]?.flaskPressed, "flaskPressed が落ちた").toBe(true);
+    expect(decoded[0]?.parryPressed, "parryPressed が立った").toBe(false);
+    expect(decoded[0]?.interactPressed, "interactPressed が立った").toBe(false);
+    expect(decoded[1]?.flaskPressed, "押していないフレームは false").toBe(false);
   });
 
   it("壊れた文字列は例外", () => {
@@ -301,21 +325,57 @@ describe("記録 → 再生", () => {
     expect(session.profile).not.toBe(profile);
   });
 
-  it("所持刻印符の件数もスナップショットされ、満杯なら再生でも床の刻印符を拾わない", () => {
-    const skillProfile = createDefaultSkillProfile();
-    skillProfile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
-    const recorder = new ReplayRecorder({ seedText: "runes", startedAt: 1, daily: false }, createEmptyProfile(), skillProfile);
-    const data = recorder.finish({ depth: 1, kills: 0, score: 0 }, 2);
-    expect(data.snapshot.runeCount).toBe(SKILL.runeCapacity);
-    const loaded = sanitizeReplay(JSON.parse(JSON.stringify(data)));
-    if (!loaded) throw new Error("sanitize failed");
-    const session = createReplaySession(loaded);
-    expect(ownedRunes(session.skillProfile), "ダミーで件数を合わせる").toHaveLength(SKILL.runeCapacity);
-    dropRune(session.state, session.state.player.body.pos, "pierce");
-    for (let t = 0; t <= SKILL.drop.pickupDelay + FIXED_DT; t += FIXED_DT) step(session.state, withInput({}), FIXED_DT);
-    expect(session.state.skills.runes, "記録時と同じく床に残る").toHaveLength(1);
-    const legacy = sanitizeReplay({ ...JSON.parse(JSON.stringify(data)), snapshot: { ...data.snapshot, runeCount: undefined } });
-    expect(legacy?.snapshot.runeCount, "欄の無い記録は 0").toBe(0);
+  it("ラン中に刻印符を付け替えた操作がイベントとして記録され、再生で同じ符が並ぶ", () => {
+    const { data, state } = recordRun("runes", createEmptyProfile(), randomInputs(13, 1500), (s, frame) => {
+      if (frame === 300) {
+        // 装備画面で符を付ける / 移す / 外す相当（runModifiers を直接書く）
+        attachRune(s, "echo");
+        return true;
+      }
+      if (frame === 700) {
+        moveRunModifier(s.skills, 0, 1, "echo");
+        return true;
+      }
+      if (frame === 1100) {
+        removeRunModifier(s.skills, 1, "echo");
+        return true;
+      }
+      return false;
+    });
+    expect(data.events, "3 回の操作ぶん").toHaveLength(3);
+    expect(data.events.map((e) => e.loadout.slotRunes), "符が残る間だけ写しを持ち、全部外したら欄ごと書かない").toEqual([
+      [["echo"], [], [], []],
+      [[], ["echo"], [], []],
+      undefined,
+    ]);
+    expect(data.events.every((e) => e.player === null), "装備は変わっていない").toBe(true);
+    const played = playBack(data);
+    expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+    expect(fingerprint(played)).toBe(fingerprint(state));
+  });
+
+  it("符を付けなかったランの記録は slotRunes の欄を持たない（旧記録と同じ形）", () => {
+    const { data } = recordRun("no-runes", createEmptyProfile(), randomInputs(3, 60));
+    expect("slotRunes" in data.snapshot).toBe(false);
+    expect("runeCount" in data.snapshot).toBe(false);
+  });
+
+  it("起点「詠み手」の開始時の符は snapshot に写り、再生でも同じ符で始まる", () => {
+    const setup: RunSetup = { origin: "chanter", modifiers: [] };
+    const { data, state } = recordRun("chanter-runes", createEmptyProfile(), randomInputs(5, 600), undefined, setup);
+    expect(data.snapshot.slotRunes?.some((r) => r.length > 0), "開始時の符が snapshot にある").toBe(true);
+    const played = playBack(data);
+    expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+  });
+
+  it("旧記録の runeCount は読み捨て、slotRunes の知らない符 key と壊れた欄は捨てる", () => {
+    const { data } = recordRun("legacy-runes", createEmptyProfile(), randomInputs(3, 60));
+    const raw = JSON.parse(JSON.stringify(data)) as { snapshot: Record<string, unknown> };
+    raw.snapshot.runeCount = 5;
+    raw.snapshot.slotRunes = [["echo", "nope"], "x", []];
+    const loaded = sanitizeReplay(raw);
+    expect("runeCount" in (loaded?.snapshot ?? {}), "runeCount は持たない").toBe(false);
+    expect(loaded?.snapshot.slotRunes, "知らない key と壊れたスロットは空").toEqual([["echo"], [], []]);
   });
 
   it("フレーム数が合わないデータは再生を拒否する", () => {
@@ -348,6 +408,62 @@ describe("記録 → 再生", () => {
     expect("job" in plain, "見習いは書かない（旧データと同じ形）").toBe(false);
     expect(sanitizeReplay(JSON.parse(JSON.stringify({ ...data, job: "nope" })))?.job, "未知は見習い").toBeUndefined();
     expect(createReplaySession({ ...data, job: undefined }).state.job, "欄の無い記録は見習い").toBe("none");
+  });
+
+  it("開始深度（QA 専用）を記録し、再生でも同じ深度から始まる。1 は書かず、壊れた値は 1 に戻る", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 12 };
+    const { data, state } = recordRun("depth-replay", createEmptyProfile(), randomInputs(13, 1200), undefined, setup);
+    expect(data.startDepth, "開始深度が記録される").toBe(12);
+    expect(createReplaySession(data).state.depth, "再生の開始深度").toBe(12);
+    const replayed = playBack(data);
+    expect(fingerprint(replayed), "深い階から始めても再生が一致する").toBe(fingerprint(state));
+    expect(sanitizeReplay(JSON.parse(JSON.stringify(data)))?.startDepth, "往復で残る").toBe(12);
+    const plain = recordRun("depth-none", createEmptyProfile(), randomInputs(3, 10)).data;
+    expect("startDepth" in plain, "既定は書かない（旧データと同じ形）").toBe(false);
+    expect(createReplaySession({ ...plain, startDepth: undefined }).state.depth, "欄の無い記録は深度 1").toBe(1);
+    for (const broken of [0, -3, Number.NaN, "5", null]) {
+      const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, startDepth: broken })));
+      expect(loaded?.startDepth, `壊れた値 ${String(broken)} は捨てる`).toBeUndefined();
+    }
+  });
+
+  it("runMeta（仇・封じ・見返り）を記録し、再生で同じ result になる", () => {
+    const runMeta: RunMetaSetup = {
+      nemesis: { key: "wolf", elites: ["hasted"], depth: 5 },
+      lockedRooms: ["library"],
+      lockedContractors: ["ferryman"],
+      lockedEvents: ["fog"],
+      perks: ["exit"],
+    };
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 4, runMeta };
+    const { data, state } = recordRun("runmeta-replay", createEmptyProfile(), randomInputs(21, 1500), undefined, setup);
+    expect(state.nemesis?.placed, "仇が置かれた").toBe(true);
+    expect(data.runMeta, "runMeta が記録される").toEqual(runMeta);
+    expect(data.version, "版は据え置き").toBe(REPLAY_VERSION);
+    expect(createReplaySession(data).state.runMeta, "再生側にも入る").toEqual(runMeta);
+    const replayed = playBack(data);
+    expect(fingerprint(replayed)).toBe(fingerprint(state));
+    expect(replayed.nemesis?.enemyId, "同じ仇").toBe(state.nemesis?.enemyId);
+  });
+
+  it("runMeta の無い旧記録は空として再生でき、空の runMeta は書かない", () => {
+    const setup: RunSetup = { origin: "wanderer", modifiers: [], runMeta: emptyRunMeta() };
+    const { data, state } = recordRun("runmeta-empty", createEmptyProfile(), randomInputs(22, 800), undefined, setup);
+    expect("runMeta" in data, "空は書かない（旧データと同じ形）").toBe(false);
+    const session = createReplaySession(data);
+    expect(isEmptyRunMeta(session.state.runMeta), "欄の無い記録は空").toBe(true);
+    expect(session.state.nemesis).toBeNull();
+    expect(fingerprint(playBack(data))).toBe(fingerprint(state));
+    const plain = recordRun("runmeta-empty", createEmptyProfile(), randomInputs(22, 800)).state;
+    expect(fingerprint(plain), "runMeta の有無（空）で結果が変わらない").toBe(fingerprint(state));
+  });
+
+  it("壊れた runMeta は空に落ちる", () => {
+    const { data } = recordRun("runmeta-broken", createEmptyProfile(), randomInputs(3, 10));
+    for (const broken of [3, "x", [], { nemesis: { key: "kingSlime", elites: [], depth: 5 } }, { lockedRooms: ["nope"] }]) {
+      const loaded = sanitizeReplay(JSON.parse(JSON.stringify({ ...data, runMeta: broken })));
+      expect(loaded?.runMeta, `壊れた値 ${JSON.stringify(broken)} は書かない`).toBeUndefined();
+    }
   });
 
   it("起点・縛りの未知の key は sanitize で捨てる（起点は放浪者に戻る）", () => {
@@ -415,33 +531,26 @@ describe("記録 → 再生", () => {
   });
 });
 
-describe("装備画面でのステータス振り分けの記録 → 再生", () => {
-  const SEED = "alloc-replay";
-  /** 開始直後に 2 回降りて点を 2 得る（記録側と再生側で同じ操作をする） */
+describe("装備画面での付け替えの記録 → 再生", () => {
+  const SEED = "equip-replay";
+  /** 開始直後に 2 回降りる（記録側と再生側で同じ操作をする） */
   const DESCENTS = 2;
 
   function prepare(state: GameState): void {
     for (let i = 0; i < DESCENTS; i++) descend(state);
   }
 
-  /** frame 300 で体力と精神、frame 700 で装備の付け替えと同時に最後の 1 点を振る */
+  /** frame 700 で装備を付け替える */
   function record(): { data: ReplayData; state: GameState } {
     const profile = createEmptyProfile();
     const skillProfile = createDefaultSkillProfile();
     const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
     const state = createGame(hashSeed(SEED), SEED, profile, skillProfile);
     prepare(state);
-    state.runAttributes.unspent += 1;
     randomInputs(11, 1200).forEach((input, i) => {
-      if (i === 300) {
-        allocateAttribute(state, "vit");
-        allocateAttribute(state, "mnd");
-        recorder.noteLoadout(state);
-      }
       if (i === 700) {
         state.profile.equipment.armor = armor(40);
         applyStats(state, computeStats(state.profile.equipment));
-        allocateAttribute(state, "str");
         recorder.noteLoadout(state);
       }
       step(state, recorder.record(input), FIXED_DT);
@@ -454,25 +563,22 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     if (!loaded) throw new Error("sanitize failed");
     const session = createReplaySession(loaded);
     prepare(session.state);
-    session.state.runAttributes.unspent += 1;
     while (!isReplayFinished(session)) stepReplay(session, FIXED_DT);
     return session.state;
   }
 
-  it("振り分けがイベントとして記録され、再生で同じ状態になる", () => {
+  it("付け替えがイベントとして記録され、再生で同じ状態になる", () => {
     const { data, state } = record();
-    expect(data.events, "振り分け 2 回ぶんのイベント").toHaveLength(2);
-    expect(data.events[0]?.alloc, "1 回目は振り分けだけ").toEqual({ str: 0, dex: 0, vit: 1, mnd: 1, spi: 0, def: 0 });
-    expect(data.events[1]?.alloc?.str, "2 回目は装備と同時").toBe(1);
+    expect(data.events, "付け替え 1 回ぶんのイベント").toHaveLength(1);
+    expect(data.events[0]?.player, "装備が変わったのでプレイヤー値を残す").not.toBeNull();
     const played = replay(data);
-    expect(played.runAttributes).toEqual(state.runAttributes);
     expect(played.stats).toEqual(state.stats);
     expect(played.player.mana).toBe(state.player.mana);
-    expect(played.rng.next(), "浮き文字の乱数消費も一致").toBe(state.rng.next());
+    expect(played.rng.next(), "乱数の消費も一致").toBe(state.rng.next());
     expect(fingerprint(played)).toBe(fingerprint(state));
   });
 
-  it("振り分けが無ければイベントは積まれない", () => {
+  it("付け替えが無ければイベントは積まれない", () => {
     const profile = createEmptyProfile();
     const skillProfile = createDefaultSkillProfile();
     const recorder = new ReplayRecorder({ seedText: SEED, startedAt: 1, daily: false }, profile, skillProfile);
@@ -481,31 +587,20 @@ describe("装備画面でのステータス振り分けの記録 → 再生", ()
     expect(recorder.finish({ depth: 1, kills: 0, score: 0 }, 2).events).toHaveLength(0);
   });
 
-  it("壊れた振り分けのイベントは sanitize で捨てる", () => {
+  it("旧記録の alloc の欄は無視して読める（イベントは捨てない）", () => {
     const { data } = record();
-    const broken = JSON.parse(JSON.stringify(data)) as { events: { alloc: unknown }[] };
-    const first = broken.events[0];
+    const legacy = JSON.parse(JSON.stringify(data)) as { events: { alloc?: unknown }[] };
+    const first = legacy.events[0];
     if (!first) throw new Error("イベントが無い");
-    first.alloc = { str: -1, dex: 0, vit: 0, mnd: 0, spi: 0 };
-    expect(sanitizeReplay(broken)).toBeNull();
-  });
-
-  it("防御 def の欄が無い旧記録は 0 で補う（def を足す前の記録）", () => {
-    const { data } = record();
-    const stripped = JSON.parse(JSON.stringify(data)) as { events: { alloc: Record<string, number> }[] };
-    const first = stripped.events[0];
-    if (!first) throw new Error("イベントが無い");
-    delete first.alloc.def;
-    const loaded = sanitizeReplay(stripped);
-    expect(loaded?.events[0]?.alloc?.def, "def は 0 で補う").toBe(0);
-    expect(loaded?.events[0]?.alloc?.vit, "他のステータスは変わらない").toBe(1);
+    first.alloc = { str: 1, dex: 0, vit: 0, mnd: 0, spi: 0, def: 0 };
+    expect(sanitizeReplay(legacy)?.events, "イベントが残る").toHaveLength(1);
   });
 });
 
 describe("ジョブの初期スキル石と倉庫の上限（snapshotAfterStart）", () => {
   const SEED = "starter-stone";
   const JOB_SETUP: RunSetup = { origin: "wanderer", modifiers: [], job: "swordsman" };
-  const STARTER = "lunge";
+  const STARTER = "commonLunge";
   /** 倉庫を上限の 1 つ手前まで埋める。拾えば満杯になり、初期石が 1 つ増えるだけで拾えなくなる */
   const NEAR_FULL = SKILL.stashCapacity - 1;
 
@@ -514,14 +609,14 @@ describe("ジョブの初期スキル石と倉庫の上限（snapshotAfterStart�
     const extra = ownsStarter ? [stoneFromSeed(1, { foundDepth: 1, now: 0, skillKey: STARTER })] : [];
     skillProfile.stones.push(...extra);
     for (let i = skillProfile.stones.length; i < NEAR_FULL; i++) {
-      skillProfile.stones.push(stoneFromSeed(i + 2, { foundDepth: 1, now: 0, skillKey: "frag" }));
+      skillProfile.stones.push(stoneFromSeed(i + 2, { foundDepth: 1, now: 0, skillKey: "commonBomb" }));
     }
     return skillProfile;
   }
 
   /** 足元にスキル石を置いてインタラクトで拾う（記録側と再生側に同じ操作をする） */
   function pickUpAtFeet(state: GameState): void {
-    const stone = stoneFromSeed(999, { foundDepth: 1, now: 0, skillKey: "frag" });
+    const stone = stoneFromSeed(999, { foundDepth: 1, now: 0, skillKey: "commonBomb" });
     state.skills.floorStones.push({ id: 9999, stone, pos: { ...state.player.body.pos }, bobTime: 0, warned: false });
     step(state, withInput({ interactPressed: true, aimScreen: null }), FIXED_DT);
   }
@@ -669,5 +764,37 @@ describe("奥義の選択の記録", () => {
     const loaded = sanitizeReplay(broken);
     if (!loaded) throw new Error("sanitize failed");
     expect(loaded.snapshot.ultimates, "知らない key は捨てる").toBeUndefined();
+  });
+});
+
+describe("改鋳の 3 択の記録 → 再生", () => {
+  /** ボスの撃破の代わりに 3 択を出すフレーム（撃破は入力で起きるので、記録と再生の両方で同じフレームに出す） */
+  const OFFER_FRAME = 40;
+  const WAIT_FRAMES = 40;
+
+  function reforgeInputs(): FrameInput[] {
+    const before = randomInputs(11, OFFER_FRAME);
+    const wait = Array.from({ length: WAIT_FRAMES }, () => withInput({}));
+    const after = randomInputs(12, 200);
+    return [...before, ...wait, withInput({ skill2Pressed: true }), ...after];
+  }
+
+  function play(inputs: readonly FrameInput[]): GameState {
+    const state = createGame(hashSeed("reforge"), "reforge");
+    inputs.forEach((input, i) => {
+      if (i === OFFER_FRAME) offerReforges(state);
+      step(state, input, FIXED_DT);
+    });
+    return state;
+  }
+
+  it("改鋳を選ぶ入力がエンコードの往復で残り、再生でも同じ改鋳が入って同じ結果になる", () => {
+    const inputs = reforgeInputs().map(normalizeFrame);
+    const recorded = play(inputs);
+    const replayed = play(decodeInputs(encodeInputs(inputs)));
+    expect(recorded.reforges, "スキル 2 で 2 枚目を選んだ").toHaveLength(1);
+    expect(recorded.reforgeChoice, "3 択は閉じた").toBeNull();
+    expect(replayed.reforges, "同じ改鋳").toEqual(recorded.reforges);
+    expect(fingerprint(replayed)).toBe(fingerprint(recorded));
   });
 });

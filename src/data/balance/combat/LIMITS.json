@@ -1,0 +1,11 @@
+{
+  "_note": "性能の歯止め（system/limits.ts）。強さの上限ではなく 1 ステップの重さを抑える数。超えた分は古い順に消し ruleRun.trimmed に数える。通常のプレイでは届かない数にする（qa:probe -- --deep の壊れの表で最大値を見る）",
+  "_fields": {
+    "playerProjectiles": "プレイヤーの弾（state.projectiles の owner が player）の同時数の上限。敵の弾は数えない",
+    "skillShots": "スキルの弾（state.skills.shots）の同時数の上限",
+    "placedPerPool": "設置物の置き場（樽・墓・砲台・地雷・井戸・領域・泥沼・泉・杭・罠）ごとの同時数の上限"
+  },
+  "playerProjectiles": 256,
+  "skillShots": 192,
+  "placedPerPool": 32
+}

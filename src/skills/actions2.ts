@@ -3,31 +3,23 @@ import type { Element } from "../core/element";
 import type { StatusApply } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
-import { enemyCombat } from "../data/enemyCombat";
-import { JOBS } from "../data/jobs";
 import { STATUS } from "../data/tuning";
-import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { type Scaling, TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
-import { cancelAttack } from "../system/combat";
 import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
-import { moveBody } from "../system/physics";
-import { applyStagger, isStaggered } from "../system/poise";
 import { applyStatus, convertStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
 import { placeTerrain, terrainAt } from "../system/terrain";
-import { type CastCtx, landingShock } from "./actions";
+import type { CastCtx } from "./actions";
 import { SKILL } from "./data";
 import { enemiesInCone, enemiesOnSegment, enemyNear, rayEnd } from "./geom";
 import { resonanceHueIndex, skillHit, skillPower } from "./hit";
-import { spawnFan, spawnShot } from "./shots";
-import { FORM_TUNING as F, WAVE2_COMBO_TUNING as C2, WEAPON_ART, WEAPON_ART_BLEED } from "./tuning2";
-import type { ActiveCast, CastParams, FormSkillKey, Wave2SkillKey, WardStake } from "./types";
-import { carryContractPatch } from "../system/contractors";
+import { spawnShot } from "./shots";
+import type { CastParams, Wave2SkillKey, WardStake } from "./types";
 
 /**
- * スキル第 2 弾の発動（地形・新しい状態異常・属性・武器種・変身・空間。docs/ideas/skills-expansion.md）。
- * actions.ts と同じく「発動地点・向き・照準地点」を受け取り、remote（反響・遅延・投げ刃・散り際・罠）なら
- * プレイヤーを動かさずその地点で即時に起こす。変身は remote だと衝撃だけ（変身しない）。
+ * スキル第 2 弾の発動（地形・新しい状態異常・属性・空間。docs/ideas/skills-expansion.md）。
+ * actions.ts と同じく「発動地点・向き・照準地点」を受け取り、remote（反響・遅延・照準起点・据え置き）なら
+ * プレイヤーを動かさずその地点で即時に起こす。
  * 地形は system/terrain.ts の placeTerrain / terrainAt を呼ぶだけ（地形の規則はあちらが持つ）
  */
 
@@ -36,15 +28,10 @@ const COLOR_OIL = "#806040";
 const COLOR_FIRE = "#ff7030";
 const COLOR_ICE = "#a0e0ff";
 const COLOR_STONE = "#b0a080";
-const COLOR_BOG = "#80a040";
 const COLOR_MUD = "#8a6a40";
 const COLOR_BRAND = "#ff9040";
-const COLOR_BREAK = "#e0a060";
 const COLOR_HUE = "#f0a0ff";
 const COLOR_DOOM = "#a060e0";
-const COLOR_SIPHON = "#6080ff";
-const COLOR_ART = "#ffffff";
-const COLOR_FORM = "#ff90d0";
 
 const RING_LIFE = 0.2;
 const LINE_LIFE = 0.15;
@@ -65,7 +52,6 @@ const NO_TIME = 0;
 export const WAVE2_CAST_RANGE: Partial<Record<Wave2SkillKey, number>> = {
   waterJar: SKILL.waterJar.maxRange,
   oilPot: SKILL.oilPot.maxRange,
-  bogCall: SKILL.bogCall.maxRange,
   brandBlast: SKILL.brandBlast.maxRange,
   hueRelease: SKILL.hueRelease.maxRange,
   doomSentence: SKILL.doomSentence.maxRange,
@@ -101,26 +87,15 @@ type Wave2CastFn = (state: GameState, ctx: CastCtx) => void;
 export const WAVE2_CAST: Record<Wave2SkillKey, Wave2CastFn> = {
   waterJar: (state, ctx) => splashTerrain(state, ctx, SKILL.waterJar, "water", COLOR_WATER),
   oilPot: (state, ctx) => splashTerrain(state, ctx, SKILL.oilPot, "oil", COLOR_OIL),
-  scorchLine: castScorchLine,
-  iceSlide: castIceSlide,
   levelGround: castLevelGround,
   emberDraw: castEmberDraw,
-  bogCall: (state, ctx) => splashTerrain(state, ctx, SKILL.bogCall, "bog", COLOR_BOG),
   brandSear: (state, ctx) => coneStrike(state, ctx, SKILL.brandSear, COLOR_BRAND),
   brandBlast: castBrandBlast,
-  breakKick: castBreakKick,
-  collapseHammer: castCollapseHammer,
-  tideSlash: castTideSlash,
   flashFreeze: castFlashFreeze,
   hueEtch: castHueEtch,
   hueRelease: castHueRelease,
-  siphonMark: castSiphonMark,
   doomSentence: castDoomSentence,
   shiftingEdge: castShiftingEdge,
-  weaponArt: castWeaponArt,
-  titanForm: (state, ctx) => castForm(state, ctx, "titanForm"),
-  swiftForm: (state, ctx) => castForm(state, ctx, "swiftForm"),
-  spiritForm: (state, ctx) => castForm(state, ctx, "spiritForm"),
   wardStake: (state, ctx) => placeStake(state, ctx.target, ctx.params),
   mire: castMire,
 };
@@ -135,7 +110,7 @@ interface SplashBlock {
   knockback: number;
 }
 
-/** 照準地点で弾けて周りに当て、床に地形を残す（水瓶・油流し・沼呼び） */
+/** 照準地点で弾けて周りに当て、床に地形を残す（水瓶・油流し・泥沼） */
 function splashTerrain(state: GameState, ctx: CastCtx, block: SplashBlock, kind: TerrainKind, color: string): void {
   const at = ctx.target;
   const radius = block.radius * ctx.params.areaMul;
@@ -214,88 +189,6 @@ function tileCentersOnSegment(from: Vec, to: Vec, step: number): Vec[] {
     out.push({ x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE });
   }
   return out;
-}
-
-// ---- 焼き払い ----
-
-function scorchLength(params: Readonly<CastParams>): number {
-  const combo = params.combo === "oilScorch" ? C2.oilScorch.lengthMul : 1;
-  return SKILL.scorchLine.length * params.areaMul * combo;
-}
-
-function castScorchLine(state: GameState, ctx: CastCtx): void {
-  const s = SKILL.scorchLine;
-  const end = rayEnd(state, ctx.origin, ctx.dir, scorchLength(ctx.params));
-  const power = skillPower(state, s.damage, ctx.params);
-  spawnLine(state, ctx.origin, end, COLOR_FIRE, LINE_LIFE * 2);
-  pushSfx(state, "burn");
-  // 自分の足元のマスは燃やさない（撃った本人が焼けないように）
-  const start = add(ctx.origin, scale(ctx.dir, s.fireStart));
-  for (let d = 0; d <= length(sub(end, start)); d += s.fireStep) {
-    const p = add(start, scale(normalize(sub(end, start), ctx.dir), d));
-    placeTerrain(state, p.x, p.y, "fire", s.fireRadius, s.fireTime * ctx.params.durationMul);
-  }
-  for (const e of enemiesOnSegment(state, ctx.origin, end, s.halfWidth * ctx.params.areaMul)) {
-    skillHit(state, e, ctx.params, { base: power, kind: "ranged", dir: ctx.dir, knockback: s.knockback, stagger: false, from: ctx.origin });
-  }
-}
-
-// ---- 凍て道 ----
-
-function slideDistance(state: GameState): number {
-  return SKILL.iceSlide.distance * state.stats.dashDistanceMul;
-}
-
-function castIceSlide(state: GameState, ctx: CastCtx): void {
-  if (ctx.remote) {
-    const end = rayEnd(state, ctx.origin, ctx.dir, slideDistance(state));
-    iceTrail(state, ctx.origin, end, ctx.params, new Set());
-    return;
-  }
-  const time = SKILL.iceSlide.time * ctx.params.timeMul;
-  state.skills.active = {
-    slot: ctx.slot,
-    skillKey: "iceSlide",
-    phase: "main",
-    timer: time,
-    total: time,
-    params: ctx.params,
-    dir: { ...ctx.dir },
-    origin: { ...ctx.origin },
-    hitIds: new Set(),
-    hitsDone: 0,
-    startHp: state.player.hp,
-    reach: 0,
-    target: { ...ctx.target },
-  };
-  pushSfx(state, "dash");
-}
-
-/** from → to の床を氷床にし、通り道の敵に当てる（hitIds で 1 回ずつ） */
-function iceTrail(state: GameState, from: Vec, to: Vec, params: CastParams, hitIds: Set<number>): void {
-  const s = SKILL.iceSlide;
-  for (const p of tileCentersOnSegment(from, to, s.iceStep)) placeTerrain(state, p.x, p.y, "ice", s.iceRadius, s.iceTime * params.durationMul);
-  const power = skillPower(state, s.damage, params);
-  const dir = normalize(sub(to, from), state.player.facing);
-  const half = state.player.body.radius + s.hitPad * params.areaMul;
-  for (const e of enemiesOnSegment(state, from, to, half)) {
-    if (hitIds.has(e.id)) continue;
-    hitIds.add(e.id);
-    skillHit(state, e, params, { base: power, kind: "melee", dir, knockback: s.knockback, stagger: true, from });
-  }
-}
-
-function updateIceSlide(state: GameState, a: ActiveCast, dt: number): void {
-  const p = state.player;
-  const total = Math.max(a.total, Number.EPSILON);
-  const step = (slideDistance(state) / total) * Math.min(dt, Math.max(0, a.timer));
-  a.timer -= dt;
-  const before = { ...p.body.pos };
-  const hit = moveBody(state, p.body, a.dir.x * step, a.dir.y * step);
-  iceTrail(state, before, p.body.pos, a.params, a.hitIds);
-  if (a.timer > 0 && !hit.hitX && !hit.hitY) return;
-  state.skills.active = null;
-  landingShock(state, p.body.pos, a.params);
 }
 
 // ---- 地均し ----
@@ -403,52 +296,7 @@ function doubleBrand(state: GameState, e: Enemy, stacks: number, potency: number
   spawnBurst(state, e.body.pos, COLOR_BRAND, BURST_PARTICLES / 2, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
 }
 
-// ---- 崩し蹴り・崩落槌 ----
-
-function castBreakKick(state: GameState, ctx: CastCtx): void {
-  const k = SKILL.breakKick;
-  const end = rayEnd(state, ctx.origin, ctx.dir, k.length * state.stats.meleeReachMul * ctx.params.areaMul);
-  const power = skillPower(state, k.damage, ctx.params);
-  spawnLine(state, ctx.origin, end, COLOR_BREAK, LINE_LIFE);
-  pushSfx(state, "hitHeavy");
-  for (const e of enemiesOnSegment(state, ctx.origin, end, k.halfWidth)) {
-    // 崩勢中の敵は踏ん張れず、壁まで飛んで叩きつけられる
-    if (hasStatus(e.status, "broken")) e.wallSplat = true;
-    skillHit(state, e, ctx.params, { base: power, kind: "melee", dir: ctx.dir, knockback: k.knockback, stagger: true, from: ctx.origin });
-  }
-}
-
-function castCollapseHammer(state: GameState, ctx: CastCtx): void {
-  const c = SKILL.collapseHammer;
-  const radius = c.radius * state.stats.meleeReachMul * ctx.params.areaMul;
-  const power = skillPower(state, c.damage, ctx.params);
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_BREAK, RING_LIFE * 2);
-  shake(state, SHAKE_HEAVY);
-  pushSfx(state, "hitHeavy");
-  for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, c.halfAngle)) {
-    const broken = hasStatus(e.status, "broken");
-    skillHit(state, e, ctx.params, { base: power * (broken ? c.brokenMul : 1), kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: c.knockback, stagger: true, from: ctx.origin });
-    // 崩勢は怯みを長くし、解けたとき堅守を付けずに消える（崩落）。怯み値を待たずにその場で崩す
-    if (broken && e.hp > 0 && !isStaggered(e)) applyStagger(state, e, enemyCombat(e.defKey).staggerTime);
-  }
-}
-
-// ---- 水刃・瞬凍 ----
-
-function castTideSlash(state: GameState, ctx: CastCtx): void {
-  const t = SKILL.tideSlash;
-  pushSfx(state, "slash2");
-  spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
-    effect: "plain",
-    power: skillPower(state, t.damage, ctx.params),
-    speed: t.speed / ctx.params.timeMul,
-    life: t.life,
-    radius: t.radius * ctx.params.areaMul,
-    knockback: t.knockback,
-    color: COLOR_WATER,
-    pierce: t.pierce,
-  });
-}
+// ---- 瞬凍 ----
 
 function flashFreezeRadius(params: Readonly<CastParams>): number {
   const combo = params.combo === "waterFreeze" ? SKILL.flashFreeze.comboAreaMul : 1;
@@ -491,7 +339,7 @@ function castFlashFreeze(state: GameState, ctx: CastCtx): void {
 // ---- 彩刻・色解き ----
 
 function castHueEtch(state: GameState, ctx: CastCtx): void {
-  // 共鳴の色が定まらない（散光・共鳴なし）ときは色をくじで決める（state.rng）
+  // 状態異常の語が共鳴していないときは色をくじで決める（state.rng）
   const index = resonanceHueIndex(state) ?? state.rng.int(0, TRAIT_COLORS.length - 1);
   const applies: readonly StatusApply[] = [{ kind: "hue", stacks: 1, duration: STATUS.hue.duration, potency: index }];
   coneStrike(state, ctx, SKILL.hueEtch, COLOR_HUE, applies);
@@ -532,21 +380,7 @@ function castHueRelease(state: GameState, ctx: CastCtx): void {
   }
 }
 
-// ---- 吸魔の印・宣告 ----
-
-function castSiphonMark(state: GameState, ctx: CastCtx): void {
-  const s = SKILL.siphonMark;
-  pushSfx(state, "shoot");
-  spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
-    effect: "plain",
-    power: skillPower(state, s.damage, ctx.params),
-    speed: s.speed / ctx.params.timeMul,
-    life: s.life,
-    radius: s.radius,
-    knockback: s.knockback,
-    color: COLOR_SIPHON,
-  });
-}
+// ---- 宣告 ----
 
 function castDoomSentence(state: GameState, ctx: CastCtx): void {
   const d = SKILL.doomSentence;
@@ -599,188 +433,6 @@ const COLOR_ELEMENT: Readonly<Record<Element, string>> = {
   dark: "#a060e0",
   light: "#fff4c0",
 };
-
-// ---- 極意 ----
-
-function currentArtKey(state: GameState): MovesetKey {
-  return MOVESETS[state.stats.moveset] ? state.stats.moveset : "sword";
-}
-
-/** 今の武器種の極意の名前（HUD・ツールチップ用） */
-export function weaponArtName(state: GameState): string {
-  return WEAPON_ART[currentArtKey(state)].name;
-}
-
-function castWeaponArt(state: GameState, ctx: CastCtx): void {
-  const key = currentArtKey(state);
-  const art = WEAPON_ART[key];
-  const element = MOVESETS[key].attack.element;
-  // 属性は武器に揃う（無属性の武器なら SKILL_ATTACK の無属性のまま）
-  const params = { ...ctx.params, element: element === "none" ? ctx.params.element : element };
-  const base = skillPower(state, SKILL.weaponArt.damage, params) * art.mul;
-  const reach = state.stats.meleeReachMul * params.areaMul;
-  addFloatingText(state, ctx.origin, art.name, COLOR_ART, TEXT_SCALE, TEXT_LIFE);
-  shake(state, SHAKE_LIGHT);
-  pushSfx(state, "slash3");
-  const kb = SKILL.weaponArt.knockback;
-  switch (art.kind) {
-    case "cone": {
-      const radius = art.radius * reach;
-      const applies = "bleed" in art ? [{ kind: "bleed" as const, stacks: art.bleed, duration: WEAPON_ART_BLEED.duration, potency: WEAPON_ART_BLEED.potency }] : undefined;
-      const pull = "pull" in art && art.pull;
-      spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_ART, RING_LIFE);
-      for (let i = 0; i < art.hits; i++) {
-        for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, art.halfAngle)) {
-          const to = sub(e.body.pos, ctx.origin);
-          skillHit(state, e, params, { base, kind: "melee", dir: pull ? scale(to, -1) : to, knockback: kb, stagger: true, applies, from: ctx.origin });
-        }
-      }
-      return;
-    }
-    case "circle": {
-      const radius = art.radius * reach;
-      const knock = kb * ("knockbackMul" in art ? art.knockbackMul : 1);
-      spawnRing(state, ctx.origin, radius, COLOR_ART, RING_LIFE * 2);
-      for (const e of enemiesInRadius(state, ctx.origin, radius)) {
-        skillHit(state, e, params, { base, kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: knock, stagger: true, from: ctx.origin });
-      }
-      return;
-    }
-    case "thrust": {
-      const end = rayEnd(state, ctx.origin, ctx.dir, art.length * reach);
-      spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE);
-      for (let i = 0; i < art.hits; i++) {
-        for (const e of enemiesOnSegment(state, ctx.origin, end, art.halfWidth)) {
-          skillHit(state, e, params, { base, kind: "melee", dir: ctx.dir, knockback: kb / art.hits, stagger: art.hits === 1, from: ctx.origin });
-        }
-      }
-      return;
-    }
-    case "tip": {
-      const total = art.length * reach;
-      const end = rayEnd(state, ctx.origin, ctx.dir, total);
-      spawnLine(state, ctx.origin, end, COLOR_ART, LINE_LIFE);
-      for (const e of enemiesOnSegment(state, ctx.origin, end, art.halfWidth)) {
-        const tip = length(sub(e.body.pos, ctx.origin)) >= total * art.tipFrom;
-        skillHit(state, e, params, { base: base * (tip ? art.tipMul : 1), kind: "melee", dir: ctx.dir, knockback: kb, stagger: tip, from: ctx.origin });
-      }
-      return;
-    }
-    case "shots":
-      spawnFan(state, ctx.origin, ctx.dir, params, art.count, art.spreadRad, () => ({
-        effect: "plain",
-        power: base,
-        speed: art.speed,
-        life: art.life,
-        radius: art.radius,
-        knockback: kb / art.count,
-        color: COLOR_ELEMENT[params.element ?? "none"],
-      }));
-      return;
-  }
-}
-
-// ---- 変身 ----
-
-/** 変身先の武器種 */
-export const FORM_MOVESET: Readonly<Record<FormSkillKey, MovesetKey>> = {
-  titanForm: "greatsword",
-  swiftForm: "twinBlades",
-  spiritForm: "wand",
-};
-
-const FORM_TEXT: Readonly<Record<FormSkillKey, string>> = {
-  titanForm: "剛の型",
-  swiftForm: "迅の型",
-  spiritForm: "霊の型",
-};
-
-function castForm(state: GameState, ctx: CastCtx, key: FormSkillKey): void {
-  formBurst(state, ctx.origin, ctx.params, key);
-  if (ctx.remote) return;
-  startForm(state, key, ctx.params);
-}
-
-/** 変身の瞬間の衝撃（効果量の変異は衝撃の威力に掛かる） */
-function formBurst(state: GameState, center: Vec, params: CastParams, key: FormSkillKey): void {
-  const f = SKILL[key];
-  const radius = f.radius * params.areaMul;
-  const power = skillPower(state, f.damage, params) * params.potencyMul;
-  spawnRing(state, center, radius, COLOR_FORM, RING_LIFE * 2);
-  spawnBurst(state, center, COLOR_FORM, BURST_PARTICLES * 2, BURST_SPEED, BURST_LIFE, BURST_SIZE);
-  shake(state, SHAKE_HEAVY);
-  pushSfx(state, "burst");
-  for (const e of enemiesInRadius(state, center, radius)) {
-    skillHit(state, e, params, { base: power, kind: "melee", dir: sub(e.body.pos, center), knockback: f.knockback, stagger: true, from: center });
-  }
-}
-
-/** 変身先がジョブの得意な武器種か（持続が伸びる） */
-export function formFavored(state: GameState, key: FormSkillKey): boolean {
-  return JOBS[state.job].favored.includes(FORM_MOVESET[key]);
-}
-
-/** 変身の持続（持続の変異・深化・得意の武器種を畳む） */
-export function formDuration(state: GameState, key: FormSkillKey, params: Readonly<CastParams>): number {
-  const favored = formFavored(state, key) ? F.favoredDurationMul : 1;
-  return SKILL[key].duration * params.durationMul * params.formDurationMul * favored;
-}
-
-/** 変身を始める（別の型の最中なら上書き。変身前の武器種は最初の変身のものを覚えたまま） */
-export function startForm(state: GameState, key: FormSkillKey, params: Readonly<CastParams>): void {
-  const rs = state.skills;
-  const base = rs.form ? rs.form.base : state.stats.moveset;
-  const total = formDuration(state, key, params);
-  const moveset = FORM_MOVESET[key];
-  rs.form = { skillKey: key, moveset, base, timer: total, total, recover: F.recoverTime * params.formRecoverMul };
-  rs.formRecover = 0;
-  if (state.player.attack.phase !== "none") cancelAttack(state);
-  setMoveset(state, moveset);
-  addFloatingText(state, state.player.body.pos, FORM_TEXT[key], COLOR_FORM, TEXT_SCALE, TEXT_LIFE * 2);
-}
-
-/** stats の武器種だけを差し替える（ほかの値は装備のまま。装備を替えると applyStats が作り直すので毎ステップ確かめる） */
-function setMoveset(state: GameState, moveset: MovesetKey): void {
-  if (state.stats.moveset === moveset) return;
-  const prev = state.stats;
-  state.stats = { ...prev, moveset };
-  // 鍛冶・祭壇の属性の上乗せは写しにも入っているので、足し直させない
-  carryContractPatch(prev, state.stats);
-}
-
-/**
- * 変身の時間経過（updateSkills が毎ステップ呼ぶ）。装備を替えて stats が作り直されたら変身前の武器種を更新して差し直す。
- * 切れたら武器種を戻し、振りの途中なら止め、少しの間遅くなる
- */
-export function updateForm(state: GameState, dt: number): void {
-  const rs = state.skills;
-  rs.formRecover = Math.max(0, rs.formRecover - dt);
-  const form = rs.form;
-  if (!form) return;
-  if (state.stats.moveset !== form.moveset) {
-    form.base = state.stats.moveset;
-    setMoveset(state, form.moveset);
-  }
-  form.timer -= dt;
-  if (form.timer > 0) return;
-  endForm(state);
-}
-
-export function endForm(state: GameState): void {
-  const rs = state.skills;
-  const form = rs.form;
-  if (!form) return;
-  rs.form = null;
-  if (state.player.attack.phase !== "none") cancelAttack(state);
-  setMoveset(state, form.base);
-  rs.formRecover = form.recover;
-  addFloatingText(state, state.player.body.pos, "変身解除", COLOR_FORM, TEXT_SCALE, TEXT_LIFE);
-}
-
-/** 変身が切れた後の反動の移動倍率 */
-export function formRecoverMoveMul(state: GameState): number {
-  return state.skills.formRecover > 0 ? F.recoverMoveMul : 1;
-}
 
 // ---- 結界杭 ----
 
@@ -863,15 +515,4 @@ function stakeTickHits(state: GameState): void {
     if (e.hp <= 0 || e.phase === "spawning" || !insideStakes(stakes, e.body.pos)) continue;
     applyStatus(state, { kind: "enemy", enemy: e }, { ...vulnerable, duration: vulnerable.duration * newest.params.statusDurationMul }, "player");
   }
-}
-
-// ---------------------------------------------------------------------------
-// 発動中の更新
-// ---------------------------------------------------------------------------
-
-/** active.skillKey が第 2 弾のものなら進めて true */
-export function updateWave2Active(state: GameState, a: ActiveCast, dt: number): boolean {
-  if (a.skillKey !== "iceSlide") return false;
-  updateIceSlide(state, a, dt);
-  return true;
 }

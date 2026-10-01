@@ -9,13 +9,13 @@ import { updatePlayer } from "../system/player";
 import { createSkillRunState, updateSkills } from "../system/skills";
 import { igniteTerrainAt, terrainAt, terrainMoveMul } from "../system/terrain";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
-import { SKILL, SKILL_DEFS, canAttach, resolveCast } from "./data";
+import { SKILL, SKILL_DEFS } from "./data";
 import { stoneFromSeed } from "./generator";
 import type { ModifierKey, SkillKey, SkillStone } from "./types";
 
 /**
- * 第 4 弾: スキル「泥沼」と、地裂きの刻印符「地崩れ」。実際の発動（updatePlayer → updateSkills → castSlot）を通して
- * 地形・怯み値・状態で検証する（崩れる床そのものの規則は system/terrain.test.ts）
+ * 第 4 弾: スキル「泥沼」。実際の発動（updatePlayer → updateSkills → castSlot）を通して
+ * 地形・怯み値・状態で検証する（崩れる床そのものの規則は system/terrain.test.ts。地崩れの刻印符は段取り 7c で消えた）
  */
 
 const BIG_HP = 1000;
@@ -114,45 +114,5 @@ describe("泥沼（mire）", () => {
     cast(state, ahead(state, 60));
     run(state, SKILL.mire.terrainTime + FIXED_DT * 2);
     expect(state.skills.mires ?? []).toHaveLength(0);
-  });
-});
-
-describe("地裂きの刻印符「地崩れ」（crumble）", () => {
-  it("地裂きにだけ付く", () => {
-    expect(canAttach(SKILL_DEFS.quake, "crumble")).toBe(true);
-    expect(canAttach(SKILL_DEFS.whirl, "crumble")).toBe(false);
-    expect(canAttach(SKILL_DEFS.mire, "crumble")).toBe(false);
-  });
-
-  it("負担が増え、発動の旗が立つ", () => {
-    const stone = makeStone({ key: "quake", links: 1 });
-    const plain = resolveCast(SKILL_DEFS.quake, makeStone({ key: "quake", links: 1 }), []);
-    const p = resolveCast(SKILL_DEFS.quake, stone, ["crumble"]);
-    expect(p.crumble).toBe(true);
-    expect(p.burdenMul).toBeCloseTo(plain.burdenMul * SKILL.modifier.crumble.burdenMul);
-  });
-
-  it("命中した敵までの地割れが崩れる床になる（外れれば残らない）", () => {
-    const state = skillArena([{ key: "quake", links: 1, modifiers: ["crumble"] }]);
-    tough(state, 30);
-    const mid = ahead(state, 14);
-    cast(state);
-    run(state, SKILL.quake.windup + FIXED_DT * 3);
-    expect(terrainAt(state, mid.x, mid.y), "プレイヤーと敵の間").toBe("rubble");
-
-    const miss = skillArena([{ key: "quake", links: 1, modifiers: ["crumble"] }]);
-    const far = ahead(miss, 14);
-    cast(miss);
-    run(miss, SKILL.quake.windup + FIXED_DT * 3);
-    expect(terrainAt(miss, far.x, far.y), "当たらなければ床は変わらない").toBe("none");
-  });
-
-  it("刻印符が無ければ崩れる床は残らない", () => {
-    const state = skillArena([{ key: "quake", links: 1 }]);
-    tough(state, 30);
-    const mid = ahead(state, 14);
-    cast(state);
-    run(state, SKILL.quake.windup + FIXED_DT * 3);
-    expect(terrainAt(state, mid.x, mid.y)).toBe("none");
   });
 });

@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { shake, spawnBurst } from "./effects";
@@ -194,7 +194,7 @@ function tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): bool
 /** 着地: 衝撃波と、酸の沼（毒沼。敵にも効く） */
 function land(state: GameState, e: Enemy): void {
   const b = BOSS.broodMother;
-  spawnShockwave(state, e.body.pos, b.landRadius, b.landDamage + depthDamageBonus(state.depth), e.id);
+  spawnShockwave(state, e.body.pos, b.landRadius, depthDamage(b.landDamage, state.depth), e.id);
   placeTerrain(state, e.body.pos.x, e.body.pos.y, "bog", b.acidRadius);
   shake(state, FEEL.shakeSpecial);
   pushSfx(state, "wallHit");

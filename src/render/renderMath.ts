@@ -1,8 +1,9 @@
 import type { FloatTextKind, Hazard } from "../core/state";
 import { RENDER_SCALE, VIEW_H, VIEW_W } from "../core/view";
-import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
+import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
 import { type KeystoneGroup, keystoneDef } from "../loot/affixes";
-import { type Rarity, type Resonance, TRAIT_COLOR_HEX } from "../loot/types";
+import { KEYWORD_DEFS, type ResonanceStep } from "../core/keywords";
+import type { Rarity } from "../loot/types";
 import type { ActionStepDef, HitShape, MovesetKey } from "../data/weapons";
 import {
   SLASH_SPRITE,
@@ -248,19 +249,21 @@ export function counterMonoAlpha(left: number, time: number, strength: number): 
   return strength * clamp01(left / time);
 }
 
+/** 纏いに出す共鳴の語の数の上限（粒が混みすぎないように） */
+const MANTLE_MAX_COLORS = 3;
+
 /**
- * 共鳴のまといの色（7-14）。単色・二色・三和音は配合の色、陰画は支配色に冥を重ね、
- * 星座があれば星の色を足す。散り（scatter）・無しで星座も無ければ空（描かない）
+ * 共鳴のまといの色（7-14）。共鳴している語の色を段の高い順に最大 3 つ（同段は KEYWORDS 順）。
+ * 共鳴が無ければ空（描かない）
  */
-export function resonanceMantleColors(res: Readonly<Resonance>): string[] {
-  const shown = res.kind === "dominant" || res.kind === "dual" || res.kind === "triad" ? res.colors : [];
-  const out = shown.map((c) => TRAIT_COLOR_HEX[c]);
-  if (res.form === "negative" && out.length > 0) out.push(TRAIT_COLOR_HEX.umbra);
-  if (res.constellation !== undefined) out.push(FX_WAVE3.mantle.constellationColor);
-  return out;
+export function resonanceMantleColors(steps: readonly ResonanceStep[]): string[] {
+  return [...steps]
+    .sort((a, b) => b.step - a.step)
+    .slice(0, MANTLE_MAX_COLORS)
+    .map((s) => KEYWORD_DEFS[s.keyword].color);
 }
 
-/** 誓約の系統ごとのオーラの色（7-20）。系統は src/loot/affixes.ts の KeystoneGroup（排他の単位） */
+/** 誓約の組ごとのオーラの色（7-20）。組は src/loot/affixes.ts の KeystoneGroup（排他の単位） */
 export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
   body: "#ff6a5a",
   tempo: "#ffb040",
@@ -268,15 +271,10 @@ export const KEYSTONE_GROUP_COLOR: Readonly<Record<KeystoneGroup, string>> = {
   mana: "#60a0ff",
   status: "#90e050",
   poise: "#c8a078",
-  room: "#ffe080",
-  hue: "#ff80e0",
-  chronicle: "#b0a0ff",
-  element: "#80f0f0",
-  weapon: "#c8c8c8",
-  terrain: "#b08850",
+  coin: "#ffd24a",
 };
 
-/** 持っている誓約の系統の色（重複を除いて持っている順）。誓約が無ければ空 */
+/** 持っている誓約の組の色（重複を除いて持っている順）。誓約が無ければ空 */
 export function keystoneAuraColors(keys: readonly string[]): string[] {
   const groups: KeystoneGroup[] = [];
   for (const key of keys) {
@@ -484,6 +482,8 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   flail: 3,
   ringBlades: 2,
   fan: 2,
+  book: 1,
+  handbell: 2,
 };
 
 // ---------------------------------------------------------------------------

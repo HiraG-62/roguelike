@@ -11,6 +11,8 @@ export const ACTION_NAMES = [
   "attack",
   "shoot",
   "special",
+  /** 全武器共通の受け流し（system/parry.ts）。振っていなければいつでも押せる */
+  "parry",
   "confirm",
   "restart",
   "inventory",
@@ -19,6 +21,8 @@ export const ACTION_NAMES = [
   "skill3",
   "skill4",
   "interact",
+  /** 瓶を飲む（system/flask.ts） */
+  "flask",
   /** 床のアイテム情報ポップアップの表示 ON/OFF（表示だけの設定。FrameInput は積むが replay には記録しない） */
   "toggleDropInfo",
 ] as const;
@@ -42,12 +46,14 @@ export const REBINDABLE_ACTIONS = [
   "attack",
   "shoot",
   "special",
+  "parry",
   "inventory",
   "skill1",
   "skill2",
   "skill3",
   "skill4",
   "interact",
+  "flask",
   "toggleDropInfo",
   "restart",
 ] as const satisfies readonly ActionName[];
@@ -73,8 +79,11 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   attack: ["KeyE", "Mouse0"],
   shoot: ["KeyQ", "Mouse2"],
   special: ["KeyF"],
+  // 受け流し。R は WASD の上で左手が届く。中クリックはマウス派の副（右クリックは右の連撃で塞がっている）
+  parry: ["KeyR", "Mouse1"],
   confirm: ["Enter"],
-  restart: ["KeyR"],
+  // 受け流しに R を譲って P へ（ラン中のやり直しは稀。死亡画面・ポーズメニューの案内はキー表記を通る）
+  restart: ["KeyP"],
   inventory: ["Tab", "KeyI"],
   skill1: ["Digit1", "KeyC", "Mouse3"],
   skill2: ["Digit2", "KeyV", "Mouse4"],
@@ -82,6 +91,8 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   skill4: ["Digit4", "KeyZ"],
   // 床の遺物・スキル石を拾う。WASD の右隣で、移動しながら左手で押せる
   interact: ["KeyG"],
+  // 瓶。B は X Z C V（スキル）と同じ列で届き、5 は 1〜4（スキル）の並びの続き
+  flask: ["KeyB", "Digit5"],
   // 床のアイテム情報ポップアップの表示切替。左手側の未使用キー
   toggleDropInfo: ["KeyT"],
 };
@@ -98,6 +109,7 @@ const MAX_CODE_LENGTH = 32;
 export const SKILL_ACTIONS: readonly ActionName[] = ["skill1", "skill2", "skill3", "skill4"];
 
 const MOUSE_LEFT = 0;
+const MOUSE_MIDDLE = 1;
 const MOUSE_RIGHT = 2;
 /** サイドボタン（戻る / 進む）。ブラウザの履歴移動を止める必要がある */
 const MOUSE_BACK = 3;
@@ -106,6 +118,7 @@ const HISTORY_BUTTONS: ReadonlySet<number> = new Set([MOUSE_BACK, MOUSE_FORWARD]
 /** マウスボタンを擬似キーコードとして扱う */
 const MOUSE_CODE: Record<number, BindingCode> = {
   [MOUSE_LEFT]: "Mouse0",
+  [MOUSE_MIDDLE]: "Mouse1",
   [MOUSE_RIGHT]: "Mouse2",
   [MOUSE_BACK]: "Mouse3",
   [MOUSE_FORWARD]: "Mouse4",
@@ -117,6 +130,7 @@ const UI_CLICK_CODE: BindingCode = "Mouse0";
 /** 表示名の特例。それ以外は Key / Digit を落とすか code をそのまま出す */
 const CODE_LABEL: Readonly<Record<string, string>> = {
   Mouse0: "左クリック",
+  Mouse1: "中クリック",
   Mouse2: "右クリック",
   Mouse3: "サイド1",
   Mouse4: "サイド2",
@@ -366,6 +380,8 @@ export interface FrameInput {
   /** 右 = 武器ごとの固有技の押しっぱなし（構え技など）。内部名は改名しない */
   shootHeld: boolean;
   specialPressed: boolean;
+  /** 受け流し（system/parry.ts）。押した瞬間だけ true */
+  parryPressed: boolean;
   confirmPressed: boolean;
   /**
    * パッド A のエッジのみ（キーボード Enter を含まない）。confirmPressed はキーボード/パッド OR なので、
@@ -387,6 +403,8 @@ export interface FrameInput {
   skill4Held: boolean;
   /** カーソル（パッドは照準スティックの先）で注目した床の遺物・スキル石を拾う。system/loot.ts */
   interactPressed: boolean;
+  /** 瓶を飲む（system/flask.ts）。押した瞬間だけ true */
+  flaskPressed: boolean;
   /**
    * 床のアイテム情報ポップアップの表示 ON/OFF（表示だけの設定切り替え。main.ts が settings.dropTooltip を反転する）。
    * シミュレーションには効かないので replay.ts の BUTTON_BITS には含めない（再生では常に false）
@@ -409,6 +427,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   attackHeld: false,
   shootHeld: false,
   specialPressed: false,
+  parryPressed: false,
   confirmPressed: false,
   padConfirmPressed: false,
   restartPressed: false,
@@ -422,6 +441,7 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   skill3Held: false,
   skill4Held: false,
   interactPressed: false,
+  flaskPressed: false,
   toggleDropInfoPressed: false,
   wheel: 0,
   clickPressed: false,
@@ -490,6 +510,14 @@ export class PlayerInput {
    */
   confirmHeld(): boolean {
     return this.isDown("confirm") || this.lastGamepadFrame.confirmHeld;
+  }
+
+  /**
+   * 直近 snapshot() で右クリックが押されたか（装備画面の「戻る」）。右クリックは射撃の既定にも割り当てがあるが、
+   * 装備画面の間はゲームが止まっている。記録しない入力なので FrameInput には足さない
+   */
+  menuBackClickPressed(): boolean {
+    return this.framePressed.includes("Mouse2");
   }
 
   attachKeyboard(target: Window): void {
@@ -602,6 +630,7 @@ export class PlayerInput {
       attackHeld: this.isDown("attack") || pad.attackHeld,
       shootHeld: this.isDown("shoot") || pad.shootHeld,
       specialPressed: this.wasPressed("special") || pad.specialPressed,
+      parryPressed: this.wasPressed("parry") || pad.parryPressed,
       confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
       padConfirmPressed: pad.confirmPressed,
       restartPressed: this.wasPressed("restart"),
@@ -615,6 +644,7 @@ export class PlayerInput {
       skill3Held: this.isDown("skill3") || pad.skill3Held,
       skill4Held: this.isDown("skill4") || pad.skill4Held,
       interactPressed: this.wasPressed("interact") || pad.interactPressed,
+      flaskPressed: this.wasPressed("flask") || pad.flaskPressed,
       toggleDropInfoPressed: this.wasPressed("toggleDropInfo") || pad.toggleDropInfoPressed,
       wheel: this.wheelDelta,
       clickPressed: this.pressed.has(UI_CLICK_CODE),

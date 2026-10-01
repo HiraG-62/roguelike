@@ -101,6 +101,9 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   icePillar: CONTACT,
   trainingDummy: CONTACT,
   mirrorSelf: CONTACT,
+  merchant: shot("none"),
+  pot: CONTACT,
+  crate: CONTACT,
   // ---- Wave 3 ----
   mudman: CONTACT,
   toad: shot("poison"),
@@ -142,10 +145,13 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   broodEgg: CONTACT,
   librarian: bolt("dark"),
   mirrorKnight: attack("melee", "hybrid", "light"),
+  mirrorPane: CONTACT,
   thiefKing: blast("none"),
   thief: CONTACT,
   mirrorImage: CONTACT,
   reaperShade: contact("dark"),
+  deepLord: spell("dark"),
+  gatePillar: CONTACT,
 };
 
 interface DefenseBody {

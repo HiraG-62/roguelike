@@ -1,0 +1,21 @@
+{
+  "_note": "被弾でこぼれる銭。拾い直した分は稼ぎに数えない。stats.coinSpillMul 0 でこぼれない（守る型の到達点）",
+  "_fields": {
+    "ratio": "被弾 1 回でこぼれる持ち金の割合。割合（0..1）。stats.coinSpillMul を掛ける",
+    "min": "こぼれる最低額（持ち金が 1 以上のとき）。銭",
+    "pieces": "こぼれた額を割る実体の数の上限。個",
+    "scatterMin": "こぼれた銭が飛ぶ距離の最小（攻撃の来た向きの反対へ）。px",
+    "scatterMax": "こぼれた銭が飛ぶ距離の最大。px",
+    "spreadAngle": "こぼれた銭の隣り合う向きの開き。ラジアン",
+    "life": "こぼれた銭が床に残る秒。秒",
+    "settle": "こぼれてからこの秒が過ぎるまで引き寄せず拾えない（即戻りを防ぐ）。秒"
+  },
+  "ratio": 0.05,
+  "min": 1,
+  "pieces": 3,
+  "scatterMin": 40,
+  "scatterMax": 70,
+  "spreadAngle": 0.5,
+  "life": 3,
+  "settle": 0.5
+}

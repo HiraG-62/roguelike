@@ -1,12 +1,42 @@
 {
-  "maxDepth": 3,
-  "chainDecay": 0.5,
+  "_note": "統一ルール（Rule）の照合と連鎖の止め方（docs/ideas/scaling-impl.md 2-7）。連鎖は深さの減衰をやめ、同じ敵への訪問回数（PlayerStats.chainRevisits）と連鎖係数（procCoefficient の積が次の Rule の確率に掛かる）で止める。maxDepth は性能の保険。減衰が無いぶん keywordBudget（語の回数上限）を 6 → 10 に上げた（4d の連鎖長の分布と droppedEvents で決め直すつまみ）",
+  "_fields": {
+    "maxDepth": "連鎖の深さの上限。この深さ以上のイベントは Rule を照合しない（性能の保険。連鎖は訪問回数と連鎖係数で先に止まる）。visits の長さもこれで切る。目安 8",
+    "recentWindow": "条件 recent と直近の記録で「続けて起きた」とみなす窓。秒。目安 3",
+    "keywordBudget": "系統ごとの回数上限。1 系統が keywordWindow 秒に起こせる Rule の回数（direct は数えない）。目安 6〜12",
+    "keywordWindow": "keywordBudget を数える窓。秒。目安 1",
+    "defaultIcd": "Rule の内部 CD の既定として置いた値。秒。今は読む所が無い（Rule は各自の icd を持つ）",
+    "lowHpRatio": "条件 lowHp の閾値。最大生命に対する割合（0..1）。目安 0.5",
+    "chainLog": "UI 用に残す直近の連鎖（state.chains）の件数。目安 8",
+    "maxEventsPerStep": "1 ステップに積める操作・system 起点のイベントの上限。超えた分は捨てて droppedEvents に数える。目安 256",
+    "maxPendingEvents": "効果が起こして次ステップへ持ち越すイベントの上限。超えた分は捨てて droppedEvents に数える。目安 64",
+    "procCoefficient": "効果の種類ごとの連鎖係数（0..1）。その効果が起こしたイベントの連鎖係数に掛かり、次の Rule の確率 = chance × 連鎖係数 ×（1 + chainCoefBonus）になる。表に無い種類と敵を対象にしない効果は 1。RuleEffect.procCoefficient があればそちら。範囲・多段の効果ほど小さく"
+  },
+  "maxDepth": 8,
   "recentWindow": 3,
-  "keywordBudget": 6,
+  "keywordBudget": 10,
   "keywordWindow": 1,
   "defaultIcd": 0.4,
   "lowHpRatio": 0.5,
   "chainLog": 8,
   "maxEventsPerStep": 256,
-  "maxPendingEvents": 64
+  "maxPendingEvents": 64,
+  "procCoefficient": {
+    "explode": 0.5,
+    "chainLightning": 0.3,
+    "shockwave": 0.5,
+    "burnNearby": 0.5,
+    "freezeNearby": 0.5,
+    "spreadStatus": 0.5,
+    "nearbyEnemies": 0.5,
+    "roomEnemies": 0.5,
+    "detonate": 0.5,
+    "hazardBomb": 0.5,
+    "shards": 0.5,
+    "volley": 0.7,
+    "spawnBullets": 0.7,
+    "wave": 1,
+    "strike": 1,
+    "inflict": 1
+  }
 }

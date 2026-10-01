@@ -363,10 +363,10 @@ describe("プレイヤーの攻撃を読む敵", () => {
   });
 
   it("写本の小悪魔はスキル石の種類を写しの技に読み替える", () => {
-    expect(scribeMoveOf("railshot")).toBe(SCRIBE_BULLETS);
-    expect(scribeMoveOf("quake")).toBe(SCRIBE_RING);
+    expect(scribeMoveOf("commonRailshot")).toBe(SCRIBE_BULLETS);
+    expect(scribeMoveOf("commonWhirl")).toBe(SCRIBE_RING);
     expect(scribeMoveOf("mines")).toBe(SCRIBE_BLASTS);
-    expect(scribeMoveOf("lunge")).toBe(SCRIBE_DASH);
+    expect(scribeMoveOf("commonLunge")).toBe(SCRIBE_DASH);
   });
 
   it("写本の小悪魔はプレイヤーのスキル発動を見て写し、置く技なら着弾点の影を出す", () => {

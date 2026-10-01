@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.8,
+  "weight": "light",
   "muzzleOffset": 3,
   "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4,"dex":0.8},"poise":8,"reach":0,"size":36,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},
   "steps2": [

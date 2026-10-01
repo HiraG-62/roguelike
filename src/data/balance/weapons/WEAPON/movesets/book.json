@@ -1,0 +1,21 @@
+{
+  "attackMoveMul": 0.8,
+  "weight": "light",
+  "steps": [
+    {"windup":0.04,"active":0.06,"recover":0.14,"scaling":{"base":2.4,"mnd":0.2,"spi":0.2},"poise":3,"reach":14,"size":12,"knockback":90,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"trail":"#d8c8ff","applies":[{"kind":"inkMark","stacks":1,"duration":5,"potency":3,"ratio":{"spi":0.15}}]},
+    {"windup":0.04,"active":0.06,"recover":0.14,"scaling":{"base":2.4,"mnd":0.2,"spi":0.2},"poise":3,"reach":14,"size":12,"knockback":90,"heavy":false,"mana":3,"shape":{"kind":"box"},"hitstop":1,"trail":"#d8c8ff","applies":[{"kind":"inkMark","stacks":1,"duration":5,"potency":3,"ratio":{"spi":0.15}}]},
+    {"windup":0.06,"active":0.07,"recover":0.22,"scaling":{"base":4.2,"mnd":0.3,"spi":0.35},"poiseRatio":{"mnd":0.1,"spi":0.1},"poise":7,"reach":22,"size":14,"knockback":140,"heavy":false,"mana":5,"shape":{"kind":"arc","deg":120},"hitstop":2,"shake":1,"trail":"#f0e8ff","applies":[{"kind":"inkMark","stacks":1,"duration":5,"potency":3,"ratio":{"spi":0.15}}]}
+  ],
+  "dashAttack": {"windup":0.02,"active":0.08,"recover":0.14,"scaling":{"base":3.5,"mnd":0.3,"spi":0.3},"poiseRatio":{"mnd":0.1,"spi":0.1},"poise":6,"reach":0,"size":36,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"circle"},"trail":"#d8c8ff"},
+  "steps2": [
+    {"kind":"swing","key":"freeCast","step":{"windup":0.05,"active":0.08,"recover":0.2,"scaling":{"base":3,"mnd":0.3,"spi":0.25},"poiseRatio":{"mnd":0.1,"spi":0.08},"poise":6,"reach":0,"size":32,"knockback":160,"heavy":false,"mana":4,"shape":{"kind":"circle"},"hitstop":2,"trail":"#f0e8ff"}},
+    {"kind":"swing","key":"pageSweep","step":{"windup":0.05,"active":0.07,"recover":0.16,"scaling":{"base":2.8,"mnd":0.22,"spi":0.22},"poise":4,"reach":16,"size":16,"knockback":110,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":140},"hitstop":1,"trail":"#d8c8ff"}},
+    {"kind":"swing","key":"bookSlam","step":{"windup":0.08,"active":0.08,"recover":0.26,"scaling":{"base":5,"mnd":0.35,"spi":0.4},"poiseRatio":{"mnd":0.12,"spi":0.12},"poise":9,"reach":14,"size":14,"knockback":240,"heavy":false,"mana":5,"shape":{"kind":"box"},"hitstop":3,"shake":1.5,"trail":"#f0e8ff"}}
+  ],
+  "branches": {
+    "pageStorm": {"sequence":["primary","primary","secondary"],"step":{"windup":0.05,"active":0.24,"recover":0.2,"scaling":{"base":1.6,"mnd":0.15,"spi":0.2},"poise":2,"reach":0,"size":48,"knockback":120,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hits":3,"hitstop":1,"trail":"#f0e8ff"}},
+    "sealStrike": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.07,"active":0.08,"recover":0.24,"scaling":{"base":4.6,"mnd":0.4,"spi":0.35},"poiseRatio":{"mnd":0.1,"spi":0.1},"poise":8,"reach":14,"size":14,"knockback":200,"heavy":false,"mana":4,"shape":{"kind":"box"},"hitstop":3,"trail":"#b090ff","applies":[{"kind":"silence","stacks":1,"duration":2,"potency":0}]}},
+    "pageTurn": {"sequence":["secondary","primary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.18,"scaling":{"base":3.2,"mnd":0.25,"spi":0.25},"poiseRatio":{"mnd":0.08,"spi":0.08},"poise":5,"reach":0,"size":32,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"circle"},"lunge":18,"invuln":0.12,"hitstop":2,"trail":"#d8c8ff"}},
+    "pageVolley": {"sequence":["primary","secondary","primary"],"step":{"windup":0.05,"active":0.05,"recover":0.2,"scaling":{"base":1.5,"mnd":0.15,"spi":0.15},"poise":2,"reach":12,"size":12,"knockback":90,"heavy":false,"mana":2,"shape":{"kind":"box"},"trail":"#f0e8ff","cast":{"key":"flyingPage","throw":{"bullet":{"cooldownMul":1,"damageMul":1,"speedMul":1.3,"lifeMul":0.9,"radius":3,"poiseMul":1,"recoilMul":0,"pellets":0,"spreadDeg":0,"pierceBonus":1,"look":{"color":"#f0e8ff","trail":"#b090ff","particles":2}},"scaling":{"base":2.8,"mnd":0.2,"spi":0.3},"poise":3,"count":3,"spreadDeg":14}}}}
+  }
+}

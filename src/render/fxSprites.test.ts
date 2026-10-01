@@ -118,6 +118,18 @@ describe("fxSprites: 生成物と一覧の整合", () => {
   });
 });
 
+/**
+ * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
+ * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
+ */
+const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
+
+/**
+ * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
+ * 連刃の段数の拡張（5b-F）の旧 key は 2026-09-30 に取り除いたので空
+ */
+const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
+
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
     for (const raw of FX_MOVESET_RAW) {
@@ -132,14 +144,34 @@ describe("fxMotions: 武器種のモーションの表", () => {
   it("表のある武器種は、振りのモーション（左の段・ダッシュ・右の振り・派生・溜め）をすべて持つ", () => {
     for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
       const def = MOVESETS[moveset as MovesetKey];
-      for (const key of swingMotionKeys(def)) expect(fx?.motions[key], `${moveset} ${key}`).toBeDefined();
+      const undrawn = UNDRAWN_MOTIONS[moveset as MovesetKey] ?? [];
+      for (const key of swingMotionKeys(def)) {
+        if (undrawn.includes(key)) continue;
+        expect(fx?.motions[key], `${moveset} ${key}`).toBeDefined();
+      }
     }
   });
 
   it("表のモーションの key は武器種の定義に実在する", () => {
     for (const [moveset, fx] of Object.entries(MOVESET_FX)) {
       const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
-      for (const key of Object.keys(fx?.motions ?? {})) expect(real.has(key), `${moveset} ${key}`).toBe(true);
+      const stale = STALE_MOTIONS[moveset as MovesetKey] ?? [];
+      for (const key of Object.keys(fx?.motions ?? {})) expect(real.has(key) || stale.includes(key), `${moveset} ${key}`).toBe(true);
+    }
+  });
+
+  it("未描画・旧 key の許容リストは実在する段だけを指す（絵を足したら消し忘れを落とす）", () => {
+    for (const [moveset, keys] of Object.entries(UNDRAWN_MOTIONS)) {
+      const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
+      const motions = MOVESET_FX[moveset as MovesetKey]?.motions ?? {};
+      for (const key of keys ?? []) {
+        expect(real.has(key), `${moveset} ${key} は定義にある`).toBe(true);
+        expect(motions[key], `${moveset} ${key} は絵ができたので許容リストから消す`).toBeUndefined();
+      }
+    }
+    for (const [moveset, keys] of Object.entries(STALE_MOTIONS)) {
+      const real = new Set(swingMotionKeys(MOVESETS[moveset as MovesetKey]));
+      for (const key of keys ?? []) expect(real.has(key), `${moveset} ${key} は定義に戻ったので許容リストから消す`).toBe(false);
     }
   });
 
@@ -246,13 +278,23 @@ describe("fxMotions: 奥義の絵の表", () => {
   });
 });
 
+/**
+ * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切ったので空
+ */
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
+
 describe("fxMotions: 全武器種・全奥義の網羅", () => {
   it("どの武器種も専用の絵の表を持つ（手続きの描画に戻らない）", () => {
-    for (const key of MOVESET_KEYS) expect(MOVESET_FX[key], key).toBeDefined();
+    for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_MOVESETS.includes(key)) expect(MOVESET_FX[key], `${key} は絵ができたので UNDRAWN_MOVESETS から消す`).toBeUndefined();
+      else expect(MOVESET_FX[key], key).toBeDefined();
+    }
   });
 
   it("どの奥義も専用の絵を持つ（一撃は発動と行為、持続は発動と纏い）", () => {
     for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_MOVESETS.includes(key)) continue;
       for (const def of ULTIMATES[key]) {
         const fx = ULTIMATE_FX[def.key];
         expect(fx?.cast, `${def.key} の発動`).toBeDefined();

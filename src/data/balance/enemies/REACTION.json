@@ -1,0 +1,47 @@
+{
+  "_note": "敵の反応ルール(docs/ideas/jin-impl.md 2-3 / 2-4)。乱数を使わない決定的な反応。system/enemyReactions.ts と system/enemies.ts が読む。retreatHits / punishRoles / slotRoles の役割は data/enemyRoles.ts の EnemyRole",
+  "_fields": {
+    "hitWindowSec": "間合い取りの被弾を数える窓。殴られるたびにこの秒へ戻り、尽きると被弾の数が 0 に戻る。秒",
+    "retreatHits": "役割ごとの、窓の中でこの回数殴られたら一度離れる回数。0 は離れない。前衛 3 / 突撃 2 / 射手・妨害・支援 1 / 爆発・群れ 0",
+    "retreatDist": "間合い取りで離れる距離。px",
+    "retreatSec": "間合い取りにかける秒。離れる速さは retreatDist ÷ retreatSec で、敵の速さに依らず一定",
+    "punishRoles": "プレイヤーの隙を狙う役割。攻撃間隔の時計が速く進む",
+    "punishBias": "隙を狙うときに攻撃間隔の時計が余分に進む割合。0.4 で 1.4 倍の速さ。隙 = 終撃の硬直・ダッシュの再使用中・受け流しの外し",
+    "slotRoles": "囲む役割。仲間が揃うと、プレイヤーの周りに等間隔の持ち場を取って近づく",
+    "slotRadius": "囲んで回り込む輪の半径の下限。px。実際の半径は max(この値, 敵の engageRange + slotMargin) で、攻撃距離のすぐ外をなぞる",
+    "slotMargin": "回り込む輪を攻撃距離（engageRange）の外に取る余裕。px",
+    "slotLead": "回り込みの 1 ステップで、目標を今の角度から持ち場の向きへ進める角度。ラジアン。大きいほど輪をなぞらず斜めに突っ切る",
+    "slotAngleTol": "持ち場の角度とのずれがこの値以下なら、回り込みをやめて真っ直ぐ殴りに行く。ラジアン",
+    "slotMinPeers": "囲むために要る、自分以外の同じ役割の交戦中（追跡・予備動作・攻撃・隙）の仲間の数",
+    "slotRange": "陣に属さない敵が仲間として数える範囲。px",
+    "shooterBackstepMul": "射手が予備動作の間に後ろへ下がる速さ。歩く速さに対する倍率",
+    "retreatAfterStrike": "攻撃の後の隙の間に離れる速さの倍率（敵の定義ごと。歩く速さに対する倍率）。behavior 既定（蝙蝠 ENEMY_AI.bat.retreatMul）より優先"
+  },
+  "hitWindowSec": 1,
+  "retreatHits": {
+    "vanguard": 3,
+    "charge": 2,
+    "shooter": 1,
+    "disruptor": 1,
+    "support": 1,
+    "blast": 0,
+    "swarm": 0
+  },
+  "retreatDist": 50,
+  "retreatSec": 0.25,
+  "punishRoles": ["vanguard", "charge"],
+  "punishBias": 0.4,
+  "slotRoles": ["vanguard", "swarm"],
+  "slotRadius": 34,
+  "slotMargin": 12,
+  "slotLead": 0.6,
+  "slotAngleTol": 0.35,
+  "slotMinPeers": 2,
+  "slotRange": 140,
+  "shooterBackstepMul": 0.5,
+  "retreatAfterStrike": {
+    "wolf": 1.5,
+    "spikeRat": 1.5,
+    "thief": 1.5
+  }
+}

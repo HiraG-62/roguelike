@@ -115,3 +115,23 @@ describe("起点の解放", () => {
     expect(open, "放浪者・剣の巡礼者・素手").toEqual(["wanderer", "swordPilgrim", "unarmed"]);
   });
 });
+
+describe("解放制の画面の文", () => {
+  it("依頼の一覧の説明に、その依頼で開く契約者が出る", () => {
+    const entries = questBoardTabs(createQuestSave())[0]?.entries ?? [];
+    expect(entries.find((e) => e.key === "thunderRing")?.detail, "契約者につながる依頼").toContain("がランに現れる");
+    expect(entries.find((e) => e.key === "kingslayer")?.detail, "つながらない依頼").not.toContain("がランに現れる");
+  });
+
+  it("図鑑の未踏の部屋に開く条件が出て、条件を満たすと消える", () => {
+    const placeEntry = (save: ReturnType<typeof createCodexSave>, key: string) =>
+      codexListTabs(save, new Set())
+        .flatMap((t) => t.entries)
+        .find((e) => e.key === key);
+    const save = createCodexSave();
+    expect(placeEntry(save, "room:forge")?.detail, "章 1 の主で開く部屋").toContain("を倒すと現れる");
+    expect(placeEntry(save, "room:library")?.detail, "最初から開く部屋").not.toContain("を倒すと現れる");
+    save.enemyKills.kingSlime = 1;
+    expect(placeEntry(save, "room:forge")?.detail, "主を倒した後").not.toContain("を倒すと現れる");
+  });
+});

@@ -1,4 +1,14 @@
 {
+  "_note": "章ボス調整: stats の hp 950→1200 / contactDamage 16→10、knifeDamage 9→6 / smokeDamage 8→5。撃破 47 秒が目標 60〜120 を下回るため生命を上げ、長い戦いで bot が倒れないよう 1 発を軽くした",
+  "_fields": {
+    "cornersToRage": "第 2 段階の間に追い詰めでダウンさせるとこの回数で生命に関わらず第 3 段階（開き直り）へ",
+    "fenceLen": "第 2 段階の始まりに立てる柵の L 字の 1 辺のタイル数（角を共有する）",
+    "fenceHp": "柵 1 マスの耐久（爆発・弾・叩きつけで削れる）",
+    "fenceTime": "柵の寿命（秒。開き直りですべて崩れる）",
+    "retreatMul": "第 1・2 段階の硬直の間にプレイヤーから離れる速さ（def.speed の倍。一撃離脱）",
+    "dashChain": "第 3 段階の突進が壁に当たらなかったときに続けて突進する回数",
+    "rageKnifeChain": "第 3 段階の短剣（怒りの扇）を続けて投げる回数"
+  },
   "keepAway": 120,
   "fleeSpeedMul": 1.1,
   "stuckRatio": 0.35,
@@ -10,7 +20,7 @@
   "rageKnifeCount": 5,
   "knifeSpreadDeg": 36,
   "knifeSpeed": 150,
-  "knifeDamage": 9,
+  "knifeDamage": 6,
   "knifeRange": 120,
   "mineCount": 2,
   "mineCountLate": 3,
@@ -19,7 +29,7 @@
   "mineMax": 6,
   "smokeFall": 1,
   "smokeRadius": 36,
-  "smokeDamage": 8,
+  "smokeDamage": 5,
   "smokeTime": 4,
   "dashSpeedMul": 5.5,
   "dashTime": 0.5,
@@ -32,5 +42,12 @@
   "minionSpread": 50,
   "phase2Ratio": 0.65,
   "phase3Ratio": 0.3,
+  "cornersToRage": 2,
+  "fenceLen": 3,
+  "fenceHp": 60,
+  "fenceTime": 999,
+  "retreatMul": 1.2,
+  "dashChain": 1,
+  "rageKnifeChain": 1,
   "color": "#d0a040"
 }

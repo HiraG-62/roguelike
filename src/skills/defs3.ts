@@ -8,7 +8,7 @@ import { cooldownSkill, manaSkill } from "./resource";
  * data.ts の SKILL_DEFS に展開する。変身そのものの状態遷移・左右クリックの差し替えは skills/forms.ts、数値は skills/tuning3.ts。
  *
  * 狼化・霊体化・鉄塊化・業火の化身は「自分を強める」変身なので buff を付ける（反響・遅延・当て方の刻印符が付かない）。
- * 砲身化は撃つ変身なので projectile（重撃・遠当てが付く）と、構えの維持を表す channel（溜め・段階溜めが付かない）を付ける
+ * 砲身化は撃つ変身なので projectile（弾に効く符が付く）と、構えの維持を表す channel（溜めが付かない）を付ける
  */
 
 export const WAVE3_SKILL_DEFS: Record<Wave3SkillKey, SkillDef> = {

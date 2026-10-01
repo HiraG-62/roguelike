@@ -622,7 +622,7 @@ const FX = {
     "r:hookPull": { sheet: "scythe.hookPull", pivot: "self", base: 44, measure: "reach", mirror: "faceRight" },
     "r:scytheWrap": { sheet: "scythe.wrap", pivot: "self", base: 30, measure: "reach" },
     "r:reverseSpin": { sheet: "scythe.reverseSpin", pivot: "self", base: 64, measure: "size" },
-    "r:scytheSever": { sheet: "scythe.sever", pivot: "self", base: 38, measure: "reach" },
+    "r:slam": { sheet: "scythe.sever", pivot: "self", base: 38, measure: "reach" },
     "branch:reaping": { sheet: "scythe.reaping", pivot: "self", base: 36, measure: "reach" },
     "branch:deathDance": { sheet: "scythe.deathDance", pivot: "self", base: 64, measure: "size" },
     "branch:neckReap": { sheet: "scythe.neckReap", pivot: "anchor", base: 24, measure: "reach" },

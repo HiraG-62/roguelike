@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type GameEvent, enemyTarget, pushEvent, pushPlayerEvent } from "../core/events";
 import { EMPTY_INPUT } from "../core/input";
 import { FIXED_DT } from "../core/loop";
-import { type EnemyRule, type Rule, type RuleCondition, SCOPE_ANY } from "../core/rules";
+import { type EnemyRule, type Rule, type RuleCondition, type RuleEffectKind, SCOPE_ANY, procCoefficientOf } from "../core/rules";
 import { step } from "../core/game";
 import type { GameState } from "../core/state";
 import { type EnemyCombatDef, enemyCombat } from "../data/enemyCombat";
@@ -10,10 +10,10 @@ import { BOON, STATUS, SYNERGY } from "../data/tuning";
 import { ruleFromTrigger } from "../loot/triggers";
 import type { TriggeredEffect } from "../loot/types";
 import { BOONS, type BoonDef } from "./boonDefs";
-import { slashBase, updateBoonRules } from "./boonRules";
+import { updateBoonRules } from "./boonRules";
 import { onBoonKill } from "./boons";
 import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
-import { applyBurn, chainLightning, findStatus, hasStatus } from "./statusEffects";
+import { applyBurn, findStatus, hasStatus } from "./statusEffects";
 import { arena, engageStartRoom, placeEnemy } from "./testHelpers";
 import { placeTerrain, terrainAt } from "./terrain";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
@@ -76,7 +76,8 @@ describe("持ち越しと深さ", () => {
   it("効果が起こしたイベントは深さ +1 で次ステップへ持ち越され、同ステップでは照合しない", () => {
     const state = cleanArena();
     const e = placeEnemy(state, "slime", NEAR);
-    const blast = makeRule({ when: "onDash", then: { kind: "explode", magnitude: 9999 } }, "test:blast:0");
+    // 連鎖係数 1 の爆発（既定の 0.5 だと次の確定の Rule も乱数を引く）
+    const blast = makeRule({ when: "onDash", then: { kind: "explode", magnitude: 9999, procCoefficient: 1 } }, "test:blast:0");
     const onKill = makeRule({ when: "onKill", then: { kind: "heal", magnitude: HEAL } }, "test:heal:0");
     state.player.hp = LOW_HP;
     pushPlayerEvent(state, "onDash", "dash");
@@ -88,7 +89,7 @@ describe("持ち越しと深さ", () => {
     expect(carried?.source.kind, "出どころは Rule の持ち主").toBe("boon");
 
     resolveRules(state, 0, [blast, onKill]);
-    expect(state.player.hp, "次ステップで照合され、深さ 1 なので回復は × chainDecay").toBeCloseTo(LOW_HP + HEAL * SYNERGY.chainDecay);
+    expect(state.player.hp, "次ステップで照合され、深さ 1 でも回復は等倍").toBeCloseTo(LOW_HP + HEAL);
   });
 
   it(`深さ ${SYNERGY.maxDepth} 以上のイベントは Rule を起こさない`, () => {
@@ -103,13 +104,13 @@ describe("持ち越しと深さ", () => {
     expect(state.player.hp, "1 段手前は起きる").toBeGreaterThan(LOW_HP);
   });
 
-  it("効果量は深さごとに × chainDecay で減る", () => {
+  it("効果量は深さによらず等倍", () => {
     for (let depth = 0; depth < SYNERGY.maxDepth; depth++) {
       const state = cleanArena();
       state.player.hp = LOW_HP;
       state.pendingEvents.push(rawEvent(state, "onDash", depth));
       resolveRules(state, 0, [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } })]);
-      expect(state.player.hp - LOW_HP, `深さ ${depth}`).toBeCloseTo(HEAL * SYNERGY.chainDecay ** depth);
+      expect(state.player.hp - LOW_HP, `深さ ${depth}`).toBeCloseTo(HEAL);
     }
   });
 
@@ -122,6 +123,155 @@ describe("持ち越しと深さ", () => {
     resolveRules(state, 0, rules);
     expect(state.chains.length, "上限で切る").toBe(SYNERGY.chainLog);
     expect(state.chains.at(-1)?.keyword, "新しいものが後ろ").toBe(`k${SYNERGY.chainLog + 1}`);
+  });
+});
+
+describe("連鎖の止め方（訪問回数・連鎖係数）", () => {
+  /** 敵を対象にした持ち越しのイベント（深さ 1）。visits / coef を手で与える */
+  function chainedHit(state: GameState, e: ReturnType<typeof placeEnemy>, visits: readonly number[], coef = 1): GameEvent {
+    return { ...rawEvent(state, "onMeleeHit", 1), ...enemyTarget(e), visits, coef };
+  }
+
+  /** 対象へ状態異常を付ける Rule（付いた状態異常が同じ敵を対象にした onStatusApplied を起こす） */
+  function afflictRule(procCoefficient?: number): Rule {
+    return makeRule({ when: "onMeleeHit", then: { kind: "afflict", magnitude: 1, status: "weaken", duration: 1, procCoefficient } }, "test:afflict:0");
+  }
+
+  const healOnStatus = makeRule({ when: "onStatusApplied", then: { kind: "heal", magnitude: HEAL } }, "test:healStatus:0");
+  const healOnHit = makeRule({ when: "onMeleeHit", then: { kind: "heal", magnitude: HEAL } }, "test:healHit:0");
+
+  it("連鎖係数の既定表の key はすべて効果の種類", () => {
+    type Extra = Exclude<keyof typeof SYNERGY.procCoefficient, RuleEffectKind>;
+    const noExtra: [Extra] extends [never] ? true : false = true;
+    expect(noExtra, "表に効果の種類でない key が無い（型で検査）").toBe(true);
+    expect(procCoefficientOf({ kind: "explode", magnitude: 1 }), "表の値").toBe(SYNERGY.procCoefficient.explode);
+    expect(procCoefficientOf({ kind: "heal", magnitude: 1 }), "表に無い種類は 1").toBe(1);
+    expect(procCoefficientOf({ kind: "explode", magnitude: 1, procCoefficient: 0.2 }), "効果ごとの指定が優先").toBe(0.2);
+  });
+
+  it("操作が起こしたイベントは自分の対象だけを訪問に数え、連鎖係数 1", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    pushEvent(state, { kind: "onMeleeHit", actor: "player", source: { kind: "player", key: "melee" }, ...enemyTarget(e) });
+    expect(state.events[0]?.visits, "対象 1 体").toEqual([e.id]);
+    expect(state.events[0]?.coef, "係数 1").toBe(1);
+  });
+
+  it("同じ敵へ 2 度目の訪問では Rule が起きない（別の敵なら起きる）", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    const other = placeEnemy(state, "slime", MID);
+    state.player.hp = LOW_HP;
+    state.pendingEvents.push(chainedHit(state, e, [e.id, other.id, e.id]));
+    resolveRules(state, 0, [healOnHit]);
+    expect(state.player.hp, "同じ敵へ 2 度目").toBe(LOW_HP);
+    state.pendingEvents.push(chainedHit(state, other, [e.id, other.id]));
+    resolveRules(state, 0, [healOnHit]);
+    expect(state.player.hp, "別の敵へ 1 度目").toBe(LOW_HP + HEAL);
+  });
+
+  it("対象へ付けた状態異常のイベントは同じ敵への 2 度目なので次へ跳ばない。chainRevisits 1 なら跳ぶ", () => {
+    for (const revisits of [0, 1]) {
+      const state = cleanArena();
+      const e = placeEnemy(state, "slime", NEAR);
+      state.stats.chainRevisits = revisits;
+      state.player.hp = LOW_HP;
+      pushEvent(state, { kind: "onMeleeHit", actor: "player", source: { kind: "player", key: "melee" }, ...enemyTarget(e) });
+      resolveRules(state, 0, [afflictRule(1), healOnStatus]);
+      const applied = state.pendingEvents.find((ev) => ev.kind === "onStatusApplied");
+      expect(applied?.visits, "命中と付与で同じ敵を 2 度訪れた").toEqual([e.id, e.id]);
+      resolveRules(state, 0, [afflictRule(1), healOnStatus]);
+      const expected = revisits === 0 ? LOW_HP : LOW_HP + HEAL;
+      expect(state.player.hp, `chainRevisits ${revisits}`).toBe(expected);
+    }
+  });
+
+  it("chainRevisits 1 でも 3 度目は止まる", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    state.stats.chainRevisits = 1;
+    state.player.hp = LOW_HP;
+    state.pendingEvents.push(chainedHit(state, e, [e.id, e.id, e.id]));
+    resolveRules(state, 0, [healOnHit]);
+    expect(state.player.hp, "3 度目").toBe(LOW_HP);
+  });
+
+  it("効果の連鎖係数が起こしたイベントへ写る（元の係数 × 効果の係数）", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    state.pendingEvents.push(chainedHit(state, e, [], 0.5));
+    resolveRules(state, 0, [afflictRule(0.4)]);
+    const applied = state.pendingEvents.find((ev) => ev.kind === "onStatusApplied");
+    expect(applied?.coef, "0.5 × 0.4").toBeCloseTo(0.2);
+  });
+
+  it("連鎖係数 0.5 のイベントでは確定の Rule も半分ほどしか起きない。係数 1 なら乱数を引かず毎回", () => {
+    const trials = 400;
+    const countFires = (coef: number, bonus = 0): { fired: number; rolled: boolean } => {
+      const state = cleanArena(11);
+      const e = placeEnemy(state, "slime", NEAR);
+      state.stats.chainCoefBonus = bonus;
+      const rule = makeRule({ when: "onMeleeHit", then: { kind: "restoreMana", magnitude: 1, quiet: true } });
+      const rngBefore = JSON.stringify(state.rng);
+      let fired = 0;
+      for (let i = 0; i < trials; i++) {
+        state.pendingEvents.push(chainedHit(state, e, [], coef));
+        // 語の窓を毎回明けて回数上限に掛けない
+        resolveRules(state, SYNERGY.keywordWindow, [rule]);
+        fired += state.ruleRun.keywordUse.get("mana") ?? 0;
+      }
+      return { fired, rolled: JSON.stringify(state.rng) !== rngBefore };
+    };
+    const half = countFires(0.5);
+    expect(half.fired, "半分前後").toBeGreaterThan(trials * 0.4);
+    expect(half.fired, "半分前後").toBeLessThan(trials * 0.6);
+    const full = countFires(1);
+    expect(full.fired, "毎回").toBe(trials);
+    expect(full.rolled, "確定なら乱数を引かない").toBe(false);
+    const boosted = countFires(0.5, 1);
+    expect(boosted.fired, "chainCoefBonus 1 で係数 0.5 × 2 = 確定").toBe(trials);
+  });
+
+  it("確率 100% の撃破→爆発の環も、次の標的がいなくなれば終わる", () => {
+    const state = cleanArena();
+    const spacing = 30;
+    const count = 4;
+    const enemies = Array.from({ length: count }, (_, i) => placeEnemy(state, "slime", NEAR + spacing * i));
+    for (const e of enemies) e.hp = 1;
+    const blast = makeRule({ when: "onKill", then: { kind: "explode", magnitude: 5, radius: spacing + 4, procCoefficient: 1 } }, "test:ring:0");
+    const first = enemies[0];
+    if (first === undefined) throw new Error("敵がいない");
+    first.hp = 0;
+    pushEvent(state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(first, true) });
+    let steps = 0;
+    while ((state.events.length > 0 || state.pendingEvents.length > 0) && steps < SYNERGY.maxDepth * 2) {
+      resolveRules(state, 0, [blast]);
+      steps++;
+    }
+    expect(state.events.length + state.pendingEvents.length, "イベントが尽きる").toBe(0);
+    expect(enemies.every((e) => e.hp <= 0), "並んだ敵は順に倒れる").toBe(true);
+    expect(steps, "敵の数の段で終わる").toBeLessThanOrEqual(count + 1);
+  });
+
+  it(`visits の長さは SYNERGY.maxDepth（${SYNERGY.maxDepth}）を超えない`, () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    const farIds = Array.from({ length: SYNERGY.maxDepth }, (_, i) => 100000 + i);
+    state.pendingEvents.push(chainedHit(state, e, farIds));
+    resolveRules(state, 0, [afflictRule(1)]);
+    const applied = state.pendingEvents.find((ev) => ev.kind === "onStatusApplied");
+    expect(applied?.visits?.length, "上限で切る").toBe(SYNERGY.maxDepth);
+    expect(applied?.visits?.at(-1), "新しい訪問が後ろに残る").toBe(e.id);
+  });
+
+  it("direct の Rule は訪問回数・連鎖係数を見ない", () => {
+    const state = cleanArena();
+    const e = placeEnemy(state, "slime", NEAR);
+    state.player.hp = LOW_HP;
+    const direct = makeRule({ when: "onMeleeHit", then: { kind: "heal", magnitude: HEAL }, direct: true });
+    state.pendingEvents.push(chainedHit(state, e, [e.id, e.id, e.id], 0));
+    resolveRules(state, 0, [direct]);
+    expect(state.player.hp, "旧フックと同じく起きる").toBe(LOW_HP + HEAL);
   });
 });
 
@@ -169,16 +319,16 @@ describe("ICD の 3 層", () => {
 
 describe("照合順", () => {
   it("祝福の Rule は取得順に照合される（BoonDef.rules）", () => {
-    const first = BOONS.reaperCup as BoonDef;
+    const first = BOONS.wildfire as BoonDef;
     const second = BOONS.burnSpread as BoonDef;
     // 定義に置いた本物の rules は検査の後で戻す
     const saved = [first.rules, second.rules] as const;
-    first.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "first" }, "boon:reaperCup:0")];
+    first.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "first" }, "boon:wildfire:0")];
     second.rules = [makeRule({ when: "onDash", then: { kind: "damageBuff", magnitude: 1 }, keyword: "second" }, "boon:burnSpread:0")];
     try {
       const state = cleanArena();
-      state.boons = ["burnSpread", "reaperCup"];
-      expect(collectRules(state).map((r) => r.id), "取得順").toEqual(["boon:burnSpread:0", "boon:reaperCup:0"]);
+      state.boons = ["burnSpread", "wildfire"];
+      expect(collectRules(state).map((r) => r.id), "取得順").toEqual(["boon:burnSpread:0", "boon:wildfire:0"]);
       pushPlayerEvent(state, "onDash", "dash");
       resolveRules(state, 0);
       expect(state.chains.map((c) => c.keyword), "照合も取得順").toEqual(["second", "first"]);
@@ -189,12 +339,12 @@ describe("照合順", () => {
   });
 
   it("step の中で祝福の Rule が照合される", () => {
-    const def = BOONS.reaperCup as BoonDef;
+    const def = BOONS.wildfire as BoonDef;
     const saved = def.rules;
-    def.rules = [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } }, "boon:reaperCup:0")];
+    def.rules = [makeRule({ when: "onDash", then: { kind: "heal", magnitude: HEAL } }, "boon:wildfire:0")];
     try {
       const state = cleanArena();
-      state.boons = ["reaperCup"];
+      state.boons = ["wildfire"];
       state.player.hp = LOW_HP;
       pushPlayerEvent(state, "onDash", "dash");
       step(state, EMPTY_INPUT, FIXED_DT);
@@ -318,30 +468,6 @@ describe("祝福の Rule 化（旧フックと同じ結果。BoonDef.rules）", 
     // 旧フックは付与済みの強さを applyBurn へそのまま渡していた（霊力の倍率が掛かる）
     expect(b?.potency, "強さが同じ").toBeCloseTo(potency * state.stats.statusPotencyMul);
     expect(b?.time, "持続が同じ").toBeCloseTo(STATUS.burnDuration);
-  });
-
-  it("帯電疾走: ダッシュ開始で旧フックと同じ連鎖雷（近接 1 段目 × dashShockRatio）", () => {
-    const setup = (): { state: GameState; e: ReturnType<typeof placeEnemy> } => {
-      const state = cleanArena();
-      return { state, e: placeEnemy(state, "golem", NEAR) };
-    };
-    const hook = setup();
-    chainLightning(hook.state, hook.state.player.body.pos, slashBase(hook.state) * BOON.dashShockRatio);
-    const rule = setup();
-    pushPlayerEvent(rule.state, "onDash", "dash");
-    resolveRules(rule.state, 0, rulesOf("dashShock"));
-    expect(hook.e.hp, "旧フックの式で削れる").toBeLessThan(hook.e.maxHp);
-    expect(rule.e.hp, "同じだけ削れる").toBe(hook.e.hp);
-  });
-
-  it("屠りの盃: 撃破で reaperCupKillMana（回収の倍率込み）だけ気力が戻る", () => {
-    const state = cleanArena();
-    state.player.mana = 0;
-    const e = placeEnemy(state, "slime", NEAR);
-    e.hp = 0;
-    pushEvent(state, { kind: "onKill", actor: "player", source: { kind: "player", key: "kill" }, ...enemyTarget(e, true) });
-    resolveRules(state, 0, rulesOf("reaperCup"));
-    expect(state.player.mana, "同じだけ戻る").toBeCloseTo(BOON.reaperCupKillMana * state.stats.manaGainMul);
   });
 
   it("direct の Rule は深さ・減衰・語の上限・深さの上限の外で、連鎖に記録しない", () => {

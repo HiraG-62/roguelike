@@ -1,8 +1,8 @@
 import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../core/state";
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, POISE, ROAM } from "../data/tuning";
+import { type EnemyDef, depthDamage, depthHpScale, enemyDef } from "../data/enemies";
+import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -10,16 +10,22 @@ import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, hasElit
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
-import { applyStagger, initEnemyPoise } from "./poise";
-import { boonWindupMul } from "./boonRules";
+import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
+import { takeRetreatStep, tickReaction } from "./enemyReactions";
+import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
+import { jinBonusMul, stepRout } from "./jin";
+import { wakeByNoise } from "./noise";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
 import { onRallyContact, seedTerrain, terrainSpeedMul, tickSpores, updateRallies, updateTerrainSeeds } from "./enemyTerrain";
 import { placeTerrain, terrainMoveMul } from "./terrain";
+import { focusTarget, isAllied } from "./rules";
+import { applyModifiers } from "./modifiers";
+import type { DamageTag } from "../core/damage";
 import {
   BASILISK_BITE,
   BASILISK_GAZE,
@@ -104,7 +110,7 @@ import {
 } from "./enemyBehaviors";
 
 /** 通路からでも気付く距離 */
-const NOTICE_RANGE = 110;
+export const NOTICE_RANGE = 110;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
@@ -112,17 +118,10 @@ const ENEMY_BULLET_COLOR = "#e070ff";
 const SPAWN_TIME = 0.7;
 const DEG_TO_RAD = Math.PI / 180;
 
-/** 連続攻撃の定義（ENEMY_TEMPO.followUps の 1 行） */
-export interface FollowUpDef {
-  minDepth: number;
-  /** 追加の撃数 */
-  count: number;
-  /** 2 撃目以降の予備動作の基準（秒） */
-  windup: number;
-  /** 壁に激突したときだけ続ける（猪） */
-  onWallOnly: boolean;
-}
-const FOLLOW_UPS: Readonly<Record<string, FollowUpDef | undefined>> = ENEMY_TEMPO.followUps;
+// 連撃は章で覚える段（ENEMY_TEMPO.depthStages）の 1 つ。既存の import 先を変えないため再 export
+export { type FollowUpDef, followUpOf } from "./enemyStages";
+/** 攻撃の後の隙で離れる速さの倍率（敵の定義ごと。REACTION.retreatAfterStrike。behavior 既定より優先） */
+const RETREAT_AFTER_STRIKE: Readonly<Record<string, number | undefined>> = REACTION.retreatAfterStrike;
 
 /** 深度による予備動作の倍率。1 階で 1、深くなるほど短く windupDepthMin で止まる */
 export function depthWindupMul(depth: number): number {
@@ -135,13 +134,6 @@ export function depthWindupMul(depth: number): number {
  */
 export function scaledWindup(base: number, depth: number, extraMul = 1): number {
   return base * Math.max(ENEMY_TEMPO.windupFloor, depthWindupMul(depth) * extraMul);
-}
-
-/** その深度で使える連続攻撃。無ければ undefined */
-export function followUpOf(key: string, depth: number): FollowUpDef | undefined {
-  const f = FOLLOW_UPS[key];
-  if (!f || depth < f.minDepth) return undefined;
-  return f;
 }
 
 export function createAi(): EnemyAi {
@@ -160,6 +152,7 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     facing: { x: 1, y: 0 },
     phase: spawning ? "spawning" : "idle",
     phaseTimer: spawning ? SPAWN_TIME : 0,
+    windupTotal: 0,
     strikeDir: { x: 1, y: 0 },
     attackCooldown: def.attackInterval * (0.5 + state.rng.next()),
     hitFlash: 0,
@@ -177,6 +170,7 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
 }
 
 export function updateEnemies(state: GameState, dt: number): void {
+  wakeByNoise(state);
   updateElites(state, dt);
   updateCorpses(state, dt);
   updateRallies(state, dt);
@@ -186,17 +180,32 @@ export function updateEnemies(state: GameState, dt: number): void {
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
     e.hitFlash = Math.max(0, e.hitFlash - dt);
+    if (e.linked !== undefined) e.linked = Math.max(0, e.linked - dt);
     if (isAsleep(state, e)) continue;
     const def = enemyDef(e.defKey);
     // chill 中は移動も攻撃の進行も遅くなる
     const edt = dt * chillFactor(e);
     applyKnock(state, e, def, dt);
+    // 先送りされた怯みの安全網（個別 AI のボスなど endStrike を通らない技の後）。行動停止の判定より前に払う
+    if (e.phase !== "strike") settlePendingStagger(state, e);
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
     e.animTime += edt;
-    e.attackCooldown = Math.max(0, e.attackCooldown - edt);
+    // プレイヤーの隙では前衛・突撃の時計が速く進む（反応ルール。ボス・設置物は 1 倍）
+    e.attackCooldown = Math.max(0, e.attackCooldown - edt * behaviorOf(def).attackCooldownRate(state, e, def));
+    // 従魔（眷属。Enemy.allyUntil）は敵対の敵を狙い、プレイヤーを狙わない。
+    // 恐怖・敗走より先に見る（従えた陣の仲間が崩れて敗走しても、従っている間は逃げ出さない）
+    if (isAllied(state, e)) {
+      updateAlly(state, e, def, edt);
+      continue;
+    }
     if (isFeared(e) && e.phase !== "spawning") {
       flee(state, e, def, edt);
+      continue;
+    }
+    // 敗走中は攻撃せず行き先の陣へ逃げる（system/jin.ts）
+    if (e.rout) {
+      stepRout(state, e, def, edt, enemySpeed(state, e, def));
       continue;
     }
 
@@ -218,6 +227,8 @@ export function updateEnemies(state: GameState, dt: number): void {
         if (e.phaseTimer <= 0) e.phase = "chase";
         break;
       case "idle":
+        // 商人は殴られるまで気付かない（怒らせるのは behaviors/families.ts の Merchant.onStruck だけ）。壺・木箱は最後まで気付かない
+        if (def.merchant === true || def.container !== undefined) break;
         // 開放型フロア: 壁越しには気付かない（気付いた敵が壁に張り付いたまま動けなくなるため）
         if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
         break;
@@ -262,9 +273,58 @@ export function farFromPlayer(state: GameState, e: Enemy): boolean {
   return dx * dx + dy * dy >= ROAM.sleepDist * ROAM.sleepDist;
 }
 
+/** 従魔が殴る 1 撃のタグ（群の「従魔の与ダメの倍」などの Modifier が読む） */
+const ALLY_HIT_TAGS: ReadonlySet<DamageTag> = new Set<DamageTag>(["minion"]);
+
+/**
+ * 従魔の番（docs/ideas/boon-impl.md 2-6 眷属）: 号令の狙い → 無ければ最も近い敵対の敵へ寄り、間合いに入ったら攻撃間隔ごとに殴る。
+ * 予備動作・攻撃は取り消して追跡から出直させる（味方になった瞬間にプレイヤーへ振り下ろさない）
+ */
+function updateAlly(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
+  const ai = BOON_LINEAGE.horde.allyAi;
+  if (e.phase !== "chase") e.phase = "chase";
+  const target = allyTarget(state, e);
+  if (target === undefined) return;
+  const to = sub(target.body.pos, e.body.pos);
+  const dir = normalize(to);
+  if (dir.x !== 0) e.facing = dir;
+  if (length(to) > e.body.radius + target.body.radius + ai.reach) {
+    const speed = enemySpeed(state, e, def) * ai.speedMul;
+    const heading = chaseHeading(state.map, e.body.pos, target.body.pos, dir);
+    moveEnemy(state, e, def, heading.x * speed * dt, heading.y * speed * dt);
+    return;
+  }
+  if (e.attackCooldown > 0) return;
+  e.attackCooldown = ai.interval;
+  const mods = applyModifiers(state, { tags: ALLY_HIT_TAGS }, target);
+  const more = mods.more.reduce((m, x) => m * x.mul, 1);
+  const base = Math.max(ai.minDamage, depthDamage(def.contactDamage, state.depth)) * ai.damageMul;
+  damageEnemy(state, target, Math.round(base * (1 + mods.increased) * more), dir, ai.knockback, { hitstopSteps: 0 });
+}
+
+/** 従魔の狙い: 号令の狙い、無ければ seekRange 内で最も近い敵対の敵（商人・壺・木箱・潜んだ敵は狙わない。同じ距離なら配列の先。決定性） */
+function allyTarget(state: GameState, e: Enemy): Enemy | undefined {
+  const focus = focusTarget(state);
+  if (focus !== undefined) return focus;
+  let best: Enemy | undefined;
+  let bestD = BOON_LINEAGE.horde.allyAi.seekRange;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.hidden === true || isAllied(state, o)) continue;
+    const od = enemyDef(o.defKey);
+    if (od.merchant === true || od.container !== undefined) continue;
+    const d = dist(e.body.pos, o.body.pos);
+    if (d < bestD) {
+      best = o;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
 /** 状態機械の前に毎ステップ行う behavior 固有の下準備（取り巻きを呼ぶ・位置を記録する・蘇生の時計） */
 function beforeAct(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   if (e.phase !== "chase" && e.phase !== "windup" && e.phase !== "strike" && e.phase !== "recover") return;
+  tickReaction(e, dt);
   if (def.pack) spawnPackOnce(state, e, def);
   if (def.behavior === "echoStriker") recordTrail(state, e, dt);
   if (def.behavior === "twinShade") tickTwinRevive(state, e, dt);
@@ -282,7 +342,7 @@ function handleDeaths(state: GameState): void {
     if (def.behavior === "bomber" && !e.vanished) {
       // 持っていた爆弾がその場に落ち、予告の後に爆ぜる（即時の爆発は近接で倒すと避けられない。テレグラフ原則）
       const b = ENEMY_AI.bomber;
-      spawnBomb(state, e.body.pos, b.damage + depthDamageBonus(state.depth), e.id, b.deathFuse, b.radius);
+      spawnBomb(state, e.body.pos, depthDamage(b.damage, state.depth), e.id, b.deathFuse, b.radius);
     }
     if (def.behavior === "wisp" && !e.vanished) {
       // 即時爆発だと近接で倒しても避けられないので、bomb と同じ仕組みでテレグラフしてから爆発させる
@@ -328,6 +388,7 @@ function wallSplat(state: GameState, e: Enemy): void {
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, back, FEEL.kickHeavy);
   pushSfx(state, "wallHit");
+  pushEvent(state, { kind: "onWallSlam", actor: "player", source: { kind: "player", key: "wallSlam" }, ...enemyTarget(e, true) });
   const out = rollOutgoing(state, e, w.damage, "proc");
   const poise = w.poise * state.stats.poiseDamageMul;
   damageEnemy(state, e, out.amount, back, 0, { poise, ignoreSuperArmor: true, hitstopSteps: w.hitstop });
@@ -356,9 +417,10 @@ function phasesNow(state: GameState, e: Enemy, def: EnemyDef): boolean {
   return overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius);
 }
 
-function toChase(e: Enemy, def: EnemyDef): void {
+function toChase(state: GameState, e: Enemy, def: EnemyDef): void {
   e.phase = "chase";
-  e.attackCooldown = def.attackInterval;
+  // 群勢が高い陣のメンバーは攻撃の間が詰まる（集まっている間の強化。system/jin.ts）
+  e.attackCooldown = def.attackInterval * jinBonusMul(state, e, "attackInterval");
 }
 
 function enemySpeed(state: GameState, e: Enemy, def: EnemyDef): number {
@@ -379,6 +441,8 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
   if (dir.x !== 0) e.facing = dir;
   // 盾持ちは常にプレイヤーへ正面を向ける
   if (def.blocks) e.facing = dir;
+  // 間合い取り: 殴られ続けたら少し離れる（離れている間は攻撃を始めない）
+  if (stepRetreat(state, e, def, toPlayer, dt)) return;
   if (def.behavior === "scavenger" && tryStartEating(state, e)) return;
 
   const move = chaseMove(state, e, def, chaseHeading(state.map, e.body.pos, state.player.body.pos, dir), d);
@@ -387,7 +451,41 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
 
   if (!wantsEngage(state, e, def, d) || e.attackCooldown > 0) return;
   if (!canBeginAttack(state, e, def, d)) return;
+  // 予告の見やすさの上限: 同じ 0.3 秒に赤くなる予告を絞る（次の窓で再挑戦）
+  if (telegraphCrowded(state, e)) {
+    e.attackCooldown = ENEMY_TEMPO.telegraphWindow;
+    return;
+  }
   beginWindup(state, e, def, dir);
+}
+
+/**
+ * 間合い取りの 1 ステップ。ai.retreat が残っていればプレイヤーの反対へ離れ、動いたら true。
+ * 離れる速さは敵の速さに依らず一定（REACTION.retreatDist ÷ retreatSec）
+ */
+function stepRetreat(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): boolean {
+  const step = takeRetreatStep(e, dt);
+  if (step <= 0) return false;
+  const away = scale(normalize(toPlayer), -1);
+  moveEnemy(state, e, def, away.x * step, away.y * step);
+  return true;
+}
+
+/**
+ * 予告の見やすさの上限: 予備動作に入ってから telegraphWindow 未満（=予告が出たばかり）の非ボスの敵が、
+ * プレイヤーの telegraphRange 以内に telegraphCap 以上いれば true。ボスは自前の予告があるので数えない
+ */
+function telegraphCrowded(state: GameState, e: Enemy): boolean {
+  const t = ENEMY_TEMPO;
+  const p = state.player.body.pos;
+  let fresh = 0;
+  for (const o of state.enemies) {
+    if (o === e || o.hp <= 0 || o.phase !== "windup") continue;
+    if (o.windupTotal - o.phaseTimer >= t.telegraphWindow) continue;
+    if (dist(o.body.pos, p) > t.telegraphRange || isBossDriven(enemyDef(o.defKey))) continue;
+    fresh++;
+  }
+  return fresh >= t.telegraphCap;
 }
 
 /** 攻撃に入る距離か。地雷はプレイヤーだけでなく敵が踏んでも爆ぜる */
@@ -435,10 +533,14 @@ function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: numbe
     case "oiler":
       // 油壺運びはふらふら走り回って床に油を広げる
       return normalize(add(dir, scale(perp, Math.sin(e.animTime * 2 + e.id) * 1.2)));
-    default:
-      // 狼は遠いうちは横へ回り込み、近づいたら素直に飛びかかる
+    default: {
+      // 囲む: 仲間が揃うとプレイヤーの周りの持ち場へ回り込む。持ち場が見えないとき（壁越し）は経路の探索を増やさず直進に戻す
+      const slot = d >= def.engageRange ? behaviorOf(def).slotTarget(state, e, def) : undefined;
+      if (slot && lineOfSight(state.map, e.body.pos, slot)) return normalize(sub(slot, e.body.pos), dir);
+      // 狼は仲間がいないうちは遠くから横へ回り込み、近づいたら素直に飛びかかる
       if (def.flank && d > ENEMY_AI.flank.minDist) return normalize(add(dir, scale(perp, side * def.flank)));
       return dir;
+    }
   }
 }
 
@@ -502,7 +604,9 @@ function beamOffsetDeg(def: EnemyDef, index: number): number {
 /** 予備動作に入る（1 撃目・2 撃目以降の共通）。base は深度前の基準秒 */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
-  e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e)) * boonWindupMul(state, e);
+  e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e));
+  e.windupTotal = e.phaseTimer;
+  e.chainWindup = false;
   e.strikeDir = dir;
   telegraphWindup(state, e, def, dir);
   pushSfx(state, "enemyWindup");
@@ -578,6 +682,8 @@ function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): vo
       telegraphToad(state, e, dir);
       return;
     default:
+      // クラスへ移した behavior の予告（跳躍の着地点の影など。behaviors/*.ts）
+      behaviorOf(def).telegraph(state, e, def, dir);
       return;
   }
 }
@@ -585,12 +691,13 @@ function telegraphWave3(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): vo
 function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
   // 予備動作の途中で沈黙したら詠唱・チャージを取り消す（docs/ideas/enemies.md H4。付与の瞬間の取り消しは statusEffects.ts）
   if (isSilenced(e) && behaviorOf(def).silenceable) {
-    toChase(e, def);
+    toChase(state, e, def);
     return;
   }
   e.phaseTimer -= dt;
-  const mul = behaviorOf(def).windupMoveMul;
-  if (mul > 0) {
+  const mul = learnedWindupMoveMul(def.key, state.depth) ?? behaviorOf(def).windupMoveMul;
+  // 負は後退射撃（プレイヤーから離れながら構える）
+  if (mul !== 0) {
     const dir = normalize(toPlayer);
     const speed = enemySpeed(state, e, def) * mul;
     moveEnemy(state, e, def, dir.x * speed * dt, dir.y * speed * dt);
@@ -604,6 +711,26 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
 }
 
 /**
+ * 同時攻撃の上限（docs/ideas/jin-impl.md 2-8）: strikerBase + 切り捨て(起きている敵 ÷ strikerPerAwake)。
+ * 起きている敵 = プレイヤーの strikerCountRadius 以内の生存・非ボス・潜っていない・idle / spawning でない敵。
+ * 周りが多いほど同時に殴りかかってよい数が増える（少人数は 2 のまま、大勢は待ちが減る）
+ */
+export function strikerCap(state: GameState): number {
+  const t = ENEMY_TEMPO;
+  const p = state.player.body.pos;
+  const r2 = t.strikerCountRadius * t.strikerCountRadius;
+  let awake = 0;
+  for (const o of state.enemies) {
+    if (o.hp <= 0 || o.hidden || o.phase === "idle" || o.phase === "spawning") continue;
+    const dx = o.body.pos.x - p.x;
+    const dy = o.body.pos.y - p.y;
+    if (dx * dx + dy * dy > r2 || isBossDriven(enemyDef(o.defKey))) continue;
+    awake++;
+  }
+  return t.strikerBase + Math.floor(awake / t.strikerPerAwake);
+}
+
+/**
  * 同時攻撃の上限: すでに strike の敵が上限に達していれば待たせる。
  * 敵は配列順（id 順）に更新されるので、同じステップで予備動作が終わった敵は id の若い方が先に枠を取る（決定的）。
  * ボスは数えない: ボスは自前の AI（boss*.ts）で動いてこの上限を受けず、技の strike も長いので、数えると
@@ -614,7 +741,7 @@ function strikeSlotsFull(state: GameState, e: Enemy): boolean {
   for (const o of state.enemies) {
     if (o !== e && o.hp > 0 && o.phase === "strike" && !isBossDriven(enemyDef(o.defKey))) striking++;
   }
-  return striking >= ENEMY_AI.maxSimultaneousStrikers;
+  return striking >= strikerCap(state);
 }
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
@@ -628,7 +755,6 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
   if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
   e.phase = "strike";
   e.phaseTimer = def.strikeTime;
-  const dmgBonus = depthDamageBonus(state.depth);
 
   switch (def.behavior) {
     case "shooter":
@@ -636,12 +762,12 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       spawnBurst(state, e.body.pos, ENEMY_BULLET_COLOR, 4, 50, 0.15, 1.5);
       return;
     case "bomber":
-      throwBombs(state, e, def, dmgBonus);
+      throwBombs(state, e, def);
       return;
     case "laser": {
       const l = ENEMY_AI.laser;
       const target = e.ai?.target ?? add(e.body.pos, scale(e.strikeDir, l.length));
-      spawnLaser(state, e.body.pos, target, def.strikeTime, l.damage + dmgBonus, e.id);
+      spawnLaser(state, e.body.pos, target, def.strikeTime, depthDamage(l.damage, state.depth), e.id);
       shake(state, FEEL.shakeLight);
       pushSfx(state, "enemyShoot");
       pushSfx(state, "laserFire");
@@ -652,7 +778,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): 
       return;
     case "golem": {
       const g = ENEMY_AI.golem;
-      spawnShockwave(state, e.body.pos, g.ringRadius, g.damage + dmgBonus, e.id);
+      spawnShockwave(state, e.body.pos, g.ringRadius, depthDamage(g.damage, state.depth), e.id);
       spawnBurst(state, e.body.pos, g.color, 16, 120, 0.4, 2.5);
       shake(state, FEEL.shakeHeavy);
       pushSfx(state, "wallHit");
@@ -784,7 +910,7 @@ function fireVolley(state: GameState, e: Enemy, def: EnemyDef): void {
   }
   const v = def.volley;
   const speed = ENEMY_BULLET_SPEED * (v.speedMul ?? 1);
-  const damage = Math.round((ENEMY_BULLET_DAMAGE + depthDamageBonus(state.depth)) * (v.damageMul ?? 1));
+  const damage = Math.round((depthDamage(ENEMY_BULLET_DAMAGE, state.depth)) * (v.damageMul ?? 1));
   for (const dir of fanDirections(e.strikeDir, v.count, v.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed, damage, color: def.color, radius: v.radius, sourceId: e.id });
@@ -793,11 +919,11 @@ function fireVolley(state: GameState, e: Enemy, def: EnemyDef): void {
 }
 
 /** 爆弾を投げる。volley があれば扇に並べて複数（連投ゴブリン） */
-function throwBombs(state: GameState, e: Enemy, def: EnemyDef, dmgBonus: number): void {
+function throwBombs(state: GameState, e: Enemy, def: EnemyDef): void {
   const b = ENEMY_AI.bomber;
   const v = def.volley;
   const dirs = v ? fanDirections(e.strikeDir, v.count, v.spreadDeg) : [e.strikeDir];
-  const damage = Math.round((b.damage + dmgBonus) * (v?.damageMul ?? 1));
+  const damage = Math.round(depthDamage(b.damage, state.depth) * (v?.damageMul ?? 1));
   for (const dir of dirs) {
     const target = add(e.body.pos, scale(dir, b.throwDist));
     const pos = overlapsWall(state, target.x, target.y, 2) ? { ...e.body.pos } : target;
@@ -812,6 +938,9 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
   e.phaseTimer -= dt;
   if (def.behavior === "windSprite") blowWind(state, e, dt);
   if (def.behavior === "basilisk") tickGaze(state, e, dt);
+  behaviorOf(def).tickStrike(state, e, def, dt);
+  // 攻撃中の処理で受け流されて怯んだ・攻撃が終わった敵は、下の endStrike の recover で上書きさせない
+  if (e.phase !== "strike" || isStaggered(e)) return;
   // 氷猪: 突進の跡が氷床になる（突進の予告線がそのまま予告）
   if (def.chargeTrail === "ice") placeTerrain(state, e.body.pos.x, e.body.pos.y, "ice", ENEMY_AI.iceTrail.radius);
   const speed = enemySpeed(state, e, def) * strikeSpeedMul(e, def);
@@ -844,9 +973,12 @@ function strike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
       endStrike(state, e, def);
       return;
     }
-    const damage = contactDamageOf(e, def);
+    // 格「猛」は接触ダメージが重い（陣の強。docs/ideas/jin-impl.md 2-2）
+    const damage = Math.round(contactDamageOf(e, def) * (e.grade === "strong" ? JIN.strong.damageMul : 1));
     if (damage > 0) {
       const result = touchPlayer(state, e, damage);
+      // 受け流しなどで touchPlayer の最中に怯んだ・攻撃が終わった敵は、endStrike の recover で怯みを上書きさせない
+      if (e.phase !== "strike" || isStaggered(e)) return;
       if (result !== null) {
         if (result === "hit" && def.behavior === "manaLeech") stealMana(state, e);
         endStrike(state, e, def);
@@ -871,7 +1003,7 @@ function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResul
   if (state.skills.shape?.key === "wraithForm") return null;
   const p = state.player.body;
   if (!circlesOverlap(e.body.pos.x, e.body.pos.y, e.body.radius, p.pos.x, p.pos.y, p.radius)) return null;
-  const result = damagePlayer(state, damage + depthDamageBonus(state.depth), e.body.pos, e);
+  const result = damagePlayer(state, depthDamage(damage, state.depth), e.body.pos, e);
   if (result === "hit") {
     inflictOnPlayer(state, e, "contact");
     onRallyContact(state, e);
@@ -887,20 +1019,28 @@ function touchWisp(state: GameState, e: Enemy, def: EnemyDef): void {
 
 function recover(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
   e.phaseTimer -= dt;
-  if (def.behavior === "bat") {
-    // 一撃離脱: 噛んだら離れる
-    const away = scale(normalize(toPlayer), -1);
-    const speed = enemySpeed(state, e, def) * ENEMY_AI.bat.retreatMul;
-    moveEnemy(state, e, def, away.x * speed * dt, away.y * speed * dt);
-  }
+  // 殴られ続けて間合いを取っている間は、攻撃の後の離脱と二重に動かない
+  if (!stepRetreat(state, e, def, toPlayer, dt)) retreatAfterStrike(state, e, def, toPlayer, dt);
   if (e.phaseTimer > 0) return;
   if (def.behavior === "scavenger") finishEating(state, e, def);
   onRecoverEndWave3(e, def);
-  toChase(e, def);
+  toChase(state, e, def);
+  behaviorOf(def).onRecoverEnd(state, e, def);
+}
+
+/** 離脱: 攻撃の後の隙の間、プレイヤーから離れる（蝙蝠・狼・棘鼠・盗賊。速さは歩きの倍率） */
+function retreatAfterStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: number): void {
+  const mul = learnedRetreatMul(def.key, state.depth) ?? RETREAT_AFTER_STRIKE[def.key] ?? behaviorOf(def).recoverRetreatMul;
+  if (mul <= 0) return;
+  const away = scale(normalize(toPlayer), -1);
+  const speed = enemySpeed(state, e, def) * mul;
+  moveEnemy(state, e, def, away.x * speed * dt, away.y * speed * dt);
 }
 
 /** 攻撃の終わり。連続攻撃・残響・次の光線が残っていれば次の予備動作へ、無ければ隙（recover） */
 function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): void {
+  // 先送りされた怯みはここで払う（連続攻撃・次の光線・recover へ進む前）。怯めば phase は chase に戻っている
+  if (settlePendingStagger(state, e)) return;
   if (def.behavior === "charger" && !byWall) leaveChargeTrail(state, e, def, false);
   // 鎖の番人・大蝦蟇: 引き寄せが当たったら続けて叩きつけ（2 段の読み）
   const hook = hookFollowUp(e, def);
@@ -956,7 +1096,7 @@ function dropRocks(state: GameState, e: Enemy): void {
     const a = state.rng.next() * Math.PI * 2;
     const q = add(center, scale(fromAngle(a), state.rng.next() * r.spread));
     if (overlapsWall(state, q.x, q.y, 2)) continue;
-    spawnBomb(state, q, r.damage + depthDamageBonus(state.depth), e.id, r.fuse, r.radius);
+    spawnBomb(state, q, depthDamage(r.damage, state.depth), e.id, r.fuse, r.radius);
   }
 }
 
@@ -975,6 +1115,8 @@ function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean)
   ai.counter -= 1;
   const dir = byWall ? scale(e.strikeDir, -1) : e.strikeDir;
   startWindup(state, e, def, dir, f.windup);
+  // 連撃の続きは 1 撃目と一続きの約束。前半で怯ませて潰せると連打が 2 撃目を必ず消してしまう
+  e.chainWindup = true;
   return true;
 }
 
@@ -984,7 +1126,7 @@ function fireAtPlayer(state: GameState, e: Enemy): void {
     pos: add(e.body.pos, scale(dir, e.body.radius + 2)),
     dir,
     speed: ENEMY_BULLET_SPEED,
-    damage: ENEMY_BULLET_DAMAGE + depthDamageBonus(state.depth),
+    damage: depthDamage(ENEMY_BULLET_DAMAGE, state.depth),
     color: ENEMY_BULLET_COLOR,
     sourceId: e.id,
   });
@@ -1088,8 +1230,30 @@ function pushApart(state: GameState, e: Enemy, push: Vec): void {
 /** 予備動作中に描く予告の種類（定義は behaviors/base.ts。render と boss*.ts の import 先を変えないため再 export） */
 export type { EnemyTelegraph };
 
-/** その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null */
+/**
+ * その敵の予備動作の予告。影（landing）で見せるものは hazards 側が描くので null。
+ * 線は長さを持つ（突進・踏み込みで届く距離。ボスなど動かない技の線は TELEGRAPH.fallbackLength）
+ */
 export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  const shape = enemyTelegraphShape(e, def);
+  if (shape?.kind !== "line" || shape.length !== undefined) return shape;
+  return { kind: "line", length: strikeLineLength(e, def) };
+}
+
+/** 線の長さ = 攻撃中の移動で届く距離（精鋭の迅速・冷気は無視した近似）を最短〜最長に丸めたもの */
+function strikeLineLength(e: Enemy, def: EnemyDef): number {
+  const reach = def.speed * strikeSpeedMul(e, def) * def.strikeTime;
+  if (!(reach > 0)) return TELEGRAPH.fallbackLength;
+  return Math.max(TELEGRAPH.minLength, Math.min(TELEGRAPH.maxLength, reach));
+}
+
+/** 踏み込んで接触で殴る敵の既定の線。影（落下点）で見せる天井吊りは線を出さない */
+function defaultStrikeLine(e: Enemy, def: EnemyDef): EnemyTelegraph {
+  if (def.behavior === "dropper" || def.contactDamage <= 0 || strikeSpeedMul(e, def) <= 0) return null;
+  return { kind: "line" };
+}
+
+function enemyTelegraphShape(e: Enemy, def: EnemyDef): EnemyTelegraph {
   switch (def.behavior) {
     case "charger":
       // 二度突きの猪の折れ線は render/chargeLineUi.ts が e.doubleCharge を読んで描く
@@ -1110,7 +1274,7 @@ export function enemyTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
     case "frostGiant":
       return e.ai?.move === GIANT_MOVE_SLAM ? { kind: "ring", radius: BOSS.frostGiant.slamRadius } : null;
     default:
-      return enemyTelegraphWave3(e, def) ?? bossTelegraph(e, def);
+      return enemyTelegraphWave3(e, def) ?? bossTelegraph(e, def) ?? defaultStrikeLine(e, def);
   }
 }
 

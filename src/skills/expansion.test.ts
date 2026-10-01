@@ -6,15 +6,12 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { STATUS } from "../data/tuning";
-import { createEmptyResonance } from "../loot/types";
 import { updatePlayer } from "../system/player";
 import {
   createSkillRunState,
   onSkillMeleeHit,
   onSkillPlayerShoot,
   resolveSlot,
-  skillMoveMul,
   slotComboReady,
   updateSkills,
 } from "../system/skills";
@@ -23,6 +20,7 @@ import { arena, placeEnemy, withInput } from "../system/testHelpers";
 import { SKILL } from "./data";
 import { stoneFromSeed } from "./generator";
 import { syncTurretShots } from "./summons";
+import { COMBO_TUNING } from "./tuning";
 import type { ModifierKey, SkillKey, SkillStone } from "./types";
 
 /**
@@ -94,6 +92,14 @@ function has(e: Enemy, kind: StatusKind): boolean {
   return e.status.effects.some((s) => s.kind === kind && s.time > 0);
 }
 
+/**
+ * 確率の抽選をすべて外す。属性の相性の抽選（ELEMENT.affinity、命中の 1 割で属性の状態異常を付ける）が
+ * 消費系のスキルの命中で燃焼・毒・感電を付け直すと「消える」の検証が乱数の位置しだいになるため
+ */
+function missAllChances(state: GameState): void {
+  state.rng = { ...state.rng, chance: () => false };
+}
+
 function give(state: GameState, e: Enemy, kind: StatusKind, stacks = 1, potency = 1, duration = 5): void {
   applyStatus(state, { kind: "enemy", enemy: e }, { kind, stacks, duration, potency }, "player");
 }
@@ -139,6 +145,7 @@ describe("消費系のスキル", () => {
 
   it("燃え種爆ぜ: 燃焼を消して爆発させる。燃焼が無ければ撃てない", () => {
     const state = skillArena([{ key: "kindle" }]);
+    missAllChances(state);
     const e = tough(state, 60);
     cast(state, e.body.pos);
     expect(state.player.mana, "燃焼なしは払わない").toBe(state.stats.maxMana);
@@ -166,6 +173,7 @@ describe("消費系のスキル", () => {
     cast(plain);
     run(plain, 0.3);
     const poisoned = skillArena([{ key: "harvest" }]);
+    missAllChances(poisoned);
     const b = tough(poisoned, 40);
     give(poisoned, b, "poison", 2, 0, 5);
     const hpBefore = b.hp;
@@ -177,6 +185,7 @@ describe("消費系のスキル", () => {
 
   it("放電: 感電した敵から自分へ雷が戻り、感電は消える。感電が無ければ撃てない", () => {
     const state = skillArena([{ key: "discharge" }]);
+    missAllChances(state);
     const e = tough(state, 80);
     cast(state);
     expect(state.player.mana).toBe(state.stats.maxMana);
@@ -238,33 +247,6 @@ describe("消費系のスキル", () => {
 });
 
 describe("状態を参照するスキル", () => {
-  it("満月の砲: 満タンでなければ撃てず、満タンなら全マナを払って並んだ敵を貫く", () => {
-    const state = skillArena([{ key: "fullMoon" }]);
-    const a = tough(state, 40);
-    const b = tough(state, 80);
-    state.player.mana = state.stats.maxMana - 1;
-    cast(state);
-    expect(lost(a), "満タンでないと撃てない").toBe(0);
-    state.player.mana = state.stats.maxMana;
-    waitReady(state);
-    cast(state);
-    expect(state.player.mana).toBe(0);
-    expect(lost(a)).toBeGreaterThan(0);
-    expect(lost(b), "貫通").toBeGreaterThan(0);
-  });
-
-  it("枯渇の刃: マナが多いと撃てず、少ないとコスト 0 で 3 回斬る", () => {
-    const state = skillArena([{ key: "dregsBlade" }]);
-    const e = tough(state, 20);
-    cast(state);
-    run(state, SKILL.dregsBlade.duration + 0.1);
-    expect(lost(e), "マナが多いと撃てない").toBe(0);
-    state.player.mana = 1;
-    cast(state);
-    run(state, SKILL.dregsBlade.duration + 0.1);
-    expect(state.player.mana, "コスト 0").toBeGreaterThanOrEqual(1);
-    expect(lost(e)).toBeGreaterThan(0);
-  });
 
   it("背水の一閃: HP が減るほど強く、HP が多いとコストが重い", () => {
     const full = skillArena([{ key: "lastStand" }]);
@@ -320,20 +302,6 @@ describe("状態を参照するスキル", () => {
 });
 
 describe("移動・召喚・設置", () => {
-  it("影渡り: 照準近くの敵の背後へ移り、直後の近接は怯み値が上乗せ。対象がいなければ払わない", () => {
-    const state = skillArena([{ key: "shadowStep" }]);
-    cast(state, { x: state.player.body.pos.x + 60, y: state.player.body.pos.y });
-    expect(state.player.mana, "対象なし").toBe(state.stats.maxMana);
-    const e = tough(state, 80);
-    e.facing = { x: -1, y: 0 };
-    waitReady(state);
-    cast(state, e.body.pos);
-    expect(state.player.body.pos.x, "敵の向こう側（背後）").toBeGreaterThan(e.body.pos.x);
-    expect(state.skills.backstabTimer).toBeGreaterThan(0);
-    onSkillMeleeHit(state, e, 0);
-    expect(e.poise.damage).toBeGreaterThan(0);
-    expect(state.skills.backstabTimer).toBe(0);
-  });
 
   it("爆薬樽: 撃つとその場で爆発する", () => {
     const state = skillArena([{ key: "powderKeg" }]);
@@ -406,30 +374,6 @@ describe("移動・召喚・設置", () => {
     expect(state.skills.shots).toHaveLength(1);
   });
 
-  it("骨片の輪: 骨片に触れた敵弾を 1 発止める", () => {
-    const state = skillArena([{ key: "boneRing" }]);
-    cast(state);
-    const ring = state.skills.boneRing;
-    expect(ring?.bones).toBe(SKILL.boneRing.bones);
-    const p = state.player.body.pos;
-    state.projectiles.push({
-      id: 998,
-      owner: "enemy",
-      pos: { x: p.x + SKILL.boneRing.orbit, y: p.y },
-      vel: { x: 0, y: 0 },
-      radius: SKILL.boneRing.orbit,
-      damage: 1,
-      life: 1,
-      color: "#fff",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    });
-    updateSkills(state, withInput({}), FIXED_DT);
-    expect(state.projectiles[0]?.life).toBe(0);
-    expect(state.skills.boneRing?.bones).toBe(SKILL.boneRing.bones - 1);
-  });
-
   it("湧き石: 石の周りで近接を当てるとマナが多く戻る", () => {
     const state = skillArena([{ key: "manaSpring" }]);
     const e = tough(state, 20);
@@ -437,28 +381,6 @@ describe("移動・召喚・設置", () => {
     state.player.mana = 0;
     onSkillMeleeHit(state, e, 0);
     expect(state.player.mana).toBeCloseTo(SKILL.manaSpring.manaPerHit * state.stats.manaGainMul);
-  });
-
-  it("墜星: 少し後に照準地点へ落ちて周りを打つ", () => {
-    const state = skillArena([{ key: "meteorDive" }]);
-    const at = { x: state.player.body.pos.x + 60, y: state.player.body.pos.y };
-    const e = tough(state, 70);
-    cast(state, at);
-    expect(skillMoveMul(state), "空中は動けない").toBe(0);
-    run(state, SKILL.meteorDive.air + 0.05);
-    expect(state.player.body.pos.x).toBeCloseTo(at.x, 0);
-    expect(lost(e)).toBeGreaterThan(0);
-  });
-
-  it("燕返し: 行きと戻りで同じ敵に 2 回当たる", () => {
-    const state = skillArena([{ key: "swallowFlip" }]);
-    const e = tough(state, 35);
-    cast(state);
-    run(state, 0.02);
-    const once = lost(e);
-    run(state, SKILL.swallowFlip.time + 0.05);
-    expect(once, "行き").toBeGreaterThan(0);
-    expect(lost(e), "戻り").toBeGreaterThan(once);
   });
 
   it("巻き戻し: 少し前の位置へ戻り、その間の被ダメの一部を取り戻す", () => {
@@ -474,336 +396,191 @@ describe("移動・召喚・設置", () => {
     expect(state.player.hp).toBeGreaterThan(hp);
   });
 
-  it("手繰り糸: 糸に触れた敵をまとめて手前へ引く", () => {
-    const state = skillArena([{ key: "threadReel" }]);
-    const far = tough(state, 75);
-    const at = { x: state.player.body.pos.x + 85, y: state.player.body.pos.y };
-    cast(state, at);
-    run(state, SKILL.threadReel.delay + 0.05);
-    expect(far.body.pos.x - state.player.body.pos.x).toBeLessThan(30);
-    expect(has(far, "weaken")).toBe(true);
-  });
-
-  it("震脚: 周りの敵弾を消し、少しの間動けない", () => {
-    const state = skillArena([{ key: "stomp" }]);
-    const p = state.player.body.pos;
-    state.projectiles.push({
-      id: 997,
-      owner: "enemy",
-      pos: { x: p.x + 20, y: p.y },
-      vel: { x: 0, y: 0 },
-      radius: 2,
-      damage: 1,
-      life: 5,
-      color: "#fff",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    });
-    cast(state);
-    expect(state.projectiles[0]?.life).toBe(0);
-    expect(skillMoveMul(state)).toBe(0);
-  });
 });
 
-describe("射撃弾のスキル", () => {
-  it("跳弾: 壁で跳ねて跳ねた回数が増える", () => {
-    const state = skillArena([{ key: "ricochet" }]);
-    cast(state);
-    run(state, SKILL.ricochet.life - 0.1);
-    expect(state.skills.shots[0]?.bounced ?? SKILL.ricochet.bounces).toBeGreaterThan(0);
-  });
+describe("刻印符の循環（発動）", () => {
+  /** いちばん新しく置いた地雷の威力の倍率 */
+  function lastMineMul(state: GameState): number {
+    return state.skills.mines.at(-1)?.params.damageMul ?? 0;
+  }
 
-  it("風切り: 敵弾を消し、そのぶん遠くまで飛ぶ", () => {
-    const state = skillArena([{ key: "galeSlash" }]);
-    const p = state.player.body.pos;
-    cast(state);
-    const shot = state.skills.shots[0];
-    expect(shot).toBeDefined();
-    if (!shot) return;
-    const lifeBefore = shot.life;
-    state.projectiles.push({
-      id: 996,
-      owner: "enemy",
-      pos: { ...shot.pos },
-      vel: { x: 0, y: 0 },
-      radius: 2,
-      damage: 1,
-      life: 5,
-      color: "#fff",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    });
-    updateSkills(state, withInput({}), FIXED_DT);
-    expect(state.projectiles.find((pr) => pr.id === 996)?.life).toBe(0);
-    expect(shot.life).toBeGreaterThan(lifeBefore - FIXED_DT);
-    expect(p).toBeDefined();
-  });
+  /** スロットを撃ち、次に撃てるまで待つ（気力は満たす） */
+  function castAndWait(state: GameState, slot = 0): void {
+    state.player.mana = state.stats.maxMana;
+    cast(state, undefined, slot);
+    waitReady(state, slot);
+  }
 
-  it("散弾符: 7 発を扇に撃つ", () => {
-    const state = skillArena([{ key: "scatterSigil" }]);
-    cast(state);
-    expect(state.skills.shots).toHaveLength(SKILL.scatterSigil.count);
-  });
-
-  it("五彩の礫: 紅の支配共鳴なら出血を付ける", () => {
-    const state = skillArena([{ key: "prismShard" }]);
-    state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "dominant", colors: ["crimson"] } };
-    const e = tough(state, 40);
-    cast(state);
-    run(state, 0.3);
-    expect(has(e, "bleed")).toBe(true);
-  });
-});
-
-describe("大拡張の刻印符（発動）", () => {
-  it("後払い: マナ 0 でも撃て、少し後にコストを払う（足りない分は HP）", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["deferred"] }]);
-    state.player.mana = 0;
-    const hp = state.player.hp;
-    cast(state);
-    expect(state.skills.active?.skillKey).toBe("whirl");
-    run(state, SKILL.modifier.deferred.delay + 0.05);
-    expect(state.player.hp).toBeLessThan(hp);
-  });
-
-  it("後払い: HP 1 で払いきれない分は返済残に残り、返済残がある間は後払いを撃てない", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["deferred"] }]);
-    state.player.mana = 0;
-    state.player.hp = 1;
-    cast(state);
-    run(state, SKILL.modifier.deferred.delay + 0.05);
-    expect(state.player.hp, "HP は 1 で止まる").toBe(1);
-    expect(state.skills.debtOwed, "払えなかった分が残る").toBeGreaterThan(0);
-    waitReady(state);
-    state.skills.active = null;
-    cast(state);
-    expect(state.skills.debts, "返済残がある間は撃てない").toHaveLength(0);
-    state.skills.debtOwed = 0;
-    cast(state);
-    expect(state.skills.debts, "返済残が 0 なら撃てる").toHaveLength(1);
-  });
-
-  it("後払い: 返済待ちの間は同じスロットを撃てない", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["deferred"] }]);
-    cast(state);
-    waitReady(state);
-    cast(state);
-    expect(state.skills.debts).toHaveLength(1);
-  });
-
-  it("血の肩代わり: マナが足りなければ不足分を HP で払って撃つ", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["bloodTithe"] }]);
+  it("血の代償: マナが足りなければ不足分を HP で払って撃つ", () => {
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["bloodPrice"] }]);
     state.player.mana = 1;
     const hp = state.player.hp;
     cast(state);
-    expect(state.skills.grenades.length).toBeGreaterThan(0);
+    expect(state.skills.mines.length).toBeGreaterThan(0);
     expect(state.player.mana).toBe(0);
     expect(state.player.hp).toBeLessThan(hp);
   });
 
-  it("溢れ・渇き撃ち・背水は発動時の状態で威力が変わる", () => {
-    const m = SKILL.modifier;
-    const full = skillArena([{ key: "whirl", links: 1, modifiers: ["spillover"] }]);
-    cast(full);
-    expect(full.skills.active?.params.damageMul).toBeCloseTo(m.spillover.fullMul);
-    const dry = skillArena([{ key: "whirl", links: 1, modifiers: ["dryFire"] }]);
-    dry.player.mana = 20;
-    cast(dry);
-    expect(dry.skills.active?.params.damageMul).toBeCloseTo(m.dryFire.damageMul);
-    const low = skillArena([{ key: "whirl", links: 1, modifiers: ["desperate"] }]);
-    low.player.hp = low.player.maxHp * 0.3;
-    cast(low);
-    expect(low.skills.active?.params.damageMul).toBeCloseTo(m.desperate.lowMul);
+  it("溢れ撃ち: 気力満タンで撃つと強い", () => {
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["spillover"] }]);
+    cast(state);
+    expect(lastMineMul(state)).toBeCloseTo(SKILL.modifier.spillover.fullMul);
   });
 
-  it("刃の給油: 直前に近接を当てていればコストが軽い", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["bladeFeed"] }]);
-    const cold = resolveSlot(state, 0)?.cost ?? 0;
-    const e = tough(state, 20);
-    onSkillMeleeHit(state, e, 0);
-    const fed = resolveSlot(state, 0)?.cost ?? 0;
-    expect(fed / cold).toBeCloseTo(SKILL.modifier.bladeFeed.costMul / SKILL.modifier.bladeFeed.missMul);
+  it("刻み撃ち: 同じスロットを続けて撃つたび強く、他のスロットを撃つと途切れる", () => {
+    const m = SKILL.modifier.streak;
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["streak"] }, { key: "mines" }]);
+    castAndWait(state);
+    const first = lastMineMul(state);
+    castAndWait(state);
+    expect(lastMineMul(state) / first, "2 発目").toBeCloseTo(1 + m.stepMul);
+    castAndWait(state);
+    expect(lastMineMul(state) / first, "3 発目").toBeCloseTo(1 + m.stepMul * 2);
+    castAndWait(state, 1);
+    castAndWait(state);
+    expect(lastMineMul(state) / first, "他のスロットの後は戻る").toBeCloseTo(1);
   });
 
-  it("過熱: 続けて撃つほど軽くなり、上限の後はしばらく撃てない", () => {
+  it("過熱: 続けて撃つほど強く、上限で暴発して生命を失いしばらく撃てない", () => {
+    const o = SKILL.modifier.overheat;
     const state = skillArena([{ key: "mines", links: 1, modifiers: ["overheat"] }]);
-    const c0 = resolveSlot(state, 0)?.cost ?? 0;
+    castAndWait(state);
+    const first = lastMineMul(state);
+    castAndWait(state);
+    expect(lastMineMul(state) / first).toBeCloseTo(1 + o.stepMul);
+    const hp = state.player.hp;
+    for (let i = 2; i < o.maxStacks - 1; i++) castAndWait(state);
+    state.player.mana = state.stats.maxMana;
     cast(state);
-    expect(resolveSlot(state, 0)?.cost ?? 0).toBeCloseTo(c0 * SKILL.modifier.overheat.stepMul);
-    waitReady(state);
-    cast(state);
-    waitReady(state);
-    cast(state);
-    expect(state.skills.slots[0]?.intervalLeft ?? 0).toBeGreaterThan(SKILL.modifier.overheat.lockTime - 0.1);
+    expect(state.player.hp, "暴発").toBeLessThan(hp);
+    expect(state.skills.slots[0]?.intervalLeft ?? 0).toBeGreaterThan(o.lockTime - 0.1);
   });
 
-  it("巡り: 直前に他のスロットを 2 回撃っていれば軽く、同じスロットの連打は重い", () => {
-    const state = skillArena([{ key: "mines", links: 1, modifiers: ["cycle"] }, { key: "mines" }, { key: "mines" }]);
-    const base = resolveSlot(state, 0)?.cost ?? 0;
+  it("蓄え: 撃たずに待つほど強い（上限まで）", () => {
+    const p = SKILL.modifier.patience;
+    const wait = 2;
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["patience"] }]);
+    run(state, wait);
+    cast(state);
+    expect(lastMineMul(state)).toBeCloseTo(1 + wait * p.perSec, 1);
+    const long = skillArena([{ key: "mines", links: 1, modifiers: ["patience"] }]);
+    run(long, p.cap / p.perSec + 1);
+    cast(long);
+    expect(lastMineMul(long), "上限").toBeCloseTo(1 + p.cap, 5);
+  });
+
+  it("呼応: 他のスキルの直後に撃つと強い", () => {
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["sympathy"] }, { key: "mines" }]);
+    castAndWait(state);
+    const alone = lastMineMul(state);
+    run(state, SKILL.modifier.sympathy.window + 0.1);
     cast(state, undefined, 1);
-    waitReady(state, 1);
-    cast(state, undefined, 2);
-    expect(resolveSlot(state, 0)?.cost ?? 0).toBeCloseTo(base * SKILL.modifier.cycle.freshMul);
-    waitReady(state, 2);
-    cast(state, undefined, 0);
-    expect(resolveSlot(state, 0)?.cost ?? 0).toBeCloseTo(base * SKILL.modifier.cycle.repeatMul);
+    cast(state);
+    expect(lastMineMul(state) / alone).toBeCloseTo(SKILL.modifier.sympathy.damageMul);
   });
 
-  it("定刻: マナを使わず CD で撃つ", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["timeLock"] }]);
-    cast(state);
-    expect(state.player.mana).toBe(state.stats.maxMana);
-    expect(state.skills.slots[0]?.cooldownLeft ?? 0).toBeGreaterThan(0);
+  it("背水: 生命が減るほど負担が軽い", () => {
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["desperate"] }]);
+    const full = resolveSlot(state, 0)?.cost ?? 0;
+    state.player.hp = state.player.maxHp * 0.25;
+    const low = resolveSlot(state, 0)?.cost ?? 0;
+    expect(low / full).toBeCloseTo(1 - SKILL.modifier.desperate.maxCut * 0.75);
   });
 
-  it("燃料化: CD 型の加速をマナで撃つ", () => {
-    const state = skillArena([{ key: "haste", links: 1, modifiers: ["fuelize"] }]);
-    cast(state);
-    expect(state.player.mana).toBeLessThan(state.stats.maxMana);
-    expect(state.skills.haste.time).toBeGreaterThan(0);
+  it("捧げ: 奥義ゲージを払えれば強く、足りなければ払わず等倍", () => {
+    const o = SKILL.modifier.offering;
+    const rich = skillArena([{ key: "mines", links: 1, modifiers: ["offering"] }]);
+    rich.player.energy = o.energyCost;
+    cast(rich);
+    expect(lastMineMul(rich)).toBeCloseTo(o.damageMul);
+    expect(rich.player.energy, "払った").toBeCloseTo(0);
+    const poor = skillArena([{ key: "mines", links: 1, modifiers: ["offering"] }]);
+    poor.player.energy = o.energyCost - 1;
+    cast(poor);
+    expect(lastMineMul(poor)).toBeCloseTo(1);
+    expect(poor.player.energy, "払わない").toBe(o.energyCost - 1);
   });
 
-  it("着地衝撃: 突進斬りの終わりに周りを打つ", () => {
-    const state = skillArena([{ key: "lunge", links: 1, modifiers: ["landing"] }]);
-    const e = tough(state, SKILL.lunge.distance + 20, 20);
+  it("帳: every 発ごとに 1 発が無料", () => {
+    const every = SKILL.modifier.ledger.every;
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["ledger"] }]);
+    const cost = resolveSlot(state, 0)?.cost ?? 0;
+    expect(cost).toBeGreaterThan(0);
+    for (let i = 0; i < every - 1; i++) castAndWait(state);
+    expect(resolveSlot(state, 0)?.cost, "次が無料").toBe(0);
+    state.player.mana = 0;
     cast(state);
-    run(state, SKILL.lunge.time + 0.05);
-    expect(lost(e)).toBeGreaterThan(0);
-  });
-
-  it("追撃: 印の敵に近接を当てると追加の一撃", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["followUp"] }]);
-    const e = tough(state, 15);
-    cast(state);
-    run(state, SKILL.whirl.duration + SKILL.whirl.recover);
-    expect(state.skills.marks.has(e.id)).toBe(true);
-    const before = e.hp;
-    onSkillMeleeHit(state, e, 0);
-    expect(e.hp).toBeLessThan(before);
-    expect(state.skills.marks.has(e.id)).toBe(false);
-  });
-
-  it("散り際: このスキルで倒した敵の位置で同じスキルが弱く起きる", () => {
-    const state = skillArena([{ key: "mines", links: 1, modifiers: ["lastGasp"] }]);
-    const weak = placeEnemy(state, "golem", 5);
-    weak.hp = 1;
-    weak.phase = "idle";
-    const at = { ...weak.body.pos };
-    cast(state);
-    run(state, SKILL.mines.arm + 0.1);
-    expect(weak.hp).toBeLessThanOrEqual(0);
-    // 散り際の写し: 倒した位置に同じ地雷がもう 1 つ置かれる
-    const mine = state.skills.mines[0];
-    expect(state.skills.mines).toHaveLength(1);
-    expect(mine && Math.hypot(mine.pos.x - at.x, mine.pos.y - at.y)).toBeLessThan(1);
-    expect(mine?.params.lastGasp, "写しからは起きない").toBeNull();
+    expect(state.skills.slots[0]?.ledger, "無料の 1 発で数えが戻る").toBe(0);
+    expect(resolveSlot(state, 0)?.cost).toBeCloseTo(cost);
   });
 });
 
 describe("型替え符", () => {
-  it("投げ刃: 旋風斬りがカーソル地点へ飛び、着いた所で回る（自分の周りでは回らない）", () => {
-    const state = skillArena([{ key: "whirl", links: 2, modifiers: ["toThrown"] }]);
+  it("照準起点: 旋風斬り（技）がカーソル地点で回る（自分の周りでは回らない）", () => {
+    const state = skillArena([{ key: "commonWhirl", links: 2, modifiers: ["toTarget"] }]);
     const near = tough(state, 15);
     const at = { x: state.player.body.pos.x + 80, y: state.player.body.pos.y };
     const far = tough(state, 80);
     cast(state, at);
-    expect(state.skills.active, "自分は回らない").toBeNull();
-    run(state, SKILL.modifier.toThrown.flight + SKILL.whirl.duration + 0.1);
+    run(state, 0.5);
     expect(lost(far)).toBeGreaterThan(0);
     expect(lost(near)).toBe(0);
   });
 
-  it("投げ刃 + 遅延: 遅れて発動する場所も着弾点（自分の周りでは回らない）", () => {
-    const state = skillArena([{ key: "whirl", links: 3, modifiers: ["toThrown", "delay"] }]);
+  it("照準起点 + 遅延: 遅れて発動する場所も照準地点（自分の周りでは回らない）", () => {
+    const state = skillArena([{ key: "commonWhirl", links: 3, modifiers: ["toTarget", "delay"] }]);
     const near = tough(state, 15);
     const at = { x: state.player.body.pos.x + 80, y: state.player.body.pos.y };
     const far = tough(state, 80);
     cast(state, at);
-    run(state, SKILL.modifier.delay.time + SKILL.whirl.duration + 0.1);
-    expect(lost(far), "着弾点の敵に当たる").toBeGreaterThan(0);
+    run(state, SKILL.modifier.delay.time + 0.5);
+    expect(lost(far), "照準地点の敵に当たる").toBeGreaterThan(0);
     expect(lost(near), "自分の周りの敵には当たらない").toBe(0);
   });
 
-  it("投げ込み: 地雷をカーソル地点へ投げ、着いた瞬間に爆発する", () => {
-    const state = skillArena([{ key: "mines", links: 2, modifiers: ["toLobbed"] }]);
+  it("照準起点: 地雷（手書きの置くもの）をカーソル地点へ投げ、着いた瞬間に爆発する", () => {
+    const state = skillArena([{ key: "mines", links: 2, modifiers: ["toTarget"] }]);
     const e = tough(state, 60);
     cast(state, e.body.pos);
     expect(state.skills.mines, "置かずに爆発").toHaveLength(0);
     expect(lost(e)).toBeGreaterThan(0);
   });
-
-  it("段階溜め: 3 段目まで溜めるとグレネードが 3 個になる", () => {
-    const state = skillArena([{ key: "frag", links: 2, modifiers: ["toStaged"] }]);
-    const stages = SKILL.modifier.toStaged.stages;
-    const hold = (stages[2] ?? 1.5) + 0.05;
-    const steps = Math.round(hold / FIXED_DT);
-    for (let i = 0; i < steps; i++) updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: i === 0 }), FIXED_DT);
-    expect(skillMoveMul(state)).toBeCloseTo(SKILL.modifier.toStaged.moveMul);
-    updatePlayer(state, withInput({ skill1Held: false }), FIXED_DT);
-    expect(state.skills.grenades).toHaveLength(1 + SKILL.modifier.toStaged.stage3.countBonus);
-  });
-
-  it("段階溜め: 溜め中に被弾すると段が下がる", () => {
-    const state = skillArena([{ key: "frag", links: 2, modifiers: ["toStaged"] }]);
-    const stages = SKILL.modifier.toStaged.stages;
-    const steps = Math.round(((stages[2] ?? 1.5) + 0.05) / FIXED_DT);
-    for (let i = 0; i < steps; i++) updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: i === 0 }), FIXED_DT);
-    state.player.hp -= 5;
-    updatePlayer(state, withInput({ skill1Held: true }), FIXED_DT);
-    updatePlayer(state, withInput({ skill1Held: false }), FIXED_DT);
-    expect(state.skills.grenades, "2 段目に下がる（回数は増えない）").toHaveLength(1);
-  });
 });
 
 describe("連携", () => {
-  it("パリィ成功の直後の撃ち抜きは照準なしで撃ち、威力が上がる", () => {
-    const state = skillArena([{ key: "railshot" }]);
-    state.skills.lastCast = { skillKey: "parry", slot: 1, at: state.skills.clock, pos: { x: 0, y: 0 }, hitIds: new Set() };
-    expect(slotComboReady(state, 0)?.key, "連携可の印").toBe("parryRail");
-    const e = tough(state, 60);
-    cast(state);
-    run(state, FIXED_DT * 2);
-    expect(state.skills.active, "照準なしで撃ち終わる").toBeNull();
-    expect(lost(e)).toBeGreaterThan(0);
+  it("パリィ成功の直後の撃ち抜き（技）は連携で威力が上がる", () => {
+    const damage = (combo: boolean): number => {
+      const state = skillArena([{ key: "commonRailshot" }]);
+      missAllChances(state);
+      if (combo) state.skills.lastCast = { skillKey: "parry", slot: 1, at: state.skills.clock, pos: { x: 0, y: 0 }, hitIds: new Set() };
+      expect(slotComboReady(state, 0)?.key ?? null, "連携可の印").toBe(combo ? "parryRail" : null);
+      const e = tough(state, 60);
+      cast(state);
+      run(state, FIXED_DT * 2);
+      return lost(e);
+    };
+    const plain = damage(false);
+    expect(plain, "前提: 当たる").toBeGreaterThan(0);
+    expect(damage(true) / plain).toBeCloseTo(COMBO_TUNING.parryRail.damageMul, 1);
   });
 
   it("受付秒を過ぎると連携しない", () => {
-    const state = skillArena([{ key: "railshot" }]);
+    const state = skillArena([{ key: "commonRailshot" }]);
     state.skills.lastCast = { skillKey: "parry", slot: 1, at: state.skills.clock, pos: { x: 0, y: 0 }, hitIds: new Set() };
     run(state, 1.5);
     expect(slotComboReady(state, 0)).toBeNull();
   });
 
-  it("引力球の後の雷撃は球の中心へ吸われる", () => {
-    const state = skillArena([{ key: "gravityWell" }, { key: "thunder" }]);
-    const wellAt = { x: state.player.body.pos.x + 60, y: state.player.body.pos.y };
-    cast(state, wellAt, 0);
-    waitReady(state, 0);
-    cast(state, { x: wellAt.x, y: wellAt.y + 30 }, 1);
-    const strike = state.skills.strikes[0];
-    const well = state.skills.wells[0];
-    expect(strike && well && Math.hypot(strike.pos.x - well.pos.x, strike.pos.y - well.pos.y)).toBeLessThan(1);
-  });
-
-  it("鎖鎌の直後の旋風斬りは押し出さない", () => {
-    const state = skillArena([{ key: "chainHook" }, { key: "whirl" }]);
+  it("鎖鎌の直後の旋風斬り（技）は押し出さない", () => {
+    const state = skillArena([{ key: "chainHook" }, { key: "commonWhirl" }]);
     cast(state, undefined, 0);
     run(state, SKILL.chainHook.extendTime + SKILL.chainHook.recover + 0.05);
-    cast(state, undefined, 1);
-    expect(state.skills.active?.params.combo).toBe("hookWhirl");
-    expect(state.skills.active?.params.knockbackMul).toBe(0);
-  });
-
-  it("血の契約の後の旋風斬りは出血を付ける", () => {
-    const state = skillArena([{ key: "bloodPact" }, { key: "whirl" }]);
+    expect(slotComboReady(state, 1)?.key, "連携可の印").toBe("hookWhirl");
     const e = tough(state, 15);
-    cast(state, undefined, 0);
-    waitReady(state, 0);
     cast(state, undefined, 1);
-    run(state, SKILL.whirl.duration);
-    expect(has(e, "bleed")).toBe(true);
+    expect(state.skills.lastCast?.skillKey, "旋風斬りを撃った").toBe("commonWhirl");
+    expect(lost(e), "当たる").toBeGreaterThan(0);
+    expect(Math.hypot(e.knock.x, e.knock.y), "押し出さない").toBe(0);
   });
 
   it("伝染の直後の綻びは周りの敵もまとめて綻ばせる", () => {
@@ -819,17 +596,8 @@ describe("連携", () => {
     expect(has(b, "weaken"), "周りの敵も綻ぶ").toBe(false);
   });
 
-  it("加速の後の回転弾幕は遅くならない", () => {
-    const state = skillArena([{ key: "haste" }, { key: "spiral" }]);
-    cast(state, undefined, 0);
-    waitReady(state, 0);
-    cast(state, undefined, 1);
-    expect(state.skills.active?.params.combo).toBe("hasteSpiral");
-    expect(skillMoveMul(state)).toBeGreaterThan(SKILL.spiral.moveMul);
-  });
-
   it("連携は手動の発動だけが「直前」になる（反響の写しでは更新しない）", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["echo"] }]);
+    const state = skillArena([{ key: "mines", links: 1, modifiers: ["echo"] }]);
     cast(state);
     const at = state.skills.lastCast?.at;
     run(state, SKILL.modifier.echo.delay + 0.1);
@@ -838,14 +606,14 @@ describe("連携", () => {
 });
 
 describe("決定性", () => {
-  it("同じ操作なら同じ結果（五彩の礫の散光も state.rng だけを使う）", () => {
+  it("同じ操作なら同じ結果（追い討ちの短刀と命中）", () => {
     const play = (): number[] => {
-      const state = skillArena([{ key: "prismShard" }]);
-      state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "scatter", colors: [] } };
+      const state = skillArena([{ key: "rout" }]);
+      const e = tough(state, 40);
       cast(state);
-      return state.skills.shots.map((s) => s.pierceLeft * 10 + s.heal + (s.applies?.length ?? 0));
+      run(state, 0.3);
+      return [...state.skills.shots.map((s) => s.pos.x + s.pos.y), e.hp];
     };
     expect(play()).toEqual(play());
-    expect(STATUS.shock.duration).toBeGreaterThan(0);
   });
 });

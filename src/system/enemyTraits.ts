@@ -1,6 +1,6 @@
 import { type Corpse, type Enemy, type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, ENEMY_AI } from "../data/tuning";
 import { addFloatingText, spawnBurst, spawnLine } from "./effects";
 import { createEnemy, moveEnemy } from "./enemies";
@@ -10,6 +10,9 @@ import { overlapsWall } from "./physics";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { dropDeathTerrain, onRallyDeath } from "./enemyTerrain";
 import { addPoise } from "./poise";
+import { noteJinDeath } from "./jin";
+import { noteBossMinionDeath } from "./bossRecord";
+import { onNemesisDeath } from "./nemesis";
 
 /**
  * 敵の性質（EnemyDef の任意フィールド）の処理: 死に際の置き土産・死骸・取り巻き・逃げ回り・マナの奪い合い。
@@ -114,10 +117,11 @@ export function fanDirections(dir: Vec, count: number, spreadDeg: number): Vec[]
 /** 配列から消す直前に 1 回。自爆・時間切れ（vanished）は置き土産を出さない */
 export function onEnemyDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   if (e.vanished) return;
+  noteJinDeath(state, e);
   if (def.deathBurst) burstOnDeath(state, e, def);
   if (def.deathBomb) {
     const b = def.deathBomb;
-    spawnBomb(state, e.body.pos, b.damage + depthDamageBonus(state.depth), e.id, b.fuse, b.radius);
+    spawnBomb(state, e.body.pos, depthDamage(b.damage, state.depth), e.id, b.fuse, b.radius);
   }
   returnMana(state, e, def);
   scatterFollowers(state, e, def);
@@ -126,6 +130,8 @@ export function onEnemyDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   dropDeathTerrain(state, e, def);
   onRallyDeath(state, e, def);
   crackEgg(state, e, def);
+  noteBossMinionDeath(state, e);
+  onNemesisDeath(state, e);
 }
 
 /** 群れの母の卵を割られると、母に怯み値が入る（範囲攻撃で卵を割りながら母を崩す） */
@@ -139,7 +145,7 @@ function crackEgg(state: GameState, e: Enemy, def: EnemyDef): void {
 function burstOnDeath(state: GameState, e: Enemy, def: EnemyDef): void {
   const b = def.deathBurst;
   if (!b) return;
-  const damage = b.damage + depthDamageBonus(state.depth);
+  const damage = depthDamage(b.damage, state.depth);
   for (let i = 0; i < b.count; i++) {
     const dir = fromAngle((i / b.count) * FULL_CIRCLE + e.id);
     fireEnemyBullet(state, { pos: e.body.pos, dir, speed: b.speed, damage, color: b.color, life: ENEMY_AI.deathBurst.life });

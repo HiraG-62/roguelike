@@ -3,7 +3,6 @@ import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from ".
 import { enemyDef } from "../data/enemies";
 import { REAPER } from "../data/tuning";
 import { BOONS } from "./boonDefs";
-import { boonReaperHalted, boonReaperJust, onBoonReaperDodged } from "./boonRules";
 import { damagePlayer } from "./combat";
 import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
 import { createEnemy } from "./enemies";
@@ -115,7 +114,7 @@ export function tickReaper(state: GameState, r: Reaper, baseSpeed: number, dt: n
 /** 壁を抜けてプレイヤーへ直進する（祝福で足が止まる間は止まる） */
 function chaseWith(state: GameState, pos: Vec, speed: number, dt: number): void {
   const to = sub(state.player.body.pos, pos);
-  if (length(to) <= 0 || boonReaperHalted(state)) return;
+  if (length(to) <= 0) return;
   const dir = normalize(to);
   pos.x += dir.x * speed * dt;
   pos.y += dir.y * speed * dt;
@@ -124,9 +123,8 @@ function chaseWith(state: GameState, pos: Vec, speed: number, dt: number): void 
 function touch(state: GameState, pos: Vec, radius: number): void {
   const p = state.player.body;
   if (!circlesOverlap(pos.x, pos.y, radius, p.pos.x, p.pos.y, p.radius)) return;
-  // 死神は無敵で常に接触するため、ジャスト回避を成立させない（祝福で許されるときだけ）
-  const result = damagePlayer(state, REAPER.damage, pos, undefined, { noJust: !boonReaperJust(state) });
-  if (result === "dodged") onBoonReaperDodged(state);
+  // 死神は無敵で常に接触するため、ジャスト回避を成立させない
+  damagePlayer(state, REAPER.damage, pos, undefined, { noJust: true, cause: { kind: "reaper", key: "reaper" } });
 }
 
 /** 鎖の死神: interval ごとに charge 秒の予告線を出して止まり、鎖を投げる。当たると引き寄せる */
@@ -157,7 +155,7 @@ function throwChain(state: GameState, r: Reaper): void {
   pushSfx(state, "chainThrow");
   const p = state.player;
   if (!segmentCircleHit(r.pos, aim, c.width / 2, p.body.pos, p.body.radius)) return;
-  if (damagePlayer(state, c.damage, r.pos, undefined, { noJust: !boonReaperJust(state) }) !== "hit") return;
+  if (damagePlayer(state, c.damage, r.pos, undefined, { noJust: true, cause: { kind: "reaper", key: "reaper" } }) !== "hit") return;
   p.knock = scale(normalize(sub(r.pos, p.body.pos)), c.pull);
 }
 

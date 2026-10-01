@@ -321,6 +321,18 @@
   "warFan": {
     "minLevel": 14
   },
+  "manuscript": {
+    "minLevel": 3
+  },
+  "grimoire": {
+    "minLevel": 12
+  },
+  "kagura": {
+    "minLevel": 3
+  },
+  "vajraBell": {
+    "minLevel": 13
+  },
   "hood": {
     "minLevel": 1
   },

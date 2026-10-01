@@ -136,6 +136,11 @@ export interface Stance {
   readonly punch?: boolean;
   /** 二刀の後ろの手を体の前に構える（拳の両拳の構え）。省けば後ろの手は体の後ろ */
   readonly offFront?: boolean;
+  /**
+   * 待機・歩きの主の手を、武器の向きによらず体の前に描く（爪）。待機の向きが上寄りで、呼吸の揺れで境目
+   * （BEHIND_SIN）をまたぐと、手前の手が体の後ろへ出入りして見え隠れするため
+   */
+  readonly restFront?: boolean;
   /** 撃った反動の大きさ（1 = 片手銃。大筒・長銃は大きく、二丁拳銃は小さく）。省けば 1 */
   readonly recoil?: number;
 }
@@ -180,6 +185,7 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(r.braced === true ? { braced: true } : {}),
     ...(r.punch === true ? { punch: true } : {}),
     ...(r.offFront === true ? { offFront: true } : {}),
+    ...(r.restFront === true ? { restFront: true } : {}),
     ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
   };
 }
@@ -247,6 +253,11 @@ export interface RigInput {
   readonly kick?: number;
   /** 戻しの後半で待機の構えへ寄せる割合（0 = 振り抜いたまま、1 = 待機の構え。restBlendOf） */
   readonly restBlend?: number;
+  /**
+   * 武器の絵が向きを持たず回さない（書。シートの向きが 1）。上を向いても頭の後ろへ回さず体の前に描く
+   * （回る武器は肩に担いで見えるが、回さない絵は後ろへ回すと本が体に隠れてほぼ見えなくなる）
+   */
+  readonly unrotated?: boolean;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -258,6 +269,9 @@ const TWO_HAND_DROP = 3;
 const DEG = Math.PI / 180;
 /** これより上を向いたら体の後ろ（sin の値） */
 const BEHIND_SIN = -0.38;
+/** 回さない武器の拳を上げる高さの上限（sin の値。これより上を狙っても拳はここまで。約 44 度） */
+const UNROTATED_UP_SIN = -0.7;
+const FORWARD_COS_EPS = 1e-6;
 /** 二丁の銃の後ろの手の銃（前の手から、ドット）。後ろの肩から届く所 */
 const DUAL_AIM_OFFSET: Pt = { x: -4, y: 2 };
 /** 銃の握りを照準へ出す距離の下限（ドット。負なら自分の中心より後ろ。長銃は肩の後ろまで引いて先台を持つ） */
@@ -352,7 +366,9 @@ export function solveRig(i: RigInput): RigPose {
     const idle: RigInput = { ...i, swing: undefined };
     const swingMain = mainPart(i);
     const restMain = mainPart(idle);
-    const main = blendPart(swingMain, restMain, k);
+    const blended = blendPart(swingMain, restMain, k);
+    // 待機で体の前に構える手は、構え直しの後半（待機の側）に入ったら、寄せた角が境目をまたいでも後ろへ戻さない
+    const main = i.stance.restFront === true && k >= 0.5 ? { ...blended, behind: false } : blended;
     const back = blendPart(backPart(i, swingMain), backPart(idle, restMain), k);
     // 両手持ちの添え手は寄せた主の手から引き直す（柄から離れない）
     return { front: main, back: i.stance.grip === "two" && i.offGrip !== null ? backPart(i, main) : back };
@@ -375,7 +391,7 @@ function restPart(i: RigInput): HeldPart {
   const s = i.stance;
   const angle = s.restDeg * DEG + sway(i.time, s.swayDeg);
   const hand = withinReach({ x: i.shoulderF.x + s.restHand[0], y: i.shoulderF.y + s.restHand[1] }, i.shoulderF);
-  return part(hand, angle, s.restMirror ?? false);
+  return part(hand, angle, s.restMirror ?? false, false, s.restFront === true ? false : undefined);
 }
 
 function mainPart(i: RigInput): HeldPart {
@@ -385,8 +401,9 @@ function mainPart(i: RigInput): HeldPart {
     const angle = toRigAngle(i.stance.braced ? i.aim : i.swing.angle, i.facingRight);
     const reach = swingHandReach(i.swing);
     const drop = i.stance.grip === "two" ? TWO_HAND_DROP : 0;
-    const hand = withinReach(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, angle, reach), i.shoulderF);
-    return part(hand, angle, rigSwingSign(i) > 0);
+    const handAngle = i.unrotated ? tiltedForward(angle) : angle;
+    const hand = withinReach(at({ x: i.shoulderF.x, y: i.shoulderF.y + drop }, handAngle, reach), i.shoulderF);
+    return part(hand, angle, rigSwingSign(i) > 0, false, i.unrotated ? false : undefined);
   }
   if (i.aimHeld) {
     // 銃身の線が弾の出る位置（自分の中心から照準の向き）を通るように、握りを銃身のずれの分だけ反対へ寄せる。
@@ -439,6 +456,16 @@ function aimReach(i: RigInput, aimAngle: number, angle: number): number {
     }
   }
   return best;
+}
+
+/**
+ * 回さない武器（書）の拳の向き: 真上近くを狙っても拳を肩の真上へ上げず、前へ倒した所に置く
+ * （真上に上げると本が顔を隠す。本は回さないので拳の位置だけずらせば照準は変わらない）
+ */
+function tiltedForward(angle: number): number {
+  if (Math.sin(angle) >= UNROTATED_UP_SIN) return angle;
+  // 真上の cos は浮動小数の誤差で ±1e-16 になるので、わずかな負は前とみなす（後ろへ倒さない）
+  return Math.cos(angle) > -FORWARD_COS_EPS ? Math.asin(UNROTATED_UP_SIN) : Math.PI - Math.asin(UNROTATED_UP_SIN);
 }
 
 /**

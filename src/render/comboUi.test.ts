@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { chargeGauge, comboPips, controlHint, formatBranchHints, hudHintText } from "./comboUi";
+import { chargeGauge, comboPips, controlHint, formatBranchHints, hudHintText, releaseStepKeys } from "./comboUi";
+import { FORMS, movesetsOfForm } from "../data/weaponForms";
 import { MOVESETS } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
+import { arena } from "../system/testHelpers";
 
 describe("comboPips（docs/ideas/combat-feel-design.md D-1）", () => {
   it("攻撃中は現在の段までピップが塗られ、最終段だけ final", () => {
@@ -50,6 +52,37 @@ describe("controlHint（左右の次の段と押し方の案内）", () => {
   it("溜めて撃つ弾の型は銃の家系のときだけ左の長押しを案内する", () => {
     expect(controlHint(MOVESETS.longarm, bulletDef("matchlock"))).toBe("左 長押し: 溜め撃ち / 右: 銃剣突き");
     expect(controlHint(MOVESETS.sword, bulletDef("matchlock")), "剣は撃たない").toBe("左: 1 段目 / 右: 受け流し");
+  });
+});
+
+describe("放出の段の印（戦意）", () => {
+  it("右の次の段が放出の段なら「（放出）」を添え、そうでなければ添えない", () => {
+    const keys = ["returnCut"];
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 1, 0, keys), "剣の 2 段目の右は返し斬り").toBe("左: 2 段目 / 右: 返し斬り（放出）");
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 0, 0, keys), "1 段目の右は受け流し").toBe("左: 1 段目 / 右: 受け流し");
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 1), "印の材料が無ければ従来どおり").toBe("左: 2 段目 / 右: 返し斬り");
+  });
+
+  it("再使用の残り秒は印の後ろに続く", () => {
+    expect(controlHint(MOVESETS.sword, bulletDef("pistol"), 1, 0.5, ["returnCut"])).toBe("左: 2 段目 / 右: 返し斬り（放出）（あと 0.5 秒）");
+  });
+
+  it("派生の案内が出ている間は印を足さない", () => {
+    expect(hudHintText(MOVESETS.sword, ["primary", "primary"], bulletDef("pistol"), 2, 0, ["returnCut"])).toBe("右: 十字断ち");
+  });
+
+  it("剣は放出の段の key を返し、放出が右の段でない型（長銃・重打）は空", () => {
+    expect(releaseStepKeys(arena(5, { moveset: "sword" })), "剣").toContain("returnCut");
+    expect(releaseStepKeys(arena(5, { moveset: "longarm", bullet: "rifle" })), "長銃は次の左が放出").toEqual([]);
+    expect(releaseStepKeys(arena(5, { moveset: "greatsword" })), "重打は最大の溜めが放出").toEqual([]);
+  });
+
+  it("戦意が溜まらない骨の型では、放出の段が右レーンにあっても印を出さない", () => {
+    // 型の実装が進むと骨の型は減る（無くなれば検証するものが無い）
+    const bone = Object.values(FORMS).find((f) => f.morale.gain.length === 0);
+    const moveset = bone === undefined ? undefined : movesetsOfForm(bone.key)[0];
+    if (moveset === undefined) return;
+    expect(releaseStepKeys(arena(5, { moveset })), `${moveset} の型は戦意が溜まらない`).toEqual([]);
   });
 });
 

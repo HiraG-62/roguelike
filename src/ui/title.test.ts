@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Item, RunHistoryEntry } from "../loot/types";
 import { REPLAY_VERSION, type ReplayData } from "../core/replay";
 import { KEYBIND_SLOTS, REBINDABLE_ACTIONS } from "../core/input";
+import { ARC } from "../data/tuning";
 import {
   type RawKeyEvent,
   KEYBINDS_ROWS,
@@ -37,10 +38,8 @@ import {
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
-  TITLE_MENU_ITEMS,
   titleMenuHotkey,
-  titleMenuItemAt,
-  titleMenuRects,
+  TITLE_RECORD_ITEMS,
 } from "./title";
 
 function key(code: string, k = code): RawKeyEvent {
@@ -145,24 +144,13 @@ describe("processMenuKeys", () => {
   });
 
   it("タイトルとポーズのメニューから Tips を開ける", () => {
-    expect(TITLE_MENU_ITEMS, "タイトルのメニューに Tips ノート").toContain("tips");
+    expect(TITLE_RECORD_ITEMS, "記録の下に Tips ノート").toContain("tips");
     expect(titleMenuHotkey({ c: false, q: false, a: false, t: true }), "T は Tips ノート").toBe("tips");
     expect(PAUSE_MENU_ITEMS, "ポーズのメニューに Tips ノート").toContain("tips");
     const layout = pauseMenuLayout(18);
     const last = layout.items[layout.items.length - 1];
     if (!last) throw new Error("ポーズの項目が無い");
     expect(last.y + last.h, "最後の項目がパネルに収まる").toBeLessThanOrEqual(layout.panel.y + layout.panel.h);
-  });
-
-  it("タイトルのメニューのボタンはクリックで項目を返し、外は null", () => {
-    const rects = titleMenuRects();
-    expect(rects.length, "項目の数だけボタンがある").toBe(TITLE_MENU_ITEMS.length);
-    TITLE_MENU_ITEMS.forEach((item, i) => {
-      const r = rects[i];
-      if (!r) throw new Error("ボタンが無い");
-      expect(titleMenuItemAt(r.x + r.w / 2, r.y + r.h / 2), `${item} のボタン`).toBe(item);
-    });
-    expect(titleMenuItemAt(1, 1), "左上の隅はボタンではない").toBeNull();
   });
 
   it("D/P/S と矢印キーを拾う", () => {
@@ -240,6 +228,35 @@ describe("buildHistoryEntry", () => {
     });
     const abandoned = buildHistoryEntry({ ...base, status: "playing" as const }, 2000);
     expect(abandoned.cause).toBe("abandoned");
+  });
+
+  it("踏破（cleared）で終わったランの cause は cleared になる", () => {
+    const cleared = buildHistoryEntry(
+      { seedText: "abc", depth: 21, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "cleared" as const },
+      3000,
+    );
+    expect(cleared.cause).toBe("cleared");
+  });
+
+  it("最深の主を倒した後に深みで力尽きたランは、履歴の終わり方が踏破になる", () => {
+    const entry = buildHistoryEntry(
+      { seedText: "abc", depth: 25, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "dead" as const, bossLog: [{ key: ARC.finalBoss }] },
+      3000,
+    );
+    expect(entry.cause).toBe("cleared");
+    const left = buildHistoryEntry(
+      { seedText: "abc", depth: 25, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "playing" as const, bossLog: [{ key: ARC.finalBoss }] },
+      3000,
+    );
+    expect(left.cause, "深みで離脱しても踏破").toBe("cleared");
+  });
+
+  it("最深の主を倒していない力尽きたランは defeated のまま", () => {
+    const entry = buildHistoryEntry(
+      { seedText: "abc", depth: 20, kills: 10, score: 500, combo: { best: 7 }, time: 120.4, status: "dead" as const, bossLog: [{ key: "mirrorKnight" }] },
+      3000,
+    );
+    expect(entry.cause).toBe("defeated");
   });
 });
 
@@ -448,7 +465,7 @@ describe("設定画面の項目", () => {
 });
 
 describe("キー設定画面のレイアウトと当たり判定", () => {
-  const ROW_GAP = 13;
+  const ROW_GAP = 12;
   const WIDE_GAP = 20;
 
   it("行は変更可能なアクション + 既定に戻す + 閉じる", () => {

@@ -12,6 +12,7 @@ import {
   isRelicKey,
   isRoomKindString,
 } from "./codex";
+import { migrateRelicKey } from "../loot/migrate";
 import { isLinkId } from "./links";
 import { isRecord, readJson, sanitizeCount, sanitizeCountMap, sanitizeKeyList, writeJson } from "./storage";
 
@@ -25,7 +26,8 @@ export function parseCodexSave(parsed: unknown): CodexSave | null {
     version: CURRENT_VERSION,
     enemiesSeen: sanitizeKeyList(parsed.enemiesSeen, isEnemyKey),
     enemyKills: sanitizeCountMap(parsed.enemyKills, isEnemyKey),
-    relics: sanitizeKeyList(parsed.relics, isRelicKey),
+    enemyDeaths: sanitizeCountMap(parsed.enemyDeaths, isEnemyKey),
+    relics: sanitizeKeyList(migrateRelicKeys(parsed.relics), isRelicKey),
     boons: sanitizeKeyList(parsed.boons, isBoonKeyString),
     reactions: sanitizeCountMap(parsed.reactions, isReactionKeyString),
     chains: sanitizeCountMap(parsed.chains, isChainKey),
@@ -34,6 +36,21 @@ export function parseCodexSave(parsed: unknown): CodexSave | null {
     floorKinds: sanitizeKeyList(parsed.floorKinds, isFloorKindString),
     roomKinds: sanitizeKeyList(parsed.roomKinds, isRoomKindString),
   };
+}
+
+/**
+ * 段取り 7d で消えた名のある遺物の key を写し先へ（写し先の無いものは落とす。重なりは 1 つに）。
+ * 図鑑のキーは v1 のまま（読み込みのたびに掛かり、今の key は素通し）
+ */
+function migrateRelicKeys(v: unknown): unknown {
+  if (!Array.isArray(v)) return v;
+  const out = new Set<string>();
+  for (const key of v) {
+    if (typeof key !== "string") continue;
+    const next = migrateRelicKey(key);
+    if (next !== null) out.add(next);
+  }
+  return [...out];
 }
 
 /** 連携の初発見（id → 階とシード）。旧データ（欄が無い）・壊れた項目は黙って落とす */

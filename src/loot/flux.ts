@@ -1,4 +1,6 @@
 import type { Rng } from "../core/rng";
+import { triangular } from "../core/scale";
+import { FLUX } from "../data/tuning";
 import type { AffixDef, CurvePoint } from "./affixes";
 import type { AffixRoll, Rarity } from "./types";
 
@@ -10,50 +12,44 @@ import type { AffixRoll, Rarity } from "./types";
  * tier のような段階は持たない。
  */
 
-/** σ = min(SIGMA_BASE + SIGMA_PER_DEPTH * depth, SIGMA_MAX) × (1 + boost * SIGMA_PER_BOOST) */
-export const SIGMA_BASE = 0.12;
-export const SIGMA_PER_DEPTH = 0.05;
-export const SIGMA_MAX = 1;
+/** σ = min(sigma.base + sigma.perDepth * depth, sigma.max) × (1 + boost * sigma.perBoost)。数値は FLUX.json */
+export const SIGMA_BASE = FLUX.sigma.base;
+export const SIGMA_PER_DEPTH = FLUX.sigma.perDepth;
+export const SIGMA_MAX = FLUX.sigma.max;
 /** ドロップ元の boost（ボス・宝物庫など）1 あたりの σ の増加率 */
-export const SIGMA_PER_BOOST = 0.1;
-/** 三角分布の下端・上端（σ に対する倍率）。上に少しだけ長い */
-export const FLUX_LOW_SCALE = 1.3;
-export const FLUX_HIGH_SCALE = 1.5;
+export const SIGMA_PER_BOOST = FLUX.sigma.perBoost;
+/** 三角分布の下端・上端（σ に対する倍率）。上に長い */
+export const FLUX_LOW_SCALE = FLUX.flux.lowScale;
+export const FLUX_HIGH_SCALE = FLUX.flux.highScale;
 /** 反転していない性質の flux の下限（値が 0 や負にならないように） */
-export const MIN_FLUX = -0.9;
+export const MIN_FLUX = FLUX.flux.min;
 /** 変換の性質の flux の上限（変換割合が 100% を大きく超えないように） */
-export const MAX_CONVERSION_FLUX = 0.5;
+export const MAX_CONVERSION_FLUX = FLUX.flux.maxConversion;
 
 /** 反転が起こり始める発見深度 */
-export const INVERSION_MIN_DEPTH = 13;
-export const INVERSION_BASE_CHANCE = 0.04;
-export const INVERSION_CHANCE_PER_DEPTH = 0.01;
-export const INVERSION_MAX_CHANCE = 0.15;
+export const INVERSION_MIN_DEPTH = FLUX.inversion.minDepth;
+export const INVERSION_BASE_CHANCE = FLUX.inversion.baseChance;
+export const INVERSION_CHANCE_PER_DEPTH = FLUX.inversion.chancePerDepth;
+export const INVERSION_MAX_CHANCE = FLUX.inversion.maxChance;
 /** 反転したときの |value| / nominal の範囲 */
-export const INVERTED_MAGNITUDE_MIN = 0.2;
-export const INVERTED_MAGNITUDE_MAX = 0.9;
+export const INVERTED_MAGNITUDE_MIN = FLUX.inversion.magnitudeMin;
+export const INVERTED_MAGNITUDE_MAX = FLUX.inversion.magnitudeMax;
 
 /** 見た目の分類（静 / 揺 / 荒）の境界。|flux| の最大値で決める */
-export const CALM_FLUX_LIMIT = 0.15;
-export const WAVER_FLUX_LIMIT = 0.45;
+export const CALM_FLUX_LIMIT = FLUX.class.calmLimit;
+export const WAVER_FLUX_LIMIT = FLUX.class.waverLimit;
 
 const NO_FLUX = 0;
 
 /**
  * 装備の強さの一律係数（memo 2026-09-24: 序盤から装備が強すぎて 5 層くらいまでヌルゲー化する）。
  * affixes.ts の期待値曲線（点列）は触らず、生成時の期待値にここで係数を掛ける（generator.ts の rollTableTrait /
- * rollTriggerTrait）。共鳴・三和音の効果値（resonance.ts）は深度に依らないので globalScale だけを掛ける。
+ * rollTriggerTrait）。深度に依らない効果の値（`scaleFlat`）は globalScale だけを掛ける。
  * - globalScale: 全深度に掛ける
  * - depthScale: 深度ごとの追加の係数（点列を線形補間、範囲外は端の値）。浅い層ほど小さくし、深度 1〜5 の伸びを緩やかにする
+ * 数値は data/balance/loot/FLUX.json（data/tuning.ts の FLUX）。既存の import 先を保つためここからも再 export する
  */
-export const FLUX = {
-  globalScale: 0.8,
-  depthScale: [
-    { depth: 1, scale: 0.75 },
-    { depth: 5, scale: 0.85 },
-    { depth: 10, scale: 1 },
-  ],
-} as const;
+export { FLUX };
 
 interface ScalePoint {
   depth: number;
@@ -79,7 +75,7 @@ export function powerScaleAt(depth: number): number {
   return FLUX.globalScale * depthScaleAt(depth);
 }
 
-/** 深度に依らない効果（共鳴・三和音）の値に globalScale を掛け、decimals 桁に丸める */
+/** 深度に依らない効果の値に globalScale を掛け、decimals 桁に丸める（色の共鳴の廃止後は呼ぶ所が無いので、使うなら確かめる） */
 export function scaleFlat(value: number, decimals = 0): number {
   return roundTo(value * FLUX.globalScale, decimals);
 }
@@ -107,9 +103,32 @@ function pointNominal(p: CurvePoint): Nominal {
   return out;
 }
 
+/** 点列の最後の区間の傾き（1 深度あたり）。点が 1 つなら 0 */
+function lastSlope(a: Nominal, b: Nominal, span: number): Nominal {
+  const out: Nominal = { nominal: (b.nominal - a.nominal) / span };
+  if (a.nominal2 !== undefined && b.nominal2 !== undefined) out.nominal2 = (b.nominal2 - a.nominal2) / span;
+  return out;
+}
+
+/** 最後の点より深いとき: 最後の区間の傾きで線形に伸ばす。最後の点の値は下回らない */
+function extrapolate(curve: readonly CurvePoint[], depth: number): Nominal {
+  const last = curve[curve.length - 1];
+  if (last === undefined) return { nominal: 0 };
+  const end = pointNominal(last);
+  const prev = curve[curve.length - 2];
+  if (prev === undefined || last.depth <= prev.depth) return end;
+  const slope = lastSlope(pointNominal(prev), end, last.depth - prev.depth);
+  const ahead = depth - last.depth;
+  const out: Nominal = { nominal: Math.max(end.nominal, end.nominal + slope.nominal * ahead) };
+  if (end.nominal2 !== undefined && slope.nominal2 !== undefined) {
+    out.nominal2 = Math.max(end.nominal2, end.nominal2 + slope.nominal2 * ahead);
+  }
+  return out;
+}
+
 /**
  * 深度での期待値。曲線の点（depth, 幅の中央）を線形補間する。
- * 最初の点より浅ければ最初の点、最後の点より深ければ最後の点の値
+ * 最初の点より浅ければ最初の点。最後の点より深ければ最後の区間の傾きで伸ばす（深度の頭打ちを作らない。最後の点は下回らない）
  */
 export function nominalAt(def: AffixDef, depth: number): Nominal {
   const curve = sortedCurve(def);
@@ -128,8 +147,7 @@ export function nominalAt(def: AffixDef, depth: number): Nominal {
     if (a.nominal2 !== undefined && b.nominal2 !== undefined) out.nominal2 = lerp(a.nominal2, b.nominal2, t);
     return out;
   }
-  const last = curve[curve.length - 1];
-  return last === undefined ? { nominal: 0 } : pointNominal(last);
+  return extrapolate(curve, depth);
 }
 
 /**
@@ -148,16 +166,6 @@ export function scaledNominalAt(def: AffixDef, depth: number, scaled = true): No
 export function sigmaAt(depth: number, boost = 0): number {
   const base = Math.min(SIGMA_BASE + SIGMA_PER_DEPTH * Math.max(0, depth), SIGMA_MAX);
   return base * (1 + Math.max(0, boost) * SIGMA_PER_BOOST);
-}
-
-/** 三角分布（low..high、最頻値 mode） */
-export function triangular(rng: Rng, low: number, mode: number, high: number): number {
-  const u = rng.next();
-  const span = high - low;
-  if (span <= 0) return mode;
-  const split = (mode - low) / span;
-  if (u < split) return low + Math.sqrt(u * span * (mode - low));
-  return high - Math.sqrt((1 - u) * span * (high - mode));
 }
 
 /** 反転していない flux を 1 つ引く（MIN_FLUX..上端） */

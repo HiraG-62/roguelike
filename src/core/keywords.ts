@@ -125,6 +125,18 @@ export interface KeywordProfile {
 export const KEYWORD_VERBS = ["produces", "consumes", "amplifies"] as const;
 export type KeywordVerb = (typeof KEYWORD_VERBS)[number];
 
+/**
+ * 源と糧の共鳴の 1 語ぶん（system/resonance.ts が作り、boonRun.resonance に段 1 以上の語だけ KEYWORDS 順で並べる）。
+ * produces / consumes / amplifies はその語を出す・食う・強める出どころの数（出どころ 1 つにつき最大 1）
+ */
+export interface ResonanceStep {
+  keyword: Keyword;
+  step: number;
+  produces: number;
+  consumes: number;
+  amplifies: number;
+}
+
 const KEYWORD_ORDER: Readonly<Record<Keyword, number>> = Object.fromEntries(KEYWORDS.map((k, i) => [k, i])) as Record<
   Keyword,
   number

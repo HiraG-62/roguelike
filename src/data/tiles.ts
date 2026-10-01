@@ -1,4 +1,3 @@
-import type { FloorKind } from "../core/state";
 import type { SpriteDots } from "./sprites/dots";
 
 /**
@@ -66,10 +65,10 @@ function cell(key: string, sheet: SheetKey, col: number, row: number, frames?: n
 }
 
 // -----------------------------------------------------------------------------
-// 床・壁（素材の組 = source。バイオームはこれを再配色して作る）
+// 床・壁（素材の組 = source。拠点はこれを染めて作る）
 // -----------------------------------------------------------------------------
 
-/** 素材の組。バイオームは BIOME_TILESET でどれかを指す */
+/** 素材の組。拠点は BIOME_TILESET でどれかを指す */
 export const TILE_SOURCES = ["puny"] as const;
 export type TileSource = (typeof TILE_SOURCES)[number];
 
@@ -106,7 +105,7 @@ function punyTiles(): TileSpriteDef[] {
   return out;
 }
 
-/** バイオームごとに持つ床・壁のキーの末尾（tile.<biome>.<suffix>） */
+/** 拠点が持つ床・壁のキーの末尾（tile.hub.<suffix>） */
 export function biomeTileSuffixes(): string[] {
   const out = ["floor"];
   for (let mask = 0; mask < WALL_MASK_COUNT; mask++) out.push(`wall.${mask}`);
@@ -119,9 +118,8 @@ export function biomeTileSuffixes(): string[] {
 
 /**
  * 切り出し表。キーの種類:
- * - tile.<source>.floor / tile.<source>.wall.<mask>: 素材の組（再配色前）。バイオーム版は DERIVED で作る
- * - stairs / door: コード内ピクセルマップの同名キーを上書き（全バイオーム共通。木や穴は染めない）
- * - terrain.<kind>: 地形の層（render/terrainUi.ts が読む）
+ * - tile.<source>.floor / tile.<source>.wall.<mask>: 素材の組（再配色前）。拠点版は DERIVED で作る
+ * - stairs: コード内ピクセルマップの同名キーを上書き（封鎖の扉は renderer.ts が描く。地形の層は render/terrainTex.ts）
  * - prop.<PropKind>: 部屋の台座・仕掛け
  * - hub.<HubSpotKey>: 拠点の設備（render/hubUi.ts が読む）
  */
@@ -129,10 +127,6 @@ export const TILE_SPRITES: readonly TileSpriteDef[] = [
   ...punyTiles(),
   // 下り階段 = 床に開いた穴（落とし戸のアニメの最後のコマ）
   cell("stairs", "puny", 19, 16),
-  // 封鎖中の扉 = 木の柵
-  cell("door", "puny", 18, 17),
-  // 地形: 下水の水面（8 コマのアニメ）。水・泥・油・溶岩・氷はこれを再配色する（DERIVED）
-  cell("terrain.bog", "puny", 8, 0, 8),
   // 台座・仕掛け
   cell("prop.chest", "puny", 21, 18),
   cell("prop.lever", "puny", 21, 17, 3),
@@ -157,6 +151,7 @@ export const TILE_SPRITES: readonly TileSpriteDef[] = [
   cell("hub.codex", "kenneyTiny", 5, 5),
   cell("hub.achievements", "kenneyTiny", 6, 4),
   cell("hub.rack", "kenneyTiny", 10, 8),
+  cell("hub.hall", "puny", 24, 17),
 ];
 
 /**
@@ -171,8 +166,6 @@ export const SHEET_LUT: Readonly<Partial<Record<SheetKey, Lut>>> = {
 // バイオーム
 // -----------------------------------------------------------------------------
 
-export type TileBiome = FloorKind | "hub";
-
 export interface BiomeTileset {
   /** 床・壁の素材の組 */
   source: TileSource;
@@ -181,26 +174,12 @@ export interface BiomeTileset {
 }
 
 /**
- * バイオームごとの床・壁。9 バイオームの違いは「同じ石を染める + 既存の地形の層（溶岩・沼・氷・草）」で出す。
- * 0x72 を取得したら石造りのバイオーム（rooms / dark / forge / ossuary / glacier / meadow / hub）の source を差し替える
+ * 拠点の床・壁（tile.hub.*）。迷宮の床・壁は render/mapBake.ts の焼き付け（章の様式 × バイオーム）が描くので、
+ * 9 バイオームの派生は持たない
  */
-export const BIOME_TILESET: Readonly<Record<TileBiome, BiomeTileset>> = {
-  rooms: { source: "puny" },
-  cave: { source: "puny", lut: { hue: 0, sat: 1, val: 0.9 }, tint: { color: "#8a5a30", alpha: 0.28 } },
-  dark: { source: "puny", lut: { hue: 0, sat: 0.8, val: 0.65 } },
-  forge: { source: "puny", lut: { hue: 0, sat: 1, val: 0.85 }, tint: { color: "#b0401c", alpha: 0.3 } },
-  ossuary: { source: "puny", lut: { hue: 0, sat: 0.6, val: 1.1 }, tint: { color: "#e0d8c0", alpha: 0.18 } },
-  swamp: { source: "puny", lut: { hue: 0, sat: 1, val: 0.85 }, tint: { color: "#3c7040", alpha: 0.3 } },
-  glacier: { source: "puny", lut: { hue: 0, sat: 1, val: 1.05 }, tint: { color: "#80b8e0", alpha: 0.3 } },
-  mine: { source: "puny", lut: { hue: 0, sat: 1, val: 0.75 }, tint: { color: "#5a4028", alpha: 0.32 } },
-  meadow: { source: "puny", lut: { hue: 0, sat: 1, val: 1.05 }, tint: { color: "#60a048", alpha: 0.22 } },
+export const BIOME_TILESET: Readonly<{ hub: BiomeTileset }> = {
   hub: { source: "puny", tint: { color: "#c08040", alpha: 0.18 } },
 };
-
-/** 描画時に引くバイオーム。拠点（sandbox）はフロア種別が rooms のままなので別に扱う */
-export function tileBiome(floorKind: FloorKind, sandbox: boolean): TileBiome {
-  return sandbox ? "hub" : floorKind;
-}
 
 // -----------------------------------------------------------------------------
 // 派生スプライト（読み込み時に 1 回だけ再配色して作る。毎フレームの合成はしない）
@@ -214,18 +193,9 @@ export interface DerivedSprite {
   tint?: Tint;
 }
 
-/** 下水の緑の水面から作る地形。色相で水・泥・油・溶岩・氷に振り分ける */
-const TERRAIN_FROM_BOG: readonly { kind: string; lut: Lut }[] = [
-  { kind: "water", lut: { hue: 90, sat: 1.3, val: 1.1 } },
-  { kind: "mud", lut: { hue: -95, sat: 1, val: 0.8 } },
-  { kind: "oil", lut: { hue: 140, sat: 0.5, val: 0.5 } },
-  { kind: "lava", lut: { hue: -110, sat: 2.2, val: 1.9 } },
-  { kind: "ice", lut: { hue: 75, sat: 0.6, val: 1.9 } },
-];
-
 function biomeDerived(): DerivedSprite[] {
   const out: DerivedSprite[] = [];
-  for (const [biome, set] of Object.entries(BIOME_TILESET) as [TileBiome, BiomeTileset][]) {
+  for (const [biome, set] of Object.entries(BIOME_TILESET) as [string, BiomeTileset][]) {
     for (const suffix of biomeTileSuffixes()) {
       const d: DerivedSprite = { key: `tile.${biome}.${suffix}`, from: `tile.${set.source}.${suffix}` };
       out.push({ ...d, ...(set.lut ? { lut: set.lut } : {}), ...(set.tint ? { tint: set.tint } : {}) });
@@ -234,7 +204,4 @@ function biomeDerived(): DerivedSprite[] {
   return out;
 }
 
-export const DERIVED_SPRITES: readonly DerivedSprite[] = [
-  ...biomeDerived(),
-  ...TERRAIN_FROM_BOG.map((t) => ({ key: `terrain.${t.kind}`, from: "terrain.bog", lut: t.lut })),
-];
+export const DERIVED_SPRITES: readonly DerivedSprite[] = biomeDerived();

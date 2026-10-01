@@ -37,8 +37,7 @@
     "pulseSpeed": 2.2,
     "motes": 2,
     "moteSpeed": 1.4,
-    "moteAlpha": 0.7,
-    "constellationColor": "#e0e8ff"
+    "moteAlpha": 0.7
   },
   "keystoneAura": {
     "radius": 12,
@@ -61,6 +60,31 @@
     "radius": 26,
     "particles": 12,
     "color": "#ffd870"
+  },
+  "lordPull": {
+    "_fields": {
+      "life": "墨の渦が消える（現れる）演出の長さ（秒）",
+      "delay": "元の位置で消え始めてから、先で現れ始めるまでの間（秒。消える → 現れるの順に読ませる）",
+      "radius": "渦の最大の半径（論理 px）",
+      "arms": "渦の腕の本数",
+      "dots": "腕 1 本の墨の粒の数",
+      "turns": "腕が中心へ巻く回数（外縁から中心まで）",
+      "spin": "演出の間に渦が回る量（回転数）",
+      "glow": "章の色の光の半径（論理 px）",
+      "ringWidth": "章の色の輪の太さ（論理 px）",
+      "chapterColors": "章 1〜4 の渦の縁と浮き文字の色（章が足りなければ最後の色）"
+    },
+    "life": 0.45,
+    "delay": 0.12,
+    "radius": 22,
+    "arms": 3,
+    "dots": 12,
+    "turns": 0.8,
+    "spin": 0.7,
+    "glow": 18,
+    "ringWidth": 2,
+    "inkColor": "#150f24",
+    "chapterColors": ["#7ad060", "#d8a050", "#9a80e8", "#a8d0ff"]
   },
   "heartbeat": {
     "slow": 1.6,

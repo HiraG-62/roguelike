@@ -18,6 +18,8 @@
 
 真実はコード内のピクセルマップ。PNG と Aseprite はその**作業台**で、行き来は `npm run sprite` で行う。作業ファイルは `art/`（git 対象外）か scratchpad に置く。
 
+マップの置物（`data/sprites/mapProps.ts`）は PALETTE の文字ではなく役の文字（テーマで色を当てる）で描くので `npm run sprite` の `render` / `lint` は使えない。確認は `npm run map:shot`（地図に置いた姿）か、役の色を当てて並べる使い捨てのスクリプトで行う。
+
 1. **見る**: `npm run sprite -- render <key>[,<key>…] --out art/<key>.png --grid` で拡大した確認用 PNG（フレームは横・キーは縦、床色の背景）を描き、Read で開いて目で確かめる。拡大率は既定でキーごとに `8 / spriteDots(key)`（密度が違うキーを並べても論理サイズどおりの見た目で揃う）。`--scale <N>` で全キー同じ拡大率を強制、`--beside <参考 PNG>` で参考絵を右に並べて比べる。`--bg none` で透明背景
 2. **点検**: `npm run sprite -- lint <key>` が様式書の癖（輪郭が閉じていない・頭上・最下段・白の量・暗部の無い 3 段 / 5 段崩れ）を座標付きで出す。判定は `spriteDots(key)` の密度に合わせて頭上の行数・中央帯・白の目安・3 段 / 5 段の切り替えが変わる。テストが落とす項目ではないので、意図があれば無視してよい
 3. **Aseprite で直す**（任意）: `npm run sprite -- strip <key> --out art/<key>.png --ase art/<key>.aseprite` で等倍の横一列 PNG と、フレームに分けた `.aseprite`（`PALETTE` を `roguelike.gpl` として同梱）を作る。Aseprite の GUI で手直しするか、Agent なら MCP サーバー `aseprite` のツール（`draw_pixels_at` / `outline_cel` / `replace_color` / `render_onion_skin` など）で編集する。**PALETTE の色以外を置かない**（`quantize_to_palette` で丸められる）

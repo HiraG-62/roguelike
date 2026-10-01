@@ -1,0 +1,43 @@
+{
+  "_note": "賭場の主の賭け（system/bets.ts。docs/ideas/economy-impl.md 2-6）。運の型は期待値（倍率 × 確率）を 0.9〜1.0 に保つ（丁半 1.0 / 大穴 0.91 / 一か八か 0.96 / 倍々勝負 1.0）。腕の型は倍率だけで、期待値は腕で決まる。賭け金は張る瞬間の持ち金の割合（最低額つき）",
+  "_fields": {
+    "color": "賭けの浮き文字・HUD の行の色",
+    "offerSpacing": "賭場の主の台座の間隔。タイル（台座が 5 つ並ぶので契約者の既定より詰める）",
+    "luckOffers": "品書きに並べる運の型の数（丁半・大穴・一か八か・倍々勝負から重複なしで引く）。個",
+    "skillOffers": "品書きに並べる腕の型の数（無傷・速攻・凌ぎから重複なしで引く）。個",
+    "stakeRatio": "賭け金。張る瞬間の持ち金に対する割合（1 = 全額）。割合（0..1）",
+    "stakeMin": "賭け金の最低額（持ち金 × stakeRatio がこれ未満ならこの額。払えなければ張れない）。銭",
+    "mul": "勝ったときに賭け金に掛ける倍率（払い戻しの総額。2 = 賭け金が倍になって戻る）。倍率",
+    "chance": "運の型の勝つ確率。割合（0..1）。倍々勝負は 1 回ごとの確率",
+    "tiers": "腕の型の難しさ（easy 易 / hard 難 / extreme 至難）。mul 勝ったときの倍率、target 速攻は起床から決着までの秒・凌ぎは階を降りるまでの受け流しと見切りの回数。無傷は束縛した陣に大将がいなければ易、いれば難",
+    "parryKeywordMul": "見切り系を持つビルド（装備・スキル石・祝福のどれかが見切りを出す・食う・強める）で、凌ぎの必要回数に掛ける倍率（切り上げ）。倍率",
+    "jackpotPerChapter": "大穴の陣（次の陣を無傷で決着すれば jackpotMul 倍）を賭場の主が出す、章ごとの回数。回",
+    "jackpotMul": "大穴の陣の倍率。倍率"
+  },
+  "color": "#ffd040",
+  "offerSpacing": 2,
+  "luckOffers": 2,
+  "skillOffers": 2,
+  "chohan": { "stakeRatio": 0.2, "stakeMin": 10, "mul": 2, "chance": 0.5 },
+  "longshot": { "stakeRatio": 0.1, "stakeMin": 5, "mul": 10, "chance": 0.0909 },
+  "allIn": { "stakeRatio": 1, "stakeMin": 1, "mul": 3, "chance": 0.32 },
+  "doubleUp": { "stakeRatio": 0.2, "stakeMin": 10, "mul": 2, "chance": 0.5 },
+  "unscathed": {
+    "stakeRatio": 0.3,
+    "stakeMin": 10,
+    "tiers": { "easy": { "mul": 1.5 }, "hard": { "mul": 2 } }
+  },
+  "swift": {
+    "stakeRatio": 0.3,
+    "stakeMin": 10,
+    "tiers": { "easy": { "target": 25, "mul": 1.5 }, "hard": { "target": 15, "mul": 2 }, "extreme": { "target": 10, "mul": 3 } }
+  },
+  "parries": {
+    "stakeRatio": 0.3,
+    "stakeMin": 10,
+    "tiers": { "easy": { "target": 5, "mul": 1.5 }, "hard": { "target": 10, "mul": 2 }, "extreme": { "target": 20, "mul": 3 } }
+  },
+  "parryKeywordMul": 1.5,
+  "jackpotPerChapter": 1,
+  "jackpotMul": 10
+}

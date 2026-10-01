@@ -25,8 +25,10 @@ export type RenderLayer = (typeof RENDER_LAYERS)[number];
 export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = {
   world: [
     "drawTiles",
-    "drawBiomeTint",
+    "drawInvertedTint",
     "drawTerrainLayer",
+    "drawMapLight",
+    "drawTileOverlays",
     "drawGroundMarks",
     "drawPickups",
     "drawFloorItems",
@@ -39,10 +41,11 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawEnemies",
     "drawDeathFx",
     "drawBossDeath",
-    "drawProjectiles",
-    "drawLasers",
     "drawPlayerAuras",
     "drawPlayer",
+    "drawFrontLip",
+    "drawProjectiles",
+    "drawLasers",
     "drawReaper",
     "drawSkillAir",
     "drawSmokeLayer",
@@ -55,7 +58,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
   hud: ["drawHud", "drawSkillSlots"],
   hudOverlay: ["drawChainHud"],
   transition: ["drawFloorWipe", "drawFloorCard"],
-  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawDeath"],
+  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawReforgeChoice", "drawDeath"],
   cursor: ["drawCrosshair"],
 };
 

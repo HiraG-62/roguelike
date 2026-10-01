@@ -1,0 +1,26 @@
+{
+  "_fields": {
+    "energy": "奥義ゲージの量",
+    "icd": "同じ札が続けて発動しない間隔（内部 CD）。秒（BOON.ruleMinIcd が下限）",
+    "bleed": "代償の出血の強さ",
+    "bleedTime": "代償の出血の秒。秒",
+    "burn": "焦がれ刃: 近接の命中で付ける燃焼の強さ（毎秒のダメージ）",
+    "selfDps": "焦がれ刃: 代償で自分が燃える強さ（毎秒のダメージ）",
+    "selfTime": "焦がれ刃: 代償で自分が燃える秒。秒",
+    "selfIcd": "焦がれ刃: 代償の内部 CD。秒",
+    "ratio": "狂い咲き: 衝撃波のダメージ。近接 1 段目の威力に掛ける割合",
+    "weaken": "代償で自分が弱体する秒。秒",
+    "poise": "重き誓い: 溜め斬りに足す怯み値",
+    "mana": "濡れ鼠: 水たまりに踏み込んで戻す気力",
+    "wetStacks": "濡れ鼠: 代償で自分に付く濡れの数",
+    "wetTime": "濡れ鼠: 代償の濡れの秒。秒",
+    "mainMul": "一念: 持っている札の系譜が 1 つだけのときの与ダメの倍",
+    "otherMul": "一念: 系譜が 2 つ以上のときの与ダメの倍（代償）"
+  },
+  "bloodSoil": { "energy": 15, "bleed": 1, "bleedTime": 3, "icd": 2 },
+  "singleMind": { "mainMul": 1.3, "otherMul": 0.85 },
+  "scorchBlade": { "burn": 2, "icd": 0.3, "selfDps": 2, "selfTime": 1.5, "selfIcd": 1 },
+  "madBloom": { "ratio": 0.6, "weaken": 1.5, "icd": 0.5 },
+  "heavyOath": { "poise": 30, "weaken": 1, "icd": 1 },
+  "drenched": { "mana": 100, "wetStacks": 3, "wetTime": 6, "icd": 6 }
+}

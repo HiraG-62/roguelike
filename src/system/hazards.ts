@@ -90,16 +90,26 @@ export function spawnLanding(state: GameState, pos: Vec, radius: number, time: n
 function syncLanding(state: GameState, h: Hazard): void {
   if (h.sourceId === undefined) return;
   const source = state.enemies.find((e) => e.id === h.sourceId && e.hp > 0);
-  if (!source || source.phase !== "windup") {
+  // 跳躍の影は空中（strike）の間も残し、着地（spent）で消す
+  const airborne = h.airTime !== undefined && !h.spent && source?.phase === "strike";
+  if (!source || (source.phase !== "windup" && !airborne) || h.spent) {
     h.time = 0;
     return;
   }
-  h.time = source.phaseTimer;
+  h.time = source.phaseTimer + (source.phase === "windup" ? (h.airTime ?? 0) : 0);
   if (h.followSource) h.pos = { ...source.body.pos };
 }
 
+/** 一時的な壁の数値（省略時は骸骨卿の骨の壁）。盗賊王の柵など、別の持ち主が耐久と寿命を決める */
+export interface BoneWallSpec {
+  time: number;
+  hp: number;
+  /** 出した敵の種類（描画が色を分ける） */
+  sourceKey?: string;
+}
+
 /** 一時的な壁タイル。lockedTiles を流用し、時間切れで消える */
-export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard | null {
+export function spawnBoneWall(state: GameState, tx: number, ty: number, spec?: BoneWallSpec): Hazard | null {
   const tile = toIndex(state.map, tx, ty);
   if (state.lockedTiles.has(tile)) return null;
   const pos = { x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE };
@@ -110,14 +120,16 @@ export function spawnBoneWall(state: GameState, tx: number, ty: number): Hazard 
     if (Math.abs(b.pos.x - pos.x) < half + b.radius && Math.abs(b.pos.y - pos.y) < half + b.radius) return null;
   }
   state.lockedTiles.add(tile);
-  const wall = addHazard(state, { kind: "boneWall", pos, radius: half, time: BOSS.boneLord.wallDuration, damage: 0, tile });
-  wall.hp = BOSS.boneLord.wallHp;
+  const time = spec?.time ?? BOSS.boneLord.wallDuration;
+  const wall = addHazard(state, { kind: "boneWall", pos, radius: half, time, damage: 0, tile });
+  wall.sourceKey = spec?.sourceKey;
+  wall.hp = spec?.hp ?? BOSS.boneLord.wallHp;
   return wall;
 }
 
 /**
  * 骨の壁を削る（docs/ideas/enemies.md H6）。半径内の骨の壁の耐久を amount 減らし、0 以下なら次の更新で崩す。
- * 爆発（敵にも当たる爆発・グレネード）・壁叩きつけ・弾が呼ぶ。崩した数を返す
+ * 爆発（敵にも当たる爆発）・壁叩きつけ・弾が呼ぶ。崩した数を返す
  */
 export function damageBoneWalls(state: GameState, pos: Vec, radius: number, amount: number): number {
   let broken = 0;
@@ -148,7 +160,7 @@ export function blastEnemies(state: GameState, pos: Vec, radius: number, damage:
 }
 
 /**
- * プレイヤーの弾とグレネードが骨の壁を削る（H6）。projectiles.ts が壁で弾を消す前に、次の位置が骨の壁に入る弾を拾う。
+ * プレイヤーの弾が骨の壁を削る（H6）。projectiles.ts が壁で弾を消す前に、次の位置が骨の壁に入る弾を拾う。
  * enemies.ts の updateEnemies（updateProjectiles より前）から呼ぶ
  */
 export function chipBoneWallsByShots(state: GameState, dt: number): void {
@@ -160,10 +172,6 @@ export function chipBoneWallsByShots(state: GameState, dt: number): void {
     const wall = state.hazards.find((h) => h.kind === "boneWall" && h.tile === tile && h.time > 0);
     if (!wall) continue;
     damageBoneWalls(state, wall.pos, 0, pr.damage);
-  }
-  for (const g of state.skills.grenades) {
-    if (g.flight > 0 || g.fuse > dt) continue;
-    damageBoneWalls(state, g.to, BOSS.boneLord.wallBlastRadius, BOSS.boneLord.wallHp);
   }
 }
 
@@ -180,7 +188,7 @@ function hazardDamage(state: GameState, h: Hazard): number {
 
 /** プレイヤーへの被弾。当たれば付与元の状態異常も付ける */
 function hitPlayerBy(state: GameState, h: Hazard, on: EnemyAttackKind): ReturnType<typeof damagePlayer> {
-  const result = damagePlayer(state, hazardDamage(state, h), h.pos);
+  const result = damagePlayer(state, hazardDamage(state, h), h.pos, undefined, { cause: { kind: "hazard", key: h.sourceKey } });
   if (result === "hit") inflictOnPlayer(state, hazardSource(h), on);
   return result;
 }
@@ -201,7 +209,7 @@ export function explodeHostile(
   const p = state.player.body;
   if (dist(p.pos, pos) >= radius + p.radius) return;
   const mul = blastMulAt(pos, radius, p.pos, p.radius);
-  if (damagePlayer(state, damage * mul, pos) === "hit") inflictOnPlayer(state, source, "bomb");
+  if (damagePlayer(state, damage * mul, pos, undefined, { cause: { kind: "blast", key: source?.defKey } }) === "hit") inflictOnPlayer(state, source, "bomb");
 }
 
 /** 線分 a-b（太さ halfWidth*2）と円の当たり判定 */

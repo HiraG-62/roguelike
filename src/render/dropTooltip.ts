@@ -2,14 +2,16 @@ import { actionKeyLabel } from "../core/input";
 import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { computeStats, statsSummary } from "../loot/stats";
+import { type DamageModDiff, computeStats, damageModDiffs, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
-import { SKILL_DEFS, formatVariant, stoneLabel } from "../skills/data";
+import { SKILL_DEFS, formatVariant, stoneLabel, transformLabel } from "../skills/data";
+import { currentForm } from "../system/morale";
+import type { FormKey } from "../data/weaponForms";
 import type { SkillStone } from "../skills/types";
 import { weaponArtLabel } from "../skills/arts";
 import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
-import { type Rect, SLOT_LABEL } from "../ui/inventory";
-import { itemTipLines } from "./inventoryUi";
+import { type Rect, SLOT_LABEL } from "../ui/inventoryLayout";
+import { itemTipLines } from "./itemTips";
 import {
   COLOR_BORDER,
   COLOR_DIM,
@@ -88,6 +90,12 @@ function diffLine(key: NumericStatKey, before: number, after: number): TipLine |
   return { text, color: better ? COLOR_BETTER : COLOR_WORSE, mark: rises ? MARK_UP : MARK_DOWN, markColor: better ? COLOR_BETTER : COLOR_WORSE };
 }
 
+/** 与ダメの増・倍の差の行（上がるほど良い） */
+function modDiffLine(d: DamageModDiff): TipLine {
+  const color = d.rises ? COLOR_BETTER : COLOR_WORSE;
+  return { text: d.text, color, mark: d.rises ? MARK_UP : MARK_DOWN, markColor: color };
+}
+
 /**
  * 装備中の同部位と入れ替えたときに変わる能力値（共鳴の変化も computeStats に含まれる）。
  * 単一のスコアにはまとめず、項目ごとに ▲▼ と良し悪しの色で並べる
@@ -98,11 +106,12 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   const head: TipLine = worn
     ? { text: `装備中の「${worn.name}」との比較`, color: COLOR_DIM }
     : { text: `${SLOT_LABEL[item.slot]}: 空き（装備した場合）`, color: COLOR_DIM };
-  const before = computeStats(equipment);
-  const after = computeStats({ ...equipment, [item.slot]: item });
+  const before = computeStats(equipment, state.depth);
+  const after = computeStats({ ...equipment, [item.slot]: item }, state.depth);
   const diffs = NUMERIC_STAT_KEYS.filter((key) => Math.abs(after[key] - before[key]) > EPSILON)
     .map((key) => diffLine(key, before[key], after[key]))
     .filter((line): line is TipLine => line !== null);
+  diffs.push(...damageModDiffs(before, after).map(modDiffLine));
   if (diffs.length === 0) return [head, { text: "能力値の変化なし", color: COLOR_DIM }];
   const shown = diffs.slice(0, DIFF_LINES_MAX);
   const rest = diffs.length - shown.length;
@@ -110,12 +119,14 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   return [head, ...shown];
 }
 
-/** スキル石: 名前とリンク・動詞・タグ・変異軸（装備画面のツールチップの要約） */
-export function stoneLines(stone: SkillStone): TipLine[] {
+/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸（装備画面のツールチップの要約）。form は今の武器の型 */
+export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
+  const transform = form === undefined ? null : transformLabel(form, stone.skillKey);
   const lines: TipLine[] = [
     { text: stoneLabel(stone), color: COLOR_STONE },
     ...(def.moveset === undefined ? [] : [{ text: weaponArtLabel(def.moveset), color: COLOR_WEAPON_ART }]),
+    ...(transform === null ? [] : [{ text: transform, color: COLOR_WEAPON_ART }]),
     { text: def.verb, color: COLOR_TEXT },
     { text: def.tags.join(" / "), color: COLOR_DIM },
   ];
@@ -131,7 +142,7 @@ export interface DropTipContent {
 }
 
 export function dropTipContent(state: GameState, drop: FocusedDrop): DropTipContent {
-  if (drop.kind === "stone") return { body: stoneLines(drop.stone), tail: [] };
+  if (drop.kind === "stone") return { body: stoneLines(drop.stone, currentForm(state).key), tail: [] };
   return { body: itemTipLines(state, drop.item), tail: compareLines(state, drop.item) };
 }
 

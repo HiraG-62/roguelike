@@ -1,26 +1,31 @@
 import { type BossState, type Enemy, type GameState, type Projectile, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef, isBossClass } from "../data/enemies";
-import { BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
+import { type EnemyDef, depthDamage, enemyDef, isBossClass } from "../data/enemies";
+import { ARC, BOSS, FEEL, FLOOR_LORD } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { boonHeartsAllowed } from "./boons";
-import { damagePlayer } from "./combat";
 import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
-import { spawnBoneWall, spawnLanding, spawnShockwave } from "./hazards";
+import { spawnBoneWall } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { hasMod } from "./runSetup";
-import { inflictOnPlayer, isSilenced } from "./statusEffects";
+import { isSilenced } from "./statusEffects";
 import { spawnTwinSister, twinPartner, updateTwin } from "./bossTwins";
 import { frostGiantArmored, updateFrostGiant } from "./bossFrostGiant";
 import { oilKingTelegraph, setupOilKingRoom, updateOilKing } from "./bossOilKing";
 import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
 import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
-import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, updateMirrorKnight } from "./bossMirrorKnight";
-import { setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
+import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, settleMirrorKnightRoom, updateMirrorKnight } from "./bossMirrorKnight";
+import { settleThiefKingRoom, setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
+import { kingSlimeTelegraph, updateKingSlime } from "./bossKingSlime";
+import { deepLordGuarded, deepLordTelegraph, settleDeepLordRoom, setupDeepLordRoom, updateDeepLord } from "./bossDeepLord";
+import { pushBossRecord } from "./bossRecord";
+import { grantBossReward } from "./bossRewards";
 import type { EnemyTelegraph } from "./enemies";
+import { offerReforges } from "./reforge";
+import { chapterBossKey, finalBossKey, isFinalDepth } from "./chapters";
 
 /**
  * 階層ボス（major）。depth が BOSS.interval（5）の倍数の階は、階段のある最後の部屋がボス部屋になる。
@@ -48,14 +53,10 @@ const FULL_CIRCLE = Math.PI * 2;
 const RARE_OR_BETTER: ReadonlySet<Rarity> = new Set<Rarity>(["rare", "unique"]);
 const BOSS_TEXT_COLOR = "#ff4040";
 const DEFEAT_TEXT_COLOR = "#ffd75f";
-const SPLIT_TEXT_COLOR = "#80ff80";
 const RAGE_TEXT_COLOR = "#c0ffb0";
 const PHASE_FLASH = 0.6;
 const FREE_POINT_ATTEMPTS = 30;
 const DROP_SPREAD = 14;
-/** King Slime の着地直下でのダメージ判定半径（衝撃波の半径に対する割合） */
-const SLAM_CORE_RATIO = 0.4;
-const SPLIT_OFFSET = 18;
 /** Bone Lord が保ちたい距離 */
 const BONE_LORD_KEEP = 90;
 const BONE_BULLET_RADIUS = 3;
@@ -69,12 +70,32 @@ const STAGE_ONE = 1;
 const STAGE_TWO = 2;
 
 export function isBossDepth(depth: number): boolean {
-  return depth > 0 && depth % BOSS.interval === 0;
+  return (depth > 0 && depth % BOSS.interval === 0) || isFinalDepth(depth);
 }
 
+/**
+ * 最深の間（深度 21）は ARC.finalBoss。章ボスの階（深度 5 / 10 / 15 / 20）は ARC.chapters の固定のボス。最後の章より深い階（深み）は回転で、
+ * 章ボスにならなかった 5 体（骸骨卿・双子の騎士・霜の巨人・群れの母・図書館の司書）を先に、続けて章ボス 4 体を回す
+ */
 export function bossKeyForDepth(depth: number): string {
-  const idx = Math.max(0, Math.floor(depth / BOSS.interval) - 1) % BOSS_ROTATION.length;
-  return BOSS_ROTATION[idx] ?? BOSS_ROTATION[0];
+  const finalKey = finalBossKey(depth);
+  if (finalKey) return finalKey;
+  const chapterKey = chapterBossKey(depth);
+  if (chapterKey) return chapterKey;
+  const rotation = deepRotation();
+  const idx = Math.max(0, Math.floor(depth / BOSS.interval) - firstDeepBossStep()) % rotation.length;
+  return rotation[idx] ?? BOSS_ROTATION[0];
+}
+
+/** 深みのボス回転（章ボスの key は ARC.chapters にあるものを後ろへ） */
+export function deepRotation(): readonly string[] {
+  const chapterKeys = ARC.chapters.map((c) => c.boss);
+  return [...BOSS_ROTATION.filter((k) => !chapterKeys.includes(k)), ...chapterKeys];
+}
+
+/** 深みで最初のボス階が回転の何番目のステップか（interval 単位。深度 25 なら 5 → idx 0 になるよう引く） */
+function firstDeepBossStep(): number {
+  return Math.floor((ARC.floorsPerChapter * ARC.maxChapter) / BOSS.interval) + 1;
 }
 
 /** 最後の部屋をボス部屋にする: 階段を隠してボスを置く */
@@ -90,6 +111,7 @@ export function setupBossRoom(state: GameState, roomIndex: number): void {
   if (def.behavior === "twinBlade") spawnTwinSister(state, boss);
   if (def.behavior === "oilKing") setupOilKingRoom(state, roomIndex);
   if (def.behavior === "thiefKing") setupThiefKingRoom(state, boss);
+  if (def.behavior === "deepLord") setupDeepLordRoom(state, boss);
 }
 
 /** ボス部屋のロック時の演出 */
@@ -97,6 +119,7 @@ export function announceBoss(state: GameState): void {
   const b = state.boss;
   if (!b) return;
   b.introTimer = BOSS.introTime;
+  b.lockedAt = state.time; // floorTime は封鎖中に止まる（死神の猶予）ので、戦いの秒は state.time で数える
   shake(state, FEEL.shakeHeavy);
   state.flash = Math.max(state.flash, PHASE_FLASH);
   pushSfx(state, "roomLock");
@@ -130,6 +153,7 @@ export function showsBossBar(state: GameState, e: Enemy): boolean {
 
 /** 氷の鎧のように、ボスがダメージを受け付けない状態か（elites.ts の interceptEnemyDamage が読む） */
 export function bossArmorBlocks(state: GameState, e: Enemy): boolean {
+  if (e.defKey === "deepLord") return deepLordGuarded(state, e);
   return e.defKey === "frostGiant" && frostGiantArmored(state, e);
 }
 
@@ -156,6 +180,10 @@ export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
       return mirrorKnightTelegraph(e);
     case "thiefKing":
       return thiefKingTelegraph(e);
+    case "kingSlime":
+      return kingSlimeTelegraph(e);
+    case "deepLord":
+      return deepLordTelegraph(e);
     default:
       return null;
   }
@@ -203,6 +231,9 @@ export function updateBossEnemy(state: GameState, e: Enemy, def: EnemyDef, dt: n
     case "thiefKing":
       updateThiefKing(state, e, def, dt);
       return;
+    case "deepLord":
+      updateDeepLord(state, e, def, dt);
+      return;
     default:
       return;
   }
@@ -231,96 +262,6 @@ export function phaseShift(state: GameState, e: Enemy, text: string, color: stri
 }
 
 // -----------------------------------------------------------------------------
-// King Slime: 跳躍 → 着地衝撃波。HP 50% で分裂 + 高速化
-// -----------------------------------------------------------------------------
-
-function kingSlimeSpeedMul(e: Enemy): number {
-  return e.ai?.stage === STAGE_TWO ? BOSS.kingSlime.phase2SpeedMul : 1;
-}
-
-function updateKingSlime(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
-  const ai = e.ai;
-  if (!ai) return;
-  const ks = BOSS.kingSlime;
-  if (ai.stage === STAGE_ONE && e.hp <= e.maxHp * ks.phase2Ratio) splitKingSlime(state, e);
-
-  const mul = kingSlimeSpeedMul(e);
-  const dir = toPlayerDir(state, e);
-  switch (e.phase) {
-    case "chase": {
-      if (dir.x !== 0) e.facing = dir;
-      moveEnemy(state, e, def, dir.x * def.speed * mul * dt, dir.y * def.speed * mul * dt);
-      if (e.attackCooldown > 0) return;
-      e.phase = "windup";
-      // 第 2 段階の速さと深度の短縮を掛けても、基準の 60% は残す（scaledWindup の下限）
-      e.phaseTimer = scaledWindup(def.windup, state.depth, 1 / mul);
-      pushSfx(state, "enemyWindup");
-      return;
-    }
-    case "windup":
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) beginJump(state, e);
-      return;
-    case "strike": {
-      // 空中: 着地点へ向かって移動する（壁は無視しない）
-      const remaining = Math.max(dt, e.phaseTimer);
-      const step = scale(sub(ai.target, e.body.pos), Math.min(1, dt / remaining));
-      moveEnemy(state, e, def, step.x, step.y);
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) landKingSlime(state, e, def);
-      return;
-    }
-    case "recover":
-      e.phaseTimer -= dt;
-      if (e.phaseTimer <= 0) toChase(e, def);
-      return;
-    default:
-      return;
-  }
-}
-
-function beginJump(state: GameState, e: Enemy): void {
-  const ai = e.ai;
-  if (!ai) return;
-  const ks = BOSS.kingSlime;
-  const time = ai.stage === STAGE_TWO ? ks.phase2JumpTime : ks.jumpTime;
-  ai.target = { ...state.player.body.pos };
-  e.phase = "strike";
-  e.phaseTimer = time;
-  spawnLanding(state, ai.target, ks.shockRadius, time);
-  spawnBurst(state, e.body.pos, enemyDef(e.defKey).color, 10, 90, 0.3, 2);
-}
-
-function landKingSlime(state: GameState, e: Enemy, def: EnemyDef): void {
-  const ks = BOSS.kingSlime;
-  const dmg = ks.shockDamage + depthDamageBonus(state.depth);
-  spawnShockwave(state, e.body.pos, ks.shockRadius, dmg, e.id);
-  spawnBurst(state, e.body.pos, def.color, 24, 160, 0.5, 3);
-  shake(state, FEEL.shakeSpecial);
-  pushSfx(state, "wallHit");
-  // 真下にいたら潰される
-  const p = state.player.body;
-  if (circlesOverlap(e.body.pos.x, e.body.pos.y, ks.shockRadius * SLAM_CORE_RATIO, p.pos.x, p.pos.y, p.radius)) {
-    if (damagePlayer(state, dmg, e.body.pos, e) === "hit") inflictOnPlayer(state, e, "shockwave");
-  }
-  e.phase = "recover";
-  e.phaseTimer = def.recover / kingSlimeSpeedMul(e);
-}
-
-function splitKingSlime(state: GameState, e: Enemy): void {
-  phaseShift(state, e, "分裂！", SPLIT_TEXT_COLOR);
-  const ks = BOSS.kingSlime;
-  const slime = enemyDef("slime");
-  for (let i = 0; i < ks.splitCount; i++) {
-    const a = (i / ks.splitCount) * FULL_CIRCLE;
-    const pos = add(e.body.pos, scale(fromAngle(a), SPLIT_OFFSET));
-    const safe = overlapsWall(state, pos.x, pos.y, slime.radius) ? { ...e.body.pos } : pos;
-    const minion = createEnemy(state, slime, safe, e.roomIndex, true);
-    state.enemies.push(minion);
-  }
-}
-
-// -----------------------------------------------------------------------------
 // Bone Lord: 回転弾幕 / 骨の壁 / HP 30% 以下でテレポート連発
 // -----------------------------------------------------------------------------
 
@@ -345,6 +286,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
       e.phaseTimer = scaledWindup(def.windup, state.depth);
+      e.windupTotal = e.phaseTimer;
       ai.counter = 0;
       pushSfx(state, "enemyWindup");
       return;
@@ -415,7 +357,7 @@ function fireBone(state: GameState, e: Enemy, dir: Vec): void {
     pos: add(e.body.pos, scale(dir, e.body.radius + 2)),
     vel: scale(dir, bl.bulletSpeed),
     radius: BONE_BULLET_RADIUS,
-    damage: bl.bulletDamage + depthDamageBonus(state.depth),
+    damage: depthDamage(bl.bulletDamage, state.depth),
     life: BONE_BULLET_LIFE,
     color: bl.color,
     kind: "proc",
@@ -491,11 +433,18 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   bossKillFx(state, e.body.pos);
+  if (e.defKey === "deepLord") settleDeepLordRoom(state, e);
+  if (e.defKey === "mirrorKnight") settleMirrorKnightRoom(state, e);
+  if (e.defKey === "thiefKing") settleThiefKingRoom(state, e);
+  pushBossRecord(state, e);
+  if (b.major) grantBossReward(state, e.defKey, e.body.pos);
   const drops = b.major ? BOSS.rareDrops : FLOOR_LORD.drops;
   const boost = b.major ? BOSS.rareDropBoost : FLOOR_LORD.rareDropBoost;
   const attempts = b.major ? BOSS.rareDropAttempts : FLOOR_LORD.rareDropAttempts;
   for (let i = 0; i < drops; i++) dropRareItem(state, e.body.pos, i, boost, attempts);
   if (!b.major && state.rng.chance(FLOOR_LORD.heartChance)) dropFloorLordHeart(state, e.body.pos);
+  // 5 の倍数の階のボスの後は改鋳の 3 択（段取り 6 で章の出口へ移す）
+  if (b.major) offerReforges(state);
 }
 
 function defeatLogText(b: BossState): string {

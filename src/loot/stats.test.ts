@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { STATUS, WEAPON } from "../data/tuning";
 import { DEFAULT_MOVESET, MOVESETS, UNARMED_NAME, movesetLabel } from "../data/weapons";
-import { scaleFlat } from "./flux";
 import { generateItem } from "./generator";
-import { computeStats, softCap, statsSummary } from "./stats";
+import { UNARMED_MORE, computeStats, damageModDiffs, softCap, statsSummary } from "./stats";
+import { createIncreased } from "../core/damage";
 import { DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
 
 const NOW = 1_700_000_000_000;
-/** 右手が空の computeStats の結果（DEFAULT_STATS から型・素手・近接の倍率だけが素手のものになる） */
-const UNARMED_STATS = { ...DEFAULT_STATS, moveset: DEFAULT_MOVESET, unarmed: true, meleeDamageMul: WEAPON.unarmed.damageMul };
+/** 右手が空の computeStats の結果（DEFAULT_STATS から型・素手・素手の倍だけが素手のものになる） */
+const UNARMED_STATS = { ...DEFAULT_STATS, moveset: DEFAULT_MOVESET, unarmed: true, more: [UNARMED_MORE] };
 
 function makeItem(slot: Slot, partial: Partial<Item>): Item {
   return {
@@ -29,7 +29,7 @@ function makeItem(slot: Slot, partial: Partial<Item>): Item {
 }
 
 describe("computeStats", () => {
-  it("空装備で DEFAULT_STATS と一致（右手が空なので型・素手・近接の倍率だけ素手のもの）", () => {
+  it("空装備で DEFAULT_STATS と一致（右手が空なので型・素手・素手の倍だけ素手のもの）", () => {
     expect(computeStats(createEmptyEquipment())).toEqual(UNARMED_STATS);
   });
 
@@ -37,6 +37,8 @@ describe("computeStats", () => {
     const stats = computeStats(createEmptyEquipment());
     expect(stats.keystones).not.toBe(DEFAULT_STATS.keystones);
     expect(stats.triggers).not.toBe(DEFAULT_STATS.triggers);
+    expect(stats.increased, "増の表も共有しない").not.toBe(DEFAULT_STATS.increased);
+    expect(stats.more).not.toBe(DEFAULT_STATS.more);
   });
 
   it("implicit と affix を反映する", () => {
@@ -44,50 +46,33 @@ describe("computeStats", () => {
     equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.greatsword", kind: "prefix", tier: 1, value: 40 },
       affixes: [
-        { key: "meleeDamagePct", kind: "prefix", tier: 3, value: 25 },
-        { key: "meleeDamageFlat", kind: "prefix", tier: 4, value: 5 },
-        { key: "critChance", kind: "suffix", tier: 5, value: 2 },
+        { key: "damageVsStaggered", kind: "prefix", tier: 3, value: 25 },
         { key: "burn", kind: "prefix", tier: 4, value: 5, value2: 3 },
       ],
     });
+    // 性質 2 つまでなら共鳴しないので、implicit と性質の数値だけを見られる
     const stats = computeStats(equipment);
-    // 紅 3 / 金 1 → 紅の支配（灼極）: 近接 +10%、金の性質（会心率）は 75% に弱まる。implicit は色を持たず弱まらない
-    expect(stats.resonance.kind).toBe("dominant");
-    expect(stats.resonance.colors).toEqual(["crimson"]);
-    expect(stats.meleeDamageMul).toBeCloseTo(1 + 0.4 + 0.25 + scaleFlat(0.1, 4));
+    expect(stats.increased.melee).toBeCloseTo(0.4);
     expect(stats.attackSpeedMul).toBeCloseTo(0.75);
     expect(stats.meleeReachMul).toBeCloseTo(1.2);
-    expect(stats.meleeDamageFlat).toBe(5);
-    expect(stats.critChance).toBeCloseTo(0.05 + 0.02 * 0.75);
+    expect(stats.increased.vsStaggered).toBeCloseTo(0.25);
     expect(stats.burnChance).toBeCloseTo(0.05);
     expect(stats.burnDps).toBe(3);
-  });
-
-  it("max HP % は全スロットの flat 合算後に掛かる", () => {
-    const equipment = createEmptyEquipment();
-    // % を先の slot（armor）に、flat を後の slot（ring）に置いても順序に依存しない
-    equipment.armor = makeItem("armor", {
-      affixes: [{ key: "maxLifePct", kind: "prefix", tier: 4, value: 10 }],
-    });
-    equipment.ring = makeItem("ring", {
-      affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
-    });
-    expect(computeStats(equipment).maxHp).toBe(132);
   });
 
   it("整数化とクランプが効く", () => {
     const equipment = createEmptyEquipment();
     equipment.ring = makeItem("ring", {
       affixes: [
-        { key: "critChance", kind: "suffix", tier: 1, value: 500 },
-        { key: "maxLife", kind: "prefix", tier: 1, value: -1000 },
+        { key: "burn", kind: "prefix", tier: 1, value: 500, value2: 1 },
+        { key: "groundMend", kind: "prefix", tier: 1, value: 1, value2: 1000 },
       ],
     });
     equipment.mainHand = makeItem("mainHand", {
       implicit: { key: "implicit.shotgun", kind: "prefix", tier: 1, value: 2 },
     });
     const stats = computeStats(equipment);
-    expect(stats.critChance).toBe(1);
+    expect(stats.burnChance).toBe(1);
     expect(stats.maxHp).toBe(1);
     expect(Number.isInteger(stats.projectileCount)).toBe(true);
     expect(stats.projectileCount).toBe(3);
@@ -152,16 +137,15 @@ describe("softCap", () => {
     }
   });
 
-  it("+300% を積んでも 3 倍にならない（computeStats 経由）", () => {
+  it("+300% は 4.0 倍になる（増は圧縮しない。computeStats 経由）", () => {
     const equipment = createEmptyEquipment();
-    const melee = (slot: Slot, value: number): Item =>
-      makeItem(slot, { affixes: [{ key: "meleeDamagePct", kind: "prefix", tier: 1, value }] });
-    equipment.mainHand = melee("mainHand", 100);
-    equipment.ring = melee("ring", 100);
-    equipment.amulet = melee("amulet", 100);
+    const staggered = (slot: Slot, value: number): Item =>
+      makeItem(slot, { affixes: [{ key: "damageVsStaggered", kind: "prefix", tier: 1, value }] });
+    equipment.mainHand = staggered("mainHand", 100);
+    equipment.ring = staggered("ring", 100);
+    equipment.amulet = staggered("amulet", 100);
     const stats = computeStats(equipment);
-    expect(stats.meleeDamageMul).toBeGreaterThan(2);
-    expect(stats.meleeDamageMul).toBeLessThan(3);
+    expect(1 + stats.increased.vsStaggered).toBeCloseTo(4);
   });
 });
 
@@ -171,47 +155,38 @@ describe("キーストーンとトリガーの集計", () => {
   it("同じ排他グループは後勝ち（装備順）で 1 つだけ残る", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
-    equipment.ring = makeItem("ring", { affixes: [ks("ks_juggernaut"), ks("ks_gambler")] });
+    equipment.ring = makeItem("ring", { affixes: [ks("ks_vampire"), ks("ks_gambler")] });
     const stats = computeStats(equipment);
-    expect(stats.keystones).toEqual(["ks_juggernaut", "ks_gambler"]);
-    // 誓約 3 つ = 冥の支配（虚極: 被ダメ +10%）。負けた誓約も色の配合には数える
-    expect(stats.resonance.colors).toEqual(["umbra"]);
-    expect(stats.damageTakenMul).toBeCloseTo(0.5 + 0.1);
-    expect(stats.moveSpeedMul).toBeCloseTo(0.65);
-    expect(stats.critChance).toBeCloseTo(0.15);
-    // 負けた glassCannon の数値効果は掛からない
-    expect(stats.maxHp).toBe(DEFAULT_STATS.maxHp);
-    expect(stats.meleeDamageMul).toBe(1);
+    expect(stats.keystones).toEqual(["ks_vampire", "ks_gambler"]);
+    expect(stats.critChance).toBeCloseTo(DEFAULT_STATS.critChance + 0.1);
+    // 負けた glassCannon の数値効果（最大 HP 1/4）は掛からず、勝った吸血の 0.7 だけ
+    expect(stats.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * 0.7));
+    expect(stats.more.some((m) => m.source === "keystone:ks_glassCannon"), "負けた誓約の倍は入らない").toBe(false);
   });
 
   it("glassCannon は与ダメ 2 倍・最大 HP 1/4（flat 合算後に掛かる）", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
-    equipment.ring = makeItem("ring", {
-      affixes: [{ key: "maxLife", kind: "prefix", tier: 5, value: 20 }],
-    });
     const stats = computeStats(equipment);
-    expect(stats.meleeDamageMul).toBeCloseTo(2);
-    expect(stats.rangedDamageMul).toBeCloseTo(2);
-    expect(stats.maxHp).toBe(30);
+    const glass = stats.more.find((m) => m.source === "keystone:ks_glassCannon");
+    expect(glass?.mul, "誓約は倍").toBeCloseTo(2);
+    expect(glass?.tags, "近接と射撃に掛かる").toEqual(["melee", "ranged"]);
+    expect(stats.increased.melee, "増には入らない").toBe(0);
+    expect(stats.maxHp).toBe(Math.round(DEFAULT_STATS.maxHp * 0.25));
   });
 
-  it("キーストーンの倍率はソフトキャップの対象外（glassCannon の射撃倍率 2.0 が残る）", () => {
-    const equipment = createEmptyEquipment();
-    equipment.mainHand = makeItem("mainHand", { affixes: [ks("ks_glassCannon")] });
-    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(2);
-  });
-
-  it("通常アフィックスだけがソフトキャップされ、キーストーンはその後に足される", () => {
+  it("誓約は more に入り増と掛け算になる", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", {
       affixes: [
-        { key: "rangedDamagePct", kind: "prefix", tier: 1, value: 200 },
+        { key: "damageVsStaggered", kind: "prefix", tier: 1, value: 200 },
         ks("ks_glassCannon"),
       ],
     });
-    // 1 + 2.0 = 3.0 → softCap → +1.0（キーストーン）
-    expect(computeStats(equipment).rangedDamageMul).toBeCloseTo(softCap(3) + 1);
+    // 増 +200% → ×3.0、誓約の倍 ×2 → 6 倍
+    const stats = computeStats(equipment);
+    const glass = stats.more.find((m) => m.source === "keystone:ks_glassCannon")?.mul ?? 1;
+    expect((1 + stats.increased.vsStaggered) * glass).toBeCloseTo(6);
   });
 
   it("同じキーストーンを 2 つ装備しても 1 回しか効かない", () => {
@@ -255,42 +230,46 @@ describe("statsSummary", () => {
     const summary = statsSummary({
       ...DEFAULT_STATS,
       maxHp: 140,
-      meleeDamageMul: 1.25,
+      increased: { ...createIncreased(), melee: 0.25 },
+      more: [{ source: "keystone:ks_glassCannon", label: "硝子の砲", mul: 2, tags: ["melee", "ranged"] }],
       critChance: 0.12,
       comboWindowBonus: 0.5,
     });
     expect(summary).toEqual([
       "最大生命 140",
-      "近接ダメージ +25%",
       "会心率 12%",
       "コンボ猶予 +0.5秒",
+      "近接ダメージ 増 +25%",
+      "硝子の砲 倍 ×2",
     ]);
   });
 });
 
-describe("computeStats: マナの性質と渇きの誓約", () => {
-  it("渇きの誓約はマナ自然回復の性質があっても自然回復を 0 にする（装備順に依らない）", () => {
+describe("damageModDiffs（装備の比較の増・倍の差）", () => {
+  it("増はタグごと、倍は出所ごとに差を出し、消えたものは「→ なし」", () => {
+    const before = { ...DEFAULT_STATS, increased: { ...createIncreased(), melee: 0.2 }, more: [UNARMED_MORE] };
+    const after = { ...DEFAULT_STATS, increased: { ...createIncreased(), melee: 0.5, ranged: 0.1 } };
+    const diffs = damageModDiffs(before, after);
+    expect(diffs.map((d) => d.rises)).toEqual([true, true, true]);
+    expect(diffs.map((d) => d.text)).toEqual(["近接ダメージ 増 +50%", "射撃ダメージ 増 +10%", "素手 倍 ×0.7 → なし"]);
+    expect(damageModDiffs(after, after), "同じなら差なし").toEqual([]);
+  });
+});
+
+describe("computeStats: 気力の性質の代償", () => {
+  it("汲み上げの代償は撃破時の気力回収を下げる", () => {
     const equipment = createEmptyEquipment();
-    equipment.ring = makeItem("ring", { affixes: [{ key: "ks_thirst", value: 0, color: "umbra" }] });
-    equipment.amulet = makeItem("amulet", { affixes: [{ key: "manaRegenFlat", value: 1.5 }] });
+    equipment.mainHand = makeItem("mainHand", { affixes: [{ key: "manaOnStagger", value: 4, value2: 2 }] });
     const stats = computeStats(equipment);
-    expect(stats.keystones).toContain("ks_thirst");
-    expect(stats.manaRegen).toBe(0);
+    expect(stats.traits.manaOnStagger).toBe(4);
+    expect(stats.manaOnKill).toBe(-2);
   });
 
-  it("撃破でマナの性質は manaOnKill に積み、表示にも出る", () => {
+  it("溢れの代償（最大気力 −）を重ねても最大気力は 0 未満にならない", () => {
     const equipment = createEmptyEquipment();
-    equipment.boots = makeItem("boots", { affixes: [{ key: "manaOnKillFlat", value: 4 }] });
-    const stats = computeStats(equipment);
-    expect(stats.manaOnKill).toBe(4);
-    expect(statsSummary(stats)).toContain("撃破時気力回収 4");
-  });
-
-  it("最大マナ −の性質を重ねても最大マナは 0 未満にならない", () => {
-    const equipment = createEmptyEquipment();
-    const drought = { key: "manaDrought", value: 10, value2: 100 };
-    equipment.ring = makeItem("ring", { affixes: [drought] });
-    equipment.amulet = makeItem("amulet", { affixes: [drought] });
+    const overflow = { key: "manaOverflow", value: 50, value2: 100 };
+    equipment.ring = makeItem("ring", { affixes: [overflow] });
+    equipment.amulet = makeItem("amulet", { affixes: [overflow] });
     expect(computeStats(equipment).maxMana).toBe(0);
   });
 });
@@ -300,7 +279,7 @@ describe("computeStats: 武器種と弾（ベースから決まる）", () => {
     const stats = computeStats(createEmptyEquipment());
     expect(stats.moveset, "武器なしは拳の型").toBe("fists");
     expect(stats.unarmed, "武器なしは素手").toBe(true);
-    expect(stats.meleeDamageMul, "素手の威力の倍率").toBeCloseTo(WEAPON.unarmed.damageMul);
+    expect(stats.more.find((m) => m.source === "unarmed")?.mul, "素手の威力の倍").toBeCloseTo(WEAPON.unarmed.damageMul);
     expect(WEAPON.unarmed.damageMul, "素手の倍率は 0.7").toBe(0.7);
     expect(movesetLabel(MOVESETS[stats.moveset], stats.unarmed), "表示名は素手").toBe(UNARMED_NAME);
     expect(stats.bullet, "銃なしは既定の弾").toBe("pistol");
@@ -312,7 +291,7 @@ describe("computeStats: 武器種と弾（ベースから決まる）", () => {
     const stats = computeStats(equipment);
     expect(stats.moveset).toBe("fists");
     expect(stats.unarmed, "手甲は素手ではない").toBe(false);
-    expect(stats.meleeDamageMul, "威力は等倍").toBeCloseTo(1);
+    expect(stats.more, "威力は等倍（倍なし）").toEqual([]);
     expect(movesetLabel(MOVESETS[stats.moveset], stats.unarmed)).toBe(MOVESETS.fists.name);
   });
 

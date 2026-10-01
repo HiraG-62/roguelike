@@ -1,0 +1,16 @@
+{
+  "_note": "系譜の札の数値（docs/ideas/boon-impl.md 2-6。段取り 7b）。<系譜>.json が 1 系譜ぶん（札 key ごとのブロック）で、項目の意味はそのファイルの _fields に 1 回書く。fusion は融合 12、cursed は呪い付き 6 と芯 4。名前・説明・Rule は src/system/boonDefs/<系譜>.ts",
+  "_order": [
+    "ash",
+    "frost",
+    "thunder",
+    "moon",
+    "earth",
+    "blade",
+    "cycle",
+    "horde",
+    "wealth",
+    "fusion",
+    "cursed"
+  ]
+}

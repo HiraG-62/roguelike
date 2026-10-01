@@ -1,19 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
-import { FLOOR_KIND } from "../data/tuning";
+import { ARC, FLOOR_KIND } from "../data/tuning";
 import { buildFloor } from "../system/floor";
 import { standContractor } from "../system/contractors";
 import { nearestOffer, runSetupParts } from "./runUi";
 
 describe("ラン構造の HUD", () => {
-  it("欠片・反転層・帰還は右上の 1 行に並び、何も無ければ出さない", () => {
+  it("銭と鍵は 0 でも常に出し、反転層・帰還は右上の 1 行に並ぶ", () => {
     const state = createGame(3);
-    expect(runSetupParts(state), "放浪者・縛りなし・欠片なし").toEqual([]);
-    state.shards = 4;
-    expect(runSetupParts(state)).toEqual(["欠片 4"]);
+    expect(runSetupParts(state), "放浪者・縛りなし・銭も鍵も 0").toEqual(["銭 0 · 鍵 0"]);
+    state.economy.coins = 4;
+    state.economy.keys = 1;
+    expect(runSetupParts(state)).toEqual(["銭 4 · 鍵 1"]);
     state.depth = FLOOR_KIND.invertedDepth;
     state.runEvents.strata.revisit = true;
-    expect(runSetupParts(state)).toEqual(["欠片 4", "反転層", "帰還"]);
+    expect(runSetupParts(state)).toEqual(["銭 4 · 鍵 1", "反転層", "帰還"]);
+  });
+
+  it("深みでは右上に「深み n 層」を出し、反転層は出さない", () => {
+    const state = createGame(3);
+    state.depth = ARC.floorsPerChapter * ARC.maxChapter + 3;
+    expect(runSetupParts(state)).toEqual(["銭 0 · 鍵 0", "深み 2 層"]);
   });
 
   it("契約者の台座は、名前を読める距離でいちばん近いものだけ名前を出す", () => {

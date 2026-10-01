@@ -12,7 +12,9 @@
     "heartChance": "撃破時にハートを落とす確率。割合(0..1)",
     "roomMinW": "最後の部屋の最小の幅（タイル）",
     "roomMinH": "最後の部屋の最小の高さ（タイル）",
-    "arenaRadius": "洞窟の最後の塊を広げる半径（タイル）"
+    "arenaRadius": "洞窟の最後の塊を広げる半径（タイル）",
+    "captainMaxDepth": "この深度以下で通常敵を格上げした主は「〜の隊長」（号令のを添えた精鋭 2 つ。hpMulChampion の代わりに captainHpMul）",
+    "captainHpMul": "隊長の HP 倍率"
   },
   "lairChance": 0.7,
   "hpMulLair": 1.6,
@@ -25,5 +27,7 @@
   "heartChance": 0.5,
   "roomMinW": 14,
   "roomMinH": 11,
-  "arenaRadius": 5
+  "arenaRadius": 5,
+  "captainMaxDepth": 3,
+  "captainHpMul": 2.5
 }

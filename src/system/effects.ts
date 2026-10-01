@@ -2,14 +2,16 @@ import type { Element } from "../core/element";
 import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type Particle, type Projectile, type ShapeFx, type UltFx, type UltFxPart, pushSfx } from "../core/state";
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
+import { formatAmount } from "../core/units";
 import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
 import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
 import { weaponHitName } from "../audio/weaponHitNames";
 import type { SfxName } from "../audio/sfxNames";
 import { TRAIT_COLORS, type Item, type TraitColor } from "../loot/types";
-import { colorWeights } from "../loot/resonance";
+import { colorWeights } from "../loot/colors";
 import { type ElementAffinity, dominantElement, elementShares, outgoingElement, resolveAttack } from "./elementCombat";
 import { ELITE_COLOR } from "./elites";
+import { chapterOf } from "./chapters";
 
 /**
  * パーティクル・テキスト・揺れなど「気持ちよさ」担当。ロジックには影響しない。
@@ -347,6 +349,9 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   flail: "swingHammer",
   ringBlades: "swingSword",
   fan: "swingWhip",
+  // 段取り 5d: 既存の振り音を流用（書 = 杖、手鈴 = 棍）
+  book: "swingWand",
+  handbell: "swingStaff",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
@@ -386,6 +391,8 @@ const HIT_FAMILY: Readonly<Record<MovesetKey, HitFamily>> = {
   flail: "blunt",
   ringBlades: "slash",
   fan: "blunt",
+  book: "slash",
+  handbell: "blunt",
 };
 
 export function hitFamily(moveset: MovesetKey): HitFamily {
@@ -451,6 +458,7 @@ const STATUS_SFX: Partial<Record<StatusKind, SfxName>> = {
   weaken: "statusCurse",
   silence: "statusCurse",
   brand: "statusCurse",
+  inkMark: "statusCurse",
   broken: "statusCurse",
   doom: "statusCurse",
   siphon: "statusCurse",
@@ -1000,7 +1008,7 @@ function addDotText(state: GameState, amount: number, pos: Vec, color: string): 
   state.texts.push({
     pos: { x: pos.x + (fxRandom(state) - 0.5) * 4, y: pos.y - 10 },
     vel: { x: 0, y: -c.rise },
-    text: String(Math.round(amount)),
+    text: formatAmount(amount),
     color,
     life: c.life,
     maxLife: c.life,
@@ -1039,6 +1047,7 @@ const REACTION_SFX: Readonly<Record<ReactionKey, SfxName>> = {
   conduct: "reactionSpark",
   discharge: "reactionSpark",
   manaCut: "reactionSpark",
+  recite: "reactionSpark",
   miasma: "reactionBlight",
   dissolve: "reactionBlight",
   lacerate: "reactionBlight",
@@ -1105,6 +1114,34 @@ export function inscribeFx(state: GameState): void {
   addMark(state, "inscribe", pos, c.life, c.color);
   spawnBurst(state, pos, c.color, c.particles, 90, 0.5, 1.5);
   pushSfx(state, "inscribe");
+}
+
+// ---- ボス階の主の間への引き込み ----
+
+/** lordPull の印の value: 元の位置で消える渦 / 先で現れる渦 */
+export const LORD_PULL_VANISH = 0;
+export const LORD_PULL_APPEAR = 1;
+const LORD_PULL_TEXT = "引き込み";
+const LORD_PULL_TEXT_SCALE = 1.1;
+const LORD_PULL_TEXT_LIFE = 1;
+
+/** 引き込みの色。章ごとの色（章が足りなければ最後の色） */
+function lordPullColor(state: GameState): string {
+  const colors = FX_WAVE3.lordPull.chapterColors;
+  return colors[Math.min(chapterOf(state.depth), colors.length) - 1] ?? FX_WAVE3.lordPull.inkColor;
+}
+
+/**
+ * 封鎖前の狙撃で主の間へ引き込まれた（floor.ts の summonIntoLordHall から 1 行で呼ぶ）。
+ * 元の位置で墨の渦が消え、少し遅れて先で現れる。浮き文字は先に出す
+ */
+export function lordPullFx(state: GameState, from: Vec, to: Vec): void {
+  const c = FX_WAVE3.lordPull;
+  const color = lordPullColor(state);
+  addMark(state, "lordPull", from, c.life, color, LORD_PULL_VANISH);
+  addMark(state, "lordPull", to, c.delay + c.life, color, LORD_PULL_APPEAR);
+  addFloatingText(state, to, LORD_PULL_TEXT, color, LORD_PULL_TEXT_SCALE, LORD_PULL_TEXT_LIFE);
+  pushSfx(state, "dash");
 }
 
 // ---- 8-8 気力満タン ----

@@ -1,10 +1,11 @@
 import { type Element, ELEMENT_COLOR, ELEMENT_LABEL } from "../core/element";
-import type { FloorKind, GameState, RoomState } from "../core/state";
+import type { GameState, RoomState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { CONTRACT, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
+import { ARC, CONTRACT, ECONOMY, FLOOR_KIND, LINGER, ROOM_KIND, RUN_EVENT } from "../data/tuning";
 import { TRAIT_COLOR_HEX } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
 import { BIOMES, floorKindLabel, isInvertedDepth } from "../system/biomes";
+import { deepFloorOf, isDeepDepth } from "../system/chapters";
 import { CONTRACTORS, type Contractor, offerLabel, pactHudLines } from "../system/contractors";
 import { LINGER_LABEL, lingerTimeLeft, shadowPositions, tideFull } from "../system/linger";
 import { bountyTargetId, fogActive, hourglassLeft, reaperPassLine, reaperPassPos, runEventHudLines } from "../system/runEvents";
@@ -15,13 +16,14 @@ import { keystoneDef } from "../loot/affixes";
 import { PROP_LABEL, ROOM_KIND_COLOR, type RoomProp, escapeActive, inFogRoom } from "../system/specialRooms";
 import { TEXT, drawTextShadow, textLineHeight } from "./pixelText";
 import { clamp01, pulse } from "./renderMath";
+import { drawMerchants, drawStallSpots, nearestStallSpot } from "./merchantUi";
 import type { SpriteAtlas } from "./sprites";
 
 /**
  * ラン構造の描画（docs/ideas/run-expansion.md）。state を読むだけで、乱数は使わない。
- * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
+ * - ワールド座標: バイオームの色調（反転層の紫）・台座・契約者・商人の台座（merchantUi.ts）・護衛対象・刻の裂け目・落下物と落雷の予告・死神の通り道・
  *   影の自分・賞金首の印・階段の行き先
- * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・欠片・反転層 / 帰還
+ * - 画面座標: ランイベント・長居の代償・逃走・護衛・砂時計・契約の予告行、霧（霧の部屋）、起点と位階・銭と鍵・反転層 / 帰還
  */
 
 const COLOR_SHADOW = "#000000";
@@ -33,28 +35,26 @@ const COLOR_DIM = "#909090";
 // -----------------------------------------------------------------------------
 
 /**
- * バイオームの色調を全画面に重ねるか。PNG 素材の床・壁（tiled）は読み込み時にバイオームの色で染めてあるので、
- * 重ねると二重に掛かる。素材が無い（未ロード・読み込み失敗）ときだけ重ねる
+ * 反転層の紫を地図に重ねる（地図を描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。
+ * バイオームの色調は迷宮の焼き付け（章の様式 × バイオームの寄せ）が持つので重ねない
  */
-export function biomeTintNeeded(kind: FloorKind, tiled: boolean): boolean {
-  return !tiled && BIOMES[kind].tint !== null;
+export function drawInvertedTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number): void {
+  if (!isInvertedDepth(state.depth)) return;
+  fillInvertedTint(ctx, viewX, viewY, VIEW_W, VIEW_H, alpha);
 }
 
-/** 床と壁に重ねるバイオームの色調（タイルを描いた直後に呼ぶ）。viewX/viewY は画面左上のワールド座標。反転層は紫を重ねる */
-export function drawBiomeTint(ctx: CanvasRenderingContext2D, state: GameState, viewX: number, viewY: number, alpha: number, tiled = false): void {
-  const tint = biomeTintNeeded(state.floorKind, tiled) ? BIOMES[state.floorKind].tint : null;
-  if (isInvertedDepth(state.depth)) {
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = FLOOR_KIND.invertedColor;
-    ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
-  }
-  if (!tint) {
-    ctx.globalAlpha = 1;
-    return;
-  }
+/** 反転層なら、すでに描いた物（ctx の中身）の上だけに紫を重ねる（描き直す縁を地図の他の所と同じ色にするため） */
+export function drawInvertedTintAtop(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number, w: number, h: number, alpha: number): void {
+  if (!isInvertedDepth(state.depth)) return;
+  ctx.globalCompositeOperation = "source-atop";
+  fillInvertedTint(ctx, x, y, w, h, alpha);
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function fillInvertedTint(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, alpha: number): void {
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = tint;
-  ctx.fillRect(viewX, viewY, VIEW_W, VIEW_H);
+  ctx.fillStyle = FLOOR_KIND.invertedColor;
+  ctx.fillRect(x, y, w, h);
   ctx.globalAlpha = 1;
 }
 
@@ -66,6 +66,7 @@ export function drawRunWorld(ctx: CanvasRenderingContext2D, state: GameState, at
   for (const room of state.rooms) drawRoomProps(ctx, state, room, atlas);
   const who = state.contracts.contractor;
   if (who) drawContractor(ctx, state, who);
+  drawMerchants(ctx, state);
   drawRift(ctx, state);
   drawShadows(ctx, state);
   drawBountyMark(ctx, state);
@@ -84,8 +85,12 @@ function propColor(room: RoomState, prop: RoomProp): string {
       return ROOM_KIND.libraryColor;
     case "ascend":
       return FLOOR_KIND.ascendColor;
+    case "surface":
+      return ARC.surfaceColor;
     case "vein":
       return RUN_EVENT.vein.color;
+    case "lockedChest":
+      return ECONOMY.container.chestColor;
     case "element":
       return ELEMENT_COLOR[prop.key as Element] ?? ROOM_KIND.elementAltarColor;
     default:
@@ -105,11 +110,17 @@ export function propName(prop: RoomProp): string {
     case "element":
       return `${ELEMENT_LABEL[prop.key as Element] ?? ""}${PROP_LABEL.element}`;
     case "seal":
-      return `${PROP_LABEL.seal}（欠片 ${ROOM_KIND.vaultCost}）`;
+      return `${PROP_LABEL.seal}（鍵 ${ECONOMY.container.vaultKeys} / 銭 ${ROOM_KIND.vaultCoinCost}）`;
+    case "lockedChest":
+      return `${PROP_LABEL.lockedChest}（鍵 ${ECONOMY.container.lockedChestKeys}）`;
+    case "lever":
+      return `${PROP_LABEL.lever}（銭 ${ROOM_KIND.gambleCoinCost}）`;
     case "vein":
       return `${PROP_LABEL.vein} 残り ${prop.uses ?? 0}`;
     case "ascend":
       return `${PROP_LABEL.ascend}（乗り続ける）`;
+    case "surface":
+      return `${PROP_LABEL.surface}（乗り続ける）`;
     default:
       return PROP_LABEL[prop.kind];
   }
@@ -122,9 +133,11 @@ export function propSpriteKey(prop: Pick<RoomProp, "kind">): string {
 
 /** 素材があれば足元を台座のタイルの下端に揃えて描く。無ければ false（呼び出し側が菱形で描く） */
 function drawPropSprite(ctx: CanvasRenderingContext2D, prop: RoomProp, atlas: SpriteAtlas | undefined): boolean {
-  const img = atlas?.[propSpriteKey(prop)]?.frames[0];
-  if (!img) return false;
-  ctx.drawImage(img, Math.round(prop.pos.x - img.width / 2), Math.round(prop.pos.y + TILE_SIZE / 2 - img.height));
+  const sprite = atlas?.[propSpriteKey(prop)];
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
+  // 論理寸法で置く（密度 2 の絵も PNG の素材と同じ大きさで並ぶ）
+  ctx.drawImage(img, Math.round(prop.pos.x - sprite.w / 2), Math.round(prop.pos.y + TILE_SIZE / 2 - sprite.h), sprite.w, sprite.h);
   return true;
 }
 
@@ -140,7 +153,7 @@ function drawRoomProps(ctx: CanvasRenderingContext2D, state: GameState, room: Ro
       continue;
     }
     if (!drawPropSprite(ctx, prop, atlas)) drawPropDiamond(ctx, state, prop, color);
-    if (prop.kind === "ascend") drawHoldRing(ctx, prop, color);
+    if (prop.kind === "ascend" || prop.kind === "surface") drawHoldRing(ctx, prop, color);
     if (Math.hypot(p.x - prop.pos.x, p.y - prop.pos.y) > ROOM_KIND.propLabelRange) continue;
     const label = prop.kind === "lever" ? `${propName(prop)} 残り ${special.uses}` : propName(prop);
     drawTextShadow(ctx, label, prop.pos.x, prop.pos.y - LABEL_LIFT, TEXT.SMALL, color, COLOR_SHADOW, "center");
@@ -161,9 +174,9 @@ function drawPropDiamond(ctx: CanvasRenderingContext2D, state: GameState, prop: 
 
 const HOLD_RING_R = 8;
 
-/** 上り階段に乗り続けた割合の輪 */
+/** 乗り続ける台座（上り階段・地上への道）に乗り続けた割合の輪 */
 function drawHoldRing(ctx: CanvasRenderingContext2D, prop: RoomProp, color: string): void {
-  const ratio = clamp01((prop.hold ?? 0) / FLOOR_KIND.ascendHold);
+  const ratio = clamp01((prop.hold ?? 0) / (prop.kind === "surface" ? ARC.surfaceHold : FLOOR_KIND.ascendHold));
   if (ratio <= 0) return;
   ctx.strokeStyle = color;
   ctx.lineWidth = 1;
@@ -176,7 +189,6 @@ const CONTRACTOR_HEAD_R = 3;
 const CONTRACTOR_BODY_W = 6;
 const CONTRACTOR_BODY_H = 7;
 const CONTRACTOR_NAME_LIFT = 14;
-const OFFER_SIZE = 5;
 
 /** 契約者（頭と胴の簡単な人影）と、その前に並ぶ台座 */
 function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Contractor): void {
@@ -193,33 +205,17 @@ function drawContractor(ctx: CanvasRenderingContext2D, state: GameState, who: Co
   ctx.fill();
   const near = Math.hypot(p.x - who.pos.x, p.y - who.pos.y) <= CONTRACT.greetRange * 2;
   if (near) drawTextShadow(ctx, def.name, x, y - CONTRACTOR_NAME_LIFT, TEXT.SMALL, def.color, COLOR_SHADOW, "center");
-  for (const offer of who.offers) {
-    if (offer.used) continue;
-    ctx.globalAlpha = pulse(state.time, PROP_PULSE_SPEED, 0.5, 1);
-    ctx.fillStyle = def.color;
-    ctx.fillRect(Math.round(offer.pos.x - OFFER_SIZE / 2), Math.round(offer.pos.y - OFFER_SIZE / 2), OFFER_SIZE, OFFER_SIZE);
-    ctx.globalAlpha = 1;
-  }
+  drawStallSpots(ctx, state, who.offers, def.color);
   // 台座どうしが近く名前が重なるので、いちばん近い台座の名前だけを出す
   const offer = nearestOffer(state, who);
   if (!offer) return;
-  const affordable = state.shards >= offer.cost;
+  const affordable = state.economy.coins >= offer.cost;
   drawTextShadow(ctx, offerLabel(offer), offer.pos.x, offer.pos.y - LABEL_LIFT, TEXT.SMALL, affordable ? def.color : COLOR_DIM, COLOR_SHADOW, "center");
 }
 
 /** 名前を読める距離にある、まだ使っていない台座のうち最も近いもの */
 export function nearestOffer(state: GameState, who: Contractor): Contractor["offers"][number] | null {
-  const p = state.player.body.pos;
-  let best: Contractor["offers"][number] | null = null;
-  let bestDist: number = ROOM_KIND.propLabelRange;
-  for (const offer of who.offers) {
-    if (offer.used) continue;
-    const d = Math.hypot(p.x - offer.pos.x, p.y - offer.pos.y);
-    if (d > bestDist) continue;
-    best = offer;
-    bestDist = d;
-  }
-  return best;
+  return nearestStallSpot(state, who.offers);
 }
 
 /** 雷鳴の刻の落雷の予告: 外周の輪と、満ちていく中の円 */
@@ -479,7 +475,7 @@ function stairsLine(state: GameState): HudLine | null {
   return { text: `分岐路: ${state.stairs.map((s) => floorKindLabel(s.nextKind)).join(" / ")}`, color: COLOR_TEXT, blink: false };
 }
 
-/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・欠片・反転層 / 帰還 */
+/** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・銭と鍵（常に出す。資源なので 0 でも数字で見せる）・反転層 / 帰還 */
 export function drawRunSetupHud(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number): void {
   const parts = runSetupParts(state);
   if (parts.length === 0) return;
@@ -491,8 +487,10 @@ export function runSetupParts(state: GameState): string[] {
   const parts: string[] = [];
   const tier = runTier(state.modifiers);
   if (state.origin !== "wanderer" || tier > 0) parts.push(tier > 0 ? `${ORIGINS[state.origin].name} · 位階 ${tier}` : ORIGINS[state.origin].name);
-  if (state.shards > 0) parts.push(`欠片 ${state.shards}`);
-  if (isInvertedDepth(state.depth)) parts.push("反転層");
+  parts.push(`銭 ${state.economy.coins} · 鍵 ${state.economy.keys}`);
+  // 深みを優先して 1 つだけ出す（深みは章 4 の反転層と深度が重なるため）
+  if (isDeepDepth(state.depth)) parts.push(`深み ${deepFloorOf(state.depth)} 層`);
+  else if (isInvertedDepth(state.depth)) parts.push("反転層");
   if (state.runEvents.strata.revisit) parts.push("帰還");
   return parts;
 }

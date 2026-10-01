@@ -1,0 +1,19 @@
+{
+  "_note": "敵の予告の線（render/telegraphLineUi.ts）。見た目だけでロジックに効かない。黄 = まだ怯ませて潰せる、赤 = コミット後（必ず出る。受け流しだけが止める）",
+  "_fields": {
+    "readyColor": "予備動作の前半（怯ませられる間）の色",
+    "commitColor": "コミット後（攻撃が必ず出る）の色。頭上の「!」も同じ",
+    "lineAlpha": "線の不透明度(0..1)",
+    "lineWidth": "線の太さ（論理 px）",
+    "minLength": "線の最短 px（攻撃中の移動で届く距離をこの範囲に丸める）",
+    "maxLength": "線の最長 px",
+    "fallbackLength": "届く距離を持たない敵（ボスの個別の技など）の線の長さ px"
+  },
+  "readyColor": "#ffd040",
+  "commitColor": "#ff4040",
+  "lineAlpha": 0.35,
+  "lineWidth": 1,
+  "minLength": 24,
+  "maxLength": 200,
+  "fallbackLength": 120
+}

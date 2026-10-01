@@ -3,10 +3,11 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { ELEMENT_LABEL } from "../core/element";
-import { CONTRACT, FLOOR_KIND, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ARC, DEEP, ECONOMY, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
+import { withFixedLayout } from "../map/layout/select";
 import { shadowPositions } from "./linger";
 import { reaperAppearAfter } from "./reaper";
 import { isDark } from "./roomTypes";
@@ -16,7 +17,6 @@ import {
   type RunEventKey,
   activeElementStorm,
   bountyTargetId,
-  deepHpMul,
   fogActive,
   hourglassLeft,
   mutationsFor,
@@ -41,18 +41,37 @@ const WARN_STEPS = Math.ceil(RUN_EVENT.warnTime / FIXED_DT) + 2;
 /** 落雷などの単発ダメージで死なない生命（テストの敵が抽選で蝙蝠になっても耐える） */
 const STURDY_HP = 10_000;
 
+/** 敵のいる塊が見つかるまで進める seed の数（階の抽選しだいで、その seed の階に敵のいる塊が無いこともある） */
+const SEED_TRIES = 20;
+
+/** 陣が乗った塊だけに敵がいる（陣の抽選で敵のいない塊もある）ので、敵のいる塊を選ぶ。無ければ -1 */
+function enemyRoomIndex(state: GameState): number {
+  return state.rooms.findIndex(
+    (r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0 && state.enemies.some((e) => e.roomIndex === i),
+  );
+}
+
+/** seed から順に、敵のいる塊がある階を作る（make は seed から GameState を作る） */
+function floorWithEnemyRoom(seed: number, depth: number, make: (s: number) => GameState): { state: GameState; room: RoomState; index: number } {
+  for (let s = seed; s < seed + SEED_TRIES; s++) {
+    const state = make(s);
+    state.depth = depth;
+    // 深度 5 はボス階で専用の部屋（部屋 3 つ・道中の敵なし）になるので、敵のいる塊が要るこの検査は旧生成器の形で作る
+    withFixedLayout("legacy", () => buildFloor(state, "rooms"));
+    quiet(state);
+    const index = enemyRoomIndex(state);
+    const room = state.rooms[index];
+    if (!room) continue;
+    // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
+    room.kind = "ambush";
+    state.player.invulnTimer = 1e9;
+    return { state, room, index };
+  }
+  throw new Error("room missing");
+}
+
 function setup(seed = 7, depth = DEPTH): { state: GameState; room: RoomState; index: number } {
-  const state = createGame(seed);
-  state.depth = depth;
-  buildFloor(state, "rooms");
-  quiet(state);
-  const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
-  const room = state.rooms[index];
-  if (!room) throw new Error("room missing");
-  // 開放型フロアでは通常の部屋は封鎖しないので、封鎖する種類（伏兵）にしておく
-  room.kind = "ambush";
-  state.player.invulnTimer = 1e9;
-  return { state, room, index };
+  return floorWithEnemyRoom(seed, depth, (s) => createGame(s));
 }
 
 function quiet(state: GameState): void {
@@ -85,7 +104,9 @@ function start(state: GameState, key: RunEventKey, index: number): void {
 /** 封鎖中の部屋の敵を n 体まで減らす（部屋の敵数の上限 ROOM.maxEnemies に当たらないように） */
 function thin(state: GameState, index: number, keep: number): void {
   const alive = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+  // 陣の群勢を崩して敗走させないよう、陣から外してから倒す（このテストは敗走でなく部屋の封鎖・増援を見る）
   alive.slice(keep).forEach((e) => {
+    e.jinId = undefined;
     e.hp = 0;
   });
   run(state, 1);
@@ -393,15 +414,7 @@ describe("縛りの効果", () => {
   });
 
   it("部屋の砂時計: 封鎖が長引くと増援が来る", () => {
-    const state = createGame(7, "7", undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] });
-    state.depth = DEPTH;
-    buildFloor(state, "rooms");
-    quiet(state);
-    const index = state.rooms.findIndex((r, i) => i > 0 && i < state.rooms.length - 1 && r.kind === "normal" && r.doorTiles.length > 0);
-    const room = state.rooms[index];
-    if (!room) throw new Error("room missing");
-    room.kind = "ambush";
-    state.player.invulnTimer = 1e9;
+    const { state, room, index } = floorWithEnemyRoom(7, DEPTH, (s) => createGame(s, String(s), undefined, undefined, { origin: "wanderer", modifiers: ["hourglass"] }));
     lock(state, room);
     thin(state, index, 2);
     expect(hourglassLeft(state)).not.toBeNull();
@@ -480,10 +493,12 @@ describe("ランイベント第 2 弾の効果", () => {
     expect(state.player.mana, "制圧で満ちる").toBe(state.stats.maxMana);
   });
 
-  it("決闘: 名乗った敵以外が止まり、名乗った敵を倒すと残りが怯えて欠片", () => {
+  it("決闘: 名乗った敵以外が止まり、名乗った敵を倒すと残りが怯えて銭", () => {
     const { state, room, index } = setup();
     lock(state, room);
     thin(state, index, 3);
+    // 名乗った敵が陣の大将だと、倒した瞬間に陣が敗走して残りが部屋を離れる（このテストは敗走でなく決闘の恐怖を見る）
+    for (const e of state.enemies) if (e.roomIndex === index) e.jinId = undefined;
     start(state, "duel", index);
     const current = state.runEvents.room;
     const champion = current?.target;
@@ -493,15 +508,15 @@ describe("ランイベント第 2 弾の効果", () => {
     const others = state.enemies.filter((e) => e !== champion && e.roomIndex === index && e.hp > 0);
     expect(others.length, "他の敵").toBeGreaterThan(0);
     expect(others.every((e) => e.attackCooldown > 0), "他の敵は手を出さない").toBe(true);
-    const shards = state.shards;
+    const coins = state.economy.coins;
     champion.hp = 0;
     run(state, 1);
-    expect(state.shards - shards, "欠片").toBeGreaterThanOrEqual(CONTRACT.shardsDuel);
+    expect(state.economy.coins - coins, "銭").toBeGreaterThanOrEqual(ECONOMY.income.duel);
     expect(others.filter((e) => e.hp > 0).some((e) => hasStatus(e.status, "fear")), "恐怖").toBe(true);
   });
 
   it("呪詛の声: 呪い持ちにだけ起き、コンボが届けば呪いが解け、届かなければ増える", () => {
-    const cursed = BOON_KEYS.filter((k) => BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const cursed = BOON_KEYS.filter((k) => BOONS[k].cursed);
     const first = cursed[0];
     if (!first) throw new Error("呪い付きの祝福が無い");
     const ok = setup();
@@ -619,7 +634,7 @@ describe("ランイベント第 2 弾の効果", () => {
 
   it("流れ星: 祝福を 1 つ手放して 3 択を開く", () => {
     const { state, room, index } = setup();
-    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && BOONS[k].core !== true && BOONS[k].card !== "apex" && BOONS[k].fusion === undefined);
     if (!plain) throw new Error("祝福");
     grantBoon(state, plain);
     lock(state, room);
@@ -631,7 +646,7 @@ describe("ランイベント第 2 弾の効果", () => {
 
   it("流れ星: 3 択が開けない深度では祝福を手放さない", () => {
     const { state, room, index } = setup(7, 1);
-    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && !BOONS[k].after && !BOONS[k].duo);
+    const plain = BOON_KEYS.find((k) => !BOONS[k].cursed && BOONS[k].core !== true && BOONS[k].card !== "apex" && BOONS[k].fusion === undefined);
     if (!plain) throw new Error("祝福");
     grantBoon(state, plain);
     lock(state, room);
@@ -642,26 +657,30 @@ describe("ランイベント第 2 弾の効果", () => {
   });
 });
 
-describe("無限の深み（変異）", () => {
-  it("深みより浅ければ変異なし、深いほど積み上がる", () => {
-    expect(mutationsFor(FLOOR_KIND.deepDepth - 1)).toEqual([]);
-    expect(mutationsFor(FLOOR_KIND.deepDepth).length).toBe(1);
-    expect(mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery).length).toBe(2);
-    for (const key of mutationsFor(FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 10)) expect(RUN_EVENTS[key].scope, key).toBe("floor");
+describe("深み（変異）", () => {
+  /** 深み n 層目の深度（最深の間の次の階が 1 層目） */
+  const deepDepthOf = (layer: number): number => ARC.floorsPerChapter * ARC.maxChapter + 1 + layer;
+
+  it("深みより浅ければ変異なし、深み 1 層目で 1 つ、DEEP.mutationEvery 層ごとに 1 つ増え、全部が階の枠の出来事", () => {
+    expect(mutationsFor(deepDepthOf(0)), "最深の間").toEqual([]);
+    expect(mutationsFor(deepDepthOf(1)).length).toBe(1);
+    expect(mutationsFor(deepDepthOf(DEEP.mutationEvery)).length, "増える 1 つ手前").toBe(1);
+    expect(mutationsFor(deepDepthOf(1 + DEEP.mutationEvery)).length).toBe(2);
+    for (const key of mutationsFor(deepDepthOf(1 + DEEP.mutationEvery * 10))) expect(RUN_EVENTS[key].scope, key).toBe("floor");
+  });
+
+  it("変異に狂乱の月は入らない（予備動作を縮めない）", () => {
+    expect(mutationsFor(deepDepthOf(1 + DEEP.mutationEvery * 10))).not.toContain("frenzyMoon");
   });
 
   it("深みの階では変異が常に効き、HUD に出る", () => {
-    const { state } = setup(7, FLOOR_KIND.deepDepth + FLOOR_KIND.mutationEvery * 2);
+    // 霧は 2 つ目の変異なので、深み 1 + mutationEvery 層で見る
+    const { state } = setup(7, deepDepthOf(1 + DEEP.mutationEvery));
     buildFloor(state, "rooms");
     quiet(state);
-    expect(state.runEvents.mutations.length).toBe(3);
+    expect(state.runEvents.mutations.length).toBe(2);
     expect(fogActive(state), "霧の変異").toBe(true);
     expect(runEventHudLines(state).some((l) => l.text.startsWith("変異")), "HUD").toBe(true);
-  });
-
-  it("深みでは敵の HP の伸びが寝る", () => {
-    expect(deepHpMul(FLOOR_KIND.deepDepth)).toBe(1);
-    expect(deepHpMul(FLOOR_KIND.deepDepth + 20)).toBeLessThan(1);
   });
 });
 

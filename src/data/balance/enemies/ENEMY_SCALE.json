@@ -1,7 +1,15 @@
 {
-  "_note": "深度による敵の強さの伸び。src/data/enemies.ts の depthHpScale が読む(HP 倍率 = 1 + hpPerDepth × (深度 - 1))。値は外部化前の直書きと同じ",
+  "_note": "【段取り 7e】hpPerDepth 0.15 → 0.11: 地力の伸びは筋・技の逓減（ATTR.knee1 = 20）で頭打ちなので、敵の生命の伸びを寄せて地力 ÷ 敵の生命を 0.85（深度 5・10）〜0.74（深度 20）へ。damagePerDepth 0.05 → 0.14: 被弾で死ぬまで（深度相応の装備）が深度 10 で 15、20 で 10 と、目標の 4〜7 の約 2 倍長かったため（深度 1 は変わらない。テレグラフは触らない）。 深度による敵の強さの伸び（core-synthesis 段取り 4）。深度 1〜deepDepth は線形、deepDepth 以降は指数。生命・怯み耐性は同じ曲線（src/data/enemies.ts の depthHpScale）、攻撃は別の傾き（depthDamageMul。敵の基礎攻撃に掛ける倍率）。予備動作は ENEMY_TEMPO",
   "_fields": {
-    "hpPerDepth": "深度 1 つごとに敵の HP へ足す倍率(深度 1 で 1 倍)。倍率。目安 0.15〜0.2"
+    "hpPerDepth": "深度 1 つごとに敵の生命へ足す倍率（深度 1 で 1 倍）。怯み耐性も同じ。目安 0.12〜0.18",
+    "damagePerDepth": "深度 1 つごとに敵の攻撃へ足す倍率（深度 1 で 1 倍。旧 flat 加算 depthDamageBonus の置き換え）。目安 0.04〜0.06",
+    "deepDepth": "ここから深み（指数の伸び）。最深の間の深度と同じにする（chapters.test.ts が縛る）。深みの敵数・変異は world/DEEP。目安 21",
+    "deepHpGrowth": "深み 1 階ごとの生命・怯み耐性の倍率（深度 deepDepth の値 × これ^(深度 − deepDepth)）。目安 1.10〜1.15",
+    "deepDamageGrowth": "深み 1 階ごとの敵の攻撃の倍率。目安 1.03〜1.05"
   },
-  "hpPerDepth": 0.18
+  "hpPerDepth": 0.11,
+  "damagePerDepth": 0.14,
+  "deepDepth": 21,
+  "deepHpGrowth": 1.12,
+  "deepDamageGrowth": 1.04
 }

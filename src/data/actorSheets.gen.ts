@@ -6,11 +6,14 @@ import actor_bodyHexer from "./actor/bodyHexer.gen.json";
 import actor_bodyHunter from "./actor/bodyHunter.gen.json";
 import actor_bodyInvoker from "./actor/bodyInvoker.gen.json";
 import actor_bodyLancer from "./actor/bodyLancer.gen.json";
+import actor_bodyMiko from "./actor/bodyMiko.gen.json";
 import actor_bodyNone from "./actor/bodyNone.gen.json";
+import actor_bodyOnmyoji from "./actor/bodyOnmyoji.gen.json";
 import actor_bodyShadow from "./actor/bodyShadow.gen.json";
 import actor_bodyShieldBearer from "./actor/bodyShieldBearer.gen.json";
 import actor_bodySwordsman from "./actor/bodySwordsman.gen.json";
 import actor_wpnAxe from "./actor/wpnAxe.gen.json";
+import actor_wpnBook from "./actor/wpnBook.gen.json";
 import actor_wpnCannon from "./actor/wpnCannon.gen.json";
 import actor_wpnChainSickle from "./actor/wpnChainSickle.gen.json";
 import actor_wpnClaws from "./actor/wpnClaws.gen.json";
@@ -22,6 +25,7 @@ import actor_wpnGreatsword from "./actor/wpnGreatsword.gen.json";
 import actor_wpnGrenade from "./actor/wpnGrenade.gen.json";
 import actor_wpnGunner from "./actor/wpnGunner.gen.json";
 import actor_wpnHammer from "./actor/wpnHammer.gen.json";
+import actor_wpnHandbell from "./actor/wpnHandbell.gen.json";
 import actor_wpnKatana from "./actor/wpnKatana.gen.json";
 import actor_wpnLongarm from "./actor/wpnLongarm.gen.json";
 import actor_wpnRingBlades from "./actor/wpnRingBlades.gen.json";
@@ -46,11 +50,14 @@ export const ACTOR_ATLASES = {
   bodyHunter: { url: "assets/actor/bodyHunter.png", width: actor_bodyHunter.width, height: actor_bodyHunter.height, meta: actor_bodyHunter.meta },
   bodyInvoker: { url: "assets/actor/bodyInvoker.png", width: actor_bodyInvoker.width, height: actor_bodyInvoker.height, meta: actor_bodyInvoker.meta },
   bodyLancer: { url: "assets/actor/bodyLancer.png", width: actor_bodyLancer.width, height: actor_bodyLancer.height, meta: actor_bodyLancer.meta },
+  bodyMiko: { url: "assets/actor/bodyMiko.png", width: actor_bodyMiko.width, height: actor_bodyMiko.height, meta: actor_bodyMiko.meta },
   bodyNone: { url: "assets/actor/bodyNone.png", width: actor_bodyNone.width, height: actor_bodyNone.height, meta: actor_bodyNone.meta },
+  bodyOnmyoji: { url: "assets/actor/bodyOnmyoji.png", width: actor_bodyOnmyoji.width, height: actor_bodyOnmyoji.height, meta: actor_bodyOnmyoji.meta },
   bodyShadow: { url: "assets/actor/bodyShadow.png", width: actor_bodyShadow.width, height: actor_bodyShadow.height, meta: actor_bodyShadow.meta },
   bodyShieldBearer: { url: "assets/actor/bodyShieldBearer.png", width: actor_bodyShieldBearer.width, height: actor_bodyShieldBearer.height, meta: actor_bodyShieldBearer.meta },
   bodySwordsman: { url: "assets/actor/bodySwordsman.png", width: actor_bodySwordsman.width, height: actor_bodySwordsman.height, meta: actor_bodySwordsman.meta },
   wpnAxe: { url: "assets/actor/wpnAxe.png", width: actor_wpnAxe.width, height: actor_wpnAxe.height, meta: actor_wpnAxe.meta },
+  wpnBook: { url: "assets/actor/wpnBook.png", width: actor_wpnBook.width, height: actor_wpnBook.height, meta: actor_wpnBook.meta },
   wpnCannon: { url: "assets/actor/wpnCannon.png", width: actor_wpnCannon.width, height: actor_wpnCannon.height, meta: actor_wpnCannon.meta },
   wpnChainSickle: { url: "assets/actor/wpnChainSickle.png", width: actor_wpnChainSickle.width, height: actor_wpnChainSickle.height, meta: actor_wpnChainSickle.meta },
   wpnClaws: { url: "assets/actor/wpnClaws.png", width: actor_wpnClaws.width, height: actor_wpnClaws.height, meta: actor_wpnClaws.meta },
@@ -62,6 +69,7 @@ export const ACTOR_ATLASES = {
   wpnGrenade: { url: "assets/actor/wpnGrenade.png", width: actor_wpnGrenade.width, height: actor_wpnGrenade.height, meta: actor_wpnGrenade.meta },
   wpnGunner: { url: "assets/actor/wpnGunner.png", width: actor_wpnGunner.width, height: actor_wpnGunner.height, meta: actor_wpnGunner.meta },
   wpnHammer: { url: "assets/actor/wpnHammer.png", width: actor_wpnHammer.width, height: actor_wpnHammer.height, meta: actor_wpnHammer.meta },
+  wpnHandbell: { url: "assets/actor/wpnHandbell.png", width: actor_wpnHandbell.width, height: actor_wpnHandbell.height, meta: actor_wpnHandbell.meta },
   wpnKatana: { url: "assets/actor/wpnKatana.png", width: actor_wpnKatana.width, height: actor_wpnKatana.height, meta: actor_wpnKatana.meta },
   wpnLongarm: { url: "assets/actor/wpnLongarm.png", width: actor_wpnLongarm.width, height: actor_wpnLongarm.height, meta: actor_wpnLongarm.meta },
   wpnRingBlades: { url: "assets/actor/wpnRingBlades.png", width: actor_wpnRingBlades.width, height: actor_wpnRingBlades.height, meta: actor_wpnRingBlades.meta },
@@ -100,11 +108,14 @@ export const ACTOR_SHEETS: Record<string, ActorSheetDef> = {
   ...actor_bodyHunter.sheets,
   ...actor_bodyInvoker.sheets,
   ...actor_bodyLancer.sheets,
+  ...actor_bodyMiko.sheets,
   ...actor_bodyNone.sheets,
+  ...actor_bodyOnmyoji.sheets,
   ...actor_bodyShadow.sheets,
   ...actor_bodyShieldBearer.sheets,
   ...actor_bodySwordsman.sheets,
   ...actor_wpnAxe.sheets,
+  ...actor_wpnBook.sheets,
   ...actor_wpnCannon.sheets,
   ...actor_wpnChainSickle.sheets,
   ...actor_wpnClaws.sheets,
@@ -116,6 +127,7 @@ export const ACTOR_SHEETS: Record<string, ActorSheetDef> = {
   ...actor_wpnGrenade.sheets,
   ...actor_wpnGunner.sheets,
   ...actor_wpnHammer.sheets,
+  ...actor_wpnHandbell.sheets,
   ...actor_wpnKatana.sheets,
   ...actor_wpnLongarm.sheets,
   ...actor_wpnRingBlades.sheets,

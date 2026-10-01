@@ -1,11 +1,12 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import type { EventKind } from "../core/events";
-import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, type TerrainKind } from "../core/terrain";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
+import type { FormKey } from "./weaponForms";
 
 /**
  * 武器種（通常攻撃の型・左右のアクションの連撃と派生）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
@@ -45,6 +46,9 @@ export const MOVESET_KEYS = [
   "flail",
   "ringBlades",
   "fan",
+  // 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8）。型の key（tome / bell）と重ねない
+  "book",
+  "handbell",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
@@ -68,7 +72,7 @@ export type HitShape =
   | { readonly kind: "thrust" }
   | { readonly kind: "circle" };
 
-/** 先端判定（槍の穂先・鞭の先端）。thrust の先端 ratio 以内に入った敵へ掛ける倍率 */
+/** 先端判定（槍の穂先・鞭の先端・棍の棒先）。thrust の先端 ratio 以内に入った敵へ掛ける倍率 */
 export interface TipDef {
   readonly ratio: number;
   readonly damageMul: number;
@@ -77,6 +81,11 @@ export interface TipDef {
   /** 先端以外（根元）の倍率 */
   readonly offDamageMul: number;
   readonly offManaMul: number;
+  /**
+   * 薙ぎ（arc）と回し（circle）の段も外周の ratio を先端として数える（棍。棒の先で打つ）。
+   * 省略は突きの段だけ（槍・鞭は払いの段で先端を持たない）
+   */
+  readonly sweep?: boolean;
 }
 
 export interface MeleeStepDef {
@@ -331,6 +340,10 @@ export interface SpinningDef {
   readonly step: MeleeStepDef;
 }
 
+/** 武器の重さ（docs/ideas/combat-core-impl.md 2-5）。攻撃中の移動・ダッシュでの取り消し・硬直・通常命中のヒットストップの帯を決める */
+export const WEAPON_WEIGHTS = ["light", "medium", "heavy"] as const;
+export type WeaponWeight = (typeof WEAPON_WEIGHTS)[number];
+
 export interface MovesetDef {
   readonly key: MovesetKey;
   /** 表示名（docs/GLOSSARY.md「武器種」） */
@@ -342,8 +355,14 @@ export interface MovesetDef {
   /** 左の長押しの溜め（primary が charge の武器種だけ） */
   readonly charge?: MeleeChargeDef;
   readonly tip?: TipDef;
-  /** 攻撃中の移動速度倍率 */
+  /** 戦意のゲージの名を武器種で言い換える（棍は長柄の「穂先」ではなく「棒先」）。省略は型の名（FormDef.morale.label） */
+  readonly moraleLabel?: string;
+  /** 攻撃中の移動速度倍率（重さの帯 WEAPON.weightClass に丸めて使う。attackMoveMulOf） */
   readonly attackMoveMul: number;
+  /** 武器の重さ。係数は WEAPON.weightClass[weight] */
+  readonly weight: WeaponWeight;
+  /** 武器の型（data/weaponForms.ts）。戦意・共通の瞬間の出し方・段数の幅を型で揃え、武器種は型の個性（docs/ideas/weapon-forms-impl.md 2 章） */
+  readonly form: FormKey;
   /** 左クリックの役割 */
   readonly primary: PrimaryKind;
   /**
@@ -359,6 +378,8 @@ export interface MovesetDef {
   readonly attack: AttackProfile;
   /** 武器種の固有効果（統一ルール文法）。system/rules.ts の collectRules が今の武器種の分だけ集める */
   readonly rules?: readonly Rule[];
+  /** 武器種の常時の増・倍（Modifier）。system/modifiers.ts が今の武器種の分だけ集める */
+  readonly modifiers?: readonly Modifier[];
 }
 
 export interface BulletChargeLevelDef {
@@ -549,6 +570,13 @@ function hitShape(raw: unknown): HitShape {
   throw new Error(`未知の shape.kind: ${raw.kind}`);
 }
 
+/** JSON の weight を WEAPON_WEIGHTS と照合する（未知の値は読み込み時に落とす） */
+export function reviveWeight(raw: unknown): WeaponWeight {
+  const found = WEAPON_WEIGHTS.find((w) => w === raw);
+  if (found === undefined) throw new Error(`未知の weight: ${String(raw)}`);
+  return found;
+}
+
 function statusApply(raw: unknown): StatusApply {
   if (!isRecord(raw) || typeof raw.kind !== "string" || typeof raw.stacks !== "number" || typeof raw.duration !== "number" || typeof raw.potency !== "number") {
     throw new Error(`不正な applies: ${JSON.stringify(raw)}`);
@@ -586,7 +614,7 @@ export function reviveStep(raw: unknown): MeleeStepDef {
 }
 
 /** 段の cast（{ key, throw }）。名前は CAST_NAMES、素性と絵は CAST_VOLLEY（無ければ射撃・物理）。弾の key は `cast.<key>` */
-function reviveCast(raw: unknown): CastDef {
+export function reviveCast(raw: unknown): CastDef {
   if (!isRecord(raw) || typeof raw.key !== "string" || raw.key === "") throw new Error(`不正な cast: ${JSON.stringify(raw)}`);
   const name = CAST_NAMES[raw.key] ?? raw.key;
   return { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
@@ -823,6 +851,15 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   downdraft: "颪",
   galeCut: "烈風",
   petalStorm: "花吹雪",
+  // 段取り 5d: 書 / 鈴
+  pageStorm: "紙吹雪",
+  sealStrike: "封じ打ち",
+  pageTurn: "頁繰り",
+  pageVolley: "頁飛ばし",
+  bellStorm: "鈴嵐",
+  warding: "魔除け",
+  ringOut: "振り鈴",
+  purifyStrike: "清め打ち",
 };
 
 /** 右レーンの段の表示名（数値は tuning の WEAPON.movesets[].steps2）。構えの離した振りは `${key}.release` */
@@ -838,7 +875,8 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   crossThrust: "交差突き",
   danceCut: "舞い斬り",
   backhandCut: "逆手斬り",
-  shadowPin: "影止め",
+  spinCut: "旋回斬り",
+  frenzy: "乱舞",
   chargeThrust: "突進突き",
   buttStrike: "石突き",
   spearArc: "払い",
@@ -851,7 +889,7 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   elbow: "肘打ち",
   knee: "膝蹴り",
   roundKick: "回し蹴り",
-  straightPunch: "正拳",
+  hook: "フック",
   entangle: "巻き付け",
   whipSweep: "打ち払い",
   groundLash: "地打ち",
@@ -876,6 +914,9 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   axeChop: "打ち割り",
   axeWhirl: "回し斬り",
   greatSplit: "大割り",
+  // 刃斧の右の最終段（放出。傷を開く）/ 鎖の右の最終段（放出。繋いだ敵を寄せて打つ）
+  rend: "裂き",
+  slam: "束ね打ち",
   guard: "構え",
   "guard.release": "盾押し",
   shieldThrust: "盾突き",
@@ -918,7 +959,9 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   rake: "引っ掻き",
   leapBack: "跳び退き",
   clawFlurry: "乱れ爪",
-  throatSlit: "喉裂き",
+  chaseClaw: "追い爪",
+  clawReturn: "爪返し",
+  clawChain: "連爪",
   flailWhirl: "回し",
   chainSwing: "振り回し",
   ballDrop: "鉄球落とし",
@@ -932,6 +975,13 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   fanSnap: "扇打ち",
   petalWhirl: "花舞",
   windCutter: "風刃",
+  // 段取り 5d: 書の右（1 段目が放出の無詠唱）/ 鈴の右（1 段目が放出の打ち鳴らし）
+  freeCast: "無詠唱",
+  pageSweep: "頁払い",
+  bookSlam: "閉じ打ち",
+  toll: "打ち鳴らし",
+  bellSweep: "鈴払い",
+  bellDrop: "鈴落とし",
 };
 
 /** 右 1 段目の技の説明（「何ができるか」。2 段目以降の振りは HUD に名前だけ出すので持たない） */
@@ -963,6 +1013,8 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   flailWhirl: "押している間、鉄球を回して周りを打ち続ける。離すと勢いのついた一撃",
   orbitRing: "輪を自分の周りに回らせる。回っている間、近くの敵に何度も当たる",
   fanning: "押している間、前からの被弾を減らす。離すと突風で押し返し、敵弾を払う",
+  freeCast: "頁を払って周りを打つ。術が溜まっていれば、次のスキル 1 回の気力が 0 になる",
+  toll: "鈴を鳴らして周りを打つ。鈴音が溜まっていれば、近くの自分の設置物がすぐ動き、設置物・連動体の威力が少しの間上がる",
 };
 
 /** 弾を出す段・cast の素性（ジャンル・属性）と弾の絵 */
@@ -973,6 +1025,8 @@ interface VolleyProfile {
 
 /** 左の段の cast の表示名（HUD の「左: 火矢」）。キーは cast.key。数値は movesets.<武器種>.steps[n].cast */
 export const CAST_NAMES: Readonly<Record<string, string>> = {
+  // 長柄の放出の突きが撃つ貫く弾（data/weaponForms.ts。数値は FORM.polearm.cast）
+  pierceThrust: "穂先放ち",
   fireDart: "火矢",
   fireDart2: "火矢",
   fireDartTwin: "二連火矢",
@@ -982,6 +1036,7 @@ export const CAST_NAMES: Readonly<Record<string, string>> = {
   flash: "閃光",
   darkHand: "闇手",
   arcLightning: "跳ね雷",
+  flyingPage: "飛び頁",
 };
 
 /** cast の弾の素性と絵（キーは cast.key）。無ければ射撃・物理で点の弾 */
@@ -995,6 +1050,7 @@ const CAST_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
   flash: { attack: attack("ranged", "arcane", "light") },
   darkHand: { attack: attack("ranged", "arcane", "dark") },
   arcLightning: { attack: attack("ranged", "arcane", "lightning") },
+  flyingPage: { attack: attack("ranged", "arcane") },
 };
 
 /** 弾を出す段の素性（ジャンル・属性）と弾の絵。無ければ射撃・物理で点の弾 */
@@ -1064,6 +1120,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: swordSteps(),
     dashAttack: { ...ACTION.dashAttack, scaling: meleeScaling(ACTION.dashAttack.scaling), shape: BOX, mana: MANA.onDashAttack },
     attackMoveMul: W.sword.attackMoveMul,
+    weight: reviveWeight(W.sword.weight),
+    form: "blade",
     primary: "melee",
     steps2: reviveLane(W.sword.steps2),
     branches: reviveBranches(W.sword.branches),
@@ -1078,6 +1136,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.greatsword.dashAttack),
     charge: reviveCharge(W.greatsword.charge),
     attackMoveMul: W.greatsword.attackMoveMul,
+    weight: reviveWeight(W.greatsword.weight),
+    form: "crusher",
     primary: "charge",
     steps2: reviveLane(W.greatsword.steps2),
     branches: reviveBranches(W.greatsword.branches),
@@ -1087,10 +1147,12 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   twinBlades: defineMoveset({
     key: "twinBlades",
     name: "双剣",
-    desc: "軽い 5 連撃（3 段目は 2 回斬る）。右の影踏みで踏み込む。手数が多く、トリガーや状態異常を起こしやすい",
+    desc: "軽い 6 連撃（3・5 段目は 2 回斬る）。右の影踏みで踏み込む。手数が多く、命中で起きる効果や状態異常を起こしやすい",
     steps: reviveSteps(W.twinBlades.steps),
     dashAttack: reviveStep(W.twinBlades.dashAttack),
     attackMoveMul: W.twinBlades.attackMoveMul,
+    weight: reviveWeight(W.twinBlades.weight),
+    form: "flurry",
     primary: "melee",
     steps2: reviveLane(W.twinBlades.steps2),
     branches: reviveBranches(W.twinBlades.branches),
@@ -1105,6 +1167,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.spear.dashAttack),
     tip: W.spear.tip,
     attackMoveMul: W.spear.attackMoveMul,
+    weight: reviveWeight(W.spear.weight),
+    form: "polearm",
     primary: "melee",
     steps2: reviveLane(W.spear.steps2),
     branches: reviveBranches(W.spear.branches),
@@ -1118,6 +1182,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.scythe.steps),
     dashAttack: reviveStep(W.scythe.dashAttack),
     attackMoveMul: W.scythe.attackMoveMul,
+    weight: reviveWeight(W.scythe.weight),
+    form: "chain",
     primary: "melee",
     steps2: reviveLane(W.scythe.steps2),
     branches: reviveBranches(W.scythe.branches),
@@ -1131,6 +1197,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.fists.steps),
     dashAttack: reviveStep(W.fists.dashAttack),
     attackMoveMul: W.fists.attackMoveMul,
+    weight: reviveWeight(W.fists.weight),
+    form: "flurry",
     primary: "melee",
     steps2: reviveLane(W.fists.steps2),
     branches: reviveBranches(W.fists.branches),
@@ -1145,6 +1213,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.whip.dashAttack),
     tip: W.whip.tip,
     attackMoveMul: W.whip.attackMoveMul,
+    weight: reviveWeight(W.whip.weight),
+    form: "chain",
     primary: "melee",
     steps2: reviveLane(W.whip.steps2),
     branches: reviveBranches(W.whip.branches),
@@ -1154,10 +1224,12 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   cleaver: defineMoveset({
     key: "cleaver",
     name: "鉈",
-    desc: "重く遅い振り。どの段でも壁に叩きつける。右は肩当て",
+    desc: "重く遅い振り。どの段でも傷を刻んで壁に叩きつける。右は肩当て",
     steps: reviveSteps(W.cleaver.steps),
     dashAttack: reviveStep(W.cleaver.dashAttack),
     attackMoveMul: W.cleaver.attackMoveMul,
+    weight: reviveWeight(W.cleaver.weight),
+    form: "hewer",
     primary: "melee",
     steps2: reviveLane(W.cleaver.steps2),
     branches: reviveBranches(W.cleaver.branches),
@@ -1170,7 +1242,12 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     desc: "広く薙いで周りを打つ。威力は低いが気力がよく戻る。右の払い上げで押し返す",
     steps: reviveSteps(W.staff.steps),
     dashAttack: reviveStep(W.staff.dashAttack),
+    // 長柄の戦意（先端の命中）が溜まるよう、突きに加えて薙ぎ・回しの外周も先端に数える
+    tip: W.staff.tip,
+    moraleLabel: "棒先",
     attackMoveMul: W.staff.attackMoveMul,
+    weight: reviveWeight(W.staff.weight),
+    form: "polearm",
     primary: "melee",
     steps2: reviveLane(W.staff.steps2),
     branches: reviveBranches(W.staff.branches),
@@ -1184,6 +1261,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.wand.steps),
     dashAttack: reviveStep(W.wand.dashAttack),
     attackMoveMul: W.wand.attackMoveMul,
+    weight: reviveWeight(W.wand.weight),
+    form: "rod",
     primary: "melee",
     steps2: reviveLane(W.wand.steps2),
     branches: reviveBranches(W.wand.branches),
@@ -1197,6 +1276,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.katana.steps),
     dashAttack: reviveStep(W.katana.dashAttack),
     attackMoveMul: W.katana.attackMoveMul,
+    weight: reviveWeight(W.katana.weight),
+    form: "blade",
     primary: "melee",
     steps2: reviveLane(W.katana.steps2),
     branches: reviveBranches(W.katana.branches),
@@ -1212,10 +1293,12 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   axe: defineMoveset({
     key: "axe",
     name: "斧",
-    desc: "扇の 4 段。最後の一振りで出血させ、出血した敵は崩れやすい。右は投擲（戻ってくる）",
+    desc: "扇の 4 段。振るたびに傷を刻み、最後の一振りで出血させる。出血した敵は崩れやすい。右は投擲（戻ってくる）",
     steps: reviveSteps(W.axe.steps),
     dashAttack: reviveStep(W.axe.dashAttack),
     attackMoveMul: W.axe.attackMoveMul,
+    weight: reviveWeight(W.axe.weight),
+    form: "hewer",
     primary: "melee",
     steps2: reviveLane(W.axe.steps2),
     branches: reviveBranches(W.axe.branches),
@@ -1237,6 +1320,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.shield.steps),
     dashAttack: reviveStep(W.shield.dashAttack),
     attackMoveMul: W.shield.attackMoveMul,
+    weight: reviveWeight(W.shield.weight),
+    form: "bulwark",
     primary: "melee",
     steps2: reviveLane(W.shield.steps2),
     branches: reviveBranches(W.shield.branches),
@@ -1257,6 +1342,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.chainSickle.steps),
     dashAttack: reviveStep(W.chainSickle.dashAttack),
     attackMoveMul: W.chainSickle.attackMoveMul,
+    weight: reviveWeight(W.chainSickle.weight),
+    form: "chain",
     primary: "melee",
     steps2: reviveLane(W.chainSickle.steps2),
     branches: reviveBranches(W.chainSickle.branches),
@@ -1278,6 +1365,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.hammer.dashAttack),
     charge: reviveCharge(W.hammer.charge),
     attackMoveMul: W.hammer.attackMoveMul,
+    weight: reviveWeight(W.hammer.weight),
+    form: "crusher",
     primary: "charge",
     steps2: reviveLane(W.hammer.steps2),
     branches: reviveBranches(W.hammer.branches),
@@ -1304,6 +1393,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
+    weight: reviveWeight(W.gunner.weight),
+    form: "pistol",
     primary: "shot",
     steps2: reviveLane(W.gunner.steps2),
     branches: reviveBranches(W.gunner.branches),
@@ -1324,6 +1415,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
+    weight: reviveWeight(W.sidearm.weight),
+    form: "pistol",
     primary: "shot",
     steps2: reviveLane(W.sidearm.steps2),
     branches: reviveBranches(W.sidearm.branches),
@@ -1337,6 +1430,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.longarm.dashAttack),
     attackMoveMul: W.longarm.attackMoveMul,
+    weight: reviveWeight(W.longarm.weight),
+    form: "rifle",
     primary: "shot",
     steps2: reviveLane(W.longarm.steps2),
     branches: reviveBranches(W.longarm.branches),
@@ -1350,6 +1445,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
+    weight: reviveWeight(W.cannon.weight),
+    form: "artillery",
     primary: "shot",
     steps2: reviveLane(W.cannon.steps2),
     branches: reviveBranches(W.cannon.branches),
@@ -1363,6 +1460,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.thrown.dashAttack),
     attackMoveMul: W.thrown.attackMoveMul,
+    weight: reviveWeight(W.thrown.weight),
+    form: "thrower",
     primary: "shot",
     steps2: reviveLane(W.thrown.steps2),
     branches: reviveBranches(W.thrown.branches),
@@ -1376,6 +1475,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.grenade.dashAttack),
     attackMoveMul: W.grenade.attackMoveMul,
+    weight: reviveWeight(W.grenade.weight),
+    form: "artillery",
     primary: "shot",
     steps2: reviveLane(W.grenade.steps2),
     branches: reviveBranches(W.grenade.branches),
@@ -1389,6 +1490,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,
+    weight: reviveWeight(W.trapper.weight),
+    form: "artillery",
     primary: "shot",
     steps2: reviveLane(W.trapper.steps2),
     branches: reviveBranches(W.trapper.branches),
@@ -1402,6 +1505,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: [],
     dashAttack: reviveStep(W.warRing.dashAttack),
     attackMoveMul: W.warRing.attackMoveMul,
+    weight: reviveWeight(W.warRing.weight),
+    form: "thrower",
     primary: "shot",
     steps2: reviveLane(W.warRing.steps2),
     branches: reviveBranches(W.warRing.branches),
@@ -1412,10 +1517,12 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   claws: defineMoveset({
     key: "claws",
     name: "爪",
-    desc: "最速の 5 連撃。全段が 2 回以上当たり、踏み込みながら出血を重ねる。右の跳び退きで当てて離れる。出血した敵を刻むと気力が戻る",
+    desc: "最速の 8 連撃。全段が 2 回以上当たり、最終段で出血させる。右の跳び退きで当てて離れる。出血した敵を刻むと気力が戻る",
     steps: reviveSteps(W.claws.steps),
     dashAttack: reviveStep(W.claws.dashAttack),
     attackMoveMul: W.claws.attackMoveMul,
+    weight: reviveWeight(W.claws.weight),
+    form: "flurry",
     primary: "melee",
     steps2: reviveLane(W.claws.steps2),
     branches: reviveBranches(W.claws.branches),
@@ -1437,6 +1544,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.flail.steps),
     dashAttack: reviveStep(W.flail.dashAttack),
     attackMoveMul: W.flail.attackMoveMul,
+    weight: reviveWeight(W.flail.weight),
+    form: "crusher",
     primary: "melee",
     steps2: reviveLane(W.flail.steps2),
     branches: reviveBranches(W.flail.branches),
@@ -1457,6 +1566,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.ringBlades.steps),
     dashAttack: reviveStep(W.ringBlades.dashAttack),
     attackMoveMul: W.ringBlades.attackMoveMul,
+    weight: reviveWeight(W.ringBlades.weight),
+    form: "thrower",
     primary: "melee",
     steps2: reviveLane(W.ringBlades.steps2),
     branches: reviveBranches(W.ringBlades.branches),
@@ -1477,6 +1588,8 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps: reviveSteps(W.fan.steps),
     dashAttack: reviveStep(W.fan.dashAttack),
     attackMoveMul: W.fan.attackMoveMul,
+    weight: reviveWeight(W.fan.weight),
+    form: "warfan",
     primary: "melee",
     steps2: reviveLane(W.fan.steps2),
     branches: reviveBranches(W.fan.branches),
@@ -1496,6 +1609,37 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
         then: { kind: "addPoise", magnitude: R.fanEmberPoise },
       }),
     ],
+  }),
+  // ---- 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8） ----
+  book: defineMoveset({
+    key: "book",
+    name: "書",
+    desc: "開いた頁から文字の刃を走らせる 3 段。左の命中で墨印を記し、スキルの命中で読むと周りの敵にも当たり気力が戻る。持っている間はスキルの再使用が短い。右の無詠唱で次のスキルの気力が 0",
+    steps: reviveSteps(W.book.steps),
+    dashAttack: reviveStep(W.book.dashAttack),
+    attackMoveMul: W.book.attackMoveMul,
+    weight: reviveWeight(W.book.weight),
+    form: "tome",
+    primary: "melee",
+    steps2: reviveLane(W.book.steps2),
+    branches: reviveBranches(W.book.branches),
+    keywords: kw(["melee", "mana", "silence"], ["mana"], ["area"]),
+    attack: attack("melee", "arcane"),
+  }),
+  handbell: defineMoveset({
+    key: "handbell",
+    name: "手鈴",
+    desc: "鈴を振って周りを打つ 3 段。右の打ち鳴らしで近くの自分の設置物をすぐ動かし、設置物・連動体の威力を上げる。左の振りでその強化が延びる",
+    steps: reviveSteps(W.handbell.steps),
+    dashAttack: reviveStep(W.handbell.dashAttack),
+    attackMoveMul: W.handbell.attackMoveMul,
+    weight: reviveWeight(W.handbell.weight),
+    form: "bell",
+    primary: "melee",
+    steps2: reviveLane(W.handbell.steps2),
+    branches: reviveBranches(W.handbell.branches),
+    keywords: kw(["melee", "area", "placed"], [], ["placed"]),
+    attack: attack("melee", "arcane"),
   }),
 };
 

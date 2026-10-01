@@ -350,6 +350,26 @@ function rush3(frame, f) {
   });
 }
 
+/**
+ * 左 5 段（連打 4 発・box reach 9.5）: 3 段目の連打より 1 発多く、左右へ振れながら前へ詰めて弾ける。
+ * 最後の 1 発だけ大きく、輪も出る
+ */
+const RUSH4 = [
+  { x: -5, y: -8, R: 11, seed: 341 },
+  { x: 2, y: 7, R: 12, seed: 342 },
+  { x: 5, y: -5, R: 13, seed: 343 },
+  { x: 10, y: 2, R: 16, seed: 344 },
+];
+function rush4(frame, f) {
+  RUSH4.forEach((p, i) => {
+    const age = f - i;
+    const last = i === RUSH4.length - 1;
+    if (age === 0 || age === 1) fistTrail(frame, { x: p.x, y: p.y, len: 12, k: age * 0.45, seed: p.seed + 20, count: 2, T: 4, gap: 5 });
+    punchPop(frame, age, { ...p, n: last ? 10 : 8, life: last ? 5 : 3, width: last ? 3.4 : 3, glint: last ? 3 : 2, ring: last, ringGrow: 4, ringW: 2 });
+    if (age >= 1) burstDust(frame, age - 1, { x: p.x, y: p.y, count: last ? 6 : 3, seed: p.seed + 40, speed: last ? 4 : 3 });
+  });
+}
+
 /** 前へ張り出す衝撃の弓（音の壁のような面）。中心 x の円の一部を、角 ±half で両端が細るように塗る */
 function bowShock(frame, o) {
   const { x, R, T, half } = o;
@@ -376,7 +396,7 @@ function bowShock(frame, o) {
   );
 }
 
-/** 左 5 段（終撃・heavy・box reach 12 / size 20）: 太い風圧の線から、大きな星と 2 重の衝撃波。太い衝撃線が四方へ飛ぶ */
+/** 左 6 段（終撃・heavy・box reach 10 / size 16.5）: 太い風圧の線から、大きな星と 2 重の衝撃波。太い衝撃線が四方へ飛ぶ */
 function finisher(frame, f) {
   const A = 4;
   const N = 9;
@@ -505,22 +525,67 @@ function roundKick(frame, f) {
   if (f >= A - 1) burstDust(frame, f - (A - 1), { x: Math.cos(head) * (R - 10), y: Math.sin(head) * (R - 10), count: 6, seed: 204, speed: 3.5, dirA: head + Math.PI / 2, spread: 1.4 });
 }
 
-/** 右: 正拳（heavy・box reach 14）。太い風圧の柱から、前へ伸びた星と前へ押し出される 3 枚の潰れた輪 */
-function straightPunch(frame, f) {
-  const A = 4;
-  const N = 9;
+/**
+ * 右: 大回しの拳（arc 150° reach 18.5・2 段ヒット）。原点は自分。腕を大きく回す薄い風圧の帯が -75° から +75° へ払い、
+ * 帯の途中（前半）と振り終わり（後半）の 2 か所で拳が当たって弾ける。蹴りの帯より細く、当たりの星が主役
+ */
+function hookSwing(frame, f) {
+  const A = 5;
+  const N = 10;
+  const R = 32;
+  const from = -75 * DEG;
+  const sweep = 150 * DEG;
   const k = fadeOf(f, A, N);
-  if (k < 0.9) {
-    windStreak(frame, { ax: -36 + k * 20, ay: 0, bx: -4 + k * 4, by: 0, T: 13 * (1 - k * 0.6), bright: 0.64 * (1 - k * 0.5), erosion: k * 0.8, seed: 211 });
-    for (const side of [-1, 1]) windStreak(frame, { ax: -30 + k * 14, ay: side * 10, bx: -10, by: side * 9, T: 4 * (1 - k * 0.5), bright: 0.5 * (1 - k * 0.5), erosion: k * 0.7, seed: 212 + side });
+  const p = f < A ? easeSwing((f + 1) / A) : 1;
+  const head = from + sweep * (p + k * 0.05);
+  const tail = f < A ? from + sweep * Math.max(0, p - 0.5) : from + sweep * Math.min(0.97, 0.5 + 0.47 * k);
+  airBand(frame, { R, T: 12 * (f < A ? 0.8 + 0.2 * p : 1 - 0.45 * k), head, tail, bright: 0.6 * (1 - k * 0.35), erosion: k * 0.85, seed: 331 });
+  airLines(frame, { R, head, span: head - tail, k, count: 2, seed: 332 });
+  const hits = [
+    { at: 1, a: -22 * DEG, R: 11, seed: 333, ring: false },
+    { at: 3, a: 48 * DEG, R: 15, seed: 336, ring: true },
+  ];
+  for (const h of hits) {
+    punchPop(frame, f - h.at, { x: Math.cos(h.a) * (R - 5), y: Math.sin(h.a) * (R - 5), R: h.R, n: 8, seed: h.seed, life: 4, width: 3.2, glint: 3, ring: h.ring, ringGrow: 4, ringW: 2 });
+    if (f - h.at >= 1) burstDust(frame, f - h.at - 1, { x: Math.cos(h.a) * (R - 5), y: Math.sin(h.a) * (R - 5), count: 4, seed: h.seed + 4, speed: 3.5, dirA: h.a + Math.PI / 2, spread: 1.6 });
   }
-  punchPop(frame, f - 1, { x: 4, y: 0, R: 26, n: 10, seed: 214, life: 7, width: 4.8, glint: 4, starSquash: 1.35, squash: 0.42, ringGrow: 5, ringW: 3.4, ringPush: 5 });
-  // 前へ抜ける 2 枚目の小さな輪（拳圧が当たりの先まで届く）。主の輪と離して置き、同心の渦に見せない
-  if (f >= 3 && f <= 7) {
-    const a = f - 3;
-    ring(frame, { ox: 30 + a * 8, radius: 9 + a * 2, width: 2.2, squash: 0.42, erosion: Math.min(0.9, 0.2 + a * 0.18), bright: 0.66 - a * 0.08, seed: 216 });
+}
+
+/**
+ * 右: 乱打（heavy・box reach 10.5 / size 15・6 段ヒット）。原点は自分。拳が前へ詰めながら左右交互に 6 発、
+ * 発ごとに星が大きくなり、通り道の風圧の線が途切れず連なる。百裂拳の「その場のあちこち」と違い、前へ一直線に押し込む。
+ * 最後の 1 発は大きな星 + 潰れた 2 重の輪
+ */
+const BARRAGE = [
+  { x: 14, y: -5, R: 9 },
+  { x: 18, y: 5, R: 10 },
+  { x: 22, y: -4, R: 11 },
+  { x: 26, y: 4, R: 12 },
+  { x: 30, y: -2, R: 14 },
+  { x: 36, y: 0, R: 22 },
+];
+const BARRAGE_END = 12;
+function barrage(frame, f) {
+  // 通り道: 自分から当たりへ伸びる風圧の線が、打つ間じゅう 1 本ずつ入れ替わりながら続く
+  if (f <= 7) {
+    for (let i = 0; i < 3; i++) {
+      const y = (i - 1) * 7 + (hash1(i, 341) - 0.5) * 2;
+      const len = 16 + 10 * hash1(i, 342);
+      const x1 = 10 + f * 3 + hash1(i, 343) * 4;
+      windStreak(frame, { ax: x1 - len, ay: y, bx: x1, by: y, T: 4, bright: 0.5 - f * 0.03, seed: 344 + i });
+    }
   }
-  if (f >= 2) burstDust(frame, f - 2, { x: 6, y: 0, count: 9, seed: 218, speed: 5.5, dirA: 0, spread: 1.8 });
+  BARRAGE.forEach((p, i) => {
+    const age = f - i;
+    const last = i === BARRAGE.length - 1;
+    punchPop(frame, age, { ...p, n: last ? 12 : 8, seed: 351 + i * 3, life: last ? 6 : 3, width: last ? 5 : 3, glint: last ? 4 : 2, ring: last, squash: 0.5, ringGrow: 6, ringW: 3, ringPush: 3 });
+  });
+  const lastPop = BARRAGE[BARRAGE.length - 1];
+  if (lastPop && f >= BARRAGE.length) {
+    const a = f - BARRAGE.length;
+    if (a <= 4) ring(frame, { ox: lastPop.x + 12 + a * 7, radius: 9 + a * 2, width: 2.2, squash: 0.42, erosion: Math.min(0.9, 0.2 + a * 0.2), bright: 0.66 - a * 0.1, seed: 366 });
+  }
+  if (f >= 3) burstDust(frame, f - 3, { x: 28, y: 0, count: 10, seed: 370, speed: 5, dirA: 0, spread: 2.4 });
 }
 
 // -----------------------------------------------------------------------------
@@ -656,13 +721,15 @@ const FX = {
     "l:1": { sheet: "fists.cross", pivot: "anchor", base: 10, measure: "reach" },
     "l:2": { sheet: "fists.hook", pivot: "anchor", base: 10, measure: "reach" },
     "l:3": { sheet: "fists.rush", pivot: "anchor", base: 10, measure: "reach" },
-    "l:4": { sheet: "fists.finisher", pivot: "anchor", base: 12, measure: "reach" },
+    "l:4": { sheet: "fists.rush4", pivot: "anchor", base: 9.5, measure: "reach" },
+    "l:5": { sheet: "fists.finisher", pivot: "anchor", base: 10, measure: "reach" },
     dash: { sheet: "fists.dash", pivot: "anchor", base: 12, measure: "reach" },
     "r:grabThrow": { sheet: "fists.grab", pivot: "anchor", base: 10, measure: "reach" },
     "r:elbow": { sheet: "fists.elbow", pivot: "anchor", base: 8, measure: "reach" },
     "r:knee": { sheet: "fists.knee", pivot: "anchor", base: 8, measure: "reach" },
     "r:roundKick": { sheet: "fists.roundKick", pivot: "self", base: 22, measure: "reach" },
-    "r:straightPunch": { sheet: "fists.straight", pivot: "anchor", base: 14, measure: "reach" },
+    "r:hook": { sheet: "fists.hookSwing", pivot: "self", base: 18.5, measure: "reach" },
+    "r:frenzy": { sheet: "fists.barrage", pivot: "self", base: 10.5, measure: "reach" },
     "branch:hundredFists": { sheet: "fists.hundred", pivot: "anchor", base: 12, measure: "reach" },
     "branch:uppercut": { sheet: "fists.uppercut", pivot: "anchor", base: 12, measure: "reach" },
     "branch:breakThrust": { sheet: "fists.breakThrust", pivot: "anchor", base: 10, measure: "reach" },
@@ -681,13 +748,15 @@ export const ATLAS = {
     { key: "fists.cross", dirs: DIRS, frames: 7, active: 3, size: 96, draw: cross },
     { key: "fists.hook", dirs: DIRS, frames: 7, active: 3, size: 96, draw: hook },
     { key: "fists.rush", dirs: DIRS, frames: 8, active: 4, size: 80, draw: rush3 },
+    { key: "fists.rush4", dirs: DIRS, frames: 9, active: 5, size: 80, draw: rush4 },
     { key: "fists.finisher", dirs: DIRS, frames: 9, active: 4, size: 128, draw: finisher },
     { key: "fists.dash", dirs: DIRS, frames: 8, active: 4, size: 128, draw: dashPunch },
     { key: "fists.grab", dirs: DIRS, frames: 9, active: 4, size: 136, draw: grabThrow },
     { key: "fists.elbow", dirs: DIRS, frames: 6, active: 3, size: 80, draw: elbow },
     { key: "fists.knee", dirs: DIRS, frames: 6, active: 3, size: 80, draw: knee },
     { key: "fists.roundKick", dirs: DIRS, frames: 9, active: 5, size: 128, draw: roundKick },
-    { key: "fists.straight", dirs: DIRS, frames: 9, active: 4, size: 128, draw: straightPunch },
+    { key: "fists.hookSwing", dirs: DIRS, frames: 10, active: 5, size: 96, draw: hookSwing },
+    { key: "fists.barrage", dirs: DIRS, frames: BARRAGE_END, active: 8, size: 112, draw: barrage },
     { key: "fists.hundred", dirs: DIRS, frames: 10, active: 6, size: 80, draw: hundredFists },
     { key: "fists.uppercut", dirs: DIRS, frames: 8, active: 4, size: 112, draw: uppercut },
     { key: "fists.breakThrust", dirs: DIRS, frames: 7, active: 3, size: 96, draw: breakThrust },

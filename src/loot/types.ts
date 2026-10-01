@@ -1,7 +1,11 @@
+import { type IncreasedTable, type MoreMul, createIncreased } from "../core/damage";
 import { type ElementTable, uniformElements } from "../core/element";
+import type { BoonAction } from "../core/build";
+import type { Modifier, Rule } from "../core/rules";
 import type { StatusKind, StatusProc } from "../core/status";
 import type { Vec } from "../core/vec";
-import { ATTR, MANA } from "../data/tuning";
+import type { HurtKind } from "../core/hurt";
+import { ATTR, ECONOMY, MANA } from "../data/tuning";
 import type { MovesetKey } from "../data/weapons";
 
 /**
@@ -11,7 +15,7 @@ import type { MovesetKey } from "../data/weapons";
 
 /**
  * 部位。右手 / 左手（旧「近接 / 銃」。docs/ideas/weapon-redesign.md 5 章）。
- * 左手（offHand）は共鳴の環の席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
+ * 左手（offHand）は将来の両手の仕組みの席取りで、今はベースが無く何も装備できない（LOOT_SLOTS で除く）
  */
 export const SLOTS = ["mainHand", "offHand", "head", "armor", "boots", "ring", "amulet"] as const;
 export type Slot = (typeof SLOTS)[number];
@@ -56,7 +60,7 @@ export const RARITY_LABEL: Readonly<Record<Rarity, string>> = {
 };
 
 // ---------------------------------------------------------------------------
-// 色（響き）。docs/LOOT_DESIGN.md「色と共鳴」
+// 色（響き）。docs/LOOT_DESIGN.md「色（分類）と源と糧の共鳴」
 // ---------------------------------------------------------------------------
 
 /** 性質の色。紅 / 蒼 / 翠 / 金 / 冥 */
@@ -102,12 +106,12 @@ export interface AffixRoll {
   nominal2?: number;
   /** 期待値からの相対的なずれ。-1 を下回ると反転 */
   flux?: number;
-  /** 反転（値が負）。色は冥になり、共鳴への重みが 2 倍 */
+  /** 反転（値が負）。色は冥になる。共鳴の数えには入らない */
   inverted?: boolean;
   origin?: TraitOrigin;
-  /** 脱色（残響の操作）: 共鳴の配合に数えず、支配の減衰も受けない。値は脱色した時点で 90% */
+  /** 旧セーブの脱色済みの印（脱色の操作は段取り 7d で廃止）。色を持たず、色の帯に数えない */
   colorless?: boolean;
-  /** 張り（残響の操作）: 利得と代償を両方 1.3 倍にした。1 つの性質に 1 回だけ */
+  /** 旧セーブの張りの印（張りの操作は段取り 7d で廃止）。利得と代償を両方 1.3 倍にした値が入っている */
   tensed?: boolean;
 }
 
@@ -222,15 +226,17 @@ export interface Item {
   itemLevel: number;
   /** 表示名。銘があれば銘、名のある遺物は固有名、それ以外は「{色の形容}{ベース名}」 */
   name: string;
-  /** ベース固有の暗黙補正（ロール済み）。色の配合には数えない */
+  /** ベース固有の暗黙補正（ロール済み）。共鳴の数え・色の帯には数えない */
   implicit: AffixRoll | null;
   /** 性質 */
   affixes: AffixRoll[];
   /**
-   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・色の配合・クラフトの対象外。
+   * 地金: ベースに既定で宿るステータス・防御力・耐性（loot/innate.ts）。性質とは別で、余白・共鳴の数え・クラフトの対象外。
    * 旧セーブ・リプレイのスナップショットには無いので、読むときは item.innate ?? []
    */
   innate?: AffixRoll[];
+  /** 地金の上振れ（抽選した予算 ÷ 拾った深度の期待値）。持ち込むと今の深度の期待値に掛かる（loot/innate.ts の innateAt）。旧アイテムは migrate.ts が innate から補う */
+  innateLuck?: number;
   foundDepth: number;
   /** epoch ms */
   foundAt: number;
@@ -277,8 +283,36 @@ export interface RunHistoryEntry {
   score: number;
   bestCombo: number;
   durationSec: number;
-  /** "defeated"（死亡）/ "abandoned"（R や Restart で中断） */
+  /** "defeated"（死亡）/ "cleared"（踏破。最深の主を倒したラン）/ "abandoned"（R や Restart で中断） */
   cause?: string;
+  // ---- 以下は段取り 9 の任意項目（docs/ideas/meta-impl.md 2-2）。0・空は書かない。旧データには無い ----
+  /** 力尽きたときの最後の被弾（死因） */
+  killer?: HistoryKiller;
+  /** 仇の種（力尽きたときだけ。次のランの仇） */
+  grudge?: HistoryGrudge;
+  /** このランで仇を討った */
+  avenged?: true;
+  /** 位階（縛りの点の合計。0 は書かない） */
+  tier?: number;
+  /** ジョブの key（見習いは書かない） */
+  job?: string;
+  /** 被弾・見切り・カウンター・無傷の階の回数（前回比） */
+  hurts?: number;
+  justDodges?: number;
+  counters?: number;
+  noHurtFloors?: number;
+}
+
+export interface HistoryKiller {
+  kind: HurtKind;
+  key: string;
+  elites?: string[];
+  nemesis?: true;
+}
+
+export interface HistoryGrudge {
+  key: string;
+  elites: string[];
 }
 
 export interface ProfileMeta {
@@ -288,6 +322,11 @@ export interface ProfileMeta {
   bestScore: number;
   /** 追加フィールド。version は変えず、欠けていても loadProfile 側で補う */
   history?: RunHistoryEntry[];
+  /** 踏破の回数と、踏破した最高位階（履歴は 20 件で切れるので別に持つ。0 / 無しは書かない） */
+  clears?: number;
+  bestClearTier?: number;
+  /** 部位ごとに最後に候補を見たときの拾った時刻（新着の判定。ui/seen.ts。追加フィールドで version は変えない） */
+  seenAt?: Partial<Record<Slot, number>>;
 }
 
 export interface Profile {
@@ -324,8 +363,18 @@ export const ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi", "def"] as const;
 export type AttrKey = (typeof ATTR_KEYS)[number];
 export type Attributes = Record<AttrKey, number>;
 
+/** ステータスの表示名（docs/GLOSSARY.md）。装備画面・振り分けパネル・Tips・流儀の説明で共有する */
+export const ATTR_LABEL: Readonly<Record<AttrKey, string>> = {
+  str: "筋力",
+  dex: "技巧",
+  vit: "体力",
+  mnd: "精神",
+  spi: "霊力",
+  def: "防御",
+};
+
 /**
- * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。共鳴の色対応・散光・「5 種全部を参照する行動」の
+ * 「5 色 = 5 ステータス」の枠に乗る 5 種（防御を除く）。「5 種全部を参照する行動」の
  * 判定はこちら。防御は色を持たない別軸のステータスなので、5 種すべてを求めるテスト・ロジックはこちらを使う
  */
 export const COMBAT_ATTR_KEYS = ["str", "dex", "vit", "mnd", "spi"] as const;
@@ -346,6 +395,10 @@ export type AttrRatio = Partial<Record<AttrKey, number>>;
 export function uniformAttributes(value: number): Attributes {
   return { str: value, dex: value, vit: value, mnd: value, spi: value, def: value };
 }
+
+/** 厳選の到達点の軸（無尽 / 燎原 / 常在。loot/reach.ts） */
+export const REACH_KEYS = ["chain", "burn", "morale"] as const;
+export type ReachKey = (typeof REACH_KEYS)[number];
 
 /**
  * 装備から畳み込んだ派生ステータス。ゲームロジックはこれだけを見る。
@@ -372,15 +425,32 @@ export interface PlayerStats {
   dashCooldownMul: number;
   dashCharges: number;
   dashDistanceMul: number;
+  /** ダッシュの無敵時間の加算（秒。PLAYER.dash.invulnTime に足す。ダッシュ時間を超えない） */
+  dashInvulnBonus: number;
 
-  meleeDamageMul: number;
+  /**
+   * 与ダメの増（core/damage.ts。0.1 = +10%）。性質・地金の数値はここへ足す（共鳴は倍で入る）。
+   * 1 撃に効くタグの増を全部足して 1 回掛ける（system/damageMods.ts）
+   */
+  increased: IncreasedTable;
+  /**
+   * 装備・祝福・ジョブが出す常時の倍（誓約・芯・得意武器・素手・弱点など。出所ごと 1 要素）。
+   * 列は複数の stats で共有されうるので push せず withMore で新しい列に差し替える
+   */
+  more: readonly MoreMul[];
+  /** 装備が出す常時の増・倍（core/rules.ts の Modifier。条件付き・〜につき）。more と同じく差し替えで足す */
+  modifiers: readonly Modifier[];
+  /**
+   * 装備が出す「〜時: 〜」（core/rules.ts の Rule。転じ・名のある遺物）。装備スロット順に畳み、collectRules が先頭で集める。
+   * modifiers と同じく差し替えで足す
+   */
+  rules: readonly Rule[];
+
   meleeDamageFlat: number;
   attackSpeedMul: number;
   meleeReachMul: number;
   knockbackMul: number;
-  damageVsStaggeredMul: number;
 
-  rangedDamageMul: number;
   rangedDamageFlat: number;
   fireRateMul: number;
   projectileCount: number;
@@ -391,7 +461,6 @@ export interface PlayerStats {
   critMul: number;
 
   energyGainMul: number;
-  burstDamageMul: number;
   burstRadiusMul: number;
 
   comboWindowBonus: number;
@@ -418,11 +487,9 @@ export interface PlayerStats {
   keystones: string[];
   /** trigger × condition × effect 文法で生成された条件付き効果 */
   triggers: TriggeredEffect[];
-  /** 装備全体の色の配合で発現した共鳴（resonance.ts）。数値効果は他のフィールドに畳み込み済み */
-  resonance: Resonance;
 
   // ---- 戦闘再設計（docs/COMBAT_DESIGN.md F-1）。既定値は中立 ----
-  /** 装備・共鳴・祝福・ラン内振り分けの生の合計（逓減前）。基礎値を含む */
+  /** 装備・祝福の生の合計（逓減前）。基礎値を含む */
   attributes: Attributes;
   /** 逓減後の実効値。deriveAttributes が埋める。計算はこちらを使う */
   attributesEff: Attributes;
@@ -434,13 +501,16 @@ export interface PlayerStats {
   manaCostMul: number;
   /** 撃破時のマナ回収に足す固定値（MANA.onKill に加算。manaGainMul も掛かる） */
   manaOnKill: number;
-  skillDamageMul: number;
   poiseDamageMul: number;
   statusPotencyMul: number;
   /** プレイヤーが受ける状態異常の持続倍率 */
   statusTakenMul: number;
   /** 性質「弾斬り」: 0 より大きければ近接の active で敵弾を消す */
   bulletCut: number;
+  /** 連鎖が同じ敵をもう 1 度訪れてよい回数（0 = 1 度だけ。system/rules.ts の訪問回数） */
+  chainRevisits: number;
+  /** 連鎖係数に掛ける上乗せ（× (1 + これ)。連鎖の源） */
+  chainCoefBonus: number;
   statusProcs: StatusProc[];
   /** 性質のルール変更（docs/ideas/loot-expansion.md）。戦闘側は system/traitHooks.ts が読む */
   traits: TraitStats;
@@ -453,6 +523,24 @@ export interface PlayerStats {
   infuse: ElementTable;
   /** スキルの属性のうち無属性へ戻す割合 0..1（無の刻印） */
   skillNeutral: number;
+  /** 戦意の上限への加算（武器の型の max に足す。system/morale.ts。性質・祝福で使うのは段取り 7） */
+  moraleMaxAdd: number;
+  /** 戦意の溜まりやすさの倍率（1 = 等倍。導出の型には効かない） */
+  moraleGainMul: number;
+  /** 銭・鍵を引き寄せる半径の倍率（ECONOMY.coin.magnetRadius に掛ける。system/economy.ts） */
+  coinMagnetMul: number;
+  /** 被弾でこぼれる銭の倍率（ECONOMY.spill.ratio に掛ける。0 でこぼれない） */
+  coinSpillMul: number;
+  /** 稼ぐ銭の倍率（こぼれた銭の拾い直し・賭けの払い戻しには掛けない） */
+  coinGainMul: number;
+  /** 持てる瓶の本数（既定は ECONOMY.flask.max。system/flask.ts） */
+  flaskMax: number;
+  /** 自分が敵に付ける状態異常の重ねの上限への加算（種類ごと。system/statusEffects.ts の maxStacks が敵側だけに足す） */
+  statusStackCapBonus: Readonly<Partial<Record<StatusKind, number>>>;
+  /** 加護の枠の加算（行動ごと。名のある遺物の 3 枠目。system/boons.ts の graceSlotsOf が足す） */
+  graceSlotBonus: Readonly<Partial<Record<BoonAction, number>>>;
+  /** 厳選の到達点の測る量（装備だけ。computeStats が入れる。loot/reach.ts） */
+  reach: Readonly<Record<ReachKey, number>>;
 }
 
 /**
@@ -460,71 +548,30 @@ export interface PlayerStats {
  * 数値のフィールドを PlayerStats の直下に増やすと statsSummary の表示表まで広がるので、ここにまとめる
  */
 export interface TraitStats {
-  // ---- マナ ----
-  /** 敵を怯ませた瞬間に戻るマナ */
+  // ---- 気力 ----
+  /** 敵を怯ませた瞬間に戻る気力 */
   manaOnStagger: number;
-  /** マナが少ない間（TRIGGER.trait.lowManaRatio 未満）のマナ回収の加算倍率 */
-  lowManaGainMul: number;
-  /** マナ満タンの間のスキル威力の加算倍率 */
-  fullManaSkillMul: number;
-  /** 残りマナが 0 に近いほど効くスキル威力の加算倍率（0 で満額） */
-  lowManaSkillMul: number;
-  /** 身代わり: 被弾時に払うマナ（0 = 無効）。払えれば被ダメージが TRIGGER.trait.manaShieldMul 倍 */
+  /** 身代わり: 被弾時に払う気力（0 = 無効）。払えれば被ダメージが TRIGGER.trait.manaShieldMul 倍 */
   manaShieldCost: number;
-  /** 沈黙中の敵を倒したときに戻るマナ */
-  silencedKillMana: number;
-  /** 殲滅で戻るマナ（最大マナに対する割合 0..1） */
-  lastKillManaRatio: number;
-  /** マナ満タンで溢れた回収のうち、必殺ゲージへ移す割合 0..1 */
+  /** 気力満タンで溢れた回収のうち、奥義ゲージへ移す割合 0..1 */
   manaOverflowToEnergy: number;
-  // ---- 与ダメージ（近接・射撃・スキル。proc は対象外） ----
-  /** 対象に付いた状態異常 1 種ごと */
-  damagePerStatusKind: number;
-  /** 自分に付いた状態異常 1 種ごと */
-  damagePerSelfStatus: number;
-  /** 予備動作中の敵へ / それ以外への減少 */
-  windupDamageMul: number;
-  offWindupPenalty: number;
-  /** 堅守中の敵へ */
-  guardedDamageMul: number;
-  /** ボスへ / ボス以外への減少 */
-  bossDamageMul: number;
-  nonBossPenalty: number;
-  /** 封鎖中の部屋で / それ以外での減少 */
-  lockedDamageMul: number;
-  unlockedPenalty: number;
-  /** 暗闇フロアの射撃 / それ以外のフロアの射撃の減少 */
-  darkRangedMul: number;
-  lightRangedPenalty: number;
-  /** 死神が出ている間 */
-  reaperDamageMul: number;
   // ---- 怯み値 ----
-  fearPoiseMul: number;
-  silencedPoiseMul: number;
-  vulnerablePoiseMul: number;
-  guardedPoiseMul: number;
-  /** 蓄積が耐性の半分以上の敵へ / 半分未満の敵への減少（楔） */
+  /** 蓄積が耐性の半分以上の敵への怯み値（楔） */
   wedgePoiseMul: number;
-  wedgePenalty: number;
-  /** 射撃の怯み値の加算倍率（負で減る） */
+  /** 射撃の怯み値の加算倍率（ベースの弩・転じ「弾数 → 怯み値」） */
   rangedPoiseMul: number;
-  /** 会心時の怯み値の加算倍率 */
+  /** 会心時の怯み値の加算倍率（ベースの細剣） */
   critPoiseMul: number;
-  /** 堅守による射撃の怯み値の減衰を打ち消す割合 0..1（剥がし撃ち） */
+  /** 堅守による怯み値の減衰を打ち消す割合 0..1（剥がし。近接・射撃とも） */
   guardPierce: number;
   /** 敵を怯ませた瞬間、周囲の敵に与える怯み値（崩れの反響） */
   staggerQuake: number;
-  // ---- 生存 ----
-  healOnStagger: number;
-  /** 弱体中の敵から受けるダメージの減少 / 弱体でない敵からの増加 */
-  weakenedGuard: number;
-  weakenedExposure: number;
   // ---- その他 ----
-  /** 1 以上: 殲滅の瞬間に敵弾をすべて消す（目覚め「幕引き」） */
+  /** 1 以上: 殲滅の瞬間に敵弾をすべて消す（幕引き） */
   lastKillClearsBullets: number;
   /** 殲滅で得るエネルギー */
   lastKillEnergy: number;
-  // ---- 2026-09 追加（作業領域 LootRuntime / Enemy.stuckShots を使うもの・ハブ性質）----
+  // ---- 作業領域（LootRuntime / Enemy.stuckShots）を使うもの ----
   /** 余韻斬り: コンボが途切れた瞬間、コンボ数 1 あたりの衝撃波のダメージ */
   comboBreakWave: number;
   /** 形見: 状態異常の敵を倒したとき、その 1 種を乗せる次の命中の回数 */
@@ -533,23 +580,12 @@ export interface TraitStats {
   stakeDamage: number;
   /** 置き土産: 0 より大きければ、自分の設置物の範囲内での近接がその設置物の状態異常をこの秒数乗せる */
   placedInfuse: number;
-  /** 杭打ち: 敵を怯ませたとき、近くの自分の設置物の残り時間を延ばす秒 */
-  placedExtend: number;
   /** 血の署名: HP 半分未満の間、スキルの再使用時間と最低間隔が明ける速さの加算倍率 */
   lowHpSkillHaste: number;
-  /** 祝福の響き（色ごと）: その色に対応するタグの祝福 1 つにつきの与ダメージ */
-  boonEchoCrimson: number;
-  boonEchoAzure: number;
-  boonEchoJade: number;
-  boonEchoGold: number;
-  boonEchoUmbra: number;
-  // ---- 2026-09 第 2 弾: 属性（combat.ts の genreAndElement から traitElementMul が読む）----
-  /** 弱点を突いた命中の与ダメージ / 弱点でない相手への減少 */
+  // ---- 属性（combat.ts の genreAndElement から traitElementMul が読む）----
+  /** 弱点を突いた命中の与ダメージ */
   weakDamageMul: number;
-  nonWeakPenalty: number;
-  /** 耐性による減少を打ち消す割合 0..1 */
-  resistPierce: number;
-  /** 弱点を突いた命中で戻る気力 */
+  /** 弱点を突いた命中で戻る気力（ベースの水晶杖） */
   weakHitMana: number;
   /** 耐性に阻まれた命中で、攻撃の主な属性の状態異常を付ける秒（0 = 無効） */
   resistedInflict: number;
@@ -557,55 +593,22 @@ export interface TraitStats {
   wetConductMul: number;
   /** 油膜の敵への与ダメージ（炎の割合が大きいほど伸びる） */
   oiledIgniteMul: number;
-  // ---- 武器種・銃の弾・ジョブ ----
-  /** 溜めの段 1 つにつきの近接の与ダメージ / 溜めを持つ武器で溜めずに振った近接の減少 */
+  // ---- 武器種・銃の弾 ----
+  /** 溜めの段 1 つにつきの近接の与ダメージ */
   chargedMeleeMul: number;
-  unchargedPenalty: number;
-  /** 溜めの段 1 つにつきの怯み値 */
+  /** 溜めの段 1 つにつきの怯み値（ベースの大連接棍） */
   chargedPoiseMul: number;
-  /** 溜めの段 1 つにつき、命中で得る必殺ゲージ */
-  chargedHitEnergy: number;
-  /** コンボ派生の命中の与ダメージ / 命中で戻る気力 */
+  /** コンボ派生の命中の与ダメージ（ベースの刀）/ 命中で戻る気力 */
   branchDamageMul: number;
   branchHitMana: number;
-  /** ジョブの得意武器を持つ間の与ダメージ / 持たない間の減少 */
-  favoredDamageMul: number;
-  unfavoredPenalty: number;
-  /** 得意でない武器の近接の怯み値 / 得意武器の近接の怯み値の減少（我流） */
-  unfavoredPoiseMul: number;
-  favoredPoisePenalty: number;
-  /** 得意武器を持つ間の撃破で戻る気力 */
-  favoredKillMana: number;
-  /** 見習い（ジョブなし）の間の与ダメージ / ジョブを持つ間の減少 */
-  noJobDamageMul: number;
-  jobPenalty: number;
-  /** 散弾の射撃: 近い敵への与ダメージ / 遠い敵への減少 / 怯み値 */
+  /** 散弾の射撃: 近い敵への与ダメージ（ベースのラッパ銃） */
   spreadCloseMul: number;
-  spreadFarPenalty: number;
-  spreadPoiseMul: number;
-  /** 追尾の射撃の命中で毒を付ける秒 */
-  homingPoison: number;
   /** 連射の射撃の命中で烙印を付ける確率 0..1 */
   rapidBrandChance: number;
-  // ---- 新しい状態異常 ----
-  /** 烙印の敵への射撃・スキルの与ダメージ / 烙印の無い敵への射撃の減少 */
-  brandedMul: number;
-  unbrandedPenalty: number;
-  /** 崩勢の敵への与ダメージ */
-  brokenMul: number;
-  /** 腐食の敵への怯み値 */
-  corrodePoiseMul: number;
-  /** 宣告の付いた敵を倒したときに戻る気力 */
-  doomKillMana: number;
   // ---- 地形 ----
-  /** 自分が地形の上に立つ間の与ダメージ / 地形の無い床での減少 */
-  terrainDamageMul: number;
-  offTerrainPenalty: number;
-  /** 自分が水たまり・氷床の上に立つ間の与ダメージ */
-  slickDamageMul: number;
-  /** 地形の上にいる敵への与ダメージ */
+  /** 地形の上にいる敵への与ダメージ（ベースの撒き菱） */
   enemyOnTerrainMul: number;
-  /** 自分が地形の上に立つ間の被ダメージの減少 */
+  /** 自分が地形の上に立つ間の被ダメージの減少（ベースの蓑） */
   terrainGuard: number;
   /** 地形の上に立つ間の毎秒の回復（戦闘中の共通上限を受ける） */
   terrainRegen: number;
@@ -615,28 +618,25 @@ export interface TraitStats {
   burningKillFire: number;
   /** ダッシュ中に足元へ氷床を置く秒 */
   dashIceTrail: number;
-  // ---- 交戦中 ----
-  /** 交戦中の被ダメージの減少 / 交戦外の被ダメージの増加 */
+  // ---- 被ダメージ ----
+  /** 交戦中の被ダメージの減少 */
   engagedGuard: number;
-  roamExposure: number;
-  /** 交戦中の撃破で得る必殺ゲージ */
-  engagedKillEnergy: number;
-  // ---- 被ダメージの属性 ----
-  /** 属性を持つ攻撃から受けるダメージの減少 / 無属性の攻撃から受けるダメージの増加 */
-  elementalGuard: number;
-  physicalExposure: number;
+  /** 近接を振っている間（予備動作〜攻撃判定）の被ダメージの減少（構え） */
+  stanceGuard: number;
+  /** 0 より大: 被弾で押し戻されず、立ち止まっている間の被ダメージがこの割合だけ減る（踏ん張り） */
+  unmoving: number;
   // ---- 攻撃手段の持ち替え（近接 / 射撃 / スキル） ----
+  /** 直前と違う手段で当てるたびに戻る気力 */
+  switchMana: number;
+  /** 怯ませた敵に、武器の主な属性の状態異常を付ける秒 */
+  elementBreak: number;
+  // ---- 旧 色の共鳴が持ち込んでいた欄（段取り 7d で書く所が無くなった。読む system/traitHooks.ts と一緒に消す）----
   /** 直前と違う手段で当てた命中の怯み値 / 同じ手段が続いた命中の減少 */
   alternatePoiseMul: number;
   repeatPoisePenalty: number;
-  /** 直前と違う手段で当てるたびに戻る気力 */
-  switchMana: number;
   /** 近接と射撃を交互に当てるたびに重なる与ダメージ（1 段）と上限 */
   alternateDamageStep: number;
   alternateDamageCap: number;
-  /** 怯ませた敵に、武器の主な属性の状態異常を付ける秒 */
-  elementBreak: number;
-  // ---- 共鳴・星座が持ち込むもの ----
   /** 生命が半分以上の間の与ダメージ / 半分未満の間の被ダメージの減少（表裏） */
   highHpDamageMul: number;
   lowHpGuard: number;
@@ -664,9 +664,9 @@ export interface LootRuntime {
   lastCombo: number;
   /** 形見: 次の命中に乗せる状態異常と残り回数 */
   inherited: { kind: StatusKind; charges: number } | null;
-  /** 直前に当てた攻撃手段（持ち替えの性質・星座・拮抗が読む） */
+  /** 直前に当てた攻撃手段（持ち替えの性質が読む） */
   lastMode: AttackMode | null;
-  /** 天秤（拮抗）: 近接と射撃を交互に当て続けた回数と、途切れるまでの残り秒 */
+  /** 旧共鳴「天秤」の名残: 近接と射撃を交互に当て続けた回数と、途切れるまでの残り秒 */
   alternateStacks: number;
   alternateTimer: number;
   /** 地形の衝撃波の内部クールダウン（連鎖で画面が爆ぜ続けないように） */
@@ -682,84 +682,31 @@ export function createLootRuntime(): LootRuntime {
 
 export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   manaOnStagger: 0,
-  lowManaGainMul: 0,
-  fullManaSkillMul: 0,
-  lowManaSkillMul: 0,
   manaShieldCost: 0,
-  silencedKillMana: 0,
-  lastKillManaRatio: 0,
   manaOverflowToEnergy: 0,
-  damagePerStatusKind: 0,
-  damagePerSelfStatus: 0,
-  windupDamageMul: 0,
-  offWindupPenalty: 0,
-  guardedDamageMul: 0,
-  bossDamageMul: 0,
-  nonBossPenalty: 0,
-  lockedDamageMul: 0,
-  unlockedPenalty: 0,
-  darkRangedMul: 0,
-  lightRangedPenalty: 0,
-  reaperDamageMul: 0,
-  fearPoiseMul: 0,
-  silencedPoiseMul: 0,
-  vulnerablePoiseMul: 0,
-  guardedPoiseMul: 0,
   wedgePoiseMul: 0,
-  wedgePenalty: 0,
   rangedPoiseMul: 0,
   critPoiseMul: 0,
   guardPierce: 0,
   staggerQuake: 0,
-  healOnStagger: 0,
-  weakenedGuard: 0,
-  weakenedExposure: 0,
   lastKillClearsBullets: 0,
   lastKillEnergy: 0,
   comboBreakWave: 0,
   inheritCharges: 0,
   stakeDamage: 0,
   placedInfuse: 0,
-  placedExtend: 0,
   lowHpSkillHaste: 0,
-  boonEchoCrimson: 0,
-  boonEchoAzure: 0,
-  boonEchoJade: 0,
-  boonEchoGold: 0,
-  boonEchoUmbra: 0,
   weakDamageMul: 0,
-  nonWeakPenalty: 0,
-  resistPierce: 0,
   weakHitMana: 0,
   resistedInflict: 0,
   wetConductMul: 0,
   oiledIgniteMul: 0,
   chargedMeleeMul: 0,
-  unchargedPenalty: 0,
   chargedPoiseMul: 0,
-  chargedHitEnergy: 0,
   branchDamageMul: 0,
   branchHitMana: 0,
-  favoredDamageMul: 0,
-  unfavoredPenalty: 0,
-  unfavoredPoiseMul: 0,
-  favoredPoisePenalty: 0,
-  favoredKillMana: 0,
-  noJobDamageMul: 0,
-  jobPenalty: 0,
   spreadCloseMul: 0,
-  spreadFarPenalty: 0,
-  spreadPoiseMul: 0,
-  homingPoison: 0,
   rapidBrandChance: 0,
-  brandedMul: 0,
-  unbrandedPenalty: 0,
-  brokenMul: 0,
-  corrodePoiseMul: 0,
-  doomKillMana: 0,
-  terrainDamageMul: 0,
-  offTerrainPenalty: 0,
-  slickDamageMul: 0,
   enemyOnTerrainMul: 0,
   terrainGuard: 0,
   terrainRegen: 0,
@@ -767,16 +714,14 @@ export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   burningKillFire: 0,
   dashIceTrail: 0,
   engagedGuard: 0,
-  roamExposure: 0,
-  engagedKillEnergy: 0,
-  elementalGuard: 0,
-  physicalExposure: 0,
+  stanceGuard: 0,
+  unmoving: 0,
+  switchMana: 0,
+  elementBreak: 0,
   alternatePoiseMul: 0,
   repeatPoisePenalty: 0,
-  switchMana: 0,
   alternateDamageStep: 0,
   alternateDamageCap: 0,
-  elementBreak: 0,
   highHpDamageMul: 0,
   lowHpGuard: 0,
   triggerIcdCut: 0,
@@ -786,39 +731,6 @@ export const DEFAULT_TRAIT_STATS: Readonly<TraitStats> = {
   gearInverted: 0,
   gearOffColor: 0,
 };
-
-/**
- * 共鳴の種類。同時に 1 つだけ。
- * dominant = 支配（1 色 >= 50%）/ dual = 二重（上位 2 色が各 >= 30%）/
- * triad = 三和音（上位 3 色が各 >= 22%）/ scatter = 散光（全色 < 30%）/ none = なし
- */
-export type ResonanceKind = "dominant" | "dual" | "triad" | "scatter" | "none";
-
-export interface Resonance {
-  kind: ResonanceKind;
-  /** dominant は 1 色、dual は 2 色、triad は 3 色（TRAIT_COLORS 順）、scatter / none は空 */
-  colors: TraitColor[];
-  /** 色ごとの配合比（合計 1。性質が無ければ全部 0） */
-  ratios: Record<TraitColor, number>;
-  /**
-   * 共鳴の変形（docs/ideas/loot-expansion.md 9-2 / 9-3）。kind は据え置いたまま効果だけを差し替える
-   * （kind で分岐する他の仕組みを壊さない）。negative = 陰画（支配が裏返る。kind は dominant）/
-   * balance = 拮抗（反対色の均衡。kind は dual）
-   */
-  form?: ResonanceForm;
-  /** 星座（6 部位の主色の並び。共鳴とは別の層で同時に 1 つ）。computeStats が入れる */
-  constellation?: ConstellationKey;
-}
-
-export type ResonanceForm = "negative" | "balance";
-
-/** 星座の key（resonance.ts の CONSTELLATIONS） */
-export const CONSTELLATION_KEYS = ["twins", "shores", "spine", "ring", "mirror", "void", "chain"] as const;
-export type ConstellationKey = (typeof CONSTELLATION_KEYS)[number];
-
-export function createEmptyResonance(): Resonance {
-  return { kind: "none", colors: [], ratios: { crimson: 0, azure: 0, jade: 0, gold: 0, umbra: 0 } };
-}
 
 export type TriggerKind =
   | "onMeleeHit"
@@ -909,15 +821,19 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   dashCooldownMul: 1,
   dashCharges: 1,
   dashDistanceMul: 1,
+  dashInvulnBonus: 0,
 
-  meleeDamageMul: 1,
+  // 既定は凍らせる（{ ...DEFAULT_STATS } の浅い写しから書き換えて既定を汚さない。複製は stats.ts の createBaseStats）
+  increased: Object.freeze(createIncreased()),
+  more: Object.freeze([]),
+  modifiers: Object.freeze([]),
+  rules: Object.freeze([]),
+
   meleeDamageFlat: 0,
   attackSpeedMul: 1,
   meleeReachMul: 1,
   knockbackMul: 1,
-  damageVsStaggeredMul: 1,
 
-  rangedDamageMul: 1,
   rangedDamageFlat: 0,
   fireRateMul: 1,
   projectileCount: 1,
@@ -928,7 +844,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   critMul: 1.5,
 
   energyGainMul: 1,
-  burstDamageMul: 1,
   burstRadiusMul: 1,
 
   comboWindowBonus: 0,
@@ -948,7 +863,6 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
 
   keystones: [],
   triggers: [],
-  resonance: createEmptyResonance(),
 
   attributes: uniformAttributes(ATTR.base),
   attributesEff: uniformAttributes(ATTR.base),
@@ -957,11 +871,12 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   manaGainMul: 1,
   manaCostMul: 1,
   manaOnKill: 0,
-  skillDamageMul: 1,
   poiseDamageMul: 1,
   statusPotencyMul: 1,
   statusTakenMul: 1,
   bulletCut: 0,
+  chainRevisits: 0,
+  chainCoefBonus: 0,
   statusProcs: [],
   traits: DEFAULT_TRAIT_STATS,
   moveset: "sword",
@@ -969,4 +884,13 @@ export const DEFAULT_STATS: Readonly<PlayerStats> = {
   bullet: "pistol",
   infuse: uniformElements(0),
   skillNeutral: 0,
+  moraleMaxAdd: 0,
+  moraleGainMul: 1,
+  coinMagnetMul: 1,
+  coinSpillMul: 1,
+  coinGainMul: 1,
+  flaskMax: ECONOMY.flask.max,
+  statusStackCapBonus: Object.freeze({}),
+  graceSlotBonus: Object.freeze({}),
+  reach: Object.freeze({ chain: 0, burn: 0, morale: 0 }),
 };

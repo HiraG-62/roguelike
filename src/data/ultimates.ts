@@ -1,5 +1,5 @@
 import { type AttackProfile, attack } from "../core/element";
-import { type Rule, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
+import { type Modifier, type Rule, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import type { EventKind } from "../core/events";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
@@ -28,7 +28,7 @@ import {
 export const ULTIMATE_KINDS = ["instant", "sustain"] as const;
 export type UltimateKind = (typeof ULTIMATE_KINDS)[number];
 
-/** 周囲攻撃。radius に burstRadiusMul、威力に burstDamageMul が掛かる */
+/** 周囲攻撃。radius に burstRadiusMul、威力に 奥義の増（increased.ultimate） が掛かる */
 export interface NovaAct {
   readonly kind: "nova";
   readonly radius: number;
@@ -136,7 +136,7 @@ export interface SustainShot {
   readonly orbit?: OrbitDef;
 }
 
-/** 命中の衝撃波（鉄槌の律）。半径に burstRadiusMul、威力に burstDamageMul が掛かる */
+/** 命中の衝撃波（鉄槌の律）。半径に burstRadiusMul、威力に 奥義の増（increased.ultimate） が掛かる */
 export interface HitQuakeDef {
   readonly radius: number;
   readonly scaling: Scaling;
@@ -154,7 +154,7 @@ export interface SustainDef {
   /** 毎秒減るゲージ。0 になったら終わる。もう一度 F で早く終える（残りは保つ） */
   readonly drainPerSec: number;
   readonly minSec: number;
-  /** 通常攻撃に掛ける倍率（burstDamageMul は掛けない） */
+  /** 通常攻撃に掛ける倍率（奥義の増（increased.ultimate） は掛けない） */
   readonly mul: {
     readonly damage?: number;
     readonly attackSpeed?: number;
@@ -183,7 +183,7 @@ export interface SustainDef {
   readonly recall?: { readonly interval: number; readonly returnDamageMul: number; readonly speedMul: number; readonly homing?: RecallHomingDef };
   /** 床の自分の設置弾が近くの敵を引き寄せる */
   readonly minePull?: { readonly radius: number; readonly speed: number };
-  /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、burstDamageMul は掛けない） */
+  /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、奥義の増（increased.ultimate） は掛けない） */
   readonly swingVolley?: ThrowArtDef;
   /** 近接の振りが当たるたびに当てた敵の位置で起こす衝撃波（icd 秒に 1 回） */
   readonly hitQuake?: HitQuakeDef;
@@ -191,6 +191,8 @@ export interface SustainDef {
   readonly pointBlank?: { readonly range: number; readonly mul: number };
   /** 持続中だけ効く Rule（system/rules.ts の collectRules が Player.ultimate.active のとき集める） */
   readonly rules?: readonly Rule[];
+  /** 持続中だけ効く常時の増・倍（Modifier。system/modifiers.ts） */
+  readonly modifiers?: readonly Modifier[];
   /** 終わりに出す行為 */
   readonly onEnd?: readonly UltimateAct[];
 }
@@ -899,6 +901,39 @@ function fanSet(): UltimateSet {
   ];
 }
 
+// ---- 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8） ----
+
+const ARCANE_RANGED = attack("ranged", "arcane");
+const ARCANE_PLAIN_AREA = attack("area", "arcane");
+
+function bookSet(): UltimateSet {
+  const m = "book";
+  return [
+    instantDef(m, "grandLibrary", "万巻", "周りに頁を舞わせて何度も打ち、気力を取り戻す", ARCANE_PLAIN_AREA, (n) => [nova(sub(n, "nova")), buff(sub(n, "buff"))]),
+    instantDef(m, "sealingScript", "封呪", "照準の方向へ呪符を扇に放つ。呪符は敵を貫く", ARCANE_RANGED, (n) => [volley(sub(n, "volley"), ARCANE_RANGED)]),
+    sustainDef(m, "recitation", "朗誦", "持続。打ちの命中で気力が戻り、スキルを当てるたびに再使用が早く進む", (n, key) => ({
+      ...sustainCore(n),
+      rules: [
+        sustainRule(key, 0, "onMeleeHit", { kind: "restoreMana", magnitude: num(sub(n, "hitMana"), "magnitude"), quiet: true }, num(sub(n, "hitMana"), "icd")),
+        sustainRule(key, 1, "onSkillHit", { kind: "skillHaste", magnitude: num(sub(n, "skillHaste"), "magnitude") }, num(sub(n, "skillHaste"), "icd")),
+      ],
+    })),
+  ];
+}
+
+function handbellSet(): UltimateSet {
+  const m = "handbell";
+  const thunder = attack("area", "arcane", "lightning");
+  return [
+    instantDef(m, "thunderToll", "鳴神", "鈴を大きく鳴らして周りに雷を落とし、感電させる", thunder, (n) => [nova(sub(n, "nova"), { applies: [applyOf("shock", sub(n, "shock"))] })]),
+    instantDef(m, "spiritCall", "招魂", "周りの敵を鈴の音で呼び寄せ、まとめて打つ", ARCANE_PLAIN_AREA, (n) => [pull(sub(n, "pull")), nova(sub(n, "nova"))]),
+    sustainDef(m, "requiem", "鎮魂", "持続。鈴の音が周りの敵を打ち続け、受けるダメージが減る", (n) => ({
+      ...sustainCore(n),
+      aura: auraOf(n),
+    })),
+  ];
+}
+
 const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   sword: swordSet,
   greatsword: greatswordSet,
@@ -927,6 +962,8 @@ const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   flail: flailSet,
   ringBlades: ringBladesSet,
   fan: fanSet,
+  book: bookSet,
+  handbell: handbellSet,
 };
 
 export const ULTIMATES: Readonly<Record<MovesetKey, UltimateSet>> = Object.fromEntries(MOVESET_KEYS.map((k) => [k, SET_BUILDERS[k]()])) as Record<

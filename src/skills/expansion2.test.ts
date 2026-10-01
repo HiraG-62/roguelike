@@ -6,24 +6,23 @@ import type { StatusKind } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { STATUS } from "../data/tuning";
-import { MOVESET_KEYS } from "../data/weapons";
-import { TRAIT_COLORS, type TraitColor, createEmptyResonance } from "../loot/types";
+import { TRAIT_COLORS, type TraitColor } from "../loot/types";
+import { BOONS, BOON_KEYS, type BoonKey } from "../system/boonDefs";
+import { HUE_KEYWORD, refreshResonance, resonantHue } from "../system/resonance";
 import { updatePlayer } from "../system/player";
-import { createSkillRunState, resolveSlot, skillMoveMul, slotComboReady, updateSkills } from "../system/skills";
+import { createSkillRunState, resolveSlot, slotComboReady, updateSkills } from "../system/skills";
 import { applyStatus } from "../system/statusEffects";
 import { placeTerrain, terrainAt } from "../system/terrain";
 import { arena, placeEnemy, withInput } from "../system/testHelpers";
-import { FORM_MOVESET, HUE_RELEASE_TRIGGER, SHIFT_CYCLE, formDuration, levelGroundMul, shiftElement } from "./actions2";
+import { HUE_RELEASE_TRIGGER, SHIFT_CYCLE, levelGroundMul, shiftElement } from "./actions2";
 import { COMBOS } from "./combos";
-import { MODIFIERS, SKILL, SKILL_DEFS, canAttach, resolveCast } from "./data";
+import { MODIFIERS, SKILL, SKILL_DEFS, canAttach } from "./data";
 import { stoneFromSeed } from "./generator";
-import { castAttack } from "./hit";
-import { INFUSE_STATUS } from "./modifiers2";
-import { FORM_TUNING, WEAPON_ART } from "./tuning2";
+import { LEYLINE_TERRAIN } from "./hit";
 import { type ModifierKey, type SkillKey, type SkillStone, WAVE2_MODIFIER_KEYS, WAVE2_SKILL_KEYS } from "./types";
 
 /**
- * スキル第 2 弾（地形・新しい状態異常・属性・武器種・変身・空間）と、その刻印符・型替え符・連携を
+ * スキル第 2 弾（地形・新しい状態異常・属性・空間）と、その刻印符・型替え符・連携を
  * 実際の発動（updatePlayer → updateSkills → castSlot）を通して状態・数値で検証する
  */
 
@@ -106,8 +105,19 @@ function ahead(state: GameState, dx: number, dy = 0): Vec {
   return { x: state.player.body.pos.x + dx, y: state.player.body.pos.y + dy };
 }
 
+/**
+ * 彩痕の色の状態異常を共鳴させる。共鳴は毎ステップ数え直すので、その語を出すだけの祝福 2 枚と食うだけの祝福 2 枚を持たせる
+ */
 function withResonance(state: GameState, color: TraitColor): void {
-  state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "dominant", colors: [color] } };
+  const k = HUE_KEYWORD[color];
+  const pure = (verb: "produces" | "consumes"): BoonKey[] =>
+    BOON_KEYS.filter((b) => {
+      const p = BOONS[b].keywords;
+      return p[verb].includes(k) && !p[verb === "produces" ? "consumes" : "produces"].includes(k) && !p.amplifies.includes(k);
+    }).slice(0, 2);
+  state.boons = [...pure("produces"), ...pure("consumes")];
+  refreshResonance(state);
+  expect(resonantHue(state), `前提: ${k} が共鳴`).toBe(color);
 }
 
 /** 消費系は食う相手を用意してから撃つ */
@@ -131,8 +141,8 @@ describe("第 2 弾: 全スキルの発動", () => {
     expect(lost(e), "当たった").toBeGreaterThan(0);
   });
 
-  it("全 24 種（第 4 弾の泥沼を含む）に定義がそろい、怯み値と最低間隔を持つ", () => {
-    expect(WAVE2_SKILL_KEYS).toHaveLength(24);
+  it("全 13 種（第 4 弾の泥沼を含む）に定義がそろい、怯み値と最低間隔を持つ", () => {
+    expect(WAVE2_SKILL_KEYS).toHaveLength(13);
     for (const key of WAVE2_SKILL_KEYS) {
       const def = SKILL_DEFS[key];
       expect(def.key, key).toBe(key);
@@ -159,24 +169,6 @@ describe("地形を作る・壊す・燃やす", () => {
     cast(state, e.body.pos);
     expect(terrainAt(state, e.body.pos.x, e.body.pos.y)).toBe("oil");
     expect(has(e, "oiled")).toBe(true);
-  });
-
-  it("焼き払い: 前方の床が燃え、自分の足元は燃えない", () => {
-    const state = skillArena([{ key: "scorchLine" }]);
-    const me = { ...state.player.body.pos };
-    cast(state, ahead(state, 60));
-    expect(terrainAt(state, me.x + 40, me.y)).toBe("fire");
-    expect(terrainAt(state, me.x, me.y), "足元").toBe("none");
-  });
-
-  it("凍て道: カーソル方向へ滑り、通った床が氷床になる", () => {
-    const state = skillArena([{ key: "iceSlide" }]);
-    const from = { ...state.player.body.pos };
-    cast(state, ahead(state, 80));
-    expect(state.skills.active?.skillKey).toBe("iceSlide");
-    run(state, SKILL.iceSlide.time + 0.05);
-    expect(state.player.body.pos.x - from.x, "動いた").toBeGreaterThan(SKILL.iceSlide.distance / 2);
-    expect(terrainAt(state, from.x + 30, from.y)).toBe("ice");
   });
 
   it("地均し: 前方の地形を砕いて消し、砕いた数だけ強い。溶岩は砕けない", () => {
@@ -212,12 +204,6 @@ describe("地形を作る・壊す・燃やす", () => {
     expect(state.player.status.effects.some((s) => s.kind === "burn" && s.time > 0)).toBe(false);
   });
 
-  it("沼呼び: 照準地点に毒沼", () => {
-    const state = skillArena([{ key: "bogCall" }]);
-    const at = ahead(state, 60);
-    cast(state, at);
-    expect(terrainAt(state, at.x, at.y)).toBe("bog");
-  });
 });
 
 describe("新しい状態異常を出す・食う", () => {
@@ -245,40 +231,6 @@ describe("新しい状態異常を出す・食う", () => {
     expect(state.player.mana).toBe(state.stats.maxMana);
   });
 
-  it("崩し蹴り: 崩勢を付け、崩勢中の敵は壁へ叩きつけられる", () => {
-    const state = skillArena([{ key: "breakKick" }]);
-    const e = tough(state, 20);
-    cast(state);
-    expect(has(e, "broken")).toBe(true);
-    const again = skillArena([{ key: "breakKick" }]);
-    const f = tough(again, 20);
-    give(again, f, "broken");
-    cast(again);
-    expect(f.wallSplat).toBe(true);
-  });
-
-  it("崩落槌: 崩勢中の敵はその場で怯む", () => {
-    const state = skillArena([{ key: "collapseHammer" }]);
-    const e = tough(state, 25);
-    e.poise.max = BIG_HP;
-    give(state, e, "broken");
-    cast(state);
-    expect(has(e, "stagger")).toBe(true);
-    const plain = skillArena([{ key: "collapseHammer" }]);
-    const f = tough(plain, 25);
-    f.poise.max = BIG_HP;
-    cast(plain);
-    expect(has(f, "stagger"), "崩勢でなければ怯み値まかせ").toBe(false);
-  });
-
-  it("水刃: 飛ぶ斬撃で濡らす", () => {
-    const state = skillArena([{ key: "tideSlash" }]);
-    const e = tough(state, 50);
-    cast(state);
-    run(state, 0.3);
-    expect(stacks(e, "wet")).toBe(SKILL.tideSlash.wetStacks);
-  });
-
   it("瞬凍: 濡れた敵を凍らせ、水たまりを氷床に変える。濡れも水も無ければ撃てない", () => {
     const state = skillArena([{ key: "flashFreeze" }]);
     const e = tough(state, 30);
@@ -295,7 +247,7 @@ describe("新しい状態異常を出す・食う", () => {
     expect(dry.player.mana).toBe(dry.stats.maxMana);
   });
 
-  it("彩刻: 共鳴の色の彩痕を刻む", () => {
+  it("彩刻: 共鳴している状態異常の色の彩痕を刻む", () => {
     const state = skillArena([{ key: "hueEtch" }]);
     withResonance(state, "azure");
     const e = tough(state, 25);
@@ -304,8 +256,9 @@ describe("新しい状態異常を出す・食う", () => {
     expect(hue?.potency).toBe(TRAIT_COLORS.indexOf("azure"));
   });
 
-  it("彩刻: 効果量が変わっても（血の代償）彩痕の色はずれない", () => {
-    const state = skillArena([{ key: "hueEtch", links: 1, modifiers: ["bloodPrice"] }]);
+  it("彩刻: 効果量が変わっても（捧げ）彩痕の色はずれない", () => {
+    const state = skillArena([{ key: "hueEtch", links: 1, modifiers: ["offering"] }]);
+    state.player.energy = state.player.maxEnergy;
     withResonance(state, "umbra");
     const e = tough(state, 25);
     cast(state);
@@ -321,14 +274,6 @@ describe("新しい状態異常を出す・食う", () => {
     expect(HUE_RELEASE_TRIGGER[color].kind).toBeDefined();
   });
 
-  it("吸魔の印: 吸魔を付け、その敵への命中で気力が戻る", () => {
-    const state = skillArena([{ key: "siphonMark" }]);
-    const e = tough(state, 50);
-    cast(state);
-    run(state, 0.3);
-    expect(has(e, "siphon")).toBe(true);
-  });
-
   it("宣告: 照準の敵とその周りに宣告。対象がいなければ撃てない", () => {
     const state = skillArena([{ key: "doomSentence" }]);
     const e = tough(state, 60);
@@ -342,7 +287,7 @@ describe("新しい状態異常を出す・食う", () => {
   });
 });
 
-describe("属性・武器種", () => {
+describe("属性", () => {
   it("移ろい刃: 撃つたびに 炎 → 氷 → 雷 → 毒 と巡り、属性に合う状態異常を付ける", () => {
     const state = skillArena([{ key: "shiftingEdge" }]);
     const kinds: StatusKind[] = ["burn", "chill", "shock", "poison"];
@@ -359,69 +304,6 @@ describe("属性・武器種", () => {
     expect(state.skills.slots[0]?.elementStep, "一巡して戻る").toBe(0);
   });
 
-  it("極意: 武器種で形が変わる（槍は遠くまで突き、剣は届かない）", () => {
-    const sword = skillArena([{ key: "weaponArt" }]);
-    const a = tough(sword, 62);
-    cast(sword);
-    const spear = skillArena([{ key: "weaponArt" }]);
-    spear.stats = { ...spear.stats, moveset: "spear" };
-    const b = tough(spear, 62);
-    cast(spear);
-    expect(lost(a), "剣の十文字は届かない").toBe(0);
-    expect(lost(b), "槍の槍衾は届く").toBeGreaterThan(0);
-    expect(Object.keys(WEAPON_ART).length, "全武器種に形がある").toBe(MOVESET_KEYS.length);
-  });
-
-  it("極意: 杖は魔弾を撃ち、属性は武器（光）に揃う", () => {
-    const state = skillArena([{ key: "weaponArt" }]);
-    state.stats = { ...state.stats, moveset: "wand" };
-    cast(state);
-    expect(state.skills.shots).toHaveLength(WEAPON_ART.wand.count);
-    expect(state.skills.shots[0]?.params.element).toBe("light");
-  });
-});
-
-describe("変身", () => {
-  it("剛の型: しばらく武器が大剣になり、切れたら戻って少し遅くなる", () => {
-    const state = skillArena([{ key: "titanForm" }]);
-    expect(state.stats.moveset).toBe("sword");
-    cast(state);
-    expect(state.stats.moveset).toBe("greatsword");
-    expect(state.skills.form?.skillKey).toBe("titanForm");
-    run(state, SKILL.titanForm.duration + 0.05);
-    expect(state.skills.form).toBeNull();
-    expect(state.stats.moveset, "戻る").toBe("sword");
-    expect(skillMoveMul(state), "反動で遅い").toBeCloseTo(FORM_TUNING.recoverMoveMul);
-    run(state, FORM_TUNING.recoverTime + 0.05);
-    expect(skillMoveMul(state)).toBe(1);
-  });
-
-  it("変身中に装備を替えて stats が作り直されても変身の武器種に差し直し、切れたら新しい武器種へ戻る", () => {
-    const state = skillArena([{ key: "swiftForm" }]);
-    cast(state);
-    state.stats = { ...state.stats, moveset: "spear" };
-    run(state, FIXED_DT);
-    expect(state.stats.moveset).toBe(FORM_MOVESET.swiftForm);
-    run(state, SKILL.swiftForm.duration);
-    expect(state.stats.moveset).toBe("spear");
-  });
-
-  it("変身先がジョブの得意な武器種なら長く続く", () => {
-    const state = skillArena([{ key: "titanForm" }]);
-    const params = resolveSlot(state, 0)?.params;
-    if (!params) throw new Error("slot");
-    const plain = formDuration(state, "titanForm", params);
-    state.job = "swordsman";
-    expect(formDuration(state, "titanForm", params)).toBeCloseTo(plain * FORM_TUNING.favoredDurationMul);
-  });
-
-  it("霊の型: 杖になり、変身の瞬間に周りを打つ", () => {
-    const state = skillArena([{ key: "spiritForm" }]);
-    const e = tough(state, 25);
-    cast(state);
-    expect(state.stats.moveset).toBe("wand");
-    expect(lost(e)).toBeGreaterThan(0);
-  });
 });
 
 describe("結界杭", () => {
@@ -452,97 +334,17 @@ describe("結界杭", () => {
   });
 });
 
-describe("第 2 弾の刻印符", () => {
-  it.each(["fireInfuse", "iceInfuse", "stormInfuse", "venomInfuse", "breakInfuse"] as const)("%s: 命中で状態異常を付ける", (mod) => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: [mod] }]);
-    const e = tough(state, 15);
-    cast(state);
-    run(state, SKILL.whirl.duration);
-    const kind = INFUSE_STATUS[mod][0]?.kind;
-    if (!kind) throw new Error("付与が無い");
-    expect(has(e, kind) || (kind === "chill" && has(e, "freeze"))).toBe(true);
-  });
-
-  it("属性の刻印符は発動の属性を差し替える（ジャンルはそのまま）", () => {
-    const p = resolveCast(SKILL_DEFS.quake, makeStone({ key: "quake", links: 1 }), ["fireInfuse"]);
-    expect(castAttack(p)?.element).toBe("fire");
-    expect(castAttack(p)?.genre).toEqual(castAttack(resolveCast(SKILL_DEFS.quake, makeStone({ key: "quake" }), []))?.genre);
-  });
-
-  it("属性を差し替える刻印符同士は同時に効かない（古い方が効く）", () => {
-    const p = resolveCast(SKILL_DEFS.quake, makeStone({ key: "quake", links: 2 }), ["iceInfuse", "fireInfuse"]);
-    expect(p.element).toBe("ice");
-  });
-
-  it("彩り: 共鳴の色の彩痕を付ける。共鳴が無ければ付かない", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["hueInfuse"] }]);
-    withResonance(state, "gold");
-    const e = tough(state, 15);
-    cast(state);
-    run(state, SKILL.whirl.duration);
-    expect(e.status.effects.find((s) => s.kind === "hue")?.potency).toBe(TRAIT_COLORS.indexOf("gold"));
-    const none = skillArena([{ key: "whirl", links: 1, modifiers: ["hueInfuse"] }]);
-    const f = tough(none, 15);
-    cast(none);
-    run(none, SKILL.whirl.duration);
-    expect(has(f, "hue")).toBe(false);
-  });
-
-  it("地染め: 命中した位置に属性の地形が湧く（炎化なら炎）。1 回の発動で上限まで", () => {
-    const state = skillArena([{ key: "quake", links: 2, modifiers: ["fireInfuse", "leyline"] }]);
-    const e = tough(state, 30);
+describe("第 2 弾のスキルと刻印符", () => {
+  it("地形化: 命中した位置に攻撃の属性の地形が湧く（光の裁きなら水たまり）", () => {
+    const state = skillArena([{ key: "verdict", links: 1, modifiers: ["leyline"] }]);
+    const e = tough(state, 20);
     const at = { ...e.body.pos };
     cast(state);
-    run(state, SKILL.quake.windup + 0.05);
-    expect(terrainAt(state, at.x, at.y)).toBe("fire");
+    run(state, 0.05);
+    expect(terrainAt(state, at.x, at.y)).toBe(LEYLINE_TERRAIN.light);
   });
 
-  it("心得: ジョブの得意な武器種なら強く、そうでなければ弱い", () => {
-    const hit = (job: GameState["job"]): number => {
-      const state = skillArena([{ key: "quake", links: 1, modifiers: ["jobMastery"] }]);
-      state.job = job;
-      cast(state);
-      return state.skills.active?.params.damageMul ?? 0;
-    };
-    const m = SKILL.modifier.jobMastery;
-    expect(hit("swordsman") / hit("hunter")).toBeCloseTo(m.favoredMul / m.otherMul, 1);
-  });
-
-  it("武器写し: 雷の鞭なら雷属性、無属性の剣なら素の冴えで強い", () => {
-    const state = skillArena([{ key: "quake", links: 1, modifiers: ["weaponBond"] }]);
-    state.stats = { ...state.stats, moveset: "whip" };
-    const e = tough(state, 30);
-    cast(state);
-    expect(state.skills.active?.params.element).toBe("lightning");
-    run(state, SKILL.quake.windup + 0.05);
-    expect(lost(e)).toBeGreaterThan(0);
-    const sword = skillArena([{ key: "quake", links: 1, modifiers: ["weaponBond"] }]);
-    cast(sword);
-    expect(sword.skills.active?.params.damageMul).toBeCloseTo(SKILL.modifier.weaponBond.plainMul);
-  });
-
-  it("化身: 変身中は強く、変身していなければ弱い", () => {
-    const state = skillArena([{ key: "titanForm" }, { key: "quake", links: 1, modifiers: ["formSurge"] }]);
-    cast(state, undefined, 1);
-    const before = state.skills.active?.params.damageMul ?? 0;
-    run(state, SKILL.quake.windup + SKILL.quake.recover + 0.1);
-    state.player.mana = state.stats.maxMana;
-    cast(state, undefined, 0);
-    waitReady(state, 1);
-    cast(state, undefined, 1);
-    const after = state.skills.active?.params.damageMul ?? 0;
-    const m = SKILL.modifier.formSurge;
-    expect(after / before).toBeCloseTo(m.formMul / m.otherMul);
-  });
-
-  it("深化: 変身の持続と反動が伸びる", () => {
-    const state = skillArena([{ key: "titanForm", links: 1, modifiers: ["formLinger"] }]);
-    cast(state);
-    expect(state.skills.form?.total).toBeCloseTo(SKILL.titanForm.duration * SKILL.modifier.formLinger.durationMul);
-    expect(state.skills.form?.recover).toBeCloseTo(FORM_TUNING.recoverTime * SKILL.modifier.formLinger.recoverMul);
-  });
-
-  it("自己中心化: 水瓶が照準地点ではなく足元で割れる", () => {
+  it("足元起点: 水瓶が照準地点ではなく足元で割れる", () => {
     const state = skillArena([{ key: "waterJar", links: 2, modifiers: ["toNova"] }]);
     const me = { ...state.player.body.pos };
     const far = ahead(state, 90);
@@ -551,27 +353,26 @@ describe("第 2 弾の刻印符", () => {
     expect(terrainAt(state, far.x, far.y)).toBe("none");
   });
 
-  it("罠化: 旋風斬りは撃たずに罠を置き、敵が近づくと罠の位置で回る", () => {
-    const state = skillArena([{ key: "whirl", links: 2, modifiers: ["toTrap"] }]);
+  it("据え置き: 旋風斬りは撃たずに罠を置き、敵が近づくと罠の位置で回る", () => {
+    const state = skillArena([{ key: "commonWhirl", links: 2, modifiers: ["linger"] }]);
+    const near = tough(state, 15);
     const at = ahead(state, 80);
     cast(state, at);
-    expect(state.skills.active, "その場では回らない").toBeNull();
+    expect(lost(near), "その場では回らない").toBe(0);
     expect(state.skills.traps).toHaveLength(1);
-    run(state, SKILL.modifier.toTrap.arm + 0.05);
+    run(state, SKILL.modifier.linger.arm + 0.05);
     const e = tough(state, 80);
-    run(state, SKILL.whirl.duration + 0.1);
+    run(state, 0.5);
     expect(state.skills.traps).toHaveLength(0);
     expect(lost(e)).toBeGreaterThan(0);
   });
 
-  it("第 2 弾の刻印符はすべて定義され、どれかのスキルに付く", () => {
+  it("行為の列・起点・連動の刻印符はすべて定義され、どれかのスキルに付く", () => {
     for (const mod of WAVE2_MODIFIER_KEYS) {
       expect(MODIFIERS[mod].key).toBe(mod);
       expect(Object.values(SKILL_DEFS).some((d) => canAttach(d, mod)), mod).toBe(true);
     }
-    expect(canAttach(SKILL_DEFS.haste, "fireInfuse"), "与ダメの無いスキルには属性が付かない").toBe(false);
-    expect(canAttach(SKILL_DEFS.titanForm, "formLinger")).toBe(true);
-    expect(canAttach(SKILL_DEFS.whirl, "formLinger"), "深化は変身だけ").toBe(false);
+    expect(canAttach(SKILL_DEFS.waterJar, "split"), "行為の列を持たない手書きには分裂は付かない").toBe(false);
   });
 });
 
@@ -585,13 +386,13 @@ describe("第 2 弾の連携", () => {
     expect(has(e, "freeze"), "素の範囲の外でも凍る").toBe(true);
   });
 
-  it("走り火: 油流しの後の焼き払いは炎の帯が長い", () => {
-    const state = skillArena([{ key: "oilPot" }, { key: "scorchLine" }]);
+  it("走り火: 油流しの後の炎の壁（技）は連携が成立して燃やす", () => {
+    const state = skillArena([{ key: "oilPot" }, { key: "commonFireWall" }]);
     cast(state, ahead(state, -60, 60), 0);
     expect(slotComboReady(state, 1)?.key).toBe("oilScorch");
-    const me = { ...state.player.body.pos };
     cast(state, ahead(state, 100), 1);
-    expect(terrainAt(state, me.x + SKILL.scorchLine.length + 20, me.y), "素の長さの先まで燃える").toBe("fire");
+    expect(state.skills.lastCast?.skillKey, "炎の壁を撃った").toBe("commonFireWall");
+    expect(terrainAt(state, ahead(state, 30).x, ahead(state, 30).y), "前方が燃える").toBe("fire");
   });
 
   it("烙火連: 焼き印の直後の烙火は烙印を足してから起爆する", () => {
@@ -603,11 +404,11 @@ describe("第 2 弾の連携", () => {
     expect(has(e, "brand")).toBe(false);
   });
 
-  it("崩し落とし・彩爆・地裂墜: 直前の発動で連携可になる", () => {
+  it("崩し落とし・彩爆・地裂墜: 直前の発動で連携可になる（後が技の連携も）", () => {
     const cases: [SkillKey, SkillKey, string][] = [
-      ["breakKick", "collapseHammer", "breakCollapse"],
+      ["commonRisingSlash", "commonQuake", "breakCollapse"],
       ["hueEtch", "hueRelease", "hueBloom"],
-      ["levelGround", "meteorDive", "levelMeteor"],
+      ["levelGround", "commonMeteorDive", "levelMeteor"],
     ];
     for (const [a, b, combo] of cases) {
       const state = skillArena([{ key: a }, { key: b }]);
@@ -616,51 +417,22 @@ describe("第 2 弾の連携", () => {
     }
   });
 
-  it("渦爆（空間）: 引力球の中へ投げたグレネードは球の中心へ吸われる", () => {
-    const state = skillArena([{ key: "gravityWell" }, { key: "frag" }]);
-    const wellAt = ahead(state, 80);
-    cast(state, wellAt, 0);
-    cast(state, { x: wellAt.x + 20, y: wellAt.y + 20 }, 1);
-    const g = state.skills.grenades[0];
-    const well = state.skills.wells[0];
-    expect(g && well && Math.hypot(g.to.x - well.pos.x, g.to.y - well.pos.y)).toBeLessThan(1);
-  });
-
-  it("氷雷（空間）: 氷結地帯の中へ落とした雷撃は地帯の中の敵すべてへ落ちる", () => {
-    const state = skillArena([{ key: "frostField" }, { key: "thunder" }]);
-    const at = ahead(state, 80);
-    tough(state, 80, 20);
-    tough(state, 80, -20);
-    tough(state, 70, 0);
-    cast(state, at, 0);
-    cast(state, at, 1);
-    expect(state.skills.strikes).toHaveLength(3);
-  });
-
-  it("化身の極意: 変身中の極意は威力が上がる（時間を見ない）", () => {
-    const state = skillArena([{ key: "titanForm" }, { key: "weaponArt" }]);
-    expect(slotComboReady(state, 1)).toBeNull();
-    cast(state, undefined, 0);
-    run(state, 3);
-    expect(slotComboReady(state, 1)?.key).toBe("formArt");
-    expect(COMBOS.formArt.untimed).toBe(true);
-  });
-
-  it.each(["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const)("化身の極意: 第 3 弾の変身 %s の最中の極意でも成立する", (form) => {
-    const state = skillArena([{ key: form }, { key: "weaponArt" }]);
+  it.each(["wolfForm", "wraithForm", "siegeForm", "ironForm", "pyreForm"] as const)("化身の極意: 変身 %s の最中の十字斬りで成立する（時間を見ない）", (form) => {
+    const state = skillArena([{ key: form }, { key: "commonCrossCut" }]);
     expect(slotComboReady(state, 1), "変身前は成立しない").toBeNull();
     cast(state, undefined, 0);
     run(state, 0.5);
     expect(state.skills.shape?.key, "変身している").toBe(form);
     expect(slotComboReady(state, 1)?.key).toBe("formArt");
+    expect(COMBOS.formArt.untimed).toBe(true);
   });
 });
 
 describe("第 2 弾の決定性", () => {
   it("同じ操作なら同じ結果（彩刻の色のくじも state.rng だけを使う）", () => {
     const play = (): number[] => {
-      const state = skillArena([{ key: "hueEtch" }, { key: "shiftingEdge" }, { key: "scorchLine" }]);
-      state.stats = { ...state.stats, resonance: { ...createEmptyResonance(), kind: "scatter", colors: [] } };
+      const state = skillArena([{ key: "hueEtch" }, { key: "shiftingEdge" }, { key: "waterJar" }]);
+      expect(state.boonRun.resonance.length, "前提: 共鳴なし（彩刻の色はくじ）").toBe(0);
       const e = tough(state, 25);
       cast(state, undefined, 0);
       waitReady(state, 0);

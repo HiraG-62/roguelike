@@ -2,8 +2,12 @@ import type { GameState, RoomKind } from "../core/state";
 import type { Vec } from "../core/vec";
 import { MINIMAP, REAPER, RUN_EVENT } from "../data/tuning";
 import { type GameMap, TILE_SIZE, Tile, rectCenter, toIndex } from "../map/grid";
+import { exitColor } from "../system/exits";
 import { bountyTargetId } from "../system/runEvents";
 import { ROOM_KIND_COLOR } from "../system/specialRooms";
+import { colorB, colorG, colorR, darken, mapThemeFor, mixColor } from "./mapTheme";
+import { pack } from "./mapNoise";
+import { pitLookAt } from "./pitLook";
 
 /**
  * 部屋のタイル所属表。描画側（床マーク・伏兵の暗い床・泉・ミニマップ）で共有する。
@@ -40,6 +44,10 @@ export function buildRoomLookup(state: GameState): RoomLookup {
 type Rgb = readonly [number, number, number];
 
 const CORRIDOR_RGB: Rgb = [84, 84, 100];
+/** 通路を章の床の明色へ寄せる量。弱くして、部屋の色（情報）との明暗差を保つ */
+const CORRIDOR_TINT = 0.22;
+/** 背景（未踏の面）を章の床の暗色から作るときの暗さ。ほぼ黒で、章の色味だけが残る */
+const BG_DARKEN = 0.8;
 const BOSS_RGB: Rgb = [220, 56, 56];
 /** 階の主（major でないボス）の部屋の色。ボスより控えめな橙 */
 const FLOOR_LORD_RGB: Rgb = [224, 136, 48];
@@ -141,10 +149,12 @@ export function paintExplored(
   from: number,
 ): number {
   const log = state.exploredLog;
+  if (from >= log.length) return log.length;
   const size = minimapSize(state.map);
+  const colors = minimapColors(state.depth, state.floorKind);
   for (let n = from; n < log.length; n++) {
     const tile = log[n] ?? 0;
-    const [r, g, b] = tileColor(state, lookup, bossRoom, tile);
+    const [r, g, b] = tileColor(state, colors, lookup, bossRoom, tile);
     const o = pixelOf(state.map, size, tile) * RGBA;
     data[o] = r;
     data[o + 1] = g;
@@ -154,18 +164,39 @@ export function paintExplored(
   return log.length;
 }
 
-function tileColor(state: GameState, lookup: RoomLookup, bossRoom: number, tile: number): Rgb {
+/** 章（テーマ）に寄せるミニマップの色。部屋の種類の色は情報なので寄せない */
+export interface MinimapColors {
+  /** 通路 */
+  corridor: Rgb;
+  /** 穴 */
+  pit: Rgb;
+  /** 背景（CSS） */
+  bg: string;
+}
+
+const unpack = (c: number): Rgb => [colorR(c), colorG(c), colorB(c)];
+
+/** 階の深さとバイオームから、通路・穴・背景の色を決める（穴は `MapTheme.pit` の色） */
+export function minimapColors(depth: number, floorKind: GameState["floorKind"]): MinimapColors {
+  const { palette } = mapThemeFor(depth, floorKind);
+  const corridor = unpack(mixColor(pack(...CORRIDOR_RGB), palette.fL, CORRIDOR_TINT));
+  const [r, g, b] = unpack(darken(palette.fD, BG_DARKEN));
+  return { corridor, pit: pitLookAt(depth, floorKind).mini, bg: `rgb(${r},${g},${b})` };
+}
+
+function tileColor(state: GameState, colors: MinimapColors, lookup: RoomLookup, bossRoom: number, tile: number): Rgb {
   if (state.map.tiles[tile] === Tile.Fountain) return FOUNTAIN_RGB;
+  if (state.map.tiles[tile] === Tile.Pit) return colors.pit;
   const room = lookup.roomOf[tile] ?? NO_ROOM;
-  if (room === NO_ROOM) return CORRIDOR_RGB;
+  if (room === NO_ROOM) return colors.corridor;
   if (room === bossRoom) return state.boss?.major ? BOSS_RGB : FLOOR_LORD_RGB;
   return ROOM_RGB[state.rooms[room]?.kind ?? "normal"];
 }
 
 const MARGIN = 4;
 const BG_PAD = 2;
-const BG_ALPHA = 0.55;
-const COLOR_BG = "#000000";
+/** 背景はほぼ不透明にする。薄いと後ろの地図の床の模様が透けて、ミニマップが床を写したように見える */
+const BG_ALPHA = 0.97;
 const COLOR_FRAME = "#404050";
 const COLOR_PLAYER = "#ffffff";
 const COLOR_STAIRS = "#ffe040";
@@ -187,6 +218,7 @@ export class Minimap {
   private bossRoom = NO_ROOM;
   private stairs: number[] = [];
   private stairsKey = "";
+  private bg = minimapColors(1, "rooms").bg;
 
   constructor() {
     this.canvas = document.createElement("canvas");
@@ -207,7 +239,7 @@ export class Minimap {
     const x0 = viewW - MARGIN - size.w;
     const y0 = MARGIN;
     target.globalAlpha = BG_ALPHA;
-    target.fillStyle = COLOR_BG;
+    target.fillStyle = this.bg;
     target.fillRect(x0 - BG_PAD, y0 - BG_PAD, size.w + BG_PAD * 2, size.h + BG_PAD * 2);
     target.globalAlpha = 1;
     target.strokeStyle = COLOR_FRAME;
@@ -216,9 +248,10 @@ export class Minimap {
     target.drawImage(this.canvas, x0, y0);
 
     // 点と記号は縮めても大きさを変えない（位置だけ縮尺に合わせる）
-    target.fillStyle = COLOR_STAIRS;
     for (const i of this.stairs) {
       if (!state.explored[i]) continue;
+      // 出口の予告がある階段は報酬の色（system/exits.ts）。無ければ既定の黄
+      target.fillStyle = exitColor(state.stairs.find((s) => s.tile === i)?.reward) ?? COLOR_STAIRS;
       const sx = Math.floor((i % map.width) * size.scale);
       const sy = Math.floor(Math.floor(i / map.width) * size.scale);
       target.fillRect(x0 + sx - STAIRS_HALF, y0 + sy - STAIRS_HALF, STAIRS_DOT, STAIRS_DOT);
@@ -277,6 +310,7 @@ export class Minimap {
     this.image = this.ctx.createImageData(size.w, size.h);
     this.cursor = 0;
     this.bossRoom = state.boss?.roomIndex ?? NO_ROOM;
+    this.bg = minimapColors(state.depth, state.floorKind).bg;
     this.stairsKey = "";
     this.ctx.clearRect(0, 0, size.w, size.h);
   }

@@ -73,6 +73,8 @@ const CHARACTERS: Readonly<Record<MovesetKey, WeaponCharacter>> = {
   trapper: slash({ pitch: 1.05, tail: 0.6, low: 0.8, wet: 1, ring: 0.6, za: 1 }),
   warRing: slash({ pitch: 1.1, tail: 1, low: 0.8, wet: 0.8, ring: 2, za: 0.9, ringRatios: CHAIN_RING }),
   ringBlades: slash({ pitch: 1.2, tail: 1.1, low: 0.6, wet: 0.7, ring: 2.2, za: 0.8, ringRatios: CHAIN_RING }),
+  // 書は頁から走る文字の刃（docs/ideas/tome-rework.md）。紙の軽く乾いた切れで、金属は鳴らさない
+  book: slash({ pitch: 1.3, tail: 0.5, low: 0.4, wet: 0.5, ring: 0.1, za: 0.7 }),
   // 打撃: 拳は軽く短く、戦鎚・砲は低く長く、盾は板を叩く中域、棍はしなって乾いた音
   fists: shift("blunt", 1.15, 0.8, 0.9, 0.8),
   staff: shift("blunt", 1.1, 0.9, 0.9, 0.7),
@@ -82,6 +84,8 @@ const CHARACTERS: Readonly<Record<MovesetKey, WeaponCharacter>> = {
   cannon: shift("blunt", 0.75, 1.25, 1, 1.4),
   grenade: shift("blunt", 0.9, 1.05, 0.95, 1.1),
   fan: shift("blunt", 1.25, 0.75, 0.85, 0.6),
+  // 手鈴は金属の中域（段取り 5d。専用の音は audio レーンで）
+  handbell: shift("blunt", 1.05, 1.05, 0.95, 0.9),
   // 刺突: 槍は深く抜け、杖（魔法の杖の殴り）と銃床は軽く短い
   spear: shift("pierce", 0.92, 1.15, 1, 1.2),
   wand: shift("pierce", 1.2, 0.8, 0.85, 0.7),

@@ -652,7 +652,7 @@ const FX = {
     "r:entangle": { sheet: "whip.entangle", pivot: "self", base: 64, measure: "reach", mirror: "faceLeft" },
     "r:whipSweep": { sheet: "whip.sweepLow", pivot: "self", base: 44, measure: "reach" },
     "r:groundLash": { sheet: "whip.ground", pivot: "self", base: 48, measure: "size" },
-    "r:whipCrack": { sheet: "whip.crack", pivot: "self", base: 64, measure: "reach" },
+    "r:slam": { sheet: "whip.crack", pivot: "self", base: 64, measure: "reach" },
     "branch:whirl": { sheet: "whip.whirl", pivot: "self", base: 80, measure: "size" },
     "branch:snakeLash": { sheet: "whip.snake", pivot: "self", base: 60, measure: "reach" },
     "branch:coilUp": { sheet: "whip.coil", pivot: "self", base: 56, measure: "reach" },

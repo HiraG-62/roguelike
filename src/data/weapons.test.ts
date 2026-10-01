@@ -12,6 +12,8 @@ import {
   MOVESETS,
   MOVESET_KEYS,
   STEP2_NAMES,
+  WEAPON_WEIGHTS,
+  reviveWeight,
   type MeleeStepDef,
   actionLane,
   branchHints,
@@ -29,11 +31,11 @@ import {
   withExtraBranch,
 } from "./weapons";
 import { JOB_BRANCHES, JOB_BRANCH_SEQUENCE } from "./jobs";
+import { formOf } from "./weaponForms";
 import { bulletDef } from "../loot/bullets";
 
-/** 剣以外の武器種の段数（ユーザーメモ: 3 段固定ではなく 4〜5 段）。剣は QA で調整済みの基準線として 3 段のまま */
-const MIN_STEPS = 4;
-const MAX_STEPS = 5;
+/** 連刃の 3 武器種の段数（docs/ideas/weapon-forms-impl.md 3-9。左右とも同数で、右の最終段は乱舞） */
+const FLURRY_STEPS = { twinBlades: 6, fists: 6, claws: 8 } as const;
 /** 名前付き派生（構えを離した振りを除く）の本数と入力数（docs/ideas/ougi-and-dual-actions.md 4.3） */
 const MIN_BRANCHES = 4;
 const MIN_BRANCH_INPUTS = 3;
@@ -66,16 +68,29 @@ function dpsAtBase(s: MeleeStepDef): number {
 }
 
 describe("武器種の定義", () => {
-  it("すべての武器種が表示名・説明・語を持ち、剣と射撃専用以外は 4〜5 段ある", () => {
+  it("すべての武器種が表示名・説明・語を持ち、射撃専用以外は段数が型の幅（FORM.<型>.stepsMin/Max）に入る", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       expect(def.key, key).toBe(key);
       expect(def.name.length, `${key} の表示名`).toBeGreaterThan(0);
       expect(def.desc.length, `${key} の説明`).toBeGreaterThan(0);
       expect(profileKeywords(def.keywords).length, `${key} が語を持つ`).toBeGreaterThan(0);
-      if (key === "sword" || isGun(def)) continue;
-      expect(def.steps.length, `${key} の段数`).toBeGreaterThanOrEqual(MIN_STEPS);
-      expect(def.steps.length, `${key} の段数`).toBeLessThanOrEqual(MAX_STEPS);
+      if (isGun(def)) continue;
+      const { min, max } = formOf(def).steps;
+      expect(def.steps.length, `${key} の段数（型 ${def.form} の下限 ${min}）`).toBeGreaterThanOrEqual(min);
+      expect(def.steps.length, `${key} の段数（型 ${def.form} の上限 ${max}）`).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it("連刃の武器種は段数が双剣 6・拳 6・爪 8 で、右の最終段だけが乱舞（frenzy）", () => {
+    for (const [key, count] of Object.entries(FLURRY_STEPS) as [keyof typeof FLURRY_STEPS, number][]) {
+      const def = MOVESETS[key];
+      expect(def.form, `${key} は連刃`).toBe("flurry");
+      expect(def.steps.length, `${key} の左の段数`).toBe(count);
+      expect(def.steps2.length, `${key} の右の段数`).toBe(count);
+      expect(def.steps2.map((s) => s.key).indexOf("frenzy"), `${key} の乱舞は右の最終段`).toBe(count - 1);
+      expect(def.steps2[count - 1]?.name, `${key} の乱舞の表示名`).toBe(STEP2_NAMES.frenzy);
+      for (const b of def.branches) expect(b.next ?? 0, `${key}.${b.key} の続き`).toBeLessThan(count);
     }
   });
 
@@ -245,8 +260,8 @@ describe("武器種の定義", () => {
     }
   });
 
-  it("双剣は 5 段、先端判定は突きの武器種（槍・鞭）だけ", () => {
-    expect(MOVESETS.twinBlades.steps.length).toBe(5);
+  it("双剣は 6 段、先端判定は突きの武器種（槍・鞭）だけ", () => {
+    expect(MOVESETS.twinBlades.steps.length).toBe(FLURRY_STEPS.twinBlades);
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       if (!def.tip) continue;
@@ -357,7 +372,8 @@ describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）",
 
   it("段の applies: 斧の最終段は出血、鎖鎌の分銅は崩勢を付ける", () => {
     const axeLast = MOVESETS.axe.steps[MOVESETS.axe.steps.length - 1];
-    expect(axeLast?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
+    // 刃斧の左の段はどれも傷を 1 つ刻む（data/weaponForms.ts の刃斧）
+    expect(axeLast?.applies?.map((a) => a.kind)).toEqual(["bleed", "wound"]);
     const first = MOVESETS.chainSickle.steps2[0];
     const weight = first.kind === "swing" ? first.step : undefined;
     expect(first.key, "鎖鎌の右 1 段目は分銅").toBe("chainWeight");
@@ -437,6 +453,8 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     flail: "charge",
     ringBlades: "volley",
     fan: "hold",
+    book: "swing",
+    handbell: "swing",
   };
 
   it("すべての武器種が右 1 段目の技を持ち、名前が登録済みで種類が設計どおり", () => {
@@ -537,12 +555,13 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     }
   });
 
-  it("爪は左の全段が多段ヒットで、最終段と右の喉裂きが出血を付ける", () => {
+  it("爪は左の全段が多段ヒットで、最終段と右の最終段（乱舞）が出血を付ける", () => {
     const claws = MOVESETS.claws;
     for (const s of claws.steps) expect(s.hits ?? 1, "爪の左の段は 2 回以上当たる").toBeGreaterThanOrEqual(2);
     expect(claws.steps[claws.steps.length - 1]?.applies?.map((a) => a.kind)).toEqual(["bleed"]);
     const last = claws.steps2[claws.steps2.length - 1];
-    expect(last?.kind === "swing" ? last.step.applies?.map((a) => a.kind) : undefined, "喉裂き").toEqual(["bleed"]);
+    expect(last?.key, "右の最終段は乱舞").toBe("frenzy");
+    expect(last?.kind === "swing" ? last.step.applies?.map((a) => a.kind) : undefined, "乱舞").toEqual(["bleed"]);
     const leap = claws.steps2.find((s) => s.key === "leapBack");
     expect(leap?.kind === "swing" ? (leap.extras?.selfKnock ?? 0) : 0, "跳び退きは自分を後ろへ押す").toBeGreaterThan(0);
   });
@@ -573,5 +592,68 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     expect(fan.steps[3]?.cutsBullets, "左 4 段目").toBe(true);
     expect(fan.branches.find((b) => b.key === "downdraft")?.step.cutsBullets, "颪").toBe(true);
     expect(fan.attack.genre.quality, "扇子は混成").toBe("hybrid");
+  });
+});
+
+describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
+  /** 攻撃中の移動倍率が重さの帯の外にあり、丸められる武器種（丸めた結果を手触りとして受け入れる。理由は割り当て表） */
+  const EXPECTED_CLAMP: Readonly<Partial<Record<MovesetKey, string>>> = {
+    claws: "0.85 → 軽の上限 0.8",
+    fists: "1.0 → 軽の上限 0.8",
+    fan: "1.0 → 軽の上限 0.8（暫定で軽。段取り 5 で見直す）",
+    chainSickle: "0.6 → 中の上限 0.5",
+    trapper: "0.7 → 中の上限 0.5",
+    greatsword: "0.2 → 重は止まる（0）",
+    hammer: "0.2 → 重は止まる（0）",
+    cleaver: "0.25 → 重は止まる（0）",
+    axe: "0.3 → 重は止まる（0）",
+    shield: "0.45 → 重は止まる（0）",
+    longarm: "0.5 → 重は止まる（0）",
+    cannon: "0.4 → 重は止まる（0）",
+  };
+
+  it("全武器種が WEAPON_WEIGHTS のどれかの weight を持つ", () => {
+    for (const key of MOVESET_KEYS) {
+      expect(WEAPON_WEIGHTS, `${key} の weight`).toContain(MOVESETS[key].weight);
+    }
+  });
+
+  it("weightClass は全部の重さの係数を持ち、移動の帯が下限 <= 上限", () => {
+    for (const w of WEAPON_WEIGHTS) {
+      const c = WEAPON.weightClass[w];
+      expect(c.moveMulMin, `${w} の帯`).toBeLessThanOrEqual(c.moveMulMax);
+      expect(c.lockRecoverRatio, `${w} の硬直ロック割合`).toBeGreaterThanOrEqual(0);
+      expect(c.lockRecoverRatio, `${w} の硬直ロック割合`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("重いほど硬直の前半を取り消せない・止まる（重さの順序）", () => {
+    const { light, medium, heavy } = WEAPON.weightClass;
+    expect(light.lockActive, "軽は持続中も切れる").toBe(false);
+    expect(medium.lockActive && heavy.lockActive, "中・重は持続中は切れない").toBe(true);
+    expect(heavy.lockRecoverRatio, "重は硬直の前半も切れない").toBeGreaterThan(medium.lockRecoverRatio);
+    expect(heavy.moveMulMax, "重は止まる").toBeLessThanOrEqual(medium.moveMulMin);
+    expect(medium.moveMulMax).toBeLessThanOrEqual(light.moveMulMax);
+  });
+
+  it("attackMoveMul が重さの帯の外の武器種は EXPECTED_CLAMP に理由付きで載っている（帯の中なら載せない）", () => {
+    for (const key of MOVESET_KEYS) {
+      const def = MOVESETS[key];
+      const c = WEAPON.weightClass[def.weight];
+      const outside = def.attackMoveMul < c.moveMulMin || def.attackMoveMul > c.moveMulMax;
+      expect(EXPECTED_CLAMP[key] !== undefined, `${key} の帯外の扱い`).toBe(outside);
+    }
+  });
+
+  it("銃の家系は縛らない（軽・中・重のどれでもよい）", () => {
+    for (const key of GUN_MOVESETS) {
+      expect(WEAPON_WEIGHTS, `${key}`).toContain(MOVESETS[key].weight);
+    }
+  });
+
+  it("reviveWeight は未知の値を落とす", () => {
+    expect(reviveWeight("heavy")).toBe("heavy");
+    expect(() => reviveWeight("huge")).toThrow();
+    expect(() => reviveWeight(undefined)).toThrow();
   });
 });

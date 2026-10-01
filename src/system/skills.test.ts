@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { grantBoon } from "./boons";
 import { updateDropInteract } from "./loot";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
@@ -8,7 +9,7 @@ import type { Enemy, GameState } from "../core/state";
 import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { KEYSTONE, MANA } from "../data/tuning";
+import { KEYSTONE } from "../data/tuning";
 import { BODY_SKILL_KEYS, SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -16,22 +17,23 @@ import { SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type Vari
 import { updatePlayer } from "./player";
 import {
   attachRune,
-  beamEnd,
   capManaCost,
   chargeRatio,
   createSkillRunState,
   dropRune,
   frenzyMul,
+  moveRunModifier,
+  removeRunModifier,
   resolveSlot,
   rollEnemyRuneDrop,
-  skillLocksAttack,
   skillLocksDash,
   skillMoveMul,
   slotModifierView,
   trackDamageDealt,
   updateSkills,
+  usedLinks,
 } from "./skills";
-import { curseMul, skillHit, skillPower } from "../skills/hit";
+import { skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const BIG_HP = 1000;
@@ -140,29 +142,29 @@ describe("入力", () => {
   });
 
   it("スロット 3 / 4 の入力でそのスロットのスキルが出る", () => {
-    const state = skillArena([{ key: "whirl" }, { key: "whirl" }, { key: "mines" }, { key: "frag" }]);
+    const state = skillArena([{ key: "haste" }, { key: "bloodPact" }, { key: "mines" }, { key: "gravityWell" }]);
     expect(state.skills.slots, "スロットは 4 つ").toHaveLength(SKILL.slots);
     press(state, 2);
     expect(state.skills.mines, "スロット 3 = 地雷").toHaveLength(1);
     waitInterval(state, 3);
     press(state, 3, aimAt(state, 60));
-    expect(state.skills.grenades, "スロット 4 = グレネード").toHaveLength(1);
+    expect(state.skills.wells, "スロット 4 = 引力球").toHaveLength(1);
   });
 });
 
 describe("マナと最低間隔", () => {
   it("マナ型は発動でコストを払い、チャージと CD は使わない", () => {
-    const state = skillArena([{ key: "frag" }]);
+    const state = skillArena([{ key: "gravityWell" }]);
     const before = state.player.mana;
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.grenades).toHaveLength(1);
-    expect(state.player.mana, "コスト分だけ減る").toBeCloseTo(before - SKILL.frag.cost);
+    expect(state.skills.wells).toHaveLength(1);
+    expect(state.player.mana, "コスト分だけ減る").toBeCloseTo(before - SKILL.gravityWell.cost);
     expect(state.skills.slots[0]?.chargesLeft, "チャージは減らない").toBe(1);
     expect(state.skills.slots[0]?.cooldownLeft, "CD は立たない").toBe(0);
   });
 
   it("マナ不足は不発: 何も消費しない（マナ・HP・コンボ・最低間隔）。点滅と効果音が出て、先行入力も残らない", () => {
-    const state = skillArena([{ key: "frag", links: 2, modifiers: ["bloodPrice", "comboFuel"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["spillover"] }]);
     const p = state.player;
     p.mana = manaCost(state, 0) - 1;
     state.combo.count = 5;
@@ -170,10 +172,10 @@ describe("マナと最低間隔", () => {
     const hp = p.hp;
     state.sfx.length = 0;
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.grenades, "発動しない").toHaveLength(0);
+    expect(state.skills.wells, "発動しない").toHaveLength(0);
     expect(p.mana, "マナは減らない").toBe(mana);
-    expect(p.hp, "血の代償の HP も払わない").toBe(hp);
-    expect(state.combo.count, "コンボ燃料も消費しない").toBe(5);
+    expect(p.hp, "HP も払わない").toBe(hp);
+    expect(state.combo.count, "コンボも減らない").toBe(5);
     expect(state.skills.slots[0]?.intervalLeft, "最低間隔も立たない").toBe(0);
     expect(state.skills.manaFlash, "マナバーの点滅").toBeGreaterThan(0);
     expect(state.sfx, "不発の効果音").toContain("manaEmpty");
@@ -184,29 +186,29 @@ describe("マナと最低間隔", () => {
   });
 
   it("過負荷（ks_overdraw）ならマナ 0 でも不足分を HP で払って発動する。無ければ不発", () => {
-    const state = skillArena([{ key: "frag" }], 5, ["ks_overdraw"]);
+    const state = skillArena([{ key: "gravityWell" }], 5, ["ks_overdraw"]);
     const p = state.player;
     p.mana = 0;
     const hp = p.hp;
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.grenades, "発動する").toHaveLength(1);
+    expect(state.skills.wells, "発動する").toHaveLength(1);
     expect(p.mana).toBe(0);
-    expect(p.hp, "不足分 × 0.5 の HP を払う").toBeCloseTo(hp - SKILL.frag.cost * KEYSTONE.overdrawHpPerMana);
+    expect(p.hp, "不足分 × 0.5 の HP を払う").toBeCloseTo(hp - SKILL.gravityWell.cost * KEYSTONE.overdrawHpPerMana);
 
-    const plain = skillArena([{ key: "frag" }]);
+    const plain = skillArena([{ key: "gravityWell" }]);
     plain.player.mana = 0;
     press(plain, 0, aimAt(plain, 60));
-    expect(plain.skills.grenades, "誓約なしは不発").toHaveLength(0);
+    expect(plain.skills.wells, "誓約なしは不発").toHaveLength(0);
     expect(plain.player.hp).toBe(plain.player.maxHp);
   });
 
   it("沈黙・怯み中のプレイヤーはスキルを撃てない（何も消費しない）", () => {
     for (const kind of ["silence", "stagger"] as const) {
-      const state = skillArena([{ key: "frag" }]);
+      const state = skillArena([{ key: "gravityWell" }]);
       const mana = state.player.mana;
       state.player.status.effects.push({ kind, stacks: 1, time: 1, maxTime: 1, potency: 0, source: "enemy", acc: 0, tick: 0 });
       press(state, 0, aimAt(state, 60));
-      expect(state.skills.grenades, `${kind} 中に発動した`).toHaveLength(0);
+      expect(state.skills.wells, `${kind} 中に発動した`).toHaveLength(0);
       expect(state.player.mana, `${kind} 中にマナが減った`).toBe(mana);
     }
   });
@@ -221,9 +223,9 @@ describe("マナと最低間隔", () => {
   });
 
   it("共通最低間隔は無い: 1 つ撃った直後の次のステップに別スロットが撃てる", () => {
-    const state = skillArena([{ key: "frag" }, { key: "mines" }]);
+    const state = skillArena([{ key: "gravityWell" }, { key: "mines" }]);
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.grenades, "1 つ目").toHaveLength(1);
+    expect(state.skills.wells, "1 つ目").toHaveLength(1);
     press(state, 1);
     expect(state.skills.mines, "直後の別スロットがすぐ出る").toHaveLength(1);
     expect(state.skills.pendingSlot, "先行入力に回らない").toBe(-1);
@@ -231,44 +233,44 @@ describe("マナと最低間隔", () => {
   });
 
   it("同じステップに押した複数スロットはすべて 1→4 の順で発動する", () => {
-    const state = skillArena([{ key: "frag" }, { key: "mines" }, { key: "haste" }, { key: "bloodPact" }]);
+    const state = skillArena([{ key: "gravityWell" }, { key: "mines" }, { key: "haste" }, { key: "bloodPact" }]);
     press(state, 0, { ...aimAt(state, 60), skill2Pressed: true, skill3Pressed: true, skill4Pressed: true });
-    expect(state.skills.grenades, "スロット 1").toHaveLength(1);
+    expect(state.skills.wells, "スロット 1").toHaveLength(1);
     expect(state.skills.mines, "スロット 2").toHaveLength(1);
     expect(state.skills.haste.time, "スロット 3").toBeGreaterThan(0);
     expect(state.skills.frenzy.time, "スロット 4").toBeGreaterThan(0);
     expect(state.skills.recentSlots, "発動の履歴は 4 → 3 の順（新しい順）で、押した順が 1→4").toEqual([3, 2]);
   });
 
-  it("本動作（body）同士は排他: 旋風斬りの最中に突進斬りは出ず、何も払わない", () => {
-    const state = skillArena([{ key: "whirl" }, { key: "lunge" }]);
+  it("本動作（body）同士は排他: 鎖鎌の最中にパリィは出ず、何も払わない", () => {
+    const state = skillArena([{ key: "chainHook" }, { key: "parry" }]);
     press(state, 0);
-    expect(state.skills.active?.skillKey, "旋風斬りが発動中").toBe("whirl");
-    press(state, 1, aimAt(state, 60));
-    expect(state.skills.active?.skillKey, "本動作は中断されない").toBe("whirl");
-    expect(state.skills.slots[1]?.chargesLeft, "突進斬りのチャージは減らない").toBe(1);
+    expect(state.skills.active?.skillKey, "鎖鎌が発動中").toBe("chainHook");
+    press(state, 1);
+    expect(state.skills.active?.skillKey, "本動作は中断されない").toBe("chainHook");
+    expect(state.skills.slots[1]?.chargesLeft, "パリィのチャージは減らない").toBe(1);
   });
 
   it("同じステップに本動作を 2 つ押すと、先のスロットだけが出る", () => {
-    const state = skillArena([{ key: "lunge" }, { key: "whirl" }]);
+    const state = skillArena([{ key: "parry" }, { key: "chainHook" }]);
     const mana = state.player.mana;
-    press(state, 0, { ...aimAt(state, 60), skill2Pressed: true });
-    expect(state.skills.active?.skillKey).toBe("lunge");
-    expect(state.player.mana, "旋風斬りのマナは払わない").toBe(mana);
+    press(state, 0, { skill2Pressed: true });
+    expect(state.skills.active?.skillKey).toBe("parry");
+    expect(state.player.mana, "鎖鎌のマナは払わない").toBe(mana);
   });
 
   it("本動作の最中でも設置・強化（body 以外）は並行して撃て、本動作は続く", () => {
-    const state = skillArena([{ key: "whirl" }, { key: "frag" }, { key: "haste" }]);
+    const state = skillArena([{ key: "chainHook" }, { key: "gravityWell" }, { key: "haste" }]);
     press(state, 0);
     press(state, 1, aimAt(state, 60));
     press(state, 2);
-    expect(state.skills.active?.skillKey, "旋風斬りは続いている").toBe("whirl");
-    expect(state.skills.grenades, "グレネードが出る").toHaveLength(1);
+    expect(state.skills.active?.skillKey, "鎖鎌は続いている").toBe("chainHook");
+    expect(state.skills.wells, "引力球が出る").toHaveLength(1);
     expect(state.skills.haste.time, "加速が掛かる").toBeGreaterThan(0);
   });
 
   it("本動作の排他で弾かれた入力は先行入力に残り、本動作が終わったら出る", () => {
-    const state = skillArena([{ key: "whirl" }, { key: "lunge" }]);
+    const state = skillArena([{ key: "chainHook" }, { key: "parry" }]);
     press(state, 0);
     state.skills.pendingSlot = 1;
     state.skills.pendingTimer = SKILL.inputBuffer;
@@ -276,22 +278,22 @@ describe("マナと最低間隔", () => {
     if (!active) throw new Error("active");
     active.phase = "recover";
     active.timer = FIXED_DT / 2;
-    run(state, FIXED_DT * 2, withInput(aimAt(state, 60)));
-    expect(state.skills.slots[1]?.chargesLeft, "本動作の後に突進斬りが出た").toBe(0);
+    run(state, FIXED_DT * 2);
+    expect(state.skills.slots[1]?.chargesLeft, "本動作の後にパリィが出た").toBe(0);
   });
 
   it("スキル固有の最低間隔: 同じスロットは間隔が明けるまで撃てない", () => {
-    const state = skillArena([{ key: "frag" }]);
+    const state = skillArena([{ key: "gravityWell" }]);
     const full = state.player.mana;
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.slots[0]?.intervalLeft).toBeCloseTo(SKILL.frag.minInterval);
+    expect(state.skills.slots[0]?.intervalLeft).toBeCloseTo(SKILL.gravityWell.minInterval);
     run(state, FIXED_DT * 2);
     press(state, 0, aimAt(state, 60));
     run(state, SKILL.inputBuffer + FIXED_DT);
-    expect(state.player.mana, "間隔の中では 1 回ぶんしか払っていない（先行入力も切れる）").toBeCloseTo(full - SKILL.frag.cost);
-    run(state, SKILL.frag.minInterval);
+    expect(state.player.mana, "間隔の中では 1 回ぶんしか払っていない（先行入力も切れる）").toBeCloseTo(full - SKILL.gravityWell.cost);
+    run(state, SKILL.gravityWell.minInterval);
     press(state, 0, aimAt(state, 60));
-    expect(state.player.mana, "間隔が明ければ撃てる").toBeCloseTo(full - SKILL.frag.cost * 2);
+    expect(state.player.mana, "間隔が明ければ撃てる").toBeCloseTo(full - SKILL.gravityWell.cost * 2);
   });
 
   it("先行入力中にマナが足りればそのまま発動する", () => {
@@ -308,122 +310,16 @@ describe("マナと最低間隔", () => {
   });
 
   it("威力はステータスの係数で伸び、基礎値では旧来の固定値", () => {
-    const state = skillArena([{ key: "frag" }]);
+    const state = skillArena([{ key: "chainHook" }]);
     const params = resolveSlot(state, 0)?.params;
     if (!params) throw new Error("params");
-    // frag.damage.base は QA 2026-09-23 でマナ型スキル一律 +10%（12 → 13.2）、同日 2 巡目でさらに +15%
-    // （13.2 → 15.2、通算 +26%）。QA 2026-09-24 でさらに +30%（15.2 → 19.8。スキル由来与ダメ比率 48% → 目標 55〜65%）。
-    // 基礎値（各 5）での威力は 19.8 + 1.4*5 + 1.4*5 = 33.8
-    expect(skillPower(state, SKILL.frag.damage, params)).toBeCloseTo(33.8);
-    state.stats = { ...state.stats, attributesEff: { ...state.stats.attributesEff, dex: 15 } };
-    expect(skillPower(state, SKILL.frag.damage, params), "技巧 +10 で 1.4 × 10 伸びる").toBeCloseTo(47.8);
-  });
-});
-
-describe("旋風斬り", () => {
-  it("周囲の敵を多段で斬り、範囲外には当たらない", () => {
-    const state = skillArena([{ key: "whirl" }]);
-    const near = tough(state, 16);
-    const far = tough(state, 0, 60);
-    press(state, 0);
-    run(state, SKILL.whirl.duration + SKILL.whirl.recover + FIXED_DT * 2);
-    expect(near.hp).toBeLessThan(BIG_HP);
-    expect(state.combo.best).toBeGreaterThanOrEqual(SKILL.whirl.hits);
-    expect(far.hp).toBe(BIG_HP);
-    expect(state.skills.active).toBeNull();
-  });
-
-  it("ダッシュでキャンセルでき、マナは消費済み", () => {
-    const state = skillArena([{ key: "whirl" }]);
-    const before = state.player.mana;
-    press(state, 0);
-    expect(state.skills.active?.skillKey).toBe("whirl");
-    updatePlayer(state, withInput({ dashPressed: true }), FIXED_DT);
-    expect(state.skills.active).toBeNull();
-    expect(state.player.mana).toBeCloseTo(before - SKILL.whirl.cost);
-  });
-
-  it("ks_pacifist でもスキルの近接は使える（キーストーンはアクションスロットだけ）", () => {
-    const state = skillArena([{ key: "whirl" }], 5, ["ks_pacifist"]);
-    const e = tough(state, 16);
-    press(state, 0);
-    run(state, SKILL.whirl.duration);
-    expect(e.hp).toBeLessThan(BIG_HP);
-  });
-});
-
-describe("突進斬り", () => {
-  it("照準方向へ移動し、経路上の敵をスタガーさせる。直後の近接は 2 段目から", () => {
-    const state = skillArena([{ key: "lunge" }]);
-    const e = tough(state, 30);
-    const startX = state.player.body.pos.x;
-    press(state, 0);
-    run(state, SKILL.lunge.time + FIXED_DT);
-    expect(state.player.body.pos.x).toBeGreaterThan(startX + 10);
-    expect(e.hp).toBeLessThan(BIG_HP);
-    expect(e.poise.damage, "経路上の敵に怯み値が溜まる").toBeGreaterThan(0);
-    updatePlayer(state, withInput({ attackPressed: true }), FIXED_DT);
-    expect(state.player.attack.combo).toBe(1);
-  });
-});
-
-describe("グレネード", () => {
-  it("導火線の後に爆発し、円内の敵に当たる。離れていれば自分は無傷", () => {
-    const state = skillArena([{ key: "frag" }]);
-    const target = { x: state.player.body.pos.x + 50, y: state.player.body.pos.y };
-    const e = tough(state, 50);
-    const hp = state.player.hp;
-    press(state, 0, { aimScreen: toScreen(state, target) });
-    run(state, SKILL.frag.flight + SKILL.frag.fuse / 2);
-    expect(e.hp).toBe(BIG_HP);
-    run(state, SKILL.frag.fuse);
-    expect(e.hp).toBeLessThan(BIG_HP);
-    expect(state.player.hp).toBe(hp);
-  });
-
-  it("円内の非無敵プレイヤーは最大 HP の 10% を受け、無敵中は無効", () => {
-    const state = skillArena([{ key: "frag", modifiers: [] }]);
-    const p = state.player;
-    const target = { x: p.body.pos.x + 5, y: p.body.pos.y };
-    press(state, 0, { aimScreen: toScreen(state, target) });
-    run(state, SKILL.frag.flight + SKILL.frag.fuse + FIXED_DT);
-    expect(p.hp).toBe(p.maxHp - Math.round(p.maxHp * SKILL.frag.selfDamageFraction));
-
-    const safe = skillArena([{ key: "frag" }]);
-    const sp = safe.player;
-    press(safe, 0, { aimScreen: toScreen(safe, { x: sp.body.pos.x + 5, y: sp.body.pos.y }) });
-    sp.buffs.invuln = 5;
-    run(safe, SKILL.frag.flight + SKILL.frag.fuse + FIXED_DT);
-    expect(sp.hp).toBe(sp.maxHp);
-  });
-});
-
-describe("撃ち抜き", () => {
-  it("照準の後に貫通光線。線上の敵は全員、壁の向こうは当たらない", () => {
-    const state = skillArena([{ key: "railshot" }], 5, ["ks_bladeOath"]);
-    const p = state.player;
-    const end = beamEnd(state, p.body.pos, { x: 1, y: 0 });
-    const reach = end.x - p.body.pos.x;
-    const a = tough(state, 20);
-    const b = tough(state, Math.max(30, reach - 10));
-    const behind = tough(state, reach + 30);
-    press(state, 0);
-    run(state, SKILL.railshot.aim / 2);
-    expect(a.hp).toBe(BIG_HP);
-    run(state, SKILL.railshot.aim);
-    expect(a.hp).toBeLessThan(BIG_HP);
-    expect(b.hp).toBeLessThan(BIG_HP);
-    expect(behind.hp).toBe(BIG_HP);
-  });
-
-  it("照準中のダッシュキャンセルで払ったマナを半分返す", () => {
-    const state = skillArena([{ key: "railshot" }]);
-    const before = state.player.mana;
-    press(state, 0);
-    expect(state.player.mana).toBeCloseTo(before - SKILL.railshot.cost);
-    updatePlayer(state, withInput({ dashPressed: true }), FIXED_DT);
-    expect(state.skills.active).toBeNull();
-    expect(state.player.mana).toBeCloseTo(before - SKILL.railshot.cost * (1 - SKILL.railshot.cancelRefund));
+    const d = SKILL.chainHook.damage;
+    const BASE_ATTR = 5;
+    const DEX_UP = 10;
+    // 基礎値（各 5）での威力は base + 係数 × 5 の合計
+    expect(skillPower(state, d, params)).toBeCloseTo(d.base + (d.str + d.dex) * BASE_ATTR);
+    state.stats = { ...state.stats, attributesEff: { ...state.stats.attributesEff, dex: BASE_ATTR + DEX_UP } };
+    expect(skillPower(state, d, params), "技巧 +10 で係数 × 10 伸びる").toBeCloseTo(d.base + (d.str + d.dex) * BASE_ATTR + d.dex * DEX_UP);
   });
 });
 
@@ -487,8 +383,8 @@ describe("血の契約", () => {
     expect(p.hp).toBeCloseTo(hp + dealt * SKILL.bloodPact.lifesteal);
   });
 
-  it("HP コストで 1 未満にならない（血の代償付き）", () => {
-    const state = skillArena([{ key: "bloodPact", links: 1, modifiers: ["bloodPrice"] }]);
+  it("HP コストで 1 未満にならない", () => {
+    const state = skillArena([{ key: "bloodPact" }]);
     state.player.hp = 1;
     press(state, 0);
     expect(state.player.hp).toBe(1);
@@ -510,127 +406,150 @@ describe("チャージと CD（CD 型）", () => {
     expect(state.skills.slots[0]?.chargesLeft).toBe(1);
   });
 
-  it("多重付きで 3 回連続発動でき、4 回目は失敗。CD 経過で 1 回ずつ回復", () => {
-    const state = skillArena([{ key: "haste", links: 1, modifiers: ["multiCharge"] }]);
-    // 途中で付いた多重は 1 回ぶん即時、残りは CD で溜まる
-    run(state, (resolveSlot(state, 0)?.cooldown ?? 0) * 2 + FIXED_DT);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(3);
-    for (let i = 0; i < 4; i++) {
-      press(state, 0);
-      waitInterval(state, 0);
-    }
-    expect(state.skills.slots[0]?.chargesLeft).toBe(0);
-    const cd = resolveSlot(state, 0)?.cooldown ?? 0;
-    run(state, cd);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(1);
-  });
-
-  it("リンクが多い石ほど負担が重い（マナ型はコスト）", () => {
-    const state = skillArena([{ key: "whirl", links: 0 }, { key: "whirl", links: 3 }]);
+  it("石の links は負担に効かない（マナ型のコストは基本のまま）", () => {
+    const state = skillArena([{ key: "gravityWell", links: 0 }, { key: "gravityWell", links: 3 }]);
     const a = manaCost(state, 0);
     const b = manaCost(state, 1);
-    expect(a).toBeCloseTo(SKILL.whirl.cost);
-    expect(b).toBeCloseTo(a * (1 + SKILL.linkBurdenPenalty * 3));
+    expect(a).toBeCloseTo(SKILL.gravityWell.cost);
+    expect(b).toBeCloseTo(a);
   });
 });
 
 describe("修飾子", () => {
-  it("コンボ燃料: コンボ 10 で威力 x1.4、発動後コンボ 0。コンボ 0 なら x0.8", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["comboFuel"] }]);
-    state.combo.count = 10;
-    press(state, 0);
-    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(1.4);
-    expect(state.combo.count).toBe(0);
-
-    const empty = skillArena([{ key: "frag", links: 1, modifiers: ["comboFuel"] }]);
-    press(empty, 0);
-    expect(empty.skills.grenades[0]?.params.damageMul).toBeCloseTo(SKILL.modifier.comboFuel.emptyMul);
-  });
-
-  it("反響: 0.8 秒後に 50% で再発動し、反響の反響は起きない", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["echo"] }]);
+  it("反響: 少し後に弱く再発動し、反響の反響は起きない", () => {
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["echo"] }]);
     press(state, 0);
     expect(state.skills.echoes).toHaveLength(1);
     run(state, SKILL.modifier.echo.delay);
-    const echoed = state.skills.grenades.find((g) => g.params.echo === null);
+    const echoed = state.skills.wells.find((g) => g.params.echo === null);
     expect(echoed?.params.damageMul).toBeCloseTo(SKILL.modifier.echo.damageMul);
     expect(state.skills.echoes).toHaveLength(0);
     run(state, SKILL.modifier.echo.delay * 2);
     expect(state.skills.echoes).toHaveLength(0);
   });
+});
 
-  it("旋風斬りの反響は発動地点に残像が回る", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["echo"] }]);
-    press(state, 0);
-    run(state, SKILL.modifier.echo.delay);
-    expect(state.skills.ghosts.some((g) => g.skillKey === "whirl")).toBe(true);
+describe("刻印符（ラン内だけの物）", () => {
+  const mods = (state: GameState, i: number): ModifierKey[] => state.skills.slots[i]?.modifiers ?? [];
+
+  it("自動で付くときは空きのあるスロットの先頭から。スロットのリンクを使い切ったら次のスロットへ", () => {
+    const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }]);
+    const picks: ModifierKey[] = ["focus", "bloodPrice", "spillover", "echo"];
+    for (const key of picks) expect(attachRune(state, key), key).toBe(0);
+    expect(mods(state, 0), "スロット 1 のリンクは 4 本").toEqual(picks);
+    expect(attachRune(state, "streak"), "5 枚目は空きのあるスロット 2").toBe(1);
+    expect(mods(state, 1)).toEqual(["streak"]);
+  });
+
+  it("全スロットのリンクが埋まっていると、最初の候補の最古の符を押し出す", () => {
+    const state = skillArena([{ key: "gravityWell" }]);
+    for (const key of ["focus", "bloodPrice", "spillover", "echo"] as const) attachRune(state, key);
+    expect(attachRune(state, "streak")).toBe(0);
+    expect(mods(state, 0), "最古の収束が押し出される").toEqual(["bloodPrice", "spillover", "echo", "streak"]);
+  });
+
+  it("床の刻印符は触れると付けられるスロットへ入る（所持品もセーブも経由しない）", () => {
+    const state = skillArena([{ key: "parry" }, { key: "gravityWell" }]);
+    dropRune(state, state.player.body.pos, "echo");
+    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    expect(state.skills.runes, "床から消える").toHaveLength(0);
+    expect(state.skills.slots[1]?.runModifiers, "反響が付かないスロット 1 を飛ばして、スロット 2 の符になる").toEqual(["echo"]);
+    expect(mods(state, 1)).toEqual(["echo"]);
+    expect("runes" in state.skills.profile, "プロフィールに符を持たない").toBe(false);
+    expect(state.log.some((l) => l.text.includes("スキル 2")), "ログに付けた先").toBe(true);
+  });
+
+  it("付けられるスキルが無い符は床に残り、1 回だけ知らせる", () => {
+    const state = skillArena([{ key: "parry" }]);
+    dropRune(state, state.player.body.pos, "echo");
+    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    expect(state.skills.runes, "床に残る").toHaveLength(1);
+    expect(state.skills.runes[0]?.warned).toBe(true);
+    expect(state.skills.slots[0]?.runModifiers).toEqual([]);
+  });
+
+  it("リンクはスロットごとに固定: スロット 4 は 2 本まで。3 枚目の符は効かない", () => {
+    const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell" }, { key: "gravityWell", modifiers: ["bloodPrice", "spillover", "echo"] }]);
+    const view = slotModifierView(state, 3);
+    expect(view.map((v) => [v.key, v.active]), "2 本ぶんだけ効く").toEqual([
+      ["bloodPrice", true],
+      ["spillover", true],
+      ["echo", false],
+    ]);
+    expect(view.every((v) => v.run), "拾った符").toBe(true);
+    expect(usedLinks(state.skills, 3)).toBe(3);
+  });
+
+  it("石の links はどんな値でも効き方を変えない（リンクはスロットの物）", () => {
+    const state = skillArena([{ key: "gravityWell", links: 0, modifiers: ["bloodPrice", "spillover"] }]);
+    expect(state.skills.profile.stones[0]?.links).toBe(0);
+    expect(slotModifierView(state, 0).every((v) => v.active), "links 0 でも効く").toBe(true);
+  });
+
+  it("祝福が足した符は run = false で、拾った符の後ろに並ぶ", () => {
+    const state = skillArena([{ key: "gravityWell", modifiers: ["bloodPrice"] }]);
+    grantBoon(state, "echoCall");
+    const view = slotModifierView(state, 0);
+    expect(view.map((v) => [v.key, v.run])).toEqual([
+      ["bloodPrice", true],
+      ["echo", false],
+    ]);
   });
 });
 
-describe("刻印符", () => {
-  it("空きのあるリンク枠に自動で刺さり、満杯なら最古を押し出す", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }, { key: "frag", links: 2 }]);
-    const mods = (i: number): ModifierKey[] => state.skills.slots[i]?.modifiers ?? [];
-    expect(attachRune(state, "multiCharge")).toBe(0);
-    expect(attachRune(state, "bloodPrice")).toBe(1);
-    expect(attachRune(state, "comboFuel")).toBe(1);
-    expect(mods(0)).toEqual(["multiCharge"]);
-    expect(mods(1)).toEqual(["bloodPrice", "comboFuel"]);
-    // 空きなし: 最初の候補（スロット 1 = index 0）の最古を押し出す
-    expect(attachRune(state, "echo")).toBe(0);
-    expect(mods(0)).toEqual(["echo"]);
-  });
-
-  it("床の刻印符は触れると所持品に入り、スキルには勝手に付かない", () => {
-    const state = skillArena([{ key: "parry", links: 0 }, { key: "whirl", links: 1 }]);
-    const p = state.player.body.pos;
-    dropRune(state, p, "echo");
-    run(state, SKILL.drop.pickupDelay + FIXED_DT);
-    expect(state.skills.runes, "床から消える").toHaveLength(0);
-    expect(state.skills.profile.runes?.map((r) => r.modifier), "所持品に入る").toEqual(["echo"]);
-    expect(state.skills.slots[1]?.modifiers, "スロットには付かない").toEqual([]);
-  });
-
-  it("所持が満杯なら拾えず床に残る", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }]);
-    state.skills.profile.runes = Array.from({ length: SKILL.runeCapacity }, (_, i) => ({ id: `full${i}`, modifier: "echo" as const, foundAt: 0 }));
-    dropRune(state, state.player.body.pos, "pierce");
-    run(state, SKILL.drop.pickupDelay + FIXED_DT);
-    expect(state.skills.runes, "床に残る").toHaveLength(1);
-    expect(state.skills.profile.runes).toHaveLength(SKILL.runeCapacity);
-  });
-
-  it("石に付けた刻印符は次のステップからスロットに効き、ラン内の符より先に並ぶ", () => {
-    const state = skillArena([{ key: "frag", links: 2, modifiers: ["bloodPrice"] }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
-    expect(state.skills.slots[0]?.modifiers, "付けた直後はまだ効かない（リプレイの装備変更と同じ時点に揃える）").toEqual(["bloodPrice"]);
+describe("刻印符の移す・外す（装備画面）", () => {
+  it("別のスロットへ移せる。反映は次のステップの同期で、移した符は移し先の最新になる", () => {
+    const state = skillArena([{ key: "gravityWell", modifiers: ["bloodPrice", "echo"] }, { key: "gravityWell", modifiers: ["spillover"] }]);
+    expect(moveRunModifier(state.skills, 0, 1, "echo")).toBe("ok");
+    expect(state.skills.slots[0]?.runModifiers).toEqual(["bloodPrice"]);
+    expect(state.skills.slots[1]?.runModifiers).toEqual(["spillover", "echo"]);
+    expect(state.skills.slots[0]?.modifiers, "同期前はまだ古いまま").toEqual(["bloodPrice", "echo"]);
     run(state, FIXED_DT);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["bloodPrice"]);
+    expect(state.skills.slots[1]?.modifiers).toEqual(["spillover", "echo"]);
   });
 
-  it("同じ種類の符が石とラン内の両方にあっても 1 枚として効く（二重に掛からない）", () => {
-    const state = skillArena([{ key: "frag", links: 3, modifiers: ["echo", "bloodPrice"] }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
-    run(state, FIXED_DT);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo", "bloodPrice"]);
-    expect(slotModifierView(state, 0).map((v) => [v.key, v.run]), "石の符として 1 回だけ並ぶ").toEqual([
-      ["echo", false],
-      ["bloodPrice", true],
+  it("移せない理由: 石が無い・相性・重複・リンク不足・元に無い・同じスロット", () => {
+    const state = skillArena([
+      { key: "gravityWell", modifiers: ["echo"] },
+      { key: "parry", modifiers: ["bloodPrice"] },
+      { key: "gravityWell", modifiers: ["echo"] },
+      { key: "gravityWell", modifiers: ["spillover", "streak"] },
     ]);
+    const rs = state.skills;
+    expect(moveRunModifier(rs, 0, 1, "echo"), "パリィには反響が付かない").toBe("notFit");
+    expect(moveRunModifier(rs, 0, 2, "echo"), "同じ符は 2 枚付けない").toBe("duplicate");
+    expect(moveRunModifier(rs, 0, 3, "echo"), "スロット 4 のリンク 2 本は埋まっている").toBe("noLinks");
+    expect(moveRunModifier(rs, 0, 0, "echo"), "同じスロットへは動かさない").toBe("missing");
+    expect(moveRunModifier(rs, 2, 3, "streak"), "元のスロットに無い符").toBe("missing");
+    const empty = skillArena([{ key: "gravityWell", modifiers: ["echo"] }]);
+    expect(moveRunModifier(empty.skills, 0, 2, "echo"), "石の無いスロット").toBe("noStone");
+    expect(rs.slots[0]?.runModifiers, "失敗したら動かない").toEqual(["echo"]);
   });
 
-  it("ラン内の自動装着は石に付けた符を押し出さない", () => {
-    const state = skillArena([{ key: "frag", links: 1 }]);
-    const stone = state.skills.profile.stones[0];
-    if (!stone) throw new Error("stone");
-    stone.runes = [{ id: "r1", modifier: "echo", foundAt: 0 }];
+  it("型替え符は 1 枚まで", () => {
+    const state = skillArena([{ key: "commonWhirl", modifiers: ["toTarget"] }, { key: "commonWhirl", modifiers: ["linger"] }]);
+    expect(moveRunModifier(state.skills, 1, 0, "linger"), "リンクは足りるが型替え符は 1 枚まで").toBe("reshape");
+  });
+
+  it("外すと符は消え、次のステップで効かなくなる。無い符は外せない", () => {
+    const state = skillArena([{ key: "gravityWell", modifiers: ["bloodPrice", "echo"] }]);
+    expect(removeRunModifier(state.skills, 0, "echo")).toBe(true);
+    expect(removeRunModifier(state.skills, 0, "echo"), "2 回目は無い").toBe(false);
+    expect(state.skills.slots[0]?.runModifiers).toEqual(["bloodPrice"]);
     run(state, FIXED_DT);
-    expect(attachRune(state, "bloodPrice"), "枠が埋まっているので付かない").toBe(-1);
-    expect(state.skills.slots[0]?.modifiers).toEqual(["echo"]);
+    expect(state.skills.slots[0]?.modifiers).toEqual(["bloodPrice"]);
+  });
+
+  it("同じ seed・同じ操作なら同じ結果（決定性）", () => {
+    const play = (): ModifierKey[][] => {
+      const state = skillArena([{ key: "gravityWell" }, { key: "gravityWell" }], 9);
+      for (const key of ["echo", "bloodPrice", "spillover"] as const) attachRune(state, key);
+      moveRunModifier(state.skills, 0, 1, "echo");
+      run(state, FIXED_DT * 3);
+      return state.skills.slots.map((s) => s.modifiers);
+    };
+    expect(play()).toEqual(play());
   });
 });
 
@@ -649,7 +568,7 @@ describe("同時発動と排他グループ", () => {
 
 describe("撃破時の刻印符ドロップ", () => {
   it("ボス・エリートの撃破は出どころ付きで抽選し、落ちれば床に置く", () => {
-    const state = skillArena([{ key: "frag", links: 1 }]);
+    const state = skillArena([{ key: "gravityWell", links: 1 }]);
     const seen: number[] = [];
     state.rng = { ...state.rng, chance: (p: number) => (seen.push(p), true) };
     const e = tough(state, 30);
@@ -662,7 +581,7 @@ describe("撃破時の刻印符ドロップ", () => {
 
 describe("ドロップ", () => {
   it("部屋クリアで刻印符、階層到達でスキル石が落ちる（確率を 1 にして確認）", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }]);
+    const state = skillArena([{ key: "gravityWell", links: 1 }]);
     state.rng = { ...state.rng, chance: () => true };
     const room = state.rooms.find((r) => !r.cleared);
     if (!room) throw new Error("no room");
@@ -687,7 +606,7 @@ describe("ドロップ", () => {
   });
 
   it("上り階段で戻った階・降り直した階では、階層到達のスキル石が落ちない", () => {
-    const state = skillArena([{ key: "whirl", links: 1 }]);
+    const state = skillArena([{ key: "gravityWell", links: 1 }]);
     state.rng = { ...state.rng, chance: () => true };
     updateSkills(state, withInput({}), FIXED_DT);
     state.depth -= 1;
@@ -719,7 +638,7 @@ describe("決定性", () => {
         step(state, input, FIXED_DT);
       }
       const p = state.player;
-      return [p.body.pos.x.toFixed(3), p.body.pos.y.toFixed(3), p.hp, state.score, state.skills.grenades.length, state.nextId].join("|");
+      return [p.body.pos.x.toFixed(3), p.body.pos.y.toFixed(3), p.hp, state.score, state.skills.artQueue?.length ?? 0, state.nextId].join("|");
     };
     expect(play()).toBe(play());
   });
@@ -742,66 +661,6 @@ function chillOf(e: Enemy): StatusEffect | undefined {
 function distTo(a: Vec, b: Vec): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
-
-describe("地裂き", () => {
-  it("溜めの後に前方扇へ衝撃波。前の敵はスタガー、背後は無傷", () => {
-    const state = skillArena([{ key: "quake" }]);
-    const front = tough(state, 30);
-    const back = tough(state, -30);
-    press(state, 0);
-    run(state, SKILL.quake.windup / 2);
-    expect(front.hp).toBe(BIG_HP);
-    run(state, SKILL.quake.windup);
-    expect(front.hp).toBeLessThan(BIG_HP);
-    expect(front.poise.damage, "前の敵に怯み値が溜まる").toBeGreaterThan(0);
-    expect(back.hp).toBe(BIG_HP);
-    run(state, SKILL.quake.recover + FIXED_DT);
-    expect(state.skills.active).toBeNull();
-  });
-
-  it("溜め中に被弾すると中断し、マナは消費済み", () => {
-    const state = skillArena([{ key: "quake" }]);
-    const e = tough(state, 30);
-    const before = state.player.mana;
-    press(state, 0);
-    state.player.hp -= 5;
-    run(state, SKILL.quake.windup * 2);
-    expect(e.hp).toBe(BIG_HP);
-    expect(state.player.mana).toBeCloseTo(before - SKILL.quake.cost);
-  });
-
-  it("範囲の変異で届く距離が伸びる", () => {
-    const state = skillArena([{ key: "quake", variants: [{ axis: "areaVsDamage", value: 1 }] }]);
-    const e = tough(state, SKILL.quake.radius + 10);
-    press(state, 0);
-    run(state, SKILL.quake.windup + FIXED_DT * 2);
-    expect(e.hp).toBeLessThan(BIG_HP);
-  });
-});
-
-describe("雷撃", () => {
-  it("照準地点に遅れて落ち、中心の敵に当たる", () => {
-    const state = skillArena([{ key: "thunder" }]);
-    const e = tough(state, 60);
-    press(state, 0, aimAt(state, 60));
-    expect(state.skills.strikes).toHaveLength(1);
-    run(state, SKILL.thunder.delay / 2);
-    expect(e.hp).toBe(BIG_HP);
-    run(state, SKILL.thunder.delay);
-    expect(e.hp).toBeLessThan(BIG_HP);
-    expect(state.skills.strikes).toHaveLength(0);
-  });
-
-  it("回数の変異で落雷が増え、速度の変異で早く落ちる", () => {
-    const more = skillArena([{ key: "thunder", variants: [{ axis: "countVsDamage", value: 1 }] }]);
-    press(more, 0, aimAt(more, 50));
-    expect(more.skills.strikes).toHaveLength(3);
-
-    const fast = skillArena([{ key: "thunder", variants: [{ axis: "speedVsDamage", value: 1 }] }]);
-    press(fast, 0, aimAt(fast, 50));
-    expect(fast.skills.strikes[0]?.total ?? 0).toBeLessThan(SKILL.thunder.delay);
-  });
-});
 
 describe("引力球", () => {
   it("範囲の敵を中心へ引き寄せ、終わりに弾けてダメージ", () => {
@@ -919,39 +778,6 @@ describe("鎖鎌", () => {
   });
 });
 
-describe("回転弾幕", () => {
-  it("螺旋状に弾を出して周囲の敵に当てる。発射中は移動 40%・近接不可", () => {
-    const state = skillArena([{ key: "spiral" }]);
-    const e = tough(state, 30);
-    press(state, 0);
-    expect(skillMoveMul(state)).toBeCloseTo(SKILL.spiral.moveMul);
-    expect(skillLocksAttack(state)).toBe(true);
-    run(state, SKILL.spiral.duration + SKILL.spiral.life);
-    expect(state.skills.active).toBeNull();
-    expect(e.hp).toBeLessThan(BIG_HP);
-  });
-
-  it("回数の変異で弾数が増える", () => {
-    const count = (variants: VariantRoll[]): number => {
-      const state = skillArena([{ key: "spiral", variants }]);
-      press(state, 0);
-      let emitted = 0;
-      while (state.skills.active) {
-        emitted = state.skills.active.hitsDone;
-        updatePlayer(state, withInput({}), FIXED_DT);
-      }
-      return emitted;
-    };
-    expect(count([])).toBeLessThan(count([{ axis: "countVsDamage", value: 1 }]));
-  });
-
-  it("貫通の刻印符で弾が敵を抜ける", () => {
-    const state = skillArena([{ key: "spiral", links: 1, modifiers: ["pierce"] }]);
-    press(state, 0);
-    expect(state.skills.bullets[0]?.pierceLeft).toBe(SKILL.modifier.pierce.count);
-  });
-});
-
 describe("氷結地帯", () => {
   it("中の敵に chill と継続ダメージ。自分が中にいると遅くなる", () => {
     const state = skillArena([{ key: "frostField" }]);
@@ -982,133 +808,20 @@ describe("氷結地帯", () => {
 // ---------------------------------------------------------------------------
 
 describe("追加の刻印符", () => {
-  it("反動: 発動時に照準の逆へ跳び、短い無敵", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["recoil"] }]);
-    const x = state.player.body.pos.x;
+  it("分身: 撃った位置から少し後に弱い写しが出て、写しからは写しが出ない", () => {
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["ghost"] }]);
     press(state, 0, aimAt(state, 60));
-    expect(state.player.invulnTimer).toBeGreaterThan(0);
-    run(state, 0.1);
-    expect(state.player.body.pos.x).toBeLessThan(x);
+    expect(state.skills.echoes, "写しの予約").toHaveLength(1);
+    run(state, SKILL.modifier.ghost.delay + FIXED_DT);
+    const copy = state.skills.wells.find((g) => g.params.ghost === null);
+    expect(copy?.params.damageMul).toBeCloseTo(SKILL.modifier.ghost.damageMul);
+    run(state, SKILL.modifier.ghost.delay * 2);
+    expect(state.skills.echoes).toHaveLength(0);
+    expect(state.skills.wells, "本体と写しの 2 つだけ").toHaveLength(2);
   });
 
-  it("連鎖（CD 型）: スキルで倒すとチャージが戻る", () => {
-    const state = skillArena([{ key: "lunge", links: 1, modifiers: ["chainReset"] }]);
-    const e = placeEnemy(state, "golem", 20);
-    e.hp = 1;
-    e.phase = "idle";
-    press(state, 0);
-    run(state, SKILL.lunge.time + FIXED_DT);
-    expect(e.hp).toBeLessThanOrEqual(0);
-    expect(state.skills.slots[0]?.chargesLeft).toBe(1);
-
-    const plain = skillArena([{ key: "lunge" }]);
-    const f = placeEnemy(plain, "golem", 20);
-    f.hp = 1;
-    f.phase = "idle";
-    press(plain, 0);
-    run(plain, SKILL.lunge.time + FIXED_DT);
-    expect(plain.skills.slots[0]?.chargesLeft).toBe(0);
-  });
-
-  it("連鎖（マナ型）: スキルで倒すと払ったコストの 50% が戻る。倒さなければ戻らない", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
-    const cost = manaCost(state, 0);
-    expect(cost, "連鎖の負担 ×1.2").toBeCloseTo(SKILL.whirl.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.chainReset.manaBurdenMul);
-    const gained = (s: GameState): number => {
-      const e = placeEnemy(s, "golem", 16);
-      e.hp = 1;
-      e.phase = "idle";
-      const before = s.player.mana;
-      const paid = manaCost(s, 0);
-      press(s, 0);
-      expect(e.hp).toBeLessThanOrEqual(0);
-      return s.player.mana - (before - paid);
-    };
-    // 撃破そのもので増える分（MANA.onKill）は連鎖と無関係なので、連鎖なしの同条件と差を取る
-    const control = gained(skillArena([{ key: "whirl", links: 1 }]));
-    expect(gained(state) - control, "コストの 50% が戻る").toBeCloseTo(cost * SKILL.modifier.chainReset.manaRefund);
-
-    const miss = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
-    const m0 = miss.player.mana;
-    press(miss, 0);
-    run(miss, SKILL.whirl.duration);
-    expect(miss.player.mana, "撃破が無ければ返らない").toBeCloseTo(m0 - manaCost(miss, 0));
-  });
-
-  it("連鎖（マナ型）: 1 回の発動で何体倒しても、戻るのは払ったマナまで", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
-    // 撃破 1 体ぶんの返却はコストの 50%。4 体倒しても合計は払った額（100%）で止まる
-    for (const [dx, dy] of [[14, 0], [-14, 0], [0, 14], [0, -14]] as const) {
-      const e = placeEnemy(state, "golem", dx, dy);
-      e.hp = 1;
-      e.phase = "idle";
-    }
-    state.player.mana = state.stats.maxMana * 0.5;
-    const before = state.player.mana;
-    const cost = manaCost(state, 0);
-    const killsBefore = state.kills;
-    press(state, 0);
-    run(state, SKILL.whirl.duration);
-    const kills = state.kills - killsBefore;
-    expect(kills, "複数体を倒している").toBeGreaterThanOrEqual(3);
-    // 撃破そのもの（MANA.onKill）の回収を除いた返却分
-    const refund = state.player.mana - (before - cost) - kills * MANA.onKill;
-    expect(refund, "払った額を超えて戻らない").toBeLessThanOrEqual(cost + 1e-6);
-    expect(refund, "払った額までは戻る").toBeCloseTo(cost);
-  });
-
-  it("連鎖（マナ型）: 過負荷で HP から払った分はマナとして返さない", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }], 5, ["ks_overdraw"]);
-    const e = placeEnemy(state, "golem", 16);
-    e.hp = 1;
-    e.phase = "idle";
-    state.player.mana = 0;
-    press(state, 0);
-    run(state, SKILL.whirl.duration);
-    expect(e.hp).toBeLessThanOrEqual(0);
-    expect(state.player.mana, "戻るのは撃破の回収だけ").toBeCloseTo(MANA.onKill);
-  });
-
-  it("連鎖（マナ型）の返却は最大マナを超えない", () => {
-    const state = skillArena([{ key: "whirl", links: 1, modifiers: ["chainReset"] }]);
-    for (const dx of [14, -14, 0]) {
-      const e = placeEnemy(state, "golem", dx, dx === 0 ? 14 : 0);
-      e.hp = 1;
-      e.phase = "idle";
-    }
-    state.player.mana = state.stats.maxMana;
-    press(state, 0);
-    expect(state.player.mana).toBeLessThanOrEqual(state.stats.maxMana);
-  });
-
-  it("呪い: 当てた敵に刻印、刻印中はスキル被ダメが増える", () => {
-    const state = skillArena([{ key: "thunder", links: 1, modifiers: ["curse"] }]);
-    const e = tough(state, 60);
-    press(state, 0, aimAt(state, 60));
-    run(state, SKILL.thunder.delay + FIXED_DT);
-    expect(state.skills.curses.has(e.id)).toBe(true);
-    expect(curseMul(state, e.id)).toBeCloseTo(1 + SKILL.modifier.curse.bonus);
-
-    const params = resolveSlot(state, 0)?.params;
-    if (!params) throw new Error("params");
-    const target = tough(state, 0, 40);
-    const base = 20;
-    const spec = { base, kind: "ranged" as const, dir: { x: 1, y: 0 }, knockback: 0, stagger: false };
-    state.combo.count = 0;
-    let hp = target.hp;
-    skillHit(state, target, { ...params, curse: null }, spec);
-    const plainDamage = hp - target.hp;
-    state.skills.curses.set(target.id, { time: SKILL.modifier.curse.duration, bonus: SKILL.modifier.curse.bonus });
-    state.combo.count = 0;
-    hp = target.hp;
-    skillHit(state, target, { ...params, curse: null }, spec);
-    expect(hp - target.hp).toBe(Math.round(plainDamage * (1 + SKILL.modifier.curse.bonus)));
-    run(state, SKILL.modifier.curse.duration + 1);
-    expect(state.skills.curses.has(target.id)).toBe(false);
-  });
-
-  it("遅延: その場では何も起きず、0.8 秒後に発動地点で強化して発動", () => {
-    const state = skillArena([{ key: "quake", links: 1, modifiers: ["delay"] }]);
+  it("遅延: その場では何も起きず、少し後に発動地点で強化して発動", () => {
+    const state = skillArena([{ key: "commonQuake", links: 1, modifiers: ["delay"] }]);
     const e = tough(state, 30);
     press(state, 0);
     expect(state.skills.active).toBeNull();
@@ -1132,109 +845,100 @@ describe("追加の刻印符", () => {
     expect(state.skills.mines).toHaveLength(2);
   });
 
-  it("拡大: 範囲 x1.5 でコストが重い", () => {
-    const state = skillArena([{ key: "frostField", links: 1, modifiers: ["expand"] }]);
+  it("収束: 範囲が狭く威力が高い", () => {
+    const state = skillArena([{ key: "frostField", links: 1, modifiers: ["focus"] }]);
     press(state, 0, aimAt(state, 50));
-    expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.expand.areaMul);
-    expect(manaCost(state, 0)).toBeCloseTo(SKILL.frostField.cost * (1 + SKILL.linkBurdenPenalty) * SKILL.modifier.expand.burdenMul);
+    expect(state.skills.fields[0]?.params.areaMul).toBeCloseTo(SKILL.modifier.focus.areaMul);
+    expect(state.skills.fields[0]?.params.damageMul).toBeCloseTo(SKILL.modifier.focus.damageMul);
   });
 
-  it("反響は新スキルにも効く（回転弾幕は発動地点に残像）", () => {
-    const state = skillArena([{ key: "spiral", links: 1, modifiers: ["echo"] }]);
-    press(state, 0);
-    run(state, SKILL.modifier.echo.delay);
-    expect(state.skills.ghosts.some((g) => g.skillKey === "spiral")).toBe(true);
-  });
-
-  it("階層を移ると設置物と呪いは消える", () => {
+  it("階層を移ると設置物は消える", () => {
     const state = skillArena([{ key: "mines" }, { key: "frostField" }]);
     press(state, 0);
     waitInterval(state, 1);
     press(state, 1, aimAt(state, 30));
     expect(state.skills.fields, "前提: 氷結地帯が出ている").toHaveLength(1);
-    state.skills.curses.set(1, { time: 3, bonus: 0.3 });
     state.depth += 1;
     updateSkills(state, withInput({}), FIXED_DT);
     expect(state.skills.mines).toHaveLength(0);
     expect(state.skills.fields).toHaveLength(0);
-    expect(state.skills.curses.size).toBe(0);
   });
 
   it("階層を移ると結界杭と罠は消え、変身は続く", () => {
-    const state = skillArena([{ key: "wardStake" }, { key: "titanForm" }, { key: "whirl", links: 2, modifiers: ["toTrap"] }]);
+    const state = skillArena([{ key: "wardStake" }, { key: "wolfForm" }, { key: "commonWhirl", links: 2, modifiers: ["linger"] }]);
     state.player.mana = state.stats.maxMana;
     press(state, 0, aimAt(state, 30));
-    press(state, 1);
     press(state, 2, aimAt(state, 60));
+    // 狼化は変身中に他のスキルを封じるので最後に撃つ
+    press(state, 1);
     expect(state.skills.stakes, "前提: 杭").toHaveLength(1);
     expect(state.skills.traps, "前提: 罠").toHaveLength(1);
     state.depth += 1;
     updateSkills(state, withInput({}), FIXED_DT);
     expect(state.skills.stakes).toHaveLength(0);
     expect(state.skills.traps).toHaveLength(0);
-    expect(state.skills.form?.skillKey).toBe("titanForm");
+    expect(state.skills.shape?.key).toBe("wolfForm");
   });
 });
 
-describe("第 2 弾の同時発動", () => {
-  it("変身・設置（杭）は本動作の最中でも並行して撃て、凍て道は本動作（body）", () => {
-    const state = skillArena([{ key: "iceSlide" }, { key: "titanForm" }, { key: "wardStake" }]);
+describe("第 2 弾・第 3 弾の同時発動", () => {
+  it("変身・設置（杭）は本動作の最中でも並行して撃てる", () => {
+    const state = skillArena([{ key: "chainHook" }, { key: "pyreForm" }, { key: "wardStake" }]);
     state.player.mana = state.stats.maxMana;
-    press(state, 0, aimAt(state, 60));
-    expect(state.skills.active?.skillKey, "前提: 滑っている").toBe("iceSlide");
+    press(state, 0);
+    expect(state.skills.active?.skillKey, "前提: 鎖鎌の最中").toBe("chainHook");
     press(state, 1);
     press(state, 2, aimAt(state, 40));
-    expect(state.skills.form?.skillKey).toBe("titanForm");
+    expect(state.skills.shape?.key, "業火の化身は他のスキルを封じない").toBe("pyreForm");
     expect(state.skills.stakes).toHaveLength(1);
-    expect(BODY_SKILL_KEYS.includes("iceSlide")).toBe(true);
   });
 });
 
 describe("溜め（Charge 刻印符）", () => {
   it("held の検出: 押している間 charging が true、離すと消費される", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
     expect(state.skills.slots[0]?.charging).toBe(true);
-    expect(state.skills.grenades).toHaveLength(0);
+    expect(state.skills.wells).toHaveLength(0);
     updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
     expect(state.skills.slots[0]?.charging).toBe(false);
-    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.skills.wells).toHaveLength(1);
   });
 
   it("溜め中は移動速度が 60%", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
     expect(skillMoveMul(state)).toBeCloseTo(SKILL.modifier.charge.moveMul);
   });
 
   it("0.15 秒未満で離すと通常発動（倍率 x1）", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     holdAndRelease(state, 0, SKILL.modifier.charge.minTime / 2, aimAt(state, 60));
-    expect(state.skills.grenades).toHaveLength(1);
-    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(1);
-    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(1);
+    expect(state.skills.wells).toHaveLength(1);
+    expect(state.skills.wells[0]?.params.damageMul).toBeCloseTo(1);
+    expect(state.skills.wells[0]?.params.areaMul).toBeCloseTo(1);
   });
 
   it("溜めた秒数に応じて威力・範囲が倍率付きで発動する", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     const half = SKILL.modifier.charge.maxTime / 2;
     holdAndRelease(state, 0, half, aimAt(state, 60));
     const c = SKILL.modifier.charge;
     const ratio = half / c.maxTime;
-    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(1 + (c.maxDamageMul - 1) * ratio, 1);
-    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(1 + (c.maxAreaMul - 1) * ratio, 1);
+    expect(state.skills.wells[0]?.params.damageMul).toBeCloseTo(1 + (c.maxDamageMul - 1) * ratio, 1);
+    expect(state.skills.wells[0]?.params.areaMul).toBeCloseTo(1 + (c.maxAreaMul - 1) * ratio, 1);
   });
 
   it("上限（1.2 秒）で頭打ち。それ以上溜めても倍率は変わらない", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     holdAndRelease(state, 0, SKILL.modifier.charge.maxTime + 1, aimAt(state, 60));
     const c = SKILL.modifier.charge;
-    expect(state.skills.grenades[0]?.params.damageMul).toBeCloseTo(c.maxDamageMul);
-    expect(state.skills.grenades[0]?.params.areaMul).toBeCloseTo(c.maxAreaMul);
+    expect(state.skills.wells[0]?.params.damageMul).toBeCloseTo(c.maxDamageMul);
+    expect(state.skills.wells[0]?.params.areaMul).toBeCloseTo(c.maxAreaMul);
   });
 
   it("チャージ中は chargeRatio が 0..1 を返し、離すと null に戻る", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
     const r = chargeRatio(state, 0);
     expect(r).not.toBeNull();
@@ -1245,7 +949,7 @@ describe("溜め（Charge 刻印符）", () => {
   });
 
   it("マナ型の溜め: 押した時点ではマナを払わず、離した瞬間に払う", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     const before = state.player.mana;
     const cost = manaCost(state, 0);
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
@@ -1253,12 +957,12 @@ describe("溜め（Charge 刻印符）", () => {
     expect(state.skills.slots[0]?.charging).toBe(true);
     expect(state.player.mana, "溜め中は払わない").toBe(before);
     updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
-    expect(state.skills.grenades).toHaveLength(1);
+    expect(state.skills.wells).toHaveLength(1);
     expect(state.player.mana, "離した瞬間に払う").toBeCloseTo(before - cost);
   });
 
   it("マナ型の溜め: 押した時点で足りなければ溜めずに不発", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     state.player.mana = manaCost(state, 0) - 1;
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
     expect(state.skills.slots[0]?.charging).toBe(false);
@@ -1266,18 +970,18 @@ describe("溜め（Charge 刻印符）", () => {
   });
 
   it("マナ型の溜め: 離した時点で足りなければ不発（何も消費しない）", () => {
-    const state = skillArena([{ key: "frag", links: 1, modifiers: ["charge"] }]);
+    const state = skillArena([{ key: "gravityWell", links: 1, modifiers: ["charge"] }]);
     updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true, ...aimAt(state, 60) }), FIXED_DT);
     run(state, SKILL.modifier.charge.minTime, withInput({ skill1Held: true, ...aimAt(state, 60) }));
     state.player.mana = 1;
     updatePlayer(state, withInput({ skill1Held: false, ...aimAt(state, 60) }), FIXED_DT);
-    expect(state.skills.grenades).toHaveLength(0);
+    expect(state.skills.wells).toHaveLength(0);
     expect(state.player.mana).toBe(1);
     expect(state.skills.manaFlash).toBeGreaterThan(0);
   });
 
-  it("Charge は付けられない: パリィ / 血の契約 / 加速 / 回転弾幕", () => {
-    for (const key of ["parry", "bloodPact", "haste", "spiral"] as const) {
+  it("Charge は付けられない: パリィ / 血の契約 / 加速 / 砲身化（channel）", () => {
+    for (const key of ["parry", "bloodPact", "haste", "siegeForm"] as const) {
       const state = skillArena([{ key, links: 1, modifiers: ["charge"] }]);
       updatePlayer(state, withInput({ skill1Held: true, skill1Pressed: true }), FIXED_DT);
       // 効かないので溜めは始まらず、通常どおり即時発動している
@@ -1290,8 +994,8 @@ describe("追加スキルの決定性", () => {
   it("新スキルを装着したランも同じ入力列なら同じ結果", () => {
     const play = (): string => {
       const profile = createDefaultSkillProfile();
-      const a = stoneFromSeed(31, { foundDepth: 1, now: 0, skillKey: "thunder" });
-      const b = stoneFromSeed(32, { foundDepth: 1, now: 0, skillKey: "spiral" });
+      const a = stoneFromSeed(31, { foundDepth: 1, now: 0, skillKey: "commonThunderclap" });
+      const b = stoneFromSeed(32, { foundDepth: 1, now: 0, skillKey: "commonBarrage" });
       profile.stones = [a, b];
       profile.loadout = [a.id, b.id];
       const state = createGame(12, "12", undefined, profile);
@@ -1308,7 +1012,7 @@ describe("追加スキルの決定性", () => {
         );
       }
       const p = state.player;
-      return [p.body.pos.x.toFixed(3), p.body.pos.y.toFixed(3), p.hp, state.score, state.skills.bullets.length, state.nextId].join("|");
+      return [p.body.pos.x.toFixed(3), p.body.pos.y.toFixed(3), p.hp, state.score, state.projectiles.length, state.nextId].join("|");
     };
     expect(play()).toBe(play());
   });
@@ -1326,19 +1030,19 @@ describe("スキルのコストは最大マナで切り詰める", () => {
   });
 
   it("最大マナを超えるコストのスキルも、満タンなら撃てる", () => {
-    const state = skillArena([{ key: "frag" }]);
-    const max = SKILL.frag.cost / 2;
+    const state = skillArena([{ key: "gravityWell" }]);
+    const max = SKILL.gravityWell.cost / 2;
     state.stats.maxMana = max;
     state.player.mana = max;
     expect(manaCost(state, 0), "コストは最大マナ").toBe(max);
     press(state, 0, aimAt(state, 60));
-    expect(state.skills.grenades, "発動する").toHaveLength(1);
+    expect(state.skills.wells, "発動する").toHaveLength(1);
     expect(state.player.mana, "マナを使い切る").toBe(0);
   });
 
   it("過負荷（ks_overdraw）は HP で払えるので切り詰めない", () => {
-    const state = skillArena([{ key: "frag" }], 5, ["ks_overdraw"]);
-    state.stats.maxMana = SKILL.frag.cost / 2;
-    expect(manaCost(state, 0)).toBe(SKILL.frag.cost);
+    const state = skillArena([{ key: "gravityWell" }], 5, ["ks_overdraw"]);
+    state.stats.maxMana = SKILL.gravityWell.cost / 2;
+    expect(manaCost(state, 0)).toBe(SKILL.gravityWell.cost);
   });
 });

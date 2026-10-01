@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.2,
+  "weight": "heavy",
   "steps": [
     {"windup":0.14,"active":0.12,"recover":0.3,"scaling":{"base":8,"str":0.7,"vit":0.5},"poiseRatio":{"str":0.24,"vit":0.24},"poise":16,"reach":30,"size":30,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":150},"hitstop":3,"shake":1.5,"lunge":6,"trail":"#e0d0b0"},
     {"windup":0.14,"active":0.12,"recover":0.3,"scaling":{"base":8,"str":0.7,"vit":0.5},"poiseRatio":{"str":0.24,"vit":0.24},"poise":16,"reach":30,"size":30,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":150},"hitstop":3,"shake":1.5,"lunge":6,"trail":"#e0d0b0"},

@@ -6,6 +6,7 @@ import { RisingEdge } from "./audio/cues";
 import { questProgress, questSnapshot } from "./meta/quests";
 import { isEngaged } from "./system/engagement";
 import { bossEnemy } from "./system/boss";
+import { conqueredBy } from "./system/chapters";
 import { isStaggered } from "./system/poise";
 import { createGame, step } from "./core/game";
 import { GamepadInput } from "./core/gamepad";
@@ -25,12 +26,13 @@ import {
   type ReplaySession,
 } from "./core/replay";
 import { hashSeed } from "./core/rng";
-import type { GameState } from "./core/state";
+import { type GameState, pushLog, runOver } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
-import { loadProfile, pushRunHistory, returnLoaned, saveProfile } from "./loot/profile";
+import { loadProfile, pushRunHistory, recordClear, returnLoaned, saveProfile } from "./loot/profile";
 import type { Item, Profile } from "./loot/types";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
+import { drawQuestHud } from "./render/questHud";
 import { loadImageAtlas } from "./render/imageAtlas";
 import { SHEETS, TILE_SPRITES } from "./data/tiles";
 import { Renderer } from "./render/renderer";
@@ -44,8 +46,12 @@ import {
   drawTitle,
   keybindsRowGap,
 } from "./render/titleUi";
-import { loadSkillProfile, saveSkillProfile } from "./skills/persistence";
+import { loadSkillProfileWithNotice, saveSkillProfile } from "./skills/persistence";
 import { recordRunOnce } from "./system/combat";
+import { killerOf } from "./system/deathCause";
+import { deathReportLines as buildDeathReportLines, historyExtras, previousComparable } from "./meta/deathReport";
+import { buildRunMeta } from "./meta/runMetaSetup";
+import { lockedRunContent, unlockNewsLines } from "./meta/unlocks";
 import {
   KEYBINDS_ROWS,
   PADBINDS_ROWS,
@@ -59,7 +65,7 @@ import {
   buildHistoryEntry,
   cancelSeedInput,
   commitSeedInput,
-  computeTitleStats,
+  computeTitleRecord,
   createSeedInputState,
   cycleIndex,
   edgeDir,
@@ -79,6 +85,7 @@ import {
   shiftReplaySpeed,
   startSeedInput,
   summarizeRunItems,
+  type MenuHotkeys,
   type PauseMenuItem,
   type ReplaySpeed,
   type SettingsGaugeItem,
@@ -87,6 +94,7 @@ import {
 import { findReplayForEntry, loadReplays, pushReplay } from "./ui/replayStore";
 import {
   adjustHitstopScale,
+  DEFAULT_HITSTOP_SCALE,
   adjustMusicVolume,
   adjustScreenShake,
   adjustVolume,
@@ -116,39 +124,64 @@ import {
   pointOriginRow,
   type OriginScreen,
 } from "./ui/origin";
-import { type RunSetup, defaultRunSetup } from "./system/runSetup";
+import { type RunSetup, defaultRunSetup, runTier } from "./system/runSetup";
 import { saveCraft } from "./loot/craftingStore";
 import { TRAIT_COLORS } from "./loot/types";
-import { recordCodex } from "./meta/codex";
+import { diagramOpenable, recordCodex, recordDefeat } from "./meta/codex";
 import { loadCodex, saveCodex } from "./meta/codexStore";
 import { seedKnownLinks } from "./meta/links";
-import { carriedQuest, codexPages, isQuestKey, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
+import { carriedQuest, codexPages, isQuestKey, loadoutKeywords, lockedJobs, lockedOrigins, lockedRelicKeys, pickQuestOffers, recordQuest } from "./meta/quests";
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
 import { tipsListTabs } from "./meta/tips";
 import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
+import { drawTelegraphDiagram } from "./render/telegraphDiagramUi";
+import { enemyDef } from "./data/enemies";
+import { telegraphDiagram } from "./system/telegraphDiagram";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
 import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
-import { HUB } from "./data/tuning";
+import { HUB, META } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { type HubDecor, availableSpots, builtFacilities, facilityBuiltBanner, hubDecorations, newlyBuilt } from "./meta/hub";
-import { loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
+import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
 import type { MovesetKey } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
-import { type TitleMenuItem, titleMenuHotkey, titleMenuItemAt } from "./ui/title";
+import {
+  type TitleAction,
+  type TitleMenuItem,
+  type TitleRecordTarget,
+  type TitleStart,
+  type TitleStartKind,
+  activateTitleItem,
+  backTitleMenu,
+  beginTitleStart,
+  createTitleMenu,
+  moveTitleCursor,
+  pointTitleItem,
+  stepTitleStart,
+  titleItemAt,
+  titleMenuHotkey,
+} from "./ui/title";
+import type { TitleView } from "./render/titleUi";
+import { type HallOutcome, type HallRun, createHallRun, hallOutcome, stepHall } from "./system/bossHall";
+import { addHallResult, hallRecordOf } from "./meta/hubStore";
+import { HALL_LIST_HINT, HALL_TITLE, hallFightHint, hallKeyOfEntry, hallResultHint, hallResultLines, hallTabs } from "./ui/bossHall";
+import { drawHallFightHint, drawHallResult } from "./render/bossHallUi";
 
 const canvasEl = document.getElementById("game");
 if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error("#game canvas not found");
 /** 明示的に型を確定した参照。関数宣言の中から参照すると const の絞り込みが引き継がれないため */
 const canvas: HTMLCanvasElement = canvasEl;
 
-const GAME_NAME = "DEPTHBREAKER";
+/** 窓のタイトルや読み上げ用の名前（タイトル画面の題字は絵で持つ） */
+const GAME_NAME = "墨淵";
+canvas.setAttribute("aria-label", GAME_NAME);
 const SEED_PARAM = "seed";
 /** 死亡演出が出そろうまでリスタート入力を受け付けない */
 const DEATH_INPUT_DELAY = 0.6;
@@ -180,7 +213,9 @@ type Screen =
   | "replay"
   | "hub"
   | "altar"
-  | "rack";
+  | "rack"
+  | "hall"
+  | "hallFight";
 
 /** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
 type ListScreenKind = "codex" | "questBoard" | "achievements" | "tips";
@@ -208,22 +243,38 @@ function syncSeedUrl(seedText: string): void {
 
 // プロフィール（装備・stash・ラン履歴）はラン間で共有。拾った瞬間に保存される
 const profile: Profile = loadProfile();
-// スキル石も別キーで永続。刻印符（修飾子）はラン内なので createGame が毎回空で作る
-const skillProfile = loadSkillProfile();
+// スキル石も別キーで永続。刻印符（修飾子）はラン内だけの物で、セーブしない。
+// 旧セーブの刻印符は読み捨てられ、その件数は拠点に入ったときに 1 回だけ知らせる（legacyRunesDropped）
+const loadedSkills = loadSkillProfileWithNotice();
+const skillProfile = loadedSkills.profile;
+let legacyRunesDropped = loadedSkills.droppedRunes;
 const settings: Settings = loadSettings();
 // メタ進行（図鑑・依頼・実績）。ラン終了時に endRun が 1 回だけ畳んで保存する（step の中では触れない）
 const codexSave = loadCodex();
 const questSave = loadQuests();
 const achievementSave = loadAchievements();
 
+/** 記録を競う「今日の挑戦」は手触りの差で有利不利が出ないよう、ヒットストップの強さを既定値で固定する */
+function hitstopScaleFor(seedText: string): number {
+  return isDailySeedText(seedText) ? DEFAULT_HITSTOP_SCALE : settings.hitstopScale;
+}
+
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
-  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, settings.hitstopScale);
+  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, hitstopScaleFor(seedText));
 }
 
 /** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
 function withLockedRelics(setup: RunSetup): RunSetup {
   return { ...setup, lockedRelics: lockedRelicKeys(questSave) };
+}
+
+/** ラン開始時に仇などの持ち込みを保存データから確定させる（やり直しでも作り直す = 直前の死が新しい仇になる。記録器と createGame が同じ値を見る） */
+function withRunMeta(setup: RunSetup, seedText: string): RunSetup {
+  return {
+    ...setup,
+    runMeta: buildRunMeta({ history: profile.meta.history ?? [], daily: isDailySeedText(seedText), codex: codexSave, quests: questSave, meta: profile.meta }),
+  };
 }
 
 const input = new PlayerInput();
@@ -275,7 +326,8 @@ applySettings();
  * ラン中の変更は記録中のリプレイにもイベントとして積み、再生で同じ強さを再現する
  */
 function applyHitstopScale(): void {
-  if (state) {
+  // 今日の挑戦は固定（設定の保存だけする）
+  if (state && !isDailySeedText(state.seedText)) {
     state.hitstopScale = settings.hitstopScale;
     recorder?.noteHitstopScale(state, settings.hitstopScale);
   }
@@ -296,6 +348,9 @@ const seedInput = createSeedInputState(initialSeedText());
 let committedSeedText = seedInput.text;
 
 let titleTime = 0;
+/** タイトルのメニューのカーソルと、開始の演出（旅人が門へ歩く 2.4 秒）の経過。演出中は null でない */
+const titleMenu = createTitleMenu();
+let titleStart: TitleStart | null = null;
 let pauseCursor = 0;
 let settingsCursor = 0;
 /** キー設定画面の選択行（KEYBINDS_ROWS の index）・列（主 / 副 / 予備）・スクロール・取得モード */
@@ -395,7 +450,7 @@ function updateOriginScreen(frame: FrameInput, escape: boolean, arrowX: number, 
 function drainEchoes(s: GameState): void {
   const pending = s.runEvents.pendingEchoes;
   if (!TRAIT_COLORS.some((c) => pending[c] > 0)) return;
-  const save = inventoryUi.echo.save;
+  const save = inventoryUi.craft;
   for (const c of TRAIT_COLORS) {
     save.echoes[c] += pending[c];
     pending[c] = 0;
@@ -407,13 +462,13 @@ function beginRun(seedText: string): void {
   // 拠点の state はランに持ち込まない（試した誓約も消える）。次に拠点へ入るとき作り直す
   hub = null;
   inventoryUi.open = false;
-  runSetup = withLockedRelics(runSetup);
+  runSetup = withRunMeta(withLockedRelics(runSetup), seedText);
   runStartedAt = Date.now();
   loadoutDirty = false;
   state = startGame(seedText);
   // スナップショットは createGame の後に取る（startJob が倉庫へ入れる初期スキル石の有無を記録に残すため）
   recorder = ReplayRecorder.fromStartedGame(
-    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup, hitstopScale: settings.hitstopScale },
+    { seedText, startedAt: runStartedAt, daily: isDailySeedText(seedText), setup: runSetup, hitstopScale: hitstopScaleFor(seedText) },
     state,
   );
   // 受けた依頼（やり直し・同じシードでの再挑戦は起点画面を通らないので、保存の active を引き継ぐ）
@@ -421,6 +476,7 @@ function beginRun(seedText: string): void {
   // 連携の発見: 図鑑の既知を写す（初発見の表示・手がかり枠・発見の依頼が読む。ゲーム進行には効かない）
   seedKnownLinks(state.codexRun.links, codexSave);
   deathMetaLines = [];
+  deathReportLines = [];
   committedSeedText = seedText;
   seedInput.text = seedText;
   bossesDefeated = 0;
@@ -436,11 +492,17 @@ function endRun(current: GameState): void {
   historyRecordedState = current;
   // 履歴エントリの date とリプレイの endedAt を同じ値にして紐付ける
   const now = Date.now();
-  pushRunHistory(current.profile, buildHistoryEntry(current, now));
+  const entry = { ...buildHistoryEntry(current, now), ...historyExtras(current) };
+  pushRunHistory(current.profile, entry);
+  if (current.status === "cleared" || conqueredBy(current.bossLog)) recordClear(current.profile, runTier(current.modifiers));
   // 武器掛けの借り物はランが終わると消える（saveProfile も書かないが、手元の profile からも外す）
   returnLoaned(current.profile);
   saveProfile(current.profile);
   deathMetaLines = recordMeta(current, now);
+  // 倒された回数（recordMeta の recordDefeat）と踏破の回数を数えた後に組む
+  deathReportLines = buildDeathReportLines(entry, previousComparable(current.profile.meta.history ?? [], entry), codexSave, current.profile.meta);
+  // 寄進は step の中では保存せず、ラン終了のここで拠点の保存データへ足す
+  if (current.economy.donated > 0) saveHub(addDonation(loadHub(), current.economy.donated));
   if (recorder) {
     replays = pushReplay(recorder.finish({ depth: current.depth, kills: current.kills, score: current.score }, now));
     recorder = null;
@@ -453,13 +515,22 @@ function endRun(current: GameState): void {
 
 /** 死亡画面に出す、ラン終了時の依頼・図鑑・実績の結果 */
 let deathMetaLines: string[] = [];
+/** 死亡画面の死因 / 次の山 / 前回比（meta/deathReport.ts） */
+let deathReportLines: string[] = [];
 let questChoiceUi: QuestChoiceScreen = createQuestChoice([]);
 let listUi: ListScreen = createListScreen();
 /** 一覧画面のタブ（開いたときと決定のたびに作り直す） */
 let listTabs: ListTab[] = [];
+/** 図鑑で予告の図解を開いている敵の key。null = 一覧を見ている */
+let diagramKey: string | null = null;
+/** 図鑑の敵のタブ（CODEX_TABS の先頭） */
+const CODEX_ENEMY_TAB = 0;
 
 /** ラン 1 回ぶんを図鑑・依頼・実績へ畳んで保存する。戻り値は死亡画面の行 */
 function recordMeta(s: GameState, now: number): string[] {
+  // 解放の知らせは、この記録で図鑑・依頼が進む前後の封じの差から組む
+  const lockedBefore = lockedRunContent({ codex: codexSave, quests: questSave });
+  recordDefeat(codexSave, killerOf(s)?.key ?? null);
   const discovered = recordCodex(s, codexSave);
   saveCodex(codexSave);
   const outcome = recordQuest(s, questSave, now);
@@ -467,11 +538,13 @@ function recordMeta(s: GameState, now: number): string[] {
   const jobsPlayed = noteJobPlayed(achievementSave, s.job);
   const unlocked = evaluateAchievements({ codex: codexSave, quests: questSave, meta: s.profile.meta, jobsPlayed }, achievementSave, now);
   saveAchievements(achievementSave);
-  return metaSummaryLines(outcome, discovered, unlocked);
+  const news = unlockNewsLines(lockedBefore, lockedRunContent({ codex: codexSave, quests: questSave }));
+  return [...metaSummaryLines(outcome, discovered, unlocked), ...news];
 }
 
 function openQuestChoice(frameMoveX: number, frameMoveY: number): void {
-  questChoiceUi = createQuestChoice(pickQuestOffers(questSave, hashSeed(pendingSeedText)), carriedQuest(questSave));
+  const build = loadoutKeywords(profile, skillProfile);
+  questChoiceUi = createQuestChoice(pickQuestOffers(questSave, hashSeed(pendingSeedText), META.questOffers, build), carriedQuest(questSave));
   screen = "questChoice";
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
@@ -507,7 +580,7 @@ function updateQuestChoice(frame: FrameInput, escape: boolean, arrowX: number, a
 }
 
 function listTabsFor(kind: ListScreenKind): ListTab[] {
-  if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave));
+  if (kind === "codex") return codexListTabs(codexSave, codexPages(questSave), questSave);
   if (kind === "questBoard") return questBoardTabs(questSave);
   if (kind === "tips") return tipsListTabs();
   return achievementTabs(achievementSave, questSave);
@@ -538,6 +611,7 @@ function openListScreen(next: ListScreenKind, frameMoveX: number, frameMoveY: nu
   screen = next;
   listUi = createListScreen();
   listTabs = listTabsFor(next);
+  diagramKey = null;
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
   menuAimPrev = null;
@@ -558,13 +632,34 @@ function stepListInput(frame: FrameInput, arrowX: number, arrowY: number): ListA
   return action;
 }
 
+/** 図鑑の敵の頁で、カーソルの行が予告の図解を開けるなら、その敵の key */
+function diagramKeyAtCursor(kind: ListScreenKind): string | null {
+  if (kind !== "codex" || listUi.tab !== CODEX_ENEMY_TAB) return null;
+  const entry = listCursorEntry(listUi, listTabs);
+  return entry && diagramOpenable(codexSave, entry.key) ? entry.key : null;
+}
+
 function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (diagramKey !== null) {
+    // 図解は一覧の上の重ね。Esc / 決定 / クリックで一覧へ戻る（メニューは抜けない）
+    if (!escape && !frame.confirmPressed && !frame.clickPressed) return;
+    diagramKey = null;
+    menuNav.prevX = frame.move.x;
+    menuNav.prevY = frame.move.y;
+    sfx.play("uiClose");
+    return;
+  }
   if (escape) {
     sfx.play("uiClose");
     leaveMenu();
     return;
   }
   const action = stepListInput(frame, arrowX, arrowY);
+  if (action === "activate" && diagramKeyAtCursor(kind) !== null) {
+    diagramKey = diagramKeyAtCursor(kind);
+    sfx.play("uiClick");
+    return;
+  }
   if (action !== "activate" || kind !== "achievements" || listUi.tab !== ACHIEVEMENT_TITLE_TAB) return;
   const entry = listCursorEntry(listUi, listTabs);
   if (!entry || !selectTitle(achievementSave, questSave, titleIdOfEntry(entry.key))) return;
@@ -587,6 +682,8 @@ let hub: HubSession | null = null;
 let hubDecor: HubDecor[] = [];
 let hubBanner: string | null = null;
 let hubBannerTimer = 0;
+/** 井戸に出す寄進の総額（拠点へ入るたびに保存データから読み直す） */
+let hubDonated = 0;
 /** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズから開いたらポーズ */
 let menuReturn: "title" | "hub" | "paused" = "title";
 const departLatch = createHoldLatch();
@@ -603,9 +700,22 @@ function openHub(): void {
   hubBanner = facilityBuiltBanner(newlyBuilt(built, hubSave));
   hubBannerTimer = hubBanner === null ? 0 : HUB.bannerSeconds;
   saveHub(markFacilitiesSeen(hubSave, built));
+  hubDonated = donatedOf(hubSave);
   hub = createHub(profile, skillProfile, availableSpots(built), settings.hitstopScale);
+  noteLegacyRunes(hub);
   inventoryUi.open = false;
   returnToHub();
+}
+
+/**
+ * 旧セーブの刻印符を読み捨てた旨を拠点のログに 1 回だけ出す。すぐ保存して runes を消すので、次に読み込んでも出ない
+ * （step の外。永続化はここでだけ触る）
+ */
+function noteLegacyRunes(session: HubSession): void {
+  if (legacyRunesDropped <= 0) return;
+  pushLog(session.state, `刻印符は探索ごとに拾い直す仕組みになった（手持ちの ${legacyRunesDropped} 枚は消えた）`);
+  legacyRunesDropped = 0;
+  saveSkillProfile(skillProfile);
 }
 
 /** ラン後に拠点へ戻る。次の出撃が同じ迷宮にならないよう、シードを新しくする（死亡画面の R と同じ扱い） */
@@ -656,7 +766,7 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
   const open = hubOpenFor(spot);
   sfx.play("uiClick");
   if (open.kind === "inventory") {
-    openInventoryAt(session.state, inventoryUi, open.tab, open.bud);
+    openInventoryAt(session.state, inventoryUi, open.entry);
     return;
   }
   if (open.kind === "altar") {
@@ -665,6 +775,10 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
   }
   if (open.kind === "rack") {
     openRack(session, frame.move.x, frame.move.y);
+    return;
+  }
+  if (open.kind === "hall") {
+    openHall(frame.move.x, frame.move.y);
     return;
   }
   menuReturn = "hub";
@@ -682,14 +796,12 @@ function tickHubBanner(dt: number): void {
 function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean, dt: number): void {
   tickHubBanner(dt);
   // 装備画面は stepHub より前に処理する（開いている間は paused で拠点の時間が止まる。Tab は拠点でも使える）
-  updateInventoryUi(session.state, inventoryUi, frame, dt);
-  if (inventoryUi.open) {
+  // Esc で閉じた同じフレームに拠点から出ないよう、開いていたかを先に見る
+  const wasOpen = inventoryUi.open;
+  updateInventoryUi(session.state, inventoryUi, frame, dt, { back: escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
+  if (wasOpen || inventoryUi.open) {
     // 装備画面で押した Enter を、閉じた後の出撃の長押しに数えない
     resetHoldLatch(departLatch);
-    if (escape) {
-      inventoryUi.open = false;
-      session.state.paused = false;
-    }
     drainSfx(session.state);
     drainEchoes(session.state);
     return;
@@ -733,6 +845,104 @@ function updateAltarFrame(session: HubSession, frame: FrameInput, escape: boolea
   setTrialKeystone(session, trialKeyOfEntry(entry.key));
   listTabs = altarTabs(session.hub.trialKeystone);
   sfx.play("uiClick");
+}
+
+// ---------------------------------------------------------------------------
+// ボスの間（拠点の台 → 一覧 → 挑む。docs/ideas/meta-impl.md 2-7）
+// ---------------------------------------------------------------------------
+
+/**
+ * ボスの間の挑戦。拠点と同じく `state` には入れない（ループ先頭の endRun が 1 ランとして履歴・図鑑・リプレイへ記録するため）。
+ * 装備は一時プロフィールの写しで、step 内の保存（拾得・ラン記録）は releaseGuard を外すまで捨てる
+ */
+interface HallFight {
+  run: HallRun;
+  releaseGuard: () => void;
+  /** 結果を拠点の保存データへ畳んだか（1 挑戦 1 回） */
+  recorded: boolean;
+  /** 結果の行。撃破か力尽きるまで null（null の間は step を回す） */
+  result: string[] | null;
+  /** 結果を出してからの秒。攻撃の連打のまま再挑戦しないよう、死亡画面と同じ待ちを入れる */
+  resultTimer: number;
+}
+let hallFight: HallFight | null = null;
+
+function openHall(frameMoveX: number, frameMoveY: number): void {
+  screen = "hall";
+  listUi = createListScreen();
+  listTabs = hallTabs(codexSave, loadHub());
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateHallListFrame(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    returnToHub();
+    return;
+  }
+  if (stepListInput(frame, arrowX, arrowY) !== "activate") return;
+  const key = hallKeyOfEntry(listCursorEntry(listUi, listTabs));
+  if (key === null || !startHallFight(key)) sfx.play("uiClose");
+}
+
+/** 挑戦を始める。保存の抑止は createGame より前に掛ける（startJob などが一時プロフィールを保存しようとしても捨てる） */
+function startHallFight(key: string): boolean {
+  const releaseGuard = guardStorageWrites();
+  const run = createHallRun(key, profile, skillProfile, runSetup.job, settings.hitstopScale);
+  if (!run) {
+    releaseGuard();
+    return false;
+  }
+  hallFight = { run, releaseGuard, recorded: false, result: null, resultTimer: 0 };
+  inventoryUi.open = false;
+  screen = "hallFight";
+  sfx.play("uiClick");
+  return true;
+}
+
+/** 結果を拠点の保存データへ 1 回だけ畳む（封鎖前の挑戦は addHallResult が数えない）。戻り値は結果の行 */
+function settleHallFight(fight: HallFight, outcome: HallOutcome): string[] {
+  const save = loadHub();
+  const before = hallRecordOf(save, fight.run.key);
+  if (!fight.recorded) saveHub(addHallResult(save, fight.run.key, outcome));
+  fight.recorded = true;
+  return hallResultLines(outcome, before);
+}
+
+function endHallFight(fight: HallFight): void {
+  fight.releaseGuard();
+  hallFight = null;
+}
+
+function updateHallFightFrame(fight: HallFight, frame: FrameInput, escape: boolean, dt: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    // 途中でやめても封鎖していれば 1 回の挑戦として数える
+    if (!fight.recorded) settleHallFight(fight, hallOutcome(fight.run));
+    endHallFight(fight);
+    returnToHub();
+    return;
+  }
+  if (fight.result !== null) {
+    fight.resultTimer += dt;
+    if (fight.resultTimer <= DEATH_INPUT_DELAY || !deathConfirmPressed(frame, fight.resultTimer)) return;
+    endHallFight(fight);
+    if (!startHallFight(fight.run.key)) returnToHub();
+    return;
+  }
+  stepHall(fight.run, frame, dt);
+  drainSfx(fight.run.state);
+  const outcome = hallOutcome(fight.run);
+  // 撃破・力尽きた瞬間に止める（撃破後の改鋳の 3 択や死亡画面へ進めない）
+  if (outcome.done) fight.result = settleHallFight(fight, outcome);
+}
+
+function drawHallFight(ctx: CanvasRenderingContext2D, fight: HallFight): void {
+  renderGame(fight.run.state, fight.result === null ? lastAim : null);
+  if (fight.result === null) drawHallFightHint(ctx, hallFightHint(fight.run.key));
+  else drawHallResult(ctx, fight.result, hallResultHint());
 }
 
 const RACK_TITLE = "武器掛け";
@@ -840,7 +1050,7 @@ function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void
   renderer.setHubView(spots);
   renderGame(s, inventoryUi.open ? null : lastAim);
   renderer.setHubView(null);
-  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, ...rackLabels(session) });
+  drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, decor: hubDecor, banner: hubBanner, donated: hubDonated, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
   if (inventoryUi.open) drawInventoryUi(ctx, s, inventoryUi);
 }
@@ -1035,10 +1245,126 @@ function drawKeybindsOverlay(ctx: CanvasRenderingContext2D): void {
   );
 }
 
-/** タイトルに出す称号と、マウスが乗っているメニュー項目 */
-function titleMetaView(): { title: string | null; hovered: TitleMenuItem | null } {
-  const aim = lastAim;
-  return { title: currentTitleLabel(achievementSave, questSave), hovered: aim ? titleMenuItemAt(aim.x, aim.y) : null };
+/** タイトルの描画に渡すもの（称号・前回の記録・メニューのカーソル・開始の演出） */
+function titleView(): TitleView {
+  return {
+    menu: titleMenu,
+    record: computeTitleRecord(profile),
+    title: currentTitleLabel(achievementSave, questSave),
+    dailySeed: dailySeedText(new Date()),
+    start: titleStart,
+  };
+}
+
+/** 開始の演出が終わったら、拠点かデイリーの起点画面へ進む */
+function finishTitleStart(kind: TitleStartKind, frame: FrameInput): void {
+  titleStart = null;
+  menuReturn = "title";
+  if (kind === "hub") {
+    openHub();
+    return;
+  }
+  openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
+}
+
+function beginTitleRun(kind: TitleStartKind): void {
+  sfx.play("uiClick");
+  titleStart = beginTitleStart(kind);
+}
+
+function openTitleSettings(frame: FrameInput): void {
+  sfx.play("uiClick");
+  returnScreen = "title";
+  settingsCursor = 0;
+  enterMenu("settings", frame.move.x, frame.move.y);
+}
+
+function openTitleRecord(target: TitleRecordTarget, frame: FrameInput): void {
+  sfx.play("uiClick");
+  menuReturn = "title";
+  if (target === "history") {
+    openHistory();
+    return;
+  }
+  openListScreen(TITLE_MENU_SCREEN[target], frame.move.x, frame.move.y);
+}
+
+function runTitleAction(action: TitleAction, frame: FrameInput): void {
+  switch (action.kind) {
+    case "start":
+      beginTitleRun(action.start);
+      return;
+    case "settings":
+      openTitleSettings(frame);
+      return;
+    case "open":
+      openTitleRecord(action.target, frame);
+      return;
+    case "none":
+      // 記録を開く / 戻る は階層の移動だけ
+      sfx.play("uiClick");
+      return;
+  }
+}
+
+/** タイトルの 1 フレーム: 演出中は進めるだけ。通常は ホットキー → カーソル（↑↓・パッド・マウスのなぞり）→ 決定 */
+function updateTitleFrame(frame: FrameInput, hotkeys: MenuHotkeys, dt: number): void {
+  titleTime += dt;
+  if (titleStart) {
+    const skip = frame.confirmPressed || frame.clickPressed;
+    if (stepTitleStart(titleStart, dt, skip)) finishTitleStart(titleStart.kind, frame);
+    return;
+  }
+  if (seedInput.active) {
+    if (frame.confirmPressed) {
+      committedSeedText = commitSeedInput(seedInput, committedSeedText);
+      syncSeedUrl(committedSeedText);
+    } else if (hotkeys.escape) {
+      cancelSeedInput(seedInput, committedSeedText);
+    }
+    return;
+  }
+  if (hotkeys.n) {
+    sfx.play("uiClick");
+    startSeedInput(seedInput);
+    return;
+  }
+  if (hotkeys.h) {
+    openTitleRecord("history", frame);
+    return;
+  }
+  if (hotkeys.d) {
+    beginTitleRun("daily");
+    return;
+  }
+  if (hotkeys.o) {
+    openTitleSettings(frame);
+    return;
+  }
+  const hotRecord = titleMenuHotkey(hotkeys);
+  if (hotRecord) {
+    openTitleRecord(hotRecord, frame);
+    return;
+  }
+
+  // マウスが実際に動いた時だけ、乗った行へカーソルを移す（キーボード操作を上書きしないため）
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  menuAimPrev = aim;
+  const hovered = aim ? titleItemAt(aim.x, aim.y, titleMenu.level) : null;
+  if (aimMoved && hovered !== null && pointTitleItem(titleMenu, hovered)) sfx.play("menuMove");
+  const navY = hotkeys.arrowY !== 0 ? hotkeys.arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevY = frame.move.y;
+  if (moveTitleCursor(titleMenu, navY)) sfx.play("menuMove");
+  if (hotkeys.escape && backTitleMenu(titleMenu)) {
+    sfx.play("uiClose");
+    return;
+  }
+  // ボタンの外のクリックでは何も起きない（誤クリックで画面が変わらない）
+  const clicked = frame.clickPressed && hovered !== null;
+  if (clicked && hovered !== null) pointTitleItem(titleMenu, hovered);
+  if (!frame.confirmPressed && !clicked) return;
+  runTitleAction(activateTitleItem(titleMenu), frame);
 }
 
 /** 依頼の達成音（8-10）はラン中に達成へ届いた瞬間に 1 回だけ。判定は meta/quests.ts を読むだけ */
@@ -1052,16 +1378,16 @@ function questDoneInRun(s: GameState): boolean {
  * 音楽の切り替え（src/audio/music.ts）。state は音楽を知らないので、ここで state を読んで曲を選ぶ。
  * ラン中の画面（プレイ・一時停止・設定・装備画面）と拠点は鳴らし続け、タイトル系・死亡後は止める
  */
-const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay"]);
+const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay", "hallFight"]);
 /** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
-const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack"]);
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack", "hall"]);
 function updateMusic(): void {
   if (hub && MUSIC_HUB_SCREENS.has(screen)) {
     music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
   }
-  const s = screen === "replay" ? (replay?.session.state ?? null) : state;
-  const inRun = s !== null && s.status !== "dead" && MUSIC_RUN_SCREENS.has(screen);
+  const s = screen === "replay" ? (replay?.session.state ?? null) : screen === "hallFight" ? (hallFight?.run.state ?? null) : state;
+  const inRun = s !== null && !runOver(s) && MUSIC_RUN_SCREENS.has(screen);
   if (!s || !inRun) {
     music.update(musicCue({ inRun: false, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
@@ -1133,8 +1459,8 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
  */
 let cursorVisible = false;
 function updateCursorVisibility(cur: GameState | null): void {
-  const inWorld = screen === "playing" || screen === "hub";
-  const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null;
+  const inWorld = screen === "playing" || screen === "hub" || screen === "hallFight";
+  const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null || cur?.reforgeChoice != null;
   if (wantVisible === cursorVisible) return;
   cursorVisible = wantVisible;
   canvas.style.cursor = wantVisible ? "default" : "none";
@@ -1142,12 +1468,12 @@ function updateCursorVisibility(cur: GameState | null): void {
 
 startLoop(
   (dt) => {
-    const frame = input.snapshot((state ?? hub?.state)?.camera.offset);
+    const frame = input.snapshot((state ?? hallFight?.run.state ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
     keyboardEscape = hotkeys.escape;
     // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
     // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
-    const padInGame = (screen === "playing" || screen === "hub") && !inventoryUi.open;
+    const padInGame = (screen === "playing" || screen === "hub" || screen === "hallFight") && !inventoryUi.open;
     if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
     updateMusic();
@@ -1156,58 +1482,13 @@ startLoop(
     if (gamepadConnectedTimer > 0) gamepadConnectedTimer = Math.max(0, gamepadConnectedTimer - dt);
     if (dropInfoHintTimer > 0) dropInfoHintTimer = Math.max(0, dropInfoHintTimer - dt);
 
-    // 自然死（system/combat.ts が state.status を "dead" にして recordRunOnce を呼ぶ）も
+    // 自然死・踏破（system/combat.ts / finale.ts が state.status を "dead" / "cleared" にして recordRunOnce を呼ぶ）も
     // ここで拾ってラン履歴に積む。endRun は何度呼んでも安全
-    if (state && state.status === "dead") endRun(state);
+    if (state && runOver(state)) endRun(state);
 
     switch (screen) {
       case "title": {
-        titleTime += dt;
-        if (seedInput.active) {
-          if (frame.confirmPressed) {
-            committedSeedText = commitSeedInput(seedInput, committedSeedText);
-            syncSeedUrl(committedSeedText);
-          } else if (hotkeys.escape) {
-            cancelSeedInput(seedInput, committedSeedText);
-          }
-          break;
-        }
-        if (hotkeys.n) {
-          sfx.play("uiClick");
-          startSeedInput(seedInput);
-          break;
-        }
-        if (hotkeys.h) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openHistory();
-          break;
-        }
-        if (hotkeys.d) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openOrigin(dailySeedText(new Date()), frame.move.x, frame.move.y);
-          break;
-        }
-        if (hotkeys.o) {
-          sfx.play("uiClick");
-          returnScreen = "title";
-          settingsCursor = 0;
-          enterMenu("settings", frame.move.x, frame.move.y);
-          break;
-        }
-        const clickedMenu = frame.clickPressed && frame.aimScreen ? titleMenuItemAt(frame.aimScreen.x, frame.aimScreen.y) : null;
-        const menuItem = titleMenuHotkey(hotkeys) ?? clickedMenu;
-        if (menuItem) {
-          sfx.play("uiClick");
-          menuReturn = "title";
-          openListScreen(TITLE_MENU_SCREEN[menuItem], frame.move.x, frame.move.y);
-          break;
-        }
-        if (frame.confirmPressed || frame.clickPressed) {
-          sfx.play("uiClick");
-          openHub();
-        }
+        updateTitleFrame(frame, hotkeys, dt);
         break;
       }
 
@@ -1235,6 +1516,24 @@ startLoop(
           break;
         }
         updateRackFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
+        break;
+      }
+
+      case "hall": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateHallListFrame(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
+        break;
+      }
+
+      case "hallFight": {
+        if (!hallFight) {
+          returnToHub();
+          break;
+        }
+        updateHallFightFrame(hallFight, frame, hotkeys.escape, dt);
         break;
       }
 
@@ -1590,13 +1889,11 @@ startLoop(
         }
 
         // 装備画面は step の pause 判定より前に処理する（paused を UI が切り替える）
-        updateInventoryUi(cur, inventoryUi, frame, dt);
-        if (inventoryUi.open) loadoutDirty = true;
-        if (inventoryUi.open) {
-          if (hotkeys.escape) {
-            inventoryUi.open = false;
-            cur.paused = false;
-          }
+        // Esc で閉じた同じフレームにポーズメニューを開かないよう、開いていたかを先に見る
+        const wasOpen = inventoryUi.open;
+        updateInventoryUi(cur, inventoryUi, frame, dt, { back: hotkeys.escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
+        if (wasOpen || inventoryUi.open) {
+          loadoutDirty = true;
           drainSfx();
           break;
         }
@@ -1608,7 +1905,7 @@ startLoop(
           break;
         }
 
-        if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
+        if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
           if (hotkeys.t) {
             endRun(cur);
             state = null;
@@ -1646,7 +1943,7 @@ startLoop(
     updateCursorVisibility(state);
 
     if (screen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -1665,6 +1962,16 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
+    if (screen === "hall") {
+      drawListScreen(ctx, { title: HALL_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: HALL_LIST_HINT });
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "hallFight" && hallFight) {
+      drawHallFight(ctx, hallFight);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
     if (screen === "questChoice") {
       drawQuestChoice(ctx, questChoiceUi, questSave, titleTime);
       drawGamepadConnectedHint(ctx);
@@ -1679,6 +1986,10 @@ startLoop(
         hint: LIST_SCREEN_HINT[screen],
         detailSide: screen === "tips",
       });
+      if (diagramKey !== null) {
+        const def = enemyDef(diagramKey);
+        drawTelegraphDiagram(ctx, def, telegraphDiagram(def), renderer.atlasSprite(def.sprite));
+      }
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -1702,7 +2013,7 @@ startLoop(
       return;
     }
     if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
       else drawKeybindsOverlay(ctx);
       drawGamepadConnectedHint(ctx);
@@ -1728,7 +2039,7 @@ startLoop(
 
     const cur = state;
     if (!cur) {
-      drawTitle(ctx, titleTime, GAME_NAME, seedInput, computeTitleStats(profile), titleMetaView());
+      drawTitle(ctx, titleTime, seedInput, titleView());
       drawGamepadConnectedHint(ctx);
       return;
     }
@@ -1736,16 +2047,18 @@ startLoop(
     renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
 
     if (!inventoryUi.open) drawBudUi(ctx, cur);
+    if (!inventoryUi.open) drawQuestHud(ctx, cur);
     if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
     if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
     if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
     if (screen === "keybinds") drawKeybindsOverlay(ctx);
-    if (cur.status === "dead" && cur.deathTimer > DEATH_INPUT_DELAY) {
+    if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
       drawDeathSummary(ctx, {
         itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),
         bestCombo: cur.combo.best,
         bossesDefeated,
         metaLines: deathMetaLines,
+        reportLines: deathReportLines,
       });
     }
     drawGamepadConnectedHint(ctx);

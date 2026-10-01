@@ -11,7 +11,7 @@ import { IPC } from "./ipc";
 import { createSaveStore } from "./saveStore";
 import { initialWindowOptions, LOGICAL_H, LOGICAL_W, rememberWindowState, toggleFullScreen } from "./window";
 
-const APP_DIR_NAME = "DEPTHBREAKER";
+const APP_DIR_NAME = "BOKUEN";
 const SCHEME = "app";
 const APP_HOST = "game";
 const APP_ORIGIN = `${SCHEME}://${APP_HOST}`;

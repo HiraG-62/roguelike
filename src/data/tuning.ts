@@ -31,14 +31,14 @@ export const STASH_CAPACITY = BALANCE.loot.STASH_CAPACITY;
 /** 状態異常 */
 export const STATUS = BALANCE.combat.STATUS;
 
+/** 性能の歯止め（src/system/limits.ts）。弾・設置物の同時数の上限。強さの天井ではなく 1 ステップの重さを抑える数 */
+export const LIMITS = BALANCE.combat.LIMITS;
+
 /**
  * ステータス（docs/COMBAT_DESIGN.md A）。基礎値は全員 base。
  * 派生は「実効値 − base」の差分で既存の PlayerStats に畳み込むので、基礎値なら何も変わらない
  */
 export const ATTR = BALANCE.combat.ATTR;
-
-/** ステータスの入手（共鳴）とラン内の振り分け（docs/COMBAT_DESIGN.md A-3） */
-export const ATTR_GAIN = BALANCE.combat.ATTR_GAIN;
 
 /**
  * マナ（docs/COMBAT_DESIGN.md B-1）。スキルの資源。
@@ -52,6 +52,9 @@ export const ENERGY = BALANCE.combat.ENERGY;
 /** 怯み（docs/COMBAT_DESIGN.md D-1）。段階 1 の L3 が読む */
 export const POISE = BALANCE.combat.POISE;
 
+/** 全武器共通の受け流し（窓・硬直・移動・ボスへの怯み値）。src/system/parry.ts が読む */
+export const PARRY = BALANCE.combat.PARRY;
+
 /** 地形の層（docs/ideas/status-and-terrain.md 3 章）。src/system/terrain.ts と src/map/generator.ts の planTerrain が読む */
 export const TERRAIN = BALANCE.combat.TERRAIN;
 
@@ -62,7 +65,7 @@ export const TERRAIN = BALANCE.combat.TERRAIN;
 export const TERRAIN_MUD_SMOKE = BALANCE.combat.TERRAIN_MUD_SMOKE;
 
 /**
- * 地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2。地裂きの刻印符「地崩れ」が作る）。
+ * 地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2。共通技「地裂き」「地叩き」と改鋳「余震」が作る）。
  * 敵が fallDelay 秒乗り続けると床が抜け、乗っている敵に落下ダメージと怯み。プレイヤーは落ちない（自分の技で自分を罰しない）
  */
 export const TERRAIN_RUBBLE = BALANCE.combat.TERRAIN_RUBBLE;
@@ -86,11 +89,14 @@ export const SYNERGY = BALANCE.loot.SYNERGY;
 /** キーストーンの数値 */
 export const KEYSTONE = BALANCE.loot.KEYSTONE;
 
-/**
- * 共鳴の拡張（docs/ideas/loot-expansion.md 9-2〜9-4。src/loot/resonance.ts）。
- * 陰画・拮抗は共鳴の変形、星座は 6 部位の主色の並びで成立する別の層
- */
+/** 名のある遺物の固有の数値（loot/named.ts・system/namedRelics.ts。docs/ideas/relics-7d-plan.md 3 章） */
+export const RELIC = BALANCE.loot.RELIC;
+
+/** 源と糧の共鳴（system/resonance.ts。docs/ideas/relics-7d-plan.md 4 章） */
 export const RESONANCE = BALANCE.loot.RESONANCE;
+
+/** 厳選の到達点の閾値（loot/reach.ts。docs/ideas/deep-impl.md 2-4） */
+export const REACH = BALANCE.loot.REACH;
 
 /** 装備ドロップ */
 export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
@@ -104,7 +110,13 @@ export const PICKUP = BALANCE.loot.PICKUP;
 /** 地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。抽選は loot/innate.ts */
 export const INNATE = BALANCE.loot.INNATE;
 
+/** 性質の揺らぎ（σ・三角分布・反転・見た目の分類）と装備の強さの係数。loot/flux.ts が読む */
+export const FLUX = BALANCE.loot.FLUX;
+
 export const FEEL = BALANCE.feel.FEEL;
+
+/** 敵の予告の線の色・長さ。見た目だけ（render/telegraphLineUi.ts が読む） */
+export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
 
 export const ROOM = BALANCE.world.ROOM;
 
@@ -115,6 +127,10 @@ export const ROOM = BALANCE.world.ROOM;
 export const ENEMY_AI = BALANCE.enemies.ENEMY_AI;
 export const ENEMY_TEMPO = BALANCE.enemies.ENEMY_TEMPO;
 export const ELITE = BALANCE.enemies.ELITE;
+/** 仇（前のランで力尽きた相手。system/nemesis.ts） */
+export const NEMESIS = BALANCE.enemies.NEMESIS;
+/** 敵の反応ルール（間合い取り・隙を狙う・囲む・後退射撃・離脱。system/enemyReactions.ts） */
+export const REACTION = BALANCE.enemies.REACTION;
 
 /** ボス共通 + 個体別パラメータ。数値は src/data/balance/enemies/ の "BOSS"（各 src/system/boss<Name>.ts が読む） */
 export const BOSS = BALANCE.enemies.BOSS;
@@ -125,7 +141,11 @@ export const REAPER = BALANCE.enemies.REAPER;
 /** 毎階の「階の主」。数値は src/data/balance/enemies/ の "FLOOR_LORD"（src/system/floorLord.ts が読む） */
 export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
 
-/** 深度による敵の HP の伸び（src/data/enemies.ts の depthHpScale）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
+/** 陣の配り方（src/system/jinSpawn.ts）と陣形の人数・格（src/data/formations.ts が検査して読む） */
+export const JIN = BALANCE.enemies.JIN;
+export const FORMATION = BALANCE.enemies.FORMATION;
+
+/** 深度による敵の生命・攻撃の伸び（src/data/enemies.ts の depthHpScale / depthDamageMul）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
 
 /** 部屋の種類（src/system/roomTypes.ts） */
@@ -142,6 +162,8 @@ export const FLOOR_KIND = BALANCE.world.FLOOR_KIND;
 export const CAVE = BALANCE.world.CAVE;
 /** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
 export const MAP_SIZE = BALANCE.world.MAP_SIZE;
+/** 階の型 8 種の選び方・拡縮・検査と、型ごとの形の数値（src/map/layout/。docs/ideas/map-gen-impl.md） */
+export const MAP_LAYOUT = BALANCE.world.MAP_LAYOUT;
 
 /** 開放型フロアの徘徊と増援（src/system/spawner.ts）。塊に置いた敵の一部が塊の間を歩き回り、時間で少しずつ増える */
 export const ROAM = BALANCE.world.ROAM;
@@ -152,6 +174,9 @@ export const RUN_EVENT = BALANCE.world.RUN_EVENT;
 /** 隠し部屋（src/map/hidden.ts・src/system/hiddenRoom.ts） */
 export const HIDDEN_ROOM = BALANCE.world.HIDDEN_ROOM;
 
+/** 出口の予告（src/system/exits.ts・src/render/exitUi.ts。docs/ideas/boon-impl.md 2-3） */
+export const EXIT = BALANCE.world.EXIT;
+
 /** 長居の代償（死神以外。src/system/linger.ts。docs/ideas/run-expansion.md 5 章） */
 export const LINGER = BALANCE.world.LINGER;
 
@@ -161,6 +186,9 @@ export const ORIGIN = BALANCE.world.ORIGIN;
 /** ジョブ（src/data/jobs.ts / src/system/jobs.ts。docs/COMBAT_DESIGN.md A-9） */
 /** ジョブ固有の数値（docs/COMBAT_DESIGN.md A-9）。定義元は src/data/balance/jobs/ の JOB */
 export const JOB = BALANCE.jobs.JOB;
+/** 流儀のダッシュの形（src/system/dashForms.ts）と気力の源（src/system/manaSources.ts）。docs/ideas/weapon-forms-impl.md 3-7 */
+export const DASH_FORM = BALANCE.jobs.DASH_FORM;
+export const MANA_SOURCE = BALANCE.jobs.MANA_SOURCE;
 
 /** メタ進行（図鑑・依頼・実績。src/meta/）。ゲーム進行には効かない */
 export const META = BALANCE.world.META;
@@ -169,10 +197,26 @@ export const META = BALANCE.world.META;
 /** 契約者・契約・欠片（src/system/contractors.ts。docs/ideas/run-expansion.md 0 章・6 章） */
 export const CONTRACT = BALANCE.world.CONTRACT;
 
+/** 銭・鍵・瓶（src/system/economy.ts。docs/ideas/economy-impl.md 2 章） */
+export const ECONOMY = BALANCE.world.ECONOMY;
+
+/** ランの章立て（src/system/chapters.ts） */
+export const ARC = BALANCE.world.ARC;
+export const DEEP = BALANCE.world.DEEP;
+
+/** 踏破した最高位階の見返り（src/meta/tierRewards.ts） */
+export const TIER_REWARD = BALANCE.world.TIER_REWARD;
+
 export const RUN_MOD = BALANCE.world.RUN_MOD;
 
 /** ミニマップ */
 export const MINIMAP = BALANCE.feel.MINIMAP;
+
+/** 地図の光と暗がり（src/render/mapLight.ts） */
+export const MAP_LIGHT = BALANCE.feel.MAP_LIGHT;
+
+/** 持ち物メニューの情報の予算（src/ui/menuBudget.ts・tryOn.ts。docs/ideas/inventory-v2/E-merged.md 4 章） */
+export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
 
 /**
  * アクション手触り（docs/ideas/action-feel.md「まず入れるべき 5 つ」+ 壁叩きつけ・ダッシュ攻撃）。
@@ -183,8 +227,6 @@ export const ACTION = {
   counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
   lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
   regain: BALANCE.combat.ACTION.regain,
-  justCounter: { ...BALANCE.combat.ACTION.justCounter, text: ACTION_TEXT.justCounter },
-  reflect: { ...BALANCE.combat.ACTION.reflect, text: ACTION_TEXT.reflect },
   wallSplat: BALANCE.combat.ACTION.wallSplat,
   dashAttack: BALANCE.weapons.ACTION_DASH_ATTACK,
   bulletCut: BALANCE.combat.ACTION.bulletCut,
@@ -192,6 +234,8 @@ export const ACTION = {
 
 /** ラン内限定の祝福 3 択（src/system/boons.ts）。docs/ideas/run-structure.md「祝福 3 択」 */
 export const BOON = BALANCE.boons.BOON;
+/** 系譜の札の数値（balance/boons/LINEAGE/<系譜>.json。docs/ideas/boon-impl.md 2-6） */
+export const BOON_LINEAGE = BALANCE.boons.LINEAGE;
 
 /**
  * 武器種（src/data/weapons.ts）と銃の弾の数値。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/meta-and-weapons.md 1〜2 章。
@@ -202,6 +246,18 @@ export const BOON = BALANCE.boons.BOON;
  * src/data/weapons.ts の hitShape() / shotKeyOf() で絞る。docs/ideas/data-externalization.md 6.6）
  */
 export const WEAPON = BALANCE.weapons.WEAPON;
+
+/**
+ * 武器の型（docs/ideas/weapon-forms-impl.md 3-1 / 3-2）の数値: 重さの既定・段数の幅・戦意の上限と放出の強さ。
+ * 型の骨（union・表示名・溜まる出来事・放出の形）は src/data/weaponForms.ts。定義元は src/data/balance/weapons/FORM/
+ */
+export const FORM = BALANCE.weapons.FORM;
+
+/** 共通の瞬間（先制・双撃の窓と、充溢・放出・双撃・先制の浮き文字の見た目）。src/system/moments.ts が読む */
+export const MOMENT = BALANCE.weapons.MOMENT;
+
+/** 改鋳（5 の倍数の階のボスの後の 3 択。docs/ideas/weapon-forms-impl.md 3-6）の回数と改鋳ごとの数値。組み立ては src/data/reforges.ts */
+export const REFORGE = BALANCE.weapons.REFORGE;
 
 /**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3 章）の共通値と奥義ごとの行為の数値。
@@ -259,6 +315,12 @@ export const DISCOVERY = BALANCE.world.DISCOVERY;
 
 /** 拠点（src/system/hub.ts / src/meta/hub.ts） */
 export const HUB = BALANCE.world.HUB;
+
+/** ボスの間（src/system/bossHall.ts）。拠点から倒したボスに挑み直す練習の場 */
+export const BOSS_HALL = BALANCE.world.BOSS_HALL;
+
+/** ボス階の専用の部屋の並べ方（src/map/layout/lordHall.ts） */
+export const LORD_HALL = BALANCE.world.LORD_HALL;
 
 /** 拠点の飾り（src/meta/hub.ts）。見た目だけで強さには触れない */
 export const HUB_DECOR = BALANCE.world.HUB_DECOR;

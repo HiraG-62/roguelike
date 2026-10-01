@@ -95,7 +95,7 @@ function drawJobColumn(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>
   });
 }
 
-/** 右の詳細欄: 名前・概要・ステータス・得意な武器・ルール 2 つ・初期スキル石・弱点。欄の下端で打ち切る */
+/** 右の詳細欄: 名前・概要・ステータス・ダッシュ・気力・ルール 2 つ・初期武器・初期スキル石。欄の下端で打ち切る */
 function drawJobDetail(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>): void {
   const { name, desc } = cursorDescription(ui);
   const line = textLineHeight(TEXT.SMALL);

@@ -16,14 +16,18 @@ import { type Vec, dist, sub } from "../core/vec";
 import { type EnemyBehavior, enemyDef, isBossClass } from "../data/enemies";
 import { type EnemyAttackKind, enemyCombat } from "../data/enemyCombat";
 import { STATUS } from "../data/tuning";
+import { hasReach } from "../loot/reach";
 import { damageEnemy, damagePlayerDot, rollOutgoing } from "./combat";
 import { dotResistMul } from "./elementCombat";
 import { onStatusAppliedFx, shake, spawnBurst, spawnBlast, spawnLine } from "./effects";
 import { withRatio } from "./attributes";
 import { circlesOverlap } from "./physics";
 import { blastMulAt } from "./blast";
+import { emitNoise } from "./noise";
 import { decayPoise, onStaggerEnd } from "./poise";
-import { boonChainExtension } from "./boonRules";
+import { noteStatusTickMana } from "./manaSources";
+import { isAllied } from "./rules";
+import { relicStatusApply } from "./namedRelics";
 import {
   hueMatchesResonance,
   onEffectEnded,
@@ -73,6 +77,10 @@ const ENEMY_ONLY: ReadonlySet<StatusKind> = new Set<StatusKind>([
   "encase",
   "exposed",
   "enfeeble",
+  // 傷は刃斧の型の印（継続ダメージを持たず、裂きで一度に開くためだけに重ねる）
+  "wound",
+  // 墨印は書の印（射撃・スキルの命中で読むためだけに重ねる）
+  "inkMark",
 ]);
 /** プレイヤーに付かないもの（操作を奪いすぎる + 敵専用） */
 const PLAYER_IMMUNE: ReadonlySet<StatusKind> = new Set<StatusKind>(["freeze", "paralyze", "fear", ...ENEMY_ONLY]);
@@ -85,7 +93,7 @@ const SILENCEABLE_WINDUP: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["
 
 /** 怯みの蓄積の初期値。耐性は enemies.ts の createEnemy が ENEMY_COMBAT から入れる */
 export function createPoiseState(): PoiseState {
-  return { max: 0, damage: 0, sinceHit: 0, downs: 0 };
+  return { max: 0, damage: 0, sinceHit: 0, downs: 0, pending: false };
 }
 
 /** 状態異常の付与先（docs/COMBAT_DESIGN.md E-1） */
@@ -301,7 +309,15 @@ function resolveDuration(state: GameState, target: StatusTarget, apply: Readonly
   return apply.duration;
 }
 
-function maxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
+/** 重ねの上限。敵には装備の上乗せ（stats.statusStackCapBonus。自分が付ける状態異常を深く重ねる性質・遺物）を足す */
+function maxStacks(state: GameState, target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
+  const base = baseMaxStacks(target, bag, kind);
+  if (target.kind === "player") return base;
+  if (kind === "burn" && hasReach(state.stats, "burn")) return Number.POSITIVE_INFINITY;
+  return base +(state.stats.statusStackCapBonus[kind] ?? 0);
+}
+
+function baseMaxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): number {
   const player = target.kind === "player";
   switch (kind) {
     case "burn":
@@ -326,6 +342,10 @@ function maxStacks(target: StatusTarget, bag: StatusBag, kind: StatusKind): numb
       return STATUS.wrath.maxStacks;
     case "charged":
       return STATUS.charged.maxStacks;
+    case "wound":
+      return STATUS.wound.maxStacks;
+    case "inkMark":
+      return STATUS.inkMark.maxStacks;
     default:
       return 1;
   }
@@ -357,6 +377,8 @@ export function applyStatus(
   source: StatusSource,
 ): boolean {
   if (!targetAlive(state, target) || apply.duration <= 0 || apply.stacks <= 0) return false;
+  // 従魔（眷属）にはこちらの攻撃・地形の状態異常が付かない（凍結・怯みで従魔を止めない。傷は damageEnemy が弾く）
+  if (target.kind === "enemy" && (source === "player" || source === "env") && isAllied(state, target.enemy)) return false;
   const bag = bagOf(state, target);
   if (isImmune(target, bag, apply.kind)) return false;
   const scaled = source === "player" && !UNSCALED_POTENCY.has(apply.kind);
@@ -374,7 +396,7 @@ export function applyStatus(
     duration = Math.min(duration, ccAllowance(bag));
     if (duration < CC_MIN_DURATION) return false;
   }
-  if (!mergeEffect(state, target, bag, apply, potency, duration, source)) return false;
+  if (!mergeEffect(state, target, bag, relicStatusApply(state, target, apply, source), potency, duration, source)) return false;
   if (limited) spendCc(bag, duration);
   afterApply(state, target, apply.kind, source);
   onStatusAppliedFx(state, target.kind === "enemy" ? target.enemy : null, apply.kind, isBossTarget(target));
@@ -399,7 +421,7 @@ function mergeEffect(
     bag.effects = bag.effects.filter((e) => e.kind !== apply.kind);
     const effect: StatusEffect = {
       kind: apply.kind,
-      stacks: Math.min(maxStacks(target, bag, apply.kind), apply.stacks),
+      stacks: Math.min(maxStacks(state, target, bag, apply.kind), apply.stacks),
       time: duration,
       maxTime: duration,
       potency,
@@ -413,7 +435,7 @@ function mergeEffect(
     return true;
   }
   if (NO_REFRESH.has(apply.kind)) return false;
-  existing.stacks = Math.min(maxStacks(target, bag, apply.kind), existing.stacks + apply.stacks);
+  existing.stacks = Math.min(maxStacks(state, target, bag, apply.kind), existing.stacks + apply.stacks);
   // 彩痕は色を上書き。燃焼は強い dps を採用、冷気は付与時の遅さの大きい方、他も強い方を残す
   existing.potency = apply.kind === "hue" ? potency : Math.max(existing.potency, potency);
   existing.time = Math.max(existing.time, duration);
@@ -656,7 +678,7 @@ function flushQueued(state: GameState, e: Enemy): void {
 /** 状態異常がプレイヤーか敵に与える即時ダメージ（蒸発・焼灼など） */
 export function hurtTarget(state: GameState, target: StatusTarget, amount: number, defer = false): void {
   if (target.kind === "player") {
-    damagePlayerDot(state, Math.round(amount));
+    damagePlayerDot(state, Math.round(amount), { kind: "status", key: "reaction" });
     return;
   }
   hurtEnemy(state, target.enemy, amount, 0, defer);
@@ -671,6 +693,11 @@ export interface ChainOptions {
   maxTargets?: number;
   /** 優先して飛ぶ相手（拡散: 濡れた敵） */
   prefer?: (e: Enemy) => boolean;
+  /**
+   * 最後の敵から来た道を戻って打ち直す（真髄「還雷」。docs/ideas/boon-impl.md 2-6）。
+   * 省略時は連鎖が同じ敵へ戻れる回数（stats.chainRevisits）が 1 以上なら戻る
+   */
+  bounceBack?: boolean;
 }
 
 /**
@@ -681,20 +708,36 @@ export function chainLightning(state: GameState, origin: Vec, damage: number, ex
   const hit = new Set<number>();
   if (excludeId !== undefined) hit.add(excludeId);
   const radius = opts.radius ?? STATUS.shockRadius;
-  let maxTargets = opts.maxTargets ?? STATUS.shockMaxTargets;
-  const baseTargets = maxTargets;
+  const maxTargets = opts.maxTargets ?? STATUS.shockMaxTargets;
   let from = { ...origin };
-  let jumps = 0;
+  const path: Enemy[] = [];
   for (let i = 0; i < maxTargets; i++) {
     const next = (opts.prefer && nearestEnemy(state, from, radius, hit, opts.prefer)) || nearestEnemy(state, from, radius, hit);
     if (!next) break;
     hit.add(next.id);
-    if (maxTargets === baseTargets) maxTargets += boonChainExtension(state, next);
     zap(state, from, next, damage, origin);
     from = { ...next.body.pos };
-    jumps += 1;
+    path.push(next);
   }
-  if (jumps > 0) pushSfx(state, "shock");
+  const back = (opts.bounceBack ?? state.stats.chainRevisits > 0) ? bounceBack(state, path, excludeId, damage, origin) : 0;
+  if (path.length + back > 0) pushSfx(state, "shock");
+}
+
+/**
+ * 還雷: 最後の敵から来た道を逆にたどって打ち直す（起点の敵〔excludeId〕も道に入れる。倒れた敵は飛ばす）。打った数を返す
+ */
+function bounceBack(state: GameState, path: readonly Enemy[], startId: number | undefined, damage: number, origin: Vec): number {
+  const start = startId === undefined ? undefined : state.enemies.find((e) => e.id === startId && e.hp > 0 && !isAllied(state, e));
+  const route = start === undefined ? path : [start, ...path];
+  let hits = 0;
+  for (let i = route.length - 2; i >= 0; i--) {
+    const to = route[i];
+    const prev = route[i + 1];
+    if (to === undefined || prev === undefined || to.hp <= 0) continue;
+    zap(state, prev.body.pos, to, damage, origin);
+    hits += 1;
+  }
+  return hits;
 }
 
 function zap(state: GameState, from: Vec, target: Enemy, damage: number, origin: Vec): void {
@@ -714,7 +757,8 @@ function nearestEnemy(
   let best: Enemy | null = null;
   let bestD = radius;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.phase === "spawning" || exclude.has(e.id)) continue;
+    // 従魔（眷属）へは跳ばない（傷つかない相手で連鎖の 1 跳びを無駄にしない）
+    if (e.hp <= 0 || e.phase === "spawning" || exclude.has(e.id) || isAllied(state, e)) continue;
     if (filter && !filter(e)) continue;
     const d = dist(from, e.body.pos);
     if (d > bestD) continue;
@@ -737,6 +781,7 @@ export function enemiesInRadius(state: GameState, pos: Vec, radius: number): Ene
     (e) =>
       e.hp > 0 &&
       e.phase !== "spawning" &&
+      !isAllied(state, e) &&
       circlesOverlap(pos.x, pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius),
   );
 }
@@ -747,6 +792,7 @@ export function explodeAt(state: GameState, pos: Vec, radius: number, damage: nu
   spawnBurst(state, pos, STATUS.explodeColor, EXPLODE_PARTICLES, EXPLODE_SPEED, 0.4, 2.5);
   shake(state, 3);
   pushSfx(state, "explode");
+  emitNoise(state, pos, "explode");
   for (const e of enemiesInRadius(state, pos, radius)) {
     if (e.id === excludeId) continue;
     const mul = blastMulAt(pos, radius, e.body.pos, e.body.radius);
@@ -797,6 +843,8 @@ function tickBag(state: GameState, target: StatusTarget, dt: number): void {
     if (effect.kind === "fear" && staggered) continue;
     const t = Math.min(dt, effect.time);
     tickEffect(state, target, effect, t);
+    // 呪術師の流儀の気力の源（継続ダメージの刻み。system/manaSources.ts）
+    noteStatusTickMana(state, target, effect, t);
     // 凍毒: 冷気がある間は毒の残り時間が減らない
     if (effect.kind === "poison" && chilled) continue;
     effect.time -= t;
@@ -892,7 +940,7 @@ function dealDot(state: GameState, target: StatusTarget, effect: StatusEffect, a
   if (whole < 1) return;
   effect.acc -= whole;
   if (target.kind === "player") {
-    damagePlayerDot(state, whole);
+    damagePlayerDot(state, whole, { kind: "status", key: effect.kind });
     return;
   }
   damageEnemy(state, target.enemy, whole, { x: 0, y: 0 }, 0, { silent: true });

@@ -6,6 +6,7 @@ import { TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { healPlayer } from "./combat";
 import { addFloatingText, reactionSfxName, spawnBurst, spawnRing } from "./effects";
 import { gainMana } from "./mana";
+import { noteReactionMana } from "./manaSources";
 import {
   type OnHitContext,
   type Reaction,
@@ -28,6 +29,8 @@ import {
   targetPos,
 } from "./statusEffects";
 import { igniteTerrainAt, placeTerrain } from "./terrain";
+import { hueResonates } from "./resonance";
+import { readInkMark } from "./inkMark";
 
 /**
  * 反応と昇華（docs/ideas/status-and-terrain.md 2・5 章）。statusEffects.ts の applyStatus が付与の前後に呼ぶ。
@@ -61,6 +64,7 @@ const REACTION_ICD: Readonly<Record<ReactionKey, number>> = {
   hueBurst: 0, // 彩痕を消費する
   manaCut: 0,
   rally: STATUS.reactionIcd,
+  recite: 0, // 墨印を全部読み切るので連打にならない
 };
 
 const REACTION_TEXT_COLOR = "#ffe8a0";
@@ -97,6 +101,8 @@ function fire(state: GameState, target: StatusTarget, key: ReactionKey, showText
   }
   bag.lastReaction = { key, tick: state.tick };
   pushReactionEvent(state, enemyOf(target), key);
+  // 錬金術師の流儀の気力の源（system/manaSources.ts）
+  noteReactionMana(state, target);
   pushSfx(state, reactionSfxName(key));
   if (showText) addFloatingText(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE);
   return true;
@@ -448,12 +454,12 @@ function hueColor(effect: StatusEffect): TraitColor | undefined {
   return TRAIT_COLORS[Math.round(effect.potency)];
 }
 
-/** 彩痕の色がプレイヤーの共鳴（支配・二重）の色と同じか。同じなら被ダメ ×hue.takenMul */
+/** 彩痕の色の状態異常（HUE_KEYWORD）が共鳴しているか。していれば被ダメ ×hue.takenMul */
 export function hueMatchesResonance(state: GameState, e: Enemy): boolean {
   const hue = findStatus(e.status, "hue");
   if (!hue) return false;
   const color = hueColor(hue);
-  return color !== undefined && state.stats.resonance.colors.includes(color);
+  return color !== undefined && hueResonates(state, color);
 }
 
 /** 色爆（出す側: 彩痕 / 食う側: 色に対応する状態異常）: 彩痕を消費して色ごとの小爆発 */
@@ -600,6 +606,8 @@ export function onEnemyDeathStatus(state: GameState, e: Enemy): void {
 
 export function onPlayerHitReactions(state: GameState, enemy: Enemy, ctx: OnHitContext): void {
   siphon(state, enemy);
+  // 墨印は倒した一撃でも読む（印の付いた敵の位置から広がる）ので、撃破の早期リターンより前
+  if (ctx.kind === "ranged" || ctx.skill === true) recite(state, enemy);
   if (enemy.hp <= 0) return;
   if (ctx.kind === "ranged" || ctx.skill === true) detonateBrand(state, enemy);
   if (ctx.kind === "melee" && ctx.skill !== true) discharge(state, enemy);
@@ -631,6 +639,14 @@ function detonateBrand(state: GameState, enemy: Enemy): void {
   spawnBurst(state, enemy.body.pos, BRAND_COLOR, SHARD_PARTICLES, 120, 0.35, 2);
   pushSfx(state, "explode");
   hurtEnemy(state, enemy, amount, poise);
+}
+
+/** 読誦（出す側: 墨印 / 食う側: 射撃・スキルの命中）: 書の墨印を読む。中身は system/inkMark.ts */
+function recite(state: GameState, enemy: Enemy): void {
+  const mark = findStatus(enemy.status, "inkMark");
+  if (!mark) return;
+  fire(state, { kind: "enemy", enemy }, "recite");
+  readInkMark(state, enemy, mark);
 }
 
 /**

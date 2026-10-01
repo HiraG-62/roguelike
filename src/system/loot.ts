@@ -3,7 +3,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, dist, fromAngle } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
-import { LOOT_DROP, PICKUP } from "../data/tuning";
+import { JIN, LOOT_DROP, PICKUP } from "../data/tuning";
 import { generateItem } from "../loot/generator";
 import { dominantColor } from "../loot/names";
 import { addToStash, saveProfile } from "../loot/profile";
@@ -82,7 +82,9 @@ export function enemyDropChance(state: GameState, enemy: Enemy): number {
   if (isGuaranteedDropSource(enemy)) return base;
   if (enemy.elite !== undefined) return base * LOOT_DROP.eliteDropMul;
   const roaming = enemy.roomIndex === ROAMING_ROOM ? LOOT_DROP.roamingDropMul : 1;
-  return base * byDepth(LOOT_DROP.mobDropMulByDepth, state.depth) * roaming;
+  // 敗走中の敵は追って倒した手間ぶん落としやすい（system/jin.ts）
+  const routed = enemy.rout ? JIN.rout.dropMul : 1;
+  return base * byDepth(LOOT_DROP.mobDropMulByDepth, state.depth) * roaming * routed;
 }
 
 /** 撃破時の確率ドロップ */
@@ -289,7 +291,7 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
   const chosen = chooseBudOnItem(item, index);
   if (chosen === null) return null;
   if (unnamed && item.inscription !== undefined) inscribeFx(state);
-  applyStats(state, computeStats(state.profile.equipment));
+  applyStats(state, computeStats(state.profile.equipment, state.depth));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);
   addFloatingText(state, state.player.body.pos, "芽吹き", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);

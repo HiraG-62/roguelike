@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ACTOR_ATLASES, ACTOR_SHEETS } from "../data/actorSheets.gen";
 import { JOB_KEYS } from "../data/jobs";
-import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponStanceMeta } from "./actorSprites";
-import { BODY_CLIP_FRAMES, DEFAULT_STANCE, solveRig, stanceFromMeta } from "./playerRig";
+import { BODY_CLIP_FRAMES, DEFAULT_STANCE, IDLE_PERIOD, solveRig, stanceFromMeta } from "./playerRig";
 
 const RECT_STRIDE = 6;
 /** 腕の袖・手は 3 段（暗・基・明） */
@@ -47,11 +47,14 @@ describe("actorSprites: 生成物の一覧と PNG", () => {
   });
 });
 
+/** 体の絵をまだ描いていないジョブ（見習いの体で描く。pixel-artist が body<ジョブ> を足したら消す） */
+const JOBS_WITHOUT_OWN_BODY: readonly string[] = [];
+
 describe("actorSprites: 全ジョブの体", () => {
-  it("どのジョブも専用の体を持ち、全クリップの全フレームに肩と頭の位置の印がある", () => {
+  it("どのジョブも体を持ち、全クリップの全フレームに肩と頭の位置の印がある", () => {
     for (const job of JOB_KEYS) {
       const body = bodyAtlas(job);
-      const own = job === "none" ? "bodyNone" : `body${capital(job)}`;
+      const own = job === "none" || JOBS_WITHOUT_OWN_BODY.includes(job) ? "bodyNone" : `body${capital(job)}`;
       expect(body, job).toBe(own);
       for (const [clip, frames] of Object.entries(BODY_CLIP_FRAMES)) {
         const sheet = ACTOR_SHEETS[`${body}.${clip}`];
@@ -75,13 +78,29 @@ describe("actorSprites: 全ジョブの体", () => {
   });
 });
 
+/**
+ * 手に持つ絵がまだ無い武器種（描画は 24x24 の体と HELD の持ち手に落ちる）。
+ * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す
+ */
+const UNDRAWN_WEAPONS: readonly MovesetKey[] = [];
+
+/**
+ * 回さない絵（向き 1）の武器種。開いた書は照準へ回すと頁が横倒しになって本に見えないので、
+ * 常に頁を見せる 1 枚を構えたまま突き出す（docs/ideas/tome-rework.md 1 章）
+ */
+const UNROTATED_WEAPONS: readonly MovesetKey[] = ["book"];
+
 describe("actorSprites: 全武器種の手に持つ武器", () => {
   it("どの武器種も手に持つ絵と、形の正しい構えを持つ", () => {
     for (const key of MOVESET_KEYS) {
+      if (UNDRAWN_WEAPONS.includes(key)) {
+        expect(weaponAtlas(key), `${key} は絵ができたので UNDRAWN_WEAPONS から消す`).toBeUndefined();
+        continue;
+      }
       const atlas = weaponAtlas(key);
       expect(atlas, key).toBe(`wpn${capital(key)}`);
       if (!atlas) continue;
-      expect(ACTOR_SHEETS[`${atlas}.held`]?.dirs, key).toBe(32);
+      expect(ACTOR_SHEETS[`${atlas}.held`]?.dirs, key).toBe(UNROTATED_WEAPONS.includes(key) ? 1 : 32);
       const stance = stanceFromMeta(weaponStanceMeta(atlas));
       expect(stance, `${key} の構えが既定のまま（meta.stance の形が崩れている）`).not.toBe(DEFAULT_STANCE);
     }
@@ -104,6 +123,40 @@ describe("actorSprites: 全武器種の手に持つ武器", () => {
       if (stance.grip !== "two") continue;
       const meta = ACTOR_ATLASES[atlas as keyof typeof ACTOR_ATLASES].meta as { offGrip?: unknown } | null;
       expect(typeof meta?.offGrip, key).toBe("number");
+    }
+  });
+});
+
+describe("爪の手前の手の前後（構えの restFront）", () => {
+  const claws = weaponAtlas("claws");
+  if (!claws) throw new Error("爪の絵が無い");
+  const stance = stanceFromMeta(weaponStanceMeta(claws));
+  const idleWalkClips = ["idleReady", "idleHeavy", "idleLight", "idleAim", "walk"] as const;
+
+  it("待機・歩きでは、全ジョブ・全コマ・8 方向・呼吸の全位相で、手前の爪は体の前に描く", () => {
+    for (const job of JOB_KEYS) {
+      const body = bodyAtlas(job);
+      for (const clip of idleWalkClips) {
+        for (let f = 0; f < BODY_CLIP_FRAMES[clip]; f++) {
+          const shoulderF = actorAnchor(`${body}.${clip}`, 0, f, "shoulderF");
+          const shoulderB = actorAnchor(`${body}.${clip}`, 0, f, "shoulderB");
+          if (!shoulderF || !shoulderB) continue;
+          for (let a = 0; a < 8; a++) {
+            const aim = (a * Math.PI) / 4;
+            const time = (IDLE_PERIOD * ((a * 5 + f) % 16)) / 16;
+            const rig = solveRig({ stance, swing: undefined, step: 0, aim, aimHeld: false, facingRight: Math.cos(aim) >= 0, shoulderF, shoulderB, time, offGrip: null, aimOrigin: { x: 0, y: -20 }, barrelY: 0 });
+            expect(rig.front.behind, `${job} ${clip}[${f}] 照準 ${a} 時刻 ${time}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it("restFront は手にはめる爪だけ。ほかの武器種の待機の前後は変えない", () => {
+    for (const key of MOVESET_KEYS) {
+      const atlas = weaponAtlas(key);
+      if (!atlas) continue;
+      expect(stanceFromMeta(weaponStanceMeta(atlas)).restFront === true, key).toBe(key === "claws");
     }
   });
 });

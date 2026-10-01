@@ -4,7 +4,7 @@ import type { PlayerStats } from "../loot/types";
 import { BOONS, type BoonDef, type BoonKey } from "./boonDefs";
 
 /**
- * 芯の祝福（docs/ideas/boon-power-up.md 3-4）の効果のうち、Rule で書けないもの。
+ * 芯の祝福（呪い喰い・拍の刻・血の巡り・逃げ水。定義は src/system/boonDefs/cursed.ts）の効果のうち、Rule で書けないもの。
  * 数値は foldCoreStats（foldBoonStats の末尾から呼ぶ。ソフトキャップの後の derived に掛かる）、
  * 抽選への割り込みは coreCursedForced / coreGradeShift（boons.ts）、
  * 呪いの除去・ハートの拾得の禁止は呼び出し側 system が coreKeepsCurses / coreBlocksHearts を見る。
@@ -24,19 +24,6 @@ function holds(state: GameState, key: BoonKey): boolean {
   return state.boons.includes(key);
 }
 
-/** 最大生命に倍率を掛ける（0 にはしない） */
-function scaleMaxHp(out: PlayerStats, mul: number): void {
-  out.maxHp = Math.max(1, Math.round(out.maxHp * mul));
-}
-
-/** 硝子の心: 近接・射撃・スキルの威力 ×glassHeartDamageMul、最大生命 ×glassHeartHpMul */
-function foldGlassHeart(out: PlayerStats): void {
-  out.meleeDamageMul *= BOON.glassHeartDamageMul;
-  out.rangedDamageMul *= BOON.glassHeartDamageMul;
-  out.skillDamageMul *= BOON.glassHeartDamageMul;
-  scaleMaxHp(out, BOON.glassHeartHpMul);
-}
-
 /**
  * 拍の刻: コンボ段ごとの倍率と上限を上書きし、猶予を ×tempoWindowMul。
  * comboWindowBonus は FEEL.comboWindow への加算なので、猶予全体（既定 + 加算）に倍率を掛けた値へ直す
@@ -54,13 +41,6 @@ function foldBloodLoop(out: PlayerStats): void {
   out.hpRegen = 0;
 }
 
-/** 満ち潮の器: 最大気力 ×manaTideMaxMul、回収 ×manaTideGainMul、自然回復 0 */
-function foldManaTide(out: PlayerStats): void {
-  out.maxMana = Math.round(out.maxMana * BOON.manaTideMaxMul);
-  out.manaGainMul *= BOON.manaTideGainMul;
-  out.manaRegen = 0;
-}
-
 /** 逃げ水: ダッシュ回数 +mirageCharges、再使用 ×mirageCooldownMul、移動 ×mirageMoveMul（爆発は Rule） */
 function foldMirage(out: PlayerStats): void {
   out.dashCharges += BOON.mirageCharges;
@@ -68,29 +48,10 @@ function foldMirage(out: PlayerStats): void {
   out.moveSpeedMul *= BOON.mirageMoveMul;
 }
 
-/** 鉄の巨人: 怯み値・ノックバック・最大生命を上げ、攻撃速度と移動を落とす */
-function foldIronGiant(out: PlayerStats): void {
-  out.poiseDamageMul *= BOON.ironGiantPoiseMul;
-  out.knockbackMul *= BOON.ironGiantKnockbackMul;
-  scaleMaxHp(out, BOON.ironGiantHpMul);
-  out.attackSpeedMul *= BOON.ironGiantAttackSpeedMul;
-  out.moveSpeedMul *= BOON.ironGiantMoveMul;
-}
-
-/** 病み喰い: 付ける状態異常の強さ ×plagueEaterPotencyMul、最大生命 ×plagueEaterHpMul（必ず会心は boonRules.ts） */
-function foldPlagueEater(out: PlayerStats): void {
-  out.statusPotencyMul *= BOON.plagueEaterPotencyMul;
-  scaleMaxHp(out, BOON.plagueEaterHpMul);
-}
-
 const CORE_FOLDS: ReadonlyArray<readonly [BoonKey, (out: PlayerStats) => void]> = [
-  ["coreGlassHeart", foldGlassHeart],
   ["coreTempo", foldTempo],
   ["coreBloodLoop", foldBloodLoop],
-  ["coreManaTide", foldManaTide],
   ["coreMirage", foldMirage],
-  ["coreIronGiant", foldIronGiant],
-  ["corePlagueEater", foldPlagueEater],
 ];
 
 /** 芯の数値を stats に畳み込む（元の stats は変更しない）。foldBoonStats の末尾、気力の下限の前に呼ぶ */

@@ -1,0 +1,22 @@
+{
+  "_note": "陣形（八陣）の人数・格・解禁深度・重み・間隔（data/formations.ts が読み込み時に role / grade / layout の文字列を検査する。docs/ideas/jin-impl.md 2-6）。形（layout の並べ方）は map/formation.ts。人数 = 予算 × share / 格の重さ（JIN.gradeWeight）を四捨五入して min〜max に収める。役割に合う敵がその深度にいないスロットは見送る。column（長蛇）は通路に置く専用で、部屋の陣形の抽選には出ない（weight 0）。lookout（物見）も weight 0 で、2 つの陣の間の通路に射手を 1 人置く（JIN.lookout）。crescent（偃月）は大将を持つ（leader）。arrowhead（鋒矢）は突撃だけの一列で列の後ろほど遅れて仕掛ける（cooldownStagger）、yoke（衡軛）は前衛の 2 列 + 射手で前列と後列が入れ替わる（rotate。system/jinFormations.ts）。3a では役割「爆発」「妨害」が消えないよう鶴翼・雁行に小さなスロットを置く",
+  "_fields": {
+    "layout": "並べ方（map/formation.ts の FormationLayout）",
+    "minDepth": "この陣形が抽選に出る最小の深度",
+    "weight": "部屋に置く陣形の抽選の重み。0 で抽選に出ない（長蛇・物見のように別の経路で置く）",
+    "spacing": "隣り合うメンバーの間隔。px",
+    "cooldownStagger": "列の後ろほど最初の攻撃間隔を遅らせる秒（鋒矢。先頭から 1 人ごとにこの秒ずつ足し、全員の基準は攻撃間隔そのもの。省略で遅らせない）",
+    "rotate": "列の入れ替え（衡軛）。前列の前衛が隙を終えると、後ろにいる前衛が前へ出て入れ替わる。省略で入れ替えない",
+    "restMul": "入れ替わって下がる側の次の攻撃までの間（攻撃間隔に掛ける倍率）",
+    "stepInCooldown": "前へ出る側の次の攻撃までの間の上限。秒（これ以下に縮める）",
+    "leader": "大将のスロット（無ければ大将のいない陣）。正面の先頭に立ち、必ず精鋭の修飾子を持つ。予算のうち JIN.gradeWeight.leader ぶんを大将が使う",
+    "lairChance": "大将を部屋主（lairMaster）にする確率。割合(0..1)。外れる・候補がいない深度では leader.role・leader.grade の敵を大将にする",
+    "slots": "スロットの並び（正面から置く順）。同じ役割のスロットは 1 つの陣の中で同じ敵の種類になる",
+    "role": "スロットの役割（data/enemyRoles.ts の EnemyRole）",
+    "grade": "スロットの格（normal 並 / strong 猛 / elite 精鋭）",
+    "share": "予算のうちこのスロットに回す割合（0..1）",
+    "min": "このスロットの最少人数（役割に合う敵がいれば予算に依らずこの人数は置く）",
+    "max": "このスロットの最多人数（省略で上限なし）"
+  },
+  "_order": ["fishScale", "craneWing", "geese", "column", "crescent", "circle", "lookout", "arrowhead", "yoke"]
+}

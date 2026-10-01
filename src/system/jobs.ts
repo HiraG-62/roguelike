@@ -1,24 +1,27 @@
 import type { Rule } from "../core/rules";
 import type { GameState } from "../core/state";
-import { JOBS, JOB_KEYS, type JobKey, applyJobMul } from "../data/jobs";
+import { DASH_FORM_NAMES, JOBS, JOB_KEYS, type JobKey, favoredMovesets } from "../data/jobs";
+import { MOVESETS } from "../data/weapons";
+import type { FormKey } from "../data/weaponForms";
 import { JOB } from "../data/tuning";
-import { MOVESETS, isGun } from "../data/weapons";
 import { createRng } from "../core/rng";
 import { baseDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
 import { addToStash } from "../loot/profile";
-import { ATTR_LABEL } from "../loot/resonance";
 import { computeStats } from "../loot/stats";
-import { ATTR_KEYS, type Item, type PlayerStats, type Profile } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, type Item, type PlayerStats, type Profile } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { applyStats } from "./player";
+import { dashFormText } from "./dashForms";
+import { manaSourcesText } from "./manaSources";
 import { stoneFromSeed } from "../skills/generator";
 import { addStone } from "../skills/persistence";
 import type { SkillKey, SkillProfile } from "../skills/types";
 
 /**
- * ジョブの効果（定義は src/data/jobs.ts）。
- * - ステータスの偏り・得意な武器種・弱点: applyJobStats（system/runSetup.ts の applyRunStats が畳み込む）
+ * ジョブ = 流儀の効果（定義は src/data/jobs.ts）。
+ * - ステータスの偏り: applyJobStats（system/runSetup.ts の applyRunStats が畳み込む）
+ * - ダッシュの形: system/dashForms.ts、気力の源: system/manaSources.ts（各フックから呼ばれる）
  * - 固有のルール: jobRules（system/rules.ts の collectRules が祝福より前に集める）
  * - 初期スキル石・初期武器: startJob（createGame が呼ぶ。未所持のときだけ）
  */
@@ -36,30 +39,41 @@ export function jobChangesStats(job: JobKey): boolean {
   return job !== "none";
 }
 
-/** 今の武器種がこのジョブの得意か */
+/**
+ * 今の武器種がこのジョブの旧「得意な武器」か（data/jobs.ts の favoredMovesets。ジョブの倍率はもう無い）。
+ * 得意武器を読む性質・誓約・祝福（favoredWeapon 条件）のためだけに残す
+ */
 export function isFavoredWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
-  // 素手は型が拳でも武器を持っていないので、拳を得意とするジョブでも補正を取らない
-  return !stats.unarmed && JOBS[job].favored.includes(stats.moveset);
+  // 素手は型が拳でも武器を持っていないので、拳を得意とするジョブでも得意に数えない
+  return !stats.unarmed && favoredMovesets(job).includes(stats.moveset);
+}
+
+/** ジョブの初期武器の型（武器種ではなく型。見習いは初期武器が無いので undefined） */
+export function starterForm(job: JobKey): FormKey | undefined {
+  const baseKey = JOBS[job].starterWeapon;
+  if (baseKey === null) return undefined;
+  const moveset = baseDef(baseKey)?.moveset;
+  return moveset === undefined ? undefined : MOVESETS[moveset].form;
 }
 
 /**
- * ジョブのステータスの偏り・得意な武器種の上乗せ・弱点を stats に足す（渡した stats を書き換える。呼び出し側で複製済みのもの）。
+ * 今の武器がジョブの初期武器と同じ型か（来歴の節目「初期武器と同じ型での撃破」が読む）。
+ * 初期武器の武器種そのものではなく型で見る: 剣士の打刀なら、同じ型に束ねた武器種も数える。
+ * 素手は武器を持っていないので、型が拳でも数えない
+ */
+export function isStarterFormWeapon(stats: Readonly<PlayerStats>, job: JobKey): boolean {
+  if (stats.unarmed) return false;
+  const form = starterForm(job);
+  return form !== undefined && MOVESETS[stats.moveset].form === form;
+}
+
+/**
+ * ジョブのステータスの偏りを stats に足す（渡した stats を書き換える。呼び出し側で複製済みのもの）。
  * 偏りは生値に足すので、逓減（deriveAttributes）はこの後にまとめて掛かる
  */
 export function applyJobStats(stats: PlayerStats, job: JobKey): void {
   const def = JOBS[job];
   for (const k of ATTR_KEYS) stats.attributes[k] += def.attributes[k] ?? 0;
-  if (isFavoredWeapon(stats, job)) {
-    // 銃の家系なら射撃側、それ以外は近接側へ上乗せする（docs/ideas/weapon-redesign.md 6 章）
-    if (isGun(MOVESETS[stats.moveset])) {
-      stats.rangedDamageMul *= JOB.favoredMeleeMul;
-      stats.fireRateMul *= JOB.favoredAttackSpeedMul;
-    } else {
-      stats.meleeDamageMul *= JOB.favoredMeleeMul;
-      stats.attackSpeedMul *= JOB.favoredAttackSpeedMul;
-    }
-  }
-  if (def.weakness) applyJobMul(stats, def.weakness.mul);
 }
 
 // -----------------------------------------------------------------------------
@@ -86,7 +100,7 @@ export function startJob(state: GameState): void {
   if (ownsSkillStone(profile, skillKey)) return;
   const seed = (state.seed ^ (STONE_SALT + JOB_KEYS.indexOf(state.job))) >>> 0;
   // now は id と foundAt の表示用（決定性に影響しない）
-  const stone = { ...stoneFromSeed(seed, { foundDepth: state.depth, now: Date.now(), skillKey }), variants: [], links: JOB.starterStoneLinks };
+  const stone = { ...stoneFromSeed(seed, { foundDepth: state.depth, now: Date.now(), skillKey }), variants: [] };
   addStone(profile, stone);
 }
 
@@ -118,7 +132,7 @@ export function startJobWeapon(state: GameState): void {
   }
   profile.equipment.mainHand = item;
   // createGame は applyStats の後に startJob を呼ぶので、装着した武器種をここで stats へ流す
-  applyStats(state, computeStats(profile.equipment));
+  applyStats(state, computeStats(profile.equipment, state.depth));
 }
 
 // -----------------------------------------------------------------------------
@@ -136,22 +150,18 @@ export function jobAttributeText(job: JobKey): string {
     .join(" / ");
 }
 
-/** 「剣 / 大剣 / 双剣」 */
-export function jobFavoredText(job: JobKey): string {
-  return JOBS[job].favored.map((m) => MOVESETS[m].name).join(" / ");
-}
-
-/** 説明欄の行（1 行目の概要の後に並べる） */
+/** 説明欄の行（1 行目の概要の後に並べる）。見習いはジョブなしなので何も並べない */
 export function jobDetailLines(job: JobKey): string[] {
+  if (job === "none") return [];
   const def = JOBS[job];
   const lines: string[] = [];
   const attrs = jobAttributeText(job);
   if (attrs !== "") lines.push(`ステータス: ${attrs}`);
-  if (def.favored.length > 0) lines.push(`得意な武器: ${jobFavoredText(job)}`);
+  lines.push(`ダッシュ「${DASH_FORM_NAMES[def.dash]}」: ${dashFormText(def.dash)}`);
+  lines.push(`気力: ${manaSourcesText(def.mana)}`);
   for (const r of def.rules) lines.push(`・${r.text}`);
   const weapon = def.starterWeapon === null ? undefined : baseDef(def.starterWeapon);
   if (weapon) lines.push(`初期武器: ${weapon.name}`);
   if (def.starterSkill !== null) lines.push(`初期スキル石: ${SKILL_DEFS[def.starterSkill].name}`);
-  if (def.weakness) lines.push(`弱点: ${def.weakness.text}`);
   return lines;
 }

@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { DOUBLE_CHARGE, ENEMY_AI } from "../data/tuning";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
 import { spawnLanding, spawnShockwave } from "./hazards";
@@ -45,7 +45,7 @@ export function detonate(state: GameState, e: Enemy, def: EnemyDef): void {
   const ex = def.explode;
   if (!ex) return;
   const source = { defKey: def.key, roomIndex: e.roomIndex };
-  blastBoth(state, e.body.pos, ex.radius, ex.damage + depthDamageBonus(state.depth), ex.color, source, e.id);
+  blastBoth(state, e.body.pos, ex.radius, depthDamage(ex.damage, state.depth), ex.color, source, e.id);
   // 予告の円（予備動作の影）がそのまま地形の予告になる
   if (ex.terrain) placeTerrain(state, e.body.pos.x, e.body.pos.y, ex.terrain, ex.radius * 0.6);
   e.vanished = true;
@@ -88,7 +88,7 @@ export function strikeEcho(state: GameState, e: Enemy, def: EnemyDef): void {
   const t = ENEMY_AI.echoStriker;
   const target = e.ai?.target ?? state.player.body.pos;
   // 炸裂は敵にも当たる（E32: 過去の位置へ敵を集めれば武器になる）
-  blastBoth(state, target, t.radius, t.damage + depthDamageBonus(state.depth), t.color, { defKey: def.key, roomIndex: e.roomIndex }, e.id);
+  blastBoth(state, target, t.radius, depthDamage(t.damage, state.depth), t.color, { defKey: def.key, roomIndex: e.roomIndex }, e.id);
 }
 
 // -----------------------------------------------------------------------------
@@ -124,7 +124,7 @@ export function frostCrusherReady(state: GameState): boolean {
 }
 
 export function strikeShockRing(state: GameState, e: Enemy, radius: number, damage: number, color: string): void {
-  spawnShockwave(state, e.body.pos, radius, damage + depthDamageBonus(state.depth), e.id);
+  spawnShockwave(state, e.body.pos, radius, depthDamage(damage, state.depth), e.id);
   spawnBurst(state, e.body.pos, color, 14, 110, 0.4, 2.5);
   shake(state, 4);
 }
@@ -155,7 +155,7 @@ export function rallyFollowers(
 export function conductorVolley(state: GameState, e: Enemy): void {
   const c = ENEMY_AI.conductor;
   if (isSilenced(e)) return;
-  const damage = c.bulletDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(c.bulletDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, c.bulletCount, c.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: c.bulletSpeed, damage, color: c.color, sourceId: e.id });

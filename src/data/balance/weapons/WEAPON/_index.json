@@ -3,7 +3,8 @@
     "chainWindow": "派生の入力列を保つ秒（最後の押下から）。この間に次を押せば左右共有の段カウンタも続く。目安 0.4〜0.6。右レーンの段に置くと、その段を出した後の窓だけを上書きする（再使用・laneGap より十分長く）",
     "chainMaxInputs": "派生の照合に残す直近の入力の数。最長の派生の入力数以上にする",
     "laneGap": "右レーンの弾・手元返しの段を出した後、次の弾・手元返しの段を押せない秒（連打で弾を一度に出さない）。目安 0.2〜0.4",
-    "attackMoveMul": "攻撃中の移動速度の倍率（1 = 等倍）",
+    "attackMoveMul": "攻撃中の移動速度の倍率（1 = 等倍）。実際は weightClass の帯（weight の moveMulMin〜Max）に丸めて使う",
+    "weight": "武器の重さ（light / medium / heavy）。係数は weightClass.json の同名の行。決め方は docs/recipes/weapon.md",
     "windup": "振りの予備動作の秒（攻撃速度で割る）",
     "active": "当たり判定が出ている秒",
     "recover": "振った後の硬直の秒。後半は先行入力で打ち切れる（PLAYER.recoverCancel）。右レーンの段は左の同じ段番号の 1.2 倍が目安",
@@ -34,7 +35,7 @@
     "shape": "当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度）",
     "applies": "命中した敵に付ける状態異常（kind 種類 / stacks 重ねる数 / duration 秒 / potency 効果量 / ratio 効果量のステータス係数）",
     "cutsBullets": "active の間、弾返し・弾斬りが無くても敵弾を消す",
-    "tip": "先端判定。ratio は先端の割合（0..1）、damageMul / poiseMul / manaMul は先端の倍率、offDamageMul / offManaMul は根元の倍率",
+    "tip": "先端判定。ratio は先端の割合（0..1。突きは帯の先、sweep の薙ぎ・回しは外周）、damageMul / poiseMul / manaMul は先端の倍率、offDamageMul / offManaMul は根元の倍率、sweep は突きに加えて薙ぎ（arc）・回し（circle）の段も外周を先端に数える（真偽。省略は突きだけ）。長柄の戦意と槍兵の気力は先端の命中で溜まる",
     "dashAttack": "ダッシュ攻撃の振り（項目は段と同じ）",
     "muzzleOffset": "二丁拳銃の銃口の左右のずれ（px）",
     "chargeRingRadius": "溜めの環の半径（px。描画）",
@@ -69,5 +70,5 @@
   "chainMaxInputs": 5,
   "trailLife": 0.12,
   "meleeDamageScale": 0.6,
-  "_order": ["chargeRingColors", "chargeRingRadius", "chargeRingStep", "chainWindow", "chainMaxInputs", "trailLife", "movesets", "artDefaults", "movesetRules", "jobBranches", "bullets", "meleeDamageScale", "unarmed"]
+  "_order": ["chargeRingColors", "chargeRingRadius", "chargeRingStep", "chainWindow", "chainMaxInputs", "trailLife", "movesets", "artDefaults", "movesetRules", "jobBranches", "bullets", "meleeDamageScale", "unarmed", "weightClass"]
 }

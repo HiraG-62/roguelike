@@ -21,11 +21,14 @@
 | --- | --- |
 | `npm run dev` | 開発サーバ（Vite） |
 | `npm run check` | audit:docs → tsc → vitest → vite build。1 つでも失敗で非 0。**作業完了の判定はこれ** |
+| `npm run check:fast` | 並列レーンの途中確認用。QA シミュレーション・Electron の型検査・ビルドを省く（コミット前は `check`） |
 | `npm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
 | `npm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
 | `npm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`-- --atlas <武器種>` でその武器種だけ、`-- --only <key> --preview <dir>` で確認用 PNG だけ |
 | `npm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
-| `npm run qa:full` | `SIM_FULL=1` でフル QA（数分）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
+| `npm run qa:full` | `SIM_FULL=1` でフル QA（1 時間超。裏で回す）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
+| `npm run qa:probe` | `SIM_PROBE=1` で 1 対 1 / 集団の連打計測（約 1 分）。基準値の `src/qa/probe.md` を上書き。`-- --no-write` で書き出さない。`-- --weapons`（武器種 × 敵）/ `-- --bosses`（章ボス 4 と最深の主）/ `-- --deep`（深みの曲線・到達・壊れの重さ）でその節だけ測って差し替え |
+| `npm run map:shot` | 地図の見た目の確認用 PNG（`tools/map-shot.html` を Chromium で撮る。既定 14 場面）。`-- --only <名前>` / `-- --bench`（描画の ms）/ `-- --out <dir>` |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |
 | `node scripts/bump.mjs <patch / minor / major>` | バージョンを上げてコミットとタグを作る（`/bump`） |
@@ -86,12 +89,13 @@ electron/    Electron 版の main / preload / IPC
 | 依頼 / 実績 | `docs/recipes/quest.md` |
 | 倉庫の並び・絞り込みの軸 | `docs/recipes/stash.md` |
 | 部屋種類 | `docs/recipes/room.md` |
+| 陣形 | `docs/recipes/formation.md` |
 | 効果音・音楽 | `docs/recipes/audio.md` |
 | スプライト | `docs/recipes/sprite.md` |
 
 ## 並列開発の作法
 
-詳細・プロンプト雛形・報告形式・モデルの使い分けは `docs/AI_WORKFLOW.md`。
+詳細・プロンプト雛形・報告形式・モデルの使い分け・**速く進める原則**（確定リストまで出す設計・並行の段は worktree・途中確認は `check:fast`・レビューと資料の文章と版上げは段の終わりにまとめる）は `docs/AI_WORKFLOW.md`。
 
 - 機能を **ファイル所有** で分割し、Agent ごとに「所有 / 編集禁止 / 先に読む / 完了条件 / 報告形式」を渡す（`/parallel`）。共有ファイルは **最小の Edit のみ**、全文 Write 禁止
 - Agent は **コミットしない**。統合役が `git add <所有ファイル>` で論理単位ごとにコミット（`git add -A` 禁止）。一時ファイルは scratchpad へ

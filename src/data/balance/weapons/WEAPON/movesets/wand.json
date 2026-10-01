@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.5,
+  "weight": "medium",
   "steps": [
     {"windup":0.04,"active":0.05,"recover":0.12,"scaling":{"base":1.5,"mnd":0.15},"poise":2,"reach":14,"size":16,"knockback":100,"heavy":false,"mana":2,"shape":{"kind":"box"},"trail":"#ff8040","cast":{"key":"fireDart","throw":{"bullet":{"cooldownMul":1,"damageMul":1,"speedMul":1.2,"lifeMul":1,"radius":3,"poiseMul":1,"recoilMul":0,"pellets":0,"spreadDeg":0,"pierceBonus":0,"look":{"color":"#ff8040","trail":"#ff5020","particles":2}},"scaling":{"base":3.6,"mnd":0.25,"spi":0.35},"poise":4,"count":1,"spreadDeg":0,"applies":[{"kind":"burn","stacks":1,"duration":3,"potency":2,"ratio":{"spi":0.06}}]}}},
     {"windup":0.04,"active":0.05,"recover":0.12,"scaling":{"base":1.5,"mnd":0.15},"poise":2,"reach":14,"size":16,"knockback":100,"heavy":false,"mana":2,"shape":{"kind":"box"},"trail":"#ff8040","cast":{"key":"fireDart2","throw":{"bullet":{"cooldownMul":1,"damageMul":1,"speedMul":1.2,"lifeMul":1,"radius":3,"poiseMul":1,"recoilMul":0,"pellets":0,"spreadDeg":0,"pierceBonus":0,"look":{"color":"#ff8040","trail":"#ff5020","particles":2}},"scaling":{"base":3.6,"mnd":0.25,"spi":0.35},"poise":4,"count":1,"spreadDeg":0,"applies":[{"kind":"burn","stacks":1,"duration":3,"potency":2,"ratio":{"spi":0.06}}]}}},
