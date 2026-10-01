@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ビルドの形から引く</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  /* ページの外側 */
+  --page-bg: #0a090c;
+  --page-panel: #141216;
+  --page-line: #3a3640;
+  --page-tx: #e8e2d4;
+  --page-sub: #9a948a;
+  --page-accent: #c83a2a;
+  --page-focus: #fff4d0;
+  /* G4 墨染めの帳 + 朱と金の漆の縁 */
+  --paper: #141216; --fiber-a: #1c1a20; --fiber-b: #100e12;
+  --card: #1e1b22; --card2: #2a2630; --rule: #3a3640;
+  --tx: #e8e2d4; --sub: #9a948a; --dim: #5c5852; --ink: #141216;
+  --focus: #fff4d0; --shu: #c83a2a; --gold: #c8a050;
+  --fr1: #2a282c; --fr2: #b0342c; --fr3: #c8a050;
+  --gold-hi: #f0d890; --gold-lo: #7a5a28;
+  --up: #8fd08a; --down: #ff7a70;
+  /* 系譜の色（祝福の小札と加護の点だけ） */
+  --ln-ash: #e0582e; --ln-thunder: #e6dc50; --ln-blade: #b8c0c8;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page-bg);
+  color: var(--page-tx);
+  font-family: 'DotGothic16', 'MS Gothic', 'Osaka-Mono', 'Noto Sans Mono CJK JP', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+a { color: var(--page-focus); }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 12px 16px 32px; }
+.back { font-size: 13px; }
+h1 { font-size: 20px; font-weight: normal; margin: 6px 0 4px; letter-spacing: 1px; }
+.lead { margin: 0 0 4px; max-width: 62em; }
+.cost { margin: 0 0 12px; color: var(--page-sub); max-width: 62em; }
+.cost b { color: var(--down); font-weight: normal; }
+.ctl { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; align-items: center; }
+.btn {
+  font: inherit; font-size: 13px; color: var(--page-tx); background: var(--page-panel);
+  border: 1px solid var(--page-line); padding: 3px 8px; cursor: pointer; line-height: 1.4; border-radius: 0;
+}
+.btn:hover { border-color: var(--page-sub); }
+.btn[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); }
+.btn:focus-visible, .stage:focus-visible { outline: 2px solid var(--page-focus); outline-offset: 2px; }
+.ctl .sep { width: 12px; }
+.stage { outline: none; border: 1px solid var(--page-line); background: var(--page-bg); overflow: hidden; display: inline-block; max-width: 100%; }
+.screen {
+  position: relative; width: 480px; height: 270px; overflow: hidden;
+  image-rendering: pixelated; user-select: none; -webkit-user-select: none; cursor: default;
+  -webkit-font-smoothing: none;
+}
+.screen canvas { position: absolute; left: 0; top: 0; width: 480px; height: 270px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.screen .tl { position: absolute; inset: 0; pointer-events: none; }
+.screen .t { position: absolute; white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: 0; }
+.screen .t.wr { white-space: normal; word-break: break-all; line-break: anywhere; }
+.keys { color: var(--page-sub); font-size: 13px; margin: 6px 0 0; }
+.keys b { color: var(--page-tx); font-weight: normal; border: 1px solid var(--page-line); padding: 0 4px; margin: 0 2px; }
+.notes { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-width: 980px; }
+.card { background: var(--page-panel); border: 1px solid var(--page-line); padding: 8px 12px; }
+.card h2 { font-size: 14px; font-weight: normal; margin: 0 0 4px; color: var(--page-focus); }
+.card p { margin: 0; }
+.budget { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 16px; }
+.budget div { overflow-wrap: anywhere; }
+.budget .v { color: var(--page-focus); }
+.budget .over { color: var(--down); }
+.budget .sub { color: var(--page-sub); font-size: 12px; }
+.small { color: var(--page-sub); font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← 4 案の一覧へ</a>
+  <h1>D　ビルドの形から引く（紋）</h1>
+  <p class="lead">持ち物を並べない。自分の強さの「形」を 1 枚の紋として描き、持ち物はその紋の上の珠として、問いを立てたときだけ寄ってくる。段の立った系統は多くても 4 本なので、400 個持っても画面の量は変わらない。</p>
+  <p class="cost"><b>代償</b>: 倉庫の一覧と並べ替え・常設の詳細欄・数値の横並び比較を捨てる。系統に関わらない強さ（地金・防御）は紋に描かれず、書付（1 品の全文）へ回る。</p>
+
+  <div class="ctl" id="scenes" role="group" aria-label="場面">
+    <button class="btn" data-scene="0">① 紋</button>
+    <button class="btn" data-scene="1">② 系統を選ぶ</button>
+    <button class="btn" data-scene="2">③ 行動を選ぶ</button>
+    <button class="btn" data-scene="3">④ 試着（拠点）</button>
+    <button class="btn" data-scene="4">⑤ 書付</button>
+    <span class="sep"></span>
+    <button class="btn" id="btnBack">戻る（Esc）</button>
+    <button class="btn" id="btnSheet">書付（Q）</button>
+    <button class="btn" id="btnReset">付け替えを元に戻す</button>
+  </div>
+
+  <div class="stage" id="stage" tabindex="0" aria-label="持ち物メニューの見本。矢印キーと Enter と Esc で操作">
+    <div class="screen" id="screen">
+      <canvas id="cv" width="480" height="270"></canvas>
+      <div class="tl" id="tl"></div>
+    </div>
+  </div>
+  <p class="keys"><b>↑↓←→</b> 選ぶ　<b>Enter</b> 決定（試着では長押しで付け替え）　<b>Esc</b> 戻る　<b>Q</b> 書付　／　マウス: なぞる = 焦点、クリック = 決定、押し続け = 長押し、右クリック = 戻る</p>
+
+  <div class="notes">
+    <div class="card"><h2 id="aimTitle">この場面の狙い</h2><p id="aim"></p></div>
+    <div class="card"><h2>情報の予算（いまの画面を数えた値）</h2><div class="budget" id="budget"></div><p class="small" id="budgetNote"></p></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ============================================================
+// 色（:root の CSS 変数から読む）
+// ============================================================
+const CSSV = getComputedStyle(document.documentElement);
+const cv = (n) => CSSV.getPropertyValue(n).trim();
+const C = {
+  paper: cv('--paper'), fa: cv('--fiber-a'), fb: cv('--fiber-b'), card: cv('--card'), card2: cv('--card2'), rule: cv('--rule'),
+  tx: cv('--tx'), sub: cv('--sub'), dim: cv('--dim'), ink: cv('--ink'), focus: cv('--focus'), shu: cv('--shu'), gold: cv('--gold'),
+  fr1: cv('--fr1'), fr2: cv('--fr2'), fr3: cv('--fr3'), goldHi: cv('--gold-hi'), goldLo: cv('--gold-lo'), up: cv('--up'), down: cv('--down'),
+};
+const LN = { ash: ['灰燼', '灰', cv('--ln-ash')], thunder: ['雷鳴', '鳴', cv('--ln-thunder')], blade: ['刃鳴', '刃', cv('--ln-blade')] };
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+// ============================================================
+// 系統（core/keywords.ts の丸印と色。並びは KEYWORDS 順）
+// ============================================================
+const KW = {
+  melee: ['剣', '近接', '#e0e0e0'], dash: ['駆', 'ダッシュ', '#80ffd0'], just: ['見', '見切り', '#ffffff'],
+  combo: ['連', 'コンボ', '#ffd75f'], finisher: ['終', '終撃', '#ffb040'], counter: ['返', 'カウンター', '#ff9060'],
+  energy: ['奥', '奥義ゲージ', '#ffe040'], lowHp: ['瀕', '瀕死', '#c03030'], heal: ['癒', '回復', '#60ff80'],
+  hurt: ['傷', '被弾', '#ff6060'], ward: ['護', '障壁', '#c0e0ff'], burn: ['炎', '燃焼', '#ff7030'],
+  chill: ['氷', '冷気', '#80d0ff'], shock: ['雷', '感電', '#ffff60'], stagger: ['怯', '怯み', '#ffc080'],
+  reaction: ['応', '反応', '#ff60ff'], placed: ['置', '設置物', '#c0a060'], area: ['円', '範囲', '#60c0c0'],
+  explode: ['爆', '爆発', '#ff9020'], kill: ['撃', '撃破', '#ff4040'], elDark: ['闇', '闇属性', '#a060e0'],
+};
+const KW_ORDER = Object.keys(KW);
+const kwName = (k) => `${KW[k][1]}系`;
+// 共鳴（balance/loot/RESONANCE.json: 源 2・糧 2 で 1 段、源 + 糧が 3 増えるごとに +1、強め 1 で +1、上限 3）
+const RES = { minSrc: 2, minSink: 2, every: 3, amp: 1, max: 3 };
+const SHOW_STEPPED = 4, SHOW_FU = 2, SHOW_BEADS = 4;
+
+const SLOTS = ['main', 'head', 'armor', 'boots', 'ring', 'amulet'];
+const SLOT_LABEL = { main: '右手', head: '頭', armor: '体', boots: '足', ring: '指輪', amulet: '首飾り' };
+const SLOT_GLYPH = { main: '刀', head: '頭', armor: '体', boots: '足', ring: '指', amulet: '首' };
+const ACT = ['primary', 'secondary', 'dash', 'skill', 'ultimate'];
+const ACT_GLYPH = { primary: '左', secondary: '右', dash: '駆', skill: '技', ultimate: '奥' };
+const ACT_LONG = { primary: '左', secondary: '右', dash: 'ダッシュ', skill: 'スキル', ultimate: '奥義' };
+const ATTR = { str: '筋力', dex: '技巧', vit: '体力', mnd: '精神', spi: '霊力', def: '防御' };
+const LR = ['primary', 'secondary'];
+
+// ============================================================
+// データ（前の見本の実名を流用。系統の付き方は見本用に整えた例）
+// ============================================================
+const EQUIP0 = {
+  main: { id: 'e1', kind: 'relic', slot: 'main', name: '打刀「王殺しの不屈」', base: '打刀', innate: { str: 3 }, prov: '地下 6 階で拾う · 撃破 812', af: [
+    { t: '12%の確率で炎上（4ダメージ/秒）', p: ['burn'], acts: LR },
+    { t: '瀕死の間、与ダメージ +12%', co: ['lowHp'] }] },
+  head: { id: 'e2', kind: 'relic', slot: 'head', name: '鉢金', base: '鉢金', innate: { def: 2 }, prov: '地下 5 階で拾う', af: [
+    { t: '怯み中の敵へのダメージ +12%', co: ['stagger'] },
+    { t: '近接の与ダメージ +8%', co: ['melee'], acts: LR }] },
+  armor: { id: 'e3', kind: 'relic', slot: 'armor', name: '鎖帷子', base: '鎖帷子', innate: { def: 2 }, prov: '地下 4 階で拾う', af: [
+    { t: '怯み中の敵へのダメージ +15%', co: ['stagger'] },
+    { t: '15%の確率で炎上（3ダメージ/秒）', p: ['burn'], acts: LR }] },
+  boots: { id: 'e4', kind: 'relic', slot: 'boots', name: '旅人の靴', base: '草鞋', named: true, innate: { dex: 1 }, prov: '地下 5 階 · 名のある遺物', flavor: '道のりは靴底に溜まる。蹴り出す一歩のために。', af: [
+    { t: '蹴り出し: ダッシュの終わりに次の一撃が速い', p: ['dash'], acts: ['dash'] }] },
+  ring: { id: 'e5', kind: 'relic', slot: 'ring', name: 'ルビーの指輪', base: 'ルビーの指輪', innate: {}, prov: '地下 7 階で拾う · 愛用', af: [
+    { t: '燃焼の重ねの上限 +2', am: ['burn'] }] },
+  amulet: { id: 'e6', kind: 'relic', slot: 'amulet', name: '琥珀の首飾り', base: '琥珀の首飾り', innate: { vit: 1 }, prov: '地下 7 階で拾う', af: [
+    { t: '残り火: 燃えている敵を倒すと、足元に炎を 3 秒置く', p: ['placed'], co: ['burn', 'kill'] },
+    { t: '撃破時8%の確率で爆発（14ダメージ）', p: ['explode'], co: ['kill'] }] },
+};
+const STASH0 = [
+  { id: 's1', kind: 'relic', slot: 'amulet', name: '紅蓮の首飾り', base: '珊瑚の首飾り', innate: { spi: 1 }, prov: '地下 9 階で拾う', af: [
+    { t: '燃焼の重ねの上限 +2', am: ['burn'] },
+    { t: '燃えている敵への近接の与ダメージ +14%', co: ['burn', 'melee'], acts: LR }] },
+  { id: 's2', kind: 'relic', slot: 'main', name: '脇差', base: '脇差', innate: { dex: 2 }, prov: '地下 5 階で拾う · 芽あり', af: [
+    { t: '18%の確率で炎上（3ダメージ/秒）', p: ['burn'], acts: LR },
+    { t: '構え: 近接を振っている間、被ダメージ -6%', p: ['ward'], co: ['melee'], acts: LR }] },
+  { id: 's3', kind: 'relic', slot: 'ring', name: '銀の指輪', base: '銀の指輪', innate: { mnd: 1 }, prov: '地下 3 階で拾う', af: [
+    { t: '近接の与ダメージ +10%', co: ['melee'], acts: LR }] },
+  { id: 's4', kind: 'relic', slot: 'main', name: '太刀', base: '太刀', isNew: true, innate: { str: 4 }, prov: '地下 12 階で拾う · 新着', af: [
+    { t: '腐爆: 状態異常 2 種以上の敵への近接命中で爆発する（30 ダメージ）', p: ['explode'], co: ['melee', 'reaction'], acts: LR }] },
+  { id: 's5', kind: 'relic', slot: 'armor', name: '胴丸', base: '胴丸', innate: { def: 3 }, prov: '地下 8 階で拾う', af: [
+    { t: '近接の命中で怯み値 +10%', p: ['stagger'], co: ['melee'], acts: LR }] },
+  { id: 's6', kind: 'relic', slot: 'boots', name: '忍び足袋', base: '忍び足袋', innate: { dex: 2 }, prov: '地下 6 階で拾う', af: [
+    { t: '見切りの後 3 秒間、近接の与ダメージ +12%', co: ['just', 'melee'] }] },
+  { id: 's7', kind: 'relic', slot: 'boots', name: '雪沓', base: '雪沓', isNew: true, innate: { vit: 1 }, prov: '地下 10 階で拾う · 新着', af: [
+    { t: '霜の轍: ダッシュの軌跡に氷床を 2 秒残す、ダッシュ距離 -10%', p: ['chill'], co: ['dash'], acts: ['dash'] }] },
+  { id: 's8', kind: 'relic', slot: 'main', name: '空の鞘', base: '太刀', named: true, innate: { dex: 2 }, prov: '地下 9 階 · 名のある遺物 · 愛用', flavor: '刃は抜かれない。抜かれぬまま、通り過ぎたものを斬っている。', af: [
+    { t: 'ダッシュで通り抜けた敵を斬る', co: ['dash'], am: ['dash'], acts: ['dash'] }] },
+  { id: 's9', kind: 'relic', slot: 'head', name: '骸の冠', base: '角兜', named: true, innate: { def: 1 }, prov: '地下 10 階 · 名のある遺物', flavor: '死者は冠の主に道を譲る。踏まれると、弾けて。', af: [
+    { t: '倒した敵が踏まれると弾ける', p: ['explode'], co: ['kill'] }] },
+  { id: 's10', kind: 'relic', slot: 'ring', name: '黒鉄の指輪「鐘の舌」', base: '黒鉄の指輪', named: true, innate: {}, prov: '地下 9 階 · 名のある遺物', flavor: '九つまでは余韻。十で、鐘は割れるほど鳴る。', af: [
+    { t: '終撃の与ダメージ +16%', p: ['area'], co: ['finisher'], acts: LR }] },
+];
+const STONES = [
+  { id: 'st1', kind: 'stone', name: '旋風斬り', verb: 'その場で回って周りの敵を 3 度斬る', cost: '気力 20', p: ['melee', 'area', 'combo'] },
+  { id: 'st2', kind: 'stone', name: '燃え種爆ぜ', verb: 'カーソル周りの燃焼をすべて爆発に変える', cost: '気力 14', p: ['explode'], co: ['burn'] },
+  { id: 'st3', kind: 'stone', name: '鎖鎌', verb: '鎖を伸ばし、最初に当たった敵を手元へ引き寄せる', cost: '気力 12', p: ['melee', 'stagger'] },
+  { id: 'st4', kind: 'stone', name: '墜星', verb: '闇に紛れて跳び、着地点に闇の円を広げる', cost: '再使用 9 秒', p: ['melee', 'dash', 'elDark'] },
+];
+const BOONS = [
+  { id: 'b1', kind: 'boon', name: '火種', ln: 'ash', card: '加護', act: 'primary', d: '攻撃 1 の終撃が当たると燃焼を付ける（3秒）。', p: ['burn'], co: ['finisher'] },
+  { id: 'b2', kind: 'boon', name: '重ね刃', ln: 'blade', card: '加護', act: 'primary', d: '左の連撃が当たるたび、分身が同じ敵へ追撃する。', p: ['melee', 'combo'] },
+  { id: 'b4', kind: 'boon', name: '火渡り', ln: 'ash', card: '加護', act: 'dash', d: 'ダッシュで離れた場所に半径2mの炎を置く（3秒）。', p: ['burn', 'placed'], co: ['dash'] },
+  { id: 'b5', kind: 'boon', name: '静電気', ln: 'thunder', card: '加護', act: 'dash', d: 'ダッシュの終わりに、自分から連鎖する雷を放つ。', p: ['shock'], co: ['dash'] },
+  { id: 'b7', kind: 'boon', name: '焦土', ln: 'ash', card: '加護', act: 'ultimate', d: '奥義で半径16mの燃焼を起爆し、残りの燃焼ダメージの1.5倍を与える。', p: ['explode'], co: ['energy', 'burn'] },
+  { id: 'b9', kind: 'boon', name: '落雷予告', ln: 'thunder', card: '摂理', d: '敵を麻痺させると、その敵に雷が落ちる。', p: ['shock'], co: ['shock'] },
+  { id: 'b10', kind: 'boon', name: '連綿', ln: 'blade', card: '研鑽', d: 'この探索の最大コンボ10につき近接の与ダメ+3%（上限なし）。', co: ['combo'], am: ['melee'] },
+  { id: 'b11', kind: 'boon', name: '拍の刻', card: '芯', d: 'コンボ1ごとに与ダメージ+2%（最大+80%）。代わりにコンボの猶予が-40%になり、被弾するとコンボが必ず0になる。', co: ['hurt'], am: ['combo'] },
+];
+const JOB = { id: 'job', kind: 'job', name: '剣士', d: '連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。', p: ['melee', 'finisher', 'stagger'], co: ['just'] };
+const FORM = { id: 'form', kind: 'form', name: '連刃の型', d: '手を止めずに張り付き、熱を溜めて乱舞する。', p: ['melee', 'finisher'], co: ['combo'] };
+
+// 拠点の装備と倉庫（長押しの付け替えで書き換わる）。ラン中の装備は EQUIP0 のまま
+let baseEquip, stash;
+function resetBase() { baseEquip = { ...EQUIP0 }; stash = STASH0.slice(); }
+resetBase();
+
+// ============================================================
+// 共鳴の数え（system/resonance.ts の countProfiles / resonanceStepOf と同じ規則）
+// ============================================================
+function profileOf(s) {
+  if (s._prof) return s._prof;
+  const p = new Set(s.p || []), co = new Set(s.co || []), am = new Set(s.am || []);
+  for (const a of s.af || []) { (a.p || []).forEach((k) => p.add(k)); (a.co || []).forEach((k) => co.add(k)); (a.am || []).forEach((k) => am.add(k)); }
+  s._prof = { p, co, am };
+  return s._prof;
+}
+function sourcesOf(ctx, equip) {
+  const eq = equip || (ctx === 'run' ? EQUIP0 : baseEquip);
+  const out = SLOTS.map((sl) => eq[sl]).filter(Boolean).concat(STONES);
+  if (ctx === 'run') out.push(...BOONS);
+  out.push(JOB, FORM);
+  return out;
+}
+function countOf(sources) {
+  const m = {};
+  for (const k of KW_ORDER) m[k] = { p: [], co: [], am: [] };
+  for (const s of sources) {
+    const pr = profileOf(s);
+    for (const side of ['p', 'co', 'am']) for (const k of pr[side]) if (m[k]) m[k][side].push(s);
+  }
+  return m;
+}
+function stepOf(c) {
+  const p = c.p.length, co = c.co.length;
+  if (p < RES.minSrc || co < RES.minSink) return 0;
+  return Math.min(RES.max, 1 + Math.floor((p + co - RES.minSrc - RES.minSink) / RES.every) + c.am.length * RES.amp);
+}
+const shortOf = (c) => Math.max(0, RES.minSrc - c.p.length) + Math.max(0, RES.minSink - c.co.length);
+const totalOf = (c) => c.p.length + c.co.length + c.am.length;
+function shapeOf(ctx, equip) {
+  const counts = countOf(sourcesOf(ctx, equip));
+  const all = KW_ORDER.map((k) => ({ k, c: counts[k], step: stepOf(counts[k]) }));
+  const stepped = all.filter((b) => b.step > 0)
+    .sort((a, b) => b.step - a.step || totalOf(b.c) - totalOf(a.c) || KW_ORDER.indexOf(a.k) - KW_ORDER.indexOf(b.k));
+  const fu = all.filter((b) => b.step === 0 && (b.c.p.length > 0 || b.c.co.length > 0))
+    .sort((a, b) => shortOf(a.c) - shortOf(b.c) || totalOf(b.c) - totalOf(a.c) || KW_ORDER.indexOf(a.k) - KW_ORDER.indexOf(b.k));
+  const st = stepped.slice(0, SHOW_STEPPED), f = fu.slice(0, SHOW_FU).map((b) => ({ ...b, fu: true }));
+  return { counts, stepped: st, fu: f, rows: st.concat(f), steppedAll: stepped.length };
+}
+// 段の立った系統の色だけを使う（色の予算: 系の色 4 + 墨 + 白金）
+function kwColor(k, shape, lit) {
+  if (lit) return KW[k][2];
+  return shape.stepped.some((b) => b.k === k) ? KW[k][2] : C.sub;
+}
+
+// ============================================================
+// 試着（仮の出どころ列で数え直すだけ。state は変えない）
+// ============================================================
+function candidatesFor(k, side) {
+  const shape = shapeOf('base');
+  const out = [];
+  for (const it of stash) {
+    const pr = profileOf(it);
+    const cur = baseEquip[it.slot];
+    if (!pr[side].has(k)) continue;
+    if (cur && profileOf(cur)[side].has(k)) continue; // 同じ側を替えるだけで増えない品は出さない
+    const eq = { ...baseEquip, [it.slot]: it };
+    const after = shapeOf('base', eq);
+    const rowsK = shape.rows.map((r) => r.k);
+    for (const b of after.stepped) if (!rowsK.includes(b.k)) rowsK.push(b.k);
+    const deltas = rowsK.map((kk) => {
+      const from = stepOf(shape.counts[kk]), to = stepOf(after.counts[kk]);
+      const isFu = from === 0;
+      let mark = '';
+      if (to > from) mark = from === 0 ? 'new' : 'up';
+      else if (to < from) mark = to === 0 ? 'gone' : 'crack';
+      return { k: kk, from, to, mark, fu: isFu };
+    }).slice(0, 6);
+    const lost = deltas.filter((d) => d.mark === 'gone').length;
+    const cracked = deltas.filter((d) => d.mark === 'crack').length;
+    out.push({ it, cur, deltas, lost, cracked });
+  }
+  out.sort((a, b) => a.lost - b.lost || a.cracked - b.cracked || (b.it.isNew ? 1 : 0) - (a.it.isNew ? 1 : 0));
+  return out;
+}
+function innateDiff(a, b) {
+  // b に替えたときの地金の差（▲▼ 最大 2。数字は書付で）
+  const out = [];
+  for (const key of Object.keys(ATTR)) {
+    const d = ((b && b.innate[key]) || 0) - ((a && a.innate[key]) || 0);
+    if (d !== 0) out.push({ key, d });
+  }
+  out.sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  return out.slice(0, 2);
+}
+
+// ============================================================
+// 描画の道具（論理 480x270。乱数を使わず座標ハッシュ）
+// ============================================================
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function R(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w | 0, h | 0); }
+function box(x, y, w, h, c) { R(x, y, w, 1, c); R(x, y + h - 1, w, 1, c); R(x, y, 1, h, c); R(x + w - 1, y, 1, h, c); }
+function dashBox(x, y, w, h, c) {
+  for (let i = 0; i < w; i += 3) { R(x + i, y, Math.min(2, w - i), 1, c); R(x + i, y + h - 1, Math.min(2, w - i), 1, c); }
+  for (let j = 0; j < h; j += 3) { R(x, y + j, 1, Math.min(2, h - j), c); R(x + w - 1, y + j, 1, Math.min(2, h - j), c); }
+}
+function disc(x, y, d, ring, fill, w = 1) {
+  const r = d / 2;
+  for (let j = 0; j < d; j++) for (let i = 0; i < d; i++) {
+    const dist = Math.hypot(i + 0.5 - r, j + 0.5 - r);
+    if (dist > r) continue;
+    if (dist > r - w) { if (ring) R(x + i, y + j, 1, 1, ring); } else if (fill) R(x + i, y + j, 1, 1, fill);
+  }
+}
+function diamond(x, y, d, ring, fill) {
+  const r = d / 2;
+  for (let j = 0; j < d; j++) for (let i = 0; i < d; i++) {
+    const m = Math.abs(i + 0.5 - r) + Math.abs(j + 0.5 - r);
+    if (m > r) continue;
+    R(x + i, y + j, 1, 1, m > r - 1.3 ? ring : fill);
+  }
+}
+function line(x0, y0, x1, y1, c, t = 1, dotted = false) {
+  x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy, n = 0;
+  for (;;) {
+    if (!dotted || (n >> 1) % 2 === 0) R(x0, y0 - (t >> 1), 1, t, c);
+    n++;
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+function mix(hex, to, a) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const A = p(hex), B = p(to);
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * a).toString(16).padStart(2, '0')).join('');
+}
+function brackets(x, y, w, h, c) {
+  // 焦点の角括弧（白金）
+  const L = 3;
+  R(x - 1, y - 1, L, 1, c); R(x - 1, y - 1, 1, L, c);
+  R(x + w - L + 1, y - 1, L, 1, c); R(x + w, y - 1, 1, L, c);
+  R(x - 1, y + h, L, 1, c); R(x - 1, y + h - L + 1, 1, L, c);
+  R(x + w - L + 1, y + h, L, 1, c); R(x + w, y + h - L + 1, 1, L, c);
+}
+let paperCache = null;
+function paper() {
+  // 和紙の繊維は一度だけ描いて写す
+  if (!paperCache) {
+    paperCache = document.createElement('canvas');
+    paperCache.width = 480; paperCache.height = 270;
+    const c = paperCache.getContext('2d');
+    c.fillStyle = C.paper; c.fillRect(0, 0, 480, 270);
+    for (let y = 4; y < 266; y++) for (let x = 4; x < 476; x++) {
+      const v = hash(x + 911, y + 57);
+      if (v < 0.012) { c.fillStyle = C.fa; c.fillRect(x, y, v < 0.004 ? 2 : 1, 1); } else if (v > 0.99) { c.fillStyle = C.fb; c.fillRect(x, y, 1, 1); }
+    }
+  }
+  ctx.drawImage(paperCache, 0, 0);
+}
+function frame() {
+  box(0, 0, 480, 270, C.fr1); box(1, 1, 478, 268, C.fr2); box(2, 2, 476, 266, C.fr3);
+  // 角金具 8x8
+  for (const [cx, cy, fx, fy] of [[0, 0, 1, 1], [472, 0, -1, 1], [0, 262, 1, -1], [472, 262, -1, -1]]) {
+    const P = (i, j, w, h, c) => R(fx > 0 ? cx + i : cx + 8 - i - w, fy > 0 ? cy + j : cy + 8 - j - h, w, h, c);
+    P(0, 0, 8, 2, C.goldLo); P(0, 0, 2, 8, C.goldLo); P(0, 0, 7, 1, C.gold); P(0, 0, 1, 7, C.gold);
+    P(1, 1, 5, 1, C.goldHi); P(1, 1, 1, 5, C.goldHi); P(2, 2, 3, 3, C.gold); P(3, 3, 1, 1, C.shu);
+  }
+}
+const hr = (y, x0 = 8, x1 = 472) => R(x0, y, x1 - x0, 1, C.rule);
+
+// ============================================================
+// 珠（出どころ）: 遺物 = 部位の印の角 / スキル石 = 菱形 / 祝福 = 系譜の色の小札 / ジョブ・型 = 二重丸
+// ============================================================
+function bead(g, s, x, y, tone) {
+  // tone: 'n' 普通 / 'lit' 白金 / 'ink' 墨に沈む
+  const ring = tone === 'lit' ? C.focus : tone === 'ink' ? C.dim : C.sub;
+  const fill = tone === 'lit' ? '#3a3428' : C.card;
+  if (s.kind === 'relic') {
+    R(x, y, 12, 12, fill); box(x, y, 12, 12, ring);
+    if (s.named) R(x + 1, y + 1, 2, 1, C.gold);
+    g.text(x, y + 1, SLOT_GLYPH[s.slot], { w: 12, align: 'center', color: tone === 'ink' ? C.dim : tone === 'lit' ? C.focus : C.tx });
+  } else if (s.kind === 'stone') {
+    diamond(x, y, 12, ring, tone === 'lit' ? '#3a3428' : C.card2);
+    R(x + 5, y + 5, 2, 2, tone === 'ink' ? C.dim : ring);
+  } else if (s.kind === 'boon') {
+    const lc = s.ln ? LN[s.ln][2] : C.tx;
+    const col = tone === 'ink' ? C.dim : tone === 'lit' ? C.focus : lc;
+    R(x + 2, y + 1, 8, 11, col); R(x + 5, y + 1, 2, 2, C.paper); R(x + 3, y + 4, 6, 1, mix(col, '#000000', 0.45));
+    if (tone === 'lit') box(x + 1, y, 10, 13, C.focus);
+  } else {
+    disc(x, y, 12, ring, fill); disc(x + 3, y + 3, 6, ring, null);
+  }
+}
+function overflowBead(x, y, n, tone) {
+  // 「＋n」の珠（数字を増やさないよう、隠れた数は点 1〜3 で）
+  // 欠けの「＋」（破線）と分けるため、実線の枠に畳んだ点を並べる
+  const c = tone === 'ink' ? C.dim : C.sub;
+  R(x, y, 12, 12, C.card); box(x, y, 12, 12, c);
+  for (let i = 0; i < Math.min(3, n); i++) R(x + 3 + i * 3, y + 5, 2, 2, c);
+}
+function plusBead(x, y, c, lit) {
+  dashBox(x, y, 12, 12, lit ? C.focus : c);
+  R(x + 5, y + 3, 2, 6, lit ? C.focus : c); R(x + 3, y + 5, 6, 2, lit ? C.focus : c);
+}
+function glyphDisc(g, k, cx, cy, d, col, opt = {}) {
+  const x = cx - d / 2, y = cy - d / 2;
+  disc(x, y, d, opt.fu ? C.dim : col, C.paper, d >= 24 ? 2 : 1);
+  if (opt.focus) disc(x - 2, y - 2, d + 4, C.focus, null);
+  const fs = d >= 36 ? 16 : d >= 22 ? 12 : 8;
+  g.text(x, cy - (fs + 2) / 2, KW[k][0], { w: d, align: 'center', size: fs, color: opt.fu ? C.sub : col });
+}
+function stepDots(x, y, step, col, s = 3, gap = 3) {
+  for (let i = 0; i < RES.max; i++) {
+    if (i < step) R(x + i * (s + gap), y, s, s, col);
+    else box(x + i * (s + gap), y, s, s, C.dim);
+  }
+}
+const dotsTxt = (n) => '●'.repeat(n) + '○'.repeat(RES.max - n);
+
+// 帯（段で太さ 2/4/6px。光の走る速さも段。伏流は点線）
+function band(x0, x1, cy, step, col, now, opt = {}) {
+  if (step <= 0) {
+    const ph = REDUCED.matches ? 0 : Math.floor(now / 220) % 4;
+    for (let x = x0; x < x1; x++) if (((x + ph) >> 1) % 2 === 0) R(x, cy, 1, 1, opt.dimCol || C.dim);
+    return;
+  }
+  const t = step * 2;
+  const top = cy - t / 2;
+  R(x0, top, x1 - x0, t, col);
+  const hi = mix(col, '#ffffff', 0.55);
+  const ph = REDUCED.matches ? 0 : Math.floor(now / 110) * step;
+  for (let x = x0; x < x1; x++) if (((x - ph) % 18 + 18) % 18 < 3) R(x, top + (t > 2 ? 1 : 0), 1, Math.max(1, t - 2 * (t > 2 ? 1 : 0)), hi);
+  R(x0, top, x1 - x0, 1, mix(col, '#ffffff', 0.2));
+  R(x0, top + t - 1, x1 - x0, 1, mix(col, '#000000', 0.35));
+}
+// 試着の帯の変化（4 コマ。段で太る / ひび / 消える / 伏流が立つ）
+const FRAME_MS = 90, FRAMES = 3;
+function bandMorph(x0, x1, cy, d, col, now, t0) {
+  const f = REDUCED.matches ? FRAMES : Math.min(FRAMES, Math.floor((now - t0) / FRAME_MS));
+  const fromT = d.from * 2, toT = d.to * 2;
+  if (d.mark === 'gone') {
+    if (f === 0) { band(x0, x1, cy, d.from, col, now); return; }
+    // 欠けていく（ディザで 3 段）
+    const keep = f === 1 ? 2 : f === 2 ? 4 : 99;
+    for (let x = x0; x < x1; x++) for (let y = cy - fromT / 2; y < cy + fromT / 2; y++) if ((x + y) % keep === 0) R(x, y, 1, 1, mix(col, '#000000', 0.5));
+    if (f >= FRAMES) band(x0, x1, cy, 0, col, now, { dimCol: C.down });
+    return;
+  }
+  if (d.mark === 'new') {
+    band(x0, x1, cy, 0, col, now);
+    const w = Math.round((x1 - x0) * Math.min(1, (f + 1) / (FRAMES + 1)));
+    const mid = (x0 + x1) >> 1;
+    if (f > 0) band(mid - (w >> 1), mid + (w >> 1), cy, Math.max(1, Math.round(d.to * Math.min(1, f / FRAMES))), col, now);
+    return;
+  }
+  if (d.mark === 'up' || d.mark === 'crack') {
+    const t = f >= FRAMES ? d.to : f === 0 ? d.from : (d.mark === 'up' ? d.from : d.from);
+    band(x0, x1, cy, t, col, now);
+    if (d.mark === 'up' && f >= FRAMES) { R(x0, cy - toT / 2 - 1, x1 - x0, 1, mix(col, '#ffffff', 0.6)); }
+    if (d.mark === 'crack' && f >= 2) {
+      // ひび（墨の切れ目と朱の欠け）
+      for (let i = 0; i < 4; i++) {
+        const x = x0 + 8 + Math.floor(hash(i, cy) * (x1 - x0 - 16));
+        R(x, cy - toT / 2 - 1, 1, toT + 2, C.paper); R(x + 1, cy - 1, 1, 2, C.down);
+      }
+    }
+    return;
+  }
+  band(x0, x1, cy, d.to, col, now);
+}
+
+// ============================================================
+// 画面の状態（view の積み重ね。Esc で 1 つ戻る）
+// ============================================================
+let stack = [];
+let msg = null; // 焦点行の一時的な知らせ
+let t0 = 0; // 試着の焦点が動いた時刻（帯の変化のコマ）
+let hold = null; // { start, act }
+const curView = () => stack[stack.length - 1];
+function push(v) { stack.push(v); msg = null; t0 = performance.now(); dirty(); }
+function pop() { if (stack.length > 1) { stack.pop(); msg = null; t0 = performance.now(); dirty(); } else { msg = '（ゲームでは Esc で紋を閉じる）'; dirty(); } }
+
+const SCENES = [
+  () => [{ type: 'mon', ctx: 'run', row: 0, sub: 0 }],
+  () => [{ type: 'mon', ctx: 'run', row: 0, sub: 0 }, { type: 'kw', ctx: 'run', k: 'burn', col: 'p', idx: 0, top: false }],
+  () => [{ type: 'mon', ctx: 'run', row: 6, sub: 8 }, { type: 'act', ctx: 'run', a: 'dash', idx: 0 }],
+  () => [{ type: 'mon', ctx: 'base', row: 2, sub: 1 }, { type: 'try', k: 'melee', side: 'co', idx: 0 }],
+  () => [{ type: 'mon', ctx: 'base', row: 2, sub: 1 }, { type: 'try', k: 'melee', side: 'co', idx: 0 }, { type: 'sheet', pair: true }],
+];
+let sceneIdx = 0;
+function setScene(i) {
+  sceneIdx = i; stack = SCENES[i](); msg = null; t0 = performance.now();
+  document.querySelectorAll('[data-scene]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.scene) === i)));
+  dirty();
+}
+
+// ============================================================
+// 各画面の組み立て（canvas に図、DOM に文字。hits にマウスの当たり）
+// ============================================================
+function mkG(now) {
+  const g = { now, texts: [], hits: [], info: { stepped: 0, fu: 0, cands: 0 } };
+  g.text = (x, y, str, o = {}) => {
+    const size = o.size || 8;
+    g.texts.push({ x, y, str, size, lh: o.lh || size + 2, color: o.color || C.tx, w: o.w, h: o.h, align: o.align || 'left', ln: !!o.ln, wrap: !!o.wrap, name: !!o.name });
+  };
+  g.hit = (x, y, w, h, o) => g.hits.push({ x, y, w, h, ...o });
+  return g;
+}
+function header(g, left, right) {
+  g.text(8, 4, left, { ln: true, w: right ? 360 : 464, color: C.tx });
+  if (right) g.text(372, 4, right, { w: 100, align: 'right', color: C.sub });
+  hr(16);
+}
+function guide(g, str) { g.text(8, 256, str, { ln: true, w: 464, color: C.sub }); }
+function focusLines(g, l1, l2, l3, y = 226) {
+  if (l1) g.text(8, y, l1, { ln: true, size: 10, w: 464, color: C.focus });
+  if (l2) g.text(8, y + 13, l2, { ln: true, size: l3 === undefined && y === 226 ? 8 : 10, w: 464, color: C.tx });
+  if (l3) g.text(8, y + 26, l3, { ln: true, w: 464, color: C.sub });
+}
+
+// ---------- W1 紋 ----------
+function monRows(shape) {
+  const rows = [];
+  let y = 20;
+  for (const b of shape.rows) { const h = b.fu ? 16 : 32; rows.push({ ...b, y, h }); y += h; }
+  return rows;
+}
+function daiItems(ctx) {
+  const items = [];
+  SLOTS.forEach((sl, i) => items.push({ t: 'part', sl, x: 8 + (i % 3) * 16, y: 190 + Math.floor(i / 3) * 16, w: 14, h: 14 }));
+  ACT.forEach((a, i) => items.push({ t: 'act', a, x: 72 + i * 56, y: 195, w: 46, h: 14 }));
+  if (ctx === 'run') lineages().forEach((l, i) => items.push({ t: 'ln', l, x: 364 + i * 28, y: 190, w: 22, h: 24 }));
+  return items;
+}
+function lineages() {
+  const m = {};
+  for (const b of BOONS) if (b.ln) m[b.ln] = (m[b.ln] || 0) + 1;
+  return Object.keys(m).sort((a, b) => m[b] - m[a]).slice(0, 4).map((l) => ({ l, n: m[l] }));
+}
+function beadsOf(c, side) { return c[side]; }
+function sideShort(c, side) { return Math.max(0, (side === 'p' ? RES.minSrc : RES.minSink) - c[side].length); }
+
+function drawMon(g, v) {
+  const shape = shapeOf(v.ctx);
+  const rows = monRows(shape);
+  g.info.stepped = shape.stepped.length; g.info.fu = shape.fu.length;
+  const hl = v.hl ? findSource(v.hl) : null;
+  const removed = hl ? shapeWithout(v.ctx, hl) : null;
+  const blinkOn = REDUCED.matches ? true : Math.floor(g.now / 600) % 2 === 0;
+  const ctxLabel = v.ctx === 'run' ? '紋' : '紋（拠点）';
+  header(g, hl ? `${ctxLabel} › ${hl.name}` : `${ctxLabel}  剣士・連刃の型`, v.ctx === 'run' ? '地下 7 階' : '');
+  rows.forEach((r, ri) => {
+    const cy = r.fu ? r.y + 8 : r.y + 13;
+    const col = KW[r.k][2];
+    const isF = v.row === ri;
+    let stepNow = r.step;
+    let mark = '';
+    if (removed) {
+      const after = stepOf(removed.counts[r.k]);
+      if (after < r.step) { mark = after === 0 ? '消える' : '▼'; if (!blinkOn) stepNow = after; }
+    }
+    // 源の岸（右寄せ）と糧の岸（左寄せ）
+    const tone = (s) => (hl ? (s === hl ? 'lit' : 'ink') : 'n');
+    const drawSide = (side) => {
+      const list = beadsOf(r.c, side);
+      const shown = list.length > SHOW_BEADS ? list.slice(0, SHOW_BEADS - 1) : list;
+      const short = r.fu ? Math.min(2, sideShort(r.c, side)) : 0;
+      const n = shown.length + (list.length > SHOW_BEADS ? 1 : 0) + short;
+      const pos = (i) => (side === 'p' ? 140 - i * 16 : 328 + i * 16);
+      const by = cy - 6;
+      if (n > 0) {
+        const far = pos(n - 1);
+        if (side === 'p') R(far + 6, cy, 160 - far - 6, 1, C.rule); else R(320, cy, far + 6 - 320, 1, C.rule);
+      }
+      shown.forEach((s, i) => bead(g, s, pos(i), by, tone(s)));
+      let i = shown.length;
+      if (list.length > SHOW_BEADS) { overflowBead(pos(i), by, list.length - shown.length, hl ? 'ink' : 'n'); i++; }
+      for (let j = 0; j < short; j++, i++) {
+        const plusFocus = isF && v.sub === 1 && v.ctx === 'base' && side === plusSide(r);
+        plusBead(pos(i), by, C.dim, plusFocus);
+        if (v.ctx === 'base' && side === plusSide(r)) g.hit(pos(i), by, 12, 12, { focus: () => { v.row = ri; v.sub = 1; }, act: () => openPlus(v, r) });
+      }
+    };
+    drawSide('p'); drawSide('co');
+    if (r.fu) {
+      band(160, 320, cy, 0, col, g.now);
+      glyphDisc(g, r.k, 240, cy, 14, col, { fu: true, focus: false });
+    } else {
+      band(160, 320, cy, stepNow, hl && !mark ? mix(col, '#000000', 0.55) : col, g.now);
+      glyphDisc(g, r.k, 240, cy, 24, hl && !mark ? mix(col, '#000000', 0.4) : col);
+      stepDots(232, r.y + 28, stepNow, col, 3, 3);
+      r.c.am.slice(0, 2).forEach((s, i) => bead(g, s, 262 + i * 16, cy - 6, tone(s)));
+    }
+    if (mark) g.text(404, cy - 5, mark, { w: 68, color: C.down });
+    if (isF && v.sub === 0) brackets(84, r.y + 1, 312, r.h - 2, C.focus);
+    g.hit(84, r.y, 312, r.h, { focus: () => { v.row = ri; v.sub = 0; }, act: () => push({ type: 'kw', ctx: v.ctx, k: r.k, col: 'p', idx: 0, top: false }) });
+  });
+  // 下の台
+  hr(184);
+  const items = daiItems(v.ctx);
+  const daiRow = rows.length;
+  items.forEach((it, ii) => {
+    const f = v.row === daiRow && v.sub === ii;
+    if (it.t === 'part') {
+      const rel = (v.ctx === 'run' ? EQUIP0 : baseEquip)[it.sl];
+      const used = rel && shape.rows.some((r) => [...r.c.p, ...r.c.co, ...r.c.am].includes(rel));
+      const lit = hl && rel === hl;
+      R(it.x, it.y, 14, 14, C.card); box(it.x, it.y, 14, 14, lit ? C.focus : used ? C.sub : C.dim);
+      g.text(it.x, it.y + 2, SLOT_GLYPH[it.sl], { w: 14, align: 'center', color: lit ? C.focus : used ? C.tx : C.dim });
+    } else if (it.t === 'act') {
+      // 角枠の行動印 + 加護の点 2（系譜の色）
+      R(it.x, it.y, 14, 14, C.card2); box(it.x, it.y, 14, 14, C.sub); R(it.x, it.y, 2, 2, C.paper); R(it.x + 12, it.y + 12, 2, 2, C.paper);
+      g.text(it.x, it.y + 2, ACT_GLYPH[it.a], { w: 14, align: 'center', color: C.tx });
+      const gr = v.ctx === 'run' ? BOONS.filter((b) => b.act === it.a) : [];
+      for (let i = 0; i < 2; i++) {
+        const b = gr[i];
+        if (b) R(it.x + 19 + i * 9, it.y + 4, 6, 6, LN[b.ln][2]); else box(it.x + 19 + i * 9, it.y + 4, 6, 6, C.dim);
+      }
+    } else {
+      const [, gl, lc] = LN[it.l.l];
+      R(it.x + 5, it.y, 12, 12, C.card); box(it.x + 5, it.y, 12, 12, lc);
+      g.text(it.x + 5, it.y + 1, gl, { w: 12, align: 'center', color: lc });
+      for (let i = 0; i < 4; i++) { if (i < it.l.n) R(it.x + 2 + i * 5, it.y + 16, 4, 2, lc); else box(it.x + 2 + i * 5, it.y + 16, 4, 2, C.dim); }
+    }
+    if (f) brackets(it.x, it.y, it.w, it.h, C.focus);
+    g.hit(it.x - 1, it.y - 1, it.w + 2, it.h + 2, { focus: () => { v.row = daiRow; v.sub = ii; }, act: () => daiAct(v, it) });
+  });
+  if (v.ctx === 'run') R(358, 188, 1, 30, C.rule);
+  R(64, 188, 1, 30, C.rule);
+  // 焦点行
+  if (msg) { focusLines(g, `▶ ${msg}`); }
+  else if (hl) {
+    const hit = rows.filter((r) => removed && stepOf(removed.counts[r.k]) < r.step).map((r) => kwName(r.k));
+    const verb = hl.kind === 'relic' ? 'を外すと' : 'が無ければ';
+    focusLines(g, `▶ ${hl.name} ${verb} ${hit.length ? hit.join('・') + ' が細る' : '細る系統はない'}`);
+  } else if (v.row < rows.length) {
+    const r = rows[v.row];
+    if (v.sub === 1) focusLines(g, `▶ ${kwName(r.k)} に${plusSide(r) === 'p' ? '源' : '糧'}を足す　倉庫から候補を引く`);
+    else if (r.fu) focusLines(g, `▶ ${kwName(r.k)}  伏流　源 ${r.c.p.length}・糧 ${r.c.co.length}`);
+    else focusLines(g, `▶ ${kwName(r.k)}  ${dotsTxt(r.step)}  源 ${r.c.p.length}・糧 ${r.c.co.length}・強め ${r.c.am.length}`);
+  } else {
+    const it = items[v.sub];
+    if (it.t === 'part') { const rel = (v.ctx === 'run' ? EQUIP0 : baseEquip)[it.sl]; focusLines(g, `▶ ${SLOT_LABEL[it.sl]}  ${rel ? rel.name : '空き'}`); }
+    else if (it.t === 'act') { const gr = v.ctx === 'run' ? BOONS.filter((b) => b.act === it.a) : []; focusLines(g, `▶ ${ACT_LONG[it.a]}  加護 ${gr.length ? gr.map((b) => b.name).join('・') : '空き'}`); }
+    else {
+      const names = BOONS.filter((b) => b.ln === it.l.l).map((b) => b.name).join('・');
+      focusLines(g, `▶ ${LN[it.l.l][0]}  ${'●'.repeat(it.l.n)}${'○'.repeat(4 - it.l.n)}  4 で真髄`, v.open ? names : undefined);
+    }
+  }
+  if (hl) guide(g, 'Esc 戻る　Q 書付');
+  else guide(g, v.ctx === 'base' ? '↑↓ 系統　→ ＋　Enter 開く　Q 書付　Esc 戻る' : '↑↓ 系統・台　←→ 台　Enter 開く　Q 書付　Esc 閉じる');
+}
+// その出どころが無いときの紋（外す / 無ければの予告。数え直すだけ）
+function shapeWithout(ctxName, src) {
+  const counts = countOf(sourcesOf(ctxName).filter((s) => s !== src));
+  return { counts };
+}
+function plusSide(r) { return sideShort(r.c, 'co') > 0 ? 'co' : 'p'; }
+function openPlus(v, r) { if (v.ctx === 'base') push({ type: 'try', k: r.k, side: plusSide(r), idx: 0 }); }
+function daiAct(v, it) {
+  if (it.t === 'act') push({ type: 'act', ctx: v.ctx, a: it.a, idx: 0 });
+  else if (it.t === 'part') { const rel = (v.ctx === 'run' ? EQUIP0 : baseEquip)[it.sl]; if (rel) push({ type: 'sheet', src: rel }); }
+  else { v.open = !v.open; dirty(); }
+}
+function findSource(id) { return [...Object.values(EQUIP0), ...Object.values(baseEquip), ...STASH0, ...STONES, ...BOONS, JOB, FORM].find((s) => s && s.id === id); }
+
+// ---------- W2 系統を選ぶ ----------
+const KIND_LABEL = { relic: '', stone: 'スキル石', boon: '', job: 'ジョブ', form: '型' };
+function srcSub(s) {
+  if (s.kind === 'relic') return SLOT_LABEL[s.slot];
+  if (s.kind === 'boon') return s.ln ? `${LN[s.ln][0]}の${s.card}${s.act ? ' · ' + ACT_LONG[s.act] : ''}` : s.card;
+  return KIND_LABEL[s.kind];
+}
+// この系統に触れる行だけ（遺物は性質、ほかは説明 1 行）
+function linesFor(s, k) {
+  if (s.kind === 'relic') return (s.af || []).filter((a) => [a.p, a.co, a.am].some((l) => (l || []).includes(k))).map((a) => a.t);
+  return [s.d || s.verb];
+}
+function otherKws(s, k) { const pr = profileOf(s); return KW_ORDER.filter((kk) => kk !== k && (pr.p.has(kk) || pr.co.has(kk) || pr.am.has(kk))); }
+function srcCard(g, s, x, y, w, h, focused, opt = {}) {
+  R(x, y, w, h, focused ? C.card2 : C.card); box(x, y, w, h, focused ? C.focus : C.rule);
+  bead(g, s, x + 5, y + ((h - 12) >> 1), focused ? 'lit' : 'n');
+  g.text(x + 22, y + ((h - 10) >> 1), s.name, { w: w - 26 - (opt.right || 0), color: focused ? C.focus : C.tx, name: true });
+}
+function drawKw(g, v) {
+  const shape = shapeOf(v.ctx);
+  const c = shape.counts[v.k];
+  const step = stepOf(c);
+  const col = KW[v.k][2];
+  g.info.stepped = shape.stepped.length; g.info.fu = shape.fu.length;
+  header(g, `${v.ctx === 'run' ? '紋' : '紋（拠点）'} › ${kwName(v.k)}`);
+  // 畳んだ帯
+  shape.rows.forEach((r, i) => {
+    const x = 8 + i * 44;
+    const cur = r.k === v.k;
+    glyphDisc(g, r.k, x + 7, 24, 12, KW[r.k][2], { fu: r.fu });
+    if (!r.fu) stepDots(x + 17, 22, r.step, KW[r.k][2], 2, 2);
+    else line(x + 17, 23, x + 28, 23, C.dim, 1, true);
+    if (cur) R(x, 33, 14, 1, C.focus);
+    if (v.top && v.topIdx === i) brackets(x, 17, 30, 14, C.focus);
+    g.hit(x - 1, 16, 34, 16, { focus: () => { v.top = true; v.topIdx = i; }, act: () => { Object.assign(v, { k: r.k, col: 'p', idx: 0, top: false }); t0 = performance.now(); dirty(); } });
+  });
+  g.text(8, 36, '源', { color: C.sub });
+  g.text(452, 36, '糧', { w: 20, align: 'right', color: C.sub });
+  const cols = kwCols(v, shape);
+  const cy0 = 90;
+  // 中央の丸印
+  for (const side of ['p', 'co']) {
+    const list = cols[side];
+    list.forEach((it, i) => {
+      const y = 48 + i * 26;
+      const x = side === 'p' ? 8 : 328;
+      const fy = y + 11;
+      if (step > 0) line(side === 'p' ? 152 : 260, side === 'p' ? fy : cy0, side === 'p' ? 220 : 328, side === 'p' ? cy0 : fy, it.plus ? C.dim : col, it.plus ? 1 : step, it.plus);
+      else line(side === 'p' ? 152 : 260, side === 'p' ? fy : cy0, side === 'p' ? 220 : 328, side === 'p' ? cy0 : fy, C.dim, 1, true);
+    });
+  }
+  disc(218, 68, 44, C.paper, C.paper);
+  glyphDisc(g, v.k, 240, cy0, 40, step > 0 ? col : C.sub, { fu: step === 0 });
+  if (step > 0) stepDots(229, 114, step, col, 4, 4);
+  else g.text(220, 113, '伏流', { w: 40, align: 'center', color: C.sub });
+  const drawItem = (side, it, i) => {
+    const focused = !v.top && v.col === side && v.idx === i;
+    let x, y, w, h;
+    if (side === 'am') { x = 184; y = 122 + i * 19; w = 112; h = 18; }
+    else { x = side === 'p' ? 8 : 328; y = 48 + i * 26; w = 144; h = 22; }
+    if (it.plus) {
+      R(x, y, w, h, C.paper); dashBox(x, y, w, h, focused ? C.focus : C.dim);
+      plusBead(x + 5, y + 5, C.dim, focused);
+      g.text(x + 22, y + 6, side === 'p' ? '源を足す' : '糧を足す', { w: w - 26, color: focused ? C.focus : C.sub });
+    } else srcCard(g, it.s, x, y, w, h, focused);
+    g.hit(x, y, w, h, { focus: () => { v.top = false; v.col = side; v.idx = i; }, act: () => kwEnter(v, it) });
+  };
+  for (const side of ['p', 'co', 'am']) cols[side].forEach((it, i) => drawItem(side, it, i));
+  if (cols.more.p) g.text(8, 150, '▼ 送り', { w: 144, align: 'center', color: C.sub });
+  if (cols.more.co) g.text(328, 150, '▼ 送り', { w: 144, align: 'center', color: C.sub });
+  hr(160);
+  // 焦点
+  if (msg) { focusLines(g, `▶ ${msg}`, undefined, undefined, 168); }
+  else if (v.top) {
+    const r = shape.rows[v.topIdx];
+    focusLines(g, `▶ ${kwName(r.k)}  ${r.fu ? '伏流' : dotsTxt(r.step)}`, 'Enter でこの系統へ移る', undefined, 168);
+  } else {
+    const it = cols[v.col][v.idx];
+    if (!it) { /* 空 */ }
+    else if (it.plus) focusLines(g, `▶ ${kwName(v.k)} に${v.col === 'p' ? '源' : '糧'}を足す`, v.ctx === 'base' ? 'Enter で倉庫の候補を 5 枚引く' : 'ラン中は床で拾う。倉庫は拠点で開く', undefined, 168);
+    else {
+      const s = it.s;
+      const ls = linesFor(s, v.k);
+      const others = otherKws(s, v.k);
+      focusLines(g, `▶ ${s.name}  ${srcSub(s)}`, ls[0], undefined, 168);
+      if (ls[1]) g.text(8, 194, ls[1], { ln: true, size: 10, w: 464, color: C.tx });
+      if (others.length && !ls[1]) {
+        g.text(8, 200, 'ほか', { ln: true, w: 30, color: C.sub });
+        others.slice(0, 6).forEach((kk, i) => glyphDisc(g, kk, 46 + i * 16, 205, 12, kwColor(kk, shape)));
+      }
+    }
+  }
+  guide(g, '↑↓←→ 選ぶ　Enter この品の系統　Q 書付　Esc 紋へ');
+}
+function kwCols(v, shape) {
+  const c = shape.counts[v.k];
+  const out = { p: [], co: [], am: [], more: {} };
+  for (const side of ['p', 'co']) {
+    const list = c[side].map((s) => ({ s }));
+    if (list.length < SHOW_BEADS) list.push({ plus: true });
+    v.off = v.off || { p: 0, co: 0 };
+    const off = Math.min(v.off[side] || 0, Math.max(0, list.length - SHOW_BEADS));
+    out[side] = list.slice(off, off + SHOW_BEADS);
+    out.more[side] = list.length > off + SHOW_BEADS;
+    out[side].full = list; out[side].off = off;
+  }
+  out.am = c.am.slice(0, 2).map((s) => ({ s }));
+  return out;
+}
+function kwEnter(v, it) {
+  if (it.plus) {
+    if (v.ctx === 'base') push({ type: 'try', k: v.k, side: v.col, idx: 0 });
+    else { msg = 'ラン中は床で拾う。倉庫の候補は拠点で引ける'; dirty(); }
+    return;
+  }
+  // 問いが「この品」に替わる: 紋に戻り、その品の珠だけを白金で光らせる
+  push({ type: 'mon', ctx: v.ctx, row: -1, sub: 0, hl: it.s.id });
+}
+
+// ---------- 行動を選ぶ ----------
+function actEntries(v) {
+  const a = v.a;
+  const out = [];
+  const gr = v.ctx === 'run' ? BOONS.filter((b) => b.act === a) : [];
+  for (let i = 0; i < 2; i++) out.push(gr[i] ? { s: gr[i], kws: [...(gr[i].p || []), ...(gr[i].co || []), ...(gr[i].am || [])], role: gr[i] } : { empty: true });
+  const eq = v.ctx === 'run' ? EQUIP0 : baseEquip;
+  for (const sl of SLOTS) {
+    const it = eq[sl];
+    if (!it) continue;
+    const afs = (it.af || []).filter((x) => (x.acts || []).includes(a));
+    if (afs.length) out.push({ s: it, af: afs, kws: afs.flatMap((x) => [...(x.p || []), ...(x.co || []), ...(x.am || [])]) });
+  }
+  if (a === 'skill') for (const st of STONES) out.push({ s: st, kws: [...(st.p || []), ...(st.co || [])] });
+  return out;
+}
+function drawAct(g, v) {
+  const shape = shapeOf(v.ctx);
+  g.info.stepped = shape.stepped.length; g.info.fu = shape.fu.length;
+  header(g, `${v.ctx === 'run' ? '紋' : '紋（拠点）'} › ${ACT_LONG[v.a]}`);
+  // 行動の列（角枠）
+  ACT.forEach((a, i) => {
+    const x = 8 + i * 30;
+    const cur = a === v.a;
+    R(x, 18, 14, 14, cur ? C.card2 : C.card); box(x, 18, 14, 14, cur ? C.focus : C.sub); R(x, 18, 2, 2, C.paper); R(x + 12, 30, 2, 2, C.paper);
+    g.text(x, 20, ACT_GLYPH[a], { w: 14, align: 'center', color: cur ? C.focus : C.tx });
+    g.hit(x - 1, 17, 16, 16, { focus: () => {}, act: () => { v.a = a; v.idx = 0; v.off = 0; t0 = performance.now(); dirty(); } });
+  });
+  g.text(166, 21, '←→ で行動を替える', { color: C.dim, w: 120 });
+  g.text(8, 36, '加護と遺物', { color: C.sub, w: 100 });
+  g.text(372, 36, '注ぐ系統', { color: C.sub, w: 100, align: 'right' });
+  const entries = actEntries(v);
+  const off = Math.min(v.off || 0, Math.max(0, entries.length - 4));
+  const shown = entries.slice(off, off + 4);
+  // 注ぐ系統（紋に描かれている帯だけ）
+  const feeds = [];
+  for (const e of entries) for (const k of e.kws || []) {
+    const r = shape.rows.find((rr) => rr.k === k);
+    if (r && !feeds.some((f) => f.r.k === k)) feeds.push({ r });
+  }
+  const cx = 240, cy = 90;
+  shown.forEach((e, i) => {
+    const y = 48 + i * 26;
+    line(152, y + 11, 220, cy, e.empty ? C.dim : C.sub, 1, !!e.empty);
+  });
+  feeds.slice(0, 4).forEach((f, i) => {
+    const y = 48 + i * 26 + 11;
+    const col = f.r.fu ? C.dim : KW[f.r.k][2];
+    line(260, cy, 328, y, col, f.r.fu ? 1 : f.r.step, f.r.fu);
+    glyphDisc(g, f.r.k, 340, y, 16, col, { fu: f.r.fu });
+    g.text(352, y - 5, kwName(f.r.k), { w: 72, color: f.r.fu ? C.sub : col });
+    if (!f.r.fu) stepDots(428, y - 1, f.r.step, col, 3, 3);
+    else g.text(428, y - 5, '伏流', { w: 40, color: C.sub });
+  });
+  // 中央の角枠
+  R(220, 70, 40, 40, C.card2); box(220, 70, 40, 40, C.focus); box(222, 72, 36, 36, C.sub);
+  R(220, 70, 3, 3, C.paper); R(257, 107, 3, 3, C.paper);
+  g.text(220, 81, ACT_GLYPH[v.a], { w: 40, align: 'center', size: 16, color: C.focus });
+  shown.forEach((e, i) => {
+    const y = 48 + i * 26;
+    const f = v.idx === off + i;
+    if (e.empty) {
+      R(8, y, 144, 22, C.paper); dashBox(8, y, 144, 22, f ? C.focus : C.dim);
+      g.text(30, y + 6, '加護の空き', { w: 118, color: f ? C.focus : C.sub });
+    } else srcCard(g, e.s, 8, y, 144, 22, f);
+    g.hit(8, y, 144, 22, { focus: () => { v.idx = off + i; }, act: () => { if (!e.empty) push({ type: 'sheet', src: e.s }); } });
+  });
+  if (entries.length > off + 4) g.text(8, 150, '▼ 送り', { w: 144, align: 'center', color: C.sub });
+  hr(160);
+  const e = entries[v.idx];
+  if (msg) focusLines(g, `▶ ${msg}`, undefined, undefined, 168);
+  else if (!e) {}
+  else if (e.empty) focusLines(g, `▶ ${ACT_LONG[v.a]} の加護の空き`, 'この行動に乗る祝福を取ると埋まる。伸ばし所', undefined, 168);
+  else if (e.s.kind === 'relic') focusLines(g, `▶ ${e.s.name}  ${SLOT_LABEL[e.s.slot]}`, e.af[0].t, undefined, 168);
+  else focusLines(g, `▶ ${e.s.name}  ${srcSub(e.s)}`, e.s.d || e.s.verb, undefined, 168);
+  guide(g, '←→ 行動　↑↓ 選ぶ　Enter 書付　Esc 紋へ');
+}
+
+// ---------- 試着（拠点） ----------
+function drawTry(g, v) {
+  const shape = shapeOf('base');
+  const cands = candidatesFor(v.k, v.side);
+  g.info.stepped = shape.stepped.length; g.info.fu = shape.fu.length;
+  const page = Math.floor(v.idx / 5);
+  const shown = cands.slice(page * 5, page * 5 + 5);
+  g.info.cands = shown.length;
+  header(g, `紋（拠点） › ${kwName(v.k)} › ${v.side === 'p' ? '源' : '糧'}を足す`, cands.length ? `候補 ${v.idx + 1}/${cands.length}` : '');
+  // 候補の枠
+  box(8, 20, 170, 144, C.rule);
+  if (!cands.length) g.text(16, 80, '倉庫に候補なし', { w: 150, color: C.sub });
+  shown.forEach((cd, i) => {
+    const y = 22 + i * 28;
+    const f = page * 5 + i === v.idx;
+    R(10, y, 166, 26, f ? C.card2 : C.card); box(10, y, 166, 26, f ? C.focus : C.rule);
+    bead(g, cd.it, 14, y + 7, f ? 'lit' : 'n');
+    g.text(30, y + 8, cd.it.name, { w: 92, color: f ? C.focus : C.tx, name: true });
+    if (cd.it.isNew) R(29, y + 3, 4, 2, C.shu);
+    const kws = [v.k, ...otherKws(cd.it, v.k)].slice(0, 3);
+    kws.forEach((kk, j) => glyphDisc(g, kk, 134 + j * 15, y + 13, 12, kk === v.k ? C.tx : kwColor(kk, shape)));
+    if (f && hold && hold.view === v) {
+      const p = Math.min(1, (g.now - hold.start) / HOLD_MS);
+      R(11, y + 23, Math.round(164 * p), 2, C.focus);
+    }
+    g.hit(10, y, 166, 26, { focus: () => { if (v.idx !== page * 5 + i) { v.idx = page * 5 + i; t0 = performance.now(); } }, act: null, hold: () => doSwap(v) });
+  });
+  if (cands.length > (page + 1) * 5) g.text(10, 165, '▼ 送り', { w: 166, align: 'center', color: C.sub });
+  // 動く紋
+  const cd = cands[v.idx];
+  if (cd) {
+    cd.deltas.forEach((d, i) => {
+      const cy = 30 + i * 22;
+      const moving = d.mark !== '';
+      const col = moving ? KW[d.k][2] : mix(d.from > 0 ? KW[d.k][2] : '#5c5852', '#141216', 0.55);
+      glyphDisc(g, d.k, 200, cy, 14, moving ? col : C.dim, { fu: d.from === 0 && !moving });
+      if (moving) bandMorph(214, 300, cy, d, col, g.now, t0);
+      else band(214, 300, cy, d.from, col, g.now);
+      const tc = moving ? C.tx : C.dim;
+      g.text(306, cy - 5, d.from ? dotsTxt(d.from) : '伏', { w: 26, color: tc });
+      g.text(334, cy - 5, '→', { w: 10, color: tc });
+      g.text(346, cy - 5, d.to ? dotsTxt(d.to) : d.from ? '消える' : '伏', { w: 30, color: d.to < d.from && !d.to ? C.down : tc });
+      const mk = { up: ['▲', C.up], crack: ['▼ ひび', C.down], gone: ['▼', C.down], new: ['新', C.focus] }[d.mark];
+      if (mk) g.text(380, cy - 5, mk[0], { w: 60, color: mk[1] });
+    });
+  }
+  // 身（替わる部位を点滅）
+  hr(184);
+  SLOTS.forEach((sl, i) => {
+    const x = 8 + (i % 3) * 16, y = 190 + Math.floor(i / 3) * 16;
+    const swap = cd && cd.it.slot === sl;
+    R(x, y, 14, 14, C.card); box(x, y, 14, 14, swap ? C.focus : C.sub);
+    g.text(x, y + 2, SLOT_GLYPH[sl], { w: 14, align: 'center', color: swap ? C.focus : C.tx });
+    if (swap && (REDUCED.matches || Math.floor(g.now / 400) % 2 === 0)) brackets(x, y, 14, 14, C.focus);
+  });
+  if (cd) g.text(60, 197, `← ${SLOT_LABEL[cd.it.slot]}が替わる`, { w: 120, color: C.sub });
+  if (msg) focusLines(g, `▶ ${msg}`);
+  else if (cd) {
+    const diff = innateDiff(cd.cur, cd.it).map((x) => `${ATTR[x.key]} ${x.d > 0 ? '▲' : '▼'}`).join('　');
+    focusLines(g, `▶ ${cd.it.name} と ${cd.cur ? cd.cur.name : '空き'} を替える　${diff}`);
+  }
+  guide(g, '↑↓ 候補　Enter 長押し 付け替え　Q 書付で並べる　Esc 戻る');
+}
+function doSwap(v) {
+  const cands = candidatesFor(v.k, v.side);
+  const cd = cands[v.idx];
+  if (!cd) return;
+  const old = baseEquip[cd.it.slot];
+  baseEquip = { ...baseEquip, [cd.it.slot]: cd.it };
+  stash = stash.filter((s) => s !== cd.it);
+  if (old) stash.push(old);
+  msg = `${cd.it.name} を付けた`;
+  v.idx = 0; t0 = performance.now();
+  if (curView().type === 'sheet') stack.pop();
+  dirty();
+}
+
+// ---------- 書付 ----------
+function sheetPage(g, s, x, w, other) {
+  let y = 24;
+  R(x, 20, w, 228, C.card); box(x, 20, w, 228, C.rule);
+  R(x + 2, 22, 3, 3, C.shu);
+  g.text(x + 8, y, s.name, { size: 10, w: w - 16, color: C.focus, name: true }); y += 14;
+  const sub = s.kind === 'relic' ? `${SLOT_LABEL[s.slot]} · ${s.base}${s.named ? ' · 名のある遺物' : ''}` : srcSub(s);
+  g.text(x + 8, y, sub, { w: w - 16, color: C.sub }); y += 12;
+  R(x + 8, y, w - 16, 1, C.rule); y += 4;
+  g.text(x + 8, y, s.kind === 'relic' ? '性質' : '効き目', { color: C.sub }); y += 11;
+  const lines = s.kind === 'relic' ? s.af : [{ t: s.d || s.verb, p: s.p, co: s.co, am: s.am }];
+  const tw = w - 16;
+  // 折り返しの行数（全角 8px・半角 4px の見積もり）
+  const rowsOf = (str) => { let w = 0, n = 1; for (const ch of str) { const cw = ch.charCodeAt(0) < 0x2000 ? 4 : 8; if (w + cw > tw) { n++; w = 0; } w += cw; } return n; };
+  for (const a of lines) {
+    const n = rowsOf(a.t);
+    g.text(x + 8, y, a.t, { w: tw, h: n * 10, wrap: true, color: C.tx }); y += n * 10;
+    const tags = [];
+    for (const [side, lab] of [['p', '源'], ['co', '糧'], ['am', '強め']]) for (const k of a[side] || []) tags.push(`${lab} ${KW[k][1]}`);
+    if (tags.length) { g.text(x + 8, y, tags.join(' · '), { w: tw, color: C.sub }); y += 10; }
+    y += 3;
+  }
+  if (s.kind === 'relic') {
+    R(x + 8, y, w - 16, 1, C.rule); y += 4;
+    g.text(x + 8, y, '地金', { color: C.sub }); y += 11;
+    const keys = Object.keys(ATTR).filter((kk) => (s.innate[kk] || 0) || (other && (other.innate[kk] || 0)));
+    if (!keys.length) { g.text(x + 8, y, 'なし', { w: tw, color: C.dim }); y += 10; }
+    keys.forEach((kk, i) => {
+      const val = s.innate[kk] || 0;
+      const d = other ? val - (other.innate[kk] || 0) : 0;
+      const col = d > 0 ? C.up : d < 0 ? C.down : C.tx;
+      const xx = x + 8 + (i % 2) * Math.floor(tw / 2);
+      g.text(xx, y, `${ATTR[kk]} ${val ? '+' + val : 'なし'}${d > 0 ? ' ▲' : d < 0 ? ' ▼' : ''}`, { w: Math.floor(tw / 2) - 4, color: col });
+      if (i % 2 === 1 || i === keys.length - 1) y += 10;
+    });
+    y += 3;
+    R(x + 8, y, w - 16, 1, C.rule); y += 4;
+    g.text(x + 8, y, s.prov, { w: tw, color: C.sub }); y += 11;
+    if (s.flavor) { const n = rowsOf(s.flavor); g.text(x + 8, y, s.flavor, { w: tw, h: n * 10, wrap: true, color: C.dim }); y += n * 10; }
+  }
+}
+function drawSheet(g, v) {
+  if (v.pair) {
+    const tv = stack.slice().reverse().find((x) => x.type === 'try');
+    const cd = tv ? candidatesFor(tv.k, tv.side)[tv.idx] : null;
+    if (!cd) { header(g, '書付'); guide(g, 'Esc 戻る'); return; }
+    header(g, `書付 › 見開き`, '候補　｜　今');
+    sheetPage(g, cd.it, 8, 228, cd.cur);
+    if (cd.cur) sheetPage(g, cd.cur, 244, 228, null);
+    if (hold && hold.view === v) R(8, 249, Math.round(228 * Math.min(1, (g.now - hold.start) / HOLD_MS)), 2, C.focus);
+    g.hit(8, 20, 228, 228, { focus: () => {}, act: null, hold: () => doSwap(tv) });
+    if (msg) g.text(8, 256, `▶ ${msg}`, { ln: true, w: 464, color: C.focus });
+    else guide(g, 'Enter 長押し 付け替え　Esc 戻る');
+    return;
+  }
+  header(g, `書付 › ${v.src.name}`);
+  sheetPage(g, v.src, 8, 464, null);
+  guide(g, 'Esc 戻る');
+}
+
+// ============================================================
+// 文字の層（DOM）と予算の計測
+// ============================================================
+const tl = document.getElementById('tl');
+let lastHtml = '';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function syncText(g) {
+  const html = g.texts.map((t) => {
+    const st = [`left:${t.x}px`, `top:${t.y}px`, `font-size:${t.size}px`, `line-height:${t.lh}px`, `color:${t.color}`, `text-align:${t.align}`, `height:${t.h || t.lh}px`];
+    if (t.w) st.push(`width:${t.w}px`);
+    return `<div class="t ${t.ln ? 'ln' : 'lb'}${t.wrap ? ' wr' : ''}${t.name ? ' nm' : ''}" style="${st.join(';')}">${esc(t.str)}</div>`;
+  }).join('');
+  if (html !== lastHtml) { tl.innerHTML = html; lastHtml = html; return true; }
+  return false;
+}
+const AIMS = {
+  mon: ['持ち物を並べず、強さの形（段の立った系統 4 本と伏流 2 本）だけを 1 枚に描く。400 個持っても帯は 6 本のまま。',
+    '左岸が源、右岸が糧、帯の上の珠が強め。段は帯の太さ・光の走る速さ・丸印の下の珠で見せ、数字にしない。',
+    '↓ で下の台（身・加護の帯・系譜）へ。行動の角枠を Enter で、もう 1 つの問い「何を押しているか」に入る。'],
+  monBase: ['拠点の紋は祝福が無いぶん細い。伏流が「次に伸ばせる方向」の地図になる。',
+    '伏流の破線の「＋」が倉庫への入口。→ で「＋」に焦点を移し、Enter で候補を引く。'],
+  monHl: ['問いが「この品」に替わった。紋に戻り、その品の珠だけが白金で光り、外すと細る帯に ▼・消えるが点滅で出る。',
+    '「この遺物を外すと何が消える？」に、文章を読まずに答える。'],
+  kw: ['問い「この系統を強くしているのは何か」。関わる珠だけが札になって左右に寄り、他の系統は上に畳む。',
+    '品の文章は、この系統に触れる性質の行だけ。1 品の説明が 1〜2 行で済む。残りは「ほか」の丸印と書付へ。'],
+  act: ['もう 1 つの入口「何を押しているか」。行動を選ぶと、その行動に乗る加護と遺物が寄り、右に注ぐ系統が並ぶ。',
+    '加護の空き（破線）がそのまま伸ばし所。ダッシュの系統（丸印）と行動のダッシュ（角枠）は形で分ける。'],
+  try: ['欠けの「＋」から、その系統に足す倉庫の遺物を 5 枚だけ引く。並びは失う系統が少ない順 → 新着。件数は見出しだけ。',
+    '比べるのは数字でなく紋。焦点を移すと帯が太る（▲）・ひびが入る（▼）・消える・伏流が立つ（新）。地金の差は ▲▼ 2 つまで。'],
+  sheet: ['数字を並べたい人の出口はここだけ。候補と今の品を見開きで並べ、性質の全文と地金の差を数で見る。',
+    '紋の画面には載せない全文（性質・地金・来歴）を、開いた品のぶんだけ。'],
+};
+function measure(v, g) {
+  const scr = document.getElementById('screen');
+  const els = [...scr.querySelectorAll('.t')];
+  const lines = els.filter((e) => e.classList.contains('ln')).length;
+  const names = els.filter((e) => e.classList.contains('nm')).length;
+  let nums = 0;
+  for (const e of els) nums += (e.textContent.match(/[0-9０-９]+(?:\.[0-9]+)?/g) || []).length;
+  const isSheet = v.type === 'sheet';
+  const b = document.getElementById('budget');
+  const cell = (label, val, max, extra = '') => `<div>${label} <span class="${val > max && !isSheet ? 'over' : 'v'}">${val}</span> / ${max}${extra ? ` <span class="sub">${extra}</span>` : ''}</div>`;
+  b.innerHTML = cell('文字の行', lines, 3, lines > 3 && lines <= 5 ? '焦点を広げて 5 まで' : '')
+    + cell('候補', g.info.cands, 5)
+    + cell('数字', nums, 4)
+    + `<div>帯 段 <span class="v">${g.info.stepped}</span> / 4 · 伏流 <span class="v">${g.info.fu}</span> / 2</div>`
+    + `<div>札の名前 <span class="v">${names}</span> <span class="sub">（行に数えない）</span></div>`;
+  document.getElementById('budgetNote').textContent = isSheet
+    ? '書付は予算の外（1 品の全文と数字のあふれ先）。開くのは Q だけ。'
+    : '文字の行 = 見出し・焦点・操作案内の行。札・珠の名前と丸印の 1 字は数えない。数字 = 画面内の数の個数。';
+  const key = v.type === 'mon' ? (v.hl ? 'monHl' : v.ctx === 'base' ? 'monBase' : 'mon') : v.type;
+  const titles = { mon: '① 紋', monBase: '① 紋（拠点）', monHl: '① 紋（この品を問う）', kw: '② 系統を選ぶ', act: '③ 行動を選ぶ', try: '④ 試着（拠点）', sheet: '⑤ 書付' };
+  document.getElementById('aimTitle').textContent = `この場面の狙い — ${titles[key]}`;
+  document.getElementById('aim').innerHTML = AIMS[key].map(esc).join('<br>');
+}
+
+// ============================================================
+// ループ
+// ============================================================
+let hits = [];
+let needs = true;
+function dirty() { needs = true; }
+function frameTick(now) {
+  const v = curView();
+  const animated = !REDUCED.matches || hold;
+  if (needs || animated) {
+    needs = false;
+    paper();
+    const g = mkG(now);
+    ({ mon: drawMon, kw: drawKw, act: drawAct, try: drawTry, sheet: drawSheet })[v.type](g, v);
+    frame();
+    hits = g.hits;
+    if (syncText(g)) measure(v, g);
+    if (hold && now - hold.start >= HOLD_MS && !hold.done) { hold.done = true; const fn = hold.fn; hold = null; fn(); }
+  }
+  requestAnimationFrame(frameTick);
+}
+const HOLD_MS = 600;
+
+// ============================================================
+// 入力（矢印・Enter・Esc・Q・マウス）
+// ============================================================
+function move(dx, dy) {
+  const v = curView();
+  msg = null;
+  if (v.type === 'mon') {
+    if (v.hl) return;
+    const shape = shapeOf(v.ctx);
+    const rows = monRows(shape);
+    const items = daiItems(v.ctx);
+    if (v.row < 0) { v.row = 0; v.sub = 0; }
+    if (dy) {
+      const was = v.row;
+      v.row = Math.max(0, Math.min(rows.length, v.row + dy));
+      if (v.row === rows.length && was !== v.row) v.sub = items.findIndex((it) => it.t === 'act');
+      else if (v.row < rows.length) v.sub = 0;
+    }
+    if (dx) {
+      if (v.row === rows.length) v.sub = Math.max(0, Math.min(items.length - 1, v.sub + dx));
+      else {
+        const r = rows[v.row];
+        const hasPlus = v.ctx === 'base' && r.fu;
+        v.sub = dx > 0 && hasPlus ? 1 : 0;
+      }
+    }
+    v.open = false;
+  } else if (v.type === 'kw') {
+    const shape = shapeOf(v.ctx);
+    const cols = kwCols(v, shape);
+    if (v.top) {
+      if (dx) v.topIdx = Math.max(0, Math.min(shape.rows.length - 1, v.topIdx + dx));
+      if (dy > 0) v.top = false;
+    } else {
+      const order = ['p', ...(cols.am.length ? ['am'] : []), 'co'];
+      if (dx) {
+        const ci = Math.max(0, Math.min(order.length - 1, order.indexOf(v.col) + dx));
+        const nc = order[ci];
+        if (nc !== v.col) { v.col = nc; v.idx = Math.min(v.idx, (nc === 'am' ? cols.am.length : cols[nc].length) - 1); }
+      }
+      if (dy) {
+        if (v.col === 'am') { const n = v.idx + dy; if (n < 0) { v.top = true; v.topIdx = shape.rows.findIndex((r) => r.k === v.k); } else v.idx = Math.min(cols.am.length - 1, n); }
+        else {
+          const full = cols[v.col].full, off = cols[v.col].off;
+          const abs = off + v.idx + dy;
+          if (abs < 0) { v.top = true; v.topIdx = Math.max(0, shape.rows.findIndex((r) => r.k === v.k)); }
+          else if (abs < full.length) {
+            v.off = v.off || { p: 0, co: 0 };
+            if (abs >= off + SHOW_BEADS) v.off[v.col] = abs - SHOW_BEADS + 1;
+            else if (abs < off) v.off[v.col] = abs;
+            v.idx = abs - (v.off[v.col] || 0);
+          }
+        }
+      }
+    }
+  } else if (v.type === 'act') {
+    if (dx) { const i = Math.max(0, Math.min(ACT.length - 1, ACT.indexOf(v.a) + dx)); if (ACT[i] !== v.a) { v.a = ACT[i]; v.idx = 0; v.off = 0; t0 = performance.now(); } }
+    if (dy) {
+      const n = actEntries(v).length;
+      v.idx = Math.max(0, Math.min(n - 1, v.idx + dy));
+      const off = v.off || 0;
+      if (v.idx >= off + 4) v.off = v.idx - 3; else if (v.idx < off) v.off = v.idx;
+    }
+  } else if (v.type === 'try') {
+    if (dy) {
+      const n = candidatesFor(v.k, v.side).length;
+      const ni = Math.max(0, Math.min(n - 1, v.idx + dy));
+      if (ni !== v.idx) { v.idx = ni; t0 = performance.now(); }
+    }
+  }
+  dirty();
+}
+function enter() {
+  const v = curView();
+  msg = null;
+  if (v.type === 'mon') {
+    if (v.hl) return;
+    const shape = shapeOf(v.ctx);
+    const rows = monRows(shape);
+    if (v.row < rows.length) {
+      const r = rows[v.row];
+      if (v.sub === 1) openPlus(v, r);
+      else push({ type: 'kw', ctx: v.ctx, k: r.k, col: 'p', idx: 0, top: false });
+    } else daiAct(v, daiItems(v.ctx)[v.sub]);
+  } else if (v.type === 'kw') {
+    const shape = shapeOf(v.ctx);
+    if (v.top) { const r = shape.rows[v.topIdx]; Object.assign(v, { k: r.k, col: 'p', idx: 0, top: false, off: { p: 0, co: 0 } }); t0 = performance.now(); dirty(); return; }
+    const cols = kwCols(v, shape);
+    const it = cols[v.col][v.idx];
+    if (it) kwEnter(v, it);
+  } else if (v.type === 'act') {
+    const e = actEntries(v)[v.idx];
+    if (e && !e.empty) push({ type: 'sheet', src: e.s });
+  }
+  dirty();
+}
+function sheetKey() {
+  const v = curView();
+  if (v.type === 'kw') {
+    const cols = kwCols(v, shapeOf(v.ctx));
+    const it = !v.top && cols[v.col][v.idx];
+    if (it && it.s) push({ type: 'sheet', src: it.s });
+  } else if (v.type === 'try') { if (candidatesFor(v.k, v.side).length) push({ type: 'sheet', pair: true }); }
+  else if (v.type === 'act') { const e = actEntries(v)[v.idx]; if (e && !e.empty) push({ type: 'sheet', src: e.s }); }
+  else if (v.type === 'mon') {
+    if (v.hl) { const s = findSource(v.hl); if (s) push({ type: 'sheet', src: s }); return; }
+    const rows = monRows(shapeOf(v.ctx));
+    if (v.row === rows.length) { const it = daiItems(v.ctx)[v.sub]; if (it.t === 'part') daiAct(v, it); }
+    else { msg = '書付は品に焦点があるときだけ開く'; dirty(); }
+  }
+}
+function holdable() { const v = curView(); return v.type === 'try' || (v.type === 'sheet' && v.pair); }
+function holdFn() {
+  const v = curView();
+  if (v.type === 'try') return () => doSwap(v);
+  const tv = stack.slice().reverse().find((x) => x.type === 'try');
+  return () => doSwap(tv);
+}
+const stage = document.getElementById('stage');
+window.addEventListener('keydown', (e) => {
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+  const k = e.key;
+  const map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  if (map[k]) { e.preventDefault(); move(...map[k]); return; }
+  if (k === 'Enter') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (holdable()) { hold = { start: performance.now(), fn: holdFn(), view: curView() }; dirty(); }
+    else enter();
+    return;
+  }
+  if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); hold = null; pop(); return; }
+  if (k === 'q' || k === 'Q') { e.preventDefault(); sheetKey(); }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'Enter' && hold) { hold = null; msg = '長押しで付け替え'; dirty(); }
+});
+const scr = document.getElementById('screen');
+function logical(e) {
+  const r = scr.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * 480 / r.width, y: (e.clientY - r.top) * 270 / r.height };
+}
+const hitAt = (p) => { for (let i = hits.length - 1; i >= 0; i--) { const h = hits[i]; if (p.x >= h.x && p.x < h.x + h.w && p.y >= h.y && p.y < h.y + h.h) return h; } return null; };
+let lastMove = '';
+scr.addEventListener('pointermove', (e) => {
+  const p = logical(e);
+  const key = `${Math.floor(p.x)},${Math.floor(p.y)}`;
+  if (key === lastMove) return;
+  lastMove = key;
+  const h = hitAt(p);
+  scr.style.cursor = h ? 'pointer' : 'default';
+  if (h && h.focus) { h.focus(); dirty(); }
+});
+scr.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  stage.focus({ preventScroll: true });
+  const h = hitAt(logical(e));
+  if (!h) return;
+  if (h.focus) h.focus();
+  if (h.hold) { hold = { start: performance.now(), fn: h.hold, view: curView(), mouse: true }; }
+  dirty();
+});
+scr.addEventListener('pointerup', (e) => {
+  if (e.button !== 0) return;
+  if (hold && hold.mouse) { hold = null; msg = '押し続けると付け替え'; dirty(); return; }
+  const h = hitAt(logical(e));
+  if (h && h.act) { msg = null; h.act(); dirty(); }
+});
+scr.addEventListener('pointerleave', () => { if (hold && hold.mouse) { hold = null; dirty(); } });
+scr.addEventListener('contextmenu', (e) => { e.preventDefault(); pop(); });
+document.querySelectorAll('[data-scene]').forEach((b) => b.addEventListener('click', () => { setScene(Number(b.dataset.scene)); stage.focus({ preventScroll: true }); }));
+document.getElementById('btnBack').addEventListener('click', () => { pop(); stage.focus({ preventScroll: true }); });
+document.getElementById('btnSheet').addEventListener('click', () => { sheetKey(); stage.focus({ preventScroll: true }); });
+document.getElementById('btnReset').addEventListener('click', () => { resetBase(); msg = '拠点の装備を元に戻した'; const v = curView(); if (v.type === 'try') v.idx = 0; dirty(); });
+REDUCED.addEventListener('change', dirty);
+
+// 整数倍に拡大（幅が 480 に満たないときだけ縮める）
+function fit() {
+  const avail = Math.min(document.querySelector('.wrap').clientWidth - 2, window.innerWidth - 34);
+  const k = avail >= 480 ? Math.max(1, Math.min(4, Math.floor(avail / 480))) : avail / 480;
+  scr.style.zoom = String(k);
+}
+window.addEventListener('resize', fit);
+fit();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { lastHtml = ''; dirty(); });
+setScene(0);
+requestAnimationFrame(frameTick);
+</script>
+</body>
+</html>
