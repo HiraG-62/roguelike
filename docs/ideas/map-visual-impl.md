@@ -3,7 +3,7 @@
 作成日: 2026-10-01（architect）
 前提: `docs/ideas/map-overhaul-ideas.md`（A・D・E 章と「ユーザーの回答」）、見本 `docs/ideas/previews/map-preview.html` の見た目 C（`smoothMask` / `distField` / `floorTex` / `topTex` / `sideTex` / `voidTex` / `terTex` / `getProps` / `applyLight`）、`src/render/{renderer,terrainUi,darkness,pitLook,layers,tileAtlas,imageAtlas,minimap,renderMath}.ts`、`src/data/tiles.ts`、`src/map/grid.ts`、`src/system/{biomes,chapters,runEvents,terrain}.ts`
 
-**状況（2026-10-01）: 段 0〜3 を実装済み。** 残りは階段の章別の絵（置物の絵のレーンの続き）と拠点（門前町の段）
+**状況（2026-10-01）: 段 0〜3 を実装済み。** 残りは階段の章別の絵（置物の絵のレーンの続き）。拠点は門前町の段として 2026-10-02 に実装（`docs/ideas/hub-town-impl.md`）
 
 ## 0. 結論
 
