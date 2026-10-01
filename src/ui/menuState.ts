@@ -119,7 +119,7 @@ export interface MenuHeader {
   crumbs: string;
   right: string | null;
 }
-export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "sheet" | "face" | "back" | "close" | "cancel";
+export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "sheet" | "sort" | "face" | "back" | "close" | "cancel";
 /** main.ts が FrameInput の外から渡す（記録しない入力） */
 export interface MenuSignals {
   back: boolean;

@@ -102,6 +102,8 @@ function guidePart(verb: GuideVerb, face: MenuFace): string {
       return `${ok} 長押し`;
     case "sheet":
       return `${keyLabel("interact", { first: true })} 書付`;
+    case "sort":
+      return `${keyLabel("parry", { first: true })} 並び`;
     case "face":
       return `${keyLabel("inventory", { first: true })} ${face === "attire" ? "紋へ" : "装束へ"}`;
     case "back":

@@ -1,0 +1,340 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createGame } from "../core/game";
+import type { FrameInput } from "../core/input";
+import type { Keyword } from "../core/keywords";
+import { createRng } from "../core/rng";
+import { type GameState } from "../core/state";
+import { AFFIXES, type AffixDef } from "../loot/affixes";
+import { basesForSlot } from "../loot/bases";
+import { createCraftSave } from "../loot/craftingStore";
+import { generateItem } from "../loot/generator";
+import { loadProfile } from "../loot/profile";
+import { MILESTONES, findPendingBud } from "../loot/provenance";
+import type { AffixRoll, Item, Slot } from "../loot/types";
+import { MemoryStorage } from "../meta/testStorage";
+import { setSaveStorage } from "../save/backend";
+import { stoneFromSeed } from "../skills/generator";
+import { addStone, equipStone, stoneInSlot } from "../skills/persistence";
+import { SKILL_KEYS } from "../skills/types";
+import { RESONANCE_EXCLUDED } from "../system/resonance";
+import { withInput } from "../system/testHelpers";
+import { CANDIDATE_PAGE, CANDIDATES_VIEW, candidateEntries, entryFocusId, sortedIds } from "./candidates";
+import { createInventoryUi, updateInventoryUi } from "./inventory";
+import { candidatesFor } from "./menuActions";
+import { fid } from "./menuFocus";
+import { MENU_HOLD_SECONDS } from "./menuInput";
+import { type InventoryUi, type MenuView, type ViewOf, topView } from "./menuState";
+import { isUnseen } from "./seen";
+import { tryOn, tryOnBase } from "./tryOn";
+
+const DT = 1 / 60;
+/** 合の並び 400 件の許容（16ms の目安の数倍。毎フレームではなく開いた 1 回だけの計算） */
+const PERF_LIMIT_MS = 200;
+
+beforeEach(() => {
+  setSaveStorage(new MemoryStorage());
+});
+afterEach(() => {
+  setSaveStorage(null);
+});
+
+function frame(state: GameState, ui: InventoryUi, input: Partial<FrameInput> = {}, confirmHeld = false): void {
+  updateInventoryUi(state, ui, withInput(input), DT, { back: false, confirmHeld });
+}
+
+/** 装備画面を開いて、その部位の候補を積む */
+function openCandidates(state: GameState, view: MenuView): InventoryUi {
+  const ui = createInventoryUi(createCraftSave());
+  frame(state, ui, { inventoryPressed: true });
+  ui.stack.push(view);
+  return ui;
+}
+
+function topCandidates(ui: InventoryUi): ViewOf<"candidates"> {
+  const top = topView(ui);
+  if (top?.kind !== "candidates") throw new Error("候補の頁が積まれていない");
+  return top;
+}
+
+/** 部位 slot の素の遺物（性質なし）。id・foundAt などは付け直す */
+function relic(slot: Slot, id: string, over: Partial<Item> = {}): Item {
+  const base = basesForSlot(slot, 99)[0];
+  if (!base) throw new Error(`base missing: ${slot}`);
+  const item = generateItem(createRng(1), { baseKey: base.key, plain: true, itemLevel: 5, foundDepth: 5, now: 0 });
+  return { ...item, id, name: id, foundAt: 1, foundDepth: 1, affixes: [], budOffer: null, ...over };
+}
+
+function withAffixes(slot: Slot, id: string, defs: readonly AffixDef[], over: Partial<Item> = {}): Item {
+  return relic(slot, id, { affixes: defs.map((d) => ({ key: d.key, value: 1 })), ...over });
+}
+
+function plainState(): GameState {
+  const state = createGame(1);
+  state.profile.stash = [];
+  state.profile.equipment = { mainHand: null, offHand: null, head: null, armor: null, boots: null, ring: null, amulet: null };
+  state.profile.meta.seenAt = {};
+  return state;
+}
+
+function ids(ui: InventoryUi, state: GameState): string[] {
+  return candidateEntries(state, topCandidates(ui)).map(entryFocusId);
+}
+
+describe("候補の頁", () => {
+  it("部位の倉庫だけを 5 枚ずつ並べ、端で送ると次の 5 枚", () => {
+    const state = plainState();
+    for (let i = 0; i < 7; i++) state.profile.stash.push(relic("head", `h${i}`, { foundAt: 10 + i }));
+    state.profile.stash.push(relic("ring", "r0"));
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    const hits = CANDIDATES_VIEW.layout(state, ui, view);
+    const cards = hits.filter((h) => h.id.startsWith("c:"));
+    expect(cards, "1 頁は 5 枚").toHaveLength(CANDIDATE_PAGE);
+    expect(ids(ui, state).some((id) => id === fid.cand("r0")), "ほかの部位の物は並ばない").toBe(false);
+    expect(ids(ui, state), "頭の倉庫 7 つ").toHaveLength(7);
+
+    const last = cards[cards.length - 1];
+    if (!last) throw new Error("札が無い");
+    view.focus = last.id;
+    frame(state, ui, { move: { x: 0, y: 1 } });
+    expect(view.offset, "端で下へ押すと次の 5 枚").toBe(CANDIDATE_PAGE);
+    const next = CANDIDATES_VIEW.layout(state, ui, view).filter((h) => h.id.startsWith("c:"));
+    expect(next, "次の頁は残りの 2 枚").toHaveLength(2);
+    expect(view.focus, "新しい頁の先頭の札に焦点").toBe(next[0]?.id);
+
+    frame(state, ui, { move: { x: 0, y: 0 } });
+    frame(state, ui, { move: { x: 0, y: -1 } });
+    expect(view.offset, "上へ押すと前の 5 枚").toBe(0);
+  });
+
+  it("合は失う系統が少ない順、同じなら新しく立つ系統が多い順", () => {
+    const state = plainState();
+    const def = (key: string): AffixDef => {
+      const found = AFFIXES.find((d) => d.key === key);
+      if (!found) throw new Error(`性質が無い: ${key}`);
+      return found;
+    };
+    // 怯み系: 源 = 頭・首飾り（firstMove）、糧 = 右手・指輪（damageVsStaggered）。燃焼系: 右手・指輪の煽りの残り火で 1 段
+    state.profile.equipment.mainHand = withAffixes("mainHand", "main", [def("damageVsStaggered"), def("emberTrail")]);
+    state.profile.equipment.ring = withAffixes("ring", "ring", [def("damageVsStaggered"), def("emberTrail")]);
+    state.profile.equipment.amulet = withAffixes("amulet", "amulet", [def("firstMove")]);
+    state.profile.equipment.head = withAffixes("head", "worn", [def("firstMove")]);
+    const stash = [
+      withAffixes("head", "keep", [def("firstMove")], { foundAt: 100 }),
+      withAffixes("head", "keep-newer", [def("firstMove")], { foundAt: 300 }),
+      withAffixes("head", "boost", [def("firstMove"), def("burnStack")], { foundAt: 200 }),
+      withAffixes("head", "swap", [def("burnStack")], { foundAt: 400 }),
+      relic("head", "bare", { foundAt: 500 }),
+    ];
+    state.profile.stash = stash;
+
+    const base = tryOnBase(state);
+    const summary = (id: string) => {
+      const item = stash.find((it) => it.id === id);
+      if (!item) throw new Error(id);
+      return tryOn(base, { kind: "relic", slot: "head", item }).summary;
+    };
+    expect(summary("keep").lost, "同じ性質なら失わない").toBe(0);
+    expect(summary("bare").lost, "性質の無い頭は怯み系を失う").toBeGreaterThan(0);
+    expect(summary("boost").gained, "煽りの強めで燃焼系が太る").toBeGreaterThan(summary("keep").gained);
+
+    const order = sortedIds(state, { kind: "slot", slot: "head" }, "fit");
+    const position = (id: string): number => order.indexOf(id);
+    expect(position("boost"), "失わず太る物が最初").toBeLessThan(position("keep-newer"));
+    expect(position("keep-newer"), "同じ集計は新しい物が先").toBeLessThan(position("keep"));
+    expect(position("keep"), "失わない物は失う物より先").toBeLessThan(position("swap"));
+    expect(position("keep"), "失わない物は失う物より先").toBeLessThan(position("bare"));
+    expect(position("swap"), "同じだけ失うなら新しく太る物が先").toBeLessThan(position("bare"));
+  });
+
+  it("新は新着を先に、次に深い順", () => {
+    const state = plainState();
+    state.profile.meta.seenAt = { head: 100 };
+    state.profile.stash = [
+      relic("head", "old-deep", { foundAt: 50, foundDepth: 9 }),
+      relic("head", "old-shallow", { foundAt: 60, foundDepth: 2 }),
+      relic("head", "new-shallow", { foundAt: 200, foundDepth: 3 }),
+      relic("head", "new-deep", { foundAt: 210, foundDepth: 8 }),
+    ];
+    const order = sortedIds(state, { kind: "slot", slot: "head" }, "new");
+    expect(order, "新着が先、その中は深い順、次に見た物の深い順").toEqual(["new-deep", "new-shallow", "old-deep", "old-shallow"]);
+    const items = state.profile.stash;
+    expect(items.filter((it) => isUnseen(it, state.profile.meta)).map((it) => it.id).sort(), "新着は 2 つ").toEqual(["new-deep", "new-shallow"]);
+  });
+
+  it("名は名のある遺物・銘・芽のある物を先に", () => {
+    const state = plainState();
+    const offer: AffixRoll = { key: "armorFlat", value: 1, nominal: 1, flux: 0, color: "gold", origin: "found" };
+    state.profile.stash = [
+      relic("head", "plain-new", { foundAt: 500 }),
+      relic("head", "named", { foundAt: 10, namedKey: "luckyCat" }),
+      relic("head", "inscribed", { foundAt: 20, inscription: "銘" }),
+      relic("head", "budding", { foundAt: 30, budOffer: { milestone: "kills:50", options: [offer, offer] } }),
+      relic("head", "plain-old", { foundAt: 5 }),
+    ];
+    const order = sortedIds(state, { kind: "slot", slot: "head" }, "name");
+    expect(order.slice(0, 3).sort(), "名・銘・芽の 3 つが先頭").toEqual(["budding", "inscribed", "named"]);
+    expect(order.slice(3), "残りは新しい順").toEqual(["plain-new", "plain-old"]);
+  });
+
+  it("決定で付け替え、外した物は一覧の先頭に出て焦点が移る", () => {
+    const state = plainState();
+    state.profile.equipment.head = relic("head", "worn");
+    state.profile.stash = [relic("head", "a", { foundAt: 5 }), relic("head", "b", { foundAt: 4 }), relic("head", "c", { foundAt: 3 })];
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    view.focus = fid.cand("b");
+    frame(state, ui, { confirmPressed: true });
+    expect(state.profile.equipment.head?.id, "b を付けた").toBe("b");
+    expect(state.profile.stash.map((it) => it.id), "外した物は倉庫の末尾（変えない）").toEqual(["a", "c", "worn"]);
+    expect(candidateEntries(state, view).map(entryFocusId)[0], "外した物が一覧の先頭").toBe(fid.cand("worn"));
+    expect(view.focus, "焦点は外した物").toBe(fid.cand("worn"));
+    expect(view.offset, "頁は先頭").toBe(0);
+  });
+
+  it("付け替えで能力が畳み直され、保存される", () => {
+    const state = plainState();
+    const heavy = generateItem(createRng(7), { baseKey: "plate", plain: true, itemLevel: 40, foundDepth: 40, now: 0 });
+    state.profile.stash = [{ ...heavy, id: "heavy", slot: "armor" }];
+    const before = state.stats.armor;
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "armor"));
+    topCandidates(ui).focus = fid.cand("heavy");
+    frame(state, ui, { confirmPressed: true });
+    expect(state.stats.armor, "防御力が畳み直される").toBeGreaterThan(before);
+    const saved = loadProfile();
+    expect(saved.equipment.armor?.id, "保存された装備").toBe("heavy");
+  });
+
+  it("系統から来た候補は全部位から、その系統の源 / 糧を持つ遺物だけ", () => {
+    const state = plainState();
+    const usable = AFFIXES.filter((d) => d.keywords !== undefined && d.keywords.produces.length > 0);
+    const excluded = new Set<Keyword>(RESONANCE_EXCLUDED);
+    const def = usable.find((d) => d.keywords?.produces.some((k) => !excluded.has(k)));
+    const keyword = def?.keywords?.produces.find((k) => !excluded.has(k));
+    if (def === undefined || keyword === undefined) throw new Error("源になる性質が無い");
+    const sinkDef = AFFIXES.find((d) => d.keywords?.consumes.includes(keyword) === true && d.keywords.produces.includes(keyword) === false);
+    const otherDef = AFFIXES.find((d) => d.keywords !== undefined && !d.keywords.produces.includes(keyword) && !d.keywords.consumes.includes(keyword) && !d.keywords.amplifies.includes(keyword));
+    state.profile.stash = [
+      withAffixes("head", "src-head", [def]),
+      withAffixes("ring", "src-ring", [def]),
+      withAffixes("boots", "plain-boots", otherDef === undefined ? [] : [otherDef]),
+      relic("armor", "bare-armor"),
+    ];
+    if (sinkDef !== undefined) state.profile.stash.push(withAffixes("amulet", "sink-amulet", [sinkDef]));
+    const view = { ...candidatesFor(createInventoryUi(createCraftSave()), "head"), target: { kind: "flow" as const, keyword, verb: "produces" as const } };
+    const ui = openCandidates(state, view);
+    const got = ids(ui, state).sort();
+    expect(got, "その系統の源を持つ頭と指輪だけ").toEqual([fid.cand("src-head"), fid.cand("src-ring")].sort());
+  });
+
+  it("石の候補で腰の石を付け替え、長押しで分解する", () => {
+    const state = plainState();
+    const profile = state.skills.profile;
+    profile.stones = [];
+    profile.loadout = [null, null, null, null];
+    const keys = SKILL_KEYS.slice(0, 3);
+    const stones = keys.map((skillKey, i) => stoneFromSeed(10 + i, { skillKey, foundDepth: 1, now: i }));
+    for (const s of stones) addStone(profile, s);
+    const [first, second, third] = stones;
+    if (!first || !second || !third) throw new Error("石が足りない");
+    equipStone(profile, first.id, 1);
+
+    const ui = openCandidates(state, { ...candidatesFor(createInventoryUi(createCraftSave()), "head"), target: { kind: "stone", index: 1 } });
+    const view = topCandidates(ui);
+    const entries = candidateEntries(state, view).map(entryFocusId);
+    expect(entries, "その枠の石以外の石と空ける").toEqual(expect.arrayContaining([fid.cand(second.id), fid.cand(third.id), fid.clear]));
+    expect(entries, "枠の石は並ばない").not.toContain(fid.cand(first.id));
+
+    view.focus = fid.cand(second.id);
+    // 石の札は長押しを持つので、押して離すと決定になる
+    frame(state, ui, { confirmPressed: true }, true);
+    frame(state, ui, {}, false);
+    expect(stoneInSlot(profile, 1)?.id, "石を付け替えた").toBe(second.id);
+    expect(view.focus, "外した石に焦点").toBe(fid.cand(first.id));
+
+    // 長押しで分解（0.6 秒押し続ける）
+    view.focus = fid.cand(third.id);
+    frame(state, ui, { confirmPressed: true }, true);
+    expect(profile.stones.some((s) => s.id === third.id), "押した瞬間は分解しない").toBe(true);
+    for (let t = 0; t < MENU_HOLD_SECONDS + 0.1; t += DT) frame(state, ui, {}, true);
+    expect(profile.stones.some((s) => s.id === third.id), "長押しで分解した").toBe(false);
+  });
+
+  it("芽のある部位は先頭に芽吹きの札 2 枚が出て、決定で芽吹く", () => {
+    const state = plainState();
+    const offerA: AffixRoll = { key: "armorFlat", value: 3, nominal: 3, flux: 0, color: "gold", origin: "found" };
+    const offerB: AffixRoll = { key: "armorFlat", value: 4, nominal: 4, flux: 0, color: "gold", origin: "found" };
+    const milestone = MILESTONES[0]?.key ?? "kills:50";
+    state.profile.equipment.head = relic("head", "budded", { margin: 2, marginMax: 2, budOffer: { milestone, options: [offerA, offerB] } });
+    state.profile.stash = [relic("head", "stash-head")];
+    state.pendingBud = findPendingBud(state.profile);
+    if (state.pendingBud === null) throw new Error("芽が提示されない");
+
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    const entries = candidateEntries(state, view).map(entryFocusId);
+    expect(entries.slice(0, 2), "先頭に芽吹きの札 2 枚").toEqual([fid.bud(0), fid.bud(1)]);
+    expect(entries[2], "その次に倉庫の物").toBe(fid.cand("stash-head"));
+
+    view.focus = fid.bud(1);
+    frame(state, ui, { confirmPressed: true });
+    const worn = state.profile.equipment.head;
+    expect(worn?.affixes.some((a) => a.origin === "bud" && a.value === 4), "選んだ方が芽吹いた").toBe(true);
+    expect(worn?.budOffer ?? null, "提示は消える").toBeNull();
+    expect(candidateEntries(state, view).map(entryFocusId)[0], "芽吹きの札は無くなる").toBe(fid.cand("stash-head"));
+  });
+
+  it("候補の頁を離れるとその部位の新着が消える", () => {
+    const state = plainState();
+    state.profile.stash = [relic("head", "n1", { foundAt: 500 }), relic("ring", "n2", { foundAt: 600 })];
+    const fresh = (slot: Slot): boolean => state.profile.stash.some((it) => it.slot === slot && isUnseen(it, state.profile.meta));
+    expect(fresh("head"), "最初は新着").toBe(true);
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    frame(state, ui, { move: { x: 0, y: 0 } });
+    updateInventoryUi(state, ui, withInput({}), DT, { back: true, confirmHeld: false });
+    expect(ui.stack.map((v) => v.kind), "装束へ戻った").toEqual(["attire"]);
+    expect(fresh("head"), "頭の新着は消える").toBe(false);
+    expect(fresh("ring"), "見ていない指輪は新着のまま").toBe(true);
+    expect(loadProfile().meta.seenAt?.head, "保存される").toBe(500);
+  });
+
+  it("空けるで部位を外す", () => {
+    const state = plainState();
+    state.profile.equipment.boots = relic("boots", "worn-boots");
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "boots"));
+    const view = topCandidates(ui);
+    expect(candidateEntries(state, view).map(entryFocusId), "埋まっていれば末尾に空ける").toEqual([fid.clear]);
+    view.focus = fid.clear;
+    frame(state, ui, { confirmPressed: true });
+    expect(state.profile.equipment.boots, "外れた").toBeNull();
+    expect(state.profile.stash.map((it) => it.id), "倉庫へ戻った").toEqual(["worn-boots"]);
+    expect(candidateEntries(state, view).map(entryFocusId), "空いた部位に空けるは出ない").toEqual([fid.cand("worn-boots")]);
+    expect(view.focus, "外した物に焦点").toBe(fid.cand("worn-boots"));
+  });
+});
+
+describe("候補の並びの計算", () => {
+  it("並びは頁を開いて最初に 1 回だけ数え、view.order に入れる", () => {
+    const state = plainState();
+    for (let i = 0; i < 6; i++) state.profile.stash.push(relic("head", `h${i}`, { foundAt: i }));
+    const view = candidatesFor(createInventoryUi(createCraftSave()), "head");
+    expect(view.order, "開く前は未計算").toBeNull();
+    candidateEntries(state, view);
+    const first = view.order;
+    expect(first, "数えて入れた").toHaveLength(6);
+    candidateEntries(state, view);
+    expect(view.order, "2 回目は同じ配列を使い回す").toBe(first);
+  });
+
+  it("倉庫が最大でも並びの計算が 1 フレームに収まる", () => {
+    const state = plainState();
+    state.profile.equipment.ring = relic("ring", "now");
+    const defs = AFFIXES.filter((d) => d.slots.includes("ring") && d.keywords !== undefined);
+    for (let i = 0; i < 400; i++) state.profile.stash.push(withAffixes("ring", `r${i}`, defs.slice(i % 7, (i % 7) + 3), { foundAt: i }));
+    const t0 = performance.now();
+    const order = sortedIds(state, { kind: "slot", slot: "ring" }, "fit");
+    const ms = performance.now() - t0;
+    expect(order, "400 件が並ぶ").toHaveLength(400);
+    expect(ms, `400 件の合の並び ${ms.toFixed(1)}ms`).toBeLessThan(PERF_LIMIT_MS);
+  });
+});
