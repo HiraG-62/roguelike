@@ -118,8 +118,8 @@ export function buildFloor(state: GameState, kind?: FloorKind): void {
   if (!isBossDepth(state.depth) && !skipsFloorLord(state.depth) && state.map.rooms.length - 1 > START_ROOM) {
     carveArena(state.map, state.map.rooms.length - 1, FLOOR_LORD.arenaRadius);
   }
-  const inAnyRoom = roomTileMask(state.map);
-  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, state.map.roomTiles?.[i], inAnyRoom));
+  const doorIndex = createDoorIndex(state.map);
+  state.rooms = state.map.rooms.map((rect, i) => createRoomState(state.map, rect, i, doorIndex));
   state.lockedTiles = new Set();
   state.hazards = [];
   state.boss = null;
@@ -214,12 +214,13 @@ function clearEmptyOpenRooms(state: GameState): void {
   });
 }
 
-function createRoomState(map: GameMap, rect: Rect, tileList: readonly number[] | undefined, inAnyRoom: Uint8Array): RoomState {
+function createRoomState(map: GameMap, rect: Rect, index: number, doorIndex: DoorIndex): RoomState {
+  const tileList = map.roomTiles?.[index];
   return {
     rect,
     cleared: false,
     locked: false,
-    doorTiles: tileList ? findBlobDoorTiles(map, tileList, inAnyRoom) : findDoorTiles(map, rect),
+    doorTiles: tileList ? roomBlobDoorTiles(doorIndex, index, tileList) : findDoorTiles(map, rect),
     kind: "normal",
     wave: 0,
     used: false,
@@ -338,16 +339,10 @@ function findDoorTiles(map: GameMap, r: Rect): number[] {
   return tiles;
 }
 
-const NEIGHBORS_8 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [1, -1],
-  [-1, 1],
-  [-1, -1],
-] as const;
+/** 8 近傍の差分。x と y を別の表にして内側のループで組を分解しない（並びは扉の候補の順を変えないよう旧来と同じ） */
+const N8_DX = [1, -1, 0, 0, 1, 1, -1, -1] as const;
+const N8_DY = [0, 0, 1, -1, 1, -1, 1, -1] as const;
+const N8_COUNT = 8;
 
 /** findBlobDoorTiles の印。マップごとに 1 枚を使い回し、呼ぶたびに印の番号を 2 つ進める（部屋 = stamp、扉 = stamp + 1） */
 interface DoorMarks {
@@ -382,25 +377,31 @@ export function roomTileMask(map: GameMap): Uint8Array {
  * 広いマップでは部屋もタイルも多いので、Set ではなく使い回しの印の配列で数える。inAnyRoom は roomTileMask(map)
  */
 export function findBlobDoorTiles(map: GameMap, tiles: readonly number[], inAnyRoom: Uint8Array = roomTileMask(map)): number[] {
+  return dropPocketDoors(map, tiles, blobDoorCandidates(map, tiles), inAnyRoom).sort((a, b) => a - b);
+}
+
+/** 扉の候補: 塊に 8 近傍で接する、塊の外の床（重複なし。並びは塊のタイル順 × 近傍の順） */
+function blobDoorCandidates(map: GameMap, tiles: readonly number[]): number[] {
   const { mark, stamp } = doorMarksOf(map);
   const roomStamp = stamp;
   const doorStamp = stamp + 1;
+  const { width, height, tiles: cells } = map;
   for (const i of tiles) mark[i] = roomStamp;
   const doors: number[] = [];
   for (const i of tiles) {
-    const x = i % map.width;
-    const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_8) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!isWalkable(map, nx, ny)) continue;
-      const ni = toIndex(map, nx, ny);
-      if (mark[ni] === roomStamp || mark[ni] === doorStamp) continue;
+    const x = i % width;
+    const y = Math.floor(i / width);
+    for (let k = 0; k < N8_COUNT; k++) {
+      const nx = x + (N8_DX[k] ?? 0);
+      const ny = y + (N8_DY[k] ?? 0);
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const ni = ny * width + nx;
+      if (!isPassableTile(cells[ni] ?? Tile.Wall) || mark[ni] === roomStamp || mark[ni] === doorStamp) continue;
       mark[ni] = doorStamp;
       doors.push(ni);
     }
   }
-  return dropPocketDoors(map, tiles, doors, inAnyRoom).sort((a, b) => a - b);
+  return doors;
 }
 
 /**
@@ -421,9 +422,11 @@ function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly
       const i = comp[head] ?? 0;
       const x = i % map.width;
       const y = Math.floor(i / map.width);
-      for (const [dx, dy] of NEIGHBORS_8) {
-        if (!isWalkable(map, x + dx, y + dy)) continue;
-        const ni = toIndex(map, x + dx, y + dy);
+      for (let k = 0; k < N8_COUNT; k++) {
+        const nx = x + (N8_DX[k] ?? 0);
+        const ny = y + (N8_DY[k] ?? 0);
+        if (!isWalkable(map, nx, ny)) continue;
+        const ni = toIndex(map, nx, ny);
         if (own.has(ni) || seen.has(ni)) continue;
         // 自分のタイルは上で除いたので、ここで部屋の所属なら他の部屋
         if (inAnyRoom[ni] === 1) {
@@ -438,6 +441,119 @@ function dropPocketDoors(map: GameMap, tiles: readonly number[], doors: readonly
     for (const c of comp) if (doorSet.has(c)) keep.push(c);
   }
   return keep;
+}
+
+/** タイルの持ち主: どの部屋のタイルでもない */
+const NO_ROOM = -1;
+/** タイルの持ち主: 2 つ以上の部屋が同じタイルを持つ */
+const SHARED_ROOM = -2;
+/** 部屋の外の床の成分が、2 つ以上の部屋（の持ち主の値）に接する */
+const MANY_ROOMS = -3;
+/** 部屋の外の床でないタイルの成分番号 */
+const NO_COMPONENT = -1;
+
+/**
+ * 階ごとの扉探しの下ごしらえ。部屋ごとに袋の扉を探すと、部屋の外の床（通路網）を部屋の数だけ辿り直して重い
+ * （通路の多い型で buildFloor の半分を超えた）。部屋の外の床の 8 近傍の成分と「その成分が接する部屋」を 1 回だけ数えて共有する
+ */
+interface DoorIndex {
+  map: GameMap;
+  /** タイルの持ち主の部屋（NO_ROOM / 部屋の番号 / SHARED_ROOM） */
+  owner: Int32Array;
+  inAnyRoom: Uint8Array;
+  /** 部屋の外の床の成分（最初に塊の部屋の扉を探すときに作る） */
+  outside: OutsideComponents | null;
+}
+
+interface OutsideComponents {
+  /** タイルの成分番号（部屋の外の床でなければ NO_COMPONENT） */
+  label: Int32Array;
+  /** 成分ごとの接する部屋（NO_ROOM / 部屋の番号 / SHARED_ROOM / MANY_ROOMS） */
+  touches: number[];
+}
+
+function createDoorIndex(map: GameMap): DoorIndex {
+  const owner = new Int32Array(map.tiles.length).fill(NO_ROOM);
+  const inAnyRoom = new Uint8Array(map.tiles.length);
+  (map.roomTiles ?? []).forEach((list, room) => {
+    for (const t of list) {
+      inAnyRoom[t] = 1;
+      const o = owner[t] ?? NO_ROOM;
+      owner[t] = o === NO_ROOM || o === room ? room : SHARED_ROOM;
+    }
+  });
+  return { map, owner, inAnyRoom, outside: null };
+}
+
+/** 成分の接する部屋に room を足す。違う部屋が 2 つ揃ったら MANY_ROOMS */
+function mergeTouch(current: number, room: number): number {
+  return current === NO_ROOM || current === room ? room : MANY_ROOMS;
+}
+
+/** 部屋の外の床（通れる・どの部屋のタイルでもない）を 8 近傍でつないだ成分と、成分ごとの接する部屋（通れる部屋のタイルだけ数える） */
+function labelOutside(index: DoorIndex): OutsideComponents {
+  const { map, owner, inAnyRoom } = index;
+  const { width, height, tiles: cells } = map;
+  const label = new Int32Array(cells.length).fill(NO_COMPONENT);
+  const touches: number[] = [];
+  const queue = new Int32Array(cells.length);
+  for (let start = 0; start < cells.length; start++) {
+    if (label[start] !== NO_COMPONENT || inAnyRoom[start] === 1 || !isPassableTile(cells[start] ?? Tile.Wall)) continue;
+    const id = touches.length;
+    let touch = NO_ROOM;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    label[start] = id;
+    while (head < tail) {
+      const i = queue[head++] ?? 0;
+      const x = i % width;
+      const y = Math.floor(i / width);
+      for (let k = 0; k < N8_COUNT; k++) {
+        const nx = x + (N8_DX[k] ?? 0);
+        const ny = y + (N8_DY[k] ?? 0);
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const ni = ny * width + nx;
+        if (!isPassableTile(cells[ni] ?? Tile.Wall)) continue;
+        if (inAnyRoom[ni] === 1) {
+          touch = mergeTouch(touch, owner[ni] ?? NO_ROOM);
+          continue;
+        }
+        if (label[ni] !== NO_COMPONENT) continue;
+        label[ni] = id;
+        queue[tail++] = ni;
+      }
+    }
+    touches.push(touch);
+  }
+  return { label, touches };
+}
+
+/**
+ * 部屋 room（所属タイル tiles = map.roomTiles[room]）の扉。結果は findBlobDoorTiles と同じ。
+ * 扉の候補がどれも部屋の外の床で、部屋のタイルを他の部屋と共有していなければ、候補の成分が自分以外の部屋に接するかで袋を見分ける
+ * （袋の判定 = 成分を辿って他の部屋のタイルに行き着くか、と同じ）。そうでない珍しい形は部屋ごとに辿る元のやり方に任せる
+ */
+function roomBlobDoorTiles(index: DoorIndex, room: number, tiles: readonly number[]): number[] {
+  const doors = blobDoorCandidates(index.map, tiles);
+  if (!sharesComponents(index, room, tiles, doors)) {
+    return dropPocketDoors(index.map, tiles, doors, index.inAnyRoom).sort((a, b) => a - b);
+  }
+  index.outside ??= labelOutside(index);
+  const { label, touches } = index.outside;
+  return doors.filter((d) => leadsElsewhere(touches[label[d] ?? NO_COMPONENT] ?? NO_ROOM, room)).sort((a, b) => a - b);
+}
+
+/** 共有の成分で袋を見分けられるか: 部屋のタイルを他の部屋と共有せず、扉の候補がどれも他の部屋のタイルでない */
+function sharesComponents(index: DoorIndex, room: number, tiles: readonly number[], doors: readonly number[]): boolean {
+  for (const t of tiles) if (index.owner[t] !== room) return false;
+  for (const d of doors) if (index.inAnyRoom[d] === 1) return false;
+  return true;
+}
+
+/** 成分の接する部屋に、room 以外の部屋があるか */
+function leadsElsewhere(touch: number, room: number): boolean {
+  return touch === MANY_ROOMS || (touch !== NO_ROOM && touch !== room);
 }
 
 /** 部屋に置く敵の抽選回数。広い階（部屋も大きい）は 面積の倍率 ^ MAP_SIZE.roomEnemiesExp 倍（倍率 1 なら基準と同じ） */

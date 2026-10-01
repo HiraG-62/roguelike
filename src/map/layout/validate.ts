@@ -23,6 +23,12 @@ export interface ValidateOptions {
 
 export const DEFAULT_VALIDATE: ValidateOptions = { ...MAP_LAYOUT.validate, lordRadius: FLOOR_LORD.arenaRadius };
 
+/** NEIGHBORS_8 / NEIGHBORS_4 を x と y の別の表にしたもの（内側のループで組を分解しない） */
+const DX8: readonly number[] = NEIGHBORS_8.map(([dx]) => dx);
+const DY8: readonly number[] = NEIGHBORS_8.map(([, dy]) => dy);
+const DX4: readonly number[] = NEIGHBORS_4.map(([dx]) => dx);
+const DY4: readonly number[] = NEIGHBORS_4.map(([, dy]) => dy);
+
 export function validateLayout(map: GameMap, options: ValidateOptions = DEFAULT_VALIDATE): string | null {
   return (
     checkStructure(map) ??
@@ -69,21 +75,25 @@ function checkRoomSpacing(map: GameMap): string | null {
   (map.roomTiles ?? []).forEach((tiles, id) => {
     for (const t of tiles) owner[t] = id;
   });
-  for (let i = 0; i < owner.length; i++) {
-    const id = owner[i] ?? -1;
-    if (id < 0) continue;
-    const x = i % map.width;
-    const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_8) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
-      const other = owner[ny * map.width + nx] ?? -1;
-      if (other >= 0 && other !== id) return "部屋どうしが 8 近傍で接している";
+  // 部屋のタイルだけを見る（全マスを走査して持ち主の無いマスを飛ばすのと同じ。広い地図で部屋の外を回らない）
+  for (const tiles of map.roomTiles ?? []) {
+    for (const i of tiles) {
+      const id = owner[i] ?? -1;
+      if (id < 0) continue;
+      const x = i % map.width;
+      const y = Math.floor(i / map.width);
+      for (let k = 0; k < NEIGHBORS_8.length; k++) {
+        const nx = x + (DX8[k] ?? 0);
+        const ny = y + (DY8[k] ?? 0);
+        if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
+        const other = owner[ny * map.width + nx] ?? -1;
+        if (other >= 0 && other !== id) return "部屋どうしが 8 近傍で接している";
+      }
     }
   }
   return null;
 }
+
 
 /** 1. 通れる床が 4 近傍で 1 つにつながる（階段から広げて全部に着く） */
 function checkConnected(map: GameMap): string | null {
@@ -91,23 +101,26 @@ function checkConnected(map: GameMap): string | null {
   let passable = 0;
   for (let i = 0; i < map.tiles.length; i++) if (isPassableTile(map.tiles[i] ?? Tile.Wall)) passable++;
   const seen = new Uint8Array(map.tiles.length);
-  const queue = [stairs];
+  // 各マスは 1 回だけ入るので、待ち行列はマスの数ぶんの型付き配列で足りる
+  const queue = new Int32Array(map.tiles.length);
+  let tail = 0;
+  queue[tail++] = stairs;
   seen[stairs] = 1;
-  for (let head = 0; head < queue.length; head++) {
+  for (let head = 0; head < tail; head++) {
     const i = queue[head] ?? 0;
     const x = i % map.width;
     const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_4) {
-      const nx = x + dx;
-      const ny = y + dy;
+    for (let k = 0; k < NEIGHBORS_4.length; k++) {
+      const nx = x + (DX4[k] ?? 0);
+      const ny = y + (DY4[k] ?? 0);
       if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
       const ni = ny * map.width + nx;
       if (seen[ni] || !isPassableTile(map.tiles[ni] ?? Tile.Wall)) continue;
       seen[ni] = 1;
-      queue.push(ni);
+      queue[tail++] = ni;
     }
   }
-  return queue.length === passable ? null : "通れる床が 1 つにつながっていない";
+  return tail === passable ? null : "通れる床が 1 つにつながっていない";
 }
 
 /** width x width の窓（左上が i）がすべて通れるか */
@@ -158,9 +171,9 @@ function checkMainPath(map: GameMap, width: number): string | null {
     if (reachesStairs(i)) return null;
     const x = i % map.width;
     const y = Math.floor(i / map.width);
-    for (const [dx, dy] of NEIGHBORS_4) {
-      const nx = x + dx;
-      const ny = y + dy;
+    for (let k = 0; k < NEIGHBORS_4.length; k++) {
+      const nx = x + (DX4[k] ?? 0);
+      const ny = y + (DY4[k] ?? 0);
       if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
       const ni = ny * map.width + nx;
       if (!open[ni] || seen[ni]) continue;

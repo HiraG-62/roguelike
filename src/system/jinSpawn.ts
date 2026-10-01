@@ -70,8 +70,10 @@ export function planJins(state: GameState, skip: ReadonlySet<number>): void {
     const center = rectCenterPx(room.rect);
     spawnJin(state, index, formation, budget, center, roomFacing(state, index), roomArea(state, room), () => true);
   }
-  placeColumns(state);
-  placeLookouts(state);
+  // 通路タイルは地図と部屋だけで決まり、長蛇を置いても変わらないので 1 回だけ数えて物見と分け合う
+  const corridor = corridorTileList(state);
+  placeColumns(state, corridor);
+  placeLookouts(state, corridor);
 }
 
 /** 陣を起こす（気付いた者の近くだけ起こし、残りは後詰。本体は jin.ts） */
@@ -466,34 +468,68 @@ export function columnCount(depth: number): number {
  * 通路タイルのうち、置いた陣・開始の塊・他の長蛇から最も遠い点を順に選んで長蛇を置く（乱数なし）。
  * 最遠でも minDistFromJin に届かなければ止める
  */
-function placeColumns(state: GameState): void {
+function placeColumns(state: GameState, tiles: readonly number[]): void {
   const formation = formationDef("column");
-  const tiles = corridorTileList(state);
   if (!formation || tiles.length === 0) return;
   const corridor = new Uint8Array(state.map.tiles.length);
   for (const t of tiles) corridor[t] = 1;
   const start = state.rooms[START_ROOM];
   const anchors: Vec[] = [...(start ? [rectCenterPx(start.rect)] : []), ...state.jins.map((j) => j.center)];
   const want = columnCount(state.depth);
+  if (want <= 0) return;
+  const field = createNearestField(state, tiles);
+  for (const a of anchors) addAnchor(field, a);
   for (let n = 0; n < want; n++) {
-    const at = farthestTile(state, tiles, anchors);
+    const at = farthestTile(field);
     if (!at) return;
-    anchors.push(at);
+    addAnchor(field, at);
     spawnColumn(state, formation, at, (t) => corridor[t] === 1);
   }
 }
 
-function farthestTile(state: GameState, tiles: readonly number[], anchors: readonly Vec[]): Vec | null {
-  let best: Vec | null = null;
+/**
+ * 通路タイルの中心と、各タイルから置いた点（anchors）までの最小距離。点を足すたびに全部の点との距離を測り直すと
+ * タイル数 × 点の数 × 本数になるので、足した点との距離だけで最小値を更新する（min は順に依らないので結果は同じ）
+ */
+interface NearestField {
+  xs: Float64Array;
+  ys: Float64Array;
+  nearest: Float64Array;
+}
+
+function createNearestField(state: GameState, tiles: readonly number[]): NearestField {
+  const w = state.map.width;
+  const xs = new Float64Array(tiles.length);
+  const ys = new Float64Array(tiles.length);
+  tiles.forEach((t, k) => {
+    xs[k] = ((t % w) + 0.5) * TILE_SIZE;
+    ys[k] = (Math.floor(t / w) + 0.5) * TILE_SIZE;
+  });
+  return { xs, ys, nearest: new Float64Array(tiles.length).fill(Number.POSITIVE_INFINITY) };
+}
+
+function addAnchor(field: NearestField, a: Vec): void {
+  const { xs, ys, nearest } = field;
+  for (let k = 0; k < nearest.length; k++) {
+    // minDistTo と同じ dist(q, a)（Math.hypot）で測る（距離の丸めを変えない）
+    const d = Math.hypot((xs[k] ?? 0) - a.x, (ys[k] ?? 0) - a.y);
+    if (d < (nearest[k] ?? 0)) nearest[k] = d;
+  }
+}
+
+/** 置いた点から最も遠い通路タイルの中心（同じ距離は一覧の先）。minDistFromJin に届かなければ null */
+function farthestTile(field: NearestField): Vec | null {
+  const { xs, ys, nearest } = field;
+  let best = -1;
   let bestD = -1;
-  for (const t of tiles) {
-    const q = { x: ((t % state.map.width) + 0.5) * TILE_SIZE, y: (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE };
-    const d = minDistTo(q, anchors);
+  for (let k = 0; k < nearest.length; k++) {
+    const d = nearest[k] ?? 0;
     if (d <= bestD) continue;
-    best = q;
+    best = k;
     bestD = d;
   }
-  return bestD >= JIN.column.minDistFromJin ? best : null;
+  if (best < 0 || bestD < JIN.column.minDistFromJin) return null;
+  return { x: xs[best] ?? 0, y: ys[best] ?? 0 };
 }
 
 /** 長蛇 1 本: 先頭の目的地を引き（rng）、その道の向きへ列を伸ばす。全員が同じ目的地を持つ */
@@ -519,10 +555,9 @@ function spawnColumn(state: GameState, formation: FormationDef, at: Vec, inArea:
  * 中点から snapDist を超えて離れる・他の陣や物見に近すぎる組は見送り、count 人で止める。
  * 塊の陣が 2 つに満たない・深度が解禁に足りない（陣形の minDepth）ときは置かない
  */
-function placeLookouts(state: GameState): void {
+function placeLookouts(state: GameState, corridor: readonly number[]): void {
   const formation = formationDef("lookout");
   if (!formation || formation.minDepth > state.depth) return;
-  const corridor = corridorTileList(state);
   if (corridor.length === 0) return;
   const area = new Uint8Array(state.map.tiles.length);
   for (const t of corridor) area[t] = 1;

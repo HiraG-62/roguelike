@@ -363,6 +363,7 @@ export function addLoops(pts: readonly Vec[], edges: Edge[], k: number, maxLen: 
 
 /** 8 近傍の壁の数（地図の外は壁。穴は壁として数えない） */
 function wallCount8(g: Grid, x: number, y: number): number {
+  if (isInner(g, x, y)) return innerWallCount8(g.cells, y * g.w + x, g.w);
   let n = 0;
   for (const [dx, dy] of NEIGHBORS_8) {
     const nx = x + dx;
@@ -370,6 +371,27 @@ function wallCount8(g: Grid, x: number, y: number): number {
     if (nx < 0 || ny < 0 || nx >= g.w || ny >= g.h || g.cells[ny * g.w + nx] === Cell.Wall) n++;
   }
   return n;
+}
+
+/**
+ * 外周でないマス i の 8 近傍の壁の数（地図の外を見ないので境界の判定を省く）。
+ * caStep・tidy は広い地図の全マスで呼ぶので、近傍の組の分解と座標の割り算をしない
+ */
+function innerWallCount8(cells: Uint8Array, i: number, w: number): number {
+  return (
+    wallBit(cells[i - w - 1]) +
+    wallBit(cells[i - w]) +
+    wallBit(cells[i - w + 1]) +
+    wallBit(cells[i - 1]) +
+    wallBit(cells[i + 1]) +
+    wallBit(cells[i + w - 1]) +
+    wallBit(cells[i + w]) +
+    wallBit(cells[i + w + 1])
+  );
+}
+
+function wallBit(cell: number | undefined): number {
+  return cell === Cell.Wall ? 1 : 0;
 }
 
 /**
@@ -456,8 +478,9 @@ function labelFloor(g: Grid): { lab: Int32Array; sizes: number[] } {
   const lab = new Int32Array(g.cells.length).fill(-1);
   const sizes: number[] = [];
   const queue = new Int32Array(g.cells.length);
-  for (let start = 0; start < g.cells.length; start++) {
-    if (g.cells[start] !== Cell.Floor || (lab[start] ?? -1) >= 0) continue;
+  const { w, h, cells } = g;
+  for (let start = 0; start < cells.length; start++) {
+    if (cells[start] !== Cell.Floor || (lab[start] ?? -1) >= 0) continue;
     const id = sizes.length;
     let head = 0;
     let tail = 0;
@@ -465,21 +488,25 @@ function labelFloor(g: Grid): { lab: Int32Array; sizes: number[] } {
     lab[start] = id;
     while (head < tail) {
       const c = queue[head++] ?? 0;
-      const x = c % g.w;
-      const y = Math.floor(c / g.w);
-      for (const [dx, dy] of NEIGHBORS_4) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= g.w || ny >= g.h) continue;
-        const ni = ny * g.w + nx;
-        if (g.cells[ni] !== Cell.Floor || (lab[ni] ?? -1) >= 0) continue;
-        lab[ni] = id;
-        queue[tail++] = ni;
-      }
+      const x = c % w;
+      const y = Math.floor(c / w);
+      // NEIGHBORS_4 と同じ並び（右・左・下・上）。組の分解をしない
+      if (x + 1 < w) tail = labelStep(cells, lab, queue, tail, c + 1, id);
+      if (x > 0) tail = labelStep(cells, lab, queue, tail, c - 1, id);
+      if (y + 1 < h) tail = labelStep(cells, lab, queue, tail, c + w, id);
+      if (y > 0) tail = labelStep(cells, lab, queue, tail, c - w, id);
     }
     sizes.push(tail);
   }
   return { lab, sizes };
+}
+
+/** labelFloor の 1 マス: 番号の無い床なら番号を付けて待ち行列に足す。新しい末尾を返す */
+function labelStep(cells: Uint8Array, lab: Int32Array, queue: Int32Array, tail: number, ni: number, id: number): number {
+  if (cells[ni] !== Cell.Floor || (lab[ni] ?? -1) >= 0) return tail;
+  lab[ni] = id;
+  queue[tail] = ni;
+  return tail + 1;
 }
 
 /**

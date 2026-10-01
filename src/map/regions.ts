@@ -32,6 +32,17 @@ export const NEIGHBORS_8 = [
 
 export type Offsets = typeof NEIGHBORS_4 | typeof NEIGHBORS_8;
 
+/** NEIGHBORS_8 を x と y の別の表にしたもの（並びは同じ）。広い地図の内側のループで組を分解しないため */
+const DX8: readonly number[] = NEIGHBORS_8.map(([dx]) => dx);
+const DY8: readonly number[] = NEIGHBORS_8.map(([, dy]) => dy);
+const NEIGHBOR_8_COUNT = 8;
+const NEIGHBOR_4_COUNT = 4;
+
+/** NEIGHBORS_4 の添字の差（並びは同じ）。i = y * w + x なので (y + dy) * w + (x + dx) = i + dy * w + dx */
+function offsets4(w: number): readonly number[] {
+  return [1, -1, w, -w];
+}
+
 /** 床・壁・穴（Cell）の格子 */
 export interface Grid {
   w: number;
@@ -63,24 +74,27 @@ export function floodFill(g: Grid, start: number, offsets: Offsets, pass: (i: nu
 /** 各床から最寄りの壁（と穴）までのチェビシェフ距離（壁・穴は 0） */
 export function wallDistance(g: Grid): Int16Array {
   const dist = new Int16Array(g.cells.length).fill(-1);
-  const queue: number[] = [];
+  // 各マスは 1 回だけ入るので、待ち行列はマスの数ぶんの型付き配列で足りる
+  const queue = new Int32Array(g.cells.length);
+  let tail = 0;
   for (let i = 0; i < g.cells.length; i++) {
     if (g.cells[i] === Cell.Floor) continue;
     dist[i] = 0;
-    queue.push(i);
+    queue[tail++] = i;
   }
-  for (let head = 0; head < queue.length; head++) {
+  for (let head = 0; head < tail; head++) {
     const i = queue[head] ?? 0;
     const x = i % g.w;
     const y = Math.floor(i / g.w);
-    for (const [dx, dy] of NEIGHBORS_8) {
-      const nx = x + dx;
-      const ny = y + dy;
+    const next = (dist[i] ?? 0) + 1;
+    for (let k = 0; k < NEIGHBOR_8_COUNT; k++) {
+      const nx = x + (DX8[k] ?? 0);
+      const ny = y + (DY8[k] ?? 0);
       if (nx < 0 || ny < 0 || nx >= g.w || ny >= g.h) continue;
       const ni = ny * g.w + nx;
       if (dist[ni] !== -1) continue;
-      dist[ni] = (dist[i] ?? 0) + 1;
-      queue.push(ni);
+      dist[ni] = next;
+      queue[tail++] = ni;
     }
   }
   return dist;
@@ -101,15 +115,15 @@ export function growRooms(g: Grid, regions: number[][], grow: number | readonly 
     }
   });
   const limitOf = (id: number): number => (typeof grow === "number" ? grow : (grow[id] ?? 0));
+  const off4 = offsets4(g.w);
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head] ?? 0;
     const id = owner[i] ?? NO_OWNER;
     const d = depth[i] ?? 0;
     if (d >= limitOf(id)) continue;
-    const x = i % g.w;
-    const y = Math.floor(i / g.w);
-    for (const [dx, dy] of NEIGHBORS_4) {
-      const ni = (y + dy) * g.w + (x + dx);
+    for (let k = 0; k < NEIGHBOR_4_COUNT; k++) {
+      // 外周の判定はしない（外周は壁。元の (y + dy) * w + (x + dx) と同じ添字）
+      const ni = i + (off4[k] ?? 0);
       if (g.cells[ni] !== Cell.Floor || owner[ni] !== NO_OWNER) continue;
       if (touchesOtherOwner(g, owner, ni, id)) {
         owner[ni] = CONTESTED;
@@ -124,13 +138,22 @@ export function growRooms(g: Grid, regions: number[][], grow: number | readonly 
 }
 
 export function touchesOtherOwner(g: Grid, owner: Int16Array, i: number, id: number): boolean {
-  const x = i % g.w;
-  const y = Math.floor(i / g.w);
-  for (const [dx, dy] of NEIGHBORS_8) {
-    const o = owner[(y + dy) * g.w + (x + dx)] ?? NO_OWNER;
-    if (o >= 0 && o !== id) return true;
-  }
-  return false;
+  // (y + dy) * w + (x + dx) = i + dy * w + dx。広い地図で全マスから呼ばれるので組の分解と座標の割り算を省く
+  const w = g.w;
+  return (
+    isOtherOwner(owner[i + 1], id) ||
+    isOtherOwner(owner[i - 1], id) ||
+    isOtherOwner(owner[i + w], id) ||
+    isOtherOwner(owner[i - w], id) ||
+    isOtherOwner(owner[i + w + 1], id) ||
+    isOtherOwner(owner[i - w + 1], id) ||
+    isOtherOwner(owner[i + w - 1], id) ||
+    isOtherOwner(owner[i - w - 1], id)
+  );
+}
+
+function isOtherOwner(o: number | undefined, id: number): boolean {
+  return o !== undefined && o >= 0 && o !== id;
 }
 
 export interface RegionRoom {
