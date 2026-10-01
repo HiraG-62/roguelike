@@ -112,7 +112,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
     term: "書付",
     category: "controls",
     body: (b) =>
-      `${k(b, "interact")} で、焦点の物の全文と数字の頁を開く。候補からは候補と今の見開き、人影からは体の書付（ステータス・体の性能・行動の計算式・奥義）。倉庫の遺物の書付の下端から鍛冶の操作ができる。`,
+      `${k(b, "interact")} で、焦点の物の全文と数字の頁を開く。候補からは候補と今の見開き、人影からは体の書付（体: ステータス・体の性能・行動の計算式、内訳: ステータスを参照する行動と攻撃に掛かる増と倍、奥義）。倉庫の遺物の書付の下端から鍛冶の操作ができる。`,
   },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },

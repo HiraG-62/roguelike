@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGame } from "../core/game";
+import { JOB_KEYS } from "../data/jobs";
 import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { BASES } from "../loot/bases";
@@ -11,9 +12,10 @@ import { createInventoryUi } from "../ui/inventory";
 import { openMenu } from "../ui/menuActions";
 import { fid } from "../ui/menuFocus";
 import type { SheetSubject, ViewOf } from "../ui/menuState";
-import { BODY_FORMULA_RECT, ITEM_BODY } from "../ui/sheet";
+import { ATTR_KEYS } from "../loot/types";
+import { BODY_PAGE_BREAKDOWN, BODY_PAGE_ULTIMATE, BREAKDOWN_MOD_RECT, BREAKDOWN_REF_RECT, BREAKDOWN_SOURCE_RECT, BODY_FORMULA_RECT, ITEM_BODY } from "../ui/sheet";
 import { bodyActionChunks } from "../ui/sheetBody";
-import { movesetFormulas, skillFormulas } from "../ui/scalingText";
+import { chunksText, movesetFormulas, skillFormulas } from "../ui/scalingText";
 
 /**
  * 書付の描画。文字幅は pixelText の未ロード時の推定（半角 8 / 全角 16 ドット）で測る。
@@ -121,6 +123,72 @@ describe("書付の計算式", () => {
   });
 });
 
+describe("書付「内訳」の頁", () => {
+  /** 内訳の頁の 3 つの欄の行が、描画の欄に収まるか */
+  async function expectBreakdownFits(state: ReturnType<typeof createGame>, label: string): Promise<void> {
+    const { breakdownLines, columnFits } = await import("./sheetUi");
+    for (const attr of ATTR_KEYS) {
+      const lines = breakdownLines(state, attr);
+      expect(columnFits(lines.sources, BREAKDOWN_SOURCE_RECT), `${label} ${attr} 出どころ`).toBe(true);
+      expect(columnFits(lines.references, BREAKDOWN_REF_RECT), `${label} ${attr} 参照する行動`).toBe(true);
+      expect(columnFits(lines.modifiers, BREAKDOWN_MOD_RECT), `${label} ${attr} 増と倍`).toBe(true);
+    }
+  }
+
+  it("全ジョブ・全武器種で 3 つの欄が書付 1 画面に収まる", async () => {
+    for (const scale of SCALES) {
+      await withScale(scale);
+      for (const job of JOB_KEYS) {
+        const base = createGame(1, "1", undefined, undefined, { origin: "wanderer", modifiers: [], job });
+        for (const moveset of MOVESET_KEYS) {
+          const state = { ...base, stats: { ...base.stats, moveset, bullet: "pistol" } };
+          await expectBreakdownFits(state, `倍率 ${scale} ${job} ${moveset}`);
+        }
+      }
+    }
+  });
+
+  it("どのスキル石を腰に付けても、参照する行動の欄に収まる（全スキル石を 4 つずつ）", async () => {
+    await withScale(4);
+    const base = createGame(1);
+    for (let i = 0; i < SKILL_KEYS.length; i += 4) {
+      const keys = SKILL_KEYS.slice(i, i + 4);
+      base.skills.profile.stones = keys.map(stoneOf);
+      base.skills.profile.loadout = keys.map((k) => `s-${k}`);
+      for (const moveset of ["greatsword", "fists", "book"] as const) {
+        const state = { ...base, stats: { ...base.stats, moveset } };
+        await expectBreakdownFits(state, `${keys.join(",")} ${moveset}`);
+      }
+    }
+  });
+
+  it("焦点のステータスの出どころ・参照する行動と、攻撃に掛かる増と倍の行が出る", async () => {
+    await withScale(4);
+    const { breakdownLines } = await import("./sheetUi");
+    const state = createGame(1);
+    state.stats = {
+      ...state.stats,
+      increased: { ...state.stats.increased, melee: 0.2 },
+      more: [{ source: "keystone:ks_glassCannon", label: "硝子の砲", mul: 2, tags: ["melee"] }],
+    };
+    const text = (lines: { line: unknown }[]): string[] =>
+      lines.map((l) => {
+        const line = l.line;
+        if (typeof line !== "object" || line === null) return "";
+        if ("chunks" in line && Array.isArray(line.chunks)) return chunksText(line.chunks);
+        return "text" in line && typeof line.text === "string" ? line.text : "";
+      });
+    const lines = breakdownLines(state, "str");
+    expect(text(lines.modifiers), "増と倍の行").toEqual(["増 近接ダメージ +20%", "倍 硝子の砲 ×2"]);
+    const refs = text(lines.references);
+    expect(refs[0], "見出しは焦点のステータス").toContain("筋力");
+    expect(refs.some((r) => r.startsWith("威力")), "威力の行").toBe(true);
+    expect(text(lines.sources)[0], "出どころの見出し").toBe("出どころ");
+    const spirit = text(breakdownLines(state, "def").references);
+    expect(spirit[0], "別のステータスは別の見出し").toContain("防御");
+  });
+});
+
 describe("右手の要点の奥義の行", () => {
   it("右手の要点に奥義の行が出る", async () => {
     const { ultimateTipLine } = await import("./itemTips");
@@ -169,7 +237,8 @@ describe("書付の描画のスモーク", () => {
     };
     for (const subject of subjects) {
       draw({ kind: "sheet", focus: null, subject, page: 0, offset: 0, forge: null });
-      draw({ kind: "sheet", focus: fid.ult(0), subject, page: 1, offset: 1, forge: null });
+      draw({ kind: "sheet", focus: fid.row(ATTR_KEYS.length - 1), subject, page: BODY_PAGE_BREAKDOWN, offset: 0, forge: null });
+      draw({ kind: "sheet", focus: fid.ult(0), subject, page: BODY_PAGE_ULTIMATE, offset: 1, forge: null });
     }
     const item: SheetSubject = { kind: "item", itemId: "cand" };
     for (const op of ["shatter", "pour", "transfer", "recall", "stir"] as const) {

@@ -2,7 +2,7 @@ import { type GameState, pushSfx } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
 import { MOVESETS } from "../data/weapons";
 import { ECHO_OPS, ECHO_OP_HINT, ECHO_OP_LABEL, type EchoOp } from "../loot/crafting";
-import { LOOT_SLOTS, type Item } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, LOOT_SLOTS, type AttrKey, type Item } from "../loot/types";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
@@ -52,9 +52,9 @@ import {
 
 /**
  * 書付（1 品・見開き・体・祝福・系譜・刻印符の全文と数字。情報の予算の外。docs/ideas/inventory-v2/E-impl.md 4-3 E6、E-merged.md 6 章 W8）。
- * 当たりがあるのは 1 品の下端の鍛冶の操作 5（forge.ts の手続き）と、体の頁の札・行動の行・奥義の札だけ。文の並びは render/sheetUi.ts。
+ * 当たりがあるのは 1 品の下端の鍛冶の操作 5（forge.ts の手続き）と、体の頁の札・行動の行・内訳のステータスの行・奥義の札だけ。文の並びは render/sheetUi.ts。
  * 1 品の鍛冶は 操作 → 相手（注ぎ・移し。5 件ずつ）→ 選ぶ行（性質・銘・芽）→ 実行。砕くは長押しでだけ実行する。
- * view.offset は頁ごとに読み替える: 相手の並びの先頭 / 体の行動の行の送り（行単位）/ 奥義の武器種の送り（拠点だけ）
+ * view.offset は頁ごとに読み替える: 相手の並びの先頭 / 体の行動の行の送り（行単位）/ 奥義の武器種の送り（拠点だけ）。内訳の頁は使わない
  */
 
 type SheetView = ViewOf<"sheet">;
@@ -106,10 +106,11 @@ export function partnerRect(i: number): Rect {
   return { x: ITEM_BODY.x, y: ITEM_BODY.y + i * PARTNER_PITCH, w: ITEM_BODY.w, h: PARTNER_H };
 }
 
-/** 体の書付の頁の札 [体][奥義] */
-export const BODY_PAGES = ["体", "奥義"] as const;
+/** 体の書付の頁の札 [体][内訳][奥義] */
+export const BODY_PAGES = ["体", "内訳", "奥義"] as const;
 export const BODY_PAGE_STATUS = 0;
-export const BODY_PAGE_ULTIMATE = 1;
+export const BODY_PAGE_BREAKDOWN = 1;
+export const BODY_PAGE_ULTIMATE = 2;
 export function pageTabRect(n: number): Rect {
   return { x: 8 + n * 34, y: 20, w: 30, h: 12 };
 }
@@ -135,6 +136,23 @@ export function actionRect(visibleIndex: number): Rect {
   const col = visibleIndex % ACTION_COLS;
   const row = Math.floor(visibleIndex / ACTION_COLS);
   return { x: ACTION_X0 + col * ACTION_PITCH_X, y: ACTION_Y0 + row * ACTION_PITCH_Y, w: ACTION_W, h: ACTION_H };
+}
+
+/**
+ * 内訳の頁: 左にステータスの行（焦点で選ぶ）とその出どころ、右に焦点のステータスを参照する行動と、下に攻撃に掛かる増と倍。
+ * 増と倍はステータスでなく攻撃の種類（近接・射撃）に掛かるので、焦点によらず出す
+ */
+const BREAKDOWN_ROW_H = 12;
+export const BREAKDOWN_STAT_X = 16;
+export const BREAKDOWN_STAT_W = 128;
+export const BREAKDOWN_SOURCE_RECT: Rect = { x: 16, y: 114, w: 128, h: 96 };
+export const BREAKDOWN_REF_RECT: Rect = { x: 152, y: 38, w: 312, h: 104 };
+export const BREAKDOWN_RULE_Y = 144;
+export const BREAKDOWN_MOD_HEAD_Y = 148;
+export const BREAKDOWN_MOD_RECT: Rect = { x: 152, y: 158, w: 312, h: 54 };
+
+export function breakdownStatRect(i: number): Rect {
+  return { x: BREAKDOWN_STAT_X, y: 38 + i * BREAKDOWN_ROW_H, w: BREAKDOWN_STAT_W, h: BREAKDOWN_ROW_H };
 }
 
 /** 奥義の頁: 武器種の送り（拠点だけ）と奥義の札 3 */
@@ -250,6 +268,10 @@ function statusPageHits(state: Readonly<GameState>, view: Readonly<SheetView>): 
   return visibleActionIndices(state, view).map((index, i) => hit(fid.row(index), actionRect(i), null));
 }
 
+function breakdownPageHits(): MenuHit[] {
+  return ATTR_KEYS.map((_, i) => hit(fid.row(i), breakdownStatRect(i), null));
+}
+
 function ultimatePageHits(state: Readonly<GameState>, view: Readonly<SheetView>): MenuHit[] {
   const moveset = sheetMoveset(state, view.offset);
   const hits = ULTIMATES[moveset].map((_, i) => hit(fid.ult(i), ultCardRect(i), { kind: "chooseUltimate", index: i }));
@@ -261,9 +283,14 @@ function ultimatePageHits(state: Readonly<GameState>, view: Readonly<SheetView>)
   ];
 }
 
+function bodyPageHits(state: Readonly<GameState>, view: Readonly<SheetView>): MenuHit[] {
+  if (view.page === BODY_PAGE_ULTIMATE) return ultimatePageHits(state, view);
+  if (view.page === BODY_PAGE_BREAKDOWN) return breakdownPageHits();
+  return statusPageHits(state, view);
+}
+
 function bodyHits(state: Readonly<GameState>, view: Readonly<SheetView>): MenuHit[] {
-  const page = view.page === BODY_PAGE_ULTIMATE ? ultimatePageHits(state, view) : statusPageHits(state, view);
-  return [...pageHits(), ...page];
+  return [...pageHits(), ...bodyPageHits(state, view)];
 }
 
 function sheetLayout(state: Readonly<GameState>, view: Readonly<SheetView>): MenuHit[] {
@@ -290,6 +317,13 @@ export function focusedActionIndex(state: Readonly<GameState>, view: Readonly<Sh
     if (Number.isInteger(i) && i >= 0 && i < n) return i;
   }
   return visibleActionIndices(state, view)[0] ?? null;
+}
+
+/** 内訳の頁の焦点のステータス（ステータスの行に焦点が無ければ先頭。体の頁の行の番号が残っていても範囲外なら先頭） */
+export function focusedAttr(view: Readonly<SheetView>): AttrKey {
+  const arg = fidArgs(view.focus, "row")?.[0];
+  const i = arg === undefined ? 0 : Number(arg);
+  return (Number.isInteger(i) ? ATTR_KEYS[i] : undefined) ?? ATTR_KEYS[0];
 }
 
 function focusedOp(focus: FocusId | null): EchoOp | null {
@@ -522,7 +556,7 @@ function sheetHeader(state: Readonly<GameState>, view: Readonly<SheetView>): Men
 }
 
 const EQUIPPED_MARK = "（装備中）";
-const PAGE_SUB: readonly string[] = ["ステータスと出どころ・体の性能・行動の計算式", "武器種ごとの奥義"];
+const PAGE_SUB: readonly string[] = ["ステータスと出どころ・体の性能・行動の計算式", "ステータスを参照する行動・攻撃に掛かる増と倍", "武器種ごとの奥義"];
 const ULT_LOCKED_SUB = "ラン中は奥義を変えられない";
 const ULT_COST_HEAD = "奥義ゲージ ";
 const MOVESET_TAG_HEAD = "奥義の武器種 ";
@@ -594,6 +628,7 @@ function bodyTag(state: Readonly<GameState>, view: Readonly<SheetView>): MenuTag
     return { title: `${MOVESET_TAG_HEAD}${MOVESETS[sheetMoveset(state, view.offset)].name}`, sub: "", aside: null };
   }
   const row = focusedNumber(focus, "row");
+  if (row !== null && view.page === BODY_PAGE_BREAKDOWN) return { title: ATTR_LABEL[focusedAttr(view)], sub: "", aside: null };
   const action = row === null ? undefined : bodyActions(state)[row];
   return action === undefined ? { ...EMPTY_TAG } : { title: action.name, sub: "", aside: null };
 }

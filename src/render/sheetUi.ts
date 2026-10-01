@@ -8,7 +8,7 @@ import { ECHO_OPS, ECHO_OP_LABEL } from "../loot/crafting";
 import { describeItem, describeTrait } from "../loot/describe";
 import { innateAt } from "../loot/innate";
 import { ultimateChoice } from "../loot/profile";
-import { ATTR_KEYS, TRAIT_COLOR_HEX, type Item } from "../loot/types";
+import { ATTR_KEYS, ATTR_LABEL, TRAIT_COLOR_HEX, type AttrKey, type Item } from "../loot/types";
 import { MODIFIERS, modifierLinkCost } from "../skills/data";
 import type { SkillStone } from "../skills/types";
 import { BOONS, BOON_CARD_LABEL, LINEAGE_LABEL, type BoonKey, type LineageKey } from "../system/boonDefs";
@@ -25,11 +25,17 @@ import {
   BODY_ATTR_RECT,
   BODY_CARD,
   BODY_DERIVED_RECT,
+  BODY_PAGE_BREAKDOWN,
   BODY_FORMULA_RECT,
   BODY_PAGES,
   BODY_PAGE_ULTIMATE,
   BODY_REACH_MAX,
   BODY_REACH_Y,
+  BREAKDOWN_MOD_HEAD_Y,
+  BREAKDOWN_MOD_RECT,
+  BREAKDOWN_REF_RECT,
+  BREAKDOWN_RULE_Y,
+  BREAKDOWN_SOURCE_RECT,
   FORGE_COST_Y,
   FORGE_EXEC_RECT,
   ITEM_BODY,
@@ -44,7 +50,9 @@ import {
   ULT_HEAD_Y,
   actionRect,
   actionRowCount,
+  breakdownStatRect,
   focusedActionIndex,
+  focusedAttr,
   forgeOpRect,
   pageTabRect,
   pairItems,
@@ -60,16 +68,18 @@ import {
 import {
   ULTIMATE_KIND_LABEL,
   attributeSourceText,
+  attributeReferenceGroups,
   attributeSources,
   bodyActionChunks,
   bodyActions,
+  bodyModifierSection,
   bodyReachRows,
   canChooseUltimate,
   derivedStatRows,
   sheetMoveset,
   ultimateCostOf,
 } from "../ui/sheetBody";
-import { attrColor, drawAttributePanel } from "./attributeUi";
+import { attrColor, attributeValueText, drawAttributePanel } from "./attributeUi";
 import { drawRelicGlyph, glyphSize } from "./attireUi";
 import { MENU_INK, box, drawFocusBrackets, drawGlyphDisc, menuText, px } from "./crestDraw";
 import { type DetailLine, conflictLinesFor, itemDetailLines, stoneDetailLines, stoneFormulaLines, ultimateTipLine } from "./itemTips";
@@ -79,7 +89,8 @@ import { TEXT, drawText, textLineHeight, textWidth, truncateText } from "./pixel
 /**
  * 書付の描画（docs/ideas/inventory-v2/E-merged.md 6 章 W8。情報の予算の外）。state と ui を読むだけ。
  * 1 品: 名前・部位 · 種類 · 深度 · 響き・性質の全文（右端に系統の丸印）・地金の数字・来歴（右の列）、下端に鍛冶の操作 5。
- * 見開き: 左 = 候補、右 = 今（地金は差を（+1）で）。体: [体] ステータスと出どころ・体の性能・到達・行動の行・焦点の行動の計算式 / [奥義] 3 枚。
+ * 見開き: 左 = 候補、右 = 今（地金は差を（+1）で）。体: [体] ステータスと出どころ・体の性能・到達・行動の行・焦点の行動の計算式 /
+ * [内訳] 焦点のステータスの出どころ・参照する行動（威力・怯み値・効果量ごと）と、攻撃に掛かる増と倍 / [奥義] 3 枚。
  * 祝福・系譜・刻印符・スキル石は全文。入りきらなければ行間を詰め、それでも溢れた分は … で切る（旧 detailPane と同じ流儀）
  */
 
@@ -595,6 +606,64 @@ function drawStatusPage(ctx: CanvasRenderingContext2D, state: Readonly<GameState
   drawFormula(ctx, state, view);
 }
 
+// -----------------------------------------------------------------------------
+// 内訳（旧ステータスタブの詳細欄にあった、参照する行動と増・倍）
+// -----------------------------------------------------------------------------
+
+const SOURCE_HEAD = "出どころ";
+const NO_SOURCE_TEXT = "出どころなし";
+const REFERENCE_TAIL = "を参照する行動";
+const NO_REFERENCE_TEXT = "参照する行動なし";
+const MODIFIER_TAIL = "の増と倍";
+const NO_MODIFIER_TEXT = "増も倍もなし";
+const NAME_JOIN = "・";
+const HEAD_GAP = "  ";
+
+/** 内訳の頁の 3 つの欄の行（テストが欄に収まるかを見る。描画と同じ中身） */
+export interface BreakdownLines {
+  sources: ColumnLine[];
+  references: ColumnLine[];
+  modifiers: ColumnLine[];
+}
+
+export function breakdownLines(state: Readonly<GameState>, attr: AttrKey): BreakdownLines {
+  const sources = attributeSources(state)[attr];
+  const groups = attributeReferenceGroups(state)[attr];
+  const section = bodyModifierSection(state);
+  return {
+    sources: [tip(SOURCE_HEAD, COLOR_DIM), ...(sources.length === 0 ? [tip(NO_SOURCE_TEXT, COLOR_DIM)] : sources.map((s) => tip(attributeSourceText([s]), COLOR_TEXT)))],
+    references: [
+      tip(`${ATTR_LABEL[attr]}${REFERENCE_TAIL}`, attrColor(attr)),
+      ...(groups.length === 0 ? [tip(NO_REFERENCE_TEXT, COLOR_DIM)] : groups.map((g) => tip(`${g.head}${HEAD_GAP}${g.names.join(NAME_JOIN)}`, COLOR_TEXT))),
+    ],
+    modifiers: section.rows.length === 0 ? [tip(NO_MODIFIER_TEXT, COLOR_DIM)] : section.rows.map((chunks): ColumnLine => ({ line: { chunks } })),
+  };
+}
+
+function drawBreakdownStats(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, view: Readonly<SheetView>): void {
+  const lit = focusedAttr(view);
+  ATTR_KEYS.forEach((key, i) => {
+    const r = breakdownStatRect(i);
+    const focus = view.focus === fid.row(i);
+    px(ctx, r.x, r.y, r.w, r.h, focus ? MENU_INK.card2 : lit === key ? MENU_INK.litFill : MENU_INK.paper);
+    const text = attributeValueText(key, state.stats.attributes[key], state.stats.attributesEff[key]);
+    menuText(ctx, text, r.x + 3, r.y + 2, { size: "SMALL", color: attrColor(key), role: "label", maxW: r.w - 6 });
+  });
+}
+
+function drawBreakdownPage(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, view: Readonly<SheetView>): void {
+  const attr = focusedAttr(view);
+  const lines = breakdownLines(state, attr);
+  drawBreakdownStats(ctx, state, view);
+  drawColumn(ctx, lines.sources, BREAKDOWN_SOURCE_RECT);
+  px(ctx, BREAKDOWN_REF_RECT.x - 6, BREAKDOWN_REF_RECT.y, 1, BREAKDOWN_RULE_Y - BREAKDOWN_REF_RECT.y, MENU_INK.rule);
+  drawColumn(ctx, lines.references, BREAKDOWN_REF_RECT);
+  px(ctx, BREAKDOWN_REF_RECT.x, BREAKDOWN_RULE_Y, BREAKDOWN_REF_RECT.w, 1, MENU_INK.rule);
+  const head = `${bodyModifierSection(state).head}${MODIFIER_TAIL}`;
+  menuText(ctx, head, BREAKDOWN_MOD_RECT.x, BREAKDOWN_MOD_HEAD_Y, { size: "SMALL", color: MENU_INK.sub, role: "label", maxW: BREAKDOWN_MOD_RECT.w });
+  drawColumn(ctx, lines.modifiers, BREAKDOWN_MOD_RECT);
+}
+
 const ULT_HEAD = "奥義  ";
 const ULT_EQUIPPED = "（右手）";
 const CHOSEN_TEXT = "選んでいる";
@@ -631,6 +700,7 @@ function drawBodySheet(ctx: CanvasRenderingContext2D, state: Readonly<GameState>
   drawPageTabs(ctx, view);
   drawPaperCard(ctx, BODY_CARD);
   if (view.page === BODY_PAGE_ULTIMATE) drawUltimatePage(ctx, state, view);
+  else if (view.page === BODY_PAGE_BREAKDOWN) drawBreakdownPage(ctx, state, view);
   else drawStatusPage(ctx, state, view);
 }
 

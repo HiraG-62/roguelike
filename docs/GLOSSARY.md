@@ -80,7 +80,8 @@
 | 奥義ゲージ | `energy` / `maxEnergy` | 奥義の資源。旧表記「必殺ゲージ」「エネルギー」。持続の奥義の間は HUD のゲージの色が変わる | HUD、祝福の説明文 |
 | 奥義の威力 / 奥義の範囲 / 奥義ゲージ獲得 | `increased.ultimate`（奥義の増）/ `burstRadiusMul` / `energyGainMul` | 性質の表示名。旧「必殺ダメージ / 必殺範囲 / 必殺ゲージ獲得」 | `loot/stats.ts` |
 | 一撃 / 持続（奥義の種類） | `UltimateKind`: instant / sustain | 書付「奥義」の頁の奥義カードに出す種類の名前 | `ui/sheetBody.ts` ULTIMATE_KIND_LABEL |
-| 体（書付） | `SheetView` の体 / `BODY_PAGES` | 装束の人影から開く書付。頁は [体][奥義]。[体] = ステータス 5 種と出どころ・体の性能・到達・行動の行と焦点の行動の計算式、[奥義] = 武器種の奥義 3 枚（旧「ステータス」タブ） | `ui/sheet.ts`、`ui/sheetBody.ts`、`render/sheetUi.ts` |
+| 体（書付） | `SheetView` の体 / `BODY_PAGES` | 装束の人影から開く書付。頁は [体][内訳][奥義]。[体] = ステータスと出どころ・体の性能・到達・行動の行と焦点の行動の計算式、[内訳] = 焦点のステータスの出どころと参照する行動、攻撃に掛かる増と倍、[奥義] = 武器種の奥義 3 枚（旧「ステータス」タブ） | `ui/sheet.ts`、`ui/sheetBody.ts`、`render/sheetUi.ts` |
+| 内訳（書付の頁） | `BODY_PAGE_BREAKDOWN` / `breakdownLines` | 書付「体」の 2 枚目。ステータスの行で焦点を選ぶと、そのステータスの出どころ・参照する行動（威力・怯み値・効果量ごとに名前を並べる。強さの指標にはまとめない）を出し、下に今の右手の攻撃（近接 / 射撃）に掛かる増と倍の行を出す。増と倍はステータスでなく攻撃に掛かるので焦点によらない。旧ステータスタブの詳細欄にあった 2 つ | `ui/sheetBody.ts`、`render/sheetUi.ts` |
 | 体の性能 | `derivedStatRows` | 書付「体」の派生値（最大生命・最大気力・移動速度など）の見出し | `ui/sheetBody.ts` |
 | 奥義の名前 | `UltimateDef.name` | 武器種ごとの 3 本。下の「奥義の名前の一覧」 | `data/ultimates.ts` |
 | 奥義終了 / 未充填 | `END_TEXT` / `NOT_READY_TEXT` | 持続の奥義が終わったとき / ゲージが満タンでないのに F を押したときの浮き文字 | `system/ultimates.ts` |
@@ -285,7 +286,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 得る / 失う | `SwapDiff`（`ui/swapDiff.ts`） | 候補と今の物の性質の差。共通の性質は書かない | `ui/swapDiff.ts` |
 | 空ける | `clearSlot` | 候補の末尾の札。部位・スキルの枠を空にする | `ui/candidates.ts` |
 | 荷札 | `MenuTag` | 焦点の 1 つにだけ付く 2 行の文字。表示には出さない | `ui/menuState.ts` |
-| 書付 | sheet | 1 品・体・祝福・系譜・刻印符の全文と数字の頁。情報の予算の外。体の書付は [体][奥義]。倉庫の遺物の書付の下端から鍛冶の操作ができる | `ui/sheet.ts` |
+| 書付 | sheet | 1 品・体・祝福・系譜・刻印符の全文と数字の頁。情報の予算の外。体の書付は [体][内訳][奥義]。倉庫の遺物の書付の下端から鍛冶の操作ができる | `ui/sheet.ts` |
 | 金床の構え | anvil | 拠点の鍛冶場で開く装束。部位 → 装備中の物とその部位の倉庫 → 操作。表示は見出しの「鍛冶場」だけ | `ui/anvil.ts` |
 | 残響の壺 | - | 金床の構えの下の 5 色の壺。水位が残響の量（数字は荷札だけ） | `render/anvilUi.ts` |
 | 乗る遺物 / 注ぐ系統 | - | 加護の頁の見出し。その行動の系統を持つ装備中の遺物 / その行動の加護が起こす系統 | `ui/actPage.ts` |

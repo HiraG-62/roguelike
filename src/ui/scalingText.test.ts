@@ -9,12 +9,10 @@ import { deriveAttributes, scaled, withRatio } from "../system/attributes";
 import { shotScaling } from "../system/player";
 import { createIncreased } from "../core/damage";
 import {
-  FOLDED_GROUP_HEAD,
   INCREASED_HEAD,
   MORE_HEAD,
   modifierRows,
   NO_SCALING_NOTE,
-  actionListRows,
   allFormulas,
   SKILL_SCALING_LABEL,
   SKILL_STEP_LABEL,
@@ -24,8 +22,6 @@ import {
   formatCoef,
   formulaText,
   isScaling,
-  mainAttrs,
-  mainReferenceChunks,
   movesetFormulas,
   ratioFormula,
   scalingFormula,
@@ -34,7 +30,6 @@ import {
   skillFormulas,
   skillScalingKeys,
   specialFormulas,
-  stepFormulas,
 } from "./scalingText";
 import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 
@@ -93,15 +88,6 @@ describe("計算式の組み立て", () => {
     const f = buffFormula(statsWith({ spi: 0 }), "強化の効果量", { base: -1, spi: 0.1 });
     expect(f.value).toBe(0);
   });
-
-  it("主に参照は係数の大きい順で、参照が無ければ「変わらない」", () => {
-    const a = scalingFormula(BASE_STATS, "power", "威力", { base: 1, str: 0.2, vit: 1 });
-    const b = scalingFormula(BASE_STATS, "poise", "怯み値", { base: 1, spi: 5 });
-    expect(mainAttrs([a, b]), "威力の式があれば威力だけで決める").toEqual(["vit", "str"]);
-    expect(mainAttrs([b]), "威力が無ければ全部").toEqual(["spi"]);
-    const none = chunksText(mainReferenceChunks([scalingFormula(BASE_STATS, "power", "威力", { base: 3 })]));
-    expect(none.length, "参照なしでも文字を出す").toBeGreaterThan(0);
-  });
 });
 
 describe("武器種の計算式", () => {
@@ -144,33 +130,6 @@ describe("武器種の計算式", () => {
         if (action === undefined) continue;
         expect(action.formulas.map((f) => f.kind), `${key} ${action.name} の威力の式`).toEqual(["power"]);
       }
-    }
-  });
-
-  it("派生は値だけの 1 段落にまとまり、派生の名前がすべて入る", () => {
-    for (const key of MOVESET_KEYS) {
-      const m = MOVESETS[key];
-      const actions = movesetFormulas(BASE_STATS, m, "single");
-      const rows = actionListRows(actions);
-      const groups = rows.filter((r) => r[0]?.pieces[0]?.text === FOLDED_GROUP_HEAD);
-      const named = m.branches.filter((b) => b.art === undefined);
-      expect(groups.length, `${key} 派生の段落の数`).toBe(named.length > 0 ? 1 : 0);
-      const text = groups.map((g) => chunksText(g)).join("");
-      for (const b of named) expect(text.includes(b.name), `${key} ${b.name} が派生の段落に無い`).toBe(true);
-    }
-  });
-
-  it("連続する行動で式が同じなら 1 行にまとめ、離れていれば別の行のまま（連刃の右の段が詳細欄に収まる）", () => {
-    const step = (name: string, base: number) => ({ name, formulas: stepFormulas(BASE_STATS, name, { ...MOVESETS.sword.steps[0]!, scaling: { base } }).formulas.slice(0, 1) });
-    const rows = actionListRows([step("あ", 1), step("い", 1), step("う", 2), step("え", 1)]);
-    expect(rows.map((r) => chunksText(r).split(" ")[0]), "あ・い だけがまとまる").toEqual(["あ・い", "う", "え"]);
-  });
-
-  it("連刃の 3 武器種は右の最終段の乱舞が式の頁に残り、右の段の名前がすべて頁のどこかに出る", () => {
-    for (const key of ["twinBlades", "claws", "fists"] as const) {
-      const m = MOVESETS[key];
-      const text = actionListRows(movesetFormulas(BASE_STATS, m, "single")).map((r) => chunksText(r)).join("\n");
-      for (const s of m.steps2) expect(text.includes(s.name ?? ""), `${key} の ${s.name} が頁に出る`).toBe(true);
     }
   });
 
@@ -267,6 +226,27 @@ describe("ステータスごとの参照している行動", () => {
   });
 });
 
+describe("量ごとの参照している行動", () => {
+  it("量で絞ると、そのスキルがその量の式でそのステータスを参照するときだけ名前が出る", () => {
+    const skills = SKILL_KEYS.slice(0, 8);
+    const src = { moveset: MOVESETS.sword, bullet: "pistol", skills };
+    for (const kind of ["power", "poise", "potency"] as const) {
+      const refs = attributeReferences(BASE_STATS, src, [kind]);
+      for (const r of refs) {
+        for (const k of skills) {
+          const expected = skillFormulas(BASE_STATS, k).some((f) => f.kind === kind && f.terms.some((t) => t.attr === r.attr));
+          expect(r.names.includes(SKILL_DEFS[k].name), `${kind} ${r.attr} ${k}`).toBe(expected);
+        }
+      }
+    }
+  });
+
+  it("効果量で絞ると、威力・怯み値の式しか持たない行動は出ない", () => {
+    const refs = attributeReferences(BASE_STATS, { moveset: MOVESETS.sword, bullet: "pistol", skills: [] }, ["potency", "buff"]);
+    for (const r of refs) expect(r.names, `${r.attr} 武器の行動に効果量は無い`).toEqual([]);
+  });
+});
+
 describe("奥義の式", () => {
   it("奥義の式は選んでいる奥義の名前で出し、省略すると武器種の 1 本目", () => {
     for (const key of MOVESET_KEYS) {
@@ -322,10 +302,5 @@ describe("増と倍の行（計算式の頁）", () => {
     const [inc, more] = rows.map((r) => chunksText(r));
     expect(inc, "近接と怯み中の増（射撃の増は出さない）").toBe("増 近接ダメージ +20%・怯み中の敵へのダメージ +10%");
     expect(more, "近接に掛かる倍だけ").toBe("倍 素手 ×0.7・硝子の砲 ×2");
-  });
-
-  it("除く出所の倍は出さない（武器の頁では素手の倍を出さない）", () => {
-    const stats = withMods({ more: [{ source: "unarmed", label: "素手", mul: 0.7, tags: ["melee"] }] });
-    expect(modifierRows(stats, "melee", ["unarmed"])).toEqual([]);
   });
 });

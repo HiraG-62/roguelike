@@ -15,8 +15,8 @@ import { ratioToScaling, scaled, withRatio } from "../system/attributes";
 
 /**
  * 行動ごとの係数（docs/COMBAT_DESIGN.md A-10）を「威力 18 = 10 ＋ 筋力×1.3 ＋ 技巧×0.2」の形に組み立てる。
- * DOM・Canvas に依存しない純関数だけを置き、色付けと折り返しは render 側（detailPane.ts）が行う。
- * ここで出す値は「係数による基礎の値」。装備の増・倍（modifierRows）・刻印符・祝福などは後から掛かるので含めない
+ * DOM・Canvas に依存しない純関数だけを置き、色付けと折り返しは render 側（sheetUi.ts）が行う。
+ * ここで出す値は「係数による基礎の値」。装備の増・倍（modifierRows。書付「内訳」が出す）・刻印符・祝福などは後から掛かるので含めない
  */
 
 /** 計算式の量の種類。威力 / 怯み値 / 状態異常の効果量 / 強化の効果量 */
@@ -77,8 +77,6 @@ const TIMES = "×";
 const EQUALS = "=";
 const NAME_SEP = "・";
 export const NO_SCALING_NOTE = "（ステータスで変わらない）";
-export const NO_REFERENCE_TEXT = "ステータスで変わらない";
-export const MAIN_REFERENCE_HEAD = "主に参照: ";
 const EPS = 1e-9;
 
 // ---------------------------------------------------------------------------
@@ -221,95 +219,9 @@ export function actionRows(action: Readonly<ActionFormulas>): FormulaChunk[][] {
   return [actionChunks(action, first), ...rest.map((f) => formulaChunks(f))];
 }
 
-/** 値だけに畳んだ行動（派生）の見出し。値の並びは「威力/怯み値」 */
-export const FOLDED_GROUP_HEAD = "派生（威力/怯み値）:";
-const VALUE_PAIR_SEP = "/";
-
-/** 値だけの行動 1 つの片（「交差斬り 8/10・」）。last でなければ末尾に区切りを付け、2 つ目からは区切りの直後に詰める */
-function foldedActionChunk(action: Readonly<ActionFormulas>, index: number, last: boolean): FormulaChunk {
-  const values = (action.folded ?? []).map((f) => formatValue(f.value, f.kind)).join(VALUE_PAIR_SEP);
-  return { pieces: [{ text: action.name, tone: "name" }, { text: ` ${values}${last ? "" : NAME_SEP}` }], glue: index > 0 };
-}
-
-/** 名前だけ違う 2 つの行動の式（畳んだ量を含む）が同じか。値まで同じなので 1 行にまとめても読める内容は変わらない */
-function sameActionFormulas(a: Readonly<ActionFormulas>, b: Readonly<ActionFormulas>): boolean {
-  if (a.formulas.length === 0 || b.formulas.length === 0) return false;
-  return sameFormulas(a.formulas, b.formulas) && sameFormulas(a.folded ?? [], b.folded ?? []);
-}
-
-/**
- * 連続する行動で式が同じなら 1 つにまとめる（「膝蹴り・フック」）。左の連撃の段は「1〜2 段目」に畳み済みなので、
- * これは右レーンの段のため。連刃は 6〜8 段あり、右の段を 1 つずつ出すと書付の欄 1 枚に収まらない
- */
-function mergeSameActions(actions: readonly ActionFormulas[]): ActionFormulas[] {
-  const out: ActionFormulas[] = [];
-  for (const a of actions) {
-    const last = out[out.length - 1];
-    if (last !== undefined && sameActionFormulas(last, a)) {
-      last.name = `${last.name}${NAME_SEP}${a.name}`;
-      continue;
-    }
-    out.push({ ...a });
-  }
-  return out;
-}
-
-/**
- * 行動の列を書付の行にする。式を持たない行動（値だけに畳んだ派生）は続けて 1 つの段落に詰める。
- * 派生は 4〜5 本あり、1 本 1 行だと行動の多い武器種（拳・双剣）が書付の欄 1 枚に収まらないため
- */
-export function actionListRows(actions: readonly ActionFormulas[]): FormulaChunk[][] {
-  const rows: FormulaChunk[][] = [];
-  const folded: ActionFormulas[] = [];
-  const flush = (): void => {
-    if (folded.length === 0) return;
-    rows.push([{ pieces: [{ text: FOLDED_GROUP_HEAD, tone: "dim" }] }, ...folded.map((a, i) => foldedActionChunk(a, i, i === folded.length - 1))]);
-    folded.length = 0;
-  };
-  for (const a of mergeSameActions(actions)) {
-    if (a.formulas.length === 0 && (a.folded ?? []).length > 0) {
-      folded.push(a);
-      continue;
-    }
-    flush();
-    rows.push(...actionRows(a));
-  }
-  flush();
-  return rows;
-}
-
 /** 行動の式すべて（畳んだ量を含む）。参照しているステータスを数えるとき用 */
 export function allFormulas(action: Readonly<ActionFormulas>): ScalingFormula[] {
   return [...action.formulas, ...(action.folded ?? [])];
-}
-
-// ---------------------------------------------------------------------------
-// 参照しているステータスの要約
-// ---------------------------------------------------------------------------
-
-/** 式の列が参照するステータスを係数の合計が大きい順に（同じなら ATTR_KEYS 順） */
-export function referencedAttrs(formulas: readonly ScalingFormula[]): AttrKey[] {
-  const weight: Partial<Record<AttrKey, number>> = {};
-  for (const f of formulas) for (const t of f.terms) weight[t.attr] = (weight[t.attr] ?? 0) + Math.abs(t.coef);
-  return ATTR_KEYS.filter((k) => (weight[k] ?? 0) > EPS).sort((a, b) => (weight[b] ?? 0) - (weight[a] ?? 0));
-}
-
-/** 威力の式があれば威力だけで、無ければ全部の式で「主に参照」を決める */
-export function mainAttrs(formulas: readonly ScalingFormula[]): AttrKey[] {
-  const power = formulas.filter((f) => f.kind === "power");
-  return referencedAttrs(power.length > 0 ? power : formulas);
-}
-
-/** 「主に参照: 筋力・体力」。参照しなければ「ステータスで変わらない」 */
-export function mainReferenceChunks(formulas: readonly ScalingFormula[]): FormulaChunk[] {
-  const attrs = mainAttrs(formulas);
-  if (attrs.length === 0) return [{ pieces: [{ text: NO_REFERENCE_TEXT, tone: "dim" }] }];
-  const pieces: FormulaPiece[] = [{ text: MAIN_REFERENCE_HEAD, tone: "dim" }];
-  attrs.forEach((attr, i) => {
-    if (i > 0) pieces.push({ text: NAME_SEP, tone: "dim" });
-    pieces.push({ text: ATTR_LABEL[attr], attr });
-  });
-  return [{ pieces }];
 }
 
 // ---------------------------------------------------------------------------
@@ -555,7 +467,7 @@ const MODIFIER_TAGS: Readonly<Record<AttackTag, readonly DamageTag[]>> = {
   melee: ["melee", "vsStaggered"],
   ranged: ["ranged", "vsStaggered"],
 };
-type AttackTag = "melee" | "ranged";
+export type AttackTag = "melee" | "ranged";
 
 /** 見出し 1 つと内訳の片（「増 近接ダメージ +20%・怯み中の敵へのダメージ +10%」） */
 function modifierRow(head: string, parts: readonly string[]): FormulaChunk[] {
@@ -564,15 +476,15 @@ function modifierRow(head: string, parts: readonly string[]): FormulaChunk[] {
   return chunks;
 }
 
-/** その攻撃に掛かる増（タグごと）と倍（出所ごと）の行。無ければ空。skipSources の倍は出さない */
-export function modifierRows(stats: Readonly<PlayerStats>, attack: AttackTag, skipSources: readonly string[] = []): FormulaChunk[][] {
+/** その攻撃に掛かる増（タグごと）と倍（出所ごと）の行。無ければ空 */
+export function modifierRows(stats: Readonly<PlayerStats>, attack: AttackTag): FormulaChunk[][] {
   const rows: FormulaChunk[][] = [];
   const incTags = MODIFIER_TAGS[attack].filter((tag) => Math.abs(stats.increased[tag]) >= EPS);
   if (incTags.length > 0) {
     rows.push(modifierRow(INCREASED_HEAD, incTags.map((tag) => `${INCREASED_LABEL[tag]} ${formatSignedPct(stats.increased[tag])}`)));
   }
   const only: ReadonlySet<DamageTag> = new Set([attack]);
-  const more = dedupeMore(stats.more).filter((m) => moreApplies(m, only) && Math.abs(m.mul - 1) >= EPS && !skipSources.includes(m.source));
+  const more = dedupeMore(stats.more).filter((m) => moreApplies(m, only) && Math.abs(m.mul - 1) >= EPS);
   if (more.length > 0) rows.push(modifierRow(MORE_HEAD, more.map((m) => `${m.label} ${TIMES}${formatMoreMul(m.mul)}`)));
   return rows;
 }
@@ -706,13 +618,14 @@ export interface LoadoutSources {
   ultimate?: UltimateDef;
 }
 
-function referencesAttr(formulas: readonly ScalingFormula[], attr: AttrKey): boolean {
-  return formulas.some((f) => f.terms.some((t) => t.attr === attr));
+/** kinds を渡すと、その量（威力・怯み値など）の式だけを見る。省略は全部 */
+function referencesAttr(formulas: readonly ScalingFormula[], attr: AttrKey, kinds?: readonly FormulaKind[]): boolean {
+  return formulas.some((f) => (kinds === undefined || kinds.includes(f.kind)) && f.terms.some((t) => t.attr === attr));
 }
 
 /** 武器種の行動のうち attr を参照するものの名前。連撃の段がすべて参照するなら「大剣の連撃」にまとめる */
-function movesetReferenceNames(movesetName: string, actions: readonly ActionFormulas[], attr: AttrKey, steps: readonly ActionFormulas[]): string[] {
-  const hits = actions.filter((a) => referencesAttr(allFormulas(a), attr));
+function movesetReferenceNames(movesetName: string, actions: readonly ActionFormulas[], attr: AttrKey, steps: readonly ActionFormulas[], kinds?: readonly FormulaKind[]): string[] {
+  const hits = actions.filter((a) => referencesAttr(allFormulas(a), attr, kinds));
   const allSteps = steps.length > 0 && steps.every((s) => hits.includes(s));
   const names: string[] = [];
   if (allSteps) names.push(`${movesetName}の連撃`);
@@ -726,18 +639,18 @@ function movesetReferenceNames(movesetName: string, actions: readonly ActionForm
 
 /**
  * 今の装備・スキルで各ステータスを参照している行動（どのステータスを振ると何が伸びるか）。
- * 強さの指標にはしない（名前を並べるだけ）
+ * kinds を渡すと、その量（威力・怯み値・効果量）を参照する行動だけ。強さの指標にはしない（名前を並べるだけ）
  */
-export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<LoadoutSources>): AttributeReference[] {
+export function attributeReferences(stats: Readonly<PlayerStats>, src: Readonly<LoadoutSources>, kinds?: readonly FormulaKind[]): AttributeReference[] {
   const { actions, steps } = movesetActions(stats, src.moveset, src.bullet);
   const special = specialFormulas(stats, src.ultimate);
   const skillActions = src.skills.map((k): ActionFormulas => ({ name: SKILL_DEFS[k].name, formulas: skillFormulas(stats, k) }));
   // 素手は型が拳でも名前は「素手」（渡された型が今の型のときだけ）
   const movesetName = movesetLabel(src.moveset, stats.unarmed && src.moveset.key === stats.moveset);
   return ATTR_KEYS.map((attr) => {
-    const names = movesetReferenceNames(movesetName, actions, attr, steps);
-    for (const s of skillActions) if (referencesAttr(s.formulas, attr) && !names.includes(s.name)) names.push(s.name);
-    if (referencesAttr(special.formulas, attr)) names.push(special.name);
+    const names = movesetReferenceNames(movesetName, actions, attr, steps, kinds);
+    for (const s of skillActions) if (referencesAttr(s.formulas, attr, kinds) && !names.includes(s.name)) names.push(s.name);
+    if (referencesAttr(special.formulas, attr, kinds)) names.push(special.name);
     return { attr, names };
   });
 }

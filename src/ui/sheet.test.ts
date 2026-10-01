@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import type { GameState } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
+import { MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { chunksText } from "./scalingText";
 import { formatAffix } from "../loot/affixes";
 import { createCraftSave } from "../loot/craftingStore";
 import { describeTrait } from "../loot/describe";
 import { innateAt } from "../loot/innate";
 import { addToStash, ultimateChoice } from "../loot/profile";
-import { createEmptyProvenance, type AffixRoll, type Item } from "../loot/types";
+import { ATTR_KEYS, createEmptyProvenance, type AffixRoll, type Item } from "../loot/types";
 import { itemSheetLines } from "../render/sheetUi";
 import { BOONS } from "../system/boonDefs";
 import { BOON_GRADE_LABEL, boonGradeOf } from "../system/boonGrade";
@@ -16,8 +18,8 @@ import { createInventoryUi, dispatchMenuAct, menuHits } from "./inventory";
 import { openMenu } from "./menuActions";
 import { fid } from "./menuFocus";
 import type { InventoryUi, SheetSubject, ViewOf } from "./menuState";
-import { focusedActionIndex, pairItems } from "./sheet";
-import { attributeSources, bodyActions, derivedStatRows } from "./sheetBody";
+import { BODY_PAGES, BODY_PAGE_BREAKDOWN, BODY_PAGE_STATUS, BODY_PAGE_ULTIMATE, focusedActionIndex, focusedAttr, pairItems } from "./sheet";
+import { attributeReferenceGroups, attributeSources, bodyActions, bodyModifierSection, derivedStatRows } from "./sheetBody";
 
 const melee: AffixRoll = { key: "damageVsStaggered", value: 30, nominal: 25, flux: 0.4, color: "crimson", origin: "found" };
 const str: AffixRoll = { key: "attr_str", value: 20, nominal: 20, flux: 0.2, color: "jade", origin: "found" };
@@ -93,7 +95,7 @@ describe("書付", () => {
     const state = createGame(1);
     const { ui, view } = openSheet(state, { kind: "body" });
     const ids = menuHits(state, ui).map((h) => h.id);
-    expect(ids, "頁の札").toEqual(expect.arrayContaining([fid.page(0), fid.page(1)]));
+    expect(ids, "頁の札").toEqual(expect.arrayContaining(BODY_PAGES.map((_, n) => fid.page(n))));
     expect(ids.filter((id) => id.startsWith("row:")).length, "行動の行").toBeGreaterThan(0);
     expect(Object.keys(attributeSources(state)), "ステータスの出どころ").toEqual(expect.arrayContaining(["str", "dex", "vit", "mnd", "spi"]));
     expect(derivedStatRows(state.stats).length, "体の性能").toBeGreaterThan(0);
@@ -102,12 +104,78 @@ describe("書付", () => {
     expect(focusedActionIndex(state, view), "焦点の行動の計算式").toBe(second);
   });
 
+  it("書付「体」の頁は 3 枚（体・内訳・奥義）で、札から送れる", () => {
+    const state = createGame(1);
+    expect(BODY_PAGES, "頁の並び").toEqual(["体", "内訳", "奥義"]);
+    const { ui } = openSheet(state, { kind: "body" });
+    const top = (): ViewOf<"sheet"> => {
+      const v = ui.stack[ui.stack.length - 1];
+      if (v?.kind !== "sheet") throw new Error("書付が積まれていない");
+      return v;
+    };
+    expect(menuHits(state, ui).filter((h) => h.id.startsWith("page:")), "頁の札").toHaveLength(3);
+    for (const page of [BODY_PAGE_BREAKDOWN, BODY_PAGE_ULTIMATE, BODY_PAGE_STATUS]) {
+      dispatchMenuAct(state, ui, { kind: "sheetPage", page });
+      expect(top().page, `頁 ${BODY_PAGES[page]} へ送れる`).toBe(page);
+    }
+  });
+
+  it("内訳の頁はステータスごとの行を持ち、焦点のステータスが選ばれる", () => {
+    const state = createGame(1);
+    const { ui } = openSheet(state, { kind: "body" });
+    dispatchMenuAct(state, ui, { kind: "sheetPage", page: BODY_PAGE_BREAKDOWN });
+    const ids = menuHits(state, ui).map((h) => h.id);
+    expect(ids.filter((id) => id.startsWith("row:")), "ステータスの行").toHaveLength(ATTR_KEYS.length);
+    expect(ids, "体の頁の行動の行は出さない").not.toContain(fid.row(ATTR_KEYS.length));
+    const view = ui.stack[ui.stack.length - 1];
+    if (view?.kind !== "sheet") throw new Error("書付が積まれていない");
+    expect(focusedAttr(view), "焦点が無ければ先頭").toBe(ATTR_KEYS[0]);
+    ATTR_KEYS.forEach((key, i) => {
+      view.focus = fid.row(i);
+      expect(focusedAttr(view), `行 ${i}`).toBe(key);
+    });
+    view.focus = fid.row(99);
+    expect(focusedAttr(view), "範囲外は先頭").toBe(ATTR_KEYS[0]);
+  });
+
+  it("内訳の頁の参照する行動は、そのステータスを係数で参照する行動の名前で、威力・怯み値・効果量ごとに分かれる", () => {
+    const state = createGame(1);
+    const groups = attributeReferenceGroups(state);
+    expect(Object.keys(groups), "全ステータス").toEqual([...ATTR_KEYS]);
+    const heads = new Set(Object.values(groups).flatMap((gs) => gs.map((g) => g.head)));
+    expect([...heads].every((h) => ["威力", "怯み値", "効果量"].includes(h)), "量の見出し").toBe(true);
+    expect(Object.values(groups).some((gs) => gs.length > 0), "どれかのステータスは行動を参照する").toBe(true);
+    for (const gs of Object.values(groups)) for (const g of gs) expect(g.names.length, `${g.head} の名前`).toBeGreaterThan(0);
+  });
+
+  it("内訳の頁の増と倍は今の右手の攻撃に掛かるものだけで、積んだ増と倍が出る", () => {
+    const state = createGame(1);
+    expect(bodyModifierSection(state).rows.map((r) => chunksText(r)), "素手は素手の倍だけ").toEqual(["倍 素手 ×0.7"]);
+    state.stats = {
+      ...state.stats,
+      increased: { ...state.stats.increased, melee: 0.2, ranged: 0.5 },
+      more: [
+        { source: "keystone:ks_glassCannon", label: "硝子の砲", mul: 2, tags: ["melee", "ranged"] },
+        { source: "boon:triggerHappy", label: "乱れ撃ち", mul: 0.6, tags: ["ranged"] },
+      ],
+    };
+    const melee = bodyModifierSection(state);
+    expect(melee.attack, "銃でなければ近接").toBe("melee");
+    expect(melee.rows.map((r) => chunksText(r)), "近接の増と、近接に掛かる倍だけ").toEqual(["増 近接ダメージ +20%", "倍 硝子の砲 ×2"]);
+    const gun = MOVESET_KEYS.find((k) => isGun(MOVESETS[k]));
+    if (gun === undefined) throw new Error("銃の武器種が無い");
+    state.stats = { ...state.stats, moveset: gun };
+    const ranged = bodyModifierSection(state);
+    expect(ranged.attack, "銃は射撃").toBe("ranged");
+    expect(ranged.rows.map((r) => chunksText(r)), "射撃の増と、射撃に掛かる倍").toEqual(["増 射撃ダメージ +50%", "倍 硝子の砲 ×2・乱れ撃ち ×0.6"]);
+  });
+
   it("奥義は拠点でだけ選べる", () => {
     const state = createGame(1);
     const moveset = state.stats.moveset;
     const last = ULTIMATES[moveset].length - 1;
     const run = openSheet(state, { kind: "body" });
-    dispatchMenuAct(state, run.ui, { kind: "sheetPage", page: 1 });
+    dispatchMenuAct(state, run.ui, { kind: "sheetPage", page: BODY_PAGE_ULTIMATE });
     expect(menuHits(state, run.ui).some((h) => h.id.startsWith("moveset:")), "ラン中は武器種を送らない").toBe(false);
     dispatchMenuAct(state, run.ui, { kind: "chooseUltimate", index: last });
     expect(state.profile.ultimates?.[moveset], "ラン中は変わらない").toBeUndefined();
@@ -115,7 +183,7 @@ describe("書付", () => {
 
     state.sandbox = true;
     const hub = openSheet(state, { kind: "body" });
-    dispatchMenuAct(state, hub.ui, { kind: "sheetPage", page: 1 });
+    dispatchMenuAct(state, hub.ui, { kind: "sheetPage", page: BODY_PAGE_ULTIMATE });
     expect(menuHits(state, hub.ui).some((h) => h.id === fid.moveset(1)), "拠点は武器種を送れる").toBe(true);
     dispatchMenuAct(state, hub.ui, { kind: "chooseUltimate", index: last });
     expect(ultimateChoice(state.profile, moveset).key, "拠点で選べる").toBe(ULTIMATES[moveset][last]?.key);

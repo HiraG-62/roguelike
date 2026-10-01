@@ -4,20 +4,34 @@ import { formatMeters } from "../core/units";
 import { JOBS } from "../data/jobs";
 import { PLAYER } from "../data/tuning";
 import { ULTIMATES, type UltimateDef, type UltimateKind } from "../data/ultimates";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
 import { chooseUltimate, saveProfile, ultimateChoice } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, LOOT_SLOTS, type AttrKey, type PlayerStats, createEmptyEquipment } from "../loot/types";
+import { SKILL } from "../skills/data";
+import { stoneInSlot } from "../skills/persistence";
+import type { SkillKey } from "../skills/types";
 import { dashCooldownTime } from "../system/player";
 import { formatCooldown } from "../system/skills";
 import type { EffectRow } from "./effectsList";
 import { SLOT_LABEL } from "./inventoryLayout";
 import { reachRows } from "./reachRows";
-import { type ActionFormulas, type FormulaChunk, actionChunks, actionRows, movesetFormulas } from "./scalingText";
+import {
+  type ActionFormulas,
+  type AttackTag,
+  type FormulaChunk,
+  type FormulaKind,
+  type LoadoutSources,
+  actionChunks,
+  actionRows,
+  attributeReferences,
+  modifierRows,
+  movesetFormulas,
+} from "./scalingText";
 
 /**
  * 書付「体」の中身（旧 ui/statusTab.ts の派生値・奥義の選択を移した。docs/ideas/inventory-v2/E-impl.md 4-3 E6）。
- * 頁 [体] = ステータスと出どころ・体の性能・到達・行動の計算式、[奥義] = 武器種の奥義 3 枚。純関数と奥義の選択だけ（画面の当たりは ui/sheet.ts）。
+ * 頁 [体] = ステータスと出どころ・体の性能・到達・行動の計算式、[内訳] = ステータスごとの参照する行動と、攻撃に掛かる増と倍、[奥義] = 武器種の奥義 3 枚。純関数と奥義の選択だけ（画面の当たりは ui/sheet.ts）。
  * 奥義は拠点（state.sandbox）でだけ選べる。リプレイは開始時の奥義の写しを取るので、ラン中に変えると再生とずれる。
  * 単一の強さの指標（DPS・スコア）は出さない（docs/DESIGN_PRINCIPLES.md）
  */
@@ -126,6 +140,69 @@ export function bodyActionChunks(action: Readonly<ActionFormulas>): FormulaChunk
   const first = action.formulas[0];
   if (first !== undefined) return actionChunks(action, first);
   return actionRows(action)[0] ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// 内訳（ステータスを参照する行動・攻撃に掛かる増と倍。旧ステータスタブの詳細欄にあった 2 つ）
+// ---------------------------------------------------------------------------
+
+/** 参照の量の組。見出しと、その量にあたる式の種類 */
+export interface ReferenceGroupDef {
+  head: string;
+  kinds: readonly FormulaKind[];
+}
+
+export const REFERENCE_GROUPS: readonly ReferenceGroupDef[] = [
+  { head: "威力", kinds: ["power"] },
+  { head: "怯み値", kinds: ["poise"] },
+  { head: "効果量", kinds: ["potency", "buff"] },
+];
+
+export interface ReferenceGroup {
+  head: string;
+  names: string[];
+}
+
+/** 今の右手の武器種・弾・腰のスキル石・選んでいる奥義（attributeReferences の入力） */
+export function loadoutSources(state: Readonly<GameState>): LoadoutSources {
+  const skills: SkillKey[] = [];
+  for (let i = 0; i < SKILL.slots; i++) {
+    const stone = stoneInSlot(state.skills.profile, i);
+    if (stone && !skills.includes(stone.skillKey)) skills.push(stone.skillKey);
+  }
+  return { moveset: MOVESETS[state.stats.moveset], bullet: state.stats.bullet, skills, ultimate: ultimateChoice(state.profile, state.stats.moveset) };
+}
+
+/**
+ * ステータスごとに、どの行動のどの量（威力・怯み値・効果量）に効くか。参照する行動が無い量は出さない。
+ * 名前を並べるだけで、強さの指標にはまとめない
+ */
+export function attributeReferenceGroups(state: Readonly<GameState>): Record<AttrKey, ReferenceGroup[]> {
+  const src = loadoutSources(state);
+  const out = {} as Record<AttrKey, ReferenceGroup[]>;
+  for (const key of ATTR_KEYS) out[key] = [];
+  for (const group of REFERENCE_GROUPS) {
+    for (const ref of attributeReferences(state.stats, src, group.kinds)) {
+      if (ref.names.length > 0) out[ref.attr].push({ head: group.head, names: ref.names });
+    }
+  }
+  return out;
+}
+
+const ATTACK_HEAD: Readonly<Record<AttackTag, string>> = { melee: "近接", ranged: "射撃" };
+
+export interface ModifierSection {
+  attack: AttackTag;
+  /** 「近接」「射撃」 */
+  head: string;
+  /** 増の行・倍の行（どちらも無ければ空） */
+  rows: FormulaChunk[][];
+}
+
+/** 今の右手の攻撃（銃は射撃、ほかは近接）に掛かる増と倍。基礎の値の後に掛かるので計算式には含まれない */
+export function bodyModifierSection(state: Readonly<GameState>): ModifierSection {
+  const attack: AttackTag = isGun(MOVESETS[state.stats.moveset]) ? "ranged" : "melee";
+  return { attack, head: ATTACK_HEAD[attack], rows: modifierRows(state.stats, attack) };
 }
 
 // ---------------------------------------------------------------------------
