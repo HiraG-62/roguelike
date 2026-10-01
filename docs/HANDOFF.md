@@ -49,7 +49,6 @@
 ## 2. 次の候補
 
 - **2026-10-01 階の型 8 種の結線の積み残し**: 型の地図は生成直後の敵が旧生成の約 1.6 倍（部屋が増えるため。`JIN.tilesPerJin` / `maxJins` を balance-tuner で）。`buildFloor` は drunk 106ms・river 85ms・cavern 68ms が重い（`shapes.ts` の `caStep` / `tidy` / `connectAll` と finalize / validate を速くする候補。各型のレーンが「shapes へ移す候補」を出している: `fillPinches`・`riverField`・`coreDistance` など）。QA bot の `crossesPit`（L7）とフル QA の型別の表は未
-- **闇市の反転の遺物に反転が付かないことがある**（`src/system/blackMarket.ts` の `dropCursedItem`。性質がトリガー・変換だけの品だと `invertOneTrait` が何も反転させない。約 5%）。地図と無関係の前からの不具合
 - **マップの一新**（`docs/ideas/map-overhaul-ideas.md`、見本 `docs/ideas/previews/map-preview.html`）: 推奨は当たり・経路・生成を 16px のまま、描画だけ dual-grid + 密度 2 + チャンク焼き付け（E 章）。段取り D0〜D6。ユーザーに聞くこと 11 件が文書の末尾。2026-10-01: ユーザーが見た目は C 案を良しとし、生成が「部屋を規則的に並べて道を繋げただけの 1 パターン」と指摘 → 見本に階の型 8 種（大洞窟・谷・川筋・環状・中庭・寺院・掘り手の迷い道・島と桟道・縦穴・段々・断片の組み合わせ。床は今の洞窟比 0.81〜1.02）と章との相性を足した。**ユーザーが型を選ぶ待ち**
 - **インベントリの一新**（2026-10-01 作り直し: `docs/ideas/inventory-v2/` の 4 案、見本 `docs/ideas/previews/inv2/index.html`）: 前の旅装案はユーザーが「根本的でない・情報量が多すぎる」として見送り。A 決める瞬間（判断を床・階の切れ目・拠点の台・ランの終わりへ。ラン中の倉庫の付け替えを捨てる）/ B 物として置く（影法師の体 + 荷札 1 枚。絵 約 80 枚）/ C 一つずつ（札 1 枚を繰る。1 画面 7 行）/ D ビルドの形から引く（系統の紋）。ユーザーは A・B・D を評価 → **統合案 E「装束と紋」**（`inventory-v2/E-merged.md`、見本 `previews/inv2/E.html`）。装束 = 体の周りの 6 部位と腰の石から選び、右に紋の写し / 紋 = D の帯と珠。ラン中の倉庫の付け替えは今のまま。**E の聞くこと 5 件の回答待ち**
 - **別の段「深みの主」**: 深みの回転のボス 5 体の作り直し。最深の主は bot が 5 戦全部で負け、第 1 段階（四門）に 95% の時間

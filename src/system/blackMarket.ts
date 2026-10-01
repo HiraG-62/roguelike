@@ -109,6 +109,9 @@ export function goodDetailName(kind: WareKind, key: string): string | null {
 // 渡す
 // -----------------------------------------------------------------------------
 
+/** 反転できない品を引いたときの作り直しの上限（1 回の外れは約 5% なので、実際には尽きない） */
+const CURSED_REROLL_LIMIT = 32;
+
 /** 決めた種類のスキル石を床に置く（拾うと倉庫へ）。種類が壊れていれば何もしない */
 export function dropChosenStone(state: GameState, key: string, pos: Vec): void {
   if (!isSkillKey(key)) return;
@@ -118,10 +121,19 @@ export function dropChosenStone(state: GameState, key: string, pos: Vec): void {
   pushSfx(state, "lootRare");
 }
 
-/** 表の性質（変換・誓約・トリガーを除く）のうち最初のものを反転させる。名のある遺物は形を崩さないので触らない */
+/** 反転できる表の性質（変換・誓約・トリガーを除く）の位置。名のある遺物は形を崩さないので無し（-1） */
+function invertibleIndex(item: Item): number {
+  if (item.namedKey !== undefined) return -1;
+  return item.affixes.findIndex((r) => affixDef(r.key) !== undefined && !isConversionKey(r.key) && r.inverted !== true);
+}
+
+/** 反転した性質を既に持つか、これから 1 つ反転できる品か */
+function canBeCursed(item: Item): boolean {
+  return item.affixes.some((r) => r.inverted === true) || invertibleIndex(item) >= 0;
+}
+
 function invertOneTrait(item: Item, flux: number): void {
-  if (item.namedKey !== undefined) return;
-  const i = item.affixes.findIndex((r) => affixDef(r.key) !== undefined && !isConversionKey(r.key) && r.inverted !== true);
+  const i = invertibleIndex(item);
   const roll = item.affixes[i];
   if (!roll) return;
   item.affixes[i] = refluxTrait(roll, flux);
@@ -130,11 +142,18 @@ function invertOneTrait(item: Item, flux: number): void {
 }
 
 /**
- * 反転の遺物を床に置く: cursedItemBoost の揺らぎで作り、反転した性質が無ければ 1 つを反転させる（rng は生成 + 反転の強さ 1 回）
+ * 反転の遺物の素体を作る。トリガー・変換・名のある遺物だけの品は反転させられないので、反転できる品になるまで作り直す。
+ * 作り直しが起きるのはその品を引いたときだけ（普段の乱数の消費は変わらない）。上限まで外れたら最後の品をそのまま返す
  */
-export function dropCursedItem(state: GameState, pos: Vec): Item {
+function generateCursableItem(state: GameState): Item {
+  let item = generateOnce(state);
+  for (let retry = 0; retry < CURSED_REROLL_LIMIT && !canBeCursed(item); retry++) item = generateOnce(state);
+  return item;
+}
+
+function generateOnce(state: GameState): Item {
   const depth = state.depth;
-  const item = generateItem(state.rng, {
+  return generateItem(state.rng, {
     itemLevel: depth + state.rng.int(0, LOOT_DROP.itemLevelSpread),
     rarityBoost: ECONOMY.market.cursedItemBoost,
     foundDepth: depth,
@@ -142,6 +161,14 @@ export function dropCursedItem(state: GameState, pos: Vec): Item {
     now: Date.now(),
     excludeNamed: state.lockedRelics,
   });
+}
+
+/**
+ * 反転の遺物を床に置く: cursedItemBoost の揺らぎで作り、反転した性質が無ければ 1 つを反転させる（rng は生成 + 反転の強さ 1 回）。
+ * 反転できない品は作り直すので、必ず反転した性質を持つ
+ */
+export function dropCursedItem(state: GameState, pos: Vec): Item {
+  const item = generateCursableItem(state);
   const flux = rollInvertedFlux(state.rng);
   if (!item.affixes.some((r) => r.inverted === true)) invertOneTrait(item, flux);
   state.floorItems.push({ id: allocId(state), item, pos: { ...pos }, bobTime: 0 });
