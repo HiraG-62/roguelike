@@ -246,6 +246,44 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     expect(peak, "ある程度は持つ").toBeGreaterThan(6);
   });
 
+  it("LRU で手放したチャンクの canvas を次の焼きで使い回す（作り直さない）", () => {
+    const map = openMap(320, 160);
+    const reused: HTMLCanvasElement[] = [];
+    let made = 0;
+    const make = (_pixels: Uint32Array, reuse: HTMLCanvasElement | null): HTMLCanvasElement => {
+      if (reuse) {
+        reused.push(reuse);
+        return reuse;
+      }
+      made++;
+      return { id: made } as unknown as HTMLCanvasElement;
+    };
+    const cache = new MapChunkCache(make);
+    for (let x = 0; x < 320 * 16 - 480; x += 200) cache.settle(map, theme, { ...VIEW, x, y: (x % 1200) + 100 });
+    expect(reused.length, "横切るうちに使い回しが起きる").toBeGreaterThan(0);
+    expect(made, "作った canvas は持てる上限（床と縁で 2 枚ずつ）+ 取り置きの範囲に収まる").toBeLessThanOrEqual(CHUNK_CACHE_MAX * 4);
+  });
+
+  it("地図が変わったら canvas を取り置きに回し、新しい地図の焼きで使う", () => {
+    const images: HTMLCanvasElement[] = [];
+    const reused: HTMLCanvasElement[] = [];
+    const make = (_pixels: Uint32Array, reuse: HTMLCanvasElement | null): HTMLCanvasElement => {
+      if (reuse) {
+        reused.push(reuse);
+        return reuse;
+      }
+      const made = { id: images.length } as unknown as HTMLCanvasElement;
+      images.push(made);
+      return made;
+    };
+    const cache = new MapChunkCache(make);
+    cache.settle(openMap(32, 32), theme, VIEW);
+    const first = images.length;
+    cache.settle(openMap(32, 32), theme, VIEW);
+    expect(images.length, "新しく作らない").toBe(first);
+    expect(reused.length, "前の地図の canvas を使った").toBeGreaterThan(0);
+  });
+
   it("state.map の同一性が変わったら全部捨てる", () => {
     const a = openMap(32, 32);
     const images = fakeImages();
