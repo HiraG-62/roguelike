@@ -179,7 +179,7 @@ const COMBAT_TIPS: readonly TipDef[] = [
     key: "inkMark",
     term: "墨印",
     category: "combat",
-    body: `書の左の 3 段が記す印（最大 ${STATUS.inkMark.maxStacks}）。射撃かスキルが当たると読まれ（読誦）、その敵を中心に重ねの数だけ広い円の中の敵すべてに当たり、気力が戻る。倒した一撃でも読む。烙印と違い、1 体ではなく周りへ広がる。`,
+    body: `書の左の 3 段（飛ぶ字「墨文字」）が記す印（最大 ${STATUS.inkMark.maxStacks}）。墨文字は記すだけで読まない。ほかの射撃かスキルが当たると読まれ（読誦）、その敵を中心に重ねの数だけ広い円の中の敵すべてに当たり、気力が戻る。倒した一撃でも読む。烙印と違い、1 体ではなく周りへ広がる。`,
   },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
   { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },

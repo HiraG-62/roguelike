@@ -5,9 +5,10 @@
 //   頁   = 反った紙。回りながら飛び、ひらりと幅が縮む（めくれ）。縁は白く、面に文字の行が入る
 //   紙片 = 崩れた頁の切れ端。振り終わりに散る
 //   墨   = 弧に沿って並ぶ小さな字と、飛び散る墨の粒
-// 左の 3 段だけは「文字の刃」（墨の字を縁だけの三日月・弧の帯に並べる。textBlade / textBand）。他の動きは頁と紙片で見せ、無詠唱（freeCast）と封印の一撃は目立たせる
-import { arcLine, crescent, easeSwing, ring, shards, sparkle, streakLine } from "../shapes.mjs";
-import { clamp01, dot, hash1, paint, segment, valueNoise } from "../raster.mjs";
+// 左の 3 段は遠くへ「墨文字」（cast.inkGlyph）を放つ。振りの絵は手元の詠唱の光（筆の円 = 円相。chantGlow）で、字そのものは弾の絵が描く。
+// 他の動きは頁と紙片で見せ、無詠唱（freeCast）と封印の一撃は目立たせる
+import { arcLine, easeSwing, ring, shards, sparkle, streakLine } from "../shapes.mjs";
+import { clamp01, dot, hash1, hash2, paint, segment, valueNoise } from "../raster.mjs";
 import { DIRS } from "../motifs.mjs";
 
 const TAU = Math.PI * 2;
@@ -221,141 +222,6 @@ function openBook(frame, o) {
   }
   // 背表紙の線
   streakLine(frame, { ax: x - sn * hh, ay: y + cs * hh, bx: x + sn * hh, by: y - cs * hh, width: 1.2, bright: 0.5 * bright });
-}
-
-// -----------------------------------------------------------------------------
-// 左の段（box reach 14 / 扇 120° reach 22）: 文字の刃
-// 開いた本（胸の前。自分から 8px = 16 ドット前）の頁から字が走り、刃になって通り道に残る。振り終わりは字がほどけて散る
-// -----------------------------------------------------------------------------
-
-/** 2 次ベジェ（[始点, 制御点, 終点]）の点と単位接線。u = 0..1 */
-function bezier(path, u) {
-  const [p0, c, p2] = path;
-  const v = 1 - u;
-  const x = v * v * p0[0] + 2 * v * u * c[0] + u * u * p2[0];
-  const y = v * v * p0[1] + 2 * v * u * c[1] + u * u * p2[1];
-  const tx = 2 * v * (c[0] - p0[0]) + 2 * u * (p2[0] - c[0]);
-  const ty = 2 * v * (c[1] - p0[1]) + 2 * u * (p2[1] - c[1]);
-  const len = Math.hypot(tx, ty) || 1;
-  return { x, y, tx: tx / len, ty: ty / len };
-}
-
-/** 刃の芯: 道筋 u0..u1 に沿う両端の尖った細い筋。先（u1）ほど明るく、erosion で縁から欠ける */
-function bladeCore(frame, path, u0, u1, o) {
-  const m = 18;
-  const pts = [];
-  for (let i = 0; i <= m; i++) pts.push(bezier(path, u0 + ((u1 - u0) * i) / m));
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const pad = o.width + 2;
-  paint(
-    frame,
-    (px, py) => {
-      let best = Infinity;
-      let bt = 0;
-      for (let i = 0; i < m; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-        if (!a || !b) continue;
-        const s = segment(px, py, a.x, a.y, b.x, b.y);
-        if (s.d >= best) continue;
-        best = s.d;
-        bt = (i + s.t) / m;
-      }
-      const w = (o.width / 2) * Math.pow(Math.sin(Math.PI * bt), 0.7) + 0.35;
-      if (best > w) return -1;
-      // outline: 身を塗らず縁だけ（中の字を読ませる）
-      if (o.outline && best < w - 1.2) return -1;
-      if (!survives(px, py, o.erosion ?? 0, 1 - best / w, o.seed ?? 1)) return -1;
-      return clamp01((o.bright ?? 0.8) * (0.55 + 0.45 * bt) * (1 - 0.3 * (best / w)));
-    },
-    { bounds: { x0: Math.min(...xs) - pad, y0: Math.min(...ys) - pad, x1: Math.max(...xs) + pad, y1: Math.max(...ys) + pad }, dither: 0.02 },
-  );
-}
-
-/**
- * 文字の刃 1 本（左 1・2 段）。字の列が道筋に沿って先頭から並び、芯の筋が切れ味を出す。
- * 刃の腹（凹の側）に字を 2 列、外側に芯。振り終わりは字が進行方向へずれながら薄れる
- */
-const BLADE1 = { path: [[17, -11], [46, -1], [34, 12]], rows: [{ off: 0, n: 4, size: 2.7, width: 1.1, k: 1 }], seed: 1101 };
-const BLADE2 = { path: [[19, 11], [48, 6], [37, -11]], rows: [{ off: 0, n: 4, size: 2.7, width: 1.1, k: 1 }], seed: 1201 };
-const BLADE_FRAMES = 7;
-const BLADE_ACTIVE = 3;
-
-function textBlade(frame, f, spec) {
-  const A = BLADE_ACTIVE;
-  const { p, k } = timing(f, A, BLADE_FRAMES);
-  const head = f < A ? p : 1;
-  const tail = f < A ? 0 : k * 0.85;
-  const span = Math.max(0.05, head - tail);
-  const fade = 1 - k * 0.85;
-  // 刃の身（縁だけの三日月）。中に字を並べる
-  if (head - tail > 0.02) {
-    bladeCore(frame, spec.path, tail, head, { width: 9 * (1 - k * 0.4), bright: 0.7 * fade, outline: true, erosion: k * 0.9, seed: spec.seed });
-  }
-  spec.rows.forEach((row, ri) => {
-    for (let i = 0; i < row.n; i++) {
-      const u = (i + 0.5) / row.n;
-      if (u > head || u < tail) continue;
-      const rel = (u - tail) / span;
-      const pt = bezier(spec.path, u);
-      // 法線へ寄せ（今は 0）、振り終わりは進行方向へずれていく
-      const nx = -pt.ty;
-      const ny = pt.tx;
-      const drift = k * (3 + ri * 2);
-      const x = pt.x + nx * row.off + pt.tx * drift;
-      const y = pt.y + ny * row.off + pt.ty * drift;
-      const bright = (0.62 + 0.38 * rel) * fade * row.k;
-      if (bright < 0.25) continue;
-      glyph(frame, x, y, Math.atan2(pt.ty, pt.tx), row.size, { set: Math.floor(hash1(i + ri * 5, spec.seed) * GLYPHS.length), bright, width: row.width });
-    }
-  });
-  const tip = bezier(spec.path, head);
-  if (f === A - 1) sparkle(frame, tip.x, tip.y, 3);
-  if (f >= A - 1) inkDrops(frame, f - (A - 1), { n: 6, seed: spec.seed + 30, speed: 2.8, x: tip.x, y: tip.y, r0: 2, center: Math.atan2(tip.ty, tip.tx), cone: 1.9, life: 3 });
-}
-
-/**
- * 左 3 段（扇 120° reach 22）: 文字の帯。開いた本から 3 列の字が弧になって広がり、群れをなでる。
- * 外側ほど字が大きく、振り終わりは字が外へほどけて散る
- */
-const BAND_HALF = (120 * Math.PI) / 360;
-const BAND_ROWS = [
-  { r: 23, n: 6, size: 2.4 },
-  { r: 32, n: 8, size: 2.9 },
-  { r: 41, n: 10, size: 3.3 },
-];
-
-function textBand(frame, f) {
-  const N = 8;
-  const A = 4;
-  const { p, k } = timing(f, A, N);
-  const margin = 0.06;
-  const from = -BAND_HALF + margin;
-  const to = BAND_HALF - margin;
-  const head = from + (to - from) * (f < A ? p : 1);
-  const fade = 1 - k * 0.85;
-  // 外縁の芯（字の帯の切れ味）
-  crescent(frame, { R: 41, T: 4 * (1 - k * 0.4), head, tail: f < A ? from : from + (head - from) * k * 0.8, erosion: k * 0.9, bright: 0.55 * fade, seed: 1301, streak: 0.5, edge: 1.2 });
-  BAND_ROWS.forEach((row, ri) => {
-    // 内側の列が先に走り、外側が追う
-    const lag = (2 - ri) * 0.05;
-    for (let i = 0; i < row.n; i++) {
-      const a = from + ((to - from) * (i + 0.5)) / row.n;
-      const h = head - lag;
-      if (a > h) continue;
-      const rel = Math.max(0, 1 - (h - a) / ((to - from) * 0.9));
-      const bright = (0.35 + 0.65 * rel) * fade;
-      if (bright < 0.2) continue;
-      const drift = k * (3 + ri * 2.5);
-      const r = row.r + (hash1(i + ri * 7, 1302) - 0.5) * 1.6 + drift;
-      glyph(frame, Math.cos(a) * r, Math.sin(a) * r, a + Math.PI / 2, row.size, { set: Math.floor(hash1(i + ri * 11, 1303) * GLYPHS.length), bright, width: 1.2 + ri * 0.2 });
-    }
-  });
-  const tx = Math.cos(head) * 41;
-  const ty = Math.sin(head) * 41;
-  if (f === A - 1) sparkle(frame, tx, ty, 4);
-  if (f >= A - 1) inkDrops(frame, f - (A - 1), { n: 9, seed: 1310, speed: 3.2, x: Math.cos(to) * 36, y: Math.sin(to) * 36, r0: 3, center: to + 0.5, cone: 2.2, life: 4 });
 }
 
 // -----------------------------------------------------------------------------
@@ -658,6 +524,399 @@ function pageFizzle(frame, f) {
 }
 
 // -----------------------------------------------------------------------------
+// 弾: 墨文字（cast.inkGlyph）
+// 字は回すと読めないので、画面に揃えて（向きに関わらず正立で）手描きの字形を押す。墨の尾だけが飛ぶ向きへ引く。
+// 配色は fire（朱墨）を既定にする: 段 1〜2 = 墨（黒に近い臙脂）、3 = 朱、4〜5 = 字の身と明部
+// -----------------------------------------------------------------------------
+
+/**
+ * 筆の字（15x15）。'@' = 入りの押さえ（明部）、'#' = 字の身、'+' = 払いの抜け（細く淡い）。
+ * 決め打ちの字形で、飛ぶ間に 永 → 心 → の → 刃 と移ろう
+ */
+const INK_GLYPH_ART = [
+  // 永
+  [
+    "......@#.......",
+    ".......##......",
+    "...............",
+    "..@######......",
+    ".......##....@.",
+    ".......##...##.",
+    ".@####.##..##..",
+    "....##.##.##...",
+    "...##..####....",
+    "..##...##.##...",
+    ".##....##..##..",
+    "+#.....##...##.",
+    "....#..##....##",
+    ".....####.....+",
+    "...............",
+  ],
+  // 心
+  [
+    "...............",
+    "...............",
+    "......@#.......",
+    ".......##......",
+    "....@...##.....",
+    "....##......@..",
+    "....##......##.",
+    ".@..##.......##",
+    ".##.##.........",
+    "..#.##.........",
+    "....##.....+...",
+    ".....##...##...",
+    "......#####....",
+    "...............",
+    "...............",
+  ],
+  // の
+  [
+    "...............",
+    "......#####....",
+    "....##..@..##..",
+    "...#....#....#.",
+    "..#....#.....##",
+    ".##....#......#",
+    ".#....#.......#",
+    ".#....#.......#",
+    ".#...#.......##",
+    ".##.##.......#.",
+    "..###.......##.",
+    "...........##..",
+    ".........##....",
+    ".......++......",
+    "...............",
+  ],
+  // 刃
+  [
+    "...............",
+    "...............",
+    "..@##########..",
+    ".......##..##..",
+    ".......##..##..",
+    ".......#...##..",
+    "..@...##...##..",
+    "...##.#....##..",
+    ".....##....##..",
+    ".....#.....##..",
+    "....##.....##..",
+    "...##......##..",
+    "..##.....+.##..",
+    ".+........###..",
+    "...............",
+  ],
+];
+
+/**
+ * 朱の印（白文の落款。11x11）。'#' = 印の朱、'o' = 彫った字（墨の段）。字は「書」をくずした形
+ */
+const SEAL_ART = [
+  ".#########.",
+  "##ooooooo##",
+  "#####o#####",
+  "##ooooooo##",
+  "#####o#####",
+  "#ooooooooo#",
+  "###########",
+  "##ooooooo##",
+  "##o#####o##",
+  "##ooooooo##",
+  ".#########.",
+];
+
+/** 字の 1 ドット: 字の中の位置 (i, j)・字形の文字 */
+function artCells(art) {
+  const h = art.length;
+  const w = art[0]?.length ?? 0;
+  const cells = [];
+  art.forEach((row, j) => {
+    if (row.length !== w) throw new Error(`book: 字形の行の幅が揃っていない（${row}）`);
+    for (let i = 0; i < w; i++) {
+      const ch = row[i];
+      if (ch && ch !== ".") cells.push({ i, j, ch });
+    }
+  });
+  return { w, h, cells, has: (i, j) => (art[j]?.[i] ?? ".") !== "." };
+}
+
+const INK_GLYPHS = INK_GLYPH_ART.map(artCells);
+const SEAL = artCells(SEAL_ART);
+
+/** 正準座標 (x, y) を画面に揃った格子の整数位置へ（字の左上を決めるため） */
+function gridAt(frame, x, y) {
+  const g = frame.toGrid(x, y);
+  return { x: Math.round(g.x), y: Math.round(g.y) };
+}
+
+/**
+ * 筆の字の段: 押さえ '@' = 5、身 = 4（左上が空いていれば光の当たる縁で 5）、払い '+' = 3。dim で段を下げる
+ */
+function glyphLevel(g, c, dim) {
+  let level = 4;
+  if (c.ch === "@") level = 5;
+  else if (c.ch === "+") level = 3;
+  else if (!g.has(c.i - 1, c.j) || !g.has(c.i, c.j - 1)) level = 5;
+  return Math.max(2, level - dim);
+}
+
+/**
+ * 墨文字 1 字を画面に揃えて押す。(x, y) は字の中心（正準座標）。
+ * keep（0..1）で残すドットの割合（座標のハッシュで間引く＝移ろい・ほどけ）、dim で段を下げる、
+ * offset(c, h) でドットごとに画面のずれ（砕け・ほどけ）を返す。outline で墨（段 1）の縁取りを付ける
+ */
+function inkGlyph(frame, x, y, index, o = {}) {
+  const g = INK_GLYPHS[((index % INK_GLYPHS.length) + INK_GLYPHS.length) % INK_GLYPHS.length] ?? INK_GLYPHS[0];
+  const at = gridAt(frame, x, y);
+  const left = at.x - Math.floor(g.w / 2) + (o.dx ?? 0);
+  const top = at.y - Math.floor(g.h / 2) + (o.dy ?? 0);
+  const keep = o.keep ?? 1;
+  const dim = o.dim ?? 0;
+  const seed = o.seed ?? 31;
+  const outline = o.outline ?? true;
+  const placed = [];
+  for (const c of g.cells) {
+    if (o.reveal && !o.reveal(c)) continue;
+    const h = hash2(c.i, c.j, seed);
+    if (h > keep) continue;
+    const off = o.offset ? o.offset(c, h) : { x: 0, y: 0, dim: 0 };
+    const level = glyphLevel(g, c, dim + (off.dim ?? 0));
+    if (level < 2) continue;
+    placed.push({ x: left + c.i + Math.round(off.x), y: top + c.j + Math.round(off.y), level });
+  }
+  if (outline) {
+    for (const p of placed) {
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) frame.raise(p.x + ox, p.y + oy, 1);
+    }
+  }
+  for (const p of placed) frame.set(p.x, p.y, Math.max(p.level, frame.get(p.x, p.y)));
+}
+
+/** 朱の印を画面に揃えて押す。body = 朱の段、keep で縁から欠ける（押した印のかすれ） */
+function seal(frame, x, y, o = {}) {
+  const at = gridAt(frame, x, y);
+  const left = at.x - Math.floor(SEAL.w / 2);
+  const top = at.y - Math.floor(SEAL.h / 2);
+  const body = o.body ?? 3;
+  const keep = o.keep ?? 1;
+  const cx = (SEAL.w - 1) / 2;
+  for (const c of SEAL.cells) {
+    // 縁ほど先に欠ける
+    const edge = Math.max(Math.abs(c.i - cx), Math.abs(c.j - cx)) / cx;
+    const h = hash2(c.i, c.j, o.seed ?? 77);
+    if (h * 0.7 + (1 - edge) * 0.5 > keep + 0.5) continue;
+    frame.set(left + c.i, top + c.j, c.ch === "o" ? 1 : body);
+  }
+}
+
+/**
+ * 墨の尾: 字の後ろ（-x）へ引く筆の帯。字の際が太く、先へ細り、先の方は掠れ（飛白）で筋に割れる。ph で揺れる
+ */
+function inkTail(frame, o) {
+  const x0 = o.x0 ?? -5;
+  const len = o.len ?? 22;
+  const ph = o.ph ?? 0;
+  const w0 = o.width ?? 2.2;
+  const bright = o.bright ?? 0.28;
+  const seed = o.seed ?? 2301;
+  paint(
+    frame,
+    (x, y) => {
+      const t = (x0 - x) / len;
+      if (t < 0 || t > 1) return -1;
+      const mid = Math.sin(ph + t * 4.2) * 1.6 * t;
+      const w = w0 * Math.pow(1 - t, 0.8) + 0.45;
+      const d = Math.abs(y - mid);
+      if (d > w) return -1;
+      // 掠れ: 帯の幅を筋に割り、先ほど多くの筋が途切れる
+      const lane = Math.floor((y - mid + 4) * 1.1);
+      const run = Math.floor((x - ph * 3) / 3);
+      if (t > 0.35 && hash2(lane, run, seed) < (t - 0.35) * 1.5) return -1;
+      return clamp01(bright * (1 - 0.55 * t) * (1 - 0.3 * (d / w)));
+    },
+    { bounds: { x0: x0 - len - 1, y0: -6, x1: x0 + 1, y1: 6 }, dither: 0.03 },
+  );
+}
+
+/**
+ * 墨の飛沫: 暗い段（2〜3）の滴を放射に飛ばす（inkDrops は明るい火花の段なので、朱墨の配色で火の粉に見える）。
+ * 大きい滴は 2x2 で、尾を 1 ドット引く
+ */
+function inkSpray(frame, age, o) {
+  for (let i = 0; i < o.n; i++) {
+    const rnd = (k) => hash1(i * 13 + k, o.seed);
+    const life = (o.life ?? 3) + Math.floor(rnd(3) * 2);
+    if (age < 0 || age > life) continue;
+    const a = (o.center ?? 0) + (rnd(1) - 0.5) * (o.cone ?? TAU);
+    const sp = o.speed * (0.45 + rnd(2) * 0.9);
+    const drag = 0.78;
+    const travel = (1 - Math.pow(drag, age)) / (1 - drag);
+    const r0 = (o.r0 ?? 0) * (0.4 + 0.6 * rnd(6));
+    const x = (o.x ?? 0) + Math.cos(a) * (r0 + sp * travel);
+    const y = (o.y ?? 0) + Math.sin(a) * (r0 + sp * travel) + (o.fall ?? 0.4) * age * age * rnd(7);
+    const level = age >= life - 1 ? 2 : 3;
+    dot(frame, x, y, level);
+    if (rnd(4) > 0.5 && age < life - 1) {
+      dot(frame, x + 1, y, level);
+      dot(frame, x, y + 1, level);
+      dot(frame, x + 1, y + 1, 2);
+    }
+    if (age > 0) dot(frame, x - Math.cos(a) * 1.5, y - Math.sin(a) * 1.5, 2);
+  }
+}
+
+/** 飛ぶ墨文字の方向の数（細い墨の尾の角が目立たないよう杖の細い弾と同じ 32） */
+const GLYPH_DIRS = 32;
+
+/** 飛ぶ間に字が移ろう時間割: 1 字 = FLY_HOLD コマ（最後のコマで次の字へ溶けかける） */
+const GLYPH_FLY_HOLD = 2;
+const GLYPH_FLY_FRAMES = INK_GLYPHS.length * GLYPH_FLY_HOLD;
+/** 移ろいのコマで次の字を書き終えている所（字の中の i + j がこれ以下。15x15 の対角は 28） */
+const GLYPH_WRITE_CUT = 17;
+
+/** 飛んでいる墨文字: 正立の字が数コマごとに別の字へ移ろい、後ろへ墨の尾と滴を引く（period で 1 巡） */
+function glyphFly(frame, f) {
+  const N = GLYPH_FLY_FRAMES;
+  const ph = (f / N) * TAU;
+  const gi = Math.floor(f / GLYPH_FLY_HOLD);
+  const turning = f % GLYPH_FLY_HOLD === GLYPH_FLY_HOLD - 1;
+  inkTail(frame, { ph, seed: 2301 });
+  // 尾に沿って落ちる墨の滴（位相で後ろへ流れて巡る）
+  for (let i = 0; i < 4; i++) {
+    const u = (hash1(i, 2302) + f / N) % 1;
+    const x = -9 - u * 18;
+    const y = Math.sin(ph + u * 4.2) * 1.6 * u + (hash1(i, 2303) - 0.5) * 6;
+    dot(frame, x, y, u < 0.5 ? 3 : 2);
+  }
+  if (!turning) {
+    inkGlyph(frame, 0, 0, gi, { seed: 2310 + gi });
+    return;
+  }
+  // 移ろい: 今の字が薄い墨の影になって垂れ、次の字が左上から書き進められる（筆順の向き）
+  inkGlyph(frame, 0, 0, gi, { keep: 0.75, dim: 2, outline: false, seed: 2320, offset: (c, h) => ({ x: 0, y: h < 0.3 ? 1 : 0 }) });
+  inkGlyph(frame, 0, 0, gi + 1, { reveal: (c) => c.i + c.j <= GLYPH_WRITE_CUT, seed: 2321 });
+}
+
+/** 放つ瞬間: 手元に字が浮かび上がり、筆の払いのように墨が前へ弾ける（書の頁から字が剥がれる） */
+function glyphMuzzle(frame, f) {
+  const rise = [2, 0, -1, -2, -3][f] ?? -3;
+  const keep = [0.45, 1, 1, 0.6, 0.3][f] ?? 0.3;
+  const dim = [1, 0, 0, 1, 1][f] ?? 1;
+  inkGlyph(frame, 3, 0, 0, { dy: rise, keep, dim, seed: 2401 });
+  if (f === 1) sparkle(frame, 3, 0, 2);
+  // 前へ弾ける墨（筆の払いの方向）
+  inkSpray(frame, f, { n: 7, seed: 2402, speed: 3.2, x: 7, center: 0, cone: 1.3, life: 3 });
+}
+
+/** 当たった: 字が墨の飛沫に砕けて前へ散り、跡に朱の印が一瞬押される */
+function glyphImpact(frame, f) {
+  // 砕け: 3x3 の欠片ごとに中心から外へ（前寄りに）飛ぶ
+  if (f <= 3) {
+    inkGlyph(frame, 0, 0, 3, {
+      keep: 1 - f * 0.22,
+      dim: f === 0 ? 0 : 1,
+      seed: 2501,
+      offset: (c) => {
+        const ci = Math.floor(c.i / 3) - 2;
+        const cj = Math.floor(c.j / 3) - 2;
+        const len = Math.hypot(ci, cj) || 1;
+        const sp = f * (2.6 + hash2(ci, cj, 2502) * 2);
+        return { x: (ci / len) * sp + f * 1.2, y: (cj / len) * sp, dim: f >= 2 ? 1 : 0 };
+      },
+    });
+  }
+  if (f <= 2) splat(frame, 0, 0, f === 0 ? 4 : 6, { bright: 0.22, seed: 2503, erosion: f * 0.3 });
+  if (f === 0) sparkle(frame, 0, 0, 3);
+  // 朱の印: 字が散った跡に押され、すぐ掠れて消える
+  if (f >= 2 && f <= 5) seal(frame, 0, 0, { body: f === 2 ? 4 : 3, keep: f <= 3 ? 1 : f === 4 ? 0.55 : 0.2, seed: 2504 });
+  inkSpray(frame, f, { n: 12, seed: 2505, speed: 4, r0: 3, center: 0, cone: 3.6, life: 4 });
+}
+
+/** 尽きた: 字の画がほどけて糸のように揺れながら垂れ、薄れて消える */
+function glyphFizzle(frame, f) {
+  const N = 6;
+  const k = f / (N - 1);
+  inkGlyph(frame, 0, 0, 2, {
+    keep: 1 - k * 0.85,
+    dim: f >= 3 ? 2 : f >= 1 ? 1 : 0,
+    outline: f < 3,
+    seed: 2601,
+    offset: (c, h) => ({ x: Math.sin(c.j * 0.9 + f * 1.4) * f * 0.45, y: f * (0.3 + h * 0.9) }),
+  });
+}
+
+// -----------------------------------------------------------------------------
+// 左の段（l:0〜2）: 書の詠唱の光。開いた頁の上（描いた書の muzzle の印）に筆の円（円相）が開き、字が飛ぶ瞬間に光る。
+// 字そのものは弾の絵（book.glyphFly）が出すので、ここは手元の光と墨の払いだけ。撃つ向きに直交する円を横から見た楕円
+// -----------------------------------------------------------------------------
+
+const CHANT = {
+  l0: { R: 11, frames: 7, active: 3, sweep: 1.7, flecks: 4, seed: 2701 },
+  l1: { R: 12, frames: 7, active: 3, sweep: -1.7, flecks: 4, seed: 2702 },
+  l2: { R: 16, frames: 8, active: 4, sweep: 1.85, flecks: 7, seed: 2703, double: true },
+};
+
+/**
+ * 円相（筆の円）: 楕円（squash で x を潰す）の上を a0 から sweep 周ぶん筆が走る。
+ * 入りが太く、抜けへ細り、抜けの方は掠れる。p（0..1）で描き進め、erosion で欠ける
+ */
+function enso(frame, o) {
+  const { R } = o;
+  const squash = o.squash ?? 0.5;
+  const a0 = o.a0 ?? -Math.PI / 2;
+  const sweep = o.sweep ?? 1.7;
+  const p = o.p ?? 1;
+  const width = o.width ?? 3;
+  const bright = o.bright ?? 0.7;
+  const erosion = o.erosion ?? 0;
+  const seed = o.seed ?? 2711;
+  const total = Math.abs(sweep) * TAU * p;
+  const dir = Math.sign(sweep) || 1;
+  paint(
+    frame,
+    (px, py) => {
+      const x = px / squash;
+      const r = Math.hypot(x, py);
+      const a = Math.atan2(py, x);
+      // 入りからの角の距離（筆の進む向き）
+      let s = ((a - a0) * dir) % TAU;
+      if (s < 0) s += TAU;
+      // 1 周を超える分（重ね書き）は、外側の 2 周目として半径をずらして拾う
+      const lap = total > TAU && s + TAU <= total ? 1 : 0;
+      const along = s + lap * TAU;
+      if (along > total) return -1;
+      const t = total > 0 ? along / total : 0;
+      const rr = R + lap * 2.2;
+      const w = (width * Math.pow(1 - t * 0.8, 0.9)) / 2 + 0.4;
+      const wx = w * (1 + (1 / Math.max(squash, 0.3) - 1) * Math.abs(x / Math.max(1, r)) * 0.6);
+      const d = Math.abs(r - rr);
+      if (d > wx) return -1;
+      if (t > 0.55 && hash2(Math.floor(d * 2 + (r > rr ? 3 : 0)), Math.floor(along * 4), seed) < (t - 0.55) * 1.8) return -1;
+      if (erosion > 0 && valueNoise(px, py, 3.5, seed) * 0.8 + 0.25 - erosion * 1.1 < 0) return -1;
+      // 筆先（今描いている所）ほど明るい
+      const head = 1 - Math.min(1, (total - along) / 2.5);
+      return clamp01(bright * (0.7 + 0.3 * head) * (1 - 0.35 * (d / wx)) * (1 - erosion * 0.35));
+    },
+    { bounds: { x0: -(R + 5) * squash - 3, y0: -R - 5, x1: (R + 5) * squash + 3, y1: R + 5 } },
+  );
+}
+
+function chantGlow(frame, f, spec) {
+  const { R, frames: N, active: A, seed } = spec;
+  const { p, k } = timing(f, A, N);
+  const bright = f < A ? 0.55 + 0.2 * p : 0.72 - 0.4 * k;
+  const radius = R * (0.7 + 0.3 * p) * (1 + 0.2 * k);
+  // 筆は一定の速さで円を描き進める（easeSwing だと最初のコマでほぼ描き終わってしまう）
+  const drawn = f < A ? (f + 1) / A : 1;
+  if (k < 0.95) enso(frame, { R: radius, sweep: spec.sweep, p: drawn, width: spec.double ? 3.6 : 3, bright, erosion: k * 0.85, seed });
+  if (spec.double && k < 0.8) enso(frame, { R: radius * 0.62, a0: Math.PI / 2, sweep: -spec.sweep * 0.8, p: drawn, width: 2, bright: bright * 0.8, erosion: Math.min(0.9, k * 0.9 + 0.05), seed: seed + 1 });
+  // 字が飛ぶ瞬間: 円の中心の閃き
+  if (f === A - 1 || f === A) sparkle(frame, 0, 0, f === A - 1 ? (spec.double ? 4 : 3) : 2);
+  // 頁から前へ弾ける墨の滴
+  if (f >= A - 1) inkSpray(frame, f - (A - 1), { n: spec.flecks, seed: seed + 8, speed: spec.double ? 3.6 : 2.8, x: 2, r0: R * 0.3, center: 0, cone: 1.8, life: 3 });
+}
+
+// -----------------------------------------------------------------------------
 // 表
 // -----------------------------------------------------------------------------
 
@@ -668,9 +927,9 @@ function pageFizzle(frame, f) {
 const FX = {
   moveset: "book",
   motions: {
-    "l:0": { sheet: "book.l1", pivot: "self", base: 14, measure: "reach" },
-    "l:1": { sheet: "book.l2", pivot: "self", base: 14, measure: "reach" },
-    "l:2": { sheet: "book.l3", pivot: "self", base: 22, measure: "reach" },
+    "l:0": { sheet: "book.chant1", pivot: "muzzle", base: 12, measure: "size" },
+    "l:1": { sheet: "book.chant2", pivot: "muzzle", base: 12, measure: "size" },
+    "l:2": { sheet: "book.chant3", pivot: "muzzle", base: 14, measure: "size" },
     dash: { sheet: "book.dash", pivot: "self", base: 36, measure: "size" },
     "r:freeCast": { sheet: "book.freeCast", pivot: "self", base: 32, measure: "size" },
     "r:pageSweep": { sheet: "book.pageSweep", pivot: "self", base: 16, measure: "reach" },
@@ -683,6 +942,7 @@ const FX = {
   hitHeavy: "book.hitHeavy",
   bullets: {
     "cast.flyingPage": { fly: "book.flyPage", period: 0.18, base: 3, muzzle: "book.pageMuzzle", impact: "book.pageImpact", fizzle: "book.pageFizzle", ramp: "brass" },
+    "cast.inkGlyph": { fly: "book.glyphFly", period: 0.48, base: 3, muzzle: "book.glyphMuzzle", impact: "book.glyphImpact", fizzle: "book.glyphFizzle", ramp: "fire" },
   },
 };
 
@@ -690,9 +950,9 @@ export const ATLAS = {
   key: "book",
   fx: FX,
   sheets: [
-    { key: "book.l1", dirs: DIRS, frames: BLADE_FRAMES, active: BLADE_ACTIVE, size: 100, draw: (fr, f) => textBlade(fr, f, BLADE1) },
-    { key: "book.l2", dirs: DIRS, frames: BLADE_FRAMES, active: BLADE_ACTIVE, size: 104, draw: (fr, f) => textBlade(fr, f, BLADE2) },
-    { key: "book.l3", dirs: DIRS, frames: 8, active: 4, size: 112, draw: textBand },
+    { key: "book.chant1", dirs: DIRS, frames: CHANT.l0.frames, active: CHANT.l0.active, size: 48, draw: (fr, f) => chantGlow(fr, f, CHANT.l0) },
+    { key: "book.chant2", dirs: DIRS, frames: CHANT.l1.frames, active: CHANT.l1.active, size: 48, draw: (fr, f) => chantGlow(fr, f, CHANT.l1) },
+    { key: "book.chant3", dirs: DIRS, frames: CHANT.l2.frames, active: CHANT.l2.active, size: 64, draw: (fr, f) => chantGlow(fr, f, CHANT.l2) },
     { key: "book.dash", dirs: DIRS, frames: 8, active: 4, size: 136, draw: pageWhirl },
     { key: "book.freeCast", dirs: 1, frames: 9, active: 4, size: 128, draw: freeCast },
     { key: "book.pageSweep", dirs: DIRS, frames: 8, active: 4, size: 112, draw: pageFan },
@@ -706,5 +966,10 @@ export const ATLAS = {
     { key: "book.pageMuzzle", dirs: DIRS, frames: 5, active: 0, size: 48, draw: pageMuzzle },
     { key: "book.pageImpact", dirs: 1, frames: 6, active: 0, size: 48, draw: pageImpact },
     { key: "book.pageFizzle", dirs: 1, frames: 6, active: 0, size: 32, draw: pageFizzle },
+    // 墨文字（字は画面に揃えて押すので、方向ごとに描き分けるのは墨の尾・払い・飛沫だけ）
+    { key: "book.glyphFly", dirs: GLYPH_DIRS, frames: GLYPH_FLY_FRAMES, active: 0, size: 64, draw: glyphFly },
+    { key: "book.glyphMuzzle", dirs: DIRS, frames: 5, active: 0, size: 48, draw: glyphMuzzle },
+    { key: "book.glyphImpact", dirs: DIRS, frames: 6, active: 0, size: 48, draw: glyphImpact },
+    { key: "book.glyphFizzle", dirs: 1, frames: 6, active: 0, size: 32, draw: glyphFizzle },
   ],
 };

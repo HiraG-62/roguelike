@@ -382,7 +382,8 @@ describe("武器種: 各段が当たる", () => {
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const maxStep = runCombo(state, e);
       const steps = MOVESETS[key].steps;
-      const hits = steps.reduce((sum, s) => sum + (s.hits ?? 1), 0);
+      // 当たり判定の大きさ 0 の段は純粋な詠唱（書の左）。当たるのは字（弾）で、近接の命中には数えない
+      const hits = steps.reduce((sum, s) => sum + (s.cast !== undefined && s.size === 0 ? 0 : (s.hits ?? 1)), 0);
       expect(maxStep, "最終段まで進んだ").toBe(steps.length - 1);
       expect(state.player.attack.branch, "派生は出ていない").toBe(-1);
       expect(state.player.meleeHitCount, "段ごとのヒット数の合計だけ当たった").toBe(hits);

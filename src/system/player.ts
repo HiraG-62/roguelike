@@ -1575,6 +1575,8 @@ export interface VolleyOverride {
   lane?: ButtonKey;
   /** 放出の弾（Projectile.release） */
   release?: { finisher: boolean; crit: boolean };
+  /** 命中ごとの気力（Projectile.shotMana。ThrowArtDef.mana） */
+  shotMana?: number;
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1700,6 +1702,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
       ...(override.lane ? { lane: override.lane } : {}),
       ...(override.release ? { release: { ...override.release } } : {}),
+      ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
     });
   }
   const fired = state.projectiles.slice(firstShot);

@@ -104,6 +104,11 @@ function applyShotStatus(state: GameState, pr: Projectile, e: Enemy): void {
   for (const apply of pr.applies) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
 }
 
+/** 墨印を記す弾（書の左の字）。記すだけで、同じ命中で墨印を読まない（statusReactions.ts の recite の条件） */
+function inscribesInk(pr: Projectile): boolean {
+  return pr.applies?.some((a) => a.kind === "inkMark") === true;
+}
+
 /** プレイヤー弾の弾の定義（src/loot/bullets.ts）。作業領域を持たない弾は undefined（まっすぐ飛ぶだけ） */
 function shotDefOf(pr: Projectile): BulletDef | undefined {
   if (pr.owner !== "player" || !pr.shot) return undefined;
@@ -357,7 +362,7 @@ function gainShotMana(state: GameState, pr: Projectile): void {
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainAttackMana(state, MANA.onShot * attackHitManaMul(state), attackManaMul(state));
+  gainAttackMana(state, (pr.shotMana ?? MANA.onShot) * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
@@ -384,6 +389,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       finisher: pr.release?.finisher,
       release: pr.release !== undefined,
       lane: pr.lane,
+      inscribes: inscribesInk(pr),
     });
     applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）

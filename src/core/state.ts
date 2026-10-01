@@ -565,6 +565,8 @@ export interface Projectile {
   lane?: ButtonKey;
   /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
   release?: { finisher: boolean; crit: boolean };
+  /** 命中ごとに戻る気力（ThrowArtDef.mana。左の詠唱が近接の段の気力を引き継ぐ）。未指定は MANA.onShot */
+  shotMana?: number;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

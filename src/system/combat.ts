@@ -103,6 +103,8 @@ export interface HitOptions {
   release?: boolean;
   /** 当てたレーン（双撃の判定。近接の振り・レーンの弾だけ。system/moments.ts） */
   lane?: ButtonKey;
+  /** 墨印を記す弾（書の左の字）の命中。記すだけで、この命中では墨印を読まない */
+  inscribes?: boolean;
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（スキルの増 increased.skill が足される） */
@@ -237,7 +239,7 @@ export function damageEnemy(
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);
-    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
+    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit, inscribes: opts.inscribes });
     onTraitHit(state, enemy, kind, opts.skill === true);
   }
 

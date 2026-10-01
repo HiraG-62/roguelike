@@ -217,6 +217,8 @@ describe("武器種の定義", () => {
         expect(step.recover, `${key} の recover`).toBeGreaterThan(0);
         expect(atBase(step.scaling), `${key} の威力`).toBeGreaterThan(0);
         expect(step.poise, `${key} の怯み値`).toBeGreaterThan(0);
+        // 当たり判定の大きさ 0 は純粋な詠唱（書の左。弾だけが当たる）。形の検査は判定を持つ段だけ
+        if (step.cast !== undefined && step.size === 0) continue;
         expect(step.size, `${key} の大きさ`).toBeGreaterThan(0);
         if (step.shape.kind === "arc") expect(step.shape.deg, `${key} の扇の角度`).toBeGreaterThan(0);
         if (step.shape.kind !== "circle") expect(step.reach, `${key} のリーチ`).toBeGreaterThan(0);

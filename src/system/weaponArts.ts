@@ -371,6 +371,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     applies: t.applies,
     lane: over.lane ?? "secondary",
     release: over.release,
+    shotMana: t.mana,
   });
 }
 

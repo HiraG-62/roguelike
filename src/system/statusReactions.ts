@@ -607,7 +607,7 @@ export function onEnemyDeathStatus(state: GameState, e: Enemy): void {
 export function onPlayerHitReactions(state: GameState, enemy: Enemy, ctx: OnHitContext): void {
   siphon(state, enemy);
   // 墨印は倒した一撃でも読む（印の付いた敵の位置から広がる）ので、撃破の早期リターンより前
-  if (ctx.kind === "ranged" || ctx.skill === true) recite(state, enemy);
+  if ((ctx.kind === "ranged" && ctx.inscribes !== true) || ctx.skill === true) recite(state, enemy);
   if (enemy.hp <= 0) return;
   if (ctx.kind === "ranged" || ctx.skill === true) detonateBrand(state, enemy);
   if (ctx.kind === "melee" && ctx.skill !== true) discharge(state, enemy);
