@@ -69,7 +69,7 @@ export type MoraleGain =
   | { kind: "placedShots" }
   /** スキルの命中（書） */
   | { kind: "skillHit"; amount: number }
-  /** 設置物・従魔の命中（鈴） */
+  /** 設置物・連動体の命中（鈴） */
   | { kind: "minionHit"; amount: number };
 
 /**
@@ -284,7 +284,8 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
   }),
   polearm: defineForm("polearm", {
     name: "長柄",
-    desc: "穂先で間合いを制し、満ちた突きで貫く",
+    desc: "先端で当てて間合いを制し、満ちた突きで貫く",
+    // 棍は武器種の moraleLabel で「棒先」と言い換える（data/weapons.ts）
     label: "穂先",
     gain: [{ kind: "tipHit", amount: FORM.polearm.gain.tipHit }],
     // 満ちた後の最初の突きが放出で、貫く穂先の弾（FORM.polearm.cast）を撃つ
@@ -383,7 +384,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     name: "書",
     desc: "スキルを当てて術を溜め、無詠唱で撃つ",
     label: "術",
-    // スキルの命中（設置物・従魔の命中は鈴の分）で溜まり、右 1 段目の無詠唱が放出で次のスキル 1 回の気力が 0
+    // スキルの命中（設置物・連動体の命中は鈴の分）で溜まり、右 1 段目の無詠唱が放出で次のスキル 1 回の気力が 0
     gain: [{ kind: "skillHit", amount: FORM.tome.gain.skillHit }],
     release: { kind: "laneStep", keys: ["freeCast"] },
     keywords: kw(["mana"], ["mana"]),
@@ -393,7 +394,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     name: "鈴",
     desc: "式を鳴らして鈴音を溜め、打ち鳴らして動かす",
     label: "鈴音",
-    // 設置物・従魔の命中で溜まり、右 1 段目の打ち鳴らしが放出で近くの設置物を即発動し、従魔を強める
+    // 設置物・連動体の命中で溜まり、右 1 段目の打ち鳴らしが放出で近くの設置物を即発動し、連動体を強める
     gain: [{ kind: "minionHit", amount: FORM.bell.gain.minionHit }],
     release: { kind: "laneStep", keys: ["toll"] },
     keywords: kw(["placed", "stagger"], ["placed"]),

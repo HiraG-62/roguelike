@@ -144,7 +144,7 @@ export function manaSourceText(source: ManaSource): string {
     case "reaction":
       return `状態異常の反応で +${num(source.amount)}`;
     case "minionHit":
-      return `設置物・従魔の命中で +${num(source.amount)}`;
+      return `設置物・連動体の命中で +${num(source.amount)}`;
     case "boonFired":
       return `祝福の発動で +${num(source.amount)}`;
   }

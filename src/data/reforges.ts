@@ -272,6 +272,7 @@ const RELEASE_HIT: RuleCondition = { kind: "eventTag", tag: "release" };
 const BULLET_CUT: RuleCondition = { kind: "eventTag", tag: "bulletCut" };
 
 const R = REFORGE;
+const PERCENT = 100;
 
 /**
  * 改鋳の語（源と糧の共鳴で改鋳 1 つを出どころ 1 と数える。system/resonance.ts）。
@@ -316,15 +317,15 @@ function def(key: ReforgeKey, form: FormKey, name: string, desc: string, rest: O
 
 export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
   // ---- 剣 ----
-  bladeRepel: def("bladeRepel", "blade", "反撥", "受け流しの崩しが強まり、返し斬りと居合が敵を弾き飛ばして壁に叩きつける", { patch: bladeRepel }),
+  bladeRepel: def("bladeRepel", "blade", "反撥", "剣の構えの受け流しの崩しが強まり、返し斬りと居合が敵を弾き飛ばして壁に叩きつける", { patch: bladeRepel }),
   bladeWave: def("bladeWave", "blade", BLADE_WAVE_NAME, "返し斬りと居合が飛ぶ斬撃を放つ。振りの範囲は狭まる", { patch: bladeWave }),
   // ---- 連刃 ----
-  flurryHoard: def("flurryHoard", "flurry", "蓄勢", "熱が冷めず、上限が上がる。乱舞は熱が 100 から放て、抱えた熱ほど当たる回数が増える", {
+  flurryHoard: def("flurryHoard", "flurry", "蓄勢", `熱が冷めず、上限が ${R.flurry.flurryHoard.max} に上がる。乱舞は熱が ${R.flurry.flurryHoard.releaseMin} から放て、抱えた熱ほど当たる回数が増える`, {
     morale: R.flurry.flurryHoard,
   }),
   flurryTwin: def("flurryTwin", "flurry", "双影", "乱舞に分身が重なり、当たる回数が倍になり範囲が広がる", { patch: flurryTwin }),
   // ---- 重打 ----
-  crusherStride: def("crusherStride", "crusher", "闊歩", "溜めながら歩ける。溜めの段は 2 まで", { patch: crusherStride, morale: { max: R.crusher.crusherStride.maxLevels } }),
+  crusherStride: def("crusherStride", "crusher", "闊歩", `溜めながら歩ける。溜めの段は ${R.crusher.crusherStride.maxLevels} まで`, { patch: crusherStride, morale: { max: R.crusher.crusherStride.maxLevels } }),
   crusherQuake: def("crusherQuake", "crusher", "余震", "最大溜め攻撃が当たった場所に崩れる床が残り、乗った敵が落ちる", {
     rules: [
       {
@@ -364,12 +365,12 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
     ],
   }),
   // ---- 長柄 ----
-  polearmLeap: def("polearmLeap", "polearm", "飛槍", "穂先の満ちた突きを放つと、穂先を追って跳べるようダッシュが 1 回戻る", {
+  polearmLeap: def("polearmLeap", "polearm", "飛槍", `満ちた突きを放つと、放った先を追って跳べるようダッシュが ${R.polearm.polearmLeap.count} 回戻る`, {
     rules: [{ when: "onRelease", then: { kind: "refillDash", magnitude: 0, count: R.polearm.polearmLeap.count }, icd: R.polearm.polearmLeap.icd }],
   }),
   polearmPin: def("polearmPin", "polearm", "釘付", "突きが敵を押し出さず、その場に短い間縫い留める", { patch: polearmPin }),
   // ---- 鎖 ----
-  chainString: def("chainString", "chain", "連珠", "繋ぎの上限が 5 に増え、束ね打ちで寄せる敵が増える", { morale: { max: R.chain.chainString.max } }),
+  chainString: def("chainString", "chain", "連珠", `繋ぎの上限が ${R.chain.chainString.max} に増え、束ね打ちで寄せる敵が増える`, { morale: { max: R.chain.chainString.max } }),
   chainFling: def("chainFling", "chain", "振子", "束ね打ちが寄せた敵を大きく振り飛ばし、当たった敵の周りを巻き込む", {
     patch: chainFling,
     rules: [
@@ -407,11 +408,11 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
     ],
   }),
   // ---- 杖 ----
-  rodQuad: def("rodQuad", "rod", "四重詠唱", "術式が 4 つまで並ぶ。3 手の魔法の頭の手を重ねた 4 手で、強い魔法を放つ", { patch: rodQuad, morale: { max: R.rod.rodQuad.max } }),
+  rodQuad: def("rodQuad", "rod", "四重詠唱", `術式が ${R.rod.rodQuad.max} つまで並ぶ。3 手の魔法の頭の手を重ねた 4 手で、強い魔法を放つ`, { patch: rodQuad, morale: { max: R.rod.rodQuad.max } }),
   rodResidue: def("rodResidue", "rod", "残滓", "魔法の弾が消えた場所に、属性に合った地形が残る", { patch: rodResidue }),
   // ---- 投具 ----
   throwerPull: def("throwerPull", "thrower", "牽引", "呼び戻しや投げ放ちで、自分も飛んでいる刃の方へ引き寄せられる", { flags: ["pullToShots"] }),
-  throwerTwin: def("throwerTwin", "thrower", "双刃", "投げる刃が 1 枚増え、戻りの刃が強まる。飛んでいる数の上限が 4 になる", {
+  throwerTwin: def("throwerTwin", "thrower", "双刃", `投げる刃が ${R.thrower.throwerTwin.countAdd} 枚増え、戻りの刃が強まる。飛んでいる数の上限が ${R.thrower.throwerTwin.max} になる`, {
     patch: throwerTwin,
     morale: { max: R.thrower.throwerTwin.max },
   }),
@@ -428,7 +429,7 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
     ],
   }),
   // ---- 長銃 ----
-  rifleStride: def("rifleStride", "rifle", "騎射", "動いても狙いが減らず、半分の速さで溜まる", { flags: ["aimWhileMoving"] }),
+  rifleStride: def("rifleStride", "rifle", "騎射", `動いても狙いが減らず、止まっているときの ${Math.round(R.rifle.rifleStride.movingGainMul * PERCENT)}% の速さで溜まる`, { flags: ["aimWhileMoving"] }),
   rifleScatter: def("rifleScatter", "rifle", "散華", "満ちた 1 発が敵を貫くたびに、破片が周りへ散る", {
     rules: [
       {

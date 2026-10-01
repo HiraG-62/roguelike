@@ -234,7 +234,7 @@ export interface MeleeStep {
   mana: number;
   pull: boolean;
   throw: boolean;
-  /** 突きの先端判定（槍・鞭）。突き以外の形では持たない */
+  /** 先端判定（槍・鞭の突き、棍は薙ぎ・回しも。stepTip）。持たない段は根元と先端を区別しない */
   tip?: TipDef;
   /** 1 振りの多段ヒット数（1 以上） */
   hits: number;
@@ -361,7 +361,7 @@ function scaleStep(
     mana: base.mana,
     pull: base.pull ?? false,
     throw: base.throw ?? false,
-    tip: base.shape.kind === "thrust" ? moveset.tip : undefined,
+    tip: stepTip(moveset.tip, base.shape),
     hits: Math.max(1, base.hits ?? 1) + (release?.hitsAdd ?? 0),
     hitstop: base.hitstop,
     shake: base.shake ?? 0,
@@ -375,6 +375,13 @@ function scaleStep(
     cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
     ...(release ? { release: true } : {}),
   };
+}
+
+/** 段が持つ先端判定。突きの段と、sweep の武器種（棍）の薙ぎ・回しの段だけが持つ */
+function stepTip(tip: TipDef | undefined, shape: Readonly<HitShape>): TipDef | undefined {
+  if (!tip) return undefined;
+  if (shape.kind === "thrust") return tip;
+  return tip.sweep === true && (shape.kind === "arc" || shape.kind === "circle") ? tip : undefined;
 }
 
 /** 今の振りの段（描画用。振っていなければ undefined） */
@@ -1191,7 +1198,7 @@ export function meleeBox(p: Player, reach: number, size: number): Box {
   return { x: c.x - size / 2, y: c.y - size / 2, w: size, h: size };
 }
 
-/** 近接の当たり方。tip は突きの先端（穂先・鞭の先） */
+/** 近接の当たり方。tip は先端（穂先・鞭の先・棍の棒先） */
 export type MeleeContact = "none" | "hit" | "tip";
 
 /** 円（敵・弾）が今の振りの形に入っているか。形ごとの reach / size の意味は HitShape を参照 */
@@ -1203,10 +1210,12 @@ export function meleeContact(p: Player, step: Readonly<MeleeStep>, pos: Vec, rad
       return boxCircleOverlap(meleeBox(p, step.reach, step.size), pos.x, pos.y, radius) ? "hit" : "none";
     case "circle": {
       const c = add(origin, scale(dir, step.reach));
-      return circlesOverlap(c.x, c.y, step.size / 2, pos.x, pos.y, radius) ? "hit" : "none";
+      if (!circlesOverlap(c.x, c.y, step.size / 2, pos.x, pos.y, radius)) return "none";
+      return rimContact(step, length(sub(pos, c)) + radius, step.size / 2);
     }
     case "arc":
-      return arcContains(origin, dir, step.reach, step.shape.deg, pos, radius) ? "hit" : "none";
+      if (!arcContains(origin, dir, step.reach, step.shape.deg, pos, radius)) return "none";
+      return rimContact(step, length(sub(pos, origin)) + radius, step.reach);
     case "thrust":
       return thrustContact(origin, dir, step, pos, radius);
   }
@@ -1228,6 +1237,12 @@ function normalizeAngle(a: number): number {
   if (r > Math.PI) r -= FULL_TURN;
   if (r < -Math.PI) r += FULL_TURN;
   return r;
+}
+
+/** 薙ぎ・回しの先端（棍）: 中心からの遠い縁 far が外周 tip.ratio に入れば tip。先端判定の無い段は hit */
+function rimContact(step: Readonly<MeleeStep>, far: number, rim: number): MeleeContact {
+  if (!step.tip) return "hit";
+  return far >= rim * (1 - step.tip.ratio) ? "tip" : "hit";
 }
 
 /** 突き: 攻撃方向へ長さ reach・幅 size の帯。先端 tip.ratio に入れば tip */
@@ -1296,7 +1311,7 @@ function stepHitEnergy(state: GameState, step: Readonly<MeleeStep>): number {
   return meleeHitEnergy(baseSec, step.hits);
 }
 
-/** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は突きの先端に当たった */
+/** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は先端に当たった */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
   const p = state.player;
   const counter = isCounterable(e);

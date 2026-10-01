@@ -98,7 +98,12 @@ export function moraleGauge(state: GameState): MoraleGauge {
   const m = state.player.morale;
   const max = moraleMax(state);
   const ready = max > 0 && m.value >= moraleReleaseMin(state);
-  return { label: form.morale.label, value: m.value, max, ready, active: form.morale.gain.length > 0 };
+  return { label: moraleLabelOf(equippedMoveset(state), form), value: m.value, max, ready, active: form.morale.gain.length > 0 };
+}
+
+/** 戦意のゲージの名。武器種の言い換え（棍の「棒先」）があればそれ、無ければ型の名 */
+export function moraleLabelOf(moveset: Pick<MovesetDef, "moraleLabel">, form: FormDef): string {
+  return moveset.moraleLabel ?? form.morale.label;
 }
 
 /** 溜まる出来事 1 回の量（型が同じ出来事を複数持てば足す）。導出の出来事は 0 */

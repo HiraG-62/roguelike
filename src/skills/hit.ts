@@ -48,7 +48,7 @@ export interface SkillHitSpec {
   from?: Vec;
   /** 会心を確定させる（刺し穿ちの脆弱消費） */
   forceCrit?: boolean;
-  /** 設置物・従魔の命中（流儀の気力の源 minionHit。skills/placed.ts・summons.ts が爆ぜる・回る・崩れる一撃に付ける。刻む命中は付けない） */
+  /** 設置物・連動体の命中（流儀の気力の源 minionHit。skills/placed.ts・summons.ts が爆ぜる・回る・崩れる一撃に付ける。刻む命中は付けない） */
   minion?: boolean;
 }
 
@@ -85,7 +85,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   noteWearHit(state, params.slot);
   // 素性が null のスキル（影渡り・伝染など）も刻印符「爆ぜ」などで当てることがある。null のまま渡すと防御・耐性を
   // 素通しするので、そのときは既定（範囲軸だけ合わせた無属性の物理）に任せる
-  // 鈴の打ち鳴らしの強化は設置物・従魔の命中だけに乗る（system/tomeBell.ts）
+  // 鈴の打ち鳴らしの強化は設置物・連動体の命中だけに乗る（system/tomeBell.ts）
   const base = spec.base * minionDamageMul(state, spec.minion === true);
   const out = rollOutgoing(state, e, base, spec.kind, { skill: true, attack: castAttack(params) ?? undefined });
   const crit = out.crit || spec.forceCrit === true;
@@ -110,7 +110,7 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   }
   // 流儀の気力の源（system/manaSources.ts）
   onManaSource(state, spec.minion === true ? "minionHit" : "skillHit");
-  // 型の戦意（書 = スキルの命中、鈴 = 設置物・従魔の命中）
+  // 型の戦意（書 = スキルの命中、鈴 = 設置物・連動体の命中）
   gainMorale(state, spec.minion === true ? "minionHit" : "skillHit");
   afterHit(state, e, params, spec, killed, pos);
   return killed;

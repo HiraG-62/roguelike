@@ -273,7 +273,7 @@ const DASH_FORM_TEXT: Readonly<Record<DashForm, string>> = {
   blink: "ダッシュの距離を一瞬で移る。無敵は無い",
   shadow: "長く潜って移動する。潜っている間は攻撃できず、出た直後の一撃は背面から当たる",
   flask: "短く駆け、元いた所に油を撒く",
-  swap: `${formatMeters(DASH_FORM.swap.range)} 以内で最も近い自分の設置物・従魔と位置を入れ替える。無いときは前へ駆ける`,
+  swap: `${formatMeters(DASH_FORM.swap.range)} 以内で最も近い自分の設置物・連動体と位置を入れ替える。無いときは前へ駆ける`,
   ward: `短く駆け、着地から ${DASH_FORM.ward.wardSec} 秒の結界を張る。結界の中は全方位からの被ダメージが ${Math.round((1 - DASH_FORM.ward.incomingMul) * PERCENT)}% 減る`,
 };
 

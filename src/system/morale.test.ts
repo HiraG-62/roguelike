@@ -898,6 +898,37 @@ describe("戦意: 長柄（穂先）", () => {
     expect(rootState.player.morale.value, "根元では溜まらない").toBe(0);
   });
 
+  it("棍は薙ぎの外周（棒先）の命中で戦意が溜まり、懐の命中では溜まらない", () => {
+    const first = MOVESETS.staff.steps[0];
+    expect(first?.shape.kind, "棍の 1 段目は薙ぎ").toBe("arc");
+    expect(MOVESETS.staff.tip?.sweep, "棍は薙ぎ・回しも先端を持つ").toBe(true);
+    const reach = first?.reach ?? 0;
+    const tipState = arena(5, { moveset: "staff" });
+    tough(placeEnemy(tipState, "slime", reach));
+    run(tipState, { attackPressed: true });
+    settle(tipState);
+    expect(tipState.player.morale.value, "棒先の命中").toBe(FORM.polearm.gain.tipHit);
+    const rootState = arena(5, { moveset: "staff" });
+    const root = tough(placeEnemy(rootState, "slime", 4));
+    run(rootState, { attackPressed: true });
+    settle(rootState);
+    expect(root.hp, "懐に当たった").toBeLessThan(TOUGH_HP);
+    expect(rootState.player.morale.value, "懐では溜まらない").toBe(0);
+  });
+
+  it("棍の 4 段で戦意が満ち、突きの段で放てる（ゲージの名は棒先）", () => {
+    const state = arena(5, { moveset: "staff" });
+    expect(moraleGauge(state).label, "棍のゲージの名").toBe("棒先");
+    expect(moraleGauge(arena(5, { moveset: "spear" })).label, "槍は穂先").toBe(FORMS.polearm.morale.label);
+    const reach = Math.min(...MOVESETS.staff.steps.filter((s) => s.reach > 0).map((s) => s.reach));
+    tough(placeEnemy(state, "slime", reach));
+    for (let i = 0; i < FORM.polearm.max; i++) {
+      run(state, { attackPressed: true });
+      settle(state);
+    }
+    expect(state.player.morale.value, "連撃で満ちる").toBe(FORM.polearm.max);
+  });
+
   it("満ちると次の突きが放出で、貫く穂先の弾を撃って終撃になり、穂先は 0 に戻る", () => {
     const state = arena(5, { moveset: "spear" });
     state.player.morale.value = FORM.polearm.max;

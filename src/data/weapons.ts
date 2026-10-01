@@ -72,7 +72,7 @@ export type HitShape =
   | { readonly kind: "thrust" }
   | { readonly kind: "circle" };
 
-/** 先端判定（槍の穂先・鞭の先端）。thrust の先端 ratio 以内に入った敵へ掛ける倍率 */
+/** 先端判定（槍の穂先・鞭の先端・棍の棒先）。thrust の先端 ratio 以内に入った敵へ掛ける倍率 */
 export interface TipDef {
   readonly ratio: number;
   readonly damageMul: number;
@@ -81,6 +81,11 @@ export interface TipDef {
   /** 先端以外（根元）の倍率 */
   readonly offDamageMul: number;
   readonly offManaMul: number;
+  /**
+   * 薙ぎ（arc）と回し（circle）の段も外周の ratio を先端として数える（棍。棒の先で打つ）。
+   * 省略は突きの段だけ（槍・鞭は払いの段で先端を持たない）
+   */
+  readonly sweep?: boolean;
 }
 
 export interface MeleeStepDef {
@@ -350,6 +355,8 @@ export interface MovesetDef {
   /** 左の長押しの溜め（primary が charge の武器種だけ） */
   readonly charge?: MeleeChargeDef;
   readonly tip?: TipDef;
+  /** 戦意のゲージの名を武器種で言い換える（棍は長柄の「穂先」ではなく「棒先」）。省略は型の名（FormDef.morale.label） */
+  readonly moraleLabel?: string;
   /** 攻撃中の移動速度倍率（重さの帯 WEAPON.weightClass に丸めて使う。attackMoveMulOf） */
   readonly attackMoveMul: number;
   /** 武器の重さ。係数は WEAPON.weightClass[weight] */
@@ -1007,7 +1014,7 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   orbitRing: "輪を自分の周りに回らせる。回っている間、近くの敵に何度も当たる",
   fanning: "押している間、前からの被弾を減らす。離すと突風で押し返し、敵弾を払う",
   freeCast: "頁を払って周りを打つ。術が溜まっていれば、次のスキル 1 回の気力が 0 になる",
-  toll: "鈴を鳴らして周りを打つ。鈴音が溜まっていれば、近くの自分の設置物がすぐ動き、設置物・従魔の威力が少しの間上がる",
+  toll: "鈴を鳴らして周りを打つ。鈴音が溜まっていれば、近くの自分の設置物がすぐ動き、設置物・連動体の威力が少しの間上がる",
 };
 
 /** 弾を出す段・cast の素性（ジャンル・属性）と弾の絵 */
@@ -1140,7 +1147,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   twinBlades: defineMoveset({
     key: "twinBlades",
     name: "双剣",
-    desc: "軽い 5 連撃（3 段目は 2 回斬る）。右の影踏みで踏み込む。手数が多く、トリガーや状態異常を起こしやすい",
+    desc: "軽い 6 連撃（3・5 段目は 2 回斬る）。右の影踏みで踏み込む。手数が多く、命中で起きる効果や状態異常を起こしやすい",
     steps: reviveSteps(W.twinBlades.steps),
     dashAttack: reviveStep(W.twinBlades.dashAttack),
     attackMoveMul: W.twinBlades.attackMoveMul,
@@ -1217,7 +1224,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   cleaver: defineMoveset({
     key: "cleaver",
     name: "鉈",
-    desc: "重く遅い振り。どの段でも壁に叩きつける。右は肩当て",
+    desc: "重く遅い振り。どの段でも傷を刻んで壁に叩きつける。右は肩当て",
     steps: reviveSteps(W.cleaver.steps),
     dashAttack: reviveStep(W.cleaver.dashAttack),
     attackMoveMul: W.cleaver.attackMoveMul,
@@ -1235,6 +1242,9 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     desc: "広く薙いで周りを打つ。威力は低いが気力がよく戻る。右の払い上げで押し返す",
     steps: reviveSteps(W.staff.steps),
     dashAttack: reviveStep(W.staff.dashAttack),
+    // 長柄の戦意（先端の命中）が溜まるよう、突きに加えて薙ぎ・回しの外周も先端に数える
+    tip: W.staff.tip,
+    moraleLabel: "棒先",
     attackMoveMul: W.staff.attackMoveMul,
     weight: reviveWeight(W.staff.weight),
     form: "polearm",
@@ -1283,7 +1293,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   axe: defineMoveset({
     key: "axe",
     name: "斧",
-    desc: "扇の 4 段。最後の一振りで出血させ、出血した敵は崩れやすい。右は投擲（戻ってくる）",
+    desc: "扇の 4 段。振るたびに傷を刻み、最後の一振りで出血させる。出血した敵は崩れやすい。右は投擲（戻ってくる）",
     steps: reviveSteps(W.axe.steps),
     dashAttack: reviveStep(W.axe.dashAttack),
     attackMoveMul: W.axe.attackMoveMul,
@@ -1507,7 +1517,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   claws: defineMoveset({
     key: "claws",
     name: "爪",
-    desc: "最速の 5 連撃。全段が 2 回以上当たり、踏み込みながら出血を重ねる。右の跳び退きで当てて離れる。出血した敵を刻むと気力が戻る",
+    desc: "最速の 8 連撃。全段が 2 回以上当たり、最終段で出血させる。右の跳び退きで当てて離れる。出血した敵を刻むと気力が戻る",
     steps: reviveSteps(W.claws.steps),
     dashAttack: reviveStep(W.claws.dashAttack),
     attackMoveMul: W.claws.attackMoveMul,
@@ -1619,7 +1629,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   handbell: defineMoveset({
     key: "handbell",
     name: "手鈴",
-    desc: "鈴を振って周りを打つ 3 段。右の打ち鳴らしで近くの自分の設置物をすぐ動かし、設置物・従魔の威力を上げる。左の振りでその強化が延びる",
+    desc: "鈴を振って周りを打つ 3 段。右の打ち鳴らしで近くの自分の設置物をすぐ動かし、設置物・連動体の威力を上げる。左の振りでその強化が延びる",
     steps: reviveSteps(W.handbell.steps),
     dashAttack: reviveStep(W.handbell.dashAttack),
     attackMoveMul: W.handbell.attackMoveMul,

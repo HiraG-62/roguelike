@@ -1,7 +1,9 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { DEEP, ECONOMY, META, PARRY, REACH, RESONANCE } from "../data/tuning";
-import { MOVESETS } from "../data/weapons";
+import { ACTION, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, WEAPON } from "../data/tuning";
+import { FORMS, FORM_KEYS } from "../data/weaponForms";
+import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
+import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import type { ListEntry, ListTab } from "./listScreen";
 import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
@@ -49,6 +51,35 @@ function k(binds: Keybinds | undefined, action: Parameters<typeof keyLabel>[0], 
 
 const PERCENT = 100;
 
+function pct(ratio: number): number {
+  return Math.round(ratio * PERCENT);
+}
+
+/** 戦意のゲージの名の一覧（「剣 応報・連刃 熱…」。武器種の言い換え〔棍の棒先〕は後ろに足す）。型の定義から組む */
+function moraleLabels(): string {
+  const forms = FORM_KEYS.filter((f) => FORMS[f].morale.gain.length > 0).map((f) => `${FORMS[f].name} ${FORMS[f].morale.label}`);
+  const renamed = MOVESET_KEYS.flatMap((k) => {
+    const label = MOVESETS[k].moraleLabel;
+    return label === undefined ? [] : [`${MOVESETS[k].name}は${label}`];
+  });
+  return renamed.length > 0 ? `${forms.join("・")}。${renamed.join("、")}` : forms.join("・");
+}
+
+/** 武器の型の名の一覧（剣・連刃・…） */
+function formNames(): string {
+  return FORM_KEYS.map((f) => FORMS[f].name).join("・");
+}
+
+/** 武器の重さの説明（WEAPON.weightClass の数値から） */
+function weightBody(): string {
+  const heavy = WEAPON.weightClass.heavy;
+  const guard = heavy.finisherGuardBreak ? "、終撃が堅守を崩す" : "";
+  return (
+    "武器種ごとの軽・中・重。振りの出だしはどの重さもダッシュで切れない。軽は攻撃中も動け、当たっている最中でもダッシュで切れる。中は攻撃中の足が遅く、終撃で足を止め、当たっている間はダッシュで切れない。" +
+    `重は振る間止まり、硬直の前半もダッシュで切れないが、威力 ×${heavy.damageMul}・怯み値 ×${heavy.poiseMul}で、終撃が大きく押し返す${guard}。`
+  );
+}
+
 function skillKeys(binds: Keybinds | undefined): string {
   return SKILL_ACTIONS.map((a, i) => `スキル ${i + 1}: ${keyLabel(a, { binds })}`).join("、");
 }
@@ -74,12 +105,16 @@ const CONTROL_TIPS: readonly TipDef[] = [
 
 const COMBAT_TIPS: readonly TipDef[] = [
   { key: "hp", term: "生命", category: "combat", body: "尽きると探索が終わる。戦闘中の回復には 1 秒あたりの上限がある。" },
-  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。通常攻撃の命中・見切り・撃破で溜まり、スキルで減る。" },
+  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。通常攻撃の命中・見切り・撃破で溜まり、スキルで減る。ジョブごとの気力の源（剣士は応手と終撃など）でも湧く。" },
   {
     key: "morale",
     term: "戦意",
     category: "combat",
-    body: "武器の型ごとのゲージ。気力バーの隣に型の名（剣は応報・連刃は熱・重打は溜め・長銃は狙い）で出る。型ごとの出来事（剣は受け流しや見切り、連刃は命中、長銃は足を止めている間）で溜まり、放出の段で使う。放出の段は型ごとに違い（剣は右の返し斬り・刀は居合、連刃は右の最終段、重打は最大の溜め、長銃は満ちた後の 1 発）、右の予告に「（放出）」と付く。バーが点滅している間なら、その一撃が溜めた量だけ強くなる。空振りしても使われる。武器種を持ち替えると空に戻る。",
+    body:
+      `武器の型ごとのゲージ。気力バーの隣に型ごとの名で出る（${moraleLabels()}）。` +
+      "型ごとの出来事（剣は応手、連刃は命中、長柄は先端の命中、長銃は足を止めている間など）で溜まるか、刃斧の傷・鎖の繋ぎ・砲の置いた弾のように今の数がそのまま戦意になる。" +
+      "放出の段（型ごとに違う。武器種タブの各武器に書いてある）を振ると、その一撃が戦意の量だけ強くなる。右の段が放出の型は、右の予告に「（放出）」と付く。" +
+      "バーが点滅している間が放てる量。空振りしても使われる。武器種を持ち替えると空に戻る。",
   },
   {
     key: "moments",
@@ -87,14 +122,37 @@ const COMBAT_TIPS: readonly TipDef[] = [
     category: "combat",
     body: "どの型でも起きる 6 つの瞬間。先制は交戦の外で少し待った後の最初の一撃、終撃は連撃の締めや最大の溜めなど型ごとの締めの一撃、充溢は戦意が満ちたとき、放出は戦意を使ったとき、応手は受け流し・見切り・弾返しなど型ごとの受けの成功、双撃は左右を交互に当てたとき。先制・充溢・放出・双撃は浮き文字で出る。応手は既存の「受け流し」「見切り！」「カウンター」の表示のまま。",
   },
+  {
+    key: "weaponForm",
+    term: "武器の型",
+    category: "combat",
+    body: `武器種を束ねる ${FORM_KEYS.length} の型（${formNames()}）。型ごとに戦意の溜まり方と放出の段・応手になる出来事・終撃・重さの既定が決まり、共通技の形も型で変わる。同じ型の武器種は同じ戦意を持つ。武器種タブに各武器の型が書いてある。`,
+  },
+  { key: "weaponWeight", term: "武器の重さ", category: "combat", body: weightBody() },
+  {
+    key: "reforge",
+    term: "改鋳",
+    category: "combat",
+    body: `章の主（5 の倍数の階のボス）を倒すと出る ${REFORGE.offerCount} 択（1 回の探索で ${REFORGE.perRun} 回まで）。武器の型の動きそのものを書き換える。今の型の札が先に並び、合わない型の札は、その型の武器種に持ち替えると効く。その探索の間だけ。`,
+  },
   { key: "energy", term: "奥義ゲージ", category: "combat", body: "攻撃を当てると溜まる。満ちると枠が点滅し、奥義を出せる。持続の奥義の間は色が変わり、減っていく。" },
   { key: "justDodge", term: "見切り", category: "combat", body: "ダッシュの無敵中に攻撃を受けて避けた瞬間。時間がゆっくりになり、奥義ゲージが増え、気力が戻る。" },
   { key: "rightChain", term: "右の連撃", category: "combat", body: "攻撃 2 で出す連撃。段の中身は武器種ごとに違う。" },
   { key: "branch", term: "コンボ派生", category: "combat", body: "左右の押し方の列で差し替わる技。連撃がそこで終わるものもある。ジョブ固有の派生もある。" },
   { key: "charge", term: "溜め攻撃", category: "combat", body: "溜めの役割のボタンを長押しして離す近接。長く溜めるほど段が上がる。" },
   { key: "stagger", term: "怯み", category: "combat", body: "攻撃の怯み値が敵の怯み耐性を超えると付く行動停止。解けた直後は堅守が付く。" },
-  { key: "guarded", term: "堅守", category: "combat", body: "怯みが解けた直後の状態。受ける怯み値が半減する（ボスは 1/4）。背面の一撃は堅守を無視する。" },
-  { key: "counter", term: "カウンター", category: "combat", body: "敵の予備動作中に近接を当てる。ダメージと怯み値が上がる。" },
+  {
+    key: "guarded",
+    term: "堅守",
+    category: "combat",
+    body: `怯みが解けた直後の状態（${POISE.guardedTime} 秒、ボスは ${POISE.bossGuardedTime} 秒）。受ける怯み値が ×${POISE.guardedMul}（ボスは ×${POISE.bossGuardedMul}）になる。背面の一撃は堅守を無視する。`,
+  },
+  {
+    key: "counter",
+    term: "カウンター",
+    category: "combat",
+    body: `敵の予備動作中に近接を当てる。ダメージ ×${ACTION.counter.damageMul}・気力の回収 ×${MANA.onCounterMul}で、盾騎士の正面の守りも割る。怯み値は増えない（怯ませるのは読みと受け流し）。`,
+  },
   { key: "regain", term: "リゲイン", category: "combat", body: "被弾してしばらくの間、近接を当てると失った生命を取り戻せる。" },
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },
   { key: "reaction", term: "反応", category: "combat", body: "2 つの状態異常（か地形）が出会ったときの追加効果。図鑑の連携の頁に記録される。" },
@@ -182,7 +240,7 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "bud", term: "芽", category: "relic", body: "来歴の節目で出る 2 択の成長。選ばなかった方は失われる。" },
   { key: "margin", term: "余白", category: "relic", body: "その遺物があと何回芽吹けるか。無くなるとそれ以上育たない。" },
   { key: "inscription", term: "銘", category: "relic", body: "余白を使い切った遺物に、来歴から刻まれる名前。銘が付いたら成長は完了。" },
-  { key: "named", term: "名のある遺物", category: "relic", body: "固有の効果を持つ遺物（18 種）。効果は名前ごとに違い、性質のほかに固有の仕組みが付く。" },
+  { key: "named", term: "名のある遺物", category: "relic", body: `固有の効果を持つ遺物（${UNIQUES.length} 種）。効果は名前ごとに違い、性質のほかに固有の仕組みが付く。` },
   { key: "keystone", term: "誓約", category: "relic", body: "遊び方を大きく変える性質。同じ組の誓約は同時に持てない。拠点の祭壇で試せる。" },
   { key: "echo", term: "残響", category: "relic", body: "遺物を砕くと、性質の色の残響を得る。残響を払って性質を作り替える（装備中の遺物は対象にできない）。" },
   { key: "stir", term: "煽り", category: "relic", body: "性質 1 つの揺らぎを大きく引き直す。反転することもある。" },
@@ -205,7 +263,7 @@ const SKILL_TIPS: readonly TipDef[] = [
 ];
 
 const RUN_TIPS: readonly TipDef[] = [
-  { key: "boon", term: "祝福", category: "run", body: "階に着くと出る 3 択。その探索の間だけ効く。" },
+  { key: "boon", term: "祝福", category: "run", body: "祝福の出口（階段の上の予告）を選んで降りた階で出る 3 択。試練の部屋や契約などでも出る。その探索の間だけ効く。" },
   { key: "boonGrade", term: "祝福の格", category: "run", body: "札ごとに抽選される大祝福・神威。効果量が上がり、範囲も広がる（神威は発動の間隔も縮む）。深いほど出やすい。" },
   { key: "core", term: "芯", category: "run", body: "1 回の探索に 1 つだけ持てる大型の祝福。遊び方を変える効果と代償を持ち、芯と重なる祝福が以後出やすい。" },
   { key: "cursed", term: "呪い付き", category: "run", body: "強い効果と代償を併せ持つ祝福。" },
@@ -227,13 +285,30 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "clue", term: "手がかり", category: "run", body: "祝福の 3 択に出る、今のビルドで成立し得る未発見の連携。" },
   { key: "engaged", term: "交戦", category: "run", body: "部屋に入る、または部屋の敵に気付かれた状態。扉が閉じる部屋（封鎖）もある。" },
   { key: "jin", term: "陣", category: "run", body: "敵は陣形（魚鱗・鶴翼・雁行・長蛇など）を組んだ一団で待ち構える。画面上の群勢は仲間を倒すほど減り、大将を倒すと大きく崩れる。尽きると残りは敗走する。起こした直後に後詰が遅れて加わることもある。" },
-  { key: "coins", term: "銭", category: "run", body: "探索の間だけ集まる資源。敵を倒すと落ち、契約者との取引と封印庫の解錠に使う。探索が終わると消える。" },
+  {
+    key: "coins",
+    term: "銭",
+    category: "run",
+    body: `探索の間だけの通貨。敵を倒すと床に散り、${ECONOMY.coin.life} 秒で消える（近くの銭は吸い寄せられる）。被弾すると持ち金の ${pct(ECONOMY.spill.ratio)}% がこぼれる。市・旅商人・契約者・賭け・寄進と、封印庫の解錠に使う。探索が終わると消える。`,
+  },
+  {
+    key: "keys",
+    term: "鍵",
+    category: "run",
+    body: `探索の間だけの 2 つ目の通貨。陣を決着させると落ちることがある（大将のいる陣は ${pct(ECONOMY.key.leaderJinChance)}%、いない陣は ${pct(ECONOMY.key.jinChance)}%）。鍵付きの宝箱は ${ECONOMY.container.lockedChestKeys} 本、封印庫は ${ECONOMY.container.vaultKeys} 本で開く。市でも買える。`,
+  },
+  {
+    key: "market",
+    term: "商人 / 市",
+    category: "run",
+    body: `毎階の前室に立つ商人の店（瓶・遺物・刻印符・鍵・仕入れ直し）。章の主の階には章の市が立つ。商人を殴ると怒って品を投げ、倒すと品が床に落ちるが、その探索の値段は ${ECONOMY.market.outlawPriceMul} 倍になる。旅商人は階を歩き、近くの敵を倒して助けると値引きしてくれる。隠し部屋を開くと奥に闇市が立つ。`,
+  },
   { key: "bets", term: "賭け", category: "run", body: "賭場の主に銭を張る。運の賭けは触れた瞬間に決まり、腕の賭け（無傷・速攻・凌ぎ）は次の陣や階の出来で決まる。張れるのは 1 つだけで、張ったら取り消せない。" },
   { key: "donation", term: "寄進", category: "run", body: "章の境（章の 1 階目）の開始部屋にある祠へ、触れるたび持ち金の一部を納める。全額まで繰り返せる。探索の中での効果は無く、総額は拠点の井戸に記録される。" },
   { key: "contractor", term: "契約者", category: "run", body: "階の入口に立つ人物。台座に触れて取引を選ぶ。" },
   { key: "pact", term: "契約", category: "run", body: "灰の公証人と結ぶ条件付きの約束。破るとその場で代償、次の階に着けば報酬。" },
   { key: "elementAltar", term: "属性の祭壇", category: "run", body: "選んだ属性の加護を得る部屋。その階の間、通常攻撃の一部がその属性になる。鍛冶の焼き付けは探索の間ずっと続く。" },
-  { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面で石に付ける。" },
+  { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符はスキルのスロットに付く（探索ごとに拾い直す）。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
   { key: "cleared", term: "踏破", category: "run", body: "最深の間（地下 21 階）の主を倒すと、階段のほかに地上への道が現れる。乗り続けると踏破でランが終わる。階段を降りて深みへ進み続けることもできる。最深の主を倒したランは、深みで力尽きても踏破に数える。" },

@@ -351,7 +351,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   onmyoji: {
     lineage: "horde",
     name: "陰陽師",
-    desc: "設置物・従魔を敵に当てて気力を得る。ダッシュで自分の設置物と入れ替わり、スキルを当てた敵を弱らせる。",
+    desc: "設置物・連動体を敵に当てて気力を得る。ダッシュで自分の設置物と入れ替わり、スキルを当てた敵を弱らせる。",
     attributes: JOB_ATTRIBUTES.onmyoji,
     dash: "swap",
     mana: [BASE_ATTACK_MANA, { kind: "minionHit", amount: MS.onmyoji.minionHit }],

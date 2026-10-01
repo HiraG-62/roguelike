@@ -10,7 +10,7 @@
     "decayDelaySec": "最後に溜まってからこの秒を過ぎると冷め始める（秒。0 = 冷めない）。目安 1〜1.5",
     "decayPerSec": "冷める速さ（戦意 / 秒）",
     "releaseCrit": "放出の弾が必ず会心になる（真偽。長銃の満ちた 1 発）",
-    "gain": "溜まる出来事ごとの量。meleeHit = 通常の振りの命中（多段の区切りごとに 1 回。同じ区切りで何体に当てても 1 回）/ riposte = 型の応手 1 回（1 振りで 1 回まで）/ shotFired = 短銃が左で撃った弾 1 発（弾倉。moraleGainMul は掛けない）/ tipHit = 長柄の突きの先端（穂先）の命中 1 回 / still = 止まっている 1 秒あたり / skillHit = 書: スキルの命中 1 回（設置物・従魔の命中は除く）/ minionHit = 鈴: 設置物・従魔の命中 1 回。PlayerStats.moraleGainMul を掛ける",
+    "gain": "溜まる出来事ごとの量。meleeHit = 通常の振りの命中（多段の区切りごとに 1 回。同じ区切りで何体に当てても 1 回）/ riposte = 型の応手 1 回（1 振りで 1 回まで）/ shotFired = 短銃が左で撃った弾 1 発（弾倉。moraleGainMul は掛けない）/ tipHit = 長柄の先端（槍の穂先・棍の棒先）の命中 1 回 / still = 止まっている 1 秒あたり / skillHit = 書: スキルの命中 1 回（設置物・連動体の命中は除く）/ minionHit = 鈴: 設置物・連動体の命中 1 回。PlayerStats.moraleGainMul を掛ける",
     "perUnit": "放出の戦意 1 あたりの上乗せ。damageMul / poiseMul / reachMul / knockbackMul は倍率への加算（1 + 値 × 戦意）、hitsAdd / pierceAdd は多段と貫通への加算（値 × 戦意の切り捨て）",
     "guardBlock": "盾: 構えで受けた被ダメージ 1 あたりの受け溜め（受けた元のダメージ × この値）。moraleGainMul を掛ける",
     "bulletCut": "扇: 払いで敵弾を消した 1 発あたりの風（moraleGainMul を掛ける）",
@@ -28,7 +28,7 @@
     "shareRatio": "鎖: 一蓮托生。繋いだ敵に与えた直接のダメージ × この値を、他の繋いだ敵それぞれにも与える（素性なしの追撃。継続ダメージは分けない）",
     "slamGapPx": "鎖: 束ね打ち（右の最終段の放出）の振り始めに、繋いだ敵を自分の前へ寄せるときの体どうしの隙間（px）。寄せたら繋ぎは解ける",
     "skillCooldownMul": "書: 持っている間のスキルの再使用（CD 型の再使用の秒）の倍率（1 = 等倍）。無詠唱（右 1 段目の放出）は次の気力のスキル 1 回の気力を 0 にする",
-    "toll": "鈴: 打ち鳴らし（右 1 段目の放出）。radius の内側の自分の設置物を即発動し、連動体（砲台・墓標）に 1 回撃たせる（px）。buffSec 秒の間、設置物・従魔の命中の威力を buffMul 倍にする（1 = 等倍）。強化の間の左の振り 1 回で extendSec 秒延び、残りは maxSec 秒まで"
+    "toll": "鈴: 打ち鳴らし（右 1 段目の放出）。radius の内側の自分の設置物を即発動し、連動体（砲台・墓標）に 1 回撃たせる（px）。buffSec 秒の間、設置物・連動体の命中の威力を buffMul 倍にする（1 = 等倍）。強化の間の左の振り 1 回で extendSec 秒延び、残りは maxSec 秒まで"
   },
   "_order": ["blade", "flurry", "crusher", "hewer", "polearm", "chain", "bulwark", "warfan", "rod", "thrower", "pistol", "rifle", "artillery", "tome", "bell"]
 }

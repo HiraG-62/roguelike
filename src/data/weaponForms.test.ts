@@ -102,4 +102,40 @@ describe("武器の型", () => {
       expect(FORMS[form].riposte.length, `${form} の応手`).toBeGreaterThan(0);
     }
   });
+
+  // 戦意の溜まる出来事の発生源が武器種に無いと、ゲージが事実上動かない（棍が先端を持たず長柄の戦意が溜まらなかった）
+  it("先端の命中で溜まる型は、束ねた武器種すべてが先端判定と、先端を持つ段を持つ", () => {
+    for (const form of FORM_KEYS) {
+      if (!FORMS[form].morale.gain.some((g) => g.kind === "tipHit")) continue;
+      for (const key of movesetsOfForm(form)) {
+        const m = MOVESETS[key];
+        expect(m.tip, `${key}（${form}）の先端判定`).toBeDefined();
+        const tipped = m.steps.some((s) => s.shape.kind === "thrust" || (m.tip?.sweep === true && (s.shape.kind === "arc" || s.shape.kind === "circle")));
+        expect(tipped, `${key} の左の段に先端を持つ段`).toBe(true);
+      }
+    }
+  });
+
+  it("繋いだ数で溜まる型は、束ねた武器種すべてが引き寄せの段を持つ", () => {
+    for (const form of FORM_KEYS) {
+      if (!FORMS[form].morale.gain.some((g) => g.kind === "pullHit")) continue;
+      for (const key of movesetsOfForm(form)) {
+        const m = MOVESETS[key];
+        const pulls = [...m.steps, m.dashAttack, ...m.steps2.map((s) => (s.kind === "swing" ? s.step : undefined))].some((s) => s?.pull === true);
+        expect(pulls, `${key}（${form}）の引き寄せ`).toBe(true);
+      }
+    }
+  });
+
+  it("敵の状態異常で溜まる型は、束ねた武器種すべてが左の段でその状態異常を付ける", () => {
+    for (const form of FORM_KEYS) {
+      for (const gain of FORMS[form].morale.gain) {
+        if (gain.kind !== "applyStatus") continue;
+        for (const key of movesetsOfForm(form)) {
+          const applies = MOVESETS[key].steps.some((s) => (s.applies ?? []).some((a) => a.kind === gain.status));
+          expect(applies, `${key}（${form}）の左の段が ${gain.status} を付ける`).toBe(true);
+        }
+      }
+    }
+  });
 });

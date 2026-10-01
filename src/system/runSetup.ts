@@ -3,6 +3,8 @@ import type { JobKey } from "../data/jobs";
 import type { QuestKey } from "../meta/quests";
 import type { RunMetaSetup } from "./runMeta";
 import { ORIGIN, RUN_MOD } from "../data/tuning";
+
+const PERCENT = 100;
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
 import { computeStats } from "../loot/stats";
 import { type PlayerStats, createEmptyEquipment } from "../loot/types";
@@ -38,6 +40,12 @@ export interface OriginDef {
   unlockedBy?: QuestKey;
 }
 
+/** 割合を「n 割」の表記にする（説明文の数値を JSON から組む。0.3 → 「3 割」） */
+const WARI = 10;
+function wari(ratio: number): string {
+  return `${Math.round(Math.abs(ratio) * WARI)} 割`;
+}
+
 export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   wanderer: { name: "放浪者", desc: "何も変えずに出発する。", keystones: [] },
   swordPilgrim: {
@@ -47,18 +55,18 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   cursedOne: {
     name: "呪われた者",
-    desc: "呪い付きの祝福を 2 つ持って出発する。代わりに銭を 20 得る。",
+    desc: `呪い付きの祝福を ${ORIGIN.cursedBoons} つ持って出発する。代わりに銭を ${ORIGIN.cursedCoins} 得る。`,
     keystones: [],
     unlockedBy: "cursedDepth",
   },
   unarmed: {
     name: "素手",
-    desc: "地下 3 階に着くまで装備が封印される。代わりに銭を 30 得る。",
+    desc: `地下 ${ORIGIN.unarmedUnsealDepth} 階に着くまで装備が封印される。代わりに銭を ${ORIGIN.unarmedCoins} 得る。`,
     keystones: [],
   },
   chanter: {
     name: "詠み手",
-    desc: "刻印符を 2 つ付けて出発する。最大生命が 2 割減る。",
+    desc: `刻印符を ${ORIGIN.chanterRunes} つ付けて出発する。最大生命が ${wari(1 - ORIGIN.chanterHpMul)}減る。`,
     keystones: [],
     unlockedBy: "alchemist",
   },
@@ -70,7 +78,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   reaperFriend: {
     name: "死神の友",
-    desc: "死神が最初から追ってくる（足は半分）。初めての階へ降りるたびに銭を 5 得る。",
+    desc: `死神が最初から追ってくる（足は ${Math.round(ORIGIN.reaperFriendSpeedMul * PERCENT)}%）。初めての階へ降りるたびに銭を ${ORIGIN.reaperFriendCoins} 得る。`,
     keystones: [],
     unlockedBy: "reaperDance",
   },
@@ -107,17 +115,17 @@ export interface RunModDef {
 }
 
 export const RUN_MODS: Readonly<Record<RunModKey, RunModDef>> = {
-  thickHide: { name: "厚い皮", desc: "敵の生命が 3 割増える。", points: 1 },
-  quickHands: { name: "早い手", desc: "敵の予備動作が 1 割縮む。", points: 2 },
+  thickHide: { name: "厚い皮", desc: `敵の生命が ${wari(RUN_MOD.thickHideHpMul - 1)}増える。`, points: 1 },
+  quickHands: { name: "早い手", desc: `敵の予備動作が ${wari(RUN_MOD.quickHandsCut)}縮む。`, points: 2 },
   eliteSwarm: { name: "精鋭", desc: "精鋭の抽選が 2 回になる。", points: 1 },
   dryFountain: { name: "乾いた泉", desc: "泉が湧かず、ハートが落ちない。", points: 2 },
-  hastyReaper: { name: "急かす死神", desc: "死神の猶予が 3 割縮む。", points: 2 },
+  hastyReaper: { name: "急かす死神", desc: `死神の猶予が ${wari(1 - RUN_MOD.hastyReaperMul)}縮む。`, points: 2 },
   eternalNight: { name: "常夜", desc: "すべての階が暗闇になる。", points: 2 },
   endlessReinforce: { name: "絶えぬ増援", desc: "封鎖するたびに増援が来る。", points: 2 },
   roughLand: { name: "荒れた大地", desc: "バイオームの地形が 2 倍になる。", points: 1 },
   doubleLinger: { name: "長居の二重苦", desc: "長居の代償が浅い階から早めに来る。", points: 3 },
-  hourglass: { name: "部屋の砂時計", desc: "封鎖が長引くと増援が来る。", points: 2 },
-  glassBody: { name: "薄氷", desc: "最大生命が 3 割減る。", points: 2 },
+  hourglass: { name: "部屋の砂時計", desc: `交戦が ${RUN_MOD.hourglassTime} 秒続くたびに増援が来る。`, points: 2 },
+  glassBody: { name: "薄氷", desc: `最大生命が ${wari(1 - RUN_MOD.glassBodyHpMul)}減る。`, points: 2 },
 };
 
 export function isRunModKey(v: unknown): v is RunModKey {
