@@ -73,9 +73,9 @@
 
 純関数 `chooseLayout(rng, ctx)` を `src/map/layout/select.ts` に置く。ctx は depth・章・深みかどうか・ボス階か・floorKind・前の階の型。
 
-1. **乱数を引かない場合**
-   - ボス階（`isBossDepth`。最深の間を含む）は `"legacy"` を返す
+1. **乱数を引かない場合**（実装ではテストの固定がボス階より先）
    - テストの固定（`withFixedLayout`）が掛かっていればその型を返す
+   - ボス階（`isBossDepth`。最深の間を含む）は `"lordHall"` を返す（専用の部屋。`lordhall-design.md`）
 2. **重み**は、型ごとに次の積で出す
    - `MAP_LAYOUT.weight[型]`
    - × `chapterMul[章 - 1][型]`（深みは `deepMul`）

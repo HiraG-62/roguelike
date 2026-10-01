@@ -882,6 +882,15 @@ import j_world_ARC from "./world/ARC.json";
 import j_world_DEEP from "./world/DEEP.json";
 import j_world_TIER_REWARD from "./world/TIER_REWARD.json";
 import j_world_EXIT from "./world/EXIT.json";
+import j_world_MAP_LAYOUT__index from "./world/MAP_LAYOUT/_index.json";
+import j_world_MAP_LAYOUT_cavern from "./world/MAP_LAYOUT/cavern.json";
+import j_world_MAP_LAYOUT_river from "./world/MAP_LAYOUT/river.json";
+import j_world_MAP_LAYOUT_ring from "./world/MAP_LAYOUT/ring.json";
+import j_world_MAP_LAYOUT_court from "./world/MAP_LAYOUT/court.json";
+import j_world_MAP_LAYOUT_drunk from "./world/MAP_LAYOUT/drunk.json";
+import j_world_MAP_LAYOUT_isle from "./world/MAP_LAYOUT/isle.json";
+import j_world_MAP_LAYOUT_terrace from "./world/MAP_LAYOUT/terrace.json";
+import j_world_MAP_LAYOUT_prefab from "./world/MAP_LAYOUT/prefab.json";
 
 export const boons = {
   "_note": j_boons__index["_note"],
@@ -2056,6 +2065,29 @@ export const world = {
   "DEEP": j_world_DEEP,
   "TIER_REWARD": j_world_TIER_REWARD,
   "EXIT": j_world_EXIT,
+  "MAP_LAYOUT": {
+    "_note": j_world_MAP_LAYOUT__index["_note"],
+    "_fields": j_world_MAP_LAYOUT__index["_fields"],
+    "weight": j_world_MAP_LAYOUT__index["weight"],
+    "chapterMul": j_world_MAP_LAYOUT__index["chapterMul"],
+    "deepMul": j_world_MAP_LAYOUT__index["deepMul"],
+    "minDepth": j_world_MAP_LAYOUT__index["minDepth"],
+    "repeatMul": j_world_MAP_LAYOUT__index["repeatMul"],
+    "previewWidth": j_world_MAP_LAYOUT__index["previewWidth"],
+    "previewHeight": j_world_MAP_LAYOUT__index["previewHeight"],
+    "unitExp": j_world_MAP_LAYOUT__index["unitExp"],
+    "areaScale": j_world_MAP_LAYOUT__index["areaScale"],
+    "validate": j_world_MAP_LAYOUT__index["validate"],
+    "minNodeTiles": j_world_MAP_LAYOUT__index["minNodeTiles"],
+    "cavern": j_world_MAP_LAYOUT_cavern,
+    "river": j_world_MAP_LAYOUT_river,
+    "ring": j_world_MAP_LAYOUT_ring,
+    "court": j_world_MAP_LAYOUT_court,
+    "drunk": j_world_MAP_LAYOUT_drunk,
+    "isle": j_world_MAP_LAYOUT_isle,
+    "terrace": j_world_MAP_LAYOUT_terrace,
+    "prefab": j_world_MAP_LAYOUT_prefab,
+  },
 };
 
 /** 組み立てに使った JSON（src/data/balance からの相対。_index.json を含む）。生成し忘れの検査に使う */
@@ -2917,6 +2949,15 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/HUB.json",
   "world/HUB_DECOR.json",
   "world/LINGER.json",
+  "world/MAP_LAYOUT/_index.json",
+  "world/MAP_LAYOUT/cavern.json",
+  "world/MAP_LAYOUT/court.json",
+  "world/MAP_LAYOUT/drunk.json",
+  "world/MAP_LAYOUT/isle.json",
+  "world/MAP_LAYOUT/prefab.json",
+  "world/MAP_LAYOUT/ring.json",
+  "world/MAP_LAYOUT/river.json",
+  "world/MAP_LAYOUT/terrace.json",
   "world/MAP_SIZE.json",
   "world/META.json",
   "world/ORIGIN.json",

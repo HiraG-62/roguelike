@@ -162,6 +162,8 @@ export const FLOOR_KIND = BALANCE.world.FLOOR_KIND;
 export const CAVE = BALANCE.world.CAVE;
 /** マップの大きさ（面積の倍率の抽選。src/map/generator.ts の scaleGeneratorOptions） */
 export const MAP_SIZE = BALANCE.world.MAP_SIZE;
+/** 階の型 8 種の選び方・拡縮・検査と、型ごとの形の数値（src/map/layout/。docs/ideas/map-gen-impl.md） */
+export const MAP_LAYOUT = BALANCE.world.MAP_LAYOUT;
 
 /** 開放型フロアの徘徊と増援（src/system/spawner.ts）。塊に置いた敵の一部が塊の間を歩き回り、時間で少しずつ増える */
 export const ROAM = BALANCE.world.ROAM;
