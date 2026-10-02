@@ -1,5 +1,6 @@
-// 装備画面（装束と紋）の確認用の撮影。ゲーム本体からは import しない。
-// クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot で場面を作って 1 回描き、window.__menuShotReady = true。
+// 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
+// クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
+// manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
@@ -20,6 +21,12 @@ import { fid } from "../ui/menuFocus";
 import { HAND_SLOT, topView } from "../ui/menuState";
 import { candidateEntries, entryFocusId } from "../ui/candidates";
 import type { GameState } from "../core/state";
+import { FIXED_DT } from "../core/loop";
+import { MANUAL_KEYS } from "../meta/weaponManual";
+import { stepManualDemo } from "../system/manualDemo";
+import { createManualUi, stepManualUi, syncManualDemo } from "../ui/weaponManual";
+import { drawWeaponManual } from "../render/weaponManualUi";
+import { TEXT, textLineHeight, wrapText } from "../render/pixelText";
 
 declare global {
   interface Window {
@@ -71,6 +78,34 @@ function addDupes(state: GameState): void {
   [0, 1].forEach((i) => addStone(profile, stoneFromSeed(70 + i, { skillKey: looseKey, foundDepth: 4, now: 30 + i })));
 }
 
+const MANUAL_DEFAULT_FRAMES = 30;
+/** 絵（体・武器のアトラス）と稽古場の床が焼き上がるまで描き直す上限 */
+const MANUAL_SETTLE_FRAMES = 240;
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** 武器指南書の頁と実演の 1 コマ。実演は frames ステップ進めてから、絵が読めるまで同じコマを描き直す */
+async function shootManual(renderer: Renderer, q: URLSearchParams): Promise<void> {
+  const weapon = q.get("weapon") ?? "sword";
+  const key = MANUAL_KEYS.find((k) => k === weapon) ?? "sword";
+  const ui = createManualUi(key);
+  const lineH = textLineHeight(TEXT.SMALL);
+  const wrap = (t: string, w: number): string[] => wrapText(t, w, TEXT.SMALL);
+  const move = Number(q.get("move") ?? 0);
+  for (let i = 0; i < move; i++) stepManualUi(ui, { navX: 0, navY: 1, wheel: 0, aim: null, click: false, confirm: false }, wrap, lineH);
+  const demo = syncManualDemo(ui, 1);
+  const frames = Number(q.get("frames") ?? MANUAL_DEFAULT_FRAMES);
+  if (demo !== null) for (let i = 0; i < frames; i++) stepManualDemo(demo, FIXED_DT);
+  for (let i = 0; i < MANUAL_SETTLE_FRAMES; i++) {
+    renderer.beginFrame();
+    drawWeaponManual(renderer.context, renderer, { ui, hint: "↑↓ 技を選ぶ　←→ 武器種　Enter 最初から　Esc 戻る" });
+    if (demo === null || (renderer.playerArtReady(demo.state) && i > 30)) break;
+    await nextFrame();
+  }
+}
+
 async function main(): Promise<void> {
   const q = new URLSearchParams(window.location.search);
   const scene = q.get("scene") ?? "attire";
@@ -78,6 +113,11 @@ async function main(): Promise<void> {
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("canvas#game がない");
   const renderer = new Renderer(canvas);
   await document.fonts.load('16px "DotGothic16"');
+  if (scene === "manual") {
+    await shootManual(renderer, q);
+    window.__menuShotReady = true;
+    return;
+  }
   const state = buildState();
   const slot = state.skills.slots[0];
   if (slot) slot.runModifiers = ["echo", "focus"];

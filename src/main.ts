@@ -127,7 +127,7 @@ import {
   type Settings,
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
-import { TEXT, drawText, textLineHeight } from "./render/pixelText";
+import { TEXT, drawText, textLineHeight, wrapText } from "./render/pixelText";
 import { drawOriginScreen } from "./render/originUi";
 import {
   activateOriginCursor,
@@ -151,6 +151,9 @@ import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
 import { tipsListTabs } from "./meta/tips";
+import { type ManualUi, createManualUi, restartManualUiDemo, stepManualUi, syncManualDemo } from "./ui/weaponManual";
+import { drawWeaponManual } from "./render/weaponManualUi";
+import { stepManualDemo } from "./system/manualDemo";
 import { type ListAction, type ListScreen, type ListTab, createListScreen, listCursorEntry, listRowGap, stepListScreen } from "./meta/listScreen";
 import { drawListScreen } from "./render/codexUi";
 import { drawTelegraphDiagram } from "./render/telegraphDiagramUi";
@@ -222,6 +225,7 @@ type Screen =
   | "questBoard"
   | "achievements"
   | "tips"
+  | "manual"
   | "playing"
   | "paused"
   | "history"
@@ -714,7 +718,7 @@ function listTabsFor(kind: ListScreenKind): ListTab[] {
   return achievementTabs(achievementSave, questSave);
 }
 
-const TITLE_MENU_SCREEN: Readonly<Record<TitleMenuItem, ListScreenKind>> = {
+const TITLE_MENU_SCREEN: Readonly<Record<Exclude<TitleMenuItem, "manual">, ListScreenKind>> = {
   codex: "codex",
   quests: "questBoard",
   achievements: "achievements",
@@ -794,6 +798,50 @@ function updateListScreenFrame(kind: ListScreenKind, frame: FrameInput, escape: 
   saveAchievements(achievementSave);
   listTabs = listTabsFor(kind);
   sfx.play("uiClick");
+}
+
+// ---------------------------------------------------------------------------
+// 武器指南書（docs/ideas/weapon-manual.md。タイトルの記録とポーズから開く）
+// ---------------------------------------------------------------------------
+
+const MANUAL_HINT = "↑↓ 技を選ぶ　←→ 武器種　ホイール 送る　Enter / 窓をクリック 最初から　Esc 戻る";
+/** 武器指南書の画面。木人の距離の合わせ込みと稽古場の地図を使い回すので、開き直しても作り直さない */
+let manualUi: ManualUi | null = null;
+
+/** 武器指南書を開く。start は最初に開く武器種（ポーズからは今の武器種。null は前に見ていた頁のまま） */
+function openManual(start: MovesetKey | null, frame: FrameInput): void {
+  manualUi ??= createManualUi(start ?? undefined);
+  if (start !== null && manualUi.page.key !== start) manualUi = { ...createManualUi(start), foeDistances: manualUi.foeDistances, arena: manualUi.arena };
+  screen = "manual";
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  menuAimPrev = null;
+}
+
+function manualWrap(text: string, width: number): string[] {
+  return wrapText(text, width, TEXT.SMALL);
+}
+
+/** 武器指南書の 1 フレーム: 入力 → 選んだ技の実演を 1 ステップ進めて効果音を鳴らす */
+function updateManualFrame(frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
+  const ui = manualUi;
+  if (!ui || escape) {
+    sfx.play("uiClose");
+    leaveMenu();
+    return;
+  }
+  const navX = arrowX !== 0 ? arrowX : edgeDir(menuNav.prevX, frame.move.x);
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  const input = { navX, navY, wheel: frame.wheel, aim: frame.aimScreen, click: frame.clickPressed, confirm: frame.confirmPressed };
+  const action = stepManualUi(ui, input, manualWrap, textLineHeight(TEXT.SMALL));
+  if (action === "weapon" || action === "move") sfx.play("menuMove");
+  const demo = syncManualDemo(ui, settings.hitstopScale);
+  if (action === "restart") restartManualUiDemo(ui);
+  if (!demo) return;
+  stepManualDemo(demo, dt);
+  drainSfx(demo.state);
 }
 
 // ---------------------------------------------------------------------------
@@ -1424,6 +1472,10 @@ function openTitleRecord(target: TitleRecordTarget, frame: FrameInput): void {
     openHistory();
     return;
   }
+  if (target === "manual") {
+    openManual(null, frame);
+    return;
+  }
   openListScreen(TITLE_MENU_SCREEN[target], frame.move.x, frame.move.y);
 }
 
@@ -1707,6 +1759,11 @@ startLoop(
         break;
       }
 
+      case "manual": {
+        updateManualFrame(frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
+        break;
+      }
+
       case "history": {
         if (historyMessageTimer > 0) {
           historyMessageTimer = Math.max(0, historyMessageTimer - dt);
@@ -1982,6 +2039,9 @@ startLoop(
           } else if (item === "tips") {
             menuReturn = "paused";
             openListScreen("tips", frame.move.x, frame.move.y);
+          } else if (item === "manual") {
+            menuReturn = "paused";
+            openManual(cur.stats.moveset, frame);
           } else if (item === "restart") {
             leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "paused", frame);
           } else {
@@ -2141,6 +2201,11 @@ startLoop(
         const def = enemyDef(diagramKey);
         drawTelegraphDiagram(ctx, def, telegraphDiagram(def), renderer.atlasSprite(def.sprite));
       }
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "manual" && manualUi) {
+      drawWeaponManual(ctx, renderer, { ui: manualUi, hint: MANUAL_HINT });
       drawGamepadConnectedHint(ctx);
       return;
     }

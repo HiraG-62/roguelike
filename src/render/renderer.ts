@@ -727,6 +727,12 @@ export class Renderer {
   private readonly stairsBuf: number[] = [];
   /** 地図（床・壁・穴）の焼き済みチャンク。迷宮は章の様式、拠点は門前町の様式（見た目用の地図 ground）で焼く */
   private readonly mapChunks = new MapChunkCache();
+  /** 武器指南書の実演の稽古場の床（本編の mapChunks と取り合わないよう別に持つ） */
+  private readonly demoChunks = new MapChunkCache();
+  /** 実演の床を焼き切った地図（稽古場は使い回すので 1 回だけ） */
+  private demoSettled: GameMap | null = null;
+  /** world 層をどこへ描いているか（demo = 実演の窓。床のチャンクの持ち主を切り替える） */
+  private worldTarget: "game" | "demo" = "game";
   /** 拠点（門前町）の道・建物・灯籠・名札（docs/ideas/hub-town-impl.md 4 章）。拠点を開いた時に絵を作る */
   private readonly townLayer = new TownLayer();
   /** 地図を描く画面（ワールド座標の左上）。毎フレーム使い回す */
@@ -841,6 +847,36 @@ export class Renderer {
         if (aimScreen && state.status === "playing") this.drawCrosshair(state, aimScreen.x, aimScreen.y);
       },
     });
+  }
+
+  /**
+   * 武器指南書の実演の窓（system/manualDemo.ts の箱庭）。world 層の中身だけを rect に切り抜き、center が窓の中央に来るよう
+   * zoom 倍で描く（HUD・暗がり・知らせは描かない）。本編の演出トラッカー（track）と床のチャンクには触らない
+   * （床は実演専用のチャンクで焼くので、ポーズから開いて戻っても本編の床を焼き直さない）
+   */
+  renderDemo(state: GameState, rect: Readonly<{ x: number; y: number; w: number; h: number }>, center: Readonly<{ x: number; y: number }>, zoom: number): void {
+    const { ctx } = this;
+    const moveset = playerMoveset(state).key;
+    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset)]);
+    this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
+    const cam = state.camera;
+    const viewX = Math.round(center.x - rect.w / 2 / zoom - cam.offset.x);
+    const viewY = Math.round(center.y - rect.h / 2 / zoom - cam.offset.y);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+    ctx.fillStyle = COLOR_BG;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.translate(rect.x, rect.y);
+    ctx.scale(zoom, zoom);
+    this.worldTarget = "demo";
+    try {
+      this.drawWorldLayer(state, -viewX, -viewY);
+    } finally {
+      this.worldTarget = "game";
+      ctx.restore();
+    }
   }
 
   /** world 層: カメラの座標系でマップと中の物を描く */
@@ -1115,6 +1151,17 @@ export class Renderer {
 
   /** 拠点は門前町の床、迷宮は焼き済みチャンク（docs/ideas/map-visual-impl.md 1-3 節）。拠点は town を渡してから描く（main.ts の drawHubScreen） */
   private drawTiles(state: GameState, viewX: number, viewY: number): void {
+    if (this.worldTarget === "demo") {
+      const view = this.setMapView(viewX, viewY);
+      // 稽古場は狭いので、初めて映すときに全部焼いてしまう（窓を開いた最初のコマから床が出る）
+      if (this.demoSettled !== state.map) {
+        this.demoChunks.settle(state.map, this.mapTheme(state), view);
+        this.demoSettled = state.map;
+      }
+      this.demoChunks.update(state.map, this.mapTheme(state), view, false);
+      this.demoChunks.drawGround(this.ctx, view);
+      return;
+    }
     if (state.sandbox === true) {
       if (this.hubView) this.drawTownGround(this.hubView, viewX, viewY);
       return;

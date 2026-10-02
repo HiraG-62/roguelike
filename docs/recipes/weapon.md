@@ -15,6 +15,7 @@
 - 各段・弾の参照ステータスは `docs/STATS_AND_SCALING.md` に従う（効果から見て納得できるもの。怯み値の `poiseRatio` も付ける）
 - ベースへの紐付け: `src/loot/bases.ts` の `BASES` で右手のベースに `moveset` を指定（`PlayerStats.moveset` へ流れる）。銃の家系のベースは `PlayerStats.bullet` に自分の key が入る
 - 呼び出し側: `system/player.ts` が `stats.moveset` で `MOVESETS` を、`stats.bullet` で `loot/bullets.ts` の `BULLETS` を引いて発動処理を分岐
+- **武器指南書**（`docs/ideas/weapon-manual.md`）: 武器種・段・派生・奥義は定義から自動で載る。`meta/weaponManual.test.ts` が全技の実演（木人に当たる / 戦意を放つ）を回して確かめる。落ちたら台本（`meta/weaponManual.ts`）か段の届きを見直す。反動で下がる振りのように当たらないのが仕様の技は `expect: "none"` にし、テストの許す列に足す
 - テスト: `data/weapons.test.ts` / `loot/bullets.test.ts` / `system/weaponArts.test.ts`（右レーンの段）/ `system/player.test.ts`（左右の共有の段カウンタ・派生）/ `data/ultimates.test.ts`・`system/ultimates.test.ts`（奥義）。計算式の欄が書付 1 枚に収まるかは `render/sheetUi.test.ts`（行動が増えて溢れたら `ui/scalingText.ts` の畳み方を見直す）。右レーンと派生の係数表は `data/scalingVariety.test.ts` の `LANE_TABLE` が受ける
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

@@ -2,34 +2,17 @@ import { describe, expect, it } from "vitest";
 import { defaultKeybinds } from "../core/input";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { FORMS, FORM_KEYS, formOf } from "../data/weaponForms";
-import { WEAPON_TIP_KEYS, formText, weaponMechanics, weaponTipBody } from "./weaponTips";
-import { TIP_CATEGORIES, tipEntries, tipsListTabs } from "./tips";
+import { featureText, formText, weaponMechanics } from "./weaponText";
+import { TIP_CATEGORY_LABEL, tipEntries, tipsListTabs } from "./tips";
 
-describe("武器種 Tips 本文", () => {
-  it("全武器種を網羅する", () => {
-    expect(WEAPON_TIP_KEYS.length, "件数").toBe(MOVESET_KEYS.length);
-    for (const key of MOVESET_KEYS) expect(WEAPON_TIP_KEYS, key).toContain(key);
-  });
-
+describe("武器の特色の本文", () => {
   it("どの武器種でも本文が組み立てられ、空でない", () => {
-    for (const key of MOVESET_KEYS) {
-      const body = weaponTipBody(key, defaultKeybinds());
-      expect(body.trim().length, key).toBeGreaterThan(0);
-      // 奥義の候補が本文に含まれる（データから組み立てていることの確認）
-      expect(body, `${key} は奥義の候補を含む`).toContain("奥義の候補");
-      // Tips ノートの説明欄（render/codexUi.ts drawSideDetail）に収まる分量を超えない（見た目の破綻を防ぐ）
-      expect(body.length, `${key} の本文の長さ`).toBeLessThan(420);
-    }
+    for (const key of MOVESET_KEYS) expect(featureText(MOVESETS[key]).trim().length, key).toBeGreaterThan(0);
   });
 
-  it("派生を持つ武器種は本文に派生名を含む", () => {
-    const sword = weaponTipBody("sword", defaultKeybinds());
-    for (const b of MOVESETS.sword.branches) expect(sword, b.name).toContain(b.name);
-  });
-
-  it("キー設定を差し替えると操作の表記も変わる", () => {
-    const before = weaponTipBody("sword", defaultKeybinds());
-    expect(before).toContain("奥義ゲージが満ちると出せる");
+  it("近接の武器種は間合いを書き、銃の家系は書かない", () => {
+    expect(featureText(MOVESETS.sword)).toContain("間合いはおよそ");
+    expect(featureText(MOVESETS.longarm)).not.toContain("間合いはおよそ");
   });
 
   it("固有の仕組みは武器の定義から検出する（手書きしない）", () => {
@@ -42,12 +25,12 @@ describe("武器種 Tips 本文", () => {
   });
 });
 
-describe("武器種 Tips の型の文", () => {
+describe("武器の型の文", () => {
   it("どの武器種も型の名と、戦意の名・応手を本文に含む（型の定義から組む）", () => {
     for (const key of MOVESET_KEYS) {
       const m = MOVESETS[key];
       const form = formOf(m);
-      const body = weaponTipBody(key, defaultKeybinds());
+      const body = formText(m);
       expect(body, `${key} の型`).toContain(`型は${form.name}`);
       expect(body, `${key} の戦意`).toContain(`戦意「${m.moraleLabel ?? form.morale.label}」`);
       expect(body, `${key} の応手`).toContain("応手は");
@@ -80,17 +63,12 @@ describe("武器種 Tips の型の文", () => {
   });
 });
 
-describe("Tips ノートの武器種タブ", () => {
-  it("カテゴリに武器種を持ち、タブの件数が武器種の数と一致する", () => {
-    expect(TIP_CATEGORIES, "武器種カテゴリ").toContain("weapon");
-    const tabs = tipsListTabs(defaultKeybinds());
-    const tab = tabs.find((t) => t.label === "武器種");
-    expect(tab?.entries.length, "武器種タブの件数").toBe(MOVESET_KEYS.length);
-  });
-
-  it("tipEntries にも武器種の項目が含まれる", () => {
-    const entries = tipEntries(defaultKeybinds()).filter((t) => t.category === "weapon");
-    expect(entries.length).toBe(MOVESET_KEYS.length);
-    expect(new Set(entries.map((e) => e.term)).size, "武器名が重ならない").toBe(MOVESET_KEYS.length);
+describe("Tips ノートと武器指南書の分離", () => {
+  it("Tips ノートに武器種のタブを持たない（武器種は武器指南書へ移した）", () => {
+    expect(Object.values(TIP_CATEGORY_LABEL), "武器種タブ").not.toContain("武器種");
+    const names = new Set(MOVESET_KEYS.map((k) => MOVESETS[k].name));
+    for (const tab of tipsListTabs(defaultKeybinds())) for (const e of tab.entries) expect(e.key.startsWith("weapon_"), e.key).toBe(false);
+    expect(tipEntries(defaultKeybinds()).some((t) => t.term === "武器指南書"), "指南書の項目").toBe(true);
+    expect(names.size).toBe(MOVESET_KEYS.length);
   });
 });

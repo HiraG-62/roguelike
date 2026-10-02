@@ -1,11 +1,9 @@
 import type { FrameInput } from "../core/input";
 import { createRng } from "../core/rng";
-import { createRuleRunState } from "../core/events";
-import type { GameState, RoomState } from "../core/state";
-import { createTerrainLayer } from "../core/terrain";
+import type { GameState } from "../core/state";
 import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FEEL, HUB } from "../data/tuning";
+import { HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
 import { bulletOfBase } from "../loot/bullets";
@@ -13,33 +11,18 @@ import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
 import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
-import { findPendingBud } from "../loot/provenance";
 import { UNARMED_MORE, computeStats } from "../loot/stats";
 import { type Item, type Profile, type Slot } from "../loot/types";
 import { TILE_SIZE, type Rect } from "../map/grid";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
-import { createCodexRun } from "../meta/codex";
-import { createQuestRun } from "../meta/quests";
-import { createBoonRunState } from "./boons";
-import { snapCamera, updateCamera } from "./camera";
+import { updateCamera } from "./camera";
 import { cancelAttack } from "./combat";
-import { carryContractPatch, createContractState } from "./contractors";
-import { createEconomyState } from "./economy";
-import { updateEffects } from "./effects";
-import { createEnemy, updateEnemies } from "./enemies";
-import { resetExplored } from "./explore";
-import { updateHazards } from "./hazards";
-import { refillMana, tickMana } from "./mana";
-import { applyStats, createPlayer, updatePlayer } from "./player";
-import { updateProjectiles } from "./projectiles";
-import { createRunEventState } from "./runEvents";
-import { defaultRunSetup, refreshRunStats } from "./runSetup";
-import { emptyRunMeta } from "./runMeta";
-import { createHurtLog } from "../core/hurt";
-import { createSkillRunState } from "./skills";
+import { carryContractPatch } from "./contractors";
+import { createEnemy } from "./enemies";
+import { refreshRunStats } from "./runSetup";
+import { createSandboxState, simulateSandbox } from "./sandbox";
 import { DUMMY_KEY } from "./specialRooms";
-import { updateStatusEffects } from "./statusEffects";
 
 export interface HubRun {
   layout: HubLayout;
@@ -108,98 +91,7 @@ export function createHub(
 }
 
 function createHubState(profile: Profile, skillProfile: SkillProfile, layout: HubLayout, hitstopScale: number): GameState {
-  const setup = defaultRunSetup();
-  const stats = computeStats(profile.equipment);
-  const state: GameState = {
-    seed: HUB.seed,
-    seedText: String(HUB.seed),
-    rng: createRng(HUB.seed),
-    status: "playing",
-    depth: 1,
-    tick: 0,
-    time: 0,
-    map: layout.map,
-    rooms: layout.map.rooms.map(hubRoom),
-    jins: [],
-    noises: [],
-    lockedTiles: new Set(),
-    player: createPlayer({ ...layout.playerStart }, stats),
-    enemies: [],
-    projectiles: [],
-    particles: [],
-    texts: [],
-    pickups: [],
-    camera: { pos: { x: 0, y: 0 }, shake: 0, offset: { x: 0, y: 0 }, kick: { x: 0, y: 0 } },
-    hitstop: 0,
-    hitstopScale,
-    slowmo: 0,
-    flash: 0,
-    combo: { count: 0, timer: 0, best: 0, popTimer: 0 },
-    kills: 0,
-    score: 0,
-    nextId: 1,
-    log: [],
-    deathTimer: 0,
-    profile,
-    stats,
-    floorItems: [],
-    paused: false,
-    sfx: [],
-    shapes: [],
-    runRecorded: false,
-    sandbox: true,
-    skills: createSkillRunState(skillProfile),
-    hazards: [],
-    terrain: createTerrainLayer(),
-    corpses: [],
-    boss: null,
-    bossLog: [],
-    hurt: createHurtLog(),
-    nemesis: null,
-    hiddenRoom: null,
-    floorTime: 0,
-    reaper: null,
-    floorKind: "rooms",
-    cursed: false,
-    explored: new Uint8Array(0),
-    exploredLog: [],
-    boons: [],
-    boonChoice: null,
-    boonRun: createBoonRunState(),
-    reforges: [],
-    reforgeChoice: null,
-    pendingBud: findPendingBud(profile),
-    budOfferedThisRun: [],
-    runKeystones: [],
-    runEvents: createRunEventState(),
-    modifiers: [...setup.modifiers],
-    origin: setup.origin,
-    job: "none",
-    lockedRelics: [],
-    runMeta: emptyRunMeta(),
-    stairs: [],
-    pendingExit: null,
-    contracts: createContractState(),
-    economy: createEconomyState(),
-    events: [],
-    pendingEvents: [],
-    recent: {},
-    ruleIcd: new Map(),
-    chains: [],
-    ruleRun: createRuleRunState(),
-    codexRun: createCodexRun(),
-    questRun: createQuestRun(),
-  };
-  applyStats(state, stats);
-  refillMana(state);
-  resetExplored(state);
-  snapCamera(state);
-  return state;
-}
-
-/** 拠点の部屋は最初から制圧済み（封鎖・増援・報酬の処理に乗せない） */
-function hubRoom(rect: RoomState["rect"]): RoomState {
-  return { rect, cleared: true, locked: false, doorTiles: [], kind: "normal", wave: 0, used: false };
+  return createSandboxState({ profile, skillProfile, map: layout.map, start: layout.playerStart, seed: HUB.seed, hitstopScale });
 }
 
 /** 試し場と同じく、撃破数・ドロップに数えない木人を置く。置いた敵の id を返す */
@@ -223,7 +115,7 @@ export function stepHub(session: HubSession, input: FrameInput, dt: number, conf
     updateCamera(state, dt, VIEW_W, VIEW_H);
     return NONE;
   }
-  simulate(state, input, dt);
+  simulateSandbox(state, input, dt);
   updateDummies(session, dt);
   hub.near = nearestSpot(session);
   if (hub.near && input.interactPressed) {
@@ -235,34 +127,6 @@ export function stepHub(session: HubSession, input: FrameInput, dt: number, conf
     return { kind: "depart", via: "gate" };
   }
   return updateDepartHold(hub, confirmHeld, dt);
-}
-
-function simulate(state: GameState, input: FrameInput, dt: number): void {
-  const scale = state.slowmo > 0 ? FEEL.slowmoScale : 1;
-  state.slowmo = Math.max(0, state.slowmo - dt);
-  const gdt = dt * scale;
-  state.tick += 1;
-  state.time += gdt;
-  tickMana(state, gdt);
-  updatePlayer(state, input, gdt);
-  updateStatusEffects(state, gdt);
-  updateEnemies(state, gdt);
-  updateProjectiles(state, gdt);
-  updateHazards(state, gdt);
-  decayCombo(state, gdt);
-  updateEffects(state, gdt);
-  updateCamera(state, dt, VIEW_W, VIEW_H);
-}
-
-/** コンボの途切れ。game.ts の updateCombo と同じ（非公開なので拠点側に持つ）。放置すると拠点で倍率が積み上がる */
-function decayCombo(state: GameState, dt: number): void {
-  const c = state.combo;
-  c.popTimer = Math.max(0, c.popTimer - dt);
-  if (c.count === 0) return;
-  c.timer -= dt;
-  if (c.timer > 0) return;
-  c.count = 0;
-  c.timer = 0;
 }
 
 function tileInRect(rect: Rect, tx: number, ty: number, margin = 0): boolean {
