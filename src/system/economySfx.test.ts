@@ -6,11 +6,11 @@ import { SFX_NAMES } from "../audio/sfxNames";
 import { LAYERED_SFX } from "../audio/sfxLayers";
 import { SFX_DEFINITIONS } from "../audio/sfx";
 import { type BetOffer, placeBet } from "./bets";
-import { damageEnemy } from "./combat";
 import { CRATE_KEY, POT_KEY, containerBroken, createContainer } from "./containers";
 import { gainCoins, spillCoins } from "./economy";
 import { tryDrink } from "./flask";
 import { buildFloor } from "./floor";
+import { provokeMerchant } from "./merchantAi";
 import { arena, withInput } from "./testHelpers";
 
 /** 銭・瓶・商人・賭け・壺と木箱の効果音（docs/ideas/economy-impl.md 4 章 6e） */
@@ -101,13 +101,13 @@ describe("銭まわりの効果音を鳴らす", () => {
     expect(lose.sfx, "勝ちの音は鳴らさない").not.toContain("betWin");
   });
 
-  it("商人を殴ると merchantProvoked が積まれる", () => {
+  it("商人を怒らせると merchantProvoked が積まれる", () => {
     const state = createGame(3);
     const m = state.economy.merchants[0];
     const body = state.enemies.find((e) => e.id === m?.enemyId);
     if (!m || !body) throw new Error("商人がいない");
-    state.player.invulnTimer = 1e9;
-    damageEnemy(state, body, 1, { x: -1, y: 0 }, 0, { kind: "melee" });
+    // 殴って怒らせる道（交戦中は当たらない・平時は警告から）は merchantAi.test.ts が見る
+    provokeMerchant(state, body);
     expect(state.sfx, "怒る音").toContain("merchantProvoked");
   });
 });

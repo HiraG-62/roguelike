@@ -21,7 +21,7 @@
   "shieldBearer": { "perDamage": 0.15 },
   "hexer": { "perSec": 1.2 },
   "lancer": { "tipHit": 3 },
-  "invoker": { "skillHit": 2.5 },
+  "invoker": { "skillHit": 1.5 },
   "shadow": { "backstab": 6 },
   "alchemist": { "reaction": 10 },
   "onmyoji": { "minionHit": 2 },

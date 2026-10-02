@@ -188,9 +188,18 @@ describe("祝福の起点: 本体の経路でイベントが積まれる", () =>
 });
 
 describe("芯の祝福（boonCores.ts）", () => {
-  it("芯は 4 種で格を持たず、ownedCore が持っている芯を返す", () => {
+  it("芯は 8 種で格を持たず、ownedCore が持っている芯を返す", () => {
     const cores = BOON_KEYS.filter((k) => BOONS[k].core === true);
-    expect(cores, "芯").toEqual(["coreCurseEater", "coreTempo", "coreBloodLoop", "coreMirage"]);
+    expect(cores, "芯").toEqual([
+      "coreCurseEater",
+      "coreTempo",
+      "coreBloodLoop",
+      "coreMirage",
+      "coreGlass",
+      "coreHeavy",
+      "coreWellspring",
+      "coreGreed",
+    ]);
     for (const k of cores) expect(BOONS[k].graded, `${k} は格を持たない`).toBe(false);
     const state = arena();
     expect(ownedCore(state), "持っていなければ null").toBeNull();

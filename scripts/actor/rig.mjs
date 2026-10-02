@@ -116,15 +116,19 @@ function capital(key) {
   return `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
 }
 
-/** 歩き: 8 枚で 1 歩ずつ 2 歩。上体は接地で沈み、蹴り出しで浮く */
+/**
+ * 歩き: 8 枚で 1 歩ずつ 2 歩。上体は接地で沈み、蹴り出しで浮く。
+ * 前へ歩く足は「浮いて前（+x）へ振り出し、着いたら体の下を後ろへ流れる」。浮かせるのは足の x が増えている間
+ * （fx = cos t の増える側は sin t < 0）。逆にすると、着いた足が前へ滑って後ずさりに見える
+ */
 export const WALK_FRAMES = 8;
 function walkPose(f) {
   const t = (f / WALK_FRAMES) * TAU;
   const stride = 5;
   const fx = Math.cos(t) * stride;
   const bx = -fx;
-  const liftF = Math.max(0, Math.sin(t)) * 3;
-  const liftB = Math.max(0, -Math.sin(t)) * 3;
+  const liftF = Math.max(0, -Math.sin(t)) * 3;
+  const liftB = Math.max(0, Math.sin(t)) * 3;
   const bob = Math.abs(Math.cos(t)) > 0.7 ? 1 : 0;
   return pose({ bob, lean: 1, footF: { x: fx + 0.5, lift: liftF }, footB: { x: bx - 0.5, lift: liftB }, sway: 0.6 + Math.sin(t * 2) * 0.25 });
 }

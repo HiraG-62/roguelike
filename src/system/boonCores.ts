@@ -4,7 +4,7 @@ import type { PlayerStats } from "../loot/types";
 import { BOONS, type BoonDef, type BoonKey } from "./boonDefs";
 
 /**
- * 芯の祝福（呪い喰い・拍の刻・血の巡り・逃げ水。定義は src/system/boonDefs/cursed.ts）の効果のうち、Rule で書けないもの。
+ * 芯の祝福（呪い喰い・拍の刻・血の巡り・逃げ水・硝子の刃・重心・気の泉・銭の亡者。定義は src/system/boonDefs/cursed.ts）の効果のうち、Rule で書けないもの。
  * 数値は foldCoreStats（foldBoonStats の末尾から呼ぶ。ソフトキャップの後の derived に掛かる）、
  * 抽選への割り込みは coreCursedForced / coreGradeShift（boons.ts）、
  * 呪いの除去・ハートの拾得の禁止は呼び出し側 system が coreKeepsCurses / coreBlocksHearts を見る。
@@ -48,10 +48,40 @@ function foldMirage(out: PlayerStats): void {
   out.moveSpeedMul *= BOON.mirageMoveMul;
 }
 
+/** 硝子の刃の代償: 被ダメージ ×glassDamageTakenMul（与ダメの倍は BoonDef.modifiers） */
+function foldGlass(out: PlayerStats): void {
+  out.damageTakenMul *= BOON.glassDamageTakenMul;
+}
+
+/** 重心: 怯み値 ×heavyPoiseMul・ノックバック ×heavyKnockbackMul、攻撃速度 ×heavyAttackSpeedMul */
+function foldHeavy(out: PlayerStats): void {
+  out.poiseDamageMul *= BOON.heavyPoiseMul;
+  out.knockbackMul *= BOON.heavyKnockbackMul;
+  out.attackSpeedMul *= BOON.heavyAttackSpeedMul;
+}
+
+/** 気の泉: 最大気力 +wellspringMana・獲得 ×wellspringManaGainMul、最大生命 ×wellspringHpMul（1 未満にはしない） */
+function foldWellspring(out: PlayerStats): void {
+  out.maxMana += BOON.wellspringMana;
+  out.manaGainMul *= BOON.wellspringManaGainMul;
+  out.maxHp = Math.max(1, Math.round(out.maxHp * BOON.wellspringHpMul));
+}
+
+/** 銭の亡者: 獲得 ×greedCoinGainMul・引き寄せ ×greedMagnetMul、被弾でこぼれる銭 ×greedSpillMul */
+function foldGreed(out: PlayerStats): void {
+  out.coinGainMul *= BOON.greedCoinGainMul;
+  out.coinMagnetMul *= BOON.greedMagnetMul;
+  out.coinSpillMul *= BOON.greedSpillMul;
+}
+
 const CORE_FOLDS: ReadonlyArray<readonly [BoonKey, (out: PlayerStats) => void]> = [
   ["coreTempo", foldTempo],
   ["coreBloodLoop", foldBloodLoop],
   ["coreMirage", foldMirage],
+  ["coreGlass", foldGlass],
+  ["coreHeavy", foldHeavy],
+  ["coreWellspring", foldWellspring],
+  ["coreGreed", foldGreed],
 ];
 
 /** 芯の数値を stats に畳み込む（元の stats は変更しない）。foldBoonStats の末尾、気力の下限の前に呼ぶ */

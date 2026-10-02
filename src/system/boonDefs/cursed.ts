@@ -2,8 +2,8 @@
  * 呪い付きと芯の札（docs/ideas/boon-impl.md 2-6。段取り 7b）。boonDefs.ts が BOON_KEYS / BOONS に混ぜる。
  * 旧祝福と同じ key の札は、その key の図鑑の記録を引き継ぐ。
  * ここは型だけを boonDefs.ts から読む（実行時の循環を作らない）。
- * 呪い付き 6（Wave2 から残す。一念だけ「系譜が 1 つのとき倍」に作り直した）と、操作の形を変える芯 4
- * （数値は system/boonCores.ts が BOON の芯の値で畳む）。どちらも系譜を持たない
+ * 呪い付き 6（Wave2 から残す。一念だけ「系譜が 1 つのとき倍」に作り直した）と、ランの方針を決める芯 8
+ * （3 択の顔ぶれが毎回変わるよう 4 → 8 に増やした。数値は system/boonCores.ts が BOON の芯の値で畳む）。どちらも系譜を持たない
  */
 
 import type { EventKind, EventSource } from "../../core/events";
@@ -20,11 +20,15 @@ export const BOON_KEYS_CURSED = [
   "madBloom",
   "heavyOath",
   "drenched",
-  // ---- 芯 4 ----
+  // ---- 芯 8 ----
   "coreCurseEater",
   "coreTempo",
   "coreBloodLoop",
   "coreMirage",
+  "coreGlass",
+  "coreHeavy",
+  "coreWellspring",
+  "coreGreed",
 ] as const;
 
 type CursedKey = (typeof BOON_KEYS_CURSED)[number];
@@ -234,5 +238,58 @@ export const BOONS_CURSED: Readonly<Record<CursedKey, BoonDef>> = {
     rules: rulesOf("coreMirage", [
       { when: "onDashEnd", then: { kind: "explode", magnitude: BOON.mirageBlastRatio, scaleBy: "slashBase", radius: BOON.mirageBlastRadius } },
     ]),
+  },
+  coreGlass: {
+    key: "coreGlass",
+    name: "硝子の刃",
+    desc: `与ダメージ+${pctMul(BOON.glassDamageMore)}%（倍）。代わりに被ダメージ+${pctMul(BOON.glassDamageTakenMul)}%。`,
+    icon: "硝",
+    tags: ["melee", "ranged"],
+    keywords: kw([], ["hurt"], ["melee", "ranged"]),
+    cursed: false,
+    core: true,
+    graded: false,
+    // 威力の倍は出所ごとに掛け算（装備の増とは別枠）。被ダメは foldGlass が stats に畳む
+    modifiers: modifiersOf("coreGlass", [{ kind: "more", tag: "all", amount: BOON.glassDamageMore, if: [] }]),
+  },
+  coreHeavy: {
+    key: "coreHeavy",
+    name: "重心",
+    desc:
+      `敵への怯み値+${pctMul(BOON.heavyPoiseMul)}%、ノックバック+${pctMul(BOON.heavyKnockbackMul)}%。` +
+      `代わりに攻撃速度-${pctMul(BOON.heavyAttackSpeedMul)}%。`,
+    icon: "重",
+    tags: ["melee", "stagger"],
+    gives: ["stagger"],
+    keywords: kw(["stagger"], [], ["melee"]),
+    cursed: false,
+    core: true,
+    graded: false,
+  },
+  coreWellspring: {
+    key: "coreWellspring",
+    name: "気の泉",
+    desc:
+      `最大気力+${BOON.wellspringMana}、気力の獲得+${pctMul(BOON.wellspringManaGainMul)}%。` +
+      `代わりに最大生命-${pctMul(BOON.wellspringHpMul)}%。`,
+    icon: "泉",
+    tags: ["mana", "skill"],
+    keywords: kw(["mana"], [], ["mana"]),
+    cursed: false,
+    core: true,
+    graded: false,
+  },
+  coreGreed: {
+    key: "coreGreed",
+    name: "銭の亡者",
+    desc:
+      `銭の獲得+${pctMul(BOON.greedCoinGainMul)}%、銭を引き寄せる範囲+${pctMul(BOON.greedMagnetMul)}%。` +
+      `代わりに被弾でこぼれる銭が${BOON.greedSpillMul}倍になる。`,
+    icon: "銭",
+    tags: ["loot"],
+    keywords: kw([], ["hurt"]),
+    cursed: false,
+    core: true,
+    graded: false,
   },
 };

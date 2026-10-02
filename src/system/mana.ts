@@ -31,6 +31,14 @@ export function gainAttackMana(state: GameState, base: number, mul: number): num
   return addMana(state, base * total * state.stats.manaGainMul);
 }
 
+/**
+ * 武器そのもの（近接の段・ダッシュ攻撃・弾）の命中の回収。素の倍率 MANA.attackGainScale を掛けてから gainAttackMana へ。
+ * 武器ごとの段の値を書き換えずに、序盤の連発をまとめて絞るための口（流儀の源は gainAttackMana を直に呼び、絞らない）
+ */
+export function gainWeaponMana(state: GameState, base: number, mul: number): number {
+  return gainAttackMana(state, base * MANA.attackGainScale, mul);
+}
+
 /** 足して、上限で溢れた分を必殺ゲージへ移す */
 function addMana(state: GameState, raw: number): number {
   const p = state.player;

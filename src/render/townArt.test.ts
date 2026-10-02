@@ -17,6 +17,7 @@ const ALL_KINDS: TownObjectKind[] = [
   ...LOT_KINDS,
   ...[-1, 0, 1, 2, 3, 9].map((tier): TownObjectKind => ({ type: "well", tier })),
   { type: "torii" },
+  { type: "toriiSteps" },
   { type: "lantern" },
   ...[0, 1, 2, 3, 4, 7].map((chapter): TownObjectKind => ({ type: "trophy", chapter })),
   ...[0, 1, 4, 5, 10, 15, 20, 99].map((tier): TownObjectKind => ({ type: "stele", tier })),
@@ -102,9 +103,10 @@ describe("門前町の灯（townObjectGlows）", () => {
     for (const lot of HUB_LOT_KEYS) expect(townObjectGlows({ type: "lot", lot, built: false }), lot).toEqual([]);
   });
 
-  it("記録の蔵は窓が 5 つ（描画レーンが archiveLights 個だけ灯す）、鳥居は石段の奥に灯の位置を持つ", () => {
+  it("記録の蔵は窓が 5 つ（描画レーンが archiveLights 個だけ灯す）、鳥居の石段は奥に灯の位置を持つ", () => {
     expect(townObjectGlows({ type: "lot", lot: "archive", built: true }).filter((g) => g.kind === "window")).toHaveLength(5);
-    expect(townObjectGlows({ type: "torii" }).filter((g) => g.kind === "gate")).toHaveLength(1);
+    expect(townObjectGlows({ type: "toriiSteps" }).filter((g) => g.kind === "gate")).toHaveLength(1);
+    expect(townObjectGlows({ type: "torii" }), "柱と笠木は灯を持たない").toEqual([]);
   });
 });
 

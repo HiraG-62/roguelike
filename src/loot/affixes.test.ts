@@ -68,7 +68,7 @@ const CONDITION_KEYS = [
 /** 性質の数（条件の族 25 + 行動 43 + 来歴 3）・転じ 12 + 属性の変換 6・誓約 */
 const AFFIX_COUNT = 71;
 const CONVERSION_COUNT = 18;
-const KEYSTONE_COUNT = 20;
+const KEYSTONE_COUNT = 22;
 const BEHAVIOR_COUNT = 43;
 
 /** 深度 SAMPLE_DEPTH の期待値で振った性質（反転なし） */
@@ -292,6 +292,14 @@ describe("トレードオフ付きアフィックス", () => {
     applyRoll(stats, roll);
     expect(stats.triggers.map((t) => t.magnitude)).toEqual([20]);
     expect(stats.increased.melee).toBeCloseTo(-0.06);
+  });
+
+  it("見切りの息吹は見切りとカウンター（受け流し・出端）の両方で気力を戻す", () => {
+    const stats = freshStats();
+    applyRoll(stats, { key: "justBreath", kind: "prefix", tier: 1, value: 6, value2: 10 });
+    const restores = stats.triggers.filter((t) => t.effect === "restoreMana");
+    expect(restores.map((t) => t.trigger).sort()).toEqual(["onCounter", "onJustDodge"]);
+    for (const t of restores) expect(t.magnitude).toBe(6);
   });
 });
 

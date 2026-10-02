@@ -14,13 +14,14 @@ import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effect
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { emitNoise } from "./noise";
-import { KS, hasKeystone, healMul, regenAllowed } from "./keystones";
+import { KS, evadeManaMul, hasKeystone, healMul, killManaMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, findStatus, hasStatus, removeStatus } from "./statusEffects";
 import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from "./statusEffects";
 import { isAllied } from "./rules";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
+import { isStrike, shieldsMerchant } from "./merchantAi";
 import { fireTrigger } from "./triggers";
 import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitPoiseMul } from "./traitHooks";
@@ -206,6 +207,8 @@ export function damageEnemy(
   // 従魔（眷属の Rule 効果 tameEnemy）はプレイヤーの攻撃でも巻き添えでも傷つかない
   if (enemy.hp <= 0 || isAllied(state, enemy)) return false;
   const kind = opts.kind ?? "proc";
+  // 怒っていない商人: 巻き添え・交戦中の一撃は受け止め、平時の 1 発目は警告だけ（system/merchantAi.ts）
+  if (shieldsMerchant(state, enemy, isStrike(kind, opts.silent))) return false;
   const poise = (opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
@@ -388,7 +391,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   pushSfx(state, "kill");
 
   applyLifeOnKill(state);
-  gainMana(state, MANA.onKill + state.stats.manaOnKill);
+  gainMana(state, (MANA.onKill + state.stats.manaOnKill) * killManaMul(state));
   if (counted) rollEnemyDrop(state, enemy);
   dropCoins(state, enemy);
   explodeOnKill(state, enemy);
@@ -748,7 +751,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   p.justTimer = state.stats.justDodgeWindow;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
-  gainMana(state, MANA.onJust);
+  gainMana(state, MANA.onJust * evadeManaMul(state));
   registerComboHit(state);
   addHeadLabel(state, p.body.pos, "見切り！", COLOR_JUST, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);

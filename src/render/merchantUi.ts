@@ -10,7 +10,7 @@ import { pulse } from "./renderMath";
  * 台座の四角と「いちばん近い台座の名前だけ出す」規則は契約者（runUi.ts の drawContractor）と共用する。state を読むだけ
  */
 
-/** 触れて選ぶ台座（契約者の台座・商人の品）の共通の形 */
+/** インタラクトで選ぶ台座（契約者の台座・商人の品）の共通の形 */
 export interface StallSpot {
   pos: Vec;
   used: boolean;

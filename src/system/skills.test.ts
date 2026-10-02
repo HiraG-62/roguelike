@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { grantBoon } from "./boons";
-import { updateDropInteract } from "./loot";
+import { updateInteract } from "./interact";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { codesForAction, mouseButtonCode, skillKeyLabel } from "../core/input";
@@ -634,7 +634,7 @@ describe("ドロップ", () => {
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
     expect(state.skills.floorStones, "触れただけでは拾わない（注目 + 拾うキー）").toHaveLength(1);
     // 照準なし（パッドの右スティック中立）なら手の届く最寄りを拾う
-    updateDropInteract(state, withInput({ interactPressed: true }));
+    updateInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.profile.stones.length).toBe(before + 1);
     expect(state.skills.floorStones).toHaveLength(0);
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ARM_REACH,
+  BODY_CLIP_FRAMES,
   DEFAULT_STANCE,
   FOREARM,
   IDLE_PERIOD,
@@ -12,6 +13,7 @@ import {
   attackFrame,
   bodyClip,
   handPixels,
+  isBackpedal,
   RECOIL_TIME,
   recoilOf,
   restBlendOf,
@@ -19,7 +21,10 @@ import {
   solveRig,
   stanceFromMeta,
   toRigAngle,
+  WALK_FRAME_TIME,
+  walkFrame,
 } from "./playerRig";
+import { BODY_CLIPS, WALK_FRAMES } from "../../scripts/actor/rig.mjs";
 
 const idle = { dashing: false, dashProgress: 0, hit: false, phase: "none", holding: false, moving: false, walkTime: 0, time: 0, idle: "ready" } as const;
 
@@ -39,6 +44,57 @@ describe("playerRig: 体のシートの選び方", () => {
     expect(bodyClip({ ...idle, idle: "aim" }).clip).toBe("idleAim");
     const frames = new Set([0, 0.4, 0.8, 1.2].map((time) => bodyClip({ ...idle, time }).frame));
     expect(frames.size).toBeGreaterThan(1);
+  });
+});
+
+describe("playerRig: 歩きの足運び", () => {
+  const walk = BODY_CLIPS.find((c) => c.name === "walk");
+  const feet = (f: number) => {
+    const p = walk?.pose(f);
+    if (!p) throw new Error("歩きのシートが無い");
+    return [p.footF, p.footB] as const;
+  };
+
+  it("歩きのシートは前進の順: 浮いた足は前へ振り出し、着いた足は体の下を後ろへ流れる", () => {
+    expect(walk?.frames, "枚数").toBe(WALK_FRAMES);
+    expect(BODY_CLIP_FRAMES.walk, "実行時の枚数と揃う").toBe(WALK_FRAMES);
+    for (let f = 0; f < WALK_FRAMES; f++) {
+      const now = feet(f);
+      const next = feet((f + 1) % WALK_FRAMES);
+      for (const leg of [0, 1] as const) {
+        const a = now[leg];
+        const b = next[leg];
+        const dx = b.x - a.x;
+        if (a.lift > 0 && b.lift > 0) expect(dx, `コマ ${f} → ${f + 1} の浮いた足 ${leg}`).toBeGreaterThan(0);
+        if (a.lift === 0 && b.lift === 0) expect(dx, `コマ ${f} → ${f + 1} の着いた足 ${leg}`).toBeLessThan(0);
+      }
+    }
+  });
+
+  it("前進は歩いた時間でコマを順に送り、後ずさりは逆に送る", () => {
+    const times = Array.from({ length: WALK_FRAMES }, (_, k) => (k + 0.5) * WALK_FRAME_TIME);
+    expect(times.map((t) => walkFrame(t, false))).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(times.map((t) => walkFrame(t, true))).toEqual([0, 7, 6, 5, 4, 3, 2, 1]);
+    expect(bodyClip({ ...idle, moving: true, walkTime: times[1] ?? 0, backpedal: true }).frame, "体のシートの選び方も逆に送る").toBe(7);
+  });
+
+  it("体の向きと同じ側へ動けば前進、逆へ動けば後ずさり（上下・斜めは横の成分で決める）", () => {
+    const d = Math.SQRT1_2;
+    const cases: { vel: { x: number; y: number }; right: boolean; back: boolean; label: string }[] = [
+      { vel: { x: 1, y: 0 }, right: true, back: false, label: "右向きで右へ" },
+      { vel: { x: -1, y: 0 }, right: true, back: true, label: "右向きで左へ" },
+      { vel: { x: -1, y: 0 }, right: false, back: false, label: "左向きで左へ" },
+      { vel: { x: 1, y: 0 }, right: false, back: true, label: "左向きで右へ" },
+      { vel: { x: 0, y: -1 }, right: true, back: false, label: "真上へは前進の足" },
+      { vel: { x: 0, y: 1 }, right: false, back: false, label: "真下へは前進の足" },
+      { vel: { x: d, y: -d }, right: true, back: false, label: "右向きで右上へ" },
+      { vel: { x: -d, y: d }, right: true, back: true, label: "右向きで左下へ" },
+      { vel: { x: -d, y: -d }, right: false, back: false, label: "左向きで左上へ" },
+      { vel: { x: d, y: d }, right: false, back: true, label: "左向きで右下へ" },
+      { vel: { x: -0.1, y: 1 }, right: true, back: false, label: "ほぼ真下はわずかに逆でも前進" },
+      { vel: { x: 0, y: 0 }, right: true, back: false, label: "止まっている" },
+    ];
+    for (const c of cases) expect(isBackpedal(c.vel, c.right), c.label).toBe(c.back);
   });
 });
 

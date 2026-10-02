@@ -26,7 +26,6 @@ import { addFloatingText, spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { dropItem } from "./loot";
 import { killedNear, peddlerStart, retargetPeddler, updatePeddler } from "./peddler";
-import { circlesOverlap } from "./physics";
 import { dropRune } from "./skills";
 
 /**
@@ -34,7 +33,7 @@ import { dropRune } from "./skills";
  * - 毎階の前室（最後の部屋に距離場で最も近い部屋）に市、章ボス階の前室は章の市。buildFloor の最後に置く（既存の抽選を動かさない）
  * - 体は Enemy（data/enemies.ts の merchant。roomIndex = ROAMING_ROOM なので部屋の制圧・陣に数えない）。
  *   殴られるまで気付かず、怒ると品を投げる（system/merchantAi.ts）
- * - 台座に触れて買う（contractors.ts の updateContractors と同じ作法。モーダルなし）。値段は置いたときに章の倍率 × 揺らぎで引いて固定し、
+ * - 台座に照準を合わせてインタラクトで買う（注目と入口は system/interact.ts。モーダルなし）。値段は置いたときに章の倍率 × 揺らぎで引いて固定し、
  *   同じ品を買うたびに repeatMul ずつ、無法者（怒らせた商人を倒した）なら outlawPriceMul 倍になる
  * - 怒らせた商人を倒すと残りの品が床に落ち、このランは無法者になる
  * - 旅商人（peddler）: ECONOMY.market.peddler.chance で階を歩く（体の動きは system/peddler.ts）。敵に倒されると品が床に落ち、
@@ -80,8 +79,6 @@ const FLASK_FULL_TEXT = "瓶は満杯";
 const REFUSED_TEXT = "取引拒否";
 
 const START_ROOM = 0;
-/** 台座に触れたと判定する半径（px）。契約者の台座と同じ */
-const WARE_TOUCH_RADIUS = 9;
 const TEXT_LIFT = 10;
 const TEXT_SCALE = 1;
 const TEXT_LIFE = 1.4;
@@ -250,7 +247,7 @@ export function placeMerchants(state: GameState): void {
   state.enemies.push(body);
   const wares: Ware[] = plan.map((k, i) => {
     const base = rollBasePrice(state, k, kind);
-    return { kind: k, key: "", price: base, base, pos: spots.offers[i] ?? spots.stand, used: false, armed: false };
+    return { kind: k, key: "", price: base, base, pos: spots.offers[i] ?? spots.stand, used: false };
   });
   state.economy.merchants.push({ enemyId: body.id, kind, pos: { ...spots.stand }, wares, greeted: false, provoked: false, rerolls: 0 });
   if (state.rng.chance(ECONOMY.market.peddler.chance)) spawnPeddler(state);
@@ -269,7 +266,7 @@ export function spawnPeddler(state: GameState): Merchant | null {
   state.enemies.push(body);
   const wares: Ware[] = stockPlan("peddler").map((k) => {
     const base = rollBasePrice(state, k, "peddler");
-    return { kind: k, key: "", price: base, base, pos: { ...start }, used: false, armed: false };
+    return { kind: k, key: "", price: base, base, pos: { ...start }, used: false };
   });
   const m: Merchant = { enemyId: body.id, kind: "peddler", pos: { ...start }, wares, greeted: false, provoked: false, rerolls: 0, open: false };
   retargetPeddler(state, m, body);
@@ -294,7 +291,7 @@ export function placeBlackMarket(state: GameState, hr: Readonly<HiddenRoom>): Me
     const key = rollGoodKey(state, k);
     if (key === null) continue;
     const base = rollBasePrice(state, k, "blackMarket");
-    wares.push({ kind: k, key, price: base, base, pos, used: false, armed: false });
+    wares.push({ kind: k, key, price: base, base, pos, used: false });
   }
   if (wares.length === 0) return null;
   const body = createEnemy(state, enemyDef(MERCHANT_KEY), spots.stand, ROAMING_ROOM, false);
@@ -310,7 +307,7 @@ export function placeBlackMarket(state: GameState, hr: Readonly<HiddenRoom>): Me
 // -----------------------------------------------------------------------------
 
 /**
- * 商人の生死・旅商人の歩き・一言・台座（床の瓶は economy.ts の updateCoinPickups）。
+ * 商人の生死・旅商人の歩き・一言（台座で買うのは system/interact.ts、床の瓶は economy.ts の updateCoinPickups）。
  * dt は旅商人の歩きと傷だけが読む（floor.ts の updateRooms から渡す。省略時は固定ステップ 1 回ぶん）
  */
 export function updateMerchants(state: GameState, dt: number = FIXED_DT): void {
@@ -318,7 +315,6 @@ export function updateMerchants(state: GameState, dt: number = FIXED_DT): void {
   for (const m of state.economy.merchants) {
     if (m.kind === "peddler") peddlerStep(state, m, dt);
     greet(state, m);
-    if (merchantOpen(m)) updateWares(state, m);
   }
 }
 
@@ -416,22 +412,6 @@ function greet(state: GameState, m: Merchant): void {
   pushLog(state, `${MERCHANT_LABEL[m.kind]}の商人「${line}」`, ECONOMY.market.color);
 }
 
-/** 台座に触れて買う（離れると armed に戻る。触れっぱなしでは 1 回だけ） */
-function updateWares(state: GameState, m: Merchant): void {
-  const body = state.player.body;
-  for (const w of m.wares) {
-    if (w.used) continue;
-    const touching = circlesOverlap(w.pos.x, w.pos.y, WARE_TOUCH_RADIUS, body.pos.x, body.pos.y, body.radius);
-    if (!touching) {
-      w.armed = true;
-      continue;
-    }
-    if (!w.armed) continue;
-    w.armed = false;
-    buyWare(state, m, w);
-  }
-}
-
 /** 買えない理由（買えるなら null） */
 function wareBlocked(state: GameState, m: Merchant, w: Ware): string | null {
   if (m.provoked) return REFUSED_TEXT;
@@ -500,7 +480,6 @@ function restock(state: GameState, m: Merchant): void {
   for (const w of m.wares) {
     if (w.kind === "reroll") continue;
     w.used = false;
-    w.armed = false;
     w.base = rollBasePrice(state, w.kind, m.kind);
   }
 }

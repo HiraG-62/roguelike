@@ -833,13 +833,15 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "justBreath",
     color: "azure",
-    label: "見切りの息吹: 見切りで気力 +{v}、ダッシュ再使用時間 +{v2}%",
+    label: "見切りの息吹: 見切り・カウンター（受け流し・出端）で気力 +{v}、ダッシュ再使用時間 +{v2}%",
     tags: ["mana", "mobility", "tradeoff"],
     slots: ["boots", "ring"],
     curve: curveFor("justBreath"),
     keywords: kw(["mana"], ["just"]),
     apply: (s, v, v2) => {
+      // 気力は攻撃・回避・受け流しの行動で取り戻す方針（2026-10-02）なので、読みの成功の全部で湧かせる
       pushFixedTrigger(s, { trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: v });
+      pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "restoreMana", magnitude: v });
       s.dashCooldownMul += pct(v2);
     },
   }),
@@ -1785,6 +1787,26 @@ export const KEYSTONES: readonly KeystoneDef[] = [
       oathMore(s, "ks_chant", KEYSTONE.chantAttackDamageMul, ATTACK_TAGS);
       // 近接のスキルは両方に当たる（従来の近接 × スキルと同じ）ので source を分ける
       oathMore(s, "ks_chant", 1 + KEYSTONE.chantSkillBonus, SKILL_TAGS, SKILL_PART);
+    },
+  },
+  {
+    key: "ks_breathOath",
+    name: "呼気の誓い",
+    description: `通常攻撃の命中と撃破では気力が戻らない。見切り・受け流しで戻る気力が${KEYSTONE.breathOathEvadeMul}倍になり、最大気力 +${Math.round(KEYSTONE.breathOathMaxManaPct * 100)}%。`,
+    exclusiveGroup: "mana",
+    // 回収の規則は system/keystones.ts の attackManaMul / killManaMul / evadeManaMul
+    apply: (s) => {
+      s.maxMana *= 1 + KEYSTONE.breathOathMaxManaPct;
+    },
+  },
+  {
+    key: "ks_brimOath",
+    name: "満願の誓い",
+    description: `今の気力が最大の1割あるごとに、全ての与ダメージ +${Math.round(KEYSTONE.brimOathPerTenth * 100)}%（満タンで +${Math.round(KEYSTONE.brimOathPerTenth * 10 * 100)}%、倍として掛かる）。スキルの気力の消費 +${Math.round((KEYSTONE.brimOathCostMul - 1) * 100)}%。`,
+    exclusiveGroup: "mana",
+    // 倍は system/keystones.ts の KEYSTONE_MODIFIERS（今の気力の 1 割につき）
+    apply: (s) => {
+      s.manaCostMul *= KEYSTONE.brimOathCostMul;
     },
   },
   // ---- 状態異常（status）----

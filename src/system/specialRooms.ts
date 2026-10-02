@@ -39,7 +39,7 @@ import { dropRareItem } from "./roomTypes";
 /**
  * ラン構造の特別な部屋（docs/ideas/run-expansion.md 2 章）。
  * 台座の部屋（祭壇・図書館・賭博・鍛冶場・交換所・呪いの祠・見張り台・死神の巣）は生成時に制圧済みにし、
- * 触れて選ぶ（モーダルを出さないので QA bot も止まらない）。戦う部屋（闘技場・共鳴炉・護衛・逃走・巣・鏡）は
+ * 照準を合わせてインタラクトで選ぶ（system/interact.ts。モーダルを出さないので QA bot も止まらない）。戦う部屋（闘技場・共鳴炉・護衛・逃走・巣・鏡）は
  * floor.ts の封鎖・制圧の流れに乗り、ここは封鎖時・制圧時・毎ステップの差分だけを持つ。
  * 分岐路（最後の部屋の複数の階段と行き先）もここで決める
  */
@@ -61,7 +61,7 @@ export type PropKind =
   // ---- 第 2 弾 ----
   /** 上り階段（戻る）。触れ続けると浅い階へ戻る */
   | "ascend"
-  /** 残響の鉱脈（ランイベント）。何度か触れられる */
+  /** 残響の鉱脈（ランイベント）。何度か掘れる */
   | "vein"
   /** 封印庫の封印。鍵 2 か銭で解く */
   | "seal"
@@ -71,20 +71,18 @@ export type PropKind =
   | "element"
   /** 反転の間の台 */
   | "inverter"
-  /** 寄進の祠（章の境の休符の開始部屋。触れるたび寄進する。system/donation.ts） */
+  /** 寄進の祠（章の境の休符の開始部屋。使うたび寄進する。system/donation.ts） */
   | "donation"
   /** 地上への道（最深の間の主を倒すと現れる。乗り続けると踏破。system/finale.ts） */
   | "surface";
 
-/** 部屋に置く触れる物（台座・レバー・金床・宝箱・護衛対象） */
+/** 部屋に置く物（台座・レバー・金床・宝箱・護衛対象） */
 export interface RoomProp {
   kind: PropKind;
   pos: Vec;
   used: boolean;
   /** 誓約の key・刻印符の key など */
   key: string;
-  /** false の間は触れても反応しない（一度離れると true に戻る。賭博のレバーの連打防止） */
-  armed: boolean;
   /** 上り階段: 触れ続けている秒 */
   hold?: number;
   /** 残響の鉱脈: 残りの回数 */
@@ -269,7 +267,7 @@ function specialOf(room: RoomState): RoomSpecial {
 }
 
 function addProp(room: RoomState, kind: PropKind, pos: Vec, key = ""): void {
-  specialOf(room).props.push({ kind, pos, used: false, key, armed: true });
+  specialOf(room).props.push({ kind, pos, used: false, key });
 }
 
 const PROP_CLEARANCE = 4;
@@ -427,7 +425,7 @@ function setupEscort(state: GameState, room: RoomState): void {
 }
 
 // -----------------------------------------------------------------------------
-// 台座に触れる
+// 台座を使う
 // -----------------------------------------------------------------------------
 
 const TEXT_LIFT = 12;
@@ -442,9 +440,17 @@ function sayAt(state: GameState, text: string, color: string): void {
   addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
+/** 乗り続けて使う台座（上り階段・地上への道）と、触れる物でない護衛対象。これ以外はインタラクトで使う */
+const NOT_INTERACT_PROPS: ReadonlySet<PropKind> = new Set<PropKind>(["ascend", "surface", "captive"]);
+
+/** 照準を合わせてインタラクトで使う台座か（system/interact.ts の注目の候補） */
+export function isInteractProp(prop: Readonly<RoomProp>): boolean {
+  return !prop.used && !NOT_INTERACT_PROPS.has(prop.kind);
+}
+
 /**
- * 毎ステップ: 台座に触れたら使う。離れたらレバーを再び使えるようにする。
- * 上り階段・地上への道は触れ続けて使う（通りすがりに戻らない・終わらせない）。戻ると部屋が作り直されるので、そこで打ち切る
+ * 毎ステップ: 上り階段・地上への道に乗り続けたら使う（通りすがりに戻らない・終わらせない）。
+ * 戻ると部屋が作り直されるので、そこで打ち切る。ほかの台座はインタラクトで使う（system/interact.ts）
  */
 export function updateRoomProps(state: GameState, dt = 0): void {
   const body = state.player.body;
@@ -454,23 +460,11 @@ export function updateRoomProps(state: GameState, dt = 0): void {
     const special = room?.special;
     if (!room || !special) continue;
     for (const prop of special.props) {
-      if (prop.used || prop.kind === "captive") continue;
+      if (prop.used || (prop.kind !== "ascend" && prop.kind !== "surface")) continue;
       const touching = circlesOverlap(prop.pos.x, prop.pos.y, ROOM_KIND.propRadius, body.pos.x, body.pos.y, body.radius);
-      if (prop.kind === "ascend") {
-        if (holdProp(state, prop, touching, dt, FLOOR_KIND.ascendHold, roomHooks.ascend)) return;
-        continue;
-      }
-      if (prop.kind === "surface") {
-        if (holdProp(state, prop, touching, dt, ARC.surfaceHold, roomHooks.surface)) return;
-        continue;
-      }
-      if (!touching) {
-        prop.armed = true;
-        continue;
-      }
-      if (!prop.armed) continue;
-      prop.armed = false;
-      useProp(state, room, index, prop);
+      const need = prop.kind === "ascend" ? FLOOR_KIND.ascendHold : ARC.surfaceHold;
+      const done = prop.kind === "ascend" ? roomHooks.ascend : roomHooks.surface;
+      if (holdProp(state, prop, touching, dt, need, done)) return;
     }
   }
 }
@@ -491,7 +485,8 @@ function holdProp(state: GameState, prop: RoomProp, touching: boolean, dt: numbe
   return true;
 }
 
-function useProp(state: GameState, room: RoomState, index: number, prop: RoomProp): void {
+/** 台座を使う（system/interact.ts から。index は room の部屋番号） */
+export function useProp(state: GameState, room: RoomState, index: number, prop: RoomProp): void {
   switch (prop.kind) {
     case "keystone":
       takeKeystone(state, room, prop);
@@ -542,7 +537,7 @@ function useProp(state: GameState, room: RoomState, index: number, prop: RoomPro
 
 /**
  * 章の境の休符（章の 1 階目）の開始部屋に寄進の祠を置く（floor.ts の buildFloor の末尾から。乱数は使わない）。
- * 触れるたび寄進するので used にはならない（離れて触れ直すたびに 1 回）
+ * 使うたび寄進するので used にはならない（インタラクトを押すたびに 1 回）
  */
 export function placeDonationShrine(state: GameState): void {
   if (!isChapterRest(state.depth)) return;
@@ -642,7 +637,7 @@ export function invertTrait(state: GameState, item: Item): Item | null {
   return null;
 }
 
-/** 残響の鉱脈: 触れるたびに残響。音を聞きつけて敵が寄ってくる */
+/** 残響の鉱脈: 使うたびに残響。音を聞きつけて敵が寄ってくる */
 function mineVein(state: GameState, index: number, prop: RoomProp): void {
   const vein = RUN_EVENT.vein;
   const color = prop.key as TraitColor;
@@ -665,7 +660,7 @@ export function addVein(state: GameState, index: number): boolean {
   for (let i = 0; i < VEIN_ATTEMPTS; i++) {
     const pos = { x: (r.x + 1 + state.rng.next() * Math.max(1, r.w - 2)) * TILE_SIZE, y: (r.y + 1 + state.rng.next() * Math.max(1, r.h - 2)) * TILE_SIZE };
     if (overlapsWall(state, pos.x, pos.y, PROP_CLEARANCE) || !pxInRoom(state, room, pos)) continue;
-    specialOf(room).props.push({ kind: "vein", pos, used: false, key: state.rng.pick(TRAIT_COLORS), armed: true, uses: RUN_EVENT.vein.uses });
+    specialOf(room).props.push({ kind: "vein", pos, used: false, key: state.rng.pick(TRAIT_COLORS), uses: RUN_EVENT.vein.uses });
     return true;
   }
   return false;

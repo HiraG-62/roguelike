@@ -44,7 +44,7 @@ import { terrainSlide } from "./terrain";
 import { deriveAttributes, scaled, withRatio } from "./attributes";
 import { applyRunStats } from "./runSetup";
 import { applyResonance } from "./resonance";
-import { gainAttackMana } from "./mana";
+import { gainWeaponMana } from "./mana";
 import { type StatusApply, createStatusBag } from "../core/status";
 import {
   cancelSkills,
@@ -1453,7 +1453,7 @@ function gainMeleeMana(state: GameState, base: number, counter: boolean): void {
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainAttackMana(state, base * mul * attackHitManaMul(state), attackManaMul(state));
+  gainWeaponMana(state, base * mul * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */
