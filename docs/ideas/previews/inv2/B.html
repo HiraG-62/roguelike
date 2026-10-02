@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>物として置く</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  /* ページの外側 */
+  --page-bg: #0a090c;
+  --page-panel: #141216;
+  --page-line: #3a3640;
+  --page-tx: #e8e2d4;
+  --page-sub: #9a948a;
+  --page-dim: #5c5852;
+  --page-accent: #c83a2a;
+  --page-focus: #fff4d0;
+  /* G4: 墨染めの帳 + 朱と金の漆の縁 */
+  --paper: #141216; --fiber-a: #1c1a20; --fiber-b: #100e12;
+  --card: #1e1b22; --card2: #2a2630; --rule: #3a3640;
+  --tx: #e8e2d4; --sub: #9a948a; --dim: #5c5852;
+  --focus: #fff4d0; --shu: #c83a2a; --shu-lo: #b0342c; --gold: #c8a050; --gold-hi: #f0d890; --gold-lo: #7a5a28;
+  --up: #8fd08a; --down: #ff7a70;
+  /* 影法師（墨の人形） */
+  --doll: #2a2630; --doll-rim1: #6c6476; --doll-rim2: #463f50; --doll-line: #070609; --doll-fold: #221e28; --doll-shadow: #0c0a0e;
+  /* 腰帯 */
+  --obi: #6a221e; --obi-hi: #9a3a2c; --obi-lo: #3e1412;
+  /* 系統（組紐と引き糸の色） */
+  --kw-burn: #f07038; --kw-melee: #d8d0bc; --kw-finisher: #b8c0c8; --kw-shock: #e6dc50; --kw-chill: #80c8f0;
+  --kw-explode: #f0a058; --kw-area: #c8b8a0; --kw-other: #a8a090;
+  /* 系譜 9 色 */
+  --ln-ash: #e0582e; --ln-frost: #9fd6f0; --ln-thunder: #e6dc50; --ln-moon: #a078e0; --ln-earth: #b88a48;
+  --ln-blade: #b8c0c8; --ln-cycle: #6cc08a; --ln-horde: #b04868; --ln-wealth: #e0a030; --ln-core: #d8d0bc;
+  /* 響き（性質の分類 5 色） */
+  --tr-crimson: #e8553a; --tr-azure: #3a8ee8; --tr-jade: #49c46b; --tr-gold: #f2c84b; --tr-umbra: #9a5ae0;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page-bg);
+  color: var(--page-tx);
+  font-family: 'DotGothic16', 'IPAGothic', 'MS Gothic', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+.wrap { max-width: 1480px; margin: 0 auto; padding: 12px 16px 40px; }
+a { color: var(--gold-hi); }
+.back { display: inline-block; margin-bottom: 6px; text-decoration: none; border-bottom: 1px solid var(--gold-lo); }
+h1 { font-size: 20px; font-weight: normal; margin: 4px 0 4px; color: var(--page-focus); }
+h1 .tag { color: var(--page-accent); margin-right: 8px; }
+.idea { margin: 0; color: var(--page-tx); }
+.cost { margin: 0 0 10px; color: var(--page-sub); }
+.cost b { color: var(--down); font-weight: normal; }
+.scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 8px; }
+.btn {
+  font: inherit; font-size: 13px; color: var(--page-tx); background: var(--page-panel);
+  border: 1px solid var(--page-line); padding: 3px 9px; cursor: pointer; line-height: 1.4; border-radius: 0;
+}
+.btn:hover { border-color: var(--page-sub); }
+.btn[aria-pressed="true"] { background: var(--page-accent); border-color: var(--page-accent); }
+.btn:focus-visible, .stage:focus-visible { outline: 2px solid var(--page-focus); outline-offset: 2px; }
+.stageWrap { width: 100%; }
+.stage { position: relative; overflow: hidden; background: var(--paper); outline: none; border: 0; margin: 0 auto; touch-action: manipulation; }
+.stage canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+.ui { position: absolute; left: 0; top: 0; width: 480px; height: 270px; transform-origin: 0 0; pointer-events: none; }
+.pad { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; justify-content: center; }
+.pad .btn { min-width: 40px; }
+.notes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+@media (max-width: 760px) { .notes { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--page-panel); border: 1px solid var(--page-line); padding: 10px 12px; min-width: 0; }
+.card h2 { font-size: 15px; font-weight: normal; margin: 0 0 4px; color: var(--page-focus); }
+.card p { margin: 0 0 4px; overflow-wrap: anywhere; }
+.keys { color: var(--page-sub); font-size: 13px; margin-top: 6px; overflow-wrap: anywhere; }
+.keys b { color: var(--page-tx); font-weight: normal; border: 1px solid var(--page-line); padding: 0 4px; margin: 0 2px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--page-line); vertical-align: top; overflow-wrap: anywhere; }
+th { color: var(--page-sub); font-weight: normal; }
+td.n { text-align: right; white-space: nowrap; }
+td.over { color: var(--down); }
+td.ok { color: var(--up); }
+.small { color: var(--page-sub); font-size: 12px; }
+
+/* ---- 箱の中の文字（論理座標 px） ---- */
+.tagc {
+  position: absolute; background: var(--card); border: 1px solid var(--shu-lo);
+  box-shadow: inset 0 0 0 1px var(--gold-lo); padding: 4px 3px 3px; color: var(--tx);
+}
+.tagc .eye { position: absolute; top: 2px; width: 3px; height: 3px; border: 1px solid var(--gold); background: var(--paper); }
+.tagc .ln { height: 10px; line-height: 10px; font-size: 8px; white-space: nowrap; overflow: hidden; }
+.tagc .nm { height: 12px; line-height: 12px; font-size: 10px; white-space: nowrap; overflow: hidden; display: flex; justify-content: space-between; color: var(--focus); }
+.tagc .nm .r { font-size: 8px; color: var(--sub); }
+.tagc .ops { color: var(--sub); }
+.tagc .kc { display: inline-block; border: 1px solid var(--sub); padding: 0 1px; line-height: 6px; height: 8px; font-size: 8px; color: var(--tx); margin-right: 1px; vertical-align: top; margin-top: 1px; }
+.tagc .op { margin-right: 4px; }
+.tagc .s { color: var(--sub); }
+.tagc .gain { color: var(--up); }
+.tagc .lose { color: var(--down); }
+.tagc .cards { height: 10px; display: flex; gap: 2px; align-items: center; }
+.tagc .cards svg { display: block; }
+.tagc .cards .on { outline: 1px solid var(--focus); outline-offset: 0; }
+.tagc .flip { position: absolute; right: 4px; bottom: 3px; font-size: 8px; line-height: 10px; color: var(--gold); }
+.floorlab { position: absolute; height: 12px; line-height: 10px; font-size: 8px; color: var(--tx); background: #100e12; border: 1px solid var(--rule); padding: 0 3px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← 4 案の一覧へ</a>
+  <h1><span class="tag">B</span>物として置く（影法師と荷札）</h1>
+  <p class="idea">体を見れば、何を持っているか分かる。文字は手に取った 1 つにだけ付く（位置が意味を運ぶので、タブ・見出し・ラベル・常設の数字は置かない）。</p>
+  <p class="cost"><b>代償</b>: 絵が約 80 枚（武器種の描き直しを入れて約 110）要る。棚は絵だけなので、多数の遺物の性質を一度に読み比べられない（1 つずつあてがって荷札で読む）。</p>
+
+  <nav class="scenes" id="scenes" aria-label="場面"></nav>
+
+  <div class="stageWrap" id="stageWrap">
+    <div class="stage" id="stage" tabindex="0" aria-label="持ち物の画面の見本。矢印キーで移る、Enter で決定、Esc で戻る、F でめくる、R で振り向く">
+      <canvas id="cv" width="480" height="270"></canvas>
+      <div class="ui" id="ui"></div>
+    </div>
+  </div>
+  <div class="pad" id="pad" aria-label="操作のボタン"></div>
+
+  <section class="notes">
+    <div class="card" id="aim" aria-live="polite"></div>
+    <div class="card">
+      <h2>情報の予算（この画面を数えた値）</h2>
+      <div id="budget"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+// ============================================================
+// データ（名前は前の見本と同じくコードの実名。数値は見本用）
+// ============================================================
+const SLOTS = ['main', 'head', 'armor', 'boots', 'ring', 'amulet'];
+const SLOT_JA = { main: '右手', head: '頭', armor: '体', boots: '足', ring: '指輪', amulet: '首飾り' };
+const KW = {
+  burn: { n: '燃焼系', c: '--kw-burn', pic: ['..#..', '.##..', '.###.', '#####', '.###.'] },
+  melee: { n: '近接系', c: '--kw-melee', pic: ['....#', '...#.', '#.#..', '.#...', '#.#..'] },
+  finisher: { n: '終撃系', c: '--kw-finisher', pic: ['..#..', '#.#.#', '.###.', '#.#.#', '..#..'] },
+  shock: { n: '感電系', c: '--kw-shock', pic: ['...##', '..##.', '.####', '..##.', '.##..'] },
+  chill: { n: '冷気系', c: '--kw-chill', pic: ['#.#.#', '.###.', '##.##', '.###.', '#.#.#'] },
+  explode: { n: '爆発系', c: '--kw-explode', pic: ['#.#.#', '.###.', '#####', '.###.', '#.#.#'] },
+  area: { n: '範囲系', c: '--kw-area', pic: ['.###.', '#...#', '#.#.#', '#...#', '.###.'] },
+};
+const KW_ORDER = ['burn', 'melee', 'finisher', 'shock', 'chill', 'explode', 'area', 'counter', 'just', 'kill', 'ward', 'hurt', 'stagger', 'lowHp', 'clear', 'combo', 'bleed', 'reaction', 'dash', 'energy', 'mana', 'placed'];
+const KW_NAME = { counter: 'カウンター系', just: '見切り系', kill: '撃破系', ward: '障壁系', hurt: '被弾系', stagger: '怯み系', lowHp: '瀕死系', clear: '制圧系', combo: 'コンボ系', bleed: '出血系', reaction: '反応系', dash: 'ダッシュ系', energy: '奥義ゲージ系', mana: '気力系', placed: '設置物系' };
+const kwName = (k) => (KW[k] ? KW[k].n : (KW_NAME[k] || k));
+const RES = { minSrc: 2, minSink: 2, every: 3, max: 3, mul: 0.15 };
+const TRAIT = { crimson: '--tr-crimson', azure: '--tr-azure', jade: '--tr-jade', gold: '--tr-gold', umbra: '--tr-umbra' };
+
+const ITEMS0 = [
+  // ---- 身に着けている物 ----
+  { id: 'e1', slot: 'main', base: '打刀', wk: '刀', inscr: '王殺しの不屈', flux: '揺', margin: 0, depth: 6, innate: { str: 3 }, prov: '撃破 812・ボス 2', af: [
+    { s: '終撃の与ダメージ +18%', b: '終撃 +18%（揺 14〜22）', c: 'crimson', co: ['finisher'] },
+    { s: '炎上 12%（毎秒 4）', b: '炎上 12%・毎秒 4・3 秒', c: 'crimson', p: ['burn'] },
+    { s: '瀕死の間 与ダメージ +12%', b: '瀕死 +12%（揺 9〜15）', c: 'umbra', co: ['lowHp'] }] },
+  { id: 'e2', slot: 'head', base: '三度笠', flux: '静', margin: 1, depth: 4, innate: { def: 1 }, prov: '二章で拾った', af: [
+    { s: '籠城: 交戦中 被ダメージ -8%', c: 'jade', p: ['ward'], co: ['clear'] },
+    { s: '見切りの後 与ダメージ +8%', c: 'gold', co: ['just'] }] },
+  { id: 'e3', slot: 'armor', base: '鎖帷子', flux: '静', margin: 2, depth: 4, innate: { def: 2 }, af: [
+    { s: '怯み中の敵へ 与ダメージ +15%', c: 'crimson', co: ['stagger'] },
+    { s: '被弾の後 2 秒 被ダメージ -10%', c: 'jade', p: ['ward'], co: ['hurt'] }] },
+  { id: 'e4', slot: 'boots', base: '草鞋', named: '旅人の靴', flux: '名', margin: 1, depth: 5, flavor: '道のりは靴底に溜まる。', kw: { co: ['dash'] }, af: [
+    { s: '先制の後 与ダメージ +10%', c: 'azure' }] },
+  { id: 'e5', slot: 'ring', base: '黒鉄の指輪', named: '鐘の舌', flux: '名', margin: 1, depth: 9, grace: 'ultimate', flavor: '九つまでは余韻。十で鐘は割れる。', kw: { p: ['area', 'finisher'] }, af: [
+    { s: '終撃の与ダメージ +16%', c: 'crimson', co: ['finisher'] },
+    { s: '奥義に加護の枠 +1', c: 'gold' }] },
+  { id: 'e6', slot: 'amulet', base: '琥珀の首飾り', flux: '荒', margin: 1, depth: 7, bud: true, innate: { vit: 1 }, af: [
+    { s: '残り火: 燃える敵の撃破で炎', c: 'crimson', p: ['burn'], co: ['burn', 'kill'] },
+    { s: '撃破時 8% で爆発', c: 'crimson', p: ['explode'], co: ['kill'] },
+    { s: '過駆動: 攻撃速度 +60%', c: 'gold' }] },
+  // ---- 床に落ちている太刀（場面 3） ----
+  { id: 'f1', slot: 'main', base: '太刀', wk: '刀', flux: '荒', margin: 3, depth: 12, innate: { dex: 4 }, af: [
+    { s: '終撃の与ダメージ +18%', c: 'crimson', co: ['finisher'] },
+    { s: '感電中の敵へ 与ダメージ +15%', c: 'gold', co: ['shock'] },
+    { s: '先制の後 与ダメージ +15%', c: 'azure' }] },
+  // ---- 蔵の棚（右手） ----
+  { id: 's2', slot: 'main', base: '打刀', wk: '刀', flux: '揺', margin: 1, depth: 7, af: [
+    { s: '見切りの後 与ダメージ +14%', c: 'gold', co: ['just'] },
+    { s: '返し波: カウンターで衝撃波', c: 'crimson', p: ['area'], co: ['counter'] }] },
+  { id: 's3', slot: 'main', base: '太刀', wk: '刀', named: '空の鞘', flux: '名', margin: 2, depth: 9, mark: 'fav', flavor: '刃は抜かれない。', kw: { co: ['dash'] }, af: [
+    { s: 'ダッシュで抜かずに斬る', c: 'gold', p: ['melee'], co: ['dash'] }] },
+  { id: 's4', slot: 'main', base: '脇差', wk: '刀', flux: '揺', margin: 2, depth: 5, bud: true, af: [
+    { s: '炎上 18%（毎秒 3）', c: 'crimson', p: ['burn'] },
+    { s: '構え: 振る間 被ダメージ -6%', c: 'jade', p: ['ward'], co: ['melee'] }] },
+  { id: 's5', slot: 'main', base: '打刀', wk: '刀', flux: '静', margin: 3, depth: 3, mark: 'junk', af: [
+    { s: '怯み中の敵へ 与ダメージ +9%', c: 'crimson', co: ['stagger'] }] },
+  { id: 's6', slot: 'main', base: '斬馬刀', wk: '大剣', flux: '荒', margin: 2, depth: 10, af: [
+    { s: '終撃の与ダメージ +24%', c: 'crimson', co: ['finisher'] },
+    { s: '腐爆: 異常 2 種で爆発', c: 'umbra', p: ['explode'], co: ['reaction'] }] },
+  { id: 's7', slot: 'main', base: '双短刀', wk: '双剣', named: '双頭の蛇', flux: '名', margin: 1, depth: 11, flavor: '交互に噛むほど毒は深い。', af: [
+    { s: '双撃の後 与ダメージ +16%', c: 'azure', co: ['combo'] }] },
+  { id: 's21', slot: 'main', base: '打刀', wk: '刀', flux: '反', margin: 2, depth: 8, af: [
+    { s: '崩れ雷: 怯ませると連鎖雷', c: 'gold', p: ['shock'], co: ['stagger'] }] },
+  { id: 'x1', slot: 'main', base: '十文字槍', wk: '槍', flux: '揺', margin: 2, depth: 8, isNew: true, af: [
+    { s: '終撃の与ダメージ +14%', c: 'crimson', co: ['finisher'] },
+    { s: '炎上 15%（毎秒 3）', c: 'crimson', p: ['burn'] }] },
+  { id: 'x2', slot: 'main', base: '大鎌', wk: '大鎌', flux: '荒', margin: 1, depth: 9, af: [
+    { s: '出血 12%（毎秒 3）', c: 'crimson', p: ['bleed'] },
+    { s: '撃破時 8% で爆発', c: 'crimson', p: ['explode'], co: ['kill'] }] },
+  { id: 'x3', slot: 'main', base: '鉞', wk: '斧', flux: '静', margin: 2, depth: 6, af: [
+    { s: '怯み中の敵へ 与ダメージ +12%', c: 'crimson', co: ['stagger'] },
+    { s: '炎上 10%（毎秒 3）', c: 'crimson', p: ['burn'] }] },
+  { id: 'x4', slot: 'main', base: '太刀', wk: '刀', flux: '揺', margin: 2, depth: 10, isNew: true, af: [
+    { s: '冷気 15%（2 秒）', c: 'azure', p: ['chill'] },
+    { s: '先制の後 与ダメージ +12%', c: 'azure' }] },
+  { id: 'x5', slot: 'main', base: '双短刀', wk: '双剣', flux: '静', margin: 1, depth: 4, af: [
+    { s: '見切りの後 与ダメージ +10%', c: 'gold', co: ['just'] }] },
+  { id: 'x6', slot: 'main', base: '打刀', wk: '刀', flux: '静', margin: 3, depth: 2, mark: 'junk', af: [
+    { s: '地形の上で 与ダメージ +6%', c: 'jade' }] },
+];
+const STONES = {
+  st1: { n: '旋風斬り', p: ['melee', 'area'], c: '--kw-melee' },
+  st2: { n: '燃え種爆ぜ', p: ['explode'], co: ['burn'], c: '--kw-burn' },
+  st3: { n: '鎖鎌', p: ['melee'], c: '--kw-finisher' },
+};
+const RUNES = { ghost: { n: '分身', fam: '形' }, charge: { n: '溜め', fam: '形' }, refund: { n: '巡り', fam: '循環' }, pierce: { n: '貫き', fam: '形' } };
+const SLOT_LINKS = [4, 3, 2, 2];
+const LN = { ash: '灰燼', frost: '霜枷', thunder: '雷鳴', moon: '月蝕', earth: '大地', blade: '刃鳴', cycle: '輪廻', horde: '眷属', wealth: '財宝' };
+const CREST_GRID = [['frost', 'ash', 'thunder'], ['moon', 'blade', 'earth'], ['cycle', 'horde', 'wealth']];
+const CARD = { grace: '加護', law: '摂理', temper: '研鑽', fusion: '融合', core: '芯' };
+const BOONS = [
+  { id: 'b1', n: '火種', card: 'grace', ln: 'ash', act: 'primary', gr: '大祝福', d: ['攻撃 1 の終撃が当たると', '燃焼を付ける（3 秒）。'], p: ['burn'], co: ['finisher'] },
+  { id: 'b4', n: '火渡り', card: 'grace', ln: 'ash', act: 'dash', gr: '並', d: ['ダッシュで離れた場所に', '半径 2m の炎を置く（3 秒）。'], p: ['burn', 'placed'], co: ['dash'] },
+  { id: 'b7', n: '焦土', card: 'grace', ln: 'ash', act: 'ultimate', gr: '並', d: ['奥義で半径 16m の燃焼を起爆', 'し、残りの燃焼ダメージの', '1.5 倍を即座に与える。'], p: ['explode'], co: ['energy', 'burn'] },
+  { id: 'b8', n: '延焼', card: 'law', ln: 'ash', gr: '神威', d: ['燃えている敵に攻撃を当てる', 'と、半径 3.2m の敵へ燃焼が', '移る（強さ 50%）。'], p: ['burn'], co: ['burn'] },
+  { id: 'b2', n: '重ね刃', card: 'grace', ln: 'blade', act: 'primary', gr: '並', d: ['左の連撃が当たるたび、分身', 'が同じ敵へ追撃する。'], p: ['melee'], co: ['melee'] },
+  { id: 'b3', n: '断裂波', card: 'grace', ln: 'blade', act: 'secondary', gr: '並', d: ['右の放出で照準方向へ', '貫通する衝撃波。'], p: ['area'], co: ['melee'] },
+  { id: 'b10', n: '連綿', card: 'temper', ln: 'blade', gr: '並', d: ['最大コンボ 10 につき', '近接の与ダメージ +3%。'], co: ['combo'], am: ['melee'] },
+  { id: 'b5', n: '静電気', card: 'grace', ln: 'thunder', act: 'dash', gr: '神威', d: ['ダッシュの終わりに、自分', 'から連鎖する雷を放つ。'], p: ['shock'], co: ['dash'] },
+  { id: 'b6', n: '雷跳ね', card: 'grace', ln: 'thunder', act: 'skill', gr: '並', d: ['スキルが当たると、その敵', 'から連鎖する雷が走る。'], p: ['shock'], co: ['mana'] },
+  { id: 'b9', n: '落雷予告', card: 'law', ln: 'thunder', gr: '並', d: ['敵を麻痺させると、', 'その敵に雷が落ちる。'], p: ['shock'], co: ['shock'] },
+  { id: 'bf', n: '雷火', card: 'fusion', ln: 'ash', ln2: 'thunder', gr: '融合', d: ['燃えている敵を倒すと、', 'そこから連鎖雷が走る。'], p: ['shock'], co: ['burn', 'kill'] },
+  { id: 'bc', n: '拍の刻', card: 'core', gr: '芯', d: ['コンボ 1 ごとに与ダメージ', '+2%。被弾するとコンボが', '必ず 0 になる。'], co: ['hurt'], am: ['combo'] },
+];
+// 加護の枠（背の 5 か所）。id は祝福 / 遺物、null は空き枠
+const GRACE = {
+  primary: { n: '左袖', act: '左の行動', slots: ['b1', 'b2', null] },
+  secondary: { n: '右袖', act: '右の行動', slots: ['b3', null, null] },
+  ultimate: { n: '襟', act: '奥義', slots: ['b7', 'e5', null] },
+  skill: { n: '腰', act: 'スキル', slots: ['b6', null] },
+  dash: { n: '裾', act: 'ダッシュ', slots: ['b4', 'b5'] },
+};
+const FORM = { n: '剣', p: ['melee', 'counter', 'finisher'], co: ['just'] };
+const BASE_ATTR = { str: 9, dex: 6, vit: 8, mnd: 6, spi: 5 };
+const ATTR_JA = { str: '筋力', dex: '技巧', vit: '体力', mnd: '精神', spi: '霊力' };
+
+// 既存の武器の絵（src/data/sprites/weapons.ts の 12px・斜め。棚と手には 2 倍で仮置き）
+const WSPR = {
+  '刀': ['..........kk', '.........k1k', '........k1k.', '........k1k.', '.......k1k..', '......k1k...', '.....k1k....', '..kkksk.....', '.kkYYk......', 'kttkk.......', 'kTTk........', '.kk.........'],
+  '大剣': ['.........kkk', '........k11k', '.......k1ssk', '......k1ssSk', '.....k1ssSk.', '....k1ssSk..', '.kk.k1sSk...', '.kYYksSk....', '.kkUYYk.....', 'kttkkYk.....', 'kTTk.k......', '.kk.........'],
+  '双剣': ['............', '......kk....', '.....k1k..kk', '.....k1Sk1Sk', '.....k1Sk1k.', '.....kSk1Sk.', '....kkkSSk..', '...kYYkkk...', '.kkUYk......', 'kttkk.......', 'kTTk........', '.kk.........'],
+  '槍': ['........kkkk', '........k11k', '........k1Sk', '.......kkSkk', '......kWkk..', '.....kWwk...', '....kWwk....', '...kWwk.....', '.kkWwk......', 'kttwk.......', 'kTTk........', '.kk.........'],
+  '大鎌': ['..kkkkk.....', '.k11sssk....', '..kkkkSSkkk.', '......kSWwk.', '......kWwk..', '.....kWwk...', '....kWwk....', '...kWwk.....', '.kkWwk......', 'kttwk.......', 'kTTk........', '.kk.........'],
+  '斧': ['....kkk.....', '...k11sk....', '...k1ssSkkk.', '....kssSkUk.', '.....kkkUXk.', '......kUXk..', '.....kUXk...', '....kUXk....', '.kkkUXk.....', 'kttkXk......', 'kTTkk.......', '.kk.........'],
+};
+const WPAL = { k: '#1a1a24', '1': '#ffffff', s: '#c8c8d0', S: '#70707e', t: '#3a3444', T: '#2a2630', Y: '#b09020', U: '#b88a50', X: '#6a4a28', W: '#7a6a58', w: '#5a4a40' };
+// 系譜の紋（9x9、縫い取り）
+const CREST = {
+  ash: ['....c....', '...cc....', '...ccc...', '..cc.cc..', '.cc.d.cc.', '.c.ddd.c.', 'cc.ddd.cc', '.cc.d.cc.', '..ccccc..'],
+  frost: ['....c....', '.c..c..c.', '..c.c.c..', '...ccc...', 'cccc.cccc', '...ccc...', '..c.c.c..', '.c..c..c.', '....c....'],
+  thunder: ['....ccc..', '...ccc...', '..ccc....', '.ccccccc.', '....ccc..', '...ccc...', '..cc.....', '.cc......', '.c.......'],
+  moon: ['..cccc...', '.ccc.....', 'cc.......', 'cc.......', 'cc.......', 'cc.......', 'cc.......', '.ccc.....', '..cccc...'],
+  earth: ['.........', '....c....', '...ccc...', '..cc.cc..', '..c...cc.', '.cc.c..c.', '.c.ccc.cc', 'cc.c.c..c', 'ccccccccc'],
+  blade: ['c.......c', 'cc.....cc', '.cc...cc.', '..cc.cc..', '...ccc...', '..cc.cc..', '.cc...cc.', 'dd.....dd', 'd.......d'],
+  cycle: ['...ccc...', '.cc...cc.', '.c.....c.', 'c.......c', 'c...c...c', 'c.......c', '.c.....c.', '.cc...c..', '...ccc...'],
+  horde: ['.........', '.c..c..c.', 'ccc.c.ccc', '.c.ccc.c.', '...ccc...', '..ccccc..', '..c.c.c..', '..c.c.c..', '.........'],
+  wealth: ['...ccc...', '.ccdddcc.', '.cd...dc.', 'cd.ccc.dc', 'cd.c.c.dc', 'cd.ccc.dc', '.cd...dc.', '.ccdddcc.', '...ccc...'],
+};
+const PLAYER_SHEET = 'data:image/png;base64,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ELnUyKpX0W81eXRqfTtwF9uxDgtIMRELPmtv4clnp2GeimV5DgIj+vmWxRKqlmtiNEJ/EcvtL8QrE5OlT09vlfl8pj5Rsxwb35u7d8dLv1ZvMCNP/Fi/dwZltN5btpa35TRNhRdTs0RHEPAa8h25xNAcvkAneO8yx7IkQJ4K02BGNhWIxY/lDVhvgY4iKz2njL0DMRsn8uOpInBOwMiWAU2Wocg9NLkWRVyv6lmkLiOIcrRukMMFckEY6ZNtPxI55Eifc3HGGKuT7zvJkamn6MGZPYAz8XYhFzKIvbfjvA1jJ6ILuXxh+5ZUn2/GzKpX1LeaDDr1/I7Ztos+LFD/7PHk+r3uda973ete97oXsnljLOy/BLyp9pbfgf0W2xfASWPpogbxZgTid46IB+8ieKUXpO5O0Z/17XnGgIsYVFkD8cX5DIxT9ITQQTROBon0Fl1m6OZku93rXve6173uda973ete97rXve51r3vd6173+uALvTzcBUvyO7CWmxlvsbE+XiPi43yy4wH90UQM3Z2ivx0+3uZe97rXve51r3vd6173ute97nWve93rXve6173uda973ete96JfzOXYDou4N35XyV1e3ute97rXve51r3vd6173ute97nWve93rXve6173uda973ete97rXO65/ArTolN7az3QyAAAAAElFTkSuQmCC';
+
+// ============================================================
+// 場面
+// ============================================================
+const SCENES = [
+  { k: 1, n: '人形の全体', view: 'front',
+    aim: ['持ち物は体の決まった場所に置く。頭の笠が頭の遺物、腰の印籠がスキル石と刻印符、腰帯から垂れる組紐が共鳴（結び目の数が段）、背の紋が祝福。', '画面にラベル・見出し・数字は無く、文字は焦点の物から下がる荷札 1 枚だけ。右上の瓶・鍵・銭袋は数を絵で見せる。'],
+    keys: [['←↑↓→', '隣の物へ移る'], ['F', '荷札をめくる'], ['R', '振り向く'], ['マウス', '近い物に吸い付く']] },
+  { k: 2, n: '焦点の荷札（背）', view: 'back',
+    aim: ['振り向くと背紋と加護の点。紋を囲む 4 分割の縫い取りが枚数、4 枚で金（真髄）、紋をつなぐ金糸が融合。袖・襟・腰・裾の点が行動ごとの加護、白抜きの輪が空き枠。', '荷札の上段に系譜の札が小さく並び、←→ で 1 枚ずつ本文を読む。F でめくると裏（数値と内訳）。'],
+    keys: [['←→', '札を 1 枚ずつ（端で隣の物へ）'], ['↑↓', '移る'], ['F', 'めくる'], ['R', '表へ']] },
+  { k: 3, n: '床の遺物をあてがって比べる', view: 'floor',
+    aim: ['床では物の絵と名前 1 行と系統の印だけ。Enter（またはマウス）の長押し 0.3 秒で一時停止し、拾った太刀が右手にあてがわれる（元の刀は半透明で後ろ）。', '腰帯の結び目が朱に明滅＝ほどける、白＝締まる。荷札は得る 2 行・失う 2 行で、共通の性質は書かない。'],
+    keys: [['Enter 長押し', '開いてあてがう'], ['Enter', '付け替える'], ['Esc', '葛籠へしまう']] },
+  { k: 4, n: '組紐を引いて系統を見る', view: 'front',
+    aim: ['燃焼系の組紐を引くと、源（実線）と糧（点線の先に輪）の物へ糸が伸び、他は沈む。背にある祝福の出どころは、肩口で背へ回る糸の端で示す（振り向くと続きが見える）。', '結び目の多い紐が今の芯の系統。緩んで揺れる紐は、あと 1 つで段が立つ系統。'],
+    keys: [['Enter', '引く / 離す'], ['←→', '別の紐へ'], ['R', '振り向いて背の続き'], ['F', 'めくる']] },
+  { k: 5, n: '拠点の蔵の棚', view: 'shelf',
+    aim: ['右手の蔵の棚（絵 24 / 頁、頁は点だけ）。焦点を動かすだけで右手にあてがわれ、腰帯の結び目が動く。荷札は得る / 失うだけ。', '燃焼系の紐を引いているので、燃焼系を持つ物だけが手前に出て他は沈む。棚の左端から腰帯の紐へ移り、Enter で別の紐を引く / 離す。'],
+    keys: [['←↑↓→', '棚を移る'], ['Enter', '付け替える / 紐を引く'], ['Esc', '紐を離す'], ['F', 'めくる']] },
+];
+
+// ============================================================
+// 状態
+// ============================================================
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const ITEM = Object.fromEntries(ITEMS0.map((it) => [it.id, it]));
+const BOON = Object.fromEntries(BOONS.map((b) => [b.id, b]));
+const EQ0 = { main: 'e1', head: 'e2', armor: 'e3', boots: 'e4', ring: 'e5', amulet: 'e6' };
+const SHELF0 = ['s2', 's3', 's4', 's5', 's6', 's7', 's21', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6'];
+const SKILL_SLOTS = [{ st: 'st1', runes: ['ghost', 'charge'] }, { st: 'st2', runes: ['refund'] }, { st: 'st3', runes: ['pierce'] }, { st: null, runes: [] }];
+const S = {
+  scene: 1, view: 'front', focus: 'r:main', flipped: false, cardIdx: 0, pulled: null,
+  trial: null, floorPhase: 'floor', holdStart: 0, picked: false,
+  eq: clone(EQ0), shelf: [], turn: null, nudge: null,
+};
+function setScene(k) {
+  const sc = SCENES[k - 1];
+  Object.assign(S, { scene: k, view: sc.view, flipped: false, cardIdx: 0, pulled: null, trial: null, floorPhase: 'floor', holdStart: 0, picked: false, turn: null, nudge: null });
+  S.eq = clone(EQ0);
+  S.shelf = SHELF0.slice(); while (S.shelf.length < 24) S.shelf.push(null);
+  if (k === 1) S.focus = 'r:main';
+  if (k === 2) S.focus = 'crest:ash';
+  if (k === 3) S.focus = 'floor:item';
+  if (k === 4) { S.focus = 'cord:burn'; S.pulled = 'burn'; }
+  if (k === 5) { S.focus = 'shelf:2'; S.pulled = 'burn'; }
+  renderChrome();
+  dirty = true;
+}
+
+// ============================================================
+// 共鳴（源 2・糧 2 で 1 段、源 + 糧 が 3 増えるごとに +1、強め 1 で +1、上限 3）
+// ============================================================
+function itemKw(it) {
+  const p = new Set(), co = new Set(), am = new Set();
+  (it.af || []).forEach((a) => { (a.p || []).forEach((k) => p.add(k)); (a.co || []).forEach((k) => co.add(k)); (a.am || []).forEach((k) => am.add(k)); });
+  if (it.kw) { (it.kw.p || []).forEach((k) => p.add(k)); (it.kw.co || []).forEach((k) => co.add(k)); (it.kw.am || []).forEach((k) => am.add(k)); }
+  return { p: [...p], co: [...co], am: [...am] };
+}
+function contribs(eq) {
+  const out = [];
+  SLOTS.forEach((sl) => { const it = ITEM[eq[sl]]; if (it) out.push({ name: it.named || it.base, obj: `r:${sl}`, back: false, ...itemKw(it) }); });
+  SKILL_SLOTS.forEach((s) => { const st = STONES[s.st]; if (st) out.push({ name: st.n, obj: 'inro', back: false, p: st.p || [], co: st.co || [], am: [] }); });
+  BOONS.forEach((b) => out.push({ name: b.n, obj: b.card === 'core' ? 'core' : `crest:${b.ln}`, back: true, p: b.p || [], co: b.co || [], am: b.am || [] }));
+  out.push({ name: `${FORM.n}の型`, obj: 'face', back: false, p: FORM.p, co: FORM.co, am: [] });
+  return out;
+}
+function resonance(eq) {
+  const cs = contribs(eq);
+  const m = {};
+  KW_ORDER.forEach((k) => {
+    const src = cs.filter((c) => c.p.includes(k));
+    const sink = cs.filter((c) => c.co.includes(k));
+    const am = cs.filter((c) => c.am.includes(k)).length;
+    const total = src.length + sink.length;
+    let tier = 0;
+    if (src.length >= RES.minSrc && sink.length >= RES.minSink) tier = 1 + Math.floor((total - RES.minSrc - RES.minSink) / RES.every) + am;
+    tier = Math.min(RES.max, tier);
+    const slack = tier === 0 && ((src.length === 1 && sink.length >= 2) || (sink.length === 1 && src.length >= 2));
+    m[k] = { k, src, sink, am, total, tier, slack };
+  });
+  return m;
+}
+function cordList(base, prev) {
+  // 共鳴中は 4 本まで、緩み（あと 1 つ）は 2 本まで。並びは今の装備の順を保つ
+  const pick = (r) => {
+    const on = KW_ORDER.filter((k) => r[k].tier > 0).sort((a, b) => r[b].tier - r[a].tier).slice(0, 4);
+    const sl = KW_ORDER.filter((k) => r[k].slack).slice(0, 2);
+    return [...on, ...sl];
+  };
+  const a = pick(base);
+  if (!prev) return a;
+  const b = pick(prev);
+  const out = a.slice();
+  b.forEach((k) => { if (!out.includes(k)) out.push(k); });
+  return out.slice(0, 6);
+}
+
+// ============================================================
+// 描画の道具（アンチエイリアスなし。すべて整数の矩形）
+// ============================================================
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const rootCss = getComputedStyle(document.documentElement);
+const V = (n) => rootCss.getPropertyValue(n).trim();
+const C = {};
+['--paper', '--fiber-a', '--fiber-b', '--card', '--card2', '--rule', '--tx', '--sub', '--dim', '--focus', '--shu', '--shu-lo', '--gold', '--gold-hi', '--gold-lo', '--up', '--down',
+  '--doll', '--doll-rim1', '--doll-rim2', '--doll-line', '--doll-fold', '--doll-shadow', '--obi', '--obi-hi', '--obi-lo'].forEach((n) => { C[n.slice(2)] = V(n); });
+const col = (n) => V(n);
+let A = 1;
+function R(x, y, w, h, c) { if (!c || A <= 0) return; ctx.globalAlpha = A; ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
+function P(x, y, c) { R(x, y, 1, 1, c); }
+function alpha(a, fn) { const o = A; A = o * a; fn(); A = o; }
+function spr(map, pal, x, y, o) {
+  o = o || {};
+  const s = o.s || 1, h = map.length, w = map[0].length;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const ch = map[j][i];
+    if (ch === '.') continue;
+    const c = pal[ch];
+    if (!c) continue;
+    const ii = o.fx ? w - 1 - i : i;
+    R(x + ii * s, y + j * s, s, s, c);
+  }
+}
+function linePts(x0, y0, x1, y1) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const pts = [];
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let e = dx + dy;
+  for (;;) {
+    pts.push([x0, y0]);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * e;
+    if (e2 >= dy) { e += dy; x0 += sx; }
+    if (e2 <= dx) { e += dx; y0 += sy; }
+  }
+  return pts;
+}
+// たるんだ糸（2 次曲線を区切ってブレゼンハムでつなぐ）
+function curvePts(x0, y0, x1, y1, sag) {
+  const n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 5));
+  let pts = [], px = x0, py = y0;
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t + sag * 4 * t * (1 - t);
+    const seg = linePts(px, py, x, y);
+    if (pts.length) seg.shift();
+    pts = pts.concat(seg);
+    px = x; py = y;
+  }
+  return pts;
+}
+function plot(pts, c, dotted) { pts.forEach(([x, y], i) => { if (!dotted || i % 3 !== 2) P(x, y, c); }); }
+function brackets(x, y, w, h, c, t) {
+  const o = (Math.floor(t / 400) % 2) ? 1 : 0;
+  const x0 = x - 2 - o, y0 = y - 2 - o, x1 = x + w + 1 + o, y1 = y + h + 1 + o, L = 3;
+  R(x0, y0, L, 1, c); R(x0, y0, 1, L, c);
+  R(x1 - L + 1, y0, L, 1, c); R(x1, y0, 1, L, c);
+  R(x0, y1, L, 1, c); R(x0, y1 - L + 1, 1, L, c);
+  R(x1 - L + 1, y1, L, 1, c); R(x1, y1 - L + 1, 1, L, c);
+}
+const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+
+// 和紙の地（繊維の点）。1 度だけ描いて使い回す
+const paperCv = document.createElement('canvas'); paperCv.width = 480; paperCv.height = 270;
+(() => {
+  const g = paperCv.getContext('2d');
+  g.fillStyle = C.paper; g.fillRect(0, 0, 480, 270);
+  for (let y = 0; y < 270; y++) for (let x = 0; x < 480; x++) {
+    const h = hash(x, y);
+    if (h < 0.035) { g.fillStyle = C['fiber-a']; g.fillRect(x, y, 1 + (h < 0.01 ? 1 : 0), 1); } else if (h > 0.975) { g.fillStyle = C['fiber-b']; g.fillRect(x, y, 1, 1); }
+  }
+})();
+
+// ============================================================
+// 影法師（墨の人形）。形を関数で定め、塗り + 左上の縁の光 2 段 + 輪郭で描いて使い回す
+// ============================================================
+function inPoly(px, py, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const SLEEVE = [[-24, 56], [-40, 64], [-50, 92], [-56, 122], [-50, 127], [-44, 126], [-38, 138], [-30, 136], [-27, 100]];
+function dollAt(u, y) {
+  const au = Math.abs(u);
+  if ((u / 11.5) ** 2 + ((y - 40) / 13.5) ** 2 <= 1) return true;
+  if (au <= 5.5 && y >= 48 && y <= 58) return true;
+  if (y >= 54 && y <= 148) {
+    const hw = y < 64 ? 10 + (y - 54) * 1.8 : 28 + (y - 64) * 0.07;
+    if (au <= hw) return true;
+  }
+  if (inPoly(-au, y, SLEEVE)) return true;
+  if (((au - 53) / 4.5) ** 2 + ((y - 129) / 4.5) ** 2 <= 1) return true; // 手
+  if (y > 148 && y <= 232) {
+    const hw = 34 + (y - 148) * 0.1;
+    const gap = y > 194 ? (y - 194) * 0.16 : -1;
+    if (au <= hw && au >= gap) return true;
+  }
+  if (((au - 13) / 8.5) ** 2 + ((y - 234) / 4) ** 2 <= 1) return true; // 足
+  return false;
+}
+const dollCache = {};
+function dollCanvas(view) {
+  if (dollCache[view]) return dollCache[view];
+  const W = 140, H = 250, OX = 70, OY = 8; // 局所座標の原点（u=0 を 70 に）
+  const m = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) m[y * W + x] = dollAt(x + 0.5 - OX, y + OY) ? 1 : 0;
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 0 : m[y * W + x];
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const put = (x, y, cc) => { g.fillStyle = cc; g.fillRect(x, y, 1, 1); };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (at(x, y)) {
+      let cc = C.doll;
+      if (!at(x - 1, y) || !at(x, y - 1)) cc = C['doll-rim1'];
+      else if (!at(x - 2, y) || !at(x, y - 2) || !at(x - 1, y - 1)) cc = C['doll-rim2'];
+      else if (!at(x + 1, y) || !at(x, y + 1)) cc = C['doll-fold'];
+      put(x, y, cc);
+    } else if (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1)) {
+      put(x, y, C['doll-line']);
+    }
+  }
+  // 袴のひだ（縦の筋）と、表は目・襟、背は襟足
+  g.fillStyle = C['doll-fold'];
+  [-24, -12, 12, 24].forEach((u) => { for (let y = 156; y < 226; y++) if (at(OX + u, y - OY) && hash(u, y) > 0.08) g.fillRect(OX + u, y - OY, 1, 1); });
+  if (view === 'front') {
+    g.fillStyle = '#8a8296';
+    g.fillRect(OX - 6, 41 - OY, 2, 1); g.fillRect(OX + 4, 41 - OY, 2, 1);
+    g.fillStyle = C['doll-fold'];
+    for (let i = 0; i < 12; i++) { g.fillRect(OX - i, 60 + i - OY, 1, 1); g.fillRect(OX + i - 1, 60 + i - OY, 1, 1); }
+  } else {
+    g.fillStyle = C['doll-fold'];
+    for (let x = -9; x <= 9; x++) g.fillRect(OX + x, 57 - OY + Math.round(Math.abs(x) / 4), 1, 1);
+  }
+  dollCache[view] = { c, OX, OY };
+  return dollCache[view];
+}
+
+// ============================================================
+// 物の絵（小さなドット絵。色の段 3〜5）
+// ============================================================
+const M = { objs: 0, marks: 0, threads: 0, cords: 0, slack: 0, shelf: 0, shelfMarks: 0 };
+function drawKasa(cx, hue) {
+  // 三度笠: 頂点 y16、つば y33。左を明るく、右を暗く、1 段おきに編み目
+  const top = 15, bot = 33;
+  for (let y = top; y <= bot; y++) {
+    const hw = Math.round((y - top) * 17 / (bot - top)) + 1;
+    for (let u = -hw; u < hw; u++) {
+      const x = cx + u;
+      let c = '#b08850';
+      if (u < -hw * 0.45) c = '#d8b878'; else if (u > hw * 0.35) c = '#7a5a30';
+      if ((y - top) % 3 === 2 && (x + y) % 2 === 0) c = '#5e4424';
+      if (u === -hw || u === hw - 1 || y === bot) c = '#2a1e14';
+      P(x, y, c);
+    }
+  }
+  P(cx - 1, top - 1, '#2a1e14'); P(cx, top - 1, '#2a1e14');
+  if (!hue) return;
+  // 顎紐（響きの色）
+  plot(linePts(cx - 10, bot + 1, cx - 9, 47), hue);
+  plot(linePts(cx + 9, bot + 1, cx + 8, 47), hue);
+  plot(linePts(cx - 9, 48, cx - 2, 53), hue);
+  plot(linePts(cx + 8, 48, cx + 1, 53), hue);
+}
+function drawNecklace(cx, it) {
+  const hue = col(TRAIT[it.af[0].c]);
+  for (let u = -9; u <= 9; u++) {
+    const y = Math.round(55 + 9 * (1 - (u / 9) ** 2));
+    P(cx + u, y, (u % 2 === 0) ? hue : '#5a3a18');
+  }
+  // 琥珀の勾玉
+  spr(['.kkk.', 'kYyyk', 'kyyAk', 'kyAAk', '.kAk.', '..k..'], { k: '#2a1a08', y: '#f8d878', Y: '#fff0b0', A: '#e0a030' }, cx - 2, 64);
+  if (it.bud) { P(cx + 3, 63, '#49c46b'); P(cx + 4, 62, '#8fd08a'); P(cx + 5, 62, '#49c46b'); P(cx + 3, 64, '#2a6a3a'); }
+}
+function drawChainmail(cx, it) {
+  const edge = col(TRAIT[it.af[0].c]);
+  for (let y = 64; y <= 118; y++) {
+    const hw = 19 + (y - 64) * 0.06;
+    const gap = y < 82 ? (82 - y) * 0.55 : -1;
+    for (let u = -Math.floor(hw); u < Math.ceil(hw); u++) {
+      if (Math.abs(u + 0.5) < gap) continue;
+      const x = cx + u;
+      let c = '#3a3a48';
+      if (y % 2 === 0 && x % 3 === 0) c = '#9aa0b0'; else if (y % 2 === 1 && (x + 1) % 3 === 0) c = '#70707e';
+      const edgeX = u === -Math.floor(hw) || u === Math.ceil(hw) - 1;
+      const edgeV = Math.abs(u + 0.5) < gap + 1.2 && y < 82;
+      if (edgeX || edgeV || y === 118) c = edge;
+      P(x, y, c);
+    }
+  }
+}
+function drawSandals(cx, it) {
+  const hue = it.named ? col('--tr-azure') : col(TRAIT[it.af[0].c]);
+  const map = ['.kkkkkkkkkk.', 'kUUUUUUUUUUk', 'kUXUXUXUXUUk', 'kXXXXXXXXXXk', '.kkkkkkkkkk.'];
+  [-19, 7].forEach((dx) => {
+    spr(map, { k: '#2a1e14', U: '#d8b878', X: '#8a6a3a' }, cx + dx, 233);
+    P(cx + dx + 3, 232, hue); P(cx + dx + 4, 231, hue); P(cx + dx + 5, 230, hue); P(cx + dx + 6, 231, hue); P(cx + dx + 7, 232, hue);
+  });
+  if (it.named) { P(cx + 16, 234, col('--gold-hi')); P(cx - 10, 234, col('--gold-hi')); }
+}
+function weaponSprite(it) { return WSPR[it.wk] || WSPR['刀']; }
+function drawWeaponAt(it, x, y, fx) {
+  spr(weaponSprite(it), WPAL, x, y, { s: 2, fx });
+  // 房（響きの色）を柄頭から垂らす
+  const hue = it.named ? col('--gold') : col(TRAIT[it.af[0].c]);
+  const gx = fx ? x + 22 : x, gy = y + 22;
+  R(gx, gy, 2, 2, hue); P(gx + (fx ? 1 : 0), gy + 2, hue); P(gx + (fx ? 1 : 0), gy + 3, hue);
+  if (it.named) P(x + 12, y + 8, col('--gold-hi'));
+}
+function drawRing(cx, it) {
+  const x = cx + 50, y = 124;
+  spr(['..kkk..', '.kSssk.', 'kS...sk', 'kS...Sk', 'ks...Sk', '.kSSSk.', '..kkk..'], { k: '#101016', s: '#9aa0b0', S: '#4a4a58' }, x, y);
+  // 鐘の舌: 小さな金の鐘
+  spr(['.y.', 'yYy', 'YYY', '.k.'], { y: '#f0d890', Y: '#c8a050', k: '#7a5a28' }, x + 6, y + 6);
+  P(x + 1, y + 7, col('--tr-crimson'));
+}
+function drawBelt(cx, view) {
+  for (let y = 140; y <= 148; y++) {
+    const hw = 30 + (y - 140) * 0.1;
+    for (let u = -Math.ceil(hw); u < Math.ceil(hw); u++) {
+      let c = C.obi;
+      if (y === 140) c = C['obi-hi']; else if (y === 148) c = C['obi-lo'];
+      else if (y === 143 || y === 145) c = (u % 2 === 0) ? C.gold : C['gold-lo'];
+      P(cx + u, y, c);
+    }
+  }
+  if (view === 'back') {
+    // 帯の結び（背）
+    spr(['.kk......kk.', 'kook....kook', 'kOook..kooOk', 'kOOookkoOOOk', 'kOOoooooOOOk', 'kOOookkoOOOk', 'kOook..kooOk', 'kook....kook', '.kk......kk.'], { k: C['obi-lo'], o: C['obi-hi'], O: C.obi }, cx - 6, 137);
+  }
+}
+function drawInro(cx, slots) {
+  const x = cx + 42, y = 148;
+  // 根付の紐
+  plot(linePts(x + 8, 141, x + 8, y - 1), C.gold);
+  spr(['.k.', 'kyk', '.k.'], { k: '#2a1e14', y: C.gold }, x + 7, y - 6);
+  for (let j = 0; j < 40; j++) for (let i = 0; i < 16; i++) {
+    if ((j === 0 || j === 39) && (i === 0 || i === 15)) continue;
+    let c = '#8a2a22';
+    if (i <= 2) c = '#c83a2a'; else if (i >= 13) c = '#5a1a16';
+    if (j % 10 === 0 && j > 0) c = C.gold;
+    if (i === 0 || i === 15 || j === 0 || j === 39) c = '#0a090c';
+    P(x + i, y + j, c);
+  }
+  slots.forEach((s, k) => {
+    const ty = y + k * 10;
+    const st = STONES[s.st];
+    if (st) spr(['.c.', 'ccc', '.c.'], { c: col(st.c) }, x + 6, ty + 4);
+    else { P(x + 7, ty + 5, '#3a1210'); }
+    // 鉤と札
+    const links = SLOT_LINKS[k];
+    R(x + 16, ty + 2, 4 + links * 9 - 4, 1, '#3a3640');
+    for (let h = 0; h < links; h++) {
+      const hx = x + 20 + h * 9;
+      const rn = RUNES[s.runes[h]];
+      if (rn) {
+        const paper = rn.fam === '循環' ? '#6cc08a' : '#e8e2d4';
+        const stripe = rn.fam === '循環' ? '#2a6a3a' : '#c83a2a';
+        P(hx + 1, ty + 2, C.gold);
+        R(hx, ty + 3, 4, 8, paper); R(hx + 1, ty + 5, 2, 1, stripe); R(hx + 1, ty + 7, 2, 1, stripe); R(hx, ty + 10, 4, 1, '#0a090c');
+        M.marks++;
+      } else {
+        P(hx + 1, ty + 2, C['gold-lo']); P(hx + 2, ty + 3, C['gold-lo']); P(hx + 2, ty + 4, C['gold-lo']);
+        M.marks++;
+      }
+    }
+  });
+}
+function drawTsuzura(x, y) {
+  for (let j = 0; j < 36; j++) for (let i = 0; i < 40; i++) {
+    const lid = j < 9;
+    if (!lid && (i < 2 || i > 37)) continue;
+    let c = (((i >> 2) + (j >> 1)) % 2) ? '#8a6a3a' : '#6a4a2a';
+    if (lid) c = (((i >> 1) + j) % 3) ? '#7a5a30' : '#5a3e20';
+    if (j === 0 || j === 35 || (lid && (i === 0 || i === 39)) || (!lid && (i === 2 || i === 37)) || j === 8) c = '#2a1e14';
+    if (j === 1 && i > 0 && i < 39) c = '#a88450';
+    P(x + i, y + j, c);
+  }
+  R(x + 19, y + 1, 2, 34, C.gold); R(x + 3, y + 4, 34, 1, C['gold-lo']);
+  // 新着の白い点
+  R(x + 34, y + 12, 2, 2, '#ffffff');
+  M.marks++;
+}
+function drawPurse(x, y, level) {
+  const rx = 5 + level, ry = 4 + level;
+  for (let j = -ry; j <= ry; j++) for (let i = -rx; i <= rx; i++) {
+    const d = (i / rx) ** 2 + (j / ry) ** 2;
+    if (d > 1) continue;
+    let c = '#8a5a2a';
+    if (i < -rx * 0.3 && j < 0) c = '#b88a50'; else if (i > rx * 0.4 || j > ry * 0.5) c = '#5a3a18';
+    if (d > 0.78) c = '#2a1e14';
+    P(x + i, y + 6 + j, c);
+  }
+  R(x - 2, y - 2, 5, 3, '#8a5a2a'); R(x - 2, y - 3, 5, 1, '#2a1e14'); R(x - 3, y + 1, 7, 1, '#c83a2a');
+  P(x + 4, y + 2, '#c83a2a'); P(x + 5, y + 3, '#c83a2a');
+  P(x - 1, y - 4, '#f8d848'); P(x + 1, y - 4, '#f8d848');
+}
+function drawBottles(x, y, n) {
+  for (let i = 0; i < n; i++) spr(['.kUk.', '.kXk.', 'kk1kk', 'k1rrk', 'krrrk', 'krRRk', 'kRRRk', '.kkk.'], { k: '#1a1a24', U: '#b88a50', X: '#6a4a28', '1': '#ffffff', r: '#e04848', R: '#902020' }, x + i * 8, y);
+}
+function drawKeys(x, y, n) {
+  for (let i = 0; i < n; i++) spr(['.yy.', 'y..y', 'y..y', '.yy.', '.Y..', '.Y..', '.YY.', '.Y..', '.YY.'], { y: '#f8d848', Y: '#b09020' }, x + i * 7, y);
+  R(x - 1, y - 2, n * 7, 1, '#9a948a');
+}
+function drawLantern(x, y) {
+  spr(['...y...', '..yNy..', '..yNy..', '.kkkkk.', '.kUyUk.', '.kyNyk.', '.kUyUk.', '.kkkkk.'], { y: '#f8d848', N: '#fff4a0', k: '#2a1e14', U: '#c83a2a' }, x, y);
+}
+function pic(k, x, y, c) { const m = (KW[k] || KW.area).pic; spr(m, { '#': c }, x, y); }
+
+// 組紐（腰帯から垂れる）。knots: 今の段、prevKnots: あてがう前の段
+function drawCord(x, k, st, t, dimA) {
+  const c = col((KW[k] || { c: '--kw-other' }).c);
+  const top = 149;
+  alpha(dimA, () => {
+    if (st.mode === 'slack') {
+      // 緩んで揺れる紐（結び目なし）
+      alpha(0.75, () => {
+        for (let y = top + 7; y < 196; y++) {
+          const off = Math.round(Math.sin((y - top) / 6 + t / 420) * 2 * ((y - top) / 47));
+          P(x + 1 + off, y, c);
+          if (y % 3 === 0) P(x + off, y, c);
+        }
+        const endOff = Math.round(Math.sin((196 - top) / 6 + t / 420) * 2);
+        R(x + endOff, 196, 3, 1, c); P(x + endOff, 197, c); P(x + 2 + endOff, 197, c); P(x + 1 + endOff, 199, c);
+      });
+    } else {
+      const faint = st.mode === 'new' ? 0.5 : 1;
+      alpha(faint, () => {
+        for (let y = top + 7; y < 194; y++) for (let i = 0; i < 3; i++) {
+          let cc = c;
+          if ((y + i) % 3 === 0) cc = '#ffffff';
+          if (i === 2 && (y + i) % 3 !== 0) cc = shade(c);
+          alpha((y + i) % 3 === 0 ? 0.55 : 1, () => P(x + i, y, cc));
+        }
+        // 房
+        for (let i = -1; i < 4; i++) for (let y = 194; y < 200 + (i % 2); y++) P(x + i, y, (i + y) % 2 ? c : shade(c));
+      });
+      // 結び目
+      const show = Math.max(st.tier, st.prev);
+      for (let n = 0; n < show; n++) {
+        const ky = 160 + n * 9;
+        let kc = c, kind = 'stay';
+        if (n >= st.tier) kind = 'lose'; else if (n >= st.prev) kind = 'gain';
+        if (kind === 'lose') kc = col('--shu');
+        if (kind === 'gain') kc = '#ffffff';
+        const blink = kind !== 'stay' && Math.floor(t / 260) % 2 === 0;
+        const kk = kind === 'stay' ? c : (blink ? kc : c);
+        if (kind === 'lose') {
+          // ほどける: 輪だけが朱に明滅
+          if (blink) spr(['.###.', '#...#', '#...#', '.###.'], { '#': kc }, x - 1, ky);
+          M.marks++;
+          continue;
+        }
+        spr(['.###.', '#####', '#####', '.###.'], { '#': kk }, x - 1, ky);
+        P(x, ky + 1, '#ffffff'); P(x + 2, ky + 3, shade(kk));
+        M.marks++;
+      }
+    }
+    // 帯留め（系統の印。文字ではなく 5x5 の絵）
+    R(x - 2, top, 7, 7, shade(c)); R(x - 1, top + 1, 5, 5, '#141216');
+    pic(k, x - 1, top + 1, c);
+  });
+}
+const shadeCache = {};
+function shade(c) {
+  if (shadeCache[c]) return shadeCache[c];
+  const n = parseInt(c.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const s = '#' + [r, g, b].map((v) => Math.round(v * 0.55).toString(16).padStart(2, '0')).join('');
+  shadeCache[c] = s;
+  return s;
+}
+
+// 背紋（9x9 の紋 + 4 分割の弧で枚数）
+function drawCrest(ln, x, y, n, apex) {
+  const c = apex ? col('--gold-hi') : col(`--ln-${ln}`);
+  const d = apex ? col('--gold') : shade(col(`--ln-${ln}`));
+  if (apex) {
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if ((i - 7.5) ** 2 + (j - 7.5) ** 2 <= 42) P(x + i, y + j, col('--gold-lo'));
+  }
+  spr(CREST[ln], { c, d }, x + 4, y + 4);
+  // 円周を 4 分割（右上から時計回り）。枚数ぶん縫い取る
+  for (let a = 0; a < 64; a++) {
+    const th = (a / 64) * Math.PI * 2 - Math.PI / 2;
+    const q = Math.floor(a / 16);
+    const px = Math.round(x + 8 + Math.cos(th) * 7.5 - 0.5), py = Math.round(y + 8 + Math.sin(th) * 7.5 - 0.5);
+    if (q < n) { if (a % 2 === 0) P(px, py, apex ? col('--gold') : c); }
+    else if (a % 4 === 0) P(px, py, '#3a3640');
+  }
+  M.marks++;
+}
+function graceDot(x, y, id) {
+  if (!id) { spr(['.####.', '#....#', '#....#', '#....#', '#....#', '.####.'], { '#': '#d8d0c4' }, x, y); M.marks++; return; }
+  let c = col('--gold');
+  const b = BOON[id];
+  if (b) c = col(`--ln-${b.ln}`);
+  spr(['.kkkk.', 'kcccck', 'kcccck', 'kcccck', 'kcccck', '.kkkk.'], { k: '#0a090c', c }, x, y);
+  P(x + 2, y + 2, '#ffffff');
+  M.marks++;
+}
+
+// ============================================================
+// 物の配置（焦点の移動に使う。座標は論理 px）
+// ============================================================
+function frontObjs(cx) {
+  const o = [];
+  const add = (id, x, y, w, h, extra) => o.push(Object.assign({ id, x, y, w, h, cx: x + w / 2, cy: y + h / 2, ax: x + w / 2, ay: y + h / 2 }, extra || {}));
+  add('face', cx - 11, 34, 22, 18, { side: 'r' });
+  add('r:head', cx - 17, 15, 34, 19, { side: 'l' });
+  add('r:amulet', cx - 9, 55, 18, 15, { side: 'r', ax: cx, ay: 67 });
+  add('r:armor', cx - 19, 64, 38, 55, { side: 'l', ay: 90 });
+  add('r:main', cx - 74, 108, 24, 24, { side: 'l', ax: cx - 66, ay: 116 });
+  add('r:ring', cx + 49, 123, 11, 11, { side: 'r' });
+  add('r:boots', cx - 19, 229, 38, 9, { side: 'l' });
+  add('inro', cx + 42, 142, 52, 46, { side: 'r', ax: cx + 43, ay: 166 });
+  return o;
+}
+function sideObjs() {
+  const o = [];
+  const add = (id, x, y, w, h, side) => o.push({ id, x, y, w, h, cx: x + w / 2, cy: y + h / 2, ax: x + w / 2, ay: y + h / 2, side });
+  add('tsuzura', 16, 222, 40, 36, 'l');
+  add('bottles', 404, 8, 22, 8, 'r');
+  add('keys', 432, 9, 13, 9, 'r');
+  add('purse', 451, 4, 16, 18, 'r');
+  return o;
+}
+function cordObjs(cx, cords) {
+  return cords.map((k, i) => { const x = cx - 44 + i * 9; return { id: `cord:${k}`, x: x - 2, y: 149, w: 7, h: 50, cx: x + 1, cy: 172, ax: x + 1, ay: 152, side: 'l', kw: k }; });
+}
+function backObjs(cx) {
+  const o = [];
+  CREST_GRID.forEach((row, r) => row.forEach((ln, c) => {
+    if (lnCards(ln).length === 0) return;
+    const x = cx - 30 + c * 20 + 2, y = 72 + r * 20 + 2;
+    o.push({ id: `crest:${ln}`, x, y, w: 16, h: 16, cx: x + 8, cy: y + 8, ax: x + 8, ay: y + 8, side: 'r' });
+  }));
+  Object.entries(graceSpots(cx)).forEach(([k, g]) => o.push({ id: `grace:${k}`, x: g.x, y: g.y, w: g.w, h: g.h, cx: g.x + g.w / 2, cy: g.y + g.h / 2, ax: g.x + g.w / 2, ay: g.y + g.h / 2, side: g.x < cx ? 'l' : 'r' }));
+  o.push({ id: 'core', x: cx - 4, y: 59, w: 7, h: 8, cx: cx, cy: 63, ax: cx, ay: 63, side: 'r' });
+  return o;
+}
+function graceSpots(cx) {
+  // 各点 6px、間 6px
+  return {
+    primary: { x: cx - 56, y: 98, w: 6, h: 30, dir: 'v' },
+    secondary: { x: cx + 50, y: 98, w: 6, h: 30, dir: 'v' },
+    ultimate: { x: cx - 15, y: 48, w: 30, h: 6, dir: 'h' },
+    skill: { x: cx + 12, y: 151, w: 18, h: 6, dir: 'h' },
+    dash: { x: cx - 30, y: 216, w: 18, h: 6, dir: 'h' },
+  };
+}
+const lnCards = (ln) => BOONS.filter((b) => b.ln === ln || b.ln2 === ln);
+const lnCount = (ln) => BOONS.filter((b) => b.ln === ln && b.card !== 'fusion').length;
+
+function currentObjs() {
+  if (S.view === 'floor') {
+    if (S.floorPhase === 'floor') return [{ id: 'floor:item', x: 286, y: 138, w: 24, h: 24, cx: 298, cy: 150, ax: 298, ay: 150 }];
+  }
+  if (S.view === 'shelf') {
+    const o = [];
+    for (let i = 0; i < 24; i++) { const x = 200 + (i % 6) * 45, y = 30 + Math.floor(i / 6) * 40; o.push({ id: `shelf:${i}`, x, y, w: 44, h: 39, cx: x + 22, cy: y + 20, ax: x + 22, ay: y + 20 }); }
+    return o.concat(cordObjs(80, beltState().cords));
+  }
+  const cx = 240;
+  if (S.view === 'back') return backObjs(cx).concat(cordObjs(cx, beltState().cords));
+  return frontObjs(cx).concat(cordObjs(cx, beltState().cords), sideObjs());
+}
+
+// 腰帯の状態（あてがい中は前後の差）
+function trialEq() {
+  if (S.view === 'shelf') {
+    const id = shelfFocusItem();
+    if (id) return Object.assign({}, S.eq, { main: id });
+    return null;
+  }
+  if (S.trial) return Object.assign({}, S.eq, { main: S.trial });
+  return null;
+}
+function beltState() {
+  const base = resonance(S.eq);
+  const te = trialEq();
+  const prev = te ? resonance(te) : null;
+  const cords = cordList(base, prev);
+  const st = {};
+  cords.forEach((k) => {
+    const now = prev ? prev[k] : base[k];
+    const was = base[k];
+    let mode = 'tight';
+    if (now.tier === 0 && now.slack) mode = 'slack';
+    if (now.tier === 0 && !now.slack && was.tier > 0) mode = 'tight';
+    if (was.tier === 0 && now.tier > 0) mode = 'new';
+    st[k] = { tier: now.tier, prev: prev ? was.tier : now.tier, mode };
+    if (mode === 'slack' && prev && was.tier > 0) st[k] = { tier: 0, prev: was.tier, mode: 'tight' };
+  });
+  return { cords, st, base, prev };
+}
+function shelfFocusItem() {
+  if (!S.focus.startsWith('shelf:')) return null;
+  return S.shelf[+S.focus.slice(6)] || null;
+}
+
+// ============================================================
+// 描画（毎フレーム）
+// ============================================================
+const playerImg = new Image();
+playerImg.src = PLAYER_SHEET;
+let dirty = true;
+function draw(t) {
+  Object.keys(M).forEach((k) => { M[k] = 0; });
+  A = 1;
+  ctx.globalAlpha = 1;
+  ctx.drawImage(paperCv, 0, 0);
+  if (S.view === 'floor' && S.floorPhase === 'floor') { drawFloor(t); return; }
+  const cx = S.view === 'shelf' ? 80 : 240;
+  // 振り向きの途中は人形だけを横に縮める
+  if (S.turn) {
+    const k = Math.min(1, (t - S.turn.t0) / 220);
+    const from = S.turn.from, to = S.turn.to;
+    const view = k < 0.5 ? from : to;
+    const sx = Math.max(0.08, Math.abs(Math.cos(k * Math.PI)));
+    const d = dollCanvas(view);
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.translate(cx, 0); ctx.scale(sx, 1);
+    ctx.drawImage(d.c, -d.OX, d.OY);
+    ctx.restore();
+    if (k >= 1) { S.turn = null; S.view = to; dirty = true; }
+    return;
+  }
+  // 足元の影
+  for (let i = -40; i < 40; i++) { const h = Math.round(3 * Math.sqrt(1 - (i / 40) ** 2)); R(cx + i, 238 - h, 1, h * 2 + 1, C['doll-shadow']); }
+  const d = dollCanvas(S.view === 'back' ? 'back' : 'front');
+  ctx.globalAlpha = 1;
+  ctx.drawImage(d.c, cx - d.OX, d.OY);
+  const belt = beltState();
+  const pulled = S.pulled && S.view !== 'shelf' ? S.pulled : null;
+  const res = belt.base[pulled || 'burn'];
+  const litSet = new Set();
+  if (pulled) { res.src.concat(res.sink).forEach((c) => litSet.add(c.obj)); litSet.add(`cord:${pulled}`); }
+  const lit = (id) => !pulled || litSet.has(id) ? 1 : 0.28;
+
+  if (S.view === 'back') drawBack(cx, t, belt, lit);
+  else drawFront(cx, t, belt, lit);
+
+  // 引き糸（引いた組紐 1 本ぶん）
+  if (pulled) drawThreads(cx, belt, pulled);
+  if (S.view === 'shelf') drawShelf(t, belt);
+  // 焦点
+  const f = currentObjs().find((o) => o.id === S.focus);
+  if (f) brackets(f.x, f.y, f.w, f.h, C.focus, t);
+  // 荷札への糸
+  const tag = tagGeom;
+  if (f && tag && tag.string) {
+    const ex = tag.x + (tag.eyeRight ? tag.w - 4 : 3), ey = tag.y + 3;
+    // 背の物は上端から上へ回して、隣の紋の上を通さない
+    if (S.view === 'back') plot(curvePts(f.cx, f.y - 2, ex, ey, -5), C.sub, false);
+    else plot(curvePts(f.ax, f.ay, ex, ey, 6), C.sub, false);
+  }
+  if (S.nudge && t - S.nudge.t0 > 260) S.nudge = null;
+}
+function nudgeOff(id, t) { return S.nudge && S.nudge.id === id ? (Math.floor((t - S.nudge.t0) / 50) % 2 ? 1 : -1) : 0; }
+function drawFront(cx, t, belt, lit) {
+  const eq = S.eq;
+  const items = {};
+  SLOTS.forEach((sl) => { items[sl] = ITEM[eq[sl]]; });
+  alpha(lit('r:armor'), () => drawChainmail(cx, items.armor)); M.objs++;
+  alpha(lit('r:amulet'), () => drawNecklace(cx, items.amulet)); M.objs++; if (items.amulet.bud) M.marks++;
+  alpha(lit('r:head'), () => drawKasa(cx, col(TRAIT[items.head.af[0].c]))); M.objs++;
+  alpha(lit('r:boots'), () => drawSandals(cx, items.boots)); M.objs++;
+  alpha(lit('r:ring'), () => drawRing(cx, items.ring)); M.objs++;
+  drawBelt(cx, 'front'); M.objs++;
+  // 右手（あてがい中は新しい物を重ね、元の物を半透明で後ろに）
+  const hx = cx - 74, hy = 108;
+  const trial = S.view === 'shelf' ? shelfFocusItem() : S.trial;
+  if (trial && ITEM[trial]) {
+    alpha(0.4, () => drawWeaponAt(items.main, hx - 4, hy - 3, true));
+    drawWeaponAt(ITEM[trial], hx, hy, true);
+  } else alpha(lit('r:main'), () => drawWeaponAt(items.main, hx, hy, true));
+  M.objs++;
+  alpha(lit('inro'), () => { const n = nudgeOff('inro', t); drawInro(cx + n, SKILL_SLOTS); }); M.objs++;
+  drawCords(cx, t, belt, lit);
+  if (S.view !== 'shelf') {
+    alpha(lit('tsuzura'), () => { const n = nudgeOff('tsuzura', t); drawTsuzura(16 + n, 222); }); M.objs++;
+    alpha(lit('bottles'), () => drawBottles(404, 8, 3)); M.objs++;
+    alpha(lit('keys'), () => drawKeys(433, 10, 2)); M.objs++;
+    alpha(lit('purse'), () => drawPurse(459, 9, 2)); M.objs++;
+  }
+}
+function drawCords(cx, t, belt, lit) {
+  belt.cords.forEach((k, i) => {
+    const st = belt.st[k];
+    drawCord(cx - 44 + i * 9, k, st, t, lit(`cord:${k}`));
+    if (st.mode === 'slack') M.slack++; else M.cords++;
+  });
+}
+function drawBack(cx, t, belt, lit) {
+  // 笠の背（同じ絵）
+  drawKasa(cx, null); M.objs++;
+  drawBelt(cx, 'back'); M.objs++;
+  // 背紋
+  CREST_GRID.forEach((row, r) => row.forEach((ln, c) => {
+    const n = lnCount(ln);
+    if (lnCards(ln).length === 0) return;
+    drawCrest(ln, cx - 30 + c * 20 + 2, 72 + r * 20 + 2, Math.min(4, n), n >= 4);
+  }));
+  // 融合の金糸（灰燼と雷鳴をつなぐ）
+  BOONS.filter((b) => b.card === 'fusion').forEach((b) => {
+    const pos = (ln) => { for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (CREST_GRID[r][c] === ln) return [cx - 30 + c * 20 + 10, 72 + r * 20 + 10]; return null; };
+    const a = pos(b.ln), z = pos(b.ln2);
+    if (!a || !z) return;
+    const pts = linePts(a[0] + 8, a[1] + 1, z[0] - 8, z[1] + 1);
+    pts.forEach(([x, y], i) => { if (i % 2 === 0) P(x, y, col('--gold-hi')); });
+    M.marks++;
+  });
+  // 加護の点
+  Object.entries(graceSpots(cx)).forEach(([k, g]) => {
+    GRACE[k].slots.forEach((id, i) => {
+      const x = g.dir === 'v' ? g.x : g.x + i * 12, y = g.dir === 'v' ? g.y + i * 12 : g.y;
+      graceDot(x, y, id);
+    });
+  });
+  drawLantern(cx - 4, 59); M.marks++;
+  drawCords(cx, t, belt, lit);
+}
+function drawThreads(cx, belt, k) {
+  const res = belt.base[k];
+  const i = belt.cords.indexOf(k);
+  if (i < 0) return;
+  const bx = cx - 44 + i * 9 + 1, by = 152;
+  const c = col((KW[k] || { c: '--kw-other' }).c);
+  const objs = currentObjs();
+  const seen = new Set();
+  const backSrc = [], backSink = [];
+  res.src.forEach((s) => { if (s.back) backSrc.push(s); });
+  res.sink.forEach((s) => { if (s.back) backSink.push(s); });
+  const front = res.src.concat(res.sink).filter((s) => !s.back);
+  front.forEach((s) => {
+    if (seen.has(s.obj)) return;
+    seen.add(s.obj);
+    const o = objs.find((q) => q.id === s.obj);
+    if (!o) return;
+    const isSrc = res.src.some((q) => q.obj === s.obj), isSink = res.sink.some((q) => q.obj === s.obj);
+    const ax = s.obj === 'r:main' ? cx - 64 : o.ax, ay = s.obj === 'r:main' ? 120 : o.ay;
+    const pts = curvePts(bx, by, ax, ay, 8);
+    plot(pts, c, !isSrc);
+    if (isSink) spr(['.#.', '#.#', '.#.'], { '#': c }, ax - 1, ay - 1);
+    M.threads++;
+  });
+  if (S.view === 'front') {
+    // 背へ回る糸の端（肩口）
+    const ends = [[backSrc, cx - 27, 60, false], [backSink, cx + 27, 60, true]];
+    ends.forEach(([list, ex, ey, dotted]) => {
+      if (!list.length) return;
+      const pts = curvePts(bx, by, ex, ey, -6);
+      plot(pts, c, dotted);
+      // 端は背へ回り込む（短く折れて薄れる）
+      alpha(0.5, () => { P(ex + (ex < cx ? -1 : 1), ey - 1, c); P(ex + (ex < cx ? -2 : 2), ey - 1, c); });
+      if (dotted) spr(['.#.', '#.#', '.#.'], { '#': c }, ex - 1, ey - 1);
+      M.threads++;
+    });
+  } else {
+    // 背: 紋へ直接
+    const crestObjs = new Set(backSrc.concat(backSink).map((s) => s.obj));
+    crestObjs.forEach((id) => {
+      const o = objs.find((q) => q.id === id);
+      if (!o) return;
+      const isSrc = backSrc.some((q) => q.obj === id);
+      plot(curvePts(bx, by, o.ax, o.ay + 8, 6), c, !isSrc);
+      M.threads++;
+    });
+  }
+}
+function drawShelf(t, belt) {
+  // 頁の点と、引いた紐
+  [0, 1, 2].forEach((i) => { const x = 452 + i * 7; if (i === 0) R(x, 12, 4, 4, C.tx); else { R(x, 12, 4, 1, C.dim); R(x, 15, 4, 1, C.dim); R(x, 12, 1, 4, C.dim); R(x + 3, 12, 1, 4, C.dim); } });
+  if (S.pulled) {
+    const c = col(KW[S.pulled].c);
+    R(200, 4, 7, 7, shade(c)); R(201, 5, 5, 5, '#141216'); pic(S.pulled, 201, 5, c);
+    for (let y = 11; y < 27; y++) for (let i = 0; i < 3; i++) P(202 + i, y, (y + i) % 3 === 0 ? '#ffffff' : (i === 2 ? shade(c) : c));
+    const n = belt.base[S.pulled].tier;
+    for (let k = 0; k < n; k++) { spr(['.###.', '#####', '#####', '.###.'], { '#': c }, 201, 13 + k * 5 - 1); }
+  }
+  for (let i = 0; i < 24; i++) {
+    const x = 200 + (i % 6) * 45, y = 30 + Math.floor(i / 6) * 40;
+    const id = S.shelf[i];
+    const it = id && ITEM[id];
+    const has = it && S.pulled ? (() => { const k = itemKw(it); return k.p.includes(S.pulled) || k.co.includes(S.pulled); })() : true;
+    const focused = S.focus === `shelf:${i}`;
+    // 枠
+    const frame = !it ? '#1a181e' : has ? C.card2 : '#19171c';
+    R(x, y, 44, 39, frame);
+    R(x, y, 44, 1, '#3a3640'); R(x, y, 1, 39, '#3a3640'); R(x, y + 38, 44, 1, '#0a090c'); R(x + 43, y, 1, 39, '#0a090c');
+    if (!it) continue;
+    M.shelf++;
+    const lift = focused ? -2 : (has && S.pulled ? -1 : 0);
+    alpha(has ? 1 : 0.3, () => {
+      drawWeaponAt(it, x + 10, y + 8 + lift, false);
+    });
+    // 角の印（新着・愛用・がらくた・芽・名）
+    if (it.isNew) { R(x + 39, y + 3, 2, 2, '#ffffff'); M.shelfMarks++; }
+    if (it.mark === 'fav') { plot(linePts(x + 2, y + 2, x + 6, y + 6), '#e04848'); plot(linePts(x + 3, y + 2, x + 7, y + 6), '#902020'); M.shelfMarks++; }
+    if (it.mark === 'junk') { alpha(has ? 1 : 0.4, () => { R(x + 33, y + 28, 8, 8, '#d8d0c4'); plot(linePts(x + 34, y + 29, x + 39, y + 34), '#5c5852'); plot(linePts(x + 39, y + 29, x + 34, y + 34), '#5c5852'); }); M.shelfMarks++; }
+    if (it.bud) { P(x + 4, y + 33, '#49c46b'); P(x + 5, y + 32, '#8fd08a'); P(x + 6, y + 32, '#49c46b'); P(x + 4, y + 34, '#2a6a3a'); M.shelfMarks++; }
+  }
+}
+function drawFloor(t) {
+  // 床の石畳（16px）
+  for (let ty = 0; ty < 270; ty += 16) for (let tx = 0; tx < 480; tx += 16) {
+    const h = hash(tx, ty);
+    R(tx, ty, 16, 16, h < 0.5 ? '#2c2834' : '#2a2632');
+    R(tx, ty, 16, 1, '#36323d'); R(tx, ty, 1, 16, '#36323d');
+    R(tx + 15, ty, 1, 16, '#1e1b24'); R(tx, ty + 15, 16, 1, '#1e1b24');
+    if (h > 0.8) { P(tx + 5, ty + 7, '#1e1b24'); P(tx + 6, ty + 8, '#1e1b24'); P(tx + 7, ty + 8, '#1e1b24'); }
+  }
+  // 周りを暗く（部屋の灯り）
+  for (let y = 0; y < 270; y += 2) for (let x = 0; x < 480; x += 2) {
+    const dd = Math.hypot((x - 250) / 1.6, y - 140);
+    if (dd > 140) alpha(Math.min(0.85, (dd - 140) / 120), () => R(x, y, 2, 2, '#08070a'));
+  }
+  if (playerImg.complete && playerImg.naturalWidth) { ctx.globalAlpha = 1; ctx.drawImage(playerImg, 744, 0, 24, 43, 220, 116, 24, 43); }
+  // 床の太刀（光る）
+  const it = ITEM.f1;
+  for (let i = -9; i < 10; i++) R(298 + i, 160, 1, 2, '#1a1820');
+  spr(weaponSprite(it), WPAL, 286, 138, { s: 2 });
+  const g = Math.floor(t / 180) % 6;
+  if (g < 3) { const gx = 304 - g * 4, gy = 140 + g * 4; P(gx, gy, '#ffffff'); P(gx - 1, gy, '#fff4d0'); P(gx + 1, gy, '#fff4d0'); P(gx, gy - 1, '#fff4d0'); P(gx, gy + 1, '#fff4d0'); }
+  M.objs++;
+  // 床の札の系統の印（3 つまで）
+  const k = itemKw(it);
+  const marks = KW_ORDER.filter((q) => (k.p.includes(q) || k.co.includes(q)) && KW[q]).slice(0, 3);
+  marks.forEach((q, i) => { const x = floorLabel.x + floorLabel.w + 2 + i * 8; R(x - 1, floorLabel.y + 2, 7, 7, '#100e12'); pic(q, x, floorLabel.y + 3, col(KW[q].c)); M.marks++; });
+  // 長押しの輪
+  if (S.holdStart) {
+    const k2 = Math.min(1, (performance.now() - S.holdStart) / 300);
+    for (let a = 0; a < 64 * k2; a++) { const th = (a / 64) * Math.PI * 2 - Math.PI / 2; P(Math.round(298 + Math.cos(th) * 18), Math.round(150 + Math.sin(th) * 18), C.focus); }
+    if (k2 >= 1) openTrial();
+  }
+  brackets(286, 138, 24, 24, C.focus, t);
+}
+const floorLabel = { x: 280, y: 120, w: 26 };
+
+// ============================================================
+// 荷札（文字はここだけ）
+// ============================================================
+const ui = document.getElementById('ui');
+let tagGeom = null;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dia = (c) => `<span style="color:${c}">◆</span>`;
+const itemName = (it) => it.named || (it.inscr ? `${it.base} ${it.inscr}` : it.base);
+const traitC = (a) => col(TRAIT[a.c] || '--tx');
+function tagItem(it, slot) {
+  const kind = it.named ? `${it.base}　名のある遺物` : `${it.wk || SLOT_JA[slot]}　揺らぎ「${it.flux}」`;
+  const lines = [{ h: esc(kind) + (it.bud ? `　<span style="color:#8fd08a">●芽</span>` : ''), cls: 's' }];
+  it.af.slice(0, 3).forEach((a) => lines.push({ h: dia(traitC(a)) + esc(a.s) }));
+  if (it.named && it.flavor && lines.length < 4) lines.push({ h: esc(it.flavor), cls: 's' });
+  return { title: itemName(it), right: `深度 ${it.depth}`, lines, ops: [['Enter', '替える'], ['F', 'めくる'], ['R', '背']] };
+}
+function tagItemBack(it, slot) {
+  const innate = Object.entries(it.innate || {}).map(([k, v]) => `${({ str: '筋力', dex: '技巧', vit: '体力', mnd: '精神', spi: '霊力', def: '防御' })[k]} +${v}`).join('・') || 'なし';
+  const lines = [{ h: esc(`地金　${innate}`) }, { h: esc(`深度 ${it.depth}・余白 ${it.margin}・揺らぎ ${it.flux}`) }];
+  it.af.slice(0, 3).forEach((a) => lines.push({ h: dia(traitC(a)) + esc(a.b || `${a.s}（揺 ±3）`) }));
+  if (lines.length < 6) lines.push({ h: esc(`来歴　${it.prov || `${SLOT_JA[slot]}で 3 ラン`}`), cls: 's' });
+  return { title: itemName(it), right: '裏', lines: lines.slice(0, 6), ops: [['F', '表へ']] };
+}
+function wrap(s, max) {
+  const out = []; let cur = '', w = 0;
+  for (const ch of s) {
+    const cw = /[ -~]/.test(ch) ? 0.5 : 1;
+    if (w + cw > max) { out.push(cur); cur = ''; w = 0; }
+    cur += ch; w += cw;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function cordTag(k, back) {
+  const r = resonance(S.eq)[k];
+  const pulled = S.pulled === k;
+  const nm = kwName(k);
+  if (back) {
+    const srcN = r.src.map((c) => c.name).join('・'), sinkN = r.sink.map((c) => c.name).join('・');
+    const lines = [];
+    wrap(`源: ${srcN}`, 18).forEach((l) => lines.push({ h: esc(l) }));
+    wrap(`糧: ${sinkN}`, 18).forEach((l) => lines.push({ h: esc(l) }));
+    lines.push({ h: esc(`1 段ごとに ×${(1 + RES.mul).toFixed(2)}`), cls: 's' });
+    return { title: nm, right: '裏', lines: lines.slice(0, 6), ops: [['F', '表へ']] };
+  }
+  const bs = r.src.filter((c) => c.back).length, bk = r.sink.filter((c) => c.back).length;
+  let next;
+  if (r.tier >= RES.max) next = '次の段: 上限';
+  else if (r.tier === 0) next = r.src.length < 2 ? `あと源 ${2 - r.src.length} で段 1` : `あと糧 ${2 - r.sink.length} で段 1`;
+  else next = `次の段: 源か糧をあと ${RES.every - ((r.total - 4) % RES.every)}`;
+  const lines = [
+    { h: dia(col(KW[k] ? KW[k].c : '--kw-other')) + esc(r.tier ? `段 ${r.tier}${r.am ? `（強め ${r.am} を含む）` : ''}` : '段なし（緩み）') },
+    { h: '<span class="s">━</span>' + esc(` 源 ${r.src.length}${bs ? `（うち背 ${bs}）` : ''}`) },
+    { h: '<span class="s">┄○</span>' + esc(` 糧 ${r.sink.length}${bk ? `（うち背 ${bk}）` : ''}`) },
+    { h: esc(next), cls: 's' },
+  ];
+  return { title: nm, right: '', lines, ops: [['Enter', pulled ? '離す' : '引く'], ['F', 'めくる'], ['R', S.view === 'back' ? '表' : '背']] };
+}
+function compareTag(newId, oldId, esc2) {
+  const a = ITEM[newId], b = ITEM[oldId];
+  const sa = a.af.map((x) => x.s), sb = b.af.map((x) => x.s);
+  const gain = a.af.filter((x) => !sb.includes(x.s)), lose = b.af.filter((x) => !sa.includes(x.s));
+  const lines = [];
+  const g2 = gain.slice(0, 2), l2 = lose.slice(0, 2);
+  g2.forEach((x, i) => lines.push({ h: `<span class="gain">得る</span>${dia(traitC(x))}${esc(x.s)}${i === 1 && gain.length > 2 ? `<span class="s">　ほか ${gain.length - 2}</span>` : ''}` }));
+  l2.forEach((x, i) => lines.push({ h: `<span class="lose">失う</span>${dia(traitC(x))}${esc(x.s)}${i === 1 && lose.length > 2 ? `<span class="s">　ほか ${lose.length - 2}</span>` : ''}` }));
+  return { title: itemName(a), right: `深度 ${a.depth}`, lines, ops: [['Enter', '替える'], ['F', 'めくる'], ['Esc', esc2]] };
+}
+function cardSvg(b, on) {
+  const c = b.card === 'fusion' ? col('--gold-hi') : col(`--ln-${b.ln}`);
+  const shapes = {
+    grace: '<rect x="2" y="1" width="4" height="6"/><rect x="1" y="2" width="6" height="4"/>',
+    law: '<rect x="1" y="1" width="6" height="6"/>',
+    temper: '<rect x="3" y="1" width="2" height="6"/><rect x="2" y="2" width="4" height="4"/><rect x="1" y="3" width="6" height="2"/>',
+    fusion: '<rect x="1" y="2" width="3" height="4"/><rect x="4" y="2" width="3" height="4" fill="' + col(`--ln-${b.ln2}`) + '"/>',
+  };
+  return `<svg class="${on ? 'on' : ''}" width="8" height="8" viewBox="0 0 8 8" shape-rendering="crispEdges" fill="${c}">${shapes[b.card] || shapes.law}</svg>`;
+}
+function crestTag(ln, back) {
+  const cards = lnCards(ln);
+  const i = Math.min(S.cardIdx, cards.length - 1);
+  const b = cards[i];
+  const row = `<div class="cards">${cards.map((q, j) => cardSvg(q, j === i)).join('')}</div>`;
+  if (back) {
+    const n = lnCount(ln);
+    const lines = [
+      { h: esc(`${LN[ln]}　${n} 枚${n >= 4 ? '・真髄' : ''}`) },
+      ...['grace', 'law', 'temper', 'fusion'].map((k) => { const cs = cards.filter((q) => q.card === k); return cs.length ? { h: esc(`${CARD[k]} ${cs.length}　${cs.map((q) => q.n).join('・')}`) } : null; }).filter(Boolean),
+    ];
+    return { title: LN[ln], right: '裏', lines: lines.slice(0, 6), ops: [['F', '表へ']] };
+  }
+  const lines = b.d.slice(0, 3).map((l) => ({ h: esc(l) }));
+  const right = b.card === 'fusion' ? `融合・${LN[b.ln]}と${LN[b.ln2]}` : `${CARD[b.card]}・${b.gr}`;
+  return { title: b.n, right, lines, ops: [['←→', '札'], ['F', 'めくる'], ['R', '表']], pre: row };
+}
+function graceTag(k, back) {
+  const g = GRACE[k];
+  const lines = g.slots.map((id) => {
+    if (!id) return { h: '<span class="s">○</span>' + esc('空き'), cls: 's' };
+    const b = BOON[id];
+    if (b) return { h: dia(col(`--ln-${b.ln}`)) + esc(`${b.n}（${LN[b.ln]}）`) };
+    const it = ITEM[id];
+    return { h: dia(col('--gold')) + esc(`${it.named}（遺物）`) };
+  });
+  if (back) return { title: g.n, right: '裏', lines: [{ h: esc(`${g.act}に乗る加護 ${g.slots.filter(Boolean).length} / ${g.slots.length}`) }, { h: esc('枠は真髄で 1 つ開く'), cls: 's' }], ops: [['F', '表へ']] };
+  return { title: g.n, right: g.act, lines, ops: [['F', 'めくる'], ['R', '表']] };
+}
+function tagFor(id, back) {
+  if (id.startsWith('r:')) { const sl = id.slice(2); const it = ITEM[S.eq[sl]]; return back ? tagItemBack(it, sl) : tagItem(it, sl); }
+  if (id.startsWith('cord:')) return cordTag(id.slice(5), back);
+  if (id.startsWith('crest:')) return crestTag(id.slice(6), back);
+  if (id.startsWith('grace:')) return graceTag(id.slice(6), back);
+  if (id === 'core') { const b = BOON.bc; return back ? { title: b.n, right: '裏', lines: [{ h: esc('与ダメージ +2% × コンボ（最大 +80%）') }, { h: esc('コンボの猶予 -40%') }], ops: [['F', '表へ']] } : { title: b.n, right: '芯', lines: b.d.map((l) => ({ h: esc(l) })), ops: [['F', 'めくる'], ['R', '表']] }; }
+  if (id === 'face') {
+    if (back) {
+      const tot = {}; Object.keys(BASE_ATTR).forEach((k) => { tot[k] = { b: BASE_ATTR[k], j: k === 'str' ? 2 : 0, r: 0 }; });
+      SLOTS.forEach((sl) => { const it = ITEM[S.eq[sl]]; Object.entries(it.innate || {}).forEach(([k, v]) => { if (tot[k]) tot[k].r += v; }); });
+      const lines = Object.entries(tot).map(([k, v]) => ({ h: esc(`${ATTR_JA[k]} ${v.b + v.j + v.r}`) + `<span class="s">${esc(`　素 ${v.b}${v.j ? `・剣士 ${v.j}` : ''}${v.r ? `・遺物 ${v.r}` : ''}`)}</span>` }));
+      lines.push({ h: esc('防御 3　遺物 3'), cls: 's' });
+      return { title: '剣士', right: '裏', lines: lines.slice(0, 6), ops: [['F', '表へ']] };
+    }
+    return { title: '剣士', right: '剣の型', lines: [{ h: dia(col('--kw-melee')) + esc('型 応報（攻撃を待って取る）') }, { h: dia(col('--shu')) + esc('依頼 燃え尽き 12 / 50') }, { h: dia(col('--up')) + esc('加速 5 秒・硬化 2 秒') }], ops: [['F', 'めくる'], ['R', '背']] };
+  }
+  if (id === 'inro') {
+    if (back) return { title: '印籠', right: '裏', lines: SKILL_SLOTS.map((s, k) => ({ h: esc(s.st ? `${STONES[s.st].n}: ${s.runes.map((r) => RUNES[r].n).join('・') || '札なし'}` : `空き（鉤 ${SLOT_LINKS[k]}）`) })).concat([{ h: esc('連携 引き回し（鎖鎌→旋風斬り）'), cls: 's' }]), ops: [['F', '表へ']] };
+    return { title: '印籠', right: 'スキル 4', lines: SKILL_SLOTS.map((s, k) => (s.st ? { h: dia(col(STONES[s.st].c)) + esc(`${STONES[s.st].n}　札 ${s.runes.length} / ${SLOT_LINKS[k]}`) } : { h: '<span class="s">○</span>' + esc(`空き　札 0 / ${SLOT_LINKS[k]}`), cls: 's' })), ops: [['Enter', '開く'], ['F', 'めくる']] };
+  }
+  if (id === 'tsuzura') return { title: '葛籠', right: '', lines: [{ h: dia(col('--gold')) + esc('遺物 9・スキル石 3') }, { h: '<span style="color:#fff">●</span>' + esc('新着 2') }], ops: [['Enter', '開く']] };
+  if (id === 'purse') return { title: '銭袋', right: '', lines: [{ h: dia(col('--gold')) + esc('銭 148') }], ops: [] };
+  if (id === 'keys') return { title: '鍵束', right: '', lines: [{ h: dia(col('--gold')) + esc('鍵 2（宝箱・扉）') }], ops: [] };
+  if (id === 'bottles') return { title: '回復の瓶', right: '', lines: [{ h: dia(col('--tr-crimson')) + esc('3 本（1 本で生命 30%）') }], ops: [] };
+  return null;
+}
+function tagHtml(tg, w) {
+  let h = `<div class="nm"><span>${esc(tg.title)}</span><span class="r">${esc(tg.right || '')}</span></div>`;
+  if (tg.pre) h = tg.pre + h;
+  tg.lines.forEach((l) => { h += `<div class="ln ${l.cls || ''}">${l.h}</div>`; });
+  if (tg.ops && tg.ops.length) h += `<div class="ln ops">${tg.ops.map(([k, l]) => `<span class="op"><span class="kc">${esc(k)}</span>${esc(l)}</span>`).join('')}</div>`;
+  return h;
+}
+const tagHeight = (tg) => 1 + 4 + 12 + (tg.pre ? 10 : 0) + tg.lines.length * 10 + (tg.ops && tg.ops.length ? 10 : 0) + 3 + 1;
+const tagLineCount = (tg) => 1 + (tg.pre ? 1 : 0) + tg.lines.length + (tg.ops && tg.ops.length ? 1 : 0);
+
+function avoidRects() {
+  if (S.view === 'back') return [];
+  return [[400, 0, 80, 26], [10, 218, 50, 52], [280, 140, 66, 52]];
+}
+function placeTag(o, h, w) {
+  const left = o.side === 'l';
+  const x = left ? 10 : 318;
+  const av = avoidRects();
+  const hit = (y) => av.some(([ax, ay, aw, ah]) => x < ax + aw && x + w > ax && y < ay + ah && y + h > ay);
+  const pref = Math.round(Math.max(6, Math.min(270 - h - 6, o.ay - 18)));
+  for (let d = 0; d < 270; d += 2) {
+    for (const y of [pref - d, pref + d]) if (y >= 6 && y + h <= 264 && !hit(y)) return { x, y, w, h, eyeRight: left };
+  }
+  return { x, y: pref, w, h, eyeRight: left };
+}
+let lastTag = null;
+function renderUI() {
+  let html = '';
+  tagGeom = null;
+  lastTag = null;
+  S._fixedLines = 0; S._fixedNums = 0;
+  if (S.view === 'floor' && S.floorPhase === 'floor') {
+    html += `<div class="floorlab" style="left:${floorLabel.x}px;top:${floorLabel.y}px;width:${floorLabel.w}px">${esc(ITEM.f1.base)}</div>`;
+    S._fixedLines = 1;
+  } else if (!S.turn) {
+    let tg = null, geom = null;
+    if (S.view === 'shelf') {
+      const id = shelfFocusItem();
+      if (id) tg = S.flipped ? tagItemBack(ITEM[id], 'main') : compareTag(id, S.eq.main, '紐を離す');
+      else if (S.focus.startsWith('cord:')) tg = tagFor(S.focus, S.flipped);
+      if (tg) geom = { x: 200, y: 196, w: 272, h: tagHeight(tg), string: false };
+    } else if (S.trial && S.focus === 'r:main') {
+      tg = S.flipped ? tagItemBack(ITEM[S.trial], 'main') : compareTag(S.trial, S.eq.main, '葛籠へ');
+    } else {
+      tg = tagFor(S.focus, S.flipped);
+    }
+    if (tg) {
+      if (!geom) {
+        const o = currentObjs().find((q) => q.id === S.focus);
+        const w = S.view === 'back' && o && o.side === 'r' ? 154 : 152;
+        geom = Object.assign(placeTag(o || { side: 'l', ay: 100 }, tagHeight(tg), w), { string: true });
+        if (S.view === 'back' && o && o.side === 'r') geom.x = 318;
+      }
+      tagGeom = geom;
+      lastTag = tg;
+      html += `<div class="tagc" style="left:${geom.x}px;top:${geom.y}px;width:${geom.w}px">${geom.string ? `<span class="eye" style="${geom.eyeRight ? 'right:2px' : 'left:2px'}"></span>` : ''}${tagHtml(tg)}</div>`;
+    }
+  }
+  ui.innerHTML = html;
+  checkOverflow();
+  renderBudget();
+}
+function checkOverflow() {
+  ui.querySelectorAll('.ln, .nm').forEach((el) => {
+    if (el.scrollWidth > el.clientWidth + 0.5) console.warn('はみ出し:', el.textContent);
+  });
+  const tg = ui.querySelector('.tagc');
+  if (tg) {
+    const r = tg.getBoundingClientRect(), s = r.width / tg.offsetWidth;
+    const top = (r.top - ui.getBoundingClientRect().top) / s, h = r.height / s;
+    if (top + h > 270.5) console.warn('荷札が箱の外へ', top, h);
+  }
+}
+
+// ============================================================
+// 情報の予算（描いた物を数える）
+// ============================================================
+let lastBudget = '';
+function renderBudget() {
+  const tg = lastTag;
+  const tagLines = tg ? tagLineCount(tg) : 0;
+  const tagLimit = S.flipped ? 8 : 6;
+  const shelfOn = S.view === 'shelf';
+  const rows = [
+    ['常設の文字', '0 行', `${S._fixedLines} 行`, S._fixedLines === 0, S._fixedLines ? '床の札（ゲーム画面の側）' : ''],
+    [`荷札（${S.flipped ? '裏' : '表'}）`, `${tagLimit} 行`, `${tagLines} 行`, tagLines <= tagLimit, tg && tg.pre ? '上段の札の列を 1 行と数える' : ''],
+    ['主役の物の絵', '12 個', `${M.objs} 個`, M.objs <= 12, ''],
+    ['付属の印', '24 個', `${M.marks} 個`, M.marks <= 24, '札・空き鉤・結び目・紋・加護の点・芽・新着など'],
+    ['引き糸', '常時 0・引いた 1 本で 8 本', `${M.threads} 本`, M.threads <= 8 && (M.threads === 0 || !!S.pulled), ''],
+    ['組紐', '4 本 + 緩み 2 本', `${M.cords} 本 + ${M.slack} 本`, M.cords <= 4 && M.slack <= 2, ''],
+    ['常設の数字', '0', S._fixedLines ? '0（床の札は名前だけ）' : '0', true, ''],
+    ['荷札の数', '1 枚', `${tg ? 1 : 0} 枚`, true, ''],
+  ];
+  if (shelfOn) rows.push(['棚の絵', '24 個 / 頁', `${M.shelf} 個`, M.shelf <= 24, `角の印 ${M.shelfMarks}（新着・愛用・がらくた・芽）は棚の側で数える`]);
+  const key = JSON.stringify(rows);
+  if (key === lastBudget) return;
+  lastBudget = key;
+  document.getElementById('budget').innerHTML = `<table><thead><tr><th>区分</th><th>上限</th><th>この画面</th></tr></thead><tbody>${rows.map(([a, b, c, ok, note]) => `<tr><td>${esc(a)}${note ? `<div class="small">${esc(note)}</div>` : ''}</td><td>${esc(b)}</td><td class="n ${ok ? 'ok' : 'over'}">${esc(c)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ============================================================
+// 入力（5 つの動詞: 移る・決定・戻る・めくる・振り向く）
+// ============================================================
+function move(dx, dy) {
+  if (S.view === 'floor' && S.floorPhase === 'floor') return;
+  const objs = currentObjs();
+  const cur = objs.find((o) => o.id === S.focus);
+  if (!cur) { S.focus = objs[0].id; return after(); }
+  // 背紋の札は ←→ で 1 枚ずつ（端で隣の物へ）
+  if (S.focus.startsWith('crest:') && dx !== 0 && !S.flipped) {
+    const n = lnCards(S.focus.slice(6)).length;
+    const ni = S.cardIdx + dx;
+    if (ni >= 0 && ni < n) { S.cardIdx = ni; return after(); }
+  }
+  let best = null, bs = 1e9;
+  objs.forEach((o) => {
+    if (o === cur) return;
+    const vx = o.cx - cur.cx, vy = o.cy - cur.cy;
+    const along = vx * dx + vy * dy;
+    if (along <= 1) return;
+    const perp = Math.abs(vx * dy - vy * dx);
+    const sc = along + perp * 2.2;
+    if (sc < bs) { bs = sc; best = o; }
+  });
+  if (best) {
+    S.focus = best.id;
+    S.flipped = false;
+    if (best.id.startsWith('crest:')) S.cardIdx = dx < 0 ? lnCards(best.id.slice(6)).length - 1 : 0;
+  }
+  after();
+}
+function decide() {
+  if (S.view === 'floor' && S.floorPhase === 'floor') return;
+  const id = S.focus;
+  if (id.startsWith('cord:')) {
+    const k = id.slice(5);
+    S.pulled = S.pulled === k ? null : k;
+    return after();
+  }
+  if (S.trial && id === 'r:main') { S.eq.main = S.trial; S.trial = null; return after(); }
+  if (S.view === 'shelf' && id.startsWith('shelf:')) {
+    const i = +id.slice(6);
+    const nid = S.shelf[i];
+    if (!nid) return;
+    S.shelf[i] = S.eq.main; S.eq.main = nid;
+    return after();
+  }
+  if (id === 'inro' || id === 'tsuzura' || id === 'r:head' || id === 'r:armor' || id === 'r:main' || id === 'r:ring' || id === 'r:boots' || id === 'r:amulet') {
+    // 見本では開く先（印籠の段・葛籠・蔵の棚）を省き、揺れだけで返す
+    S.nudge = { id, t0: performance.now() };
+  }
+}
+function backKey() {
+  if (S.flipped) { S.flipped = false; return after(); }
+  if (S.trial) { S.trial = null; return after(); }
+  if (S.pulled) { S.pulled = null; return after(); }
+}
+function flipTag() { S.flipped = !S.flipped; after(); }
+function turnAround() {
+  if (S.view !== 'front' && S.view !== 'back') return;
+  const from = S.view === 'back' ? 'back' : 'front';
+  const to = from === 'back' ? 'front' : 'back';
+  S.turn = { from, to, t0: performance.now() };
+  S.flipped = false;
+  if (S.trial) { S.trial = null; }
+  // 振り向いた先で焦点を近い物へ
+  setTimeout(() => {
+    const keep = S.focus.startsWith('cord:') ? S.focus : null;
+    if (keep) S.focus = keep; else S.focus = to === 'back' ? 'crest:ash' : 'r:main';
+    S.cardIdx = 0;
+    dirty = true;
+  }, 230);
+  renderUI();
+}
+function openTrial() {
+  S.holdStart = 0;
+  S.floorPhase = 'open';
+  S.trial = 'f1';
+  S.focus = 'r:main';
+  S.view = 'front';
+  after();
+}
+function after() { dirty = true; }
+
+
+window.addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (document.activeElement && document.activeElement.tagName === 'BUTTON' && (k === 'Enter' || k === ' ')) return;
+  if (/^[1-5]$/.test(k)) { setScene(+k); return; }
+  const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (map[k]) { e.preventDefault(); move(...map[k]); return; }
+  if (k === 'Enter') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (S.view === 'floor' && S.floorPhase === 'floor') { S.holdStart = performance.now(); return; }
+    decide(); return;
+  }
+  if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); backKey(); return; }
+  if (k === 'f' || k === 'F' || k === ' ') { e.preventDefault(); flipTag(); return; }
+  if (k === 'r' || k === 'R') { e.preventDefault(); turnAround(); return; }
+});
+window.addEventListener('keyup', (e) => { if (e.key === 'Enter' && S.holdStart) { S.holdStart = 0; dirty = true; } });
+
+// マウス: 一番近い物に吸い付く。焦点の物をもう一度押すと決定
+const stage = document.getElementById('stage');
+let scale = 1;
+function toLogical(e) { const r = stage.getBoundingClientRect(); return [(e.clientX - r.left) / scale, (e.clientY - r.top) / scale]; }
+function nearest(x, y) {
+  let best = null, bd = 1e9;
+  currentObjs().forEach((o) => {
+    const dx = Math.max(o.x - x, 0, x - (o.x + o.w)), dy = Math.max(o.y - y, 0, y - (o.y + o.h));
+    const d = Math.hypot(dx, dy);
+    if (d < bd) { bd = d; best = o; }
+  });
+  return bd < 26 ? best : null;
+}
+stage.addEventListener('mousemove', (e) => {
+  if (S.turn) return;
+  const [x, y] = toLogical(e);
+  if (tagGeom && x >= tagGeom.x && x <= tagGeom.x + tagGeom.w && y >= tagGeom.y && y <= tagGeom.y + 80) return;
+  const o = nearest(x, y);
+  if (o && o.id !== S.focus) { S.focus = o.id; S.flipped = false; if (o.id.startsWith('crest:')) S.cardIdx = 0; dirty = true; }
+});
+stage.addEventListener('mousedown', (e) => {
+  stage.focus();
+  const [x, y] = toLogical(e);
+  const o = nearest(x, y);
+  if (S.view === 'floor' && S.floorPhase === 'floor') { if (o) S.holdStart = performance.now(); return; }
+  if (!o) return;
+  if (o.id === S.focus) decide(); else { S.focus = o.id; S.flipped = false; dirty = true; }
+});
+window.addEventListener('mouseup', () => { if (S.holdStart) { S.holdStart = 0; dirty = true; } });
+stage.addEventListener('contextmenu', (e) => { e.preventDefault(); backKey(); });
+
+// ============================================================
+// 画面の外（場面の切り替え・ボタン・狙い）
+// ============================================================
+function renderChrome() {
+  const nav = document.getElementById('scenes');
+  nav.innerHTML = SCENES.map((s) => `<button class="btn" data-s="${s.k}" aria-pressed="${s.k === S.scene}">${s.k} ${esc(s.n)}</button>`).join('');
+  nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { setScene(+b.dataset.s); stage.focus(); }));
+  const sc = SCENES[S.scene - 1];
+  document.getElementById('aim').innerHTML = `<h2>${sc.k}. ${esc(sc.n)}</h2>${sc.aim.map((a) => `<p>${esc(a)}</p>`).join('')}<div class="keys">${sc.keys.map(([k, l]) => `<b>${esc(k)}</b>${esc(l)}`).join('　')}　<b>1〜5</b>場面</div>`;
+}
+function renderPad() {
+  const pad = document.getElementById('pad');
+  const bs = [['←', () => move(-1, 0)], ['↑', () => move(0, -1)], ['↓', () => move(0, 1)], ['→', () => move(1, 0)], ['決定', () => { if (S.view === 'floor' && S.floorPhase === 'floor') openTrial(); else decide(); }], ['戻る', backKey], ['めくる', flipTag], ['振り向く', turnAround]];
+  pad.innerHTML = bs.map(([l], i) => `<button class="btn" data-i="${i}">${esc(l)}</button>`).join('');
+  pad.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { bs[+b.dataset.i][1](); }));
+}
+function layout() {
+  const sw = document.getElementById('stageWrap');
+  const avail = sw.clientWidth;
+  let s = avail >= 480 ? Math.floor(avail / 480) : avail / 480;
+  s = Math.min(s, 3);
+  scale = s;
+  stage.style.width = `${480 * s}px`; stage.style.height = `${270 * s}px`;
+  cv.style.width = `${480 * s}px`; cv.style.height = `${270 * s}px`;
+  ui.style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', layout);
+
+let lastFrame = 0;
+function loop(t) {
+  requestAnimationFrame(loop);
+  if (dirty) { renderUI(); dirty = false; }
+  if (t - lastFrame < 33) return;
+  lastFrame = t;
+  draw(t);
+  renderBudget();
+}
+renderPad();
+layout();
+setScene(1);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

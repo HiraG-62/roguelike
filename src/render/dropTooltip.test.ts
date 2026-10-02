@@ -43,7 +43,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-const melee: AffixRoll = { key: "meleeDamagePct", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
+const melee: AffixRoll = { key: "damageVsStaggered", value: 30, nominal: 25, flux: 0.6, color: "crimson", origin: "found" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -198,6 +198,29 @@ describe("注目の描画", () => {
     drawDropFocus(ctx, state, null, 0, 0, false);
     expect(calls.get("arc") ?? 0, "環は描く").toBeGreaterThan(0);
     expect(calls.get("fillRect") ?? 0, "ポップアップの矩形は描かない").toBe(0);
+  });
+
+  it("注目中の台座には環とキー案内だけ描き、性能ポップアップは描かない。案内は台座の動詞で、遠ければキー名を出さない", async () => {
+    const { drawDropFocus, focusHint, focusVerb } = await import("./dropTooltip");
+    const { actionKeyLabel } = await import("../core/input");
+    const { focusedInteract } = await import("../system/interact");
+    const state = createGame(1);
+    state.floorItems = [];
+    state.skills.floorStones = [];
+    state.contracts.contractor = null;
+    const p = state.player.body.pos;
+    const ware = { kind: "key" as const, key: "", price: 10, base: 10, pos: { x: p.x + 10, y: p.y }, used: false };
+    state.economy.merchants = [{ enemyId: -1, kind: "market", pos: { ...p }, wares: [ware], greeted: true, provoked: false, rerolls: 0 }];
+    const { ctx, calls } = fakeContext();
+    drawDropFocus(ctx, state, null, 0, 0);
+    expect(calls.get("arc") ?? 0, "環を描く").toBeGreaterThan(0);
+    expect(calls.get("fillRect") ?? 0, "ポップアップの矩形は描かない").toBe(0);
+    const near = focusedInteract(state, ware.pos);
+    if (!near) throw new Error("注目が無い");
+    const verb = focusVerb(near);
+    expect(focusHint(near).startsWith(actionKeyLabel("interact")), "手が届けばキー名から").toBe(true);
+    expect(focusHint(near).endsWith(verb), "動詞で終わる").toBe(true);
+    expect(focusHint({ ...near, inReach: false }).includes(actionKeyLabel("interact")), "手が届かなければキー名を出さない").toBe(false);
   });
 
   it("注目するものが無ければ何も描かない", async () => {

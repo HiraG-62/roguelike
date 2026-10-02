@@ -1,0 +1,29 @@
+{
+  "_fields": {
+    "riposte": "応手（受け流し・カウンター・見切りなど、武器の型が応手に数える出来事）1 回で戻る気力",
+    "finisher": "終撃の命中 1 回で戻る気力（近接の 1 振りで数えるのは MANA.meleeTargetCap 体まで）",
+    "perMeter": "遠い命中: minDistance を超えた距離 1m ごとに戻る気力（射撃・遠距離スキルの命中 1 回ごと）",
+    "minDistance": "遠い命中: これより遠い命中だけ数える。px（10px = 1m）",
+    "perCombo": "コンボの命中: 近接の命中 1 回で、今のコンボ数 × この値の気力（comboCap で頭打ち）",
+    "comboCap": "コンボの命中: 数えるコンボ数の上限",
+    "perDamage": "受け止め: 盾の構え・不退で受けた被ダメージ（軽減前）1 につき戻る気力",
+    "perSec": "継続ダメージの刻み: 自分が付けた燃焼・毒などの継続ダメージ 1 つが敵を刻む 1 秒あたりの気力",
+    "tipHit": "先端の命中（突きの穂先・鞭の先）1 回で戻る気力",
+    "skillHit": "スキルの命中 1 回（1 体）で戻る気力",
+    "backstab": "背面の命中 1 回で戻る気力（攻撃中の敵の背後・影潜りの直後）",
+    "reaction": "敵に状態異常の反応を起こすと戻る気力",
+    "minionHit": "設置物・連動体の命中 1 回（1 体）で戻る気力。設置物は爆ぜる・回る・崩れる一撃だけ数える（引力球・氷結地帯・泥沼の 0.5 秒ごとの刻みは数えない）",
+    "boonFired": "祝福の加護（Rule）が 1 回発動するごとに戻る気力"
+  },
+  "swordsman": { "riposte": 15, "finisher": 8 },
+  "hunter": { "perMeter": 0.4, "minDistance": 40 },
+  "brawler": { "perCombo": 0.25, "comboCap": 12 },
+  "shieldBearer": { "perDamage": 0.15 },
+  "hexer": { "perSec": 1.2 },
+  "lancer": { "tipHit": 3 },
+  "invoker": { "skillHit": 1.5 },
+  "shadow": { "backstab": 6 },
+  "alchemist": { "reaction": 10 },
+  "onmyoji": { "minionHit": 2 },
+  "miko": { "boonFired": 3 }
+}

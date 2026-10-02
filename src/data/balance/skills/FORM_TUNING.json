@@ -1,6 +1,4 @@
 {
-  "_note": "変身の共通: 変身先の武器種がジョブの得意なら持続を伸ばす / 切れた後の移動倍率と秒",
-  "favoredDurationMul": 1.3,
-  "recoverTime": 1,
+  "_note": "変身の共通: 解けた後の反動（SkillRunState.formRecover）の間の移動倍率。反動の秒は変身ごとの recover",
   "recoverMoveMul": 0.7
 }

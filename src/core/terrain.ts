@@ -57,7 +57,7 @@ export interface TerrainLayer {
   /** 煙のあるセル。毎ステップ全セルを走査しないための索引 */
   smokeCells: Set<number>;
   /**
-   * タイル index → 崩れる床（rubble）に敵が乗り続けている秒（地裂きの刻印符「地崩れ」。system/terrain.ts）。
+   * タイル index → 崩れる床（rubble）に敵が乗り続けている秒（共通技「地裂き」「地叩き」・改鋳「余震」。system/terrain.ts）。
    * 誰も乗っていないステップで 0 に戻る。描画はこの値で床を揺らす（崩れる予告）
    */
   rubbleLoad: Float64Array;

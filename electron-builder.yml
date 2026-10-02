@@ -1,6 +1,6 @@
 # Steam にそのまま上げられる展開済みフォルダ（release/win-unpacked/）を作る。インストーラは Steam 外で配るときだけ
-appId: com.hirag.depthbreaker
-productName: DEPTHBREAKER
+appId: com.hirag.bokuen
+productName: BOKUEN
 directories:
   output: release
 files:

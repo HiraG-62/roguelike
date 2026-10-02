@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { ENERGY, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { currentBullet } from "../loot/bullets";
-import type { TriggeredEffect } from "../loot/types";
+import { DEFAULT_TRAIT_STATS, type TriggeredEffect } from "../loot/types";
 import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
@@ -12,7 +12,7 @@ import { applyStats, dashTime, meleeStep } from "./player";
 import { applyStagger } from "./poise";
 import { updateProjectiles } from "./projectiles";
 import { applyBurn, applyChill, applyOnHitStatus, updateStatusEffects } from "./statusEffects";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import { fireTrigger } from "./triggers";
 
 /** 1 段目を振り切るまで回す */
@@ -22,7 +22,7 @@ function swingOnce(state: ReturnType<typeof arena>): void {
 }
 
 function meleeDamageWith(meleeDamageMul: number): number {
-  const state = arena(5, { meleeDamageMul });
+  const state = arena(5, { increased: increasedWith({ melee: meleeDamageMul - 1 }) });
   const e = placeEnemy(state, "boar", 14);
   const before = e.hp;
   swingOnce(state);
@@ -286,8 +286,8 @@ describe("キーストーン", () => {
     expect(state.player.invulnTimer).toBe(0);
   });
 
-  it("ks_juggernaut では被弾ノックバックを受けない", () => {
-    const state = arena(5, { keystones: [KS.juggernaut] });
+  it("性質「踏ん張り」（traits.unmoving）では被弾ノックバックを受けない", () => {
+    const state = arena(5, { traits: { ...DEFAULT_TRAIT_STATS, unmoving: 0.1 } });
     const p = state.player.body.pos;
     damagePlayer(state, 10, { x: p.x - 10, y: p.y });
     expect(state.player.knock).toEqual({ x: 0, y: 0 });
@@ -530,8 +530,8 @@ describe("回復の設計（与ダメの % 回復・共通上限・条件付き�
     expect(state.player.hp, "封鎖中は回復しない").toBe(50);
   });
 
-  it("狂戦士・吸血の誓約では敵がいなくてもHP自然回復しない", () => {
-    const state = arena(5, { hpRegen: 2, keystones: [KS.berserker] });
+  it("吸血の誓約では敵がいなくてもHP自然回復しない", () => {
+    const state = arena(5, { hpRegen: 2, keystones: [KS.vampire] });
     state.player.hp = 50;
     tickHpRegen(state, 1);
     expect(state.player.hp, "誓約で自然回復が止まる").toBe(50);
@@ -613,5 +613,40 @@ describe("奥義ゲージの溜まり方（ENERGY）", () => {
     expect(e.hp, "当たっている").toBeLessThan(5000);
     expect(state.player.energy, "射撃の命中で溜まる").toBeCloseTo(expected, 5);
     expect(expected, "近接より低い割合").toBeLessThan(meleeHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, 1) + 1e-9);
+  });
+});
+
+describe("通常命中のヒットストップの上限（FEEL.hitstopNormalMax）", () => {
+  const DIR = { x: 1, y: 0 };
+  const BIG_HP = 1_000_000;
+  /** 段の JSON が上書きしうる大きな値（上限がなければそのまま止まる） */
+  const OVERRIDDEN_STEPS = 9;
+  const HUGE_POISE = 1_000_000;
+
+  function hitWith(opts: Parameters<typeof damageEnemy>[5]): number {
+    const state = arena();
+    const e = placeEnemy(state, "boar", 14);
+    e.hp = BIG_HP;
+    e.maxHp = BIG_HP;
+    state.hitstop = 0;
+    damageEnemy(state, e, 5, DIR, 0, opts);
+    return state.hitstop;
+  }
+
+  it("通常命中は段が大きな値を持っていても hitstopNormalMax 以下", () => {
+    expect(hitWith({ hitstopSteps: OVERRIDDEN_STEPS, kind: "melee" }), "通常命中").toBeLessThanOrEqual(FEEL.hitstopNormalMax);
+  });
+
+  it("怯ませた命中は上限を受けず重いヒットストップになる", () => {
+    expect(hitWith({ hitstopSteps: 1, poise: HUGE_POISE, kind: "melee" }), "怯ませた命中").toBeGreaterThanOrEqual(FEEL.hitstopHeavy);
+  });
+
+  it("終撃は上限を受けず hitstopFinisher 以上", () => {
+    expect(hitWith({ hitstopSteps: 1, finisher: true, kind: "melee" }), "終撃").toBeGreaterThanOrEqual(FEEL.hitstopFinisher);
+  });
+
+  it("会心は上限を受けない（会心ぶんの加算が残る）", () => {
+    const crit = hitWith({ hitstopSteps: OVERRIDDEN_STEPS, crit: true, kind: "melee" });
+    expect(crit, "会心").toBe(OVERRIDDEN_STEPS + PLAYER.critHitstopBonus);
   });
 });

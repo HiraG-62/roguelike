@@ -3,9 +3,9 @@
 //
 // 性格: 2 本の短刀で素早く刻む。剣より細く・短く・鋭い斬線を、角度とタイミングをずらして手数で見せる。
 // 崩れも速く（振り終わりは 3〜4 枚）、粒は細かい（刃片は 1 ドットが多い）。突進は細く長い一閃 + 後ろへ流れる影の残像
-import { easeSwing, lens, ring, shards, sparkle, streakLine } from "../shapes.mjs";
+import { easeSwing, lens, shards, sparkle, streakLine } from "../shapes.mjs";
 import { hash1 } from "../raster.mjs";
-import { DEG, DIRS, arcSlash } from "../motifs.mjs";
+import { DEG, DIRS, WIDE_DIRS, arcSlash } from "../motifs.mjs";
 
 // -----------------------------------------------------------------------------
 // 共通の道具
@@ -104,7 +104,7 @@ function afterimages(frame, o) {
 }
 
 // -----------------------------------------------------------------------------
-// 左の段（5 連撃）。1 振りごとに違う形: 小さな三日月 → ほぼ直線の返し → 2 回刻み → 低い払い → 挟み斬り
+// 左の段（6 連撃）。1 振りごとに違う形: 小さな三日月 → ほぼ直線の返し → 2 回刻み → 低い払い → 刻みと返し → 挟み斬り
 // -----------------------------------------------------------------------------
 
 /** 1 段目（box reach 14 / size 22）: 前に寄せた小さな半径の三日月。剣の l1 より半径も太さも半分ほど */
@@ -122,14 +122,24 @@ function l3(frame, f) {
 const L4 = { ox: 12, R: 30, T: 8, sweep: 104, tilt: 18, frames: 7, active: 3, tailLen: 0.7, overshoot: 0.05, erodeFrom: 0.08, lines: 1, shards: 5, shardSpeed: 3.2, glint: 3, seed: 1404, streak: 0.3 };
 
 /**
- * 5 段目（終撃・box reach 16 / size 30・heavy）: 2 本の短刀の挟み斬り。上からの三日月と、1 フレーム遅れて下からの三日月（上下反転）が
+ * 5 段目（box reach 11.5 / size 18・2 段ヒット）: 前へ走る短い直線の一閃と、1 フレーム半遅れて下から跳ね返す小さな鉤形の返し。
+ * 4 段目の低い払いと角度も形も変え、終撃の前に手数を挟んで見せる
+ */
+const L5_BACK = { R: 26, T: 8, sweep: 120, tilt: -6, start: 2, frames: 6, active: 3, tailLen: 0.7, overshoot: 0.06, erodeFrom: 0.08, lines: 1, shards: 5, shardSpeed: 3.4, glint: 3, seed: 1551, streak: 0.3 };
+function l5(frame, f) {
+  quickCut(frame, f, { start: 0, grow: 2, fade: 4, ax: 6, ay: -10, bx: 46, by: 6, T: 7, bend: -3, seed: 1541, glint: 3, dust: 4 });
+  arcCut(frame, f, L5_BACK, { x: 14, y: 4, flip: true });
+}
+
+/**
+ * 6 段目（終撃・box reach 10.5 / size 20・heavy）: 2 本の短刀の挟み斬り。上からの三日月と、1 フレーム遅れて下からの三日月（上下反転）が
  * 前で噛み合い、合わさった所で光点と細かい刃片が弾ける
  */
-const L5_UP = { ox: 0, R: 36, T: 11, sweep: 96, tilt: -44, frames: 7, active: 3, tailLen: 0.75, overshoot: 0.04, erodeFrom: 0.06, lines: 2, shards: 6, shardSpeed: 3.8, glint: 2, seed: 1501, streak: 0.3 };
-const L5_DN = { ...L5_UP, start: 1, R: 34, seed: 1511 };
-function l5(frame, f) {
-  arcCut(frame, f, L5_UP, { x: 10, y: 0 });
-  arcCut(frame, f, L5_DN, { x: 10, y: 0, flip: true });
+const L6_UP = { ox: 0, R: 36, T: 11, sweep: 96, tilt: -44, frames: 7, active: 3, tailLen: 0.75, overshoot: 0.04, erodeFrom: 0.06, lines: 2, shards: 6, shardSpeed: 3.8, glint: 2, seed: 1501, streak: 0.3 };
+const L6_DN = { ...L6_UP, start: 1, R: 34, seed: 1511 };
+function l6(frame, f) {
+  arcCut(frame, f, L6_UP, { x: 10, y: 0 });
+  arcCut(frame, f, L6_DN, { x: 10, y: 0, flip: true });
   if (f === 3) sparkle(frame, 44, 0, 3);
   if (f >= 3) {
     shards(frame, f - 3, 10, 1521, (i, rnd) => {
@@ -231,30 +241,44 @@ function backhandCut(frame, f) {
 }
 
 /**
- * 右: 影止め（box reach 16 / size 30・heavy。原点 = 当たりの中心）: 2 本の短刀を影に突き立てる。
- * 左右から斜めの短い突きが中心へ刺さり、刺さった所に潰れた暗い影の輪と、影を縫う細い棘が放射する
+ * 右: 回し斬り（arc 200° reach 21・2 段ヒット）: 身を 1 回転させて 200° を 2 度払う。1 本目の外周の三日月が消えかけたところで、
+ * 半径をひとつ縮めた 2 本目が同じ回りで追う（舞い斬りは 100° を 2 本つなぐ形。こちらは 1 本ずつが広く、二重の輪に見える）
  */
-function shadowPin(frame, f) {
-  quickCut(frame, f, { start: 0, grow: 2, fade: 5, ax: -30, ay: -20, bx: -2, by: -2, T: 5, seed: 2701, glint: 2, dust: 3 });
-  quickCut(frame, f, { start: 1, grow: 2, fade: 5, ax: -30, ay: 20, bx: -2, by: 2, T: 5, seed: 2711, glint: 3, dust: 3 });
-  if (f >= 2) {
-    const age = f - 2;
-    const e = Math.min(0.9, age * 0.2);
-    if (age < 4) ring(frame, { radius: 6 + age * 3, width: 2.4, squash: 0.55, erosion: Math.min(0.9, e + age * 0.1), bright: 0.36 - age * 0.04, seed: 2721 });
-    if (age < 4) {
-      // 影を縫い止める棘: 暗い段の細い線が 6 方向へ
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.3;
-        const r0 = 6 + age * 3;
-        const r1 = 12 + age * 3 + hash1(i, 2722) * 6;
-        streakLine(frame, { ax: Math.cos(a) * r0 * 0.6, ay: Math.sin(a) * r0, bx: Math.cos(a) * r1 * 0.6, by: Math.sin(a) * r1, bright: 0.42 * (1 - age / 4) });
-      }
-    }
-    if (age <= 1) sparkle(frame, 0, 0, 3 - age);
-    shards(frame, age, 8, 2723, (i, rnd) => {
+const SPIN_A = { R: 42, T: 9, sweep: 200, tilt: 0, frames: 8, active: 4, tailLen: 0.8, overshoot: 0.04, erodeFrom: 0.1, lines: 2, shards: 5, shardSpeed: 3, glint: 2, seed: 2551, streak: 0.3 };
+const SPIN_B = { R: 34, T: 8, sweep: 200, tilt: 0, start: 3, frames: 8, active: 4, tailLen: 0.8, overshoot: 0.05, erodeFrom: 0.08, lines: 1, shards: 7, shardSpeed: 3.4, glint: 3, seed: 2561, streak: 0.3 };
+function spinCut(frame, f) {
+  arcCut(frame, f, SPIN_A);
+  arcCut(frame, f, SPIN_B);
+}
+
+/**
+ * 右: 乱舞（box reach 10.5 / size 20・heavy・6 段ヒット。原点 = 自分）: 前で 5 本の短い斬線が角度と側を変えて 1.5 フレームおきに刻まれ、
+ * 刻んだ跡は暗い細線として残り続ける（何度も斬った跡が積み重なって見える）。最後の 6 撃目は大きな X が同時に走って交点が弾ける
+ */
+const FRENZY_CUTS = [
+  { start: 0, ax: 8, ay: -22, bx: 38, by: 10, bend: -4 },
+  { start: 1, ax: 8, ay: 22, bx: 38, by: -10, bend: 4 },
+  { start: 3, ax: 6, ay: -4, bx: 42, by: -6, bend: -2 },
+  { start: 4, ax: 10, ay: -24, bx: 34, by: 20, bend: -4 },
+  { start: 6, ax: 10, ay: 24, bx: 34, by: -20, bend: 4 },
+];
+const FRENZY_END = 14;
+function frenzy(frame, f) {
+  FRENZY_CUTS.forEach((c, i) => {
+    quickCut(frame, f, { ...c, grow: 1, fade: 3, T: 6, seed: 2701 + i * 10, glint: 2, dust: 3 });
+    // 斬った跡: 崩れたあとも暗い細線が残り、終わりに向けて薄れる
+    const settled = c.start + 4;
+    if (f >= settled) streakLine(frame, { ax: c.ax, ay: c.ay, bx: c.bx, by: c.by, bright: 0.34 * (1 - (f - settled) / (FRENZY_END - settled + 1)) });
+  });
+  // 6 撃目: 対角の大きな 2 本が同時に走る X
+  quickCut(frame, f, { start: 8, grow: 2, fade: 4, ax: 2, ay: -28, bx: 44, by: 26, T: 10, bend: -4, bias: 0, seed: 2761, glint: 3, dust: 5 });
+  quickCut(frame, f, { start: 8, grow: 2, fade: 4, ax: 2, ay: 28, bx: 44, by: -26, T: 10, bend: 4, bias: 0, seed: 2771, glint: 4, dust: 5 });
+  if (f === 9 || f === 10) sparkle(frame, 23, 0, f === 9 ? 4 : 3);
+  if (f >= 9) {
+    shards(frame, f - 9, 14, 2781, (i, rnd) => {
       const a = rnd(1) * Math.PI * 2;
-      const sp = 2 + rnd(2) * 3;
-      return { x: 0, y: 0, vx: Math.cos(a) * sp * 0.7, vy: Math.sin(a) * sp, life: 2 + Math.floor(rnd(3) * 3), size: 1 };
+      const sp = 2.5 + rnd(2) * 3.5;
+      return { x: 23, y: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 2 + Math.floor(rnd(3) * 3), size: rnd(4) > 0.7 ? 2 : 1 };
     });
   }
 }
@@ -401,13 +425,15 @@ const FX = {
     "l:1": { sheet: "twinBlades.l2", pivot: "self", base: 14, measure: "reach" },
     "l:2": { sheet: "twinBlades.l3", pivot: "self", base: 14, measure: "reach" },
     "l:3": { sheet: "twinBlades.l4", pivot: "self", base: 14, measure: "reach" },
-    "l:4": { sheet: "twinBlades.l5", pivot: "self", base: 16, measure: "reach" },
+    "l:4": { sheet: "twinBlades.l5", pivot: "self", base: 11.5, measure: "reach" },
+    "l:5": { sheet: "twinBlades.l6", pivot: "self", base: 10.5, measure: "reach" },
     dash: { sheet: "twinBlades.dash", pivot: "self", base: 34, measure: "reach" },
     "r:shadowStep": { sheet: "twinBlades.shadowStep", pivot: "self", base: 34, measure: "reach" },
     "r:crossThrust": { sheet: "twinBlades.crossThrust", pivot: "self", base: 30, measure: "reach" },
     "r:danceCut": { sheet: "twinBlades.danceCut", pivot: "self", base: 22, measure: "reach" },
     "r:backhandCut": { sheet: "twinBlades.backhand", pivot: "self", base: 16, measure: "reach" },
-    "r:shadowPin": { sheet: "twinBlades.shadowPin", pivot: "anchor", base: 16, measure: "reach" },
+    "r:spinCut": { sheet: "twinBlades.spinCut", pivot: "self", base: 21, measure: "reach" },
+    "r:frenzy": { sheet: "twinBlades.frenzy", pivot: "self", base: 10.5, measure: "reach" },
     "branch:crossing": { sheet: "twinBlades.crossing", pivot: "anchor", base: 16, measure: "reach" },
     "branch:flurry": { sheet: "twinBlades.flurry", pivot: "anchor", base: 36, measure: "size" },
     "branch:shadowSplit": { sheet: "twinBlades.shadowSplit", pivot: "anchor", base: 44, measure: "size" },
@@ -431,13 +457,15 @@ export const ATLAS = {
     arcSheetAt("twinBlades.l2", L2, (frame, f) => arcSlash(frame, f, L2), 104),
     { key: "twinBlades.l3", dirs: DIRS, frames: 8, active: 5, size: 112, draw: l3 },
     arcSheetAt("twinBlades.l4", L4, (frame, f) => arcSlash(frame, f, L4), 104),
-    { key: "twinBlades.l5", dirs: DIRS, frames: 8, active: 4, size: 120, draw: l5 },
+    { key: "twinBlades.l5", dirs: DIRS, frames: 8, active: 4, size: 112, draw: l5 },
+    { key: "twinBlades.l6", dirs: DIRS, frames: 8, active: 4, size: 120, draw: l6 },
     { key: "twinBlades.dash", dirs: DIRS, frames: 7, active: 3, size: 176, draw: dash },
     { key: "twinBlades.shadowStep", dirs: DIRS, frames: 8, active: 3, size: 176, draw: shadowStep },
     { key: "twinBlades.crossThrust", dirs: DIRS, frames: 7, active: 4, size: 150, draw: crossThrust },
     { key: "twinBlades.danceCut", dirs: DIRS, frames: 9, active: 6, size: 128, draw: danceCut },
     { key: "twinBlades.backhand", dirs: DIRS, frames: 7, active: 3, size: 112, draw: backhandCut },
-    { key: "twinBlades.shadowPin", dirs: DIRS, frames: 8, active: 3, size: 96, draw: shadowPin },
+    { key: "twinBlades.spinCut", dirs: WIDE_DIRS, frames: 11, active: 6, size: 112, draw: spinCut },
+    { key: "twinBlades.frenzy", dirs: DIRS, frames: FRENZY_END, active: 10, size: 112, draw: frenzy },
     { key: "twinBlades.crossing", dirs: DIRS, frames: 9, active: 4, size: 96, draw: crossing },
     { key: "twinBlades.crossForm", dirs: DIRS, frames: 9, active: 3, size: 96, draw: crossForm },
     { key: "twinBlades.flurry", dirs: 1, frames: 10, active: 6, size: 112, draw: flurry },

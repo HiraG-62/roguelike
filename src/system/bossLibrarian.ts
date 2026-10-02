@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus } from "../data/enemies";
+import { type EnemyDef, depthDamage } from "../data/enemies";
 import { BOSS } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { addFloatingText, spawnBurst, spawnRing } from "./effects";
@@ -96,7 +96,7 @@ function checkDroppedBook(state: GameState, e: Enemy): boolean {
   if (!interrupted) return false;
   ai.timer = NOT_READING;
   e.phase = "chase";
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, DROP_TEXT, BOSS.librarian.color, 1.4, 1.1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, DROP_TEXT, BOSS.librarian.color, 1.4, 1.1, "status");
   spawnBurst(state, e.body.pos, "#e0d8c0", 16, 100, 0.4, 2);
   pushSfx(state, "guardBreak");
   applyStagger(state, e, BOSS.librarian.readDropStagger, { selfInflicted: true });
@@ -181,7 +181,6 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai) return;
   const l = BOSS.librarian;
-  const bonus = depthDamageBonus(state.depth);
   const source = { defKey: e.defKey, roomIndex: e.roomIndex };
   ai.timer = NOT_READING;
   e.phaseTimer = def.strikeTime;
@@ -191,7 +190,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
       pushSfx(state, "wallHit");
       return;
     case LIB_READ_THUNDER:
-      for (const p of ai.points ?? []) blastBoth(state, p, l.thunderRadius, l.thunderDamage + bonus, "#fff4a0", source, e.id);
+      for (const p of ai.points ?? []) blastBoth(state, p, l.thunderRadius, depthDamage(l.thunderDamage, state.depth), "#fff4a0", source, e.id);
       pushSfx(state, "shock");
       return;
     case LIB_READ_PULL:
@@ -199,7 +198,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
       return;
     case LIB_TOPPLE:
       for (const p of ai.points ?? []) {
-        blastBoth(state, p, l.toppleRadius, l.toppleDamage + bonus, l.color, source, e.id);
+        blastBoth(state, p, l.toppleRadius, depthDamage(l.toppleDamage, state.depth), l.color, source, e.id);
         spawnBoneWall(state, Math.floor(p.x / TILE_SIZE), Math.floor(p.y / TILE_SIZE));
       }
       pushSfx(state, "wallHit");
@@ -213,7 +212,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
 function firePages(state: GameState, e: Enemy): void {
   if (isSilenced(e)) return;
   const l = BOSS.librarian;
-  const damage = l.pageDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(l.pageDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, l.pageCount, l.pageSpread)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: l.pageSpeed, damage, color: "#f0f0f0", sourceId: e.id });
@@ -227,7 +226,7 @@ function pullPlayer(state: GameState, e: Enemy): void {
   const p = state.player;
   spawnRing(state, e.body.pos, l.pullRadius, l.color, 0.4);
   if (dist(p.body.pos, e.body.pos) <= l.pullRadius) p.knock = scale(normalize(sub(e.body.pos, p.body.pos)), l.pullForce);
-  spawnShockwave(state, e.body.pos, PULL_RING_RADIUS, l.pullRingDamage + depthDamageBonus(state.depth), e.id);
+  spawnShockwave(state, e.body.pos, PULL_RING_RADIUS, depthDamage(l.pullRingDamage, state.depth), e.id);
 }
 
 /** 予告の形: 頁は線、引力は輪（本棚・雷・倒れる本棚は影） */

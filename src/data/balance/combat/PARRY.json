@@ -1,0 +1,19 @@
+{
+  "_note": "全武器共通の受け流し（system/parry.ts。core-synthesis 3-3 / encounter-core 3-3）。振っていなければいつでも押せて、窓の中の被弾を無効にして相手を怯ませる。敵のコミットした攻撃を止められる唯一の手段（強靭・コミットを無視する）。外すと硬直で攻撃・ダッシュが出せない。無敵時間・粒・浮き文字は剣の右 1 段目の受け流しと共通（WEAPON.artDefaults の parryInvuln / parryParticles / parryColor / parryText）",
+  "_fields": {
+    "windowSec": "押してから受け流しが有効な秒",
+    "recoverSec": "受け流しを外した（窓の間に被弾が無かった）後の硬直の秒。攻撃・射撃・ダッシュが出せず、移動は recoverMoveMul",
+    "windowMoveMul": "窓の間の移動速度の倍率（1 = 等倍）",
+    "recoverMoveMul": "外した硬直の間の移動速度の倍率（1 = 等倍。0 で足が止まる）",
+    "arcDeg": "受け流せる向きの角度（度。正面を中心にした扇。360 で全方位）",
+    "bossPoise": "ボス（と怯まない敵）に入れる怯み値。ダウンのゲージに入るだけで、受け流しで毎回ダウンはしない",
+    "mana": "受け流しが決まったときに回復する気力"
+  },
+  "windowSec": 0.2,
+  "recoverSec": 0.35,
+  "windowMoveMul": 0.5,
+  "recoverMoveMul": 0,
+  "arcDeg": 360,
+  "bossPoise": 40,
+  "mana": 10
+}

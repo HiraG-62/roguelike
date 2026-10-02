@@ -23,19 +23,33 @@ import {
   resetHoldLatch,
   trialKeyOfEntry,
 } from "./hubFlow";
+import { createCraftSave } from "../loot/craftingStore";
 import { createInventoryUi } from "./inventory";
 
 describe("拠点の台から開く画面", () => {
-  it("鍛冶場は残響タブを開く", () => {
-    expect(hubOpenFor("forge"), "鍛冶場 → 装備画面の残響タブ").toEqual({ kind: "inventory", tab: "echo" });
-  });
+  it("鍛冶場は金床の構え、書庫はスキルの頁、庭は芽のある部位の候補で開く", () => {
+    expect(hubOpenFor("forge"), "鍛冶場 → 金床の構え").toEqual({ kind: "inventory", entry: "anvil" });
+    expect(hubOpenFor("library"), "書庫 → スキルの頁").toEqual({ kind: "inventory", entry: "skills" });
+    expect(hubOpenFor("garden"), "庭 → 芽のある部位の候補").toEqual({ kind: "inventory", entry: "bud" });
 
-  it("図書館はスキルタブを開く", () => {
-    expect(hubOpenFor("library"), "図書館 → 装備画面のスキルタブ").toEqual({ kind: "inventory", tab: "skills" });
-  });
+    const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), new Set());
+    const ui = createInventoryUi(createCraftSave());
+    openInventoryAt(session.state, ui, "anvil");
+    expect(ui.stack.map((v) => v.kind), "金床の構えは装束の 1 段").toEqual(["attire"]);
+    expect(ui.stack[0]?.kind === "attire" && ui.stack[0].anvil !== null, "装束が金床の構え").toBe(true);
 
-  it("庭は芽の 2 択つきの装備タブを開く", () => {
-    expect(hubOpenFor("garden"), "庭 → 装備タブ + 芽").toEqual({ kind: "inventory", tab: "equipment", bud: true });
+    openInventoryAt(session.state, ui, "skills");
+    expect(ui.stack.map((v) => v.kind), "装束の上にスキルの頁").toEqual(["attire", "skills"]);
+    expect(ui.anvilSession, "鍛冶場の外では金床の構えにしない").toBe(false);
+
+    const item = generateItem(createRng(3), { itemLevel: 1, foundDepth: 1, now: 0 });
+    const budRoll = { key: "life", value: 1 };
+    session.state.profile.equipment[item.slot] = item;
+    session.state.pendingBud = { itemId: item.id, slot: item.slot, milestone: "kills:50", milestoneLabel: "撃破 50", options: [budRoll, budRoll] };
+    openInventoryAt(session.state, ui, "bud");
+    const top = ui.stack[ui.stack.length - 1];
+    expect(top?.kind, "芽のある部位の候補").toBe("candidates");
+    expect(top?.kind === "candidates" && top.target.kind === "slot" ? top.target.slot : null, "芽のある部位").toBe(item.slot);
   });
 
   it("井戸は起点画面へ進む", () => {
@@ -82,22 +96,21 @@ describe("祭壇の一覧", () => {
 });
 
 describe("拠点で装備画面を開く", () => {
-  it("指定のタブで開き、拠点の state を止める", () => {
+  it("装束で開き、拠点の state を止める", () => {
     const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), new Set());
-    const ui = createInventoryUi();
-    openInventoryAt(session.state, ui, "skills");
+    const ui = createInventoryUi(createCraftSave());
+    openInventoryAt(session.state, ui, "attire");
     expect(ui.open, "装備画面が開く").toBe(true);
-    expect(ui.tab, "スキルタブ").toBe("skills");
+    expect(ui.stack.map((v) => v.kind), "装束の 1 段").toEqual(["attire"]);
     expect(session.state.paused, "拠点の時間を止める").toBe(true);
-    expect(ui.bud.open, "芽の指定が無ければモーダルは開かない").toBe(false);
   });
 
-  it("芽が無ければ庭でもモーダルは開かない", () => {
+  it("芽が無ければ庭でも装束で開く", () => {
     const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), new Set());
-    const ui = createInventoryUi();
-    openInventoryAt(session.state, ui, "equipment", true);
+    const ui = createInventoryUi(createCraftSave());
+    openInventoryAt(session.state, ui, "bud");
     expect(session.state.pendingBud, "芽は無い").toBeNull();
-    expect(ui.bud.open, "芽が無いのでモーダルは閉じたまま").toBe(false);
+    expect(ui.stack.map((v) => v.kind), "候補は積まない").toEqual(["attire"]);
   });
 });
 

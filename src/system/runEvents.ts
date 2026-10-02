@@ -2,16 +2,18 @@ import { ELEMENTS, type Element, ELEMENT_LABEL } from "../core/element";
 import type { Enemy, FloorKind, GameState, RoomState } from "../core/state";
 import { pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, sub } from "../core/vec";
-import { depthHpScale, enemyDef } from "../data/enemies";
-import { CONTRACT, ELITE_GREEDY, FLOOR_KIND, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { enemyDef } from "../data/enemies";
+import { DEEP, ECONOMY, ELITE_GREEDY, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { type EchoWallet, createEchoWallet } from "../loot/crafting";
 import { inversionChance } from "../loot/flux";
 import { TILE_SIZE, inBounds, rectCenterPx, rectContainsPx, toIndex } from "../map/grid";
 import { biomeShape, isInvertedDepth } from "./biomes";
 import { BOONS, applyBoonsToStats, offerBoons } from "./boons";
+import { deepFloorOf, isDeepDepth } from "./chapters";
 import { coreKeepsCurses } from "./boonCores";
 import { damageEnemy, damagePlayer, healPlayer, healSustained } from "./combat";
-import { type Infusion, gainShards, grantCurse, removeBoon } from "./contractors";
+import { type Infusion, grantCurse, removeBoon } from "./contractors";
+import { grantEventCoins } from "./economy";
 import { addFloatingText, shake, spawnBurst } from "./effects";
 import { engagedRoomIndex } from "./engagement";
 import { carriedCount, eliteKindsFor, makeElite, rollElite } from "./elites";
@@ -35,7 +37,7 @@ import { placeTerrain } from "./terrain";
  * ランイベント（docs/ideas/run-expansion.md 3 章）。部屋に入った時・階に入った時・時間・制圧で起きる一時的なルール変更。
  * すべて予告（HUD の 1 行 + 効果音）から RUN_EVENT.warnTime 秒後に始まる。
  * 同時に持てるのは「部屋の枠」1 つと「階の枠」1 つ。発生はすべて state.rng で決定的。
- * 無限の深み（FLOOR_KIND.deepDepth 以降）では階のイベントの一部が「変異」として常に効く
+ * 深み（最深の間の次の階から）では階のイベントの一部が「変異」として常に効く
  */
 
 export const RUN_EVENT_KEYS = [
@@ -253,10 +255,10 @@ function prepareWarn(state: GameState, ev: ActiveRunEvent): void {
   ev.pos = { ...state.player.body.pos };
 }
 
-/** 表の順に確率で引く。allowed が false の種類は引かない（乱数も消費しない） */
+/** 表の順に確率で引く。allowed が false の種類と、解放制で封じた種類は引かない（乱数も消費しない） */
 function rollFirst<K extends RunEventKey>(state: GameState, table: Readonly<Record<K, number>>, allowed: (key: K) => boolean = () => true): K | null {
   for (const key of Object.keys(table) as K[]) {
-    if (!allowed(key)) continue;
+    if (!allowed(key) || state.runMeta.lockedEvents.includes(key)) continue;
     if (state.rng.chance(table[key])) return key;
   }
   return null;
@@ -293,13 +295,13 @@ export function rollFloorEventKey(state: GameState, kind: FloorKind | null = nul
   return rollFirst(state, { ...RUN_EVENT.floorChance, fog });
 }
 
-/** 変異になる階のイベント（積む順） */
-const MUTATION_KEYS: readonly RunEventKey[] = ["frenzyMoon", "bloodMoon", "fog", "elementStorm"];
+/** 変異になる階のイベント（積む順）。予備動作を縮める狂乱の月は「速さでは難しくしない」ので入れない */
+const MUTATION_KEYS: readonly RunEventKey[] = ["bloodMoon", "fog", "elementStorm"];
 
-/** 無限の深み: この深度で常に効く変異（deepDepth から mutationEvery 階ごとに 1 つ増える） */
+/** 深み: この深度で常に効く変異（深み 1 層目で 1 つ、DEEP.mutationEvery 層ごとに 1 つ増える） */
 export function mutationsFor(depth: number): RunEventKey[] {
-  if (depth < FLOOR_KIND.deepDepth) return [];
-  const count = 1 + Math.floor((depth - FLOOR_KIND.deepDepth) / FLOOR_KIND.mutationEvery);
+  if (!isDeepDepth(depth)) return [];
+  const count = 1 + Math.floor((deepFloorOf(depth) - 1) / DEEP.mutationEvery);
   return MUTATION_KEYS.slice(0, Math.min(count, MUTATION_KEYS.length));
 }
 
@@ -362,7 +364,7 @@ export function onRoomCleared(state: GameState, room: RoomState, index: number):
 
 /** 湧いた敵への縛り・イベント・階層の効果（floor.ts の湧かせ処理から） */
 export function onRunEnemySpawned(state: GameState, e: Enemy): void {
-  let hpMul = deepHpMul(state.depth);
+  let hpMul = 1;
   if (hasMod(state, "thickHide")) hpMul *= RUN_MOD.thickHideHpMul;
   if (floorActive(state, "bloodMoon")) hpMul *= RUN_EVENT.bloodMoonHpMul;
   if (hpMul !== 1) scaleHp(e, hpMul);
@@ -370,13 +372,6 @@ export function onRunEnemySpawned(state: GameState, e: Enemy): void {
   // 反転層: 敵はエリートの抽選を 1 回多く引く
   if (isInvertedDepth(state.depth) && !e.elite && !enemyDef(e.defKey).boss) rollElite(state, e);
   if (floorActive(state, "frenzyMoon") && !e.elite) hasten(e);
-}
-
-/** 無限の深み: HP の伸びを deepHpSlope まで寝かせる倍率（深みより浅ければ 1） */
-export function deepHpMul(depth: number): number {
-  if (depth <= FLOOR_KIND.deepDepth) return 1;
-  const target = depthHpScale(FLOOR_KIND.deepDepth) + (depth - FLOOR_KIND.deepDepth) * FLOOR_KIND.deepHpSlope;
-  return target / depthHpScale(depth);
 }
 
 function scaleHp(e: Enemy, mul: number): void {
@@ -539,7 +534,7 @@ const TEXT_LIFT = 20;
 
 function announce(state: GameState, current: ActiveRunEvent): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, eventTitle(current), RUN_EVENT.activeColor, 1.4, 1.4);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, eventTitle(current), RUN_EVENT.activeColor, 1.4, 1.4, "notice");
   pushSfx(state, "runEventStart");
 }
 
@@ -786,7 +781,7 @@ function tickBounty(state: GameState, current: ActiveRunEvent): void {
   const pos = current.pos ?? state.player.body.pos;
   dropRareItem(state, pos);
   state.score += RUN_EVENT.bountyScore;
-  gainShards(state, CONTRACT.shardsBounty);
+  grantEventCoins(state, ECONOMY.income.bounty);
   pushLog(state, "賞金首を仕留めた。", RUN_EVENT.activeColor);
 }
 
@@ -945,7 +940,7 @@ function tickDuel(state: GameState, current: ActiveRunEvent): void {
     if (e.roomIndex !== current.roomIndex || e.hp <= 0) continue;
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "fear", stacks: 1, duration: RUN_EVENT.duel.fearTime, potency: 0 }, "env");
   }
-  gainShards(state, CONTRACT.shardsDuel);
+  grantEventCoins(state, ECONOMY.income.duel);
   pushLog(state, "決闘に勝った。残りの敵が怯えている。", RUN_EVENT.activeColor);
 }
 
@@ -1045,7 +1040,7 @@ const STRIKE_LIFE = 0.3;
 function landStrike(state: GameState, strike: Strike): void {
   const t = RUN_EVENT.thunder;
   const p = state.player.body;
-  if (circlesOverlap(strike.pos.x, strike.pos.y, t.radius, p.pos.x, p.pos.y, p.radius)) damagePlayer(state, t.damage, strike.pos);
+  if (circlesOverlap(strike.pos.x, strike.pos.y, t.radius, p.pos.x, p.pos.y, p.radius)) damagePlayer(state, t.damage, strike.pos, undefined, { cause: { kind: "event", key: "thunderstorm" } });
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.phase === "spawning") continue;
     if (!circlesOverlap(strike.pos.x, strike.pos.y, t.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
@@ -1083,13 +1078,13 @@ function tickReaperPass(state: GameState, current: ActiveRunEvent): void {
   const body = state.player.body;
   if (!pos || !circlesOverlap(pos.x, pos.y, RUN_EVENT.reaperPass.radius, body.pos.x, body.pos.y, body.radius)) return;
   current.memo = 1;
-  damagePlayer(state, RUN_EVENT.reaperPass.damage, pos);
+  damagePlayer(state, RUN_EVENT.reaperPass.damage, pos, undefined, { cause: { kind: "event", key: "reaperPass" } });
 }
 
 /** 通り過ぎた後に冥の残響が残る */
 function finishReaperPass(state: GameState): void {
   state.runEvents.pendingEchoes.umbra += RUN_EVENT.reaperPass.echoes;
-  addFloatingText(state, { ...state.player.body.pos }, `冥の残響 +${RUN_EVENT.reaperPass.echoes}`, RUN_EVENT.activeColor, 1, 1.2);
+  addFloatingText(state, { ...state.player.body.pos }, `冥の残響 +${RUN_EVENT.reaperPass.echoes}`, RUN_EVENT.activeColor, 1, 1.2, "notice");
 }
 
 /**
@@ -1165,7 +1160,7 @@ function markThiefTarget(state: GameState, ev: ActiveRunEvent): void {
   if (!item) return;
   ev.targetId = item.id;
   ev.pos = { ...item.pos };
-  addFloatingText(state, { x: item.pos.x, y: item.pos.y - TEXT_LIFT }, THIEF_WARN_TEXT, RUN_EVENT.thief.color, 1, RUN_EVENT.warnTime);
+  addFloatingText(state, { x: item.pos.x, y: item.pos.y - TEXT_LIFT }, THIEF_WARN_TEXT, RUN_EVENT.thief.color, 1, RUN_EVENT.warnTime, "notice");
 }
 
 /** 始まり: 狙った遺物の向こう側に強欲のの盗賊が湧く（出現の魔法陣が予告）。遺物が拾われていれば来ない */

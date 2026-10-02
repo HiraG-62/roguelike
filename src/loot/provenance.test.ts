@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
+import { BUD } from "../data/tuning";
 import { createRng } from "../core/rng";
 import { damagePlayer } from "../system/combat";
 import { chooseBud } from "../system/loot";
@@ -22,7 +23,10 @@ import { createEmptyProfile, createEmptyProvenance, type Item, type Profile } fr
 /** 200 seed ぶん生成する重いテスト。全体を並列で回すと 5 秒の既定を超えることがあるので延ばす */const HEAVY_TEST_TIMEOUT_MS = 20_000;
 
 const NOW = 1_700_000_000_000;
-const KILLS_FOR_FIRST_BUD = 50;
+/** 撃破の最初の節目。key は基準の値（50）のまま、判定は倍率を掛けた値 */
+const KILLS_BASE = 50;
+const KILLS_FOR_FIRST_BUD = KILLS_BASE * BUD.thresholdScale;
+const SCALE = BUD.thresholdScale;
 
 function weapon(seed = 1, margin = 3): Item {
   const item = generateItem(createRng(seed), { itemLevel: 10, foundDepth: 10, slot: "mainHand", now: NOW });
@@ -101,7 +105,7 @@ describe("芽", () => {
     const pending = state.pendingBud;
     expect(pending).not.toBeNull();
     if (pending === null) return;
-    expect(pending.milestone).toBe(`kills:${KILLS_FOR_FIRST_BUD}`);
+    expect(pending.milestone).toBe(`kills:${KILLS_BASE}`);
     expect(pending.slot).toBe("mainHand");
     const def = milestoneDef(pending.milestone);
     expect(def?.color).toBe("crimson");
@@ -141,7 +145,7 @@ describe("芽", () => {
     const pending = state.pendingBud;
     if (pending === null) throw new Error("no bud");
     const statsBefore = state.stats;
-    const chosen = chooseBud(state, 1);
+    const chosen = chooseBud(state, pending.slot, 1);
     expect(chosen?.key).toBe(pending.options[1].key);
     const item = state.profile.equipment.mainHand;
     expect(item?.affixes.at(-1)?.key).toBe(pending.options[1].key);
@@ -151,12 +155,12 @@ describe("芽", () => {
     expect(item?.budOffer).toBeNull();
     expect(state.pendingBud).toBeNull();
     expect(state.stats).not.toBe(statsBefore);
-    expect(chooseBud(state, 0)).toBeNull();
+    expect(chooseBud(state, pending.slot, 0)).toBeNull();
   });
 
   it("選ばなかった枝は二度と出ない（以降の芽の候補にも現れない）", () => {
     const item = weapon(11, 4);
-    item.provenance = { ...createEmptyProvenance(), kills: 600, justDodges: 100, hurtTaken: 200 };
+    item.provenance = { ...createEmptyProvenance(), kills: 600 * SCALE, justDodges: 100 * SCALE, hurtTaken: 200 * SCALE };
     const rejected = new Set<string>();
     for (let i = 0; i < 4; i++) {
       offerNextBud(item);
@@ -172,7 +176,7 @@ describe("芽", () => {
 
   it("余白が 0 なら芽は出ない。余白を使い切ると来歴から銘が刻まれ、名前が銘になる", () => {
     const item = weapon(12, 1);
-    item.provenance = { ...createEmptyProvenance(), kills: 300, killsByEnemy: { slime: 300 }, justDodges: 50 };
+    item.provenance = { ...createEmptyProvenance(), kills: 300 * SCALE, killsByEnemy: { slime: 300 * SCALE }, justDodges: 50 * SCALE };
     expect(offerNextBud(item)).toBe(true);
     chooseBudOnItem(item, 0);
     expect(item.margin).toBe(0);
@@ -184,11 +188,11 @@ describe("芽", () => {
 
   it("findPendingBud は装備中で芽を持つ最初のアイテム", () => {
     const item = weapon(13, 2);
-    item.provenance = { ...createEmptyProvenance(), justDodges: 20 };
+    item.provenance = { ...createEmptyProvenance(), justDodges: 20 * SCALE };
     offerNextBud(item);
     const pending = findPendingBud(profileWith(item));
     expect(pending?.itemId).toBe(item.id);
-    expect(pending?.milestoneLabel).toBe("見切り 20");
+    expect(pending?.milestoneLabel).toBe(`見切り ${20 * SCALE}`);
   });
 });
 
@@ -202,23 +206,28 @@ describe("銘", () => {
 });
 
 describe("帰還の節目（2026-09-24 第 4 弾）", () => {
-  it("帰還の出来事で returns が積もり、最初の帰還で芽が 1 つ出る", () => {
+  it("帰還の出来事で returns が積もり、節目の値に届いた帰還で芽が 1 つ出る", () => {
     const state = createGame(1, "1", profileWith(weapon(21, 3)));
+    for (let i = 0; i < SCALE - 1; i++) recordProvenance(state, { kind: "returned" });
+    expect(state.pendingBud, "届く直前は芽が出ない").toBeNull();
     recordProvenance(state, { kind: "returned" });
     const item = state.profile.equipment.mainHand;
-    expect(item?.provenance?.returns).toBe(1);
+    expect(item?.provenance?.returns).toBe(SCALE);
     expect(item?.budOffer?.milestone, "帰還の節目の芽").toBe("returns:1");
     expect(state.pendingBud?.milestone).toBe("returns:1");
-    expect(milestoneDef("returns:1")?.label).toBe("帰還 1");
+    expect(milestoneDef("returns:1")?.label).toBe(`帰還 ${SCALE}`);
   });
 
-  it("上り階段で戻る（ascend）と装備中の遺物に帰還が積もる", () => {
+  it("上り階段で戻る（ascend）と装備中の遺物に帰還が積もり、節目に届けば芽が出る", () => {
     const state = createGame(5, "5", profileWith(weapon(22, 3)));
+    const held = state.profile.equipment.mainHand;
+    if (held?.provenance === undefined) throw new Error("来歴が無い");
+    held.provenance.returns = SCALE - 1;
     state.depth = 6;
     state.runEvents.strata.deepest = 6;
     buildFloor(state, "rooms");
     ascend(state);
-    expect(state.profile.equipment.mainHand?.provenance?.returns).toBe(1);
+    expect(state.profile.equipment.mainHand?.provenance?.returns).toBe(SCALE);
     expect(state.profile.equipment.mainHand?.milestones).toContain("returns:1");
   });
 
@@ -228,5 +237,84 @@ describe("帰還の節目（2026-09-24 第 4 弾）", () => {
     item.provenance = old as ReturnType<typeof createEmptyProvenance>;
     offerNextBud(item);
     expect(item.provenance.returns).toBe(0);
+  });
+});
+
+describe("芽の育ちの遅さ（2026-10-02 の決定: 節目の値 10 倍 + 同じ遺物には 1 ランで 1 つ）", () => {
+  it("節目の判定値は基準の値に倍率を掛けた値。key は掛ける前のまま、ラベルは掛けた後", () => {
+    const def = milestoneDef("kills:50");
+    expect(def?.threshold).toBe(50 * BUD.thresholdScale);
+    expect(def?.label).toBe(`撃破 ${50 * BUD.thresholdScale}`);
+    const enemy = milestoneDef("enemy:knight:30");
+    expect(enemy?.threshold).toBe(30 * BUD.thresholdScale);
+    expect(enemy?.label).toBe(`盾騎士撃破 ${30 * BUD.thresholdScale}`);
+  });
+
+  it("倍率を掛けた値の直前では芽が出ず、届くと出る（基準の値では出ない）", () => {
+    const state = createGame(1, "1", profileWith(weapon(31, 3)));
+    kill(state, KILLS_BASE);
+    expect(state.profile.equipment.mainHand?.budOffer ?? null, "基準の値では出ない").toBeNull();
+    kill(state, KILLS_FOR_FIRST_BUD - KILLS_BASE - 1);
+    expect(state.pendingBud, "届く直前").toBeNull();
+    kill(state, 1);
+    expect(state.pendingBud?.milestone, "届いた").toBe(`kills:${KILLS_BASE}`);
+    expect(state.budOfferedThisRun).toEqual([state.profile.equipment.mainHand?.id]);
+  });
+
+  it("同じランで 2 つ目の節目に届いても、同じ遺物には芽が出ない。節目は到達済みにならず、新しいランで芽になる", () => {
+    const profile = profileWith(weapon(32, 4));
+    const first = createGame(1, "1", profile);
+    kill(first, KILLS_FOR_FIRST_BUD);
+    const item = first.profile.equipment.mainHand;
+    expect(first.pendingBud?.milestone).toBe(`kills:${KILLS_BASE}`);
+    chooseBud(first, "mainHand", 0);
+    expect(first.pendingBud, "選んだ直後に次の芽を続けて出さない").toBeNull();
+    // 撃破 200 の節目（基準）に届くまで積む
+    kill(first, 200 * SCALE - KILLS_FOR_FIRST_BUD + 5);
+    expect(first.pendingBud, "同じランでは 2 つ目が出ない").toBeNull();
+    expect(item?.budOffer ?? null).toBeNull();
+    expect(item?.milestones, "上限で止めた節目は到達済みにしない").toEqual([`kills:${KILLS_BASE}`]);
+
+    const second = createGame(2, "2", profile);
+    expect(second.budOfferedThisRun, "新しいランは数え直す").toEqual([]);
+    kill(second, 1);
+    expect(second.pendingBud?.milestone, "新しいランで 2 つ目が出る").toBe("kills:200");
+  });
+
+  it("既に届いた key には出直さない（倍率を掛けても key は同じ）", () => {
+    const item = weapon(33, 4);
+    item.provenance = { ...createEmptyProvenance(), kills: KILLS_FOR_FIRST_BUD };
+    item.milestones = [`kills:${KILLS_BASE}`];
+    const state = createGame(1, "1", profileWith(item));
+    kill(state, 1);
+    expect(state.pendingBud, "届いた節目は出直さない").toBeNull();
+    expect(state.budOfferedThisRun).toEqual([]);
+  });
+
+  it("前のランで選ばずに残った芽は、今のランの上限に数えない", () => {
+    const item = weapon(34, 4);
+    item.provenance = { ...createEmptyProvenance(), kills: 200 * SCALE - 1 };
+    item.milestones = [`kills:${KILLS_BASE}`];
+    const carried = milestoneDef(`kills:${KILLS_BASE}`);
+    if (carried === undefined) throw new Error("節目が無い");
+    item.budOffer = makeBudOffer(item, carried);
+    const state = createGame(1, "1", profileWith(item));
+    expect(state.pendingBud?.milestone, "持ち越した芽").toBe(`kills:${KILLS_BASE}`);
+    expect(state.budOfferedThisRun).toEqual([]);
+    chooseBud(state, "mainHand", 0);
+    kill(state, 1);
+    expect(state.pendingBud?.milestone, "持ち越した芽を選んだ後、今のランの 1 つ目が出る").toBe("kills:200");
+    expect(state.budOfferedThisRun).toEqual([item.id]);
+  });
+
+  it("遺物ごとに数える: 別の遺物には同じランでも芽が出る", () => {
+    const profile = createEmptyProfile();
+    const a = weapon(35, 3);
+    const b = { ...generateItem(createRng(36), { itemLevel: 10, foundDepth: 10, slot: "ring", now: NOW }), margin: 3, marginMax: 3 };
+    profile.equipment[a.slot] = a;
+    profile.equipment[b.slot] = b;
+    const state = createGame(1, "1", profile);
+    kill(state, KILLS_FOR_FIRST_BUD);
+    expect(new Set(state.budOfferedThisRun)).toEqual(new Set([a.id, b.id]));
   });
 });

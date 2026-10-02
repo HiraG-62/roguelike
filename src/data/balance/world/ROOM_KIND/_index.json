@@ -13,8 +13,6 @@
   "challengeRareBoost": 6,
   "challengeRareAttempts": 40,
   "challengeColor": "#ff9040",
-  "shrineMinDepth": 2,
-  "shrineChance": 0.6,
   "fountainRadius": 8,
   "shrineColor": "#60c0ff",
   "cursedEliteRolls": 2,
@@ -32,7 +30,8 @@
   "arenaWaves": 4,
   "arenaWaveMul": 0.8,
   "arenaColor": "#ff6040",
-  "gambleHpCost": 0.1,
+  "gambleCoinCost": 15,
+  "gambleCoinWinMul": 3,
   "gambleUses": 3,
   "gambleColor": "#ffd040",
   "gambleRarityBoost": 2,
@@ -64,7 +63,7 @@
   "mirrorColor": "#c0e0ff",
   "watchtowerReaperCost": 20,
   "watchtowerColor": "#e0e0a0",
-  "vaultCost": 5,
+  "vaultCoinCost": 80,
   "vaultDrops": 2,
   "vaultColor": "#b0f0ff",
   "elementAltarChoices": 3,
@@ -89,5 +88,5 @@
   "hordeWaves": 3,
   "hordeWaveMul": 1.2,
   "hordeColor": "#ff5070",
-  "_order": ["treasureChance", "treasureItemsMin", "treasureItemsMax", "treasureRarityBoost", "treasureItemSpread", "treasureCoinParticles", "treasureCoinColor", "challengeMinDepth", "challengeChance", "challengeWaves", "challengeWaveMul", "challengeRareBoost", "challengeRareAttempts", "challengeColor", "shrineMinDepth", "shrineDepths", "shrineChance", "fountainRadius", "shrineColor", "cursedEliteRolls", "cursedColor", "ambushMinDepth", "ambushChance", "ambushMax", "ambushEnemyMul", "extraMax", "extra", "propRadius", "propSpacing", "propLabelRange", "altarColor", "libraryColor", "arenaWaves", "arenaWaveMul", "arenaColor", "gambleHpCost", "gambleUses", "gambleColor", "gambleWeights", "gambleRarityBoost", "gambleHearts", "forgeEchoes", "forgeBurnDuration", "forgeBurnDps", "forgeColor", "exchangeItems", "exchangeMul", "exchangeColor", "curseShrineColor", "resonanceBonusDrops", "escortHpMul", "escortRadius", "escortDps", "escortColor", "escapeSpeed", "escapeLavaTime", "escapeTickInterval", "escapeColor", "reaperNestDepthBonus", "nestHpMul", "nestElites", "nestColor", "mirrorHpMul", "mirrorBoonsPerElite", "mirrorEliteMax", "mirrorColor", "watchtowerReaperCost", "watchtowerColor", "vaultCost", "vaultDrops", "vaultColor", "elementAltarChoices", "elementAltarShare", "elementAltarColor", "dummyCount", "dummySpacing", "dummyColor", "fogRoomRadius", "fogRoomColor", "tideRoomSpeed", "tideRoomInterval", "tideRoomWaterTime", "tideRoomColor", "invertHallItems", "invertHallAttempts", "invertHallColor", "hordeMinDepth", "hordeSecondDepth", "hordeChance", "hordeMinTiles", "hordeWaves", "hordeWaveMul", "hordeColor", "locks"]
+  "_order": ["treasureChance", "treasureItemsMin", "treasureItemsMax", "treasureRarityBoost", "treasureItemSpread", "treasureCoinParticles", "treasureCoinColor", "challengeMinDepth", "challengeChance", "challengeWaves", "challengeWaveMul", "challengeRareBoost", "challengeRareAttempts", "challengeColor", "fountainRadius", "shrineColor", "cursedEliteRolls", "cursedColor", "ambushMinDepth", "ambushChance", "ambushMax", "ambushEnemyMul", "extraMax", "extra", "propRadius", "propSpacing", "propLabelRange", "altarColor", "libraryColor", "arenaWaves", "arenaWaveMul", "arenaColor", "gambleCoinCost", "gambleCoinWinMul", "gambleUses", "gambleColor", "gambleWeights", "gambleRarityBoost", "gambleHearts", "forgeEchoes", "forgeBurnDuration", "forgeBurnDps", "forgeColor", "exchangeItems", "exchangeMul", "exchangeColor", "curseShrineColor", "resonanceBonusDrops", "escortHpMul", "escortRadius", "escortDps", "escortColor", "escapeSpeed", "escapeLavaTime", "escapeTickInterval", "escapeColor", "reaperNestDepthBonus", "nestHpMul", "nestElites", "nestColor", "mirrorHpMul", "mirrorBoonsPerElite", "mirrorEliteMax", "mirrorColor", "watchtowerReaperCost", "watchtowerColor", "vaultCoinCost", "vaultDrops", "vaultColor", "elementAltarChoices", "elementAltarShare", "elementAltarColor", "dummyCount", "dummySpacing", "dummyColor", "fogRoomRadius", "fogRoomColor", "tideRoomSpeed", "tideRoomInterval", "tideRoomWaterTime", "tideRoomColor", "invertHallItems", "invertHallAttempts", "invertHallColor", "hordeMinDepth", "hordeSecondDepth", "hordeChance", "hordeMinTiles", "hordeWaves", "hordeWaveMul", "hordeColor", "locks"]
 }

@@ -1,6 +1,6 @@
 import type { FrameInput } from "./input";
 import { createRng } from "./rng";
-import type { GameState } from "./state";
+import { type GameState, runOver } from "./state";
 import { createMap } from "../map/grid";
 import { FEEL } from "../data/tuning";
 import { updateCamera } from "../system/camera";
@@ -10,11 +10,11 @@ import { buildFloor } from "../system/floor";
 import { updateRooms } from "../system/floor";
 import { applyStats, createPlayer } from "../system/player";
 import { refillMana, tickMana } from "../system/mana";
-import { updatePlayer } from "../system/player";
+import { latchFrozenInput, updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
-import { updateDropInteract } from "../system/loot";
+import { updateInteract } from "../system/interact";
 import { VIEW_H, VIEW_W } from "./view";
-import { type Profile, createEmptyProfile, uniformAttributes } from "../loot/types";
+import { type Profile, createEmptyProfile } from "../loot/types";
 import { computeStats } from "../loot/stats";
 import { findPendingBud } from "../loot/provenance";
 import { updateStatusEffects } from "../system/statusEffects";
@@ -22,19 +22,26 @@ import { updateTerrain } from "../system/terrain";
 import { createTerrainLayer } from "./terrain";
 import { updateHazards } from "../system/hazards";
 import { updateReaper } from "../system/reaper";
+import { enforceLimits } from "../system/limits";
 import { createSkillRunState } from "../system/skills";
 import { syncTurretShots } from "../skills/summons";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import type { SkillProfile } from "../skills/types";
 import { createBoonRunState, updateBoonChoice, updateBoons } from "../system/boons";
+import { updateReforgeChoice } from "../system/reforge";
 import { createRunEventState, updateRunEvents } from "../system/runEvents";
 import { createContractState } from "../system/contractors";
-import { type RunSetup, defaultRunSetup, originKeystones, startOrigin } from "../system/runSetup";
+import { createEconomyState } from "../system/economy";
+import { tryDrink } from "../system/flask";
+import { type RunSetup, defaultRunSetup, originKeystones, sanitizeStartDepth, startOrigin } from "../system/runSetup";
 import { resolveRules } from "../system/rules";
 import { startJob } from "../system/jobs";
 import { createRuleRunState } from "./events";
 import { createCodexRun } from "../meta/codex";
 import { createQuestRun } from "../meta/quests";
+import { createHurtLog } from "./hurt";
+import { createNemesisRun } from "../system/nemesis";
+import { emptyRunMeta } from "../system/runMeta";
 import { HITSTOP_SCALE_MAX } from "../ui/settings";
 
 /**
@@ -50,18 +57,22 @@ export function createGame(
   /** ヒットストップの強度（0..HITSTOP_SCALE_MAX）。settings.hitstopScale / リプレイの記録値を渡す。既定 1 */
   hitstopScale = 1,
 ): GameState {
-  const stats = computeStats(profile.equipment);
+  // 開始深度（QA 専用）。地金は今の深度で決まるので、最初の stats もその深度で畳む
+  const startDepth = sanitizeStartDepth(setup.startDepth) ?? 1;
+  const stats = computeStats(profile.equipment, startDepth);
   profile.meta.runs += 1;
   const state: GameState = {
     seed,
     seedText,
     rng: createRng(seed),
     status: "playing",
-    depth: 1,
+    depth: startDepth,
     tick: 0,
     time: 0,
     map: createMap(1, 1),
     rooms: [],
+    jins: [],
+    noises: [],
     lockedTiles: new Set(),
     player: createPlayer({ x: 0, y: 0 }, stats),
     enemies: [],
@@ -92,6 +103,9 @@ export function createGame(
     terrain: createTerrainLayer(),
     corpses: [],
     boss: null,
+    bossLog: [],
+    hurt: createHurtLog(),
+    nemesis: createNemesisRun(setup.runMeta?.nemesis ?? null),
     hiddenRoom: null,
     floorTime: 0,
     reaper: null,
@@ -103,17 +117,21 @@ export function createGame(
     boons: [],
     boonChoice: null,
     boonRun: createBoonRunState(),
+    reforges: [],
+    reforgeChoice: null,
     pendingBud: findPendingBud(profile),
-    runAttributes: { alloc: uniformAttributes(0), unspent: 0 },
+    budOfferedThisRun: [],
     runKeystones: originKeystones(setup.origin),
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
     origin: setup.origin,
     job: setup.job ?? "none",
     lockedRelics: [...(setup.lockedRelics ?? [])],
+    runMeta: structuredClone(setup.runMeta ?? emptyRunMeta()),
     stairs: [],
+    pendingExit: null,
     contracts: createContractState(),
-    shards: 0,
+    economy: createEconomyState(),
     events: [],
     pendingEvents: [],
     recent: {},
@@ -126,7 +144,7 @@ export function createGame(
   // 祝福の畳み込み元（boonRun.baseStats）を覚えつつ、ステータスの派生（deriveAttributes）を通す
   applyStats(state, stats);
   refillMana(state);
-  // 起点の初期効果（祝福・刻印符・振り分け点）。放浪者は何もしない（乱数も消費しない）
+  // 起点の初期効果（祝福・刻印符・銭）。放浪者は何もしない（乱数も消費しない）
   startOrigin(state);
   buildFloor(state);
   // ジョブの初期スキル石（未所持のときだけ倉庫へ。見習いは何もしない）
@@ -137,7 +155,7 @@ export function createGame(
 /** 固定ステップ 1 回ぶんの更新。dt は実時間 */
 export function step(state: GameState, input: FrameInput, dt: number): void {
   if (state.paused) return;
-  if (state.status === "dead") {
+  if (runOver(state)) {
     state.deathTimer += dt;
     updateEffects(state, dt * 0.5);
     updateCamera(state, dt, VIEW_W, VIEW_H);
@@ -149,12 +167,17 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
     updateBoonChoice(state, input, dt);
     return;
   }
+  if (state.reforgeChoice) {
+    updateReforgeChoice(state, input, dt);
+    return;
+  }
 
-  // ヒットストップ中に押しても取りこぼさないよう、止まる前に拾う
-  updateDropInteract(state, input);
+  // ヒットストップ中に押しても取りこぼさないよう、止まる前に拾う / 台座を使う
+  updateInteract(state, input);
 
   if (state.hitstop > 0) {
     state.hitstop -= 1;
+    latchFrozenInput(state, input);
     updateCamera(state, dt, VIEW_W, VIEW_H);
     return;
   }
@@ -166,6 +189,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   state.time += gdt;
 
   tickMana(state, gdt);
+  tryDrink(state, input);
   updatePlayer(state, input, gdt);
   updateBoons(state, gdt);
   updateStatusEffects(state, gdt);
@@ -179,6 +203,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
   updateCombo(state, gdt);
   syncTurretShots(state); // 近接の振りに合わせて砲台を撃つ（resolveRules が state.events を空にする直前）
   resolveRules(state, gdt);
+  enforceLimits(state);
   updateEffects(state, gdt);
   updateCamera(state, dt, VIEW_W, VIEW_H);
 }

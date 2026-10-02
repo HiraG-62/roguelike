@@ -1858,16 +1858,6 @@ const FX = {
       ramp: "brass",
       cast: { sheet: "skillWave2.oilPour", life: 0.55, base: OIL.radiusPx, ground: "skillWave2.oilSplat" },
     },
-    scorchLine: {
-      ramp: "fire",
-      cast: { sheet: "skillWave2.scorchFlare", life: 0.45, beam: { sheet: "skillWave2.scorchBeam", step: SCORCH_STEP_PX }, tip: "skillWave2.scorchTip" },
-    },
-    iceSlide: {
-      ramp: "ice",
-      cast: { sheet: "skillWave2.slideKick", life: 0.3 },
-      active: { sheet: "skillWave2.slideActive", base: 0 },
-      end: { sheet: "skillWave2.slideStop", life: 0.35, beam: { sheet: "skillWave2.slideTrail", step: SLIDE_STEP_PX } },
-    },
     levelGround: {
       ramp: "brass",
       cast: { sheet: "skillWave2.levelStomp", life: 0.45, beam: { sheet: "skillWave2.levelBeam", step: LEVEL_STEP_PX }, tip: "skillWave2.levelTip" },
@@ -1879,10 +1869,6 @@ const FX = {
       act: { sheet: "skillWave2.emberPuff", life: 0.35, beam: { sheet: "skillWave2.emberStream", step: EMBER_STEP_PX } },
       fly: { sheet: "skillWave2.emberBall", base: 4, period: 0.4 },
     },
-    bogCall: {
-      ramp: "poison",
-      cast: { sheet: "skillWave2.bogBubbles", life: 0.6, base: BOG.radiusPx, ground: "skillWave2.bogWell" },
-    },
     brandSear: {
       ramp: "fire",
       cast: { sheet: "skillWave2.searCone", life: 0.45, base: BRAND.searRadiusPx },
@@ -1891,19 +1877,6 @@ const FX = {
       ramp: "fire",
       cast: { sheet: "skillWave2.blastBurst", life: 0.5, base: BRAND.blastRadiusPx, ground: "skillWave2.blastSigil" },
       act: { sheet: "skillWave2.brandDouble", life: 0.4 },
-    },
-    breakKick: {
-      ramp: "steel",
-      cast: { sheet: "skillWave2.kick", life: 0.35, base: KICK.lengthPx },
-    },
-    collapseHammer: {
-      ramp: "brass",
-      cast: { sheet: "skillWave2.hammerDrop", life: 0.5, base: HAMMER.radiusPx, ground: "skillWave2.hammerCrack" },
-    },
-    tideSlash: {
-      ramp: "ice",
-      cast: { sheet: "skillWave2.tideCast", life: 0.25 },
-      fly: { sheet: "skillWave2.tideWave", base: 0, period: 0.4 },
     },
     flashFreeze: {
       ramp: "ice",
@@ -1919,11 +1892,6 @@ const FX = {
       cast: { sheet: "skillWave2.releaseBurst", life: 0.5, base: HUE.releaseRadiusPx, ground: "skillWave2.releaseBloom" },
       act: { sheet: "skillWave2.releasePop", life: 0.4 },
     },
-    siphonMark: {
-      ramp: "dark",
-      cast: { sheet: "skillWave2.siphonCast", life: 0.25 },
-      fly: { sheet: "skillWave2.siphonArrow", base: 0, period: 0.35 },
-    },
     doomSentence: {
       ramp: "dark",
       cast: { sheet: "skillWave2.doomMark", life: 0.8, base: DOOM.radiusPx, ground: "skillWave2.doomSigil" },
@@ -1931,13 +1899,6 @@ const FX = {
     shiftingEdge: {
       ramp: "steel",
       cast: { sheet: "skillWave2.shiftCone", life: 0.4, base: SHIFT.radiusPx },
-    },
-    weaponArt: {
-      ramp: "steel",
-      cast: { sheet: "skillWave2.artFlash", life: 0.3 },
-      act: { sheet: "skillWave2.artThrust", life: 0.3, beam: { sheet: "skillWave2.artBeam", step: ART_STEP_PX }, tip: "skillWave2.artTip" },
-      end: { sheet: "skillWave2.artSweep", life: 0.35, base: ART.radiusPx },
-      fly: { sheet: "skillWave2.artBolt", base: 0, period: 0.3 },
     },
     wardStake: {
       ramp: "brass",

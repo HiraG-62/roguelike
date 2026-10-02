@@ -43,6 +43,10 @@ export const STATUS_KINDS = [
   "wrath",
   "fury",
   "charged",
+  // ---- 武器の型の印（docs/ideas/weapon-forms-impl.md 3-4。末尾に足すのは STATUS_KINDS の添字を保存する敵がいるため） ----
+  "wound",
+  // 書の専用の印（docs/ideas/tome-rework.md 7 章）
+  "inkMark",
 ] as const;
 export type StatusKind = (typeof STATUS_KINDS)[number];
 
@@ -82,6 +86,8 @@ export const STATUS_LABEL: Readonly<Record<StatusKind, string>> = {
   wrath: "怒気",
   fury: "激昂",
   charged: "帯電",
+  wound: "傷",
+  inkMark: "墨印",
 };
 
 /** 良い状態（プレイヤーのバフ）。敵には付かず、異常数・総スタックにも数えない */
@@ -105,7 +111,7 @@ export interface StatusEffect {
   maxTime: number;
   /**
    * 種類ごとに解釈（burn = dps、poison = 最大 HP 割合 / 秒、bleed = 10px あたりダメージ、
-   * brand = 1 スタックの起爆ダメージ、hue = 色番号（TRAIT_COLORS の添字）、charged = 放電ダメージ …）
+   * brand = 1 スタックの起爆ダメージ、inkMark = 読んだときの 1 スタックの威力、hue = 色番号（TRAIT_COLORS の添字）、charged = 放電ダメージ …）
    */
   potency: number;
   source: StatusSource;
@@ -145,6 +151,7 @@ export const REACTION_KEYS = [
   "hueBurst",
   "manaCut",
   "rally",
+  "recite",
 ] as const;
 export type ReactionKey = (typeof REACTION_KEYS)[number];
 
@@ -173,6 +180,7 @@ export const REACTION_LABEL: Readonly<Record<ReactionKey, string>> = {
   hueBurst: "色爆",
   manaCut: "魔断",
   rally: "奮起",
+  recite: "読誦",
 };
 
 /** 状態異常が消えた理由。時間切れ / 外から外された（砕きなど）/ 反応で消費された */

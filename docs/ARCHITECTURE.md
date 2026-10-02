@@ -12,11 +12,11 @@
 main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
    │
    ├─ update(dt): core/game.ts step(state, input, dt)
-   │     ├─ 一時停止 / 死亡中は早期 return（死亡演出・カメラだけ更新）
+   │     ├─ 一時停止は早期 return。ランが終わった（`runOver` = 死亡 `dead` か踏破 `cleared`）あとは演出・カメラだけ更新
    │     ├─ 祝福 3 択中は選択の入力だけ処理して return
-   │     ├─ loot.updateDropInteract（拾得。ヒットストップ中も効く）→ ヒットストップ中はここで早期 return
+   │     ├─ interact.updateInteract（拾得・台座の使用。ヒットストップ中も効く）→ ヒットストップ中はここで早期 return
    │     └─ mana.tickMana → player → boons → statusEffects → terrain → enemies → projectiles → hazards
-   │        → floor.updateRooms → runEvents.updateRunEvents → reaper → combo → rules.resolveRules → effects → camera
+   │        → floor.updateRooms → runEvents.updateRunEvents → reaper → combo → rules.resolveRules → limits.enforceLimits → effects → camera
    │            │  書く: GameState（全部ここ）
    │            │  積む: state.sfx（効果音名）、state.events（ゲームイベント、pushEvent）、state.log、state.texts / particles / shapes
    │            └─ 拾ったアイテムは即 state.profile へ → main.ts が saveProfile
@@ -30,7 +30,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
             （state を読むだけ。state.rng を使わない）
 ```
 
-画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備 / スキル / クラフト画面は `src/ui/inventory.ts`。どちらも DOM 非依存でテストされる。
+画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備画面（装束と紋。頁の積み重ね）は `src/ui/inventory.ts` と `menuState.ts` などの `src/ui/menu*.ts`、頁ごとのファイルは `docs/CODE_MAP.md` の ui 節。どちらも DOM 非依存でテストされる。
 
 拠点（`docs/ideas/hub-design.md`）: タイトルの Enter → 拠点 → 井戸 → 起点画面 → 依頼の 3 択 → ラン。死亡画面の T とポーズの「拠点へ」は拠点へ戻り、拠点の Esc はタイトルへ。拠点の台は既存の画面（装備画面の各タブ・一覧画面・起点画面・履歴）を開き、その画面の Esc は拠点へ戻る（`main.ts` の `menuReturn`。タイトルから開いたときはタイトルへ）。台と画面の対応表・祭壇の一覧・長押しの判定は `src/ui/hubFlow.ts`。拠点の `GameState`（`sandbox`）は `main.ts` の `state` とは別の変数に持ち、リプレイの記録は従来どおり `beginRun` の後に始まる（拠点での装備変更はラン開始時のスナップショットに入る）。
 
@@ -38,7 +38,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 Wave 2（`docs/ideas/*-expansion.md`）で入ったシステム: `system/enemyTraits.ts`（死骸・取り巻き・気力奪取・双子復活・臆病など敵に横断する仕組み）、`system/enemyBehaviors.ts`（新 behavior 1 つにつき関数 1 つの実装）、`system/bossTwins.ts` / `system/bossFrostGiant.ts`（ボス 2 体の専用ロジック。共通処理は `system/boss.ts`）、`system/boonDefs.ts`（祝福のデータ定義。系譜 `lineage`/`after`、結び `duo` を含む）、`system/boonRules.ts`（拡張分の祝福ルール `onBoonXxxRules`。`system/boons.ts` の既存フックから呼ぶ）、`system/statusReactions.ts`（状態異常や地形の層が出会ったときの反応 `ReactionKey`）、`core/terrain.ts` + `system/terrain.ts`（床の地形の層の型・一覧と効果。配置は `map/generator.ts` の `planTerrain`）、`system/traitHooks.ts`（装備の性質・トリガー文法拡張が読む倍率・フック）、`loot/traitContext.ts`（性質が装備全体や来歴など「自分の外」を読むための文脈）、`skills/{tuning,defs,modifiers,combos,actions,shots,summons,geom}.ts`（大拡張のスキル・刻印符・連携のデータと発動処理。`skills/data.ts` の `SKILL_DEFS`/`MODIFIERS` に混ぜ込む形）、`render/terrainUi.ts`（地形の層の描画）。
 
-memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マップ・敵第 2 弾）で入ったシステム: `data/weapons.ts`（武器種 10・射撃の型 8 の形・当たり判定・語。数値は tuning の `WEAPON`）、`system/spawner.ts`（徘徊の目的地選びと増援の抽選。tuning の `ROAM`）、`system/engagement.ts`（「封鎖中 または 交戦中」の唯一の判定。祝福・誓約・性質・トリガー条件・縛りが共通で見る）、`map/pathing.ts`（視線判定と距離場ベースの経路。マップごとに派生データをキャッシュする純関数。徘徊と敵の気付き・回り込み、QA bot が使う）、`system/enemyWave3.ts`（敵第 2 弾の behavior）/ `system/enemyTerrain.ts`（地形の層を絡めた敵の攻撃）、`system/bossKit.ts`（ボスの共通補助関数）+ 専用ロジック 4 本（`bossLibrarian.ts` 図書館主 / `bossMirrorKnight.ts` 鏡の騎士 / `bossOilKing.ts` 油の王 / `bossBroodMother.ts` 巣母）、`system/reaperVariants.ts`（死神のローテーション 5 体の専用ロジック）、`meta/`（`codex.ts`/`codexStore.ts` 図鑑、`quests.ts`/`questStore.ts` 依頼、`achievements.ts` 実績と称号、`runRecord.ts` がラン中の出来事を `state.codexRun` / `questRun` へ積むだけの記録係、`listScreen.ts`/`screens.ts` が図鑑・依頼一覧・実績の共通タブ画面）、`ui/quests.ts`（起点直後の依頼 3 択の状態）、`ui/skillRunes.ts`（スキルタブの刻印符所持一覧の付け外し）、`ui/synergyPanel.ts`（網タブの語一覧の状態）、`render/dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`render/skillRuneUi.ts` / `render/synergyUi.ts` / `render/chainUi.ts`（それぞれ刻印符所持一覧・網タブ・直近の連鎖の描画）、`render/questUi.ts` / `render/codexUi.ts`（依頼 3 択・図鑑一覧画面の描画）。
+memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マップ・敵第 2 弾）で入ったシステム: `data/weapons.ts`（武器種 10・射撃の型 8 の形・当たり判定・語。数値は tuning の `WEAPON`）、`system/spawner.ts`（徘徊の目的地選びと増援の抽選。tuning の `ROAM`）、`system/engagement.ts`（「封鎖中 または 交戦中」の唯一の判定。祝福・誓約・性質・トリガー条件・縛りが共通で見る）、`map/pathing.ts`（視線判定と距離場ベースの経路。マップごとに派生データをキャッシュする純関数。徘徊と敵の気付き・回り込み、QA bot が使う）、`system/enemyWave3.ts`（敵第 2 弾の behavior）/ `system/enemyTerrain.ts`（地形の層を絡めた敵の攻撃）、`system/bossKit.ts`（ボスの共通補助関数）+ 専用ロジック 4 本（`bossLibrarian.ts` 図書館主 / `bossMirrorKnight.ts` 鏡の騎士 / `bossOilKing.ts` 油の王 / `bossBroodMother.ts` 巣母）、`system/reaperVariants.ts`（死神のローテーション 5 体の専用ロジック）、`meta/`（`codex.ts`/`codexStore.ts` 図鑑、`quests.ts`/`questStore.ts` 依頼、`achievements.ts` 実績と称号、`runRecord.ts` がラン中の出来事を `state.codexRun` / `questRun` へ積むだけの記録係、`listScreen.ts`/`screens.ts` が図鑑・依頼一覧・実績の共通タブ画面）、`ui/quests.ts`（起点直後の依頼 3 択の状態）、`ui/skillRunes.ts`（スキルの頁の刻印符の部品）、`render/dropTooltip.ts`（床のアイテム / スキル石に注目した時のツールチップ）、`render/chainUi.ts`（直近の連鎖の描画）、`render/questUi.ts` / `render/codexUi.ts`（依頼 3 択・図鑑一覧画面の描画）。
 
 0.0.8α（`docs/COMBAT_DESIGN.md` A-8・A-9）で入ったシステム: `core/element.ts`（攻撃ジャンル `AttackGenre`〔範囲軸 `AttackRange` × 質軸 `AttackQuality`〕と属性 `Element` 7 種の型・表示名。ロジックは持たない）、`system/elementCombat.ts`（`combat.ts` の `rollOutgoing` / `mitigate` から呼ぶ、質軸で防御 / 魔防を選ぶ計算と属性倍率、弱点 / 耐性ヒットの浮き文字）、`data/enemyDefense.ts`（敵ごとの防御・魔防・属性耐性・弱点。ボスは段階ごとの上書き `stages`）、`render/elementUi.ts`（武器 / 射撃の型 / スキルのジャンル表示、敵の頭上の弱点の印。このランで倒すまでは「？」）。ジョブは `data/jobs.ts`（`JOB_KEYS` / `JobDef`: ステータスの偏り・得意な武器種・固有ルール 2 つ・初期スキル石・弱点）+ `system/jobs.ts`（`applyJobStats` が起点と同じ畳み込みに合流、`jobRules` が `collectRules` へ、`startJob` が初期スキル石を未所持のときだけ倉庫へ）。
 
@@ -57,6 +57,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 - 乱数は Rule の照合順に `state.rng` から引く。確率 1 以上の Rule は引かない
 - 効果の時点: ルール化した祝福の効果は、イベントが起きた瞬間ではなく同じステップの末（`resolveRules`）で起きる。連撃波はステップ末のコンボ数を見る。回復・無敵は同じステップの致死には間に合わない（仕様）
 - 上限: 1 ステップのイベントは `SYNERGY.maxEventsPerStep`、持ち越しは `SYNERGY.maxPendingEvents` まで。超えた分は捨て、`state.ruleRun.droppedEvents` に累計を数える
+- 性能の歯止め（段取り 10a）: step の末尾（`resolveRules` の直後）で `system/limits.ts` の `enforceLimits` が、プレイヤーの弾（`state.projectiles` の owner が player。敵の弾は消さない）・スキルの弾（`state.skills.shots`）・設置物の置き場ごと（`rules.ts` の `placedPools`）が `LIMITS`（`playerProjectiles` / `skillShots` / `placedPerPool`）を超えた分を**古い順（配列の前）**に消し、消した数を `state.ruleRun.trimmed` に足す。強さの天井ではなく 1 ステップの重さの保険（通常のプレイでは届かない数。QA が当たった回数を見る）
 - 煙（地形）は `state.projectiles` の弾（射撃・敵弾）だけを消す。スキルの弾（`state.skills` 側の弾）は消さない（仕様）
 
 ## フロアと部屋（開放型。2026-09-24）
@@ -67,6 +68,7 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 - 徘徊と増援（`system/spawner.ts`、tuning の `ROAM`）: 生成時に置いた敵の一部を徘徊（`roomIndex = ROAMING_ROOM`（-1）、`EnemyAi.roam` が目的地）にする。idle の間だけ `updateRoamers` が塊の中心への距離場（マップから作る派生データ。WeakMap に覚える）を下って歩かせ、気付いたら `enemies.ts` の chase に任せる。`floorTime` が `reinforceDelay` を過ぎると `reinforceInterval` ごとに画面外へ徘徊を 1 抽選ぶん湧かせる（上限 `roamCap`、ボス階は無し）。徘徊はどの部屋にも属さないので制圧を妨げない
 - 遠い徘徊の間引きと敵の眠り（2026-09-25、広いマップ用）: プレイヤーから `ROAM.sleepDist` 以上離れた idle の敵は `enemies.ts` の `isAsleep` で更新を飛ばし（乱数を引かず時計も進まない）、遠くの徘徊は `(tick + id) % sleepRoamEvery` の番にまとめて歩く。どちらも距離と tick だけで決まるので決定的
 - 視線と回り込み（`map/pathing.ts`、純関数 + マップごとの距離場キャッシュ）: 敵は壁越しには気付かない（`enemies.ts` の idle で `lineOfSight`）。追跡中に壁で遮られたら距離場の次の点へ向かう（`chaseHeading`）。徘徊の歩行（`nextWaypoint`）と QA bot の交戦相手の選択も同じ視線判定を使う
+- 深み（段取り 10a）: 最深の間（深度 21）の次の階（22）から。境目は `system/chapters.ts` の `isDeepDepth(depth)` / `deepFloorOf(depth)`（22 で 1 層）の 1 つだけを見る。敵の曲線の指数は `ENEMY_SCALE.deepDepth`（= 最深の間の深度。`chapters.test.ts` が縛る）、敵数の上限・変異・上限の解放は `DEEP`。深みで外れるのは「〜につき」の上限 `Modifier.per.cap` と研鑽の上限 `TemperStat.cap` だけ（`state.depth` だけを見る）。踏破は「最深の主を倒したラン」（`conqueredBy(state.bossLog)`）で数え、深みで力尽きても踏破
 - 呼び出し順: すべて `floor.ts` の `updateRooms` の中（部屋ごとの封鎖 / 交戦 / 制圧 → `updateRoamers` → 増援 → 泉 → 特別な部屋 → …）。乱数は `state.rng` だけで、この順に引く
 - 気力の自然回復（`mana.ts` の `tickMana`）は「封鎖中」ではなく「封鎖中か、`MANA.combatRadius` 内に生きた敵がいる」間を戦闘中とみなして遅くする
 
@@ -92,12 +94,12 @@ memo 対応（`docs/ideas/meta-and-weapons.md`・洞窟基本の開放型マッ�
 Profile（永続: roguelike.profile.v1）
   ├─ equipment: Record<Slot, Item | null>     Slot = weapon / gun / armor / boots / ring / amulet
   ├─ stash: Item[]                            上限 STASH_CAPACITY
-  ├─ meta（runs・bestDepth・totalKills・bestScore・history?: RunHistoryEntry[]）
+  ├─ meta（runs・bestDepth・totalKills・bestScore・history?: RunHistoryEntry[]・seenAt?: 部位ごとに候補を最後に見た時刻）
   └─ ultimates?（武器種ごとに選んだ奥義の key。無ければその武器種の 1 本目）
 
 Item ─ base / rarity / implicit / affixes: AffixRoll[]（key + value、トリガーやキーストーンも AffixRoll で表す）
-  └─ computeStats(equipment) ──> PlayerStats（倍率・flat・attributes・keystones・triggers・statusProcs …）
-                                     └─ addRunAttributes（ラン内振り分け）── deriveAttributes（実効値・派生を畳み込む）
+  └─ computeStats(equipment) ──> PlayerStats（倍率・flat・attributes・keystones・triggers・statusProcs・reach〔厳選の到達点の測る量。装備だけで数え、保存しない〕 …）
+                                     └─ deriveAttributes（実効値・派生を畳み込む）
                                           └─ foldBoonStats（祝福の数値ぶん）── applyStats(state) ──> Player
 
 SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout（4 スロットごとの石 id）
@@ -106,7 +108,7 @@ SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout�
 GameState
   ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / 見切り / リゲインのタイマー、buffs、loot: LootRuntime〔性質の作業領域〕）
   ├─ stats: PlayerStats（attributes / attributesEff を含む。ロジックは必ずこれを通す）
-  ├─ runAttributes: { alloc: Attributes; unspent: number }（ラン内のステータス振り分け）
+  ├─ pendingExit: ExitReward | null（降りた階段の出口の予告。次の階の buildFloor の末尾で確定して消す）
   ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai、leaderId?〔群れの長・双子の相方〕、stolenMana?、eliteWork?〔新精鋭修飾子の作業領域〕）
   ├─ rooms: RoomState[]（kind、locked、cleared、wave、engaged?〔封鎖しない部屋の交戦中フラグ。全滅で 1 回だけ制圧〕…）、floorKind、map、lockedTiles
   ├─ terrain: TerrainLayer（床の地形の層。フロアが変わると作り直す）
@@ -118,12 +120,14 @@ GameState
   ├─ job: JobKey（ラン開始時に選んだジョブ。none = 見習い。`system/jobs.ts` の `applyJobStats` / `jobRules` / `startJob` が読む）、lockedRelics: readonly string[]（このランで抽選に出ない名のある遺物。起点画面の `RunSetup.lockedRelics` の写しで、リプレイにも記録する）
   ├─ contracts: ContractState（この階の契約者と台座、結んだ契約、鍛冶・属性の祭壇の属性の上乗せ、占いの予言、語り部の目撃、渡し守の回数）、shards（欠片。ラン内だけの資源）。属性の上乗せは `system/contractors.ts` の ensureContractStats が applyStats の結果に足し直す
   ├─ events / pendingEvents: GameEvent[]（今ステップのイベント / 効果が起こした次ステップ持ち越し）、recent（種類ごとの直近の発生時刻と回数）、ruleIcd: Map<ruleId, 残り秒>、chains（直近に成立した連鎖 8 件。連携表示の材料）、ruleRun（照合中の深さ・持ち主、語の窓、プレイヤーの足元の地形）
-  ├─ boss、reaper
+  ├─ boss（`BossState`。封鎖した時刻 `lockedAt`・封鎖中の被弾 `hits`）、bossLog: BossRecord[]（このランで倒した階層ボスの key・深度・秒・被弾・ダウン。`system/bossRecord.ts` の `pushBossRecord` が積む。最深の主の第三の顔・踏破の数え・QA が読む）、reaper
+  ├─ hurt: HurtLog（最後の被弾の出どころ。`core/hurt.ts`。死因と仇の種の元。`damagePlayer` / `damagePlayerDot` が `noteHurt` で書く。乱数を引かない）、nemesis: NemesisRun | null（このランの仇。`system/nemesis.ts`）、runMeta: RunMetaSetup（ランの外から持ち込む中身 = 仇の種・解放の封じ・位階の見返り。`system/runMeta.ts`）
   ├─ codexRun: CodexRun（図鑑用。このランで見た / 倒した敵、反応、連鎖、部屋・階の種類）、questRun: QuestRun（依頼用。受けた依頼 key とラン中の数え上げ）。どちらも `meta/runRecord.ts` の `noteRunEvents` が積むだけで、ラン終了時に `main.ts` が `meta/{codexStore,questStore}` へ保存する
+  ├─ status: GameStatus（`"playing"` / `"dead"` / `"cleared"`。「ランが終わったか」は `core/state.ts` の `runOver(state)` で読み、`=== "dead"` と書かない。`dead` は死んだことそのもの〔`combat.ts` の `killPlayer`・QA の死因〕だけ。`cleared` は最深の主の地上への道で終えた踏破で、`system/finale.ts` の `clearRun` が立てる）
   └─ rng、tick、time、sfx、log、texts、particles、shapes、effects（死に方・演出の印・演出専用の乱数。`system/effects.ts` の fxState が遅延で作る）、camera（演出系）
 ```
 
-型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/events.ts`（GameEvent / EventKind / EventSource / pushEvent）、`core/rules.ts`（Rule / RuleCondition / RuleEffect / EnemyRule）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）、`data/weapons.ts`（MovesetKey / ShotKey / MeleeStepDef / HitShape）、`core/element.ts`（Element / AttackGenre / AttackRange / AttackQuality / AttackProfile）、`data/jobs.ts`（JobKey / JobDef）、`meta/codex.ts`（CodexRun / CodexSave）、`meta/quests.ts`（QuestKey / QuestDef / QuestRun / QuestSave）、`meta/achievements.ts`（AchievementDef / AchievementSave / TitleId）。
+型の定義元: `core/state.ts`（GameState / Player / Enemy / RoomState / PoiseState / Corpse / BossRecord / GameStatus と `runOver`）、`core/hurt.ts`（HurtLog / HurtKind）、`loot/types.ts`（Item / PlayerStats / Attributes / AttrKey / Profile / TriggeredEffect）、`core/events.ts`（GameEvent / EventKind / EventSource / pushEvent）、`core/rules.ts`（Rule / RuleCondition / RuleEffect / EnemyRule）、`core/status.ts`（StatusEffect / StatusBag / StatusApply / StatusProc / StatusKind / ReactionKey）、`core/terrain.ts`（TerrainKind / TerrainLayer）、`skills/types.ts`（SkillStone / SkillRunState / LastCast / ComboKey）、`system/boonDefs.ts`（BoonKey / BoonDef）、`data/enemies.ts`（EnemyDef）、`data/enemyCombat.ts`（EnemyCombatDef）、`data/weapons.ts`（MovesetKey / ShotKey / MeleeStepDef / HitShape）、`core/element.ts`（Element / AttackGenre / AttackRange / AttackQuality / AttackProfile）、`data/jobs.ts`（JobKey / JobDef）、`meta/codex.ts`（CodexRun / CodexSave）、`meta/quests.ts`（QuestKey / QuestDef / QuestRun / QuestSave）、`meta/achievements.ts`（AchievementDef / AchievementSave / TitleId）。
 
 ## 決定性とリプレイ
 
@@ -133,29 +137,31 @@ GameState
 - `Date.now()` は生成物の `id` / `foundAt` に使うだけで、挙動には影響しない
 - 描画は `state.rng` を消費しない（見た目のばらつきは `render/renderMath.ts` の座標ハッシュ）
 - スローモーションは `gdt = dt * slowmoScale` で内部時間だけ縮め、ステップ数は変えない
-- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。所持刻印符の件数も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 12。8 でヒットストップの強さ `hitstopScale` を記録、9 で奥義の選択 `ReplayLoadout.ultimates` と左右アクションの作り直し、12 で防御ステータス・頭・地金・毎階の主・隠し部屋・通路の敵）は同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化、契約者・演出の乱数分離など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
+- リプレイ（`core/replay.ts`）: seed + 起点・ラン修飾子（縛り）+ 依頼報酬で抽選から外れる名のある遺物（`lockedRelics`）+ 開始時の装備 / スキルのスナップショット（`captureLoadout`。スロットごとのラン内の刻印符 `slotRunes` と手持ちの符 `handRunes`〔版 38。拾った符は手持ちへ入り、スキルへは自分で付ける〕も含む）+ FrameInput 列（ランレングス圧縮、照準は差分）+ ラン中の装備変更イベント（何フレーム目の前か）。`REPLAY_VERSION`（現行 31。8 でヒットストップの強さ `hitstopScale` を記録、9 で奥義の選択 `ReplayLoadout.ultimates` と左右アクションの作り直し、12 で防御ステータス・頭・地金・毎階の主・隠し部屋・通路の敵、13 で受け流しの入力 `FrameInput.parryPressed`・敵の攻撃のコミット・武器の重さ・ダッシュ 1.2 秒・通常命中のヒットストップの上限、14 で陣〔通常の部屋の敵を陣形で配る・通路の長蛇・猛・隊長〕・敵の反応ルール・同時攻撃の上限 `strikerCap`、15 で陣の群勢と敗走・大将・後詰・物見・陣形の偃月と方円・ボスの陣、16 で陣形の鋒矢と衡軛・音で起きる〔`GameState.noises` は step の中だけの一時領域で永続化しない〕・跳躍・章で覚える段、17 で与ダメの増と倍・敵の曲線・性質の曲線の外挿と揺らぎの幅・陣ごとの生命の揺らぎ、18 で地金の持ち込み・連鎖の止め方・常時の増と倍、19 で武器の型と戦意・共通の瞬間、20 で全ての型の戦意と連刃の段数。戦意と瞬間はラン内の状態で永続化しない、21 で改鋳〔ラン内。3 択は skill1〜3 の入力で決まる〕と流儀のダッシュの形と気力の源、22 で書・手鈴・陰陽師・巫女と重い武器の補償、23 で欠片を銭へ、24 で瓶〔`FrameInput.flaskPressed`〕・市と商人・章、25 で賭け・壺と木箱・鍵の使い道・寄進、26 で旅商人・闇市・通貨の見本、27 で出口の予告〔階段ごとの報酬・系譜〕・系譜ごとの祝福の提示・加護 2 枠と入れ替え・昇華と融合の確定・格 1〜5 と錬磨・ステータス振り分けの撤去〔記録の alloc 欄は読み捨てる〕、28 で祝福 200 → 121〔9 系譜 × 11 枚・融合・呪い付き 6・芯 4〕と旧フックの撤去・従魔〔`Enemy.allyUntil`〕・遅れて来る傷〔`Player.deferredDamage`〕・溜め〔`Enemy.vault`〕。研鑽の数え `BoonRunState.tallies` はラン内だけで永続化しない、29 で技 60 と型の変形・刻印符のラン内化とリンク固定〔スロットの符 `ReplayLoadout.slotRunes`〕、30 で手書きスキル 45・刻印符 30 と終撃 / 応手の連動・性質 71・転じ 12・誓約 20・名のある遺物 18・源と糧の共鳴〔`BoonRunState.resonance` はラン内だけ〕・残響 5、31 でボスの作り直し〔`pickMove`・3 段階・最深の主〕・最深の間と踏破・深み〔22 から・上限の解放〕・到達点・弾と設置物の数の歯止め・数値合わせ。段取り 9 の `runMeta` は空なら乱数の使い方を変えないので版に数えない）。QA 専用の開始深度 `RunSetup.startDepth` は `ReplayData.startDepth`（1 のときは書かない）に記録する。欄の無い旧記録は深度 1 なので版は上げないは同じ入力列でも進行が変わる更新（武器種の追加、GCD 廃止、開放型マップ化、契約者・演出の乱数分離など）のたびに上げ、`version` が一致しないリプレイは再生を拒否する
 - `ReplayData.snapshotAfterStart`（2026-09-24 追加）: スナップショットを `createGame` の後に取った記録かどうかの印。ジョブの初期スキル石を既に持っているとき、再生側で倉庫の件数を `createGame` 後の状態に合わせ直すために使う（版は上げず、印の無い旧記録は従来どおり `createGame` 前のスナップショットとして再生する）
+- `runMeta`（段取り 9）: ランの外から持ち込む中身（仇の種・解放の封じ〔契約者・部屋・ランイベント〕・位階の見返り）の道。`main.ts` がラン開始時に保存データ（履歴・図鑑・依頼・メタ）から `buildRunMeta`（`meta/runMetaSetup.ts`）で作り、`RunSetup.runMeta` → `createGame` が `state.runMeta` へ写す（デイリーは空）。リプレイには `ReplayData.runMeta`（空なら書かない）として記録し、再生は `sanitizeRunMeta`（壊れた値は空へ）を通した記録から同じ state を作る。step の中は保存データを読まない。**空の `runMeta` では乱数の消費も結果も従来と同じなので、版は据え置き**（旧記録は空として再生できる）
 - 再生中は `guardStorageWrites` で永続キーへの書き込みを止め、再生がプロフィールを汚さない
 - デイリーシード: `dailySeedText(new Date())` の文字列を `hashSeed` で seed にする
+- 連鎖係数が 1 未満のイベントからは、確率 1 の Rule も乱数を引く（`system/rules.ts` の `tryRule`。2026-09-30）
 - 決定性は `core/game.test.ts` と `core/replay.test.ts` がテストで固定している
 
 ## 永続化キー（保存先）
 
-保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\DEPTHBREAKER\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
+保存先は `save/backend.ts` の `saveStorage()` 経由のみ（ブラウザ版は localStorage、Electron 版は `save/bootstrap.ts` が差し込む `FileStorage` = `%APPDATA%\BOKUEN\save\*.json`。キーとファイル名の対応は `save/fileEnvelope.ts` の `SAVE_FILES`）。リプレイ再生中の書き込み抑止も `guardSaveWrites` がここで持つ。
 
 | キー | 中身 | 読み書き |
 | --- | --- | --- |
-| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件）・武器掛けで選ぶ奥義 `ultimates`（sanitize は `sanitizeUltimateChoices`） | `loot/profile.ts` |
-| `roguelike.skills.v1` | スキル石とスロット | `skills/persistence.ts` |
+| `roguelike.profile.v1` | 装備・stash・メタ（ラン数・履歴 20 件。履歴は段取り 9 から任意項目 9 欄〔死因 `killer`・仇の種 `grudge`・仇討ち `avenged`・位階 `tier`・`job`・被弾 `hurts`・見切り `justDodges`・カウンター `counters`・無傷の階 `noHurtFloors`。0・空は書かない〕と、`cause` の `"cleared"`〔踏破〕。メタに任意項目 `clears`〔踏破の回数〕/ `bestClearTier`〔踏破した最高位階〕）・武器掛けで選ぶ奥義 `ultimates`（sanitize は `sanitizeUltimateChoices`）・メタの任意項目 `seenAt`〔`Partial<Record<Slot, number>>`。装備画面の候補の新着の判定。その部位の候補を最後に見た時刻で、`item.foundAt` がこれより後なら新着。有限で 0 以上の数だけ通し、空なら書かない。`ui/seen.ts` が読み書きし、version は変えない〕 | `loot/profile.ts` |
+| `roguelike.skills.v1` | スキル石とスロット（刻印符は 2026-09-30 からラン内だけ。旧 `runes` と石の `links` は読み捨て、旧 `link` の芽は `power` へ写す。旧スキル key は `skills/legacyKeys.ts` で写す） | `skills/persistence.ts` |
 | `roguelike.craft.v1` | クラフト通貨とクラフト回数 | `loot/craftingStore.ts` |
 | `roguelike.settings.v1` | ミュート・音量・音楽の音量・画面揺れ | `ui/settings.ts` |
 | `roguelike.keybinds.v1` | キー設定（`keybinds`。アクション → KeyboardEvent.code / "MouseN" の配列。読込は `core/input.ts` の `sanitizeKeybinds` を通し、欠けたら既定）。2026-09-24 に settings から分離。このキーが無いときだけ旧 `settings.v1` に埋め込まれた `keybinds` を読み、次の保存で分離される | `ui/settings.ts` |
 | `roguelike.padbinds.v1` | パッドのボタン設定（`padBinds`。アクション → "PadN" / 組み合わせ "PadM+PadN" の配列。読込は `core/padBinds.ts` の `sanitizePadBinds`、欠けたら既定） | `ui/settings.ts` |
 | `roguelike.replays.v1` | リプレイ最新 10 件 | `ui/replayStore.ts` |
-| `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、スキルの連携の回数〔`combos`、2026-09-24 追加〕、連携の初発見〔`firstSeen`: id → 階とシード、2026-09-24 追加〕、階の種類・部屋の種類）。追加フィールドは旧データで `{}` に補うので `v1` のまま。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
+| `roguelike.codex.v1` | 図鑑（見た・倒した敵、名のある遺物、祝福、反応の回数、連鎖の並びの回数、スキルの連携の回数〔`combos`、2026-09-24 追加〕、連携の初発見〔`firstSeen`: id → 階とシード、2026-09-24 追加〕、階の種類・部屋の種類、倒された回数 `enemyDeaths`〔敵 key → 回数。予告の図解の開く条件。段取り 9〕）。追加フィールドは旧データで `{}` に補うので `v1` のまま。ラン終了時に `main.ts` の `endRun` が `recordCodex` で畳んで保存 | `meta/codexStore.ts` |
 | `roguelike.quests.v1` | 依頼（達成した依頼と時刻、受けたまま未達成の依頼 `active`）。起点の解放・図鑑の頁・名のある遺物の抽選・称号はここから読む | `meta/questStore.ts` |
 | `roguelike.achievements.v1` | 実績（解除した実績と時刻）と名乗っている称号 | `meta/achievements.ts` |
-| `roguelike.hub.v1` | 拠点（施設の既読など） | `meta/hubStore.ts` |
+| `roguelike.hub.v1` | 拠点（施設の既読など。任意項目 `donated` = 寄進の総額〔数値以外は 0、v2 は切らない〕、`hall` = ボスの間の記録〔ボスの key → 挑戦 `tries`・撃破 `wins`・最速 `bestSeconds`・最少の被弾 `fewestHits`。壊れた値は捨てる。段取り 9〕。書くのは main.ts の endRun だけで step の中では保存しない） | `meta/hubStore.ts` |
 
 共通ルール: 例外（容量超過・プライベートモード）を握りつぶし、壊れたデータはデフォルトへ落とす。形式を非互換に変えるときはキーの版を上げる。
 

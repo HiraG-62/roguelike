@@ -1,7 +1,10 @@
 import type { GameState } from "../core/state";
 import type { JobKey } from "../data/jobs";
 import type { QuestKey } from "../meta/quests";
+import type { RunMetaSetup } from "./runMeta";
 import { ORIGIN, RUN_MOD } from "../data/tuning";
+
+const PERCENT = 100;
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
 import { computeStats } from "../loot/stats";
 import { type PlayerStats, createEmptyEquipment } from "../loot/types";
@@ -9,11 +12,11 @@ import { SKILL } from "../skills/data";
 import { rollRuneModifier } from "../skills/generator";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillKey } from "../skills/types";
-import { grantAttributePoints } from "../ui/attributeAlloc";
 import { BOONS, BOON_KEYS, type BoonKey, grantBoon, hasBoon } from "./boons";
+import { gainCoins } from "./economy";
 import { applyStats } from "./player";
 import { applyJobStats, jobChangesStats } from "./jobs";
-import { attachRune } from "./skills";
+import { addToHand } from "./skills";
 
 /**
  * 起点（ラン開始時の出発条件）とラン修飾子（自分で積む縛り。点の合計が位階）。
@@ -37,6 +40,12 @@ export interface OriginDef {
   unlockedBy?: QuestKey;
 }
 
+/** 割合を「n 割」の表記にする（説明文の数値を JSON から組む。0.3 → 「3 割」） */
+const WARI = 10;
+function wari(ratio: number): string {
+  return `${Math.round(Math.abs(ratio) * WARI)} 割`;
+}
+
 export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   wanderer: { name: "放浪者", desc: "何も変えずに出発する。", keystones: [] },
   swordPilgrim: {
@@ -46,18 +55,18 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   cursedOne: {
     name: "呪われた者",
-    desc: "呪い付きの祝福を 2 つ持って出発する。代わりにステータスの振り分け点を 4 得る。",
+    desc: `呪い付きの祝福を ${ORIGIN.cursedBoons} つ持って出発する。代わりに銭を ${ORIGIN.cursedCoins} 得る。`,
     keystones: [],
     unlockedBy: "cursedDepth",
   },
   unarmed: {
     name: "素手",
-    desc: "地下 3 階に着くまで装備が封印される。代わりに振り分け点を 3 得る。",
+    desc: `地下 ${ORIGIN.unarmedUnsealDepth} 階に着くまで装備が封印される。代わりに銭を ${ORIGIN.unarmedCoins} 得る。`,
     keystones: [],
   },
   chanter: {
     name: "詠み手",
-    desc: "刻印符を 2 つ付けて出発する。最大生命が 2 割減る。",
+    desc: `刻印符を ${ORIGIN.chanterRunes} つ付けて出発する。最大生命が ${wari(1 - ORIGIN.chanterHpMul)}減る。`,
     keystones: [],
     unlockedBy: "alchemist",
   },
@@ -69,7 +78,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
   },
   reaperFriend: {
     name: "死神の友",
-    desc: "死神が最初から追ってくる（足は半分）。階段を降りるたびに振り分け点を 1 余分に得る。",
+    desc: `死神が最初から追ってくる（足は ${Math.round(ORIGIN.reaperFriendSpeedMul * PERCENT)}%）。初めての階へ降りるたびに銭を ${ORIGIN.reaperFriendCoins} 得る。`,
     keystones: [],
     unlockedBy: "reaperDance",
   },
@@ -106,17 +115,17 @@ export interface RunModDef {
 }
 
 export const RUN_MODS: Readonly<Record<RunModKey, RunModDef>> = {
-  thickHide: { name: "厚い皮", desc: "敵の生命が 3 割増える。", points: 1 },
-  quickHands: { name: "早い手", desc: "敵の予備動作が 1 割縮む。", points: 2 },
+  thickHide: { name: "厚い皮", desc: `敵の生命が ${wari(RUN_MOD.thickHideHpMul - 1)}増える。`, points: 1 },
+  quickHands: { name: "早い手", desc: `敵の予備動作が ${wari(RUN_MOD.quickHandsCut)}縮む。`, points: 2 },
   eliteSwarm: { name: "精鋭", desc: "精鋭の抽選が 2 回になる。", points: 1 },
   dryFountain: { name: "乾いた泉", desc: "泉が湧かず、ハートが落ちない。", points: 2 },
-  hastyReaper: { name: "急かす死神", desc: "死神の猶予が 3 割縮む。", points: 2 },
+  hastyReaper: { name: "急かす死神", desc: `死神の猶予が ${wari(1 - RUN_MOD.hastyReaperMul)}縮む。`, points: 2 },
   eternalNight: { name: "常夜", desc: "すべての階が暗闇になる。", points: 2 },
   endlessReinforce: { name: "絶えぬ増援", desc: "封鎖するたびに増援が来る。", points: 2 },
   roughLand: { name: "荒れた大地", desc: "バイオームの地形が 2 倍になる。", points: 1 },
   doubleLinger: { name: "長居の二重苦", desc: "長居の代償が浅い階から早めに来る。", points: 3 },
-  hourglass: { name: "部屋の砂時計", desc: "封鎖が長引くと増援が来る。", points: 2 },
-  glassBody: { name: "薄氷", desc: "最大生命が 3 割減る。", points: 2 },
+  hourglass: { name: "部屋の砂時計", desc: `交戦が ${RUN_MOD.hourglassTime} 秒続くたびに増援が来る。`, points: 2 },
+  glassBody: { name: "薄氷", desc: `最大生命が ${wari(1 - RUN_MOD.glassBodyHpMul)}減る。`, points: 2 },
 };
 
 export function isRunModKey(v: unknown): v is RunModKey {
@@ -146,6 +155,26 @@ export interface RunSetup {
    * ラン開始時に確定させ、ラン中に依頼を達成しても変えない（決定性）。省略は []
    */
   lockedRelics?: readonly string[];
+  /**
+   * 開始深度。QA とボスの間（system/bossHall.ts。倒したボスの階を作る）専用（深い階から始めて踏破率・被弾で死ぬまでの回数を測る。docs/ideas/scaling-impl.md 4d）。
+   * UI には出さず、リプレイに記録する。省略は 1
+   */
+  startDepth?: number;
+  /**
+   * ランの外から持ち込む中身（仇・解放の封じ・位階の見返り。system/runMeta.ts）。main.ts がラン開始時に保存データから作り、
+   * リプレイに記録する。省略は空（今と同じ乱数消費）
+   */
+  runMeta?: RunMetaSetup;
+}
+
+/** 開始深度の上限。壊れた保存データが巨大な深度で始まらないための保険 */
+export const MAX_START_DEPTH = 99;
+
+/** 開始深度を読む。1 以上の整数だけ通し（上限で切る）、1（既定）と壊れた値は undefined（欄を書かない・読まない） */
+export function sanitizeStartDepth(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  const depth = Math.min(MAX_START_DEPTH, Math.floor(v));
+  return depth > 1 ? depth : undefined;
 }
 
 export function defaultRunSetup(): RunSetup {
@@ -191,7 +220,7 @@ const RUN_FOLD_SOURCE = new WeakMap<PlayerStats, PlayerStats>();
  * 装備の stats に、起点・ジョブ・縛り・祭壇の誓約を畳み込む。何も無ければ同じオブジェクトを返す（従来と完全に同じ結果）。
  * 誓約は装備の誓約と排他グループがぶつかるなら足さない（装備側が勝つ。祭壇は候補の時点で除いている）
  *
- * 祝福・振り分けの畳み込み直し（boons.ts の applyBoonsToStats）は、この関数の結果（boonRun.baseStats）をもう一度
+ * 祝福の畳み込み直し（boons.ts の applyBoonsToStats）は、この関数の結果（boonRun.baseStats）をもう一度
  * applyStats へ渡してくる。そのまま畳むとジョブの偏り・倍率や最大生命の倍率が重なるので、畳んだ結果には元の装備の
  * stats を覚えさせ、再入力されたら元からやり直す（同じ状態なら何度呼んでも同じ結果）
  */
@@ -219,9 +248,9 @@ function addRunKeystone(stats: PlayerStats, key: string): void {
   stats.keystones.push(key);
 }
 
-/** 起点・祭壇で誓約や封印が変わったとき、装備から stats を畳み直す */
+/** 起点・祭壇で誓約や封印が変わったとき・階を移ったとき、装備から stats を畳み直す（地金は今の深度で決め直す） */
 export function refreshRunStats(state: GameState): void {
-  applyStats(state, computeStats(state.profile.equipment));
+  applyStats(state, computeStats(state.profile.equipment, state.depth));
 }
 
 /** 祭壇に並べられる誓約: 装備・ランの誓約と排他グループがぶつからないもの */
@@ -242,24 +271,25 @@ export function startOrigin(state: GameState): void {
       return;
     case "cursedOne":
       for (let i = 0; i < ORIGIN.cursedBoons; i++) grantRandomBoon(state, (key) => BOONS[key].cursed);
-      grantAttributePoints(state, ORIGIN.cursedPoints);
+      gainCoins(state, ORIGIN.cursedCoins, "event");
       return;
     case "unarmed":
-      grantAttributePoints(state, ORIGIN.unarmedPoints);
+      gainCoins(state, ORIGIN.unarmedCoins, "event");
       return;
     case "chanter":
-      for (let i = 0; i < ORIGIN.chanterRunes; i++) attachRune(state, rollRuneModifier(state.rng, equippedSkillKeys(state)));
+      for (let i = 0; i < ORIGIN.chanterRunes; i++) addToHand(state, rollRuneModifier(state.rng, equippedSkillKeys(state)));
       return;
     default:
       return;
   }
 }
 
-/** 前提（系譜の前段・結び・装備のタグ）の要らない祝福から 1 つ */
+/** 前提（真髄の枚数・融合の組・装備のタグ）の要らない祝福から 1 つ（芯は深度 2 の提示でだけ出るので除く） */
 function grantRandomBoon(state: GameState, filter: (key: BoonKey) => boolean): void {
   const pool = BOON_KEYS.filter((key) => {
     const def = BOONS[key];
-    return filter(key) && !hasBoon(state, key) && !def.after && !def.duo && !def.requires;
+    const gated = def.card === "apex" || def.fusion !== undefined || def.core === true || def.requires !== undefined;
+    return filter(key) && !hasBoon(state, key) && !gated;
   });
   if (pool.length === 0) return;
   grantBoon(state, state.rng.pick(pool));
@@ -276,7 +306,7 @@ export function equippedSkillKeys(state: GameState): SkillKey[] {
 
 /** 階段を降りた直後（新しい階の depth になってから）の起点の処理 */
 export function onOriginDescend(state: GameState): void {
-  if (state.origin === "reaperFriend") grantAttributePoints(state, ORIGIN.reaperFriendPoints);
+  if (state.origin === "reaperFriend") gainCoins(state, ORIGIN.reaperFriendCoins, "event");
   if (state.origin === "unarmed" && state.depth === ORIGIN.unarmedUnsealDepth) refreshRunStats(state);
 }
 

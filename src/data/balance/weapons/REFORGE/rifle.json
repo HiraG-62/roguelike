@@ -1,0 +1,4 @@
+{
+  "rifleStride": { "movingGainMul": 0.5 },
+  "rifleScatter": { "count": 5, "magnitude": 0.4, "icd": 0 }
+}

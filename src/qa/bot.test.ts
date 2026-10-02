@@ -1,14 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
-import type { GameState, HiddenRoom } from "../core/state";
+import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
-import { placeEnemy, arena } from "../system/testHelpers";
+import { PICKUP } from "../data/tuning";
+import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
-import { HIDDEN_DOOR_GIVE_UP, botInput, createBotState, pickBoonIndex, shouldPressUltimate } from "./bot";
+import {
+  HIDDEN_DOOR_GIVE_UP,
+  autoAttachHand,
+  botInput,
+  chooseTargetRoomIndex,
+  createBotState,
+  crossesPit,
+  nearestEngagedEnemy,
+  pickBoonIndex,
+  shouldDrinkFlask,
+  shouldPressUltimate,
+  worldToScreen,
+} from "./bot";
+import { TILE_SIZE, Tile, toIndex } from "../map/grid";
+import { invalidatePathing } from "../map/pathing";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
 import { planHidden } from "../system/hiddenRoom";
+import { setupFloorLordRoom } from "../system/floorLord";
 
 /** bot が待ち終えた後の提示時間（BOON_CHOICE_WAIT 0.5 秒より長く） */
 const WAITED = 1;
@@ -163,5 +179,319 @@ describe("bot の隠し部屋", () => {
     // state を進めないので扉は開かない。追った秒が上限を超えたら以後は数えない（= 扉を追わない）
     for (let i = 0; i < HIDDEN_DOOR_GIVE_UP * 2; i++) botInput(state, bot, 1);
     expect(bot.hiddenDoorTime).toBeLessThanOrEqual(HIDDEN_DOOR_GIVE_UP + 1);
+  });
+});
+
+describe("bot の瓶", () => {
+  function withHpRatio(state: GameState, ratio: number): void {
+    state.player.hp = state.player.maxHp * ratio;
+  }
+
+  it("瓶が 1 本以上で生命が 40% 以下なら飲む（ちょうど 40% は飲み、超えれば飲まない）", () => {
+    const state = arena(4);
+    state.player.flasks = 1;
+    withHpRatio(state, 0.4);
+    expect(botInput(state, createBotState(1), DT).flaskPressed, "40% で飲む").toBe(true);
+    withHpRatio(state, 0.41);
+    expect(botInput(state, createBotState(1), DT).flaskPressed, "41% では飲まない").toBe(false);
+  });
+
+  it("瓶が 0 本なら生命が低くても押さない", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    withHpRatio(state, 0.1);
+    expect(shouldDrinkFlask(state), "0 本").toBe(false);
+    expect(botInput(state, createBotState(1), DT).flaskPressed).toBe(false);
+  });
+
+  it("交戦中でも低 HP なら攻撃の入力に重ねて飲む", () => {
+    const state = arena(4);
+    placeEnemy(state, "slime", 20).phase = "chase";
+    state.player.flasks = 2;
+    withHpRatio(state, 0.2);
+    const input = botInput(state, createBotState(1), DT);
+    expect(input.flaskPressed, "戦闘の入力にも重なる").toBe(true);
+    expect(isZero(input.move) && !input.attackPressed && !input.attackHeld && !input.shootHeld && !input.dashPressed, "戦闘の入力そのものは残る").toBe(false);
+  });
+});
+
+describe("bot の市", () => {
+  const WARE_OFFSET = 40;
+
+  function ware(state: GameState, kind: WareKind, price: number, dx = WARE_OFFSET): Ware {
+    const p = state.player.body.pos;
+    return { kind, key: kind, price, base: price, pos: { x: p.x + dx, y: p.y }, used: false };
+  }
+
+  function stand(state: GameState, wares: Ware[], provoked = false): void {
+    const merchant: Merchant = { enemyId: -1, kind: "market", pos: { ...state.player.body.pos }, wares, greeted: false, provoked, rerolls: 0 };
+    state.economy.merchants = [merchant];
+  }
+
+  it("瓶が上限未満で払えるなら瓶の台座へ寄り、手が届けば照準を合わせてインタラクトし、その台座は済ませたことにして探索へ戻る", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    const target = ware(state, "flask", 40, 0);
+    stand(state, [target]);
+    const bot = createBotState(1);
+    const press = botInput(state, bot, DT);
+    expect(bot.marketTime, "台座を追った").toBeGreaterThan(0);
+    expect(press.interactPressed, "手の届く台座でインタラクトを押す").toBe(true);
+    expect(press.aimScreen, "照準は台座").toEqual(worldToScreen(state, target.pos));
+    expect(bot.triedWares.has(target), "押した台座は済ませた").toBe(true);
+    const before = bot.marketTime;
+    botInput(state, bot, DT);
+    expect(bot.marketTime, "済んだ台座には寄り続けない").toBe(before);
+  });
+
+  it("手の届かない台座ではインタラクトを押さず、歩いて寄る", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    const target = ware(state, "flask", 40, PICKUP.reach * 2);
+    stand(state, [target]);
+    const bot = createBotState(1);
+    const input = botInput(state, bot, DT);
+    expect(input.interactPressed, "遠い台座では押さない").toBe(false);
+    expect(bot.triedWares.has(target), "まだ済ませていない").toBe(false);
+    expect(bot.marketTime, "台座を追っている").toBeGreaterThan(0);
+  });
+
+  it("払えない・瓶が上限・瓶以外の台座には寄らない（他は買わない）", () => {
+    const poor = arena(4);
+    poor.player.flasks = 0;
+    poor.economy.coins = 39;
+    stand(poor, [ware(poor, "flask", 40)]);
+    const poorBot = createBotState(1);
+    botInput(poor, poorBot, DT);
+    expect(poorBot.marketTime, "銭が足りなければ寄らない").toBe(0);
+
+    const full = arena(4);
+    full.economy.coins = 100;
+    full.player.flasks = full.stats.flaskMax;
+    stand(full, [ware(full, "flask", 40)]);
+    const fullBot = createBotState(1);
+    botInput(full, fullBot, DT);
+    expect(fullBot.marketTime, "瓶が上限なら寄らない").toBe(0);
+
+    const other = arena(4);
+    other.player.flasks = 0;
+    other.economy.coins = 500;
+    stand(other, [ware(other, "item", 70), ware(other, "rune", 50), ware(other, "key", 30)]);
+    const otherBot = createBotState(1);
+    botInput(other, otherBot, DT);
+    expect(otherBot.marketTime, "瓶以外の台座には寄らない").toBe(0);
+  });
+
+  it("怒った商人の台座には寄らない（売らないので）", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    stand(state, [ware(state, "flask", 40)], true);
+    const bot = createBotState(1);
+    botInput(state, bot, DT);
+    expect(bot.marketTime, "怒った商人").toBe(0);
+  });
+
+  it("買われて used になった台座には寄らず、寄り道の秒の上限を超えたら諦める", () => {
+    const sold = arena(4);
+    sold.player.flasks = 0;
+    sold.economy.coins = 100;
+    const w = ware(sold, "flask", 40);
+    w.used = true;
+    stand(sold, [w]);
+    const soldBot = createBotState(1);
+    botInput(sold, soldBot, DT);
+    expect(soldBot.marketTime, "used の台座は対象外").toBe(0);
+
+    const far = arena(4);
+    far.player.flasks = 0;
+    far.economy.coins = 100;
+    stand(far, [ware(far, "flask", 40, 5000)]);
+    const bot = createBotState(1);
+    for (let i = 0; i < 100; i++) botInput(far, bot, 1);
+    expect(bot.marketTime, "追った秒は上限を少し超えたところで止まる").toBeLessThanOrEqual(31 + 1);
+  });
+});
+
+describe("bot の進み方（封鎖の部屋 → 階の主 → 階段）", () => {
+  /** 階の主がいて、封鎖中の部屋は無い盤面（階段は主を倒すまで現れないので、全部屋を掃除して待つ bot は進めない） */
+  function lordFloor(seed: number): GameState {
+    const state = arena(seed);
+    state.rooms.forEach((room) => {
+      room.locked = false;
+    });
+    // arena は敵を空にするので、主は置き直す（slayFloorLord が倒せるよう敵としても立てる）
+    state.boss = null;
+    setupFloorLordRoom(state, state.rooms.length - 1);
+    return state;
+  }
+
+  it("封鎖中の部屋を最優先で目標にする（主の部屋より先）", () => {
+    const state = lordFloor(3);
+    expect(state.boss, "前提: 階の主がいる").not.toBeNull();
+    const lockedIndex = 0;
+    expect(state.boss?.roomIndex, "前提: 封鎖する部屋は主の部屋と別").not.toBe(lockedIndex);
+    const room = state.rooms[lockedIndex];
+    if (!room) throw new Error("部屋が無い");
+    room.locked = true;
+    expect(chooseTargetRoomIndex(state, createBotState(1)), "封鎖中の部屋").toBe(lockedIndex);
+  });
+
+  it("主が生きている間は主の部屋を目標にする（未制圧の近い部屋は後回し）", () => {
+    const state = lordFloor(3);
+    const boss = state.boss;
+    if (!boss) throw new Error("階の主がいない");
+    expect(boss.defeated, "前提: 主は未撃破").toBe(false);
+    const bot = createBotState(1);
+    expect(chooseTargetRoomIndex(state, bot), "主の部屋").toBe(boss.roomIndex);
+    expect(bot.targetRoomIndex, "bot の目標にも残る").toBe(boss.roomIndex);
+  });
+
+  it("主を倒した後は階段へ向かう（目標の部屋が null）", () => {
+    const state = lordFloor(3);
+    slayFloorLord(state);
+    expect(state.boss?.defeated, "前提: 主を倒した").toBe(true);
+    state.rooms.forEach((room) => {
+      room.locked = false;
+    });
+    const bot = createBotState(1);
+    bot.targetRoomIndex = state.boss?.roomIndex ?? null;
+    expect(chooseTargetRoomIndex(state, bot), "階段へ").toBeNull();
+    expect(bot.targetRoomIndex, "覚えていた目標も捨てる").toBeNull();
+  });
+});
+
+describe("bot は閉じた扉の向こうを追わない", () => {
+  const ENEMY_DX = 70;
+  const HEART_DX = 60;
+  const LOW_HP_RATIO = 0.1;
+
+  function lockTileAt(state: GameState, x: number, y: number): number {
+    const index = toIndex(state.map, Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE));
+    state.lockedTiles.add(index);
+    return index;
+  }
+
+  it("視線が通っていても、線分が封鎖中の扉を横切る敵は狙わない", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    expect(nearestEngagedEnemy(state), "前提: 扉が無ければ狙う").toBe(enemy);
+    const p = state.player.body.pos;
+    lockTileAt(state, p.x + ENEMY_DX / 2, p.y);
+    expect(nearestEngagedEnemy(state), "扉越しの敵は狙わない").toBeNull();
+  });
+
+  it("封鎖中の扉が線分から外れていれば狙う", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const p = state.player.body.pos;
+    lockTileAt(state, p.x, p.y + TILE_SIZE * 4);
+    expect(nearestEngagedEnemy(state), "扉が別の所にある").toBe(state.enemies[0]);
+  });
+
+  it("生命が低くても、経路で届かないハートへは向かわない（届くハートへは向かう）", () => {
+    const reachable = arena(3);
+    const heartPos = { x: reachable.player.body.pos.x + HEART_DX, y: reachable.player.body.pos.y };
+    reachable.pickups.push({ id: 9001, kind: "heart", pos: { ...heartPos }, radius: 6, bobTime: 0 });
+    reachable.player.hp = reachable.player.maxHp * LOW_HP_RATIO;
+    reachable.player.flasks = 0;
+    const botA = createBotState(1);
+    botInput(reachable, botA, DT);
+    expect(botA.pathGoal, "届くハートへ経路を引く").toEqual(heartPos);
+
+    const sealed = arena(3);
+    sealed.pickups.push({ id: 9002, kind: "heart", pos: { ...heartPos }, radius: 6, bobTime: 0 });
+    sealed.player.hp = sealed.player.maxHp * LOW_HP_RATIO;
+    sealed.player.flasks = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) lockTileAt(sealed, heartPos.x + dx * TILE_SIZE, heartPos.y + dy * TILE_SIZE);
+    const botB = createBotState(1);
+    botInput(sealed, botB, DT);
+    expect(botB.pathGoal === null || Math.abs(botB.pathGoal.x - heartPos.x) > TILE_SIZE || Math.abs(botB.pathGoal.y - heartPos.y) > TILE_SIZE, "ハートを経路の目標にしない").toBe(true);
+    expect(botB.heartRetry, "届かないと分かったら次の引き直しまで待つ").toBeGreaterThan(0);
+  });
+});
+
+describe("bot は穴越しの敵へ直進しない", () => {
+  const ENEMY_DX = 80;
+  /** 穴の列を置く、プレイヤーから右へのタイル数 */
+  const PIT_COLUMN_TILES = 2;
+  /** 回り込みに使う秒 */
+  const ROUTE_SECONDS = 6;
+  /** 回り込んで近づけたとみなす距離（px） */
+  const REACHED_DIST = 40;
+
+  /**
+   * プレイヤーの右に縦一列の穴を開ける。gapAbove > 0 なら上端からそのタイル数だけ開けて回り道を残す
+   * （縁を滑る向きの探索は下を先に試すので、回り道を上に置くと直進では袋小路に入る）
+   */
+  function digPitColumn(state: GameState, gapAbove: number): void {
+    const map = state.map;
+    const room = state.rooms[0];
+    if (!room) throw new Error("開始部屋が無い");
+    const tx = Math.floor(state.player.body.pos.x / TILE_SIZE) + PIT_COLUMN_TILES;
+    for (let ty = room.rect.y + gapAbove; ty < room.rect.y + room.rect.h; ty++) map.tiles[toIndex(map, tx, ty)] = Tile.Pit;
+    invalidatePathing(map);
+  }
+
+  it("視線が通っていても、線分が穴を横切る敵は狙わない", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    if (!enemy) throw new Error("敵が無い");
+    expect(nearestEngagedEnemy(state), "前提: 穴が無ければ狙う").toBe(enemy);
+    digPitColumn(state, 0);
+    expect(crossesPit(state, state.player.body.pos, enemy.body.pos), "線分は穴を横切る").toBe(true);
+    expect(nearestEngagedEnemy(state), "穴越しの敵は後回し").toBeNull();
+  });
+
+  it("封鎖中の部屋で穴を挟んだ敵へ、縁で詰まらずに経路で回り込む", () => {
+    const state = facingEnemy(ENEMY_DX);
+    const enemy = state.enemies[0];
+    const room = state.rooms[0];
+    if (!enemy || !room) throw new Error("敵か開始部屋が無い");
+    room.cleared = false;
+    room.locked = true;
+    enemy.roomIndex = 0;
+    digPitColumn(state, 2);
+    const pin = { ...enemy.body.pos };
+    const bot = createBotState(1);
+    let closest = Infinity;
+    for (let t = 0; t < ROUTE_SECONDS / DT; t++) {
+      step(state, botInput(state, bot, DT), DT);
+      // 敵は動かさない（敵が自分から穴を回って来ると、bot の回り込みを確かめられない）
+      enemy.body.pos = { ...pin };
+      enemy.body.vel = { x: 0, y: 0 };
+      closest = Math.min(closest, Math.hypot(pin.x - state.player.body.pos.x, pin.y - state.player.body.pos.y));
+    }
+    expect(closest, "穴の縁で止まらず敵のそばまで回り込む").toBeLessThan(REACHED_DIST);
+  });
+});
+
+describe("bot の刻印符の自動装着", () => {
+  it("手持ちの符を付けられるスキルへ付け、付けた数を返す。付かなかった符は手持ちに残る", () => {
+    const state = createGame(3);
+    state.skills.hand = ["focus", "echo", "streak"];
+    const attached = autoAttachHand(state);
+    const placed = state.skills.slots.reduce((n, s) => n + s.runModifiers.length, 0);
+    expect(attached, "返り値は付けた枚数").toBe(placed);
+    expect(state.skills.hand.length, "付けた分だけ手持ちが減る").toBe(3 - attached);
+  });
+
+  it("botInput は手持ちの符を毎ステップ付けにいく（本体は自動で付けない）", () => {
+    const state = createGame(3);
+    const stone = state.skills.slots.findIndex((_, i) => (state.skills.profile.loadout[i] ?? null) !== null);
+    expect(stone, "石を持つスロットがある").toBeGreaterThanOrEqual(0);
+    state.skills.hand = ["focus", "echo", "streak"];
+    step(state, botInput(state, createBotState(3), 1 / 60), 1 / 60);
+    const placed = state.skills.slots.reduce((n, s) => n + s.runModifiers.length, 0);
+    expect(placed + state.skills.hand.length, "符は増えも消えもしない（押し出しが起きない枚数）").toBe(3);
+    expect(placed, "付けられる符は付く").toBeGreaterThan(0);
+  });
+
+  it("ゲーム本体の step だけでは手持ちの符は付かない", () => {
+    const state = createGame(3);
+    state.skills.hand = ["focus"];
+    for (let i = 0; i < 30; i++) step(state, withInput({}), 1 / 60);
+    expect(state.skills.hand, "手持ちのまま").toEqual(["focus"]);
   });
 });

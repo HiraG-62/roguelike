@@ -8,10 +8,11 @@ import { ruleConditionsMet } from "./rules";
 import { ultimateReady } from "./ultimates";
 import { scaled } from "./attributes";
 import { damageEnemy, gainEnergy, healPlayer, healSustained, rollOutgoing } from "./combat";
-import { addFloatingText, spawnBurst, spawnRing } from "./effects";
+import { spawnBurst, spawnRing, addFloatingTextOnce } from "./effects";
 import { isEngaged } from "./engagement";
 import { gainMana } from "./mana";
 import { addPoise } from "./poise";
+import { yellowAt } from "./readTiming";
 import { applyBurn, applyChill, applyStatus, chainLightning, enemiesInRadius, explodeAt, hasStatus, removeStatus } from "./statusEffects";
 import { afflictionKinds, afflictionList, tickTraitClocks, traitTriggerIcdMul } from "./traitHooks";
 
@@ -64,7 +65,7 @@ export function fireTrigger(state: GameState, kind: TriggerKind, ctx: TriggerCon
     const rule = ruleFromTrigger(t, index);
     if (!ruleConditionsMet(state, rule.if, ctx)) return;
     if (!state.rng.chance(rule.chance)) return;
-    // 星座「鏡像」は内部クールダウンを縮める
+    // 内部クールダウンを縮める欄（旧 星座「鏡像」が持ち込んだ。色の共鳴の廃止後は書く所が無く、常に縮まない）
     p.triggerCooldowns.set(key, rule.icd * traitTriggerIcdMul(state));
     runEffect(state, t, ctx);
   });
@@ -104,16 +105,17 @@ export function conditionMet(state: GameState, condition: TriggerCondition, ctx?
     case "selfAfflicted":
       return afflictionKinds(p.status) > 0;
     default:
-      return targetConditionMet(targetOf(state, ctx), condition);
+      return targetConditionMet(state, targetOf(state, ctx), condition);
   }
 }
 
 /** 対象（敵）を見る条件。対象を探すのはこの種類の条件のときだけ（毎ヒットの判定を重くしない） */
-function targetConditionMet(target: Enemy | undefined, condition: TriggerCondition): boolean {
+function targetConditionMet(state: GameState, target: Enemy | undefined, condition: TriggerCondition): boolean {
   if (target === undefined) return false;
   switch (condition) {
     case "targetInWindup":
-      return target.phase === "windup";
+      // 予告が下絵の間だけ（墨入れは攻撃が確定していて、殴って止められない。system/readTiming.ts）
+      return yellowAt(target, state.time);
     case "targetGuarded":
       return hasStatus(target.status, "guarded");
     case "targetMultiStatus":
@@ -125,7 +127,7 @@ function targetConditionMet(target: Enemy | undefined, condition: TriggerConditi
   }
 }
 
-/** ICD を進める（毎ステップ）。性質の時計（死神の誓い）もここで進める */
+/** ICD を進める（毎ステップ）。性質の時計（余韻斬り・血の署名・土の息など。`traitHooks.ts` の `tickTraitClocks`）もここで進める */
 export function tickTriggerCooldowns(state: GameState, dt: number): void {
   tickTraitClocks(state, dt);
   const cds = state.player.triggerCooldowns;
@@ -171,11 +173,11 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
       return;
     case "damageBuff":
       applyTimedMul(p.buffs.damage, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "強化", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "強化", TEXT_COLOR_BUFF, 1, 0.6, "label", { sameWord: true });
       return;
     case "speedBuff":
       applyTimedMul(p.buffs.speed, 1 + t.magnitude / TRIGGER.percent, durationOf(t));
-      addFloatingText(state, p.body.pos, "加速", TEXT_COLOR_BUFF, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "加速", TEXT_COLOR_BUFF, 1, 0.6, "label", { sameWord: true });
       return;
     case "energy":
       gainEnergy(state, t.magnitude);
@@ -183,7 +185,7 @@ export function runEffect(state: GameState, t: EffectParams, ctx: TriggerContext
     case "invuln":
       // 上限で切る: 被弾時・ゲージ満タンの無敵を重ねて常時無敵にしない
       p.buffs.invuln = Math.max(p.buffs.invuln, Math.min(TRIGGER.invulnMax, t.duration ?? t.magnitude));
-      addFloatingText(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6);
+      addFloatingTextOnce(state, p.body.pos, "無敵", TEXT_COLOR_INVULN, 1, 0.6, "label", { sameWord: true });
       return;
     default:
       runExtendedEffect(state, t, ctx);
@@ -196,7 +198,7 @@ function runExtendedEffect(state: GameState, t: EffectParams, ctx: TriggerContex
   switch (t.effect) {
     case "restoreMana":
       gainMana(state, t.magnitude);
-      addFloatingText(state, p.body.pos, "気力", TEXT_COLOR_MANA, 0.8, 0.5);
+      addFloatingTextOnce(state, p.body.pos, "気力", TEXT_COLOR_MANA, 0.8, 0.5, "label", { sameWord: true });
       return;
     case "addPoise":
       for (const e of effectTargets(state, ctx)) addPoise(state, e, t.magnitude);
@@ -268,7 +270,7 @@ function cleanseOne(state: GameState): void {
   const kind = afflictionList(state.player.status)[0];
   if (kind === undefined) return;
   removeStatus(state, { kind: "player" }, kind);
-  addFloatingText(state, state.player.body.pos, "解除", TEXT_COLOR_BUFF, 0.8, 0.5);
+  addFloatingTextOnce(state, state.player.body.pos, "解除", TEXT_COLOR_BUFF, 0.8, 0.5, "label", { sameWord: true });
 }
 
 /** 敵の状態異常の残り秒を延ばす（行動停止と怯み値の系統は除く。上限 TRIGGER.extendMax） */

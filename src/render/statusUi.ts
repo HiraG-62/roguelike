@@ -4,6 +4,7 @@ import { TRAIT_COLORS, TRAIT_COLOR_HEX } from "../loot/types";
 import { poiseRatio } from "../system/poise";
 import { findStatus } from "../system/statusEffects";
 import { TEXT, drawText, textWidth } from "./pixelText";
+import { GOFUN_COLOR } from "../data/signs";
 import { EFFECTS } from "../data/tuning";
 import { type StatusMotion, statusParticle } from "./renderMath";
 
@@ -49,6 +50,8 @@ export const STATUS_GLYPH: Readonly<Record<StatusKind, string>> = {
   wrath: "怒",
   fury: "昂",
   charged: "帯",
+  wound: "傷",
+  inkMark: "墨",
 };
 
 export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
@@ -63,7 +66,7 @@ export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
   weaken: "#b0a0ff",
   fear: "#c070ff",
   silence: "#a0a0c0",
-  stagger: "#f8d848",
+  stagger: GOFUN_COLOR,
   guarded: "#d0d0d0",
   wet: "#60a0ff",
   oiled: "#b09050",
@@ -86,11 +89,13 @@ export const STATUS_COLOR: Readonly<Record<StatusKind, string>> = {
   wrath: "#ff7050",
   fury: "#ff3030",
   charged: "#f0f080",
+  wound: "#d07060",
+  inkMark: "#b090ff",
 };
 
 /** 怯みゲージを出し始める蓄積の割合（小さな蓄積で頭上をうるさくしない） */
 export const POISE_GAUGE_SHOW_RATIO = 0.5;
-const POISE_GAUGE_COLOR = "#f8d848";
+const POISE_GAUGE_COLOR = GOFUN_COLOR;
 const POISE_GAUGE_BG = "#302810";
 const POISE_GAUGE_H = 1;
 /** 敵の頭上の列: 文字の間隔と、スプライト上端からの高さ */
@@ -180,7 +185,7 @@ export function drawEnemyStatus(ctx: CanvasRenderingContext2D, e: Enemy, cx: num
   ctx.globalAlpha = 1;
 }
 
-/** 怯みゲージ（細い黄色、蓄積 / 耐性）。見せる条件を満たさなければ何もしない */
+/** 怯みゲージ（細い胡粉、蓄積 / 耐性）。見せる条件を満たさなければ何もしない */
 export function drawPoiseGauge(ctx: CanvasRenderingContext2D, e: Enemy, cx: number, y: number, w: number): void {
   if (!poiseGaugeVisible(e)) return;
   const left = Math.round(cx - w / 2);
@@ -249,7 +254,7 @@ export const STATUS_FX: Readonly<Record<StatusKind, StatusFxStyle>> = {
   weaken: { motion: "fall", color: "#b0a0ff", tint: null },
   fear: { motion: "orbit", color: "#c070ff", tint: "#8050c0" },
   silence: { motion: "orbit", color: "#a0a0c0", tint: null },
-  stagger: { motion: "stars", color: "#f8d848", tint: null },
+  stagger: { motion: "stars", color: GOFUN_COLOR, tint: null },
   guarded: { motion: null, color: "#d0d0d0", tint: null },
   wet: { motion: "fall", color: "#60a0ff", tint: "#6090e0" },
   oiled: { motion: "fall", color: "#b09050", tint: "#806030" },
@@ -272,6 +277,8 @@ export const STATUS_FX: Readonly<Record<StatusKind, StatusFxStyle>> = {
   wrath: { motion: "rise", color: "#ff7050", tint: null },
   fury: { motion: "rise", color: "#ff3030", tint: null },
   charged: { motion: "spark", color: "#f0f080", tint: null },
+  wound: { motion: null, color: "#d07060", tint: null },
+  inkMark: { motion: "orbit", color: "#b090ff", tint: null },
 };
 
 /**
@@ -299,6 +306,7 @@ export const STATUS_FX_PRIORITY: readonly StatusKind[] = [
   "oiled",
   "corrode",
   "brand",
+  "inkMark",
   "exposed",
   "vulnerable",
   "broken",

@@ -9,12 +9,10 @@ import { FX_ATTACK } from "../data/tuning";
 import type { FxSheetKey } from "../data/fxSheets.gen";
 import { castElement } from "../skills/hit";
 import { SKILL, skillAttack } from "../skills/data";
-import { fieldRadius, mineRadius, thunderRadius, wellRadius } from "../skills/placed";
-import { bonePositions, graveRadius, kegRadius, springRadius } from "../skills/summons";
+import { fieldRadius, mineRadius, wellRadius } from "../skills/placed";
+import { graveRadius, kegRadius, springRadius } from "../skills/summons";
 import type { ActiveCast, CastParams, SkillKey } from "../skills/types";
-import { TRAIT_COLOR_HEX, type TraitColor } from "../loot/types";
-import { grenadeRadius, hookRange, quakeRadius, whirlRadius } from "../system/skills";
-import { GRENADE_ARC_H } from "./thrownLook";
+import { hookRange } from "../system/skills";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
 import { SKILL_FX, type SkillFx, type SkillLoop, type SkillPiece, mirrorFlip, rampOfElement, skillSheet } from "./fxMotions";
 
@@ -53,17 +51,8 @@ interface Aura {
 
 /** 発動中の絵の大きさ（絵の表の base と比べて拡縮する）。載っていないスキルは 0（拡縮しない）。スキルの絵を足すときにここへ足す */
 const ACTIVE_SIZE: Readonly<Record<string, (state: GameState, a: ActiveCast) => number>> = {
-  whirl: (state, a) => whirlRadius(state, a.params),
-  quake: (_state, a) => quakeRadius(a.params),
   chainHook: (_state, a) => hookRange(a.params),
-  dregsBlade: (state, a) => SKILL.dregsBlade.radius * state.stats.meleeReachMul * a.params.areaMul,
-  guillotine: (state, a) => SKILL.guillotine.length * state.stats.meleeReachMul * a.params.areaMul,
 };
-
-/** 五彩の礫の共鳴の色 → 配色（紅 = 出血の赤、蒼 = 感電、翠 = 癒やしの緑、金 = 貫く光、冥 = 脆くする闇） */
-const PRISM_RAMP: ReadonlyMap<string, FxRampKey> = new Map(
-  (Object.entries({ crimson: "fire", azure: "lightning", jade: "poison", gold: "light", umbra: "dark" }) as [TraitColor, FxRampKey][]).map(([c, r]) => [TRAIT_COLOR_HEX[c], r]),
-);
 
 /** 置いてある物の一覧（どのスキルの物かは発動の値の skillKey。型替え符で別のスキルが置いた物もそのスキルの絵になる） */
 function placedOf(state: GameState): Placed[] {
@@ -75,17 +64,12 @@ function placedOf(state: GameState): Placed[] {
   for (const f of rs.fields) add(f.pos, f.params, fieldRadius(f.params));
   for (const w of rs.wells) add(w.pos, w.params, wellRadius(w.params));
   for (const m of rs.mines) add(m.pos, m.params, mineRadius(m.params), m.arm > 0 ? UNARMED_ALPHA : 1);
-  for (const t of rs.strikes) add(t.pos, t.params, thunderRadius(t.params));
   for (const k of rs.kegs) add(k.pos, k.params, kegRadius(k.params));
   for (const g of rs.graves) add(g.pos, g.params, graveRadius(g.params));
   for (const t of rs.turrets) add(t.pos, t.params, 0);
   for (const s of rs.springs) add(s.pos, s.params, springRadius(s.params));
   for (const s of rs.stakes) add(s.pos, s.params, 0);
-  // 骨片の輪: 骨 1 本ずつ（位置と残りの数は当たり判定と同じ bonePositions）
-  if (rs.boneRing) for (const b of bonePositions(state, rs.boneRing)) add(b, rs.boneRing.params, 0);
   for (const z of rs.mires ?? []) add(z.pos, z.params, SKILL.mire.radius * z.params.areaMul);
-  // 着地して導火線が燃えている手榴弾
-  for (const g of rs.grenades) if (g.flight <= 0) add(g.to, g.params, grenadeRadius(g.params));
   return out;
 }
 
@@ -94,28 +78,17 @@ function movingOf(state: GameState): Moving[] {
   const rs = state.skills;
   const out: Moving[] = [];
   for (const s of rs.shots) {
-    const ramp = s.effect === "prism" ? PRISM_RAMP.get(s.color) : undefined;
-    out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params, ramp, size: s.radius });
-  }
-  for (const b of rs.bullets) out.push({ key: b.params.skillKey, pos: b.pos, angle: Math.atan2(b.vel.y, b.vel.x), params: b.params, size: 0 });
-  for (const g of rs.grenades) {
-    if (g.flight <= 0) continue;
-    const t = g.flightTotal > 0 ? 1 - g.flight / g.flightTotal : 1;
-    // skillHud の手続きの描画と同じ放物線の高さ（落ちる所の輪は skillHud が残す）
-    const pos = { x: g.from.x + (g.to.x - g.from.x) * t, y: g.from.y + (g.to.y - g.from.y) * t };
-    out.push({ key: g.params.skillKey, pos, angle: Math.atan2(g.to.y - g.from.y, g.to.x - g.from.x), params: g.params, size: 0, lift: Math.sin(t * Math.PI) * GRENADE_ARC_H });
+    out.push({ key: s.params.skillKey, pos: s.pos, angle: Math.atan2(s.vel.y, s.vel.x), params: s.params, size: s.radius });
   }
   return out;
 }
 
-/** 効いている纏いの一覧（加速・血の契約・骨の輪・変身） */
+/** 効いている纏いの一覧（加速・血の契約・変身） */
 function aurasOf(state: GameState): Aura[] {
   const rs = state.skills;
   const out: Aura[] = [];
   if (rs.haste.time > 0) out.push({ key: "haste", element: "none" });
   if (rs.lifesteal.time > 0 || rs.frenzy.time > 0) out.push({ key: "bloodPact", element: "none" });
-  if (rs.boneRing) out.push({ key: rs.boneRing.params.skillKey, element: paramsElement(rs.boneRing.params) });
-  if (rs.form) out.push({ key: rs.form.skillKey, element: "none" });
   if (rs.shape) out.push({ key: rs.shape.key, element: paramsElement(rs.shape.params) });
   return out;
 }

@@ -1,0 +1,31 @@
+{
+  "_fields": {
+    "coins": "得る銭（銭吐き = 1 回 / 掏り = 近くの敵 1 体につき）。銭",
+    "icd": "同じ札が続けて発動しない間隔（内部 CD）。秒（BOON.ruleMinIcd が下限）",
+    "share": "持ち金のうち払う割合（投銭）。0..1",
+    "perCoin": "払った銭 1 につきのダメージ（投銭の弾 / 散財の爆発）",
+    "radius": "効果の半径（掏り = 銭を掠め取る敵の距離 / 散財 = 爆発）。px",
+    "cost": "銭払い: スキル 1 回に払う銭",
+    "mana": "銭払い: 払った銭で戻す気力",
+    "every": "1 段に要る数（守銭 = 持ち金 / 稼 = 稼いだ総額 / 散 = 使った総額）。銭",
+    "perStep": "守銭: 1 段につき与ダメの増（0.01 = +1%）",
+    "cap": "守銭: 与ダメの増の上限（0.25 = +25%）",
+    "pct": "拾銭: 銭を拾ったときの移動速度の増。%",
+    "time": "拾銭: 移動速度の増が続く秒。秒",
+    "ratio": "戻り銭: こぼれた銭のうち自分へ戻る割合",
+    "amount": "稼 = 1 段につき与ダメの増 / 散・黄金律 = 1 段につき与ダメの倍に足す量（0.01 = ×1.01）",
+    "base": "黄金律: 倍が 1 段目に上がる持ち金（以後 2 倍ごとに 1 段）。銭",
+    "spillShare": "黄金律: 被弾でこぼれた後、さらに撒く持ち金の割合（こぼれる量をおよそ倍にする）"
+  },
+  "coinSpit": { "coins": 1, "icd": 0.4 },
+  "coinToss": { "share": 0.1, "perCoin": 4, "icd": 0.3 },
+  "pickpocket": { "coins": 2, "radius": 48, "icd": 1 },
+  "coinPay": { "cost": 5, "mana": 15, "icd": 0.1 },
+  "squander": { "perCoin": 2, "radius": 64 },
+  "miser": { "every": 20, "perStep": 0.01, "cap": 0.25 },
+  "coinGleaner": { "pct": 20, "time": 2, "icd": 0.5 },
+  "changeBack": { "ratio": 0.5 },
+  "earnTally": { "amount": 0.01, "every": 50 },
+  "spendTally": { "amount": 0.01, "every": 50 },
+  "goldenRule": { "amount": 0.1, "base": 50, "spillShare": 0.1 }
+}

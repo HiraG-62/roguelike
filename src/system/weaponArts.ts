@@ -1,10 +1,10 @@
 import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
-import { enemyTarget, pushEvent } from "../core/events";
-import { FX_ATTACK, WEAPON } from "../data/tuning";
+import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
+  type ButtonKey,
   type AimArtDef,
   type BranchDef,
   type BranchShots,
@@ -21,10 +21,13 @@ import {
 } from "../data/weapons";
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
-import { addFloatingText, addMark, spawnBurst } from "./effects";
+import { spawnBurst } from "./effects";
 import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
-import { addPoise } from "./poise";
-import { onTraitCounter } from "./traitHooks";
+import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
+import { noteRelease, noteRiposte } from "./moments";
+import { onManaSource } from "./manaSources";
+import { attackCommitted } from "./poise";
+import { parryLocksActions, parryMoveMul, parrySucceed, tryWindowParry } from "./parry";
 import { BULLETS } from "../loot/bullets";
 
 /**
@@ -37,8 +40,6 @@ import { BULLETS } from "../loot/bullets";
 const A = WEAPON.artDefaults;
 const DEG_TO_RAD = Math.PI / 180;
 const FULL_TURN = Math.PI * 2;
-const PARRY_TEXT_SCALE = 1.4;
-const PARRY_TEXT_LIFE = 0.6;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
 const FX_SIZE = 2;
@@ -115,9 +116,9 @@ function advanceLane(state: GameState, index: number): void {
   a.inputTimer = Math.max(a.inputTimer, laneChainWindow(playerMoveset(state).steps2[index]));
 }
 
-/** 受け流しを外した硬直中か（攻撃・技・射撃のボタンを受け付けない） */
+/** 受け流しを外した硬直中か（攻撃・技・射撃のボタンを受け付けない）。共通の受け流し（parry.ts）の窓と硬直も含む */
 export function artLocksActions(state: GameState): boolean {
-  return state.player.art.recover > 0;
+  return state.player.art.recover > 0 || parryLocksActions(state);
 }
 
 /** 振りの最中なら段を出せない。recover 中は振りを打ち切って出す（先行入力と同じ手触り） */
@@ -151,12 +152,12 @@ export function startLaneArt(state: GameState, s: ActionStepDef, index: number):
       logButton(p, "secondary");
       return true;
     case "volley":
-      if (!emitArtVolley(state, s.throw)) return false;
+      if (!emitArtVolley(state, s.throw, releaseOverride(laneRelease(state, s.key)))) return false;
       logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
     case "recall":
-      recallShots(state, s.recall);
+      recallShots(state, s.recall, laneRelease(state, s.key));
       logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
@@ -262,8 +263,10 @@ function onAimReady(state: GameState): void {
   pushSfx(state, "chargeLevel");
 }
 
-/** 構え・狙い中の移動速度倍率（構えていなければ 1） */
+/** 構え・狙い・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
 export function artMoveMul(state: GameState): number {
+  const parry = parryMoveMul(state);
+  if (parry !== 1) return parry;
   if (!state.player.art.holding) return 1;
   const hold = currentHold(state);
   if (hold) return hold.moveMul;
@@ -271,41 +274,44 @@ export function artMoveMul(state: GameState): number {
 }
 
 /**
- * 受け流し（combat.ts の damagePlayer が無敵判定の直後に呼ぶ）。窓の中の被弾を無効にし、
- * 攻撃した敵に怯み値を入れてカウンター扱いにする（onCounter を発火。刀のルールや祝福が乗る）。受け流したら true
+ * 受け流し（combat.ts の damagePlayer が無敵判定の直後に呼ぶ）。剣の右 1 段目の構えの窓、なければ共通の受け流しの窓（parry.ts）の
+ * 中の被弾を無効にし、攻撃した敵を止めてカウンター扱いにする（onCounter を発火。刀のルールや祝福が乗る）。受け流したら true。
+ * fromPos は攻撃の出どころ（共通の受け流しの向きの判定に使う）
  */
-export function tryParry(state: GameState, attacker?: Enemy): boolean {
+export function tryParry(state: GameState, attacker?: Enemy, fromPos?: Vec): boolean {
   const p = state.player;
   const parry = currentHold(state)?.parry;
-  if (!parry || !p.art.holding || p.art.holdTime >= parry.windowSec) return false;
+  if (!parry || !p.art.holding || p.art.holdTime >= parry.windowSec) return tryWindowParry(state, fromPos, attacker);
   finishArtHold(state);
-  p.invulnTimer = Math.max(p.invulnTimer, A.parryInvuln);
-  addFloatingText(state, p.body.pos, A.parryText, A.parryColor, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
-  spawnBurst(state, p.body.pos, A.parryColor, A.parryParticles, FX_SPEED, FX_LIFE, FX_SIZE);
-  addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
-  pushSfx(state, "counter");
-  if (attacker && attacker.hp > 0) counterAttacker(state, attacker, parry.staggerPoise);
+  parrySucceed(state, attacker, parry.staggerPoise);
   return true;
-}
-
-function counterAttacker(state: GameState, e: Enemy, poise: number): void {
-  addPoise(state, e, poise * state.stats.poiseDamageMul, { ignoreSuperArmor: true });
-  onTraitCounter(state, e);
-  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
 }
 
 /**
  * 盾の構え（combat.ts の damagePlayer が被ダメに掛ける）。向きから arcDeg の内側から来た被弾は damageMul 倍にし、
  * 受けるたびに奥義ゲージを溜める。構えていない・後ろからの被弾は 1
  */
-export function guardDamageMul(state: GameState, fromPos: Vec): number {
+export function guardDamageMul(state: GameState, fromPos: Vec, amount = 0, attacker?: Enemy): number {
   const p = state.player;
   const guard = currentHold(state)?.guard;
   if (!guard || !p.art.holding) return 1;
   if (!inFront(p.body.pos, p.facing, fromPos, guard.arcDeg)) return 1;
+  noteGuardBlock(state, amount, attacker);
   gainEnergy(state, guard.energyGain);
   spawnBurst(state, p.body.pos, A.guardColor, A.guardParticles, FX_SPEED, FX_LIFE, FX_SIZE);
   return guard.damageMul;
+}
+
+/**
+ * 構えで受けた（盾の受け溜め）。受けた元のダメージが戦意になり、応手（guardBlock）は attacker がコミットした攻撃のときだけ
+ * （blockOnlyCommitted。弾が出た後の敵は攻撃が確定していないので、置き弾や敵弾を受けただけでは応手にしない）
+ */
+function noteGuardBlock(state: GameState, amount: number, attacker?: Enemy): void {
+  gainMorale(state, "guardBlock", amount);
+  // 構えで受けた量は盾持ちの気力の源（system/manaSources.ts）
+  onManaSource(state, "guardBlock", amount);
+  if (FORM.bulwark.blockOnlyCommitted && !(attacker && attackCommitted(attacker))) return;
+  noteRiposte(state, "guardBlock", attacker);
 }
 
 /** from が向き facing から arcDeg の扇の内側か。真上に重なっている（向きが無い）なら前とみなす */
@@ -324,6 +330,28 @@ export interface ArtVolleyOverride {
   spreadDeg?: number;
   pierceBonus?: number;
   damageMul?: number;
+  /** 撃ったレーン（双撃の判定。省略は右 = 右レーンの弾の段） */
+  lane?: ButtonKey;
+  /** 放出の弾（終撃・会心。Projectile.release へ写す） */
+  release?: { finisher: boolean; crit: boolean };
+}
+
+/** 放出の倍率（戦意）を弾の差し替えに写す。放出でなければ空 */
+function releaseOverride(r: ShotRelease | undefined): ArtVolleyOverride {
+  if (!r) return {};
+  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, release: { finisher: r.finisher, crit: r.crit } };
+}
+
+/** 右レーンの弾を出す段・手元返しが放出（投具）なら、飛んでいる数を単位に放出を出して弾への倍率を返す */
+function laneRelease(state: GameState, key: string | undefined): ShotRelease | undefined {
+  const r = laneStepRelease(state, key);
+  if (r) noteRelease(state, r.units);
+  return r;
+}
+
+/** 振りの詠唱（cast）の魔弾の差し替え。放出の振り（杖の 3 手の派生）が撃つ魔弾は放出の弾にする（player.ts の updateAttack） */
+export function castOverride(state: GameState, lane: ButtonKey): ArtVolleyOverride {
+  return { lane, ...releaseOverride(swingShotRelease(state)) };
 }
 
 /**
@@ -341,6 +369,9 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     recoil: false,
     sprite: t.sprite,
     applies: t.applies,
+    lane: over.lane ?? "secondary",
+    release: over.release,
+    shotMana: t.mana,
   });
 }
 
@@ -348,7 +379,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
  * 手元返し: 飛んでいる自分の弾（床に据えた設置弾・山なりの曲射を除く）をすべて手元へ向け直す。
  * 戻りの弾は威力 returnDamageMul 倍で、当てた敵を忘れてもう一度当たる。向け直した数を返す
  */
-export function recallShots(state: GameState, recall: RecallArtDef): number {
+export function recallShots(state: GameState, recall: RecallArtDef, release?: ShotRelease): number {
   const hand = state.player.body.pos;
   let count = 0;
   for (const pr of state.projectiles) {
@@ -358,7 +389,12 @@ export function recallShots(state: GameState, recall: RecallArtDef): number {
     if (d < RECALL_MIN_DIST) continue;
     const speed = Math.max(A.recallMinSpeed, length(pr.vel)) * recall.speedMul;
     pr.vel = scale(normalize(toHand), speed);
-    pr.damage *= recall.returnDamageMul;
+    // 放出（投具の戻す段）なら戻りの弾は飛んでいた数だけ強く、放出の弾（終撃）になる
+    pr.damage *= recall.returnDamageMul * (release?.mul.damageMul ?? 1);
+    if (release) {
+      pr.release = { finisher: release.finisher, crit: release.crit };
+      pr.firedAt = state.time;
+    }
     pr.hitIds.clear();
     // 手元に届くまでは消えない。回転刃は戻りの扱いにして手元で収める
     pr.life = Math.max(pr.life, d / speed);
@@ -400,7 +436,8 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
 
 /** 派生の弾。from が lane なら右レーンの弾の段の弾、省略は装備の銃の弾（射撃として当たる） */
 function emitBranchShots(state: GameState, shots: BranchShots): void {
-  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul };
+  // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
+  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
   if (shots.from !== "lane") {
     emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, over);
     return;
@@ -415,10 +452,16 @@ function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {
   if (extras.detonateMines) detonateOwnMines(state);
 }
 
-/** 床の自分の設置弾を次のステップで炸裂させる（寿命を尽きかけにし、projectiles.ts の信管切れの経路で炸裂させる） */
-export function detonateOwnMines(state: GameState): void {
+/**
+ * 床の自分の設置弾・曲射弾を次のステップで炸裂させる（寿命を尽きかけにし、projectiles.ts の信管切れの経路で炸裂させる）。
+ * 起爆した数を返す（砲の放出の量。system/morale.ts の placedShotCount と同じ数え方）
+ */
+export function detonateOwnMines(state: GameState): number {
+  let count = 0;
   for (const pr of state.projectiles) {
-    if (pr.owner !== "player" || pr.life <= 0 || pr.shot?.detonated) continue;
-    if (pr.shot && BULLETS[pr.shot.key]?.mine) pr.life = Math.min(pr.life, A.detonateLife);
+    if (!isPlacedShot(pr)) continue;
+    pr.life = Math.min(pr.life, A.detonateLife);
+    count += 1;
   }
+  return count;
 }

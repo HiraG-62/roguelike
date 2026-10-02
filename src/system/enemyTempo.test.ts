@@ -5,6 +5,7 @@ import type { Enemy, GameState } from "../core/state";
 import { ENEMIES, enemyDef } from "../data/enemies";
 import { BOSS, ELITE, ENEMY_TEMPO } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
+import { KS_SWALLOW } from "./bossKingSlime";
 import { depthWindupMul, followUpOf, scaledWindup, updateEnemies } from "./enemies";
 import { isStaggered } from "./poise";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -80,7 +81,11 @@ describe("深度による予備動作の短縮", () => {
     const state = tempoArena(30);
     const def = enemyDef("kingSlime");
     const boss = ready(placeEnemy(state, "kingSlime", 80));
-    if (boss.ai) boss.ai.stage = 2;
+    // 呑みは基準の予備動作（def.windup）を段階の速さと深度で縮める技。高い跳躍は上昇 + 滞空の別の長さ（bossKingSlime.test.ts）
+    if (boss.ai) {
+      boss.ai.stage = 2;
+      boss.ai.move = KS_SWALLOW;
+    }
     updateEnemies(state, FIXED_DT);
     expect(boss.phase).toBe("windup");
     expect(boss.phaseTimer).toBeGreaterThanOrEqual(def.windup * ENEMY_TEMPO.windupFloor - EPS);
@@ -94,7 +99,7 @@ describe("連続攻撃", () => {
     expect(phasesUntilRecover(state, k)).toEqual(["chase", "windup", "strike", "windup", "strike", "recover"]);
   });
 
-  it("2 撃目の予備動作は followUps の windup（深度で縮み、60% 下限）", () => {
+  it("2 撃目の予備動作は depthStages の連撃の windup（深度で縮み、60% 下限）", () => {
     const state = tempoArena(3);
     const k = ready(placeEnemy(state, "knight", 30));
     const f = followUpOf("knight", 3);

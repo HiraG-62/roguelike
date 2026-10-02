@@ -9,7 +9,7 @@
 - URL: https://opengameart.org/content/16x16-puny-dungeon-tileset
 - ライセンス: CC0（Creative Commons Zero）
 - 取得日: 2026-09-24
-- 使用箇所: `public/assets/puny-dungeon/punyworld-dungeon-tileset.png`（未使用。取り込み基盤〔レーン B〕・タイル差し替え〔レーン C〕の完了後に `src/data/tiles.ts` から参照される予定）
+- 使用箇所: `public/assets/puny-dungeon/punyworld-dungeon-tileset.png`（`src/data/tiles.ts` の `TILE_SPRITES` が部屋の台座 `prop.*` と階段 `stairs` の絵だけを切り出す。床・壁は 2026-10-02 の門前町への作り直しで使わなくなった）
 - 改変: 未改変（原寸のまま配置）
 
 ## Tiny Dungeon（Kenney）
@@ -18,7 +18,7 @@
 - URL: https://kenney.nl/assets/tiny-dungeon
 - ライセンス: CC0（Creative Commons Zero）
 - 取得日: 2026-09-24
-- 使用箇所: `public/assets/kenney-tiny-dungeon/tilemap_packed.png`（未使用。取り込み基盤〔レーン B〕・タイル差し替え〔レーン C〕の完了後に `src/data/tiles.ts` から参照される予定）
+- 使用箇所: `public/assets/kenney-tiny-dungeon/tilemap_packed.png`（`src/data/tiles.ts` の `TILE_SPRITES` が部屋の台座 `prop.*` の絵だけを切り出す。拠点の設備の絵は 2026-10-02 の門前町への作り直しで使わなくなった）
 - 改変: 未改変（原寸のまま配置）
 
 ## 16x16 DungeonTileset II（0x72）※ 未取得
@@ -37,3 +37,12 @@
 - 取得日: 2026-09-26〜27
 - 使用箇所: `public/assets/sfx/*.ogg`（未使用。ゲーム側の読み込みを入れたら鳴る）
 - 改変: 無音カット・EQ・音量の正規化（ローカルの生成ツールで処理。プロンプトと seed は生成ツール側の manifest に記録）
+
+## Yuji Boku（タイトル画面の題字「墨淵」の字形）
+
+- 作者: Yuji Boku プロジェクトの作者（Google Fonts 配布）
+- URL: https://fonts.google.com/specimen/Yuji+Boku
+- ライセンス: SIL Open Font License 1.1
+- 取得日: 2026-10-01
+- 使用箇所: `src/data/sprites/titleLogo.ts`（フォントで書いた「墨淵」を二値の点にした生成物。フォント本体は同梱せず、実行時にも読まない。作り方は `scripts/title/gen-logo.mjs`）
+- 改変: 40px で描いた字形をアルファ閾値で二値化し、紙色に塗り直して使用

@@ -3,7 +3,6 @@ import { type Vec, fromAngle } from "../core/vec";
 import { MAP_SIZE, ORIGIN, REAPER, RUN_MOD } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { addFloatingText, noteReaperWarning, shake, spawnBurst } from "./effects";
-import { boonReaperDelay } from "./boonRules";
 import { initReaperVariant, reaperBodyVisible, tickReaper } from "./reaperVariants";
 import { hasMod } from "./runSetup";
 import { isPropRoom } from "./specialRooms";
@@ -32,7 +31,7 @@ export function reaperAppearAfter(state: GameState): number {
   const rooms = state.rooms.filter((r) => !excludedFromGrace(r.kind)).length;
   // 広い階は部屋の間の道のりも伸びるので、基本の猶予も広さで伸ばす（部屋数の分は部屋の数で伸びる）
   const areaGrace = REAPER.appearAfter * (state.floorAreaMul ?? 1) ** MAP_SIZE.graceAreaExp;
-  const base = areaGrace + rooms * REAPER.appearPerRoom + boonReaperDelay(state);
+  const base = areaGrace + rooms * REAPER.appearPerRoom;
   return hasMod(state, "hastyReaper") ? base * RUN_MOD.hastyReaperMul : base;
 }
 
@@ -84,7 +83,7 @@ export function spawnReaper(state: GameState): void {
   // バリアント（鎖・取り立て屋・双子・影・静か）を決め、種類をログで告げる
   initReaperVariant(state, reaper);
   spawnBurst(state, pos, REAPER.color, SPAWN_PARTICLES, 120, 0.8, 2.5);
-  addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2);
+  addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2, "notice");
   shake(state, 4);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "reaperAppear");

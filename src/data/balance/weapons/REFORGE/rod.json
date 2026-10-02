@@ -1,0 +1,4 @@
+{
+  "rodQuad": { "max": 4 },
+  "rodResidue": { "radius": 30, "duration": 4 }
+}

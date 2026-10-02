@@ -1,12 +1,13 @@
 import { type Rng, createRng } from "../core/rng";
 import type { MovesetKey } from "../data/weapons";
-import { artWeightFor } from "./arts";
 import { MODIFIERS, SKILL, SKILL_DEFS, SKILL_MIN_DEPTH, SKILL_WEIGHTS, canAttach } from "./data";
 import { modifierWeight } from "./modifiers";
-import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type RuneItem, type SkillKey, type SkillStone, type VariantRoll } from "./types";
+import { STONE_TUNING } from "./tuning2";
+import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "./types";
 
 /**
- * スキル石の生成。レベル・tier は持たず、ロールされるのは変異軸とリンク数だけ。
+ * スキル石の生成。レベル・tier は持たず、ロールされるのは変異軸と、まれに宿り符（docs/ideas/skill-stone-hunt.md）。
+ * リンクはスロットで固定なので石は持たない。
  * 外から渡された rng からは seed を 1 回だけ引き、中身は seed から決定的に作る。
  */
 
@@ -54,9 +55,12 @@ function rollVariants(rng: Rng, skillKey: SkillKey): VariantRoll[] {
   return out;
 }
 
-/** 抽選の重み。武器技は装備中の武器種なら厚く、違う武器種なら薄く（skills/arts/index.ts の artWeightFor） */
-export function skillWeight(key: SkillKey, moveset: MovesetKey | undefined): number {
-  return artWeightFor(key, moveset) ?? SKILL_WEIGHTS[key];
+/**
+ * 抽選の重み。段取り 7c で技は武器種の縛りを持たなくなったので、装備中の武器種では変えない
+ * （引数の武器種は呼び出し側の互換のために残す）
+ */
+export function skillWeight(key: SkillKey, _moveset?: MovesetKey): number {
+  return SKILL_WEIGHTS[key];
 }
 
 /** SKILL_WEIGHTS に従ってスキルの種類を選ぶ。拾った深度より深い層から出るスキル（SKILL_MIN_DEPTH）は除く */
@@ -69,20 +73,45 @@ function rollSkillKey(rng: Rng, depth: number, moveset: MovesetKey | undefined):
   return pool[idx] ?? SKILL_KEYS[0];
 }
 
+/** 宿り符が付く確率。深度 1 で dwellChanceMin、dwellCapDepth 以降で dwellChanceMax、間は直線 */
+export function dwellChance(depth: number): number {
+  const t = STONE_TUNING;
+  const span = Math.max(1, t.dwellCapDepth - 1);
+  const k = Math.min(1, Math.max(0, (depth - 1) / span));
+  return t.dwellChanceMin + (t.dwellChanceMax - t.dwellChanceMin) * k;
+}
+
+/**
+ * 宿り符の抽選。当たればそのスキルに付けられる符から 1 枚（重みは床の符と同じ modifierWeight）、外れなら null。
+ * 乱数は必ず 1 回引き、当たったときだけ種類でもう 1 回引く
+ */
+function rollDwell(rng: Rng, skillKey: SkillKey, depth: number): ModifierKey | null {
+  if (rng.next() >= dwellChance(depth)) return null;
+  const def = SKILL_DEFS[skillKey];
+  const pool = MODIFIER_KEYS.filter((k) => canAttach(def, k));
+  if (pool.length === 0) return null;
+  const idx = weightedIndex(
+    rng,
+    pool.map((k) => modifierWeight(MODIFIERS[k])),
+  );
+  return pool[idx] ?? null;
+}
+
 /** seed から石を作る（同じ seed なら id / foundAt 以外は同じ） */
 export function stoneFromSeed(seed: number, opts: StoneOptions): SkillStone {
   const rng = createRng(seed);
   const skillKey = opts.skillKey ?? rollSkillKey(rng, opts.foundDepth, opts.moveset);
-  const links = weightedIndex(rng, SKILL.linkWeights);
   const variants = rollVariants(rng, skillKey);
+  const dwell = rollDwell(rng, skillKey, opts.foundDepth);
   return {
     id: `s${seed.toString(ID_RADIX)}-${opts.now.toString(ID_RADIX)}`,
     seed,
     skillKey,
     variants,
-    links,
+    links: 0,
     foundDepth: opts.foundDepth,
     foundAt: opts.now,
+    ...(dwell === null ? {} : { dwell }),
   };
 }
 
@@ -127,9 +156,4 @@ export function rollRuneDrop(
 ): ModifierKey | null {
   if (!rng.chance(runeDropChance(depth, source))) return null;
   return rollRuneModifier(rng, equipped);
-}
-
-/** 所持品の刻印符を作る。idSeed は床の刻印符の id など（now と合わせて一意にする。決定性に影響しない） */
-export function makeRuneItem(modifier: ModifierKey, idSeed: number, now: number): RuneItem {
-  return { id: `r${idSeed.toString(ID_RADIX)}-${now.toString(ID_RADIX)}`, modifier, foundAt: now };
 }

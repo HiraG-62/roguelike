@@ -28,6 +28,7 @@ export const COMMON_ART_SPECS: readonly ArtSpec[] = [
     tags: ["area"],
     attack: AREA,
     acts: [{ kind: "ring", n: "wave" }],
+    combos: ["reelStomp"],
   },
   {
     key: "commonBackstep",

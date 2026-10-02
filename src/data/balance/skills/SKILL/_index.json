@@ -1,14 +1,22 @@
 {
+  "_fields": {
+    "defaultCastRange": "照準地点の既定の射程。px。照準の射程表（CAST_RANGE）に無いスキル・技の上限と、照準が無いときの正面の距離。目安 120（破片弾の最大射程と同じ）",
+    "fullManaEpsilon": "気力が満タンとみなす誤差の許容（気力の量）。刻印符「溢れ」の判定に使う（旧 満月の砲の fullEpsilon）",
+    "castWallProbe": "照準地点を壁の手前で止めるときの刻み。px。小さいほど壁際まで寄る（旧 グレネードの wallProbe）",
+    "variantCountWeights": "変異軸の本数（0 / 1 / 2 本）の重み。2026-10-02 に「変異なし」をやめて必ず 1 本以上にした（スキルの持つ軸が 1 本なら 1 本）",
+    "stashCapacity": "スキル石の倉庫の上限（個）。保存データの歯止めだけで、遊びの上の意味は持たせない（遺物の STASH_CAPACITY と同じ 400）",
+    "slotLinks": "スロットごとのリンク数（先頭がスキル 1）。そのスロットに付けられるラン内の刻印符の本数。石ごとには持たない（型替え符は linkCost 本ぶん使う）"
+  },
   "slots": 4,
+  "slotLinks": [4, 3, 2, 2],
   "manaFlashTime": 0.3,
-  "linkBurdenPenalty": 0.15,
-  "maxLinks": 3,
-  "linkWeights": [30, 45, 20, 5],
-  "variantCountWeights": [35, 45, 20],
+  "variantCountWeights": [0, 55, 45],
   "variantPrecision": 100,
   "inputBuffer": 0.25,
   "notReadyTextInterval": 0.6,
-  "stashCapacity": 60,
-  "runeCapacity": 60,
-  "_order": ["slots", "manaFlashTime", "linkBurdenPenalty", "maxLinks", "linkWeights", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "runeCapacity", "whirl", "lunge", "frag", "railshot", "parry", "bloodPact", "quake", "thunder", "gravityWell", "mines", "haste", "chainHook", "spiral", "frostField", "modifier", "drop"]
+  "stashCapacity": 400,
+  "defaultCastRange": 120,
+  "castWallProbe": 2,
+  "fullManaEpsilon": 0.01,
+  "_order": ["slots", "slotLinks", "manaFlashTime", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "defaultCastRange", "castWallProbe", "fullManaEpsilon", "parry", "bloodPact", "gravityWell", "mines", "haste", "chainHook", "frostField", "modifier", "drop"]
 }

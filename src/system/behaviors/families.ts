@@ -1,8 +1,11 @@
 import type { Enemy, GameState } from "../../core/state";
+import type { Vec } from "../../core/vec";
 import type { EnemyBehavior, EnemyDef } from "../../data/enemies";
-import { ENEMY_AI } from "../../data/tuning";
+import { ENEMY_AI, REACTION } from "../../data/tuning";
 import { frostCrusherReady, isMimicTongue, scavengerHeading } from "../enemyBehaviors";
 import { absorberReady, bannerAlive, hollowFrozen } from "../enemyWave3";
+import { canLeap, planLeap, stepLeap } from "../enemyLeap";
+import { merchantProvoked, provokeMerchant, throwWares } from "../merchantAi";
 import { EnemyBehaviorBase } from "./base";
 
 // 基本パラメータは移行前の system/enemies.ts の表の値そのまま（第 2 段で enemies.json の BEHAVIOR へ移す）
@@ -18,6 +21,8 @@ const WISP_STRIKE_SPEED_MUL = 3;
 const HOLLOW_STRIKE_SPEED_MUL = 5;
 /** 飛ぶ敵は予備動作中も少し寄ってくる */
 const FLY_WINDUP_MOVE_MUL = 0.3;
+/** 射手が予備動作の間に後ろへ下がる速さの倍率（負 = プレイヤーから離れる。後退射撃） */
+const SHOOTER_BACKSTEP_MUL = -REACTION.shooterBackstepMul;
 /** 旗持ちが旗を立てた後に殴りに来る距離 */
 const BANNER_MELEE_RANGE = 44;
 
@@ -46,10 +51,19 @@ export class Charger extends Rusher {
 export class Keeper extends EnemyBehaviorBase {
   override readonly keepAway: number | undefined;
   override readonly silenceable: boolean;
-  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined, silenceable = true) {
+  override readonly windupMoveMul: number;
+  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined, silenceable = true, windupMoveMul = 0) {
     super(key);
     this.keepAway = keepAway;
     this.silenceable = silenceable;
+    this.windupMoveMul = windupMoveMul;
+  }
+}
+
+/** 撃ちながら下がる射手（後退射撃）。狙いは予備動作の途中（固まる残り秒まで）更新されるので、下がっても外れない */
+export class Backstepper extends Keeper {
+  constructor(key: EnemyBehavior, keepAway: number | undefined = undefined) {
+    super(key, keepAway, true, SHOOTER_BACKSTEP_MUL);
   }
 }
 
@@ -57,15 +71,33 @@ export class Keeper extends EnemyBehaviorBase {
 export class Flyer extends EnemyBehaviorBase {
   override readonly strikeSpeedMul: number = FLY_STRIKE_SPEED_MUL;
   override readonly windupMoveMul: number = FLY_WINDUP_MOVE_MUL;
+  override readonly recoverRetreatMul: number = ENEMY_AI.bat.retreatMul;
 }
 
 /** 動かない（氷柱・地雷・卵・吸い込み蟲）。追わない・押されない */
 export class Stationary extends EnemyBehaviorBase {
   override readonly stationary: boolean = true;
+  // 動かないので、離れる・囲む・時計を速めるの反応は無い（引数は子の商人が怒るのに使う）
+  override onStruck(_state: GameState, _e: Enemy, _def: EnemyDef): void {}
+  override attackCooldownRate(): number {
+    return 1;
+  }
+  override slotTarget(): undefined {
+    return undefined;
+  }
 }
 
 /** ボス。状態機械を通らず boss*.ts が動かす。登録表の席を埋めるだけ */
-export class BossDriven extends EnemyBehaviorBase {}
+export class BossDriven extends EnemyBehaviorBase {
+  // 自前の AI（boss*.ts）で動くので、共通の反応ルールは受けない
+  override onStruck(): void {}
+  override attackCooldownRate(): number {
+    return 1;
+  }
+  override slotTarget(): undefined {
+    return undefined;
+  }
+}
 
 // ---- 個別（canBeginAttack / aimFixedAtWindup / 基本パラメータが家族と違う behavior） ----
 
@@ -79,6 +111,8 @@ export class Knight extends Rusher {
 /** 鬼火: 蝙蝠より少し遅い体当たり */
 export class Wisp extends Flyer {
   override readonly strikeSpeedMul: number = WISP_STRIKE_SPEED_MUL;
+  // 鬼火は体当たりの後に離れない（一撃離脱は蝙蝠だけの動き）
+  override readonly recoverRetreatMul: number = 0;
   constructor() {
     super("wisp");
   }
@@ -204,7 +238,62 @@ export class WindSprite extends Keeper {
   }
 }
 
+/**
+ * 跳躍: 予備動作の始まりに着地点の影を出し、strike の間に跳んで着地で円に当てる（system/enemyLeap.ts）。
+ * 共通の突進（strikeSpeedMul）と接触は使わない（0）。着地点は予備動作の始まりで固定
+ */
+export class Leaper extends Rusher {
+  constructor() {
+    super("leaper", 0);
+  }
+  override canBeginAttack(state: GameState, e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return canLeap(state, e);
+  }
+  override aimFixedAtWindup(_e: Enemy, _def: EnemyDef): boolean {
+    return true;
+  }
+  override telegraph(state: GameState, e: Enemy, def: EnemyDef, _dir: Vec): void {
+    planLeap(state, e, def);
+  }
+  override tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): void {
+    stepLeap(state, e, def, dt);
+  }
+}
+
 /** 動かずに撃つ・鳴らす（墓守の鐘・砲台）。沈黙が効く */
 export class SilenceableStationary extends Stationary {
   override readonly silenceable: boolean = true;
+}
+
+/**
+ * 商人（system/merchants.ts が立たせる）: 動かない。殴られるまで気付かず（enemies.ts の idle と noise.ts が def.merchant を見て起こさない）、
+ * 殴られると怒って品を扇に投げる（system/merchantAi.ts）
+ */
+export class Merchant extends Stationary {
+  constructor() {
+    super("merchant");
+  }
+  override onStruck(state: GameState, e: Enemy, _def: EnemyDef): void {
+    provokeMerchant(state, e);
+  }
+  override canBeginAttack(state: GameState, e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return merchantProvoked(state, e);
+  }
+  override tickStrike(state: GameState, e: Enemy, _def: EnemyDef, _dt: number): void {
+    // strike の最後のステップ（この後 enemies.ts の strike が endStrike する）で 1 回だけ投げる
+    if (e.phaseTimer <= 0) throwWares(state, e);
+  }
+}
+
+/**
+ * 壺・木箱（system/containers.ts が置く）: 動かず、気付かず（enemies.ts の idle と noise.ts が def.container を見て起こさない）、攻撃しない。
+ * 割れるのは 1 撃（生命 1）。撃破の処理は combat.ts の killEnemy が containers.ts へ渡す
+ */
+export class Container extends Stationary {
+  constructor() {
+    super("container");
+  }
+  override canBeginAttack(_state: GameState, _e: Enemy, _def: EnemyDef, _d: number): boolean {
+    return false;
+  }
 }

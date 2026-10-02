@@ -77,6 +77,11 @@ export const BASES: readonly BaseItemDef[] = [
   { key: "ironFan", name: "鉄扇", slot: "mainHand", minLevel: B.ironFan.minLevel, moveset: "fan" },
   { key: "danceFan", name: "舞扇", slot: "mainHand", minLevel: B.danceFan.minLevel, implicitKey: "implicit.danceFan", moveset: "fan" },
   { key: "warFan", name: "軍扇", slot: "mainHand", minLevel: B.warFan.minLevel, implicitKey: "implicit.warFan", moveset: "fan" },
+  // 段取り 5d（docs/ideas/weapon-forms-impl.md 3-8）: 書・鈴の器（implicit なし。型そのものが個性）
+  { key: "manuscript", name: "写本", slot: "mainHand", minLevel: B.manuscript.minLevel, moveset: "book" },
+  { key: "grimoire", name: "魔導書", slot: "mainHand", minLevel: B.grimoire.minLevel, moveset: "book" },
+  { key: "kagura", name: "神楽鈴", slot: "mainHand", minLevel: B.kagura.minLevel, moveset: "handbell" },
+  { key: "vajraBell", name: "五鈷鈴", slot: "mainHand", minLevel: B.vajraBell.minLevel, moveset: "handbell" },
 
   // gun: 連射 / 弾数 / 貫通
   { key: "pistol", name: "拳銃", slot: "mainHand", minLevel: B.pistol.minLevel, implicitKey: "implicit.pistol", moveset: "sidearm" },

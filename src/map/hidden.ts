@@ -1,5 +1,5 @@
 import type { Rng } from "../core/rng";
-import { type GameMap, Tile, getTile, toIndex } from "./grid";
+import { type GameMap, Tile, getTile, isPassableTile, toIndex } from "./grid";
 import { UNREACHABLE, distanceField } from "./pathing";
 
 /**
@@ -45,7 +45,7 @@ export function planHiddenRoom(map: GameMap, rng: Rng, opts: HiddenRoomOptions):
   const field = distanceField(map, opts.startTile);
   const candidates: HiddenRoomPlan[] = [];
   for (let i = 0; i < map.tiles.length; i++) {
-    if (map.tiles[i] === Tile.Wall) continue;
+    if (!isPassableTile(map.tiles[i] ?? Tile.Wall)) continue;
     if (opts.avoidTiles.has(i)) continue;
     const steps = field[i] ?? UNREACHABLE;
     if (steps === UNREACHABLE || steps < opts.minSteps) continue;
@@ -62,7 +62,8 @@ export function planHiddenRoom(map: GameMap, rng: Rng, opts: HiddenRoomOptions):
 
 /**
  * (fx, fy) から (dx, dy) 方向に扉を 1 マス、その先に w×h のポケットを置けるか。
- * ポケット + 外周 1 マス（扉自身を含む）がすべて Tile.Wall で、マップの外周 1 マスに掛からなければ候補になる
+ * ポケット + 外周 1 マス（扉自身を含む）がすべて Tile.Wall で、マップの外周 1 マスに掛からなければ候補になる。
+ * 穴（Tile.Pit）は壁と同じに扱わない: 外周に穴があれば候補にしない（開けたポケットや扉が川・池に接しないように）
  */
 function tryPocket(map: GameMap, fx: number, fy: number, dx: number, dy: number, w: number, h: number): HiddenRoomPlan | null {
   const doorX = fx + dx;

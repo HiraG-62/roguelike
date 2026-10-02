@@ -7,15 +7,21 @@ import { ENEMIES } from "../data/enemies";
 import { FLOOR_KIND, MINIMAP, ROOM, ROOM_KIND } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, rectCenterPx, toIndex } from "../map/grid";
 import { isBossDepth } from "./boss";
+import { isChapterRest } from "./chapters";
 import { buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, withBaseAreaMul } from "./floor";
 import { ROOM_LOCKS, applyCurse, chooseFloorKind, fountainPx, hordeMax, isDark, roomLocks } from "./roomTypes";
 import { MAP_SHAPE, floorKindCandidates } from "./biomes";
 import { placeEnemy, withInput } from "./testHelpers";
+import { withFixedLayout } from "../map/layout/select";
 
 const SEARCH_SEEDS = 300;
 const NON_BOSS_DEPTH = 7;
 /** 部屋の種類の割り当てを確かめる seed の数（広い階を深度 3 つぶん作るので控えめに） */
 const ROOM_KIND_SEEDS = 30;
+/** 章の休符（章 2 の 1 階目）の深度 */
+const CHAPTER_REST_DEPTH = 6;
+/** 章の休符の泉を確かめる seed の数（深度 9 通りを作るので控えめに） */
+const REST_SEEDS = 8;
 const IDLE = withInput({});
 
 /** 指定 depth で kind の部屋が出るフロアを seed 総当たりで探す */
@@ -23,17 +29,44 @@ function floorWith(kind: RoomKind, depth: number): { state: GameState; index: nu
   for (let seed = 0; seed < SEARCH_SEEDS; seed++) {
     const state = withBaseAreaMul(() => createGame(seed));
     state.depth = depth;
-    buildFloor(state);
+    // ボス階は専用の部屋（部屋 3 つ）で特別な部屋が出ないので、ボス階の深度を使う検査は旧生成器の形で作る
+    if (isBossDepth(depth)) withFixedLayout("legacy", () => buildFloor(state));
+    else buildFloor(state);
     const index = state.rooms.findIndex((r) => r.kind === kind);
     if (index >= 0) return { state, index };
   }
   throw new Error(`no ${kind} room found`);
 }
 
+/**
+ * 部屋の内側（入室とみなされる位置）で矩形の中心に一番近い点。洞窟の塊は矩形の中心が壁や塊の外のことがあり、
+ * そこに立っても入室にならないので、塊のタイルの中心から選ぶ
+ */
+function enterSpot(state: GameState, index: number): { x: number; y: number } {
+  const room = state.rooms[index];
+  if (!room) throw new Error("room missing");
+  const center = rectCenterPx(room.rect);
+  if (insideRoom(state, room, center.x, center.y, ROOM.enterMargin)) return center;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const t of room.tiles ?? []) {
+    const x = ((t % state.map.width) + 0.5) * TILE_SIZE;
+    const y = (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE;
+    if (!insideRoom(state, room, x, y, ROOM.enterMargin)) continue;
+    const d = Math.hypot(x - center.x, y - center.y);
+    if (d < bestD) {
+      best = { x, y };
+      bestD = d;
+    }
+  }
+  if (!best) throw new Error("入室できる位置が無い");
+  return best;
+}
+
 function enterRoom(state: GameState, index: number): void {
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
-  state.player.body.pos = rectCenterPx(room.rect);
+  state.player.body.pos = enterSpot(state, index);
   state.player.invulnTimer = 999;
   step(state, IDLE, FIXED_DT);
 }
@@ -114,9 +147,10 @@ describe("フロア種別", () => {
   });
 
   it("洞窟フロア: 通常の塊は入っても封鎖されず、封鎖する種類（巣窟）の塊は扉の内側から外へ出られない", () => {
-    const state = createGame(3);
+    // 旧生成器の洞窟（"legacy"）の塊で見る。階の型の抽選は乱数の流れを変えるので固定する
+    const state = withFixedLayout("legacy", () => createGame(3));
     state.depth = 3;
-    descend(state, "cave");
+    withFixedLayout("legacy", () => descend(state, "cave"));
     expect(state.depth).toBe(4);
     expect(state.floorKind).toBe("cave");
     const normal = state.rooms.findIndex((r, i) => i > 0 && r.kind === "normal" && !r.cleared);
@@ -132,14 +166,16 @@ describe("フロア種別", () => {
     room.engaged = false;
     enterRoom(state, index);
     expect(room.locked).toBe(true);
-    // 部屋内の任意のタイルから、ロックされていない床だけを辿っても部屋の外に出られない
+    // 部屋内の任意のタイルから、ロックされていない床だけを辿っても他の塊へ出られない。
+    // どの塊にも通じない行き止まりの袋は扉にしない設計（dropPocketDoors）なので、袋へ入ること自体は漏れではない
     const map = state.map;
     const start = [...room.tiles][0] ?? 0;
     const seen = new Set([start]);
     const queue = [start];
     for (let head = 0; head < queue.length; head++) {
       const i = queue[head] ?? 0;
-      expect(room.tiles.has(i)).toBe(true);
+      const owner = state.rooms.findIndex((r) => r.tiles?.has(i));
+      expect(owner === -1 || owner === index, `塊 ${index} の外へ出る道が開いている（到達したタイル ${i} は塊 ${owner} のもの）`).toBe(true);
       const x = i % map.width;
       const y = Math.floor(i / map.width);
       for (const [dx, dy] of [
@@ -249,9 +285,11 @@ describe("部屋の種類", () => {
     const room = state.rooms[index];
     expect(room?.cleared).toBe(true);
     expect(room?.locked).toBe(false);
+    // 遺物の 1 つは鍵付きの宝箱に置き換わる（2〜3 個のうち 1 個が宝箱）
     const added = state.floorItems.length - before;
-    expect(added).toBeGreaterThanOrEqual(ROOM_KIND.treasureItemsMin);
-    expect(added).toBeLessThanOrEqual(ROOM_KIND.treasureItemsMax);
+    expect(added).toBeGreaterThanOrEqual(ROOM_KIND.treasureItemsMin - 1);
+    expect(added).toBeLessThanOrEqual(ROOM_KIND.treasureItemsMax - 1);
+    expect(room?.special?.props.some((p) => p.kind === "lockedChest"), "鍵付きの宝箱").toBe(true);
     expect(state.texts.some((t) => t.text === "宝物庫")).toBe(true);
   });
 
@@ -281,8 +319,8 @@ describe("部屋の種類", () => {
     expect(state.floorItems.some((fi) => fi.item.rarity === "rare" || fi.item.rarity === "unique")).toBe(true);
   });
 
-  it("shrine: 泉で HP 全回復は 1 回だけ。代わりに呪い", () => {
-    const { state, index } = floorWith("shrine", 3);
+  it("shrine: 章の休符の泉は HP 全回復が 1 回だけで、呪いを付けず、瓶を上限まで満たす", () => {
+    const { state, index } = floorWith("shrine", CHAPTER_REST_DEPTH);
     const room = state.rooms[index];
     if (!room) throw new Error("room missing");
     expect(room.cleared).toBe(true);
@@ -291,14 +329,56 @@ describe("部屋の種類", () => {
     expect(getTile(state.map, Math.floor(f.x / TILE_SIZE), Math.floor(f.y / TILE_SIZE))).toBe(Tile.Fountain);
     const p = state.player;
     p.hp = 10;
+    p.flasks = 0;
     p.body.pos = { ...f };
     step(state, IDLE, FIXED_DT);
     expect(p.hp).toBe(p.maxHp);
+    expect(p.flasks, "瓶が上限まで満ちる").toBe(state.stats.flaskMax);
     expect(room.used).toBe(true);
-    expect(state.cursed).toBe(true);
+    expect(state.cursed, "休符の泉は呪いを付けない").toBe(false);
     p.hp = 10;
+    p.flasks = 0;
     step(state, IDLE, FIXED_DT);
-    expect(p.hp).toBe(10);
+    expect(p.hp, "2 回目は効かない").toBe(10);
+    expect(p.flasks, "2 回目は瓶も満ちない").toBe(0);
+  });
+
+  it("shrine: 休符でない階の泉は代わりに呪いを付け、瓶は満たさない", () => {
+    const { state, index } = floorWith("shrine", CHAPTER_REST_DEPTH);
+    const room = state.rooms[index];
+    if (!room) throw new Error("room missing");
+    // 章の休符でない階に泉が立った場合（将来の出どころ）の分岐を確かめる
+    state.depth = NON_BOSS_DEPTH;
+    const p = state.player;
+    p.hp = 10;
+    p.flasks = 0;
+    p.body.pos = { ...fountainPx(room) };
+    step(state, IDLE, FIXED_DT);
+    expect(p.hp).toBe(p.maxHp);
+    expect(state.cursed).toBe(true);
+    expect(p.flasks).toBe(0);
+  });
+
+  it("章の 1 階目（6 / 11 / 16）には泉が必ず 1 つあり、それ以外の階には無い", () => {
+    for (let seed = 0; seed < REST_SEEDS; seed++) {
+      for (const depth of [1, 2, 3, 5, 6, 7, 11, 16, 21]) {
+        const state = withBaseAreaMul(() => createGame(seed));
+        state.depth = depth;
+        buildFloor(state);
+        const shrines = state.rooms.filter((r) => r.kind === "shrine").length;
+        // 泉に回せる部屋（開始・最初の戦闘・最後を除く）が無い小さな階は置けない
+        const room = state.rooms.length > 3 ? 1 : 0;
+        expect(shrines, `seed=${seed} depth=${depth}`).toBe(isChapterRest(depth) ? room : 0);
+      }
+    }
+  });
+
+  it("縛り「乾いた泉」では章の 1 階目にも泉を置かない", () => {
+    const state = withBaseAreaMul(() => createGame(3));
+    state.modifiers.push("dryFountain");
+    state.depth = CHAPTER_REST_DEPTH;
+    buildFloor(state);
+    expect(state.rooms.some((r) => r.kind === "shrine")).toBe(false);
   });
 
   it("呪い: 次の部屋でエリート抽選が 1 回増え、呪いは消える", () => {

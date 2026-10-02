@@ -18,6 +18,8 @@
 
 真実はコード内のピクセルマップ。PNG と Aseprite はその**作業台**で、行き来は `npm run sprite` で行う。作業ファイルは `art/`（git 対象外）か scratchpad に置く。
 
+マップの置物（`data/sprites/mapProps.ts`）は PALETTE の文字ではなく役の文字（テーマで色を当てる）で描くので `npm run sprite` の `render` / `lint` は使えない。確認は `npm run map:shot`（地図に置いた姿）か、役の色を当てて並べる使い捨てのスクリプトで行う。
+
 1. **見る**: `npm run sprite -- render <key>[,<key>…] --out art/<key>.png --grid` で拡大した確認用 PNG（フレームは横・キーは縦、床色の背景）を描き、Read で開いて目で確かめる。拡大率は既定でキーごとに `8 / spriteDots(key)`（密度が違うキーを並べても論理サイズどおりの見た目で揃う）。`--scale <N>` で全キー同じ拡大率を強制、`--beside <参考 PNG>` で参考絵を右に並べて比べる。`--bg none` で透明背景
 2. **点検**: `npm run sprite -- lint <key>` が様式書の癖（輪郭が閉じていない・頭上・最下段・白の量・暗部の無い 3 段 / 5 段崩れ）を座標付きで出す。判定は `spriteDots(key)` の密度に合わせて頭上の行数・中央帯・白の目安・3 段 / 5 段の切り替えが変わる。テストが落とす項目ではないので、意図があれば無視してよい
 3. **Aseprite で直す**（任意）: `npm run sprite -- strip <key> --out art/<key>.png --ase art/<key>.aseprite` で等倍の横一列 PNG と、フレームに分けた `.aseprite`（`PALETTE` を `roguelike.gpl` として同梱）を作る。Aseprite の GUI で手直しするか、Agent なら MCP サーバー `aseprite` のツール（`draw_pixels_at` / `outline_cel` / `replace_color` / `render_onion_skin` など）で編集する。**PALETTE の色以外を置かない**（`quantize_to_palette` で丸められる）
@@ -41,7 +43,7 @@ Aseprite の場所は環境変数 `ASEPRITE_PATH`（無ければ PATH と Steam 
 
 - 手で打たず **生成器**（`scripts/fx/`）で描く。設計と決まりは `docs/ideas/fx-sprites.md`（密度 2 倍・段の配色・方向の事前描画・時間割）
 - 1 武器種 = 1 ファイル `scripts/fx/sheets/<武器種の key>.mjs`（登録は要らない。`gen.mjs` が自動で集める）。`export const ATLAS = { key, sheets, fx }` を持ち、`fx` がモーション → シートの表（`motions` の key は `l:<段>` / `r:<右の段の key>` / `branch:<派生の key>` / `dash` / `charge`、命中 `hit` / `hitHeavy`）。手本は `sword.mjs`
-- 形の部品は `shapes.mjs`（三日月・レンズ形の斬線・速度線・輪・刃片）、弧の斬撃の時間割は `motifs.mjs`、塗りの道具は `raster.mjs`。部品を土台にしつつ、その武器だけの形を必ず足す
+- 形の部品は `shapes.mjs`（三日月・レンズ形の斬線・速度線・輪・刃片）、弧の斬撃の時間割は `motifs.mjs`、塗りの道具は `raster.mjs`。部品を土台にしつつ、その武器だけの形を必ず足す。墨の筆致（縁・掠れ・毛羽・飛沫）は `ink.mjs` が全フレームに後から掛けるので、絵の関数では描かない（`docs/ideas/fx-sprites.md` 3.5）
 - 確認しながら詰める: `node scripts/fx/gen.mjs --only <シートの key> --preview <scratchpad の dir> --dirs 0,3 --scale 4` で配色済みの一覧 PNG を描いて目で見る
 - 仕上げに `node scripts/fx/gen.mjs --atlas <key>`（その武器の PNG と `src/data/fx/<key>.gen.json`、束ねる `src/data/fxSheets.gen.ts` を書き直す）。全部は `npm run fx:gen`。表の網羅（振りのモーションをすべて持つ）は `render/fxSprites.test.ts` が検査する。時間の割り付けの数値は `src/data/balance/feel/FX_ATTACK/sprite.json`
 - 表の任意の項目: `mirror`（`faceLeft` / `faceRight`: 突きの鉤など非対称な絵を手に持つ武器の向きに合わせる）、`ground`（キャラより下に描く地面の層のシート）、`holds`（右の溜めの段の回しを押している間の繰り返しの絵）。手本は `scythe.mjs` / `hammer.mjs` / `flail.mjs`
@@ -54,5 +56,6 @@ Aseprite の場所は環境変数 `ASEPRITE_PATH`（無ければ PATH と Steam 
 - ジョブの体: `scripts/actor/sheets/` の `body<ジョブ>.mjs`（`bodySheets(key, draw)` で骨組み `rig.mjs` の全クリップを作る。`meta.arm` に袖・手の 3 段の色）。手本は `bodyNone.mjs`。顔はほぼ一色、眼は 1x2 の点を 2 つ
 - 武器種の手に持つ絵: `scripts/actor/sheets/` の `wpn<武器種>.mjs`（`weaponSheets(key, draw, { size, edge })` で 32 方向。原点 = 握り、+x = 切っ先）。`meta.stance` に待機の構え（持ち方・体の構え・手の位置・向き・手にはめるか）、`meta.offGrip` に両手持ちの添え手、弾を撃つなら `frame.anchor("muzzle", …)`。手本は `wpnSword.mjs` / `wpnSpear.mjs` / `wpnSidearm.mjs`
 - 確認: `node scripts/actor/gen.mjs --only <シート> --preview <dir> --scale 8`、書き出しは `npm run actor:gen`（`-- --atlas <key>` で 1 つ）。網羅（全ジョブの体・全武器種の絵と構え・銃口の印）は `render/actorSprites.test.ts` が検査する
+- **色の割り当て**: 敵・弾・粒・地面の物・状態の印の色を足すときは、先に `data/signs.ts` の符号表を読む。予告の黄（下絵）と赤（墨入れ）に近い色を世界の層で使わない（`data/signs.test.ts` が検査。例外を増やさない）。血は臙脂、怯みの印は胡粉
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

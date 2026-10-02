@@ -537,7 +537,7 @@ const FX = {
     "r:chainWeight": { sheet: "chainSickle.weight", pivot: "self", base: 64, measure: "reach" },
     "r:sickleReturn": { sheet: "chainSickle.return", pivot: "self", base: 20, measure: "reach" },
     "r:chainSpin": { sheet: "chainSickle.spin", pivot: "self", base: 56, measure: "size" },
-    "r:chainCinch": { sheet: "chainSickle.cinch", pivot: "self", base: 20, measure: "reach" },
+    "r:slam": { sheet: "chainSickle.cinch", pivot: "self", base: 20, measure: "reach" },
     "branch:reelIn": { sheet: "chainSickle.reelIn", pivot: "self", base: 56, measure: "size" },
     "branch:kamaitachi": { sheet: "chainSickle.kamaitachi", pivot: "self", base: 50, measure: "reach" },
     "branch:pullCut": { sheet: "chainSickle.pullCut", pivot: "self", base: 20, measure: "reach" },

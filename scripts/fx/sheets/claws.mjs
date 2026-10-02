@@ -108,8 +108,27 @@ const L4_SETS = [
   { at: 0, life: 3, ang: ang(22), x: -2, y: -12, L: 28, gap: 6, T: 3.8, bend: 3, bendSign: -1, glint: 2, seed: 401, dropSpeed: 3.5 },
   { at: 1, ang: ang(-22), x: -2, y: 12, L: 28, gap: 6, T: 3.8, bend: 3, bendSign: 1, glint: 2, seed: 411, dropSpeed: 3.5 },
 ];
-/** 左 5 段（終撃・heavy・size 26）: 深く太い 2 つのセット。2 つ目が大きく、振り切りで飛沫が多い */
+/** 左 5 段（size 20・3 段ヒット・踏み込み 6）: 上下へ折れ返すジグザグに、前へ進みながら 3 セット引っかく */
 const L5_SETS = [
+  { at: 0, life: 2, ang: ang(70), x: -12, y: -6, L: 28, gap: 6, T: 3.6, bend: 3, glint: 2, seed: 451 },
+  { at: 1, life: 2, ang: ang(110), x: 0, y: 4, L: 30, gap: 6, T: 3.6, bend: 3, glint: 2, seed: 461 },
+  { at: 2, ang: ang(75), x: 12, y: -2, L: 32, gap: 6, T: 3.8, bend: 3, glint: 2, seed: 471 },
+];
+/** 左 6 段（size 20・3 段ヒット・踏み込み 6）: 同じ斜めの向きの爪痕が、階段のように前下へずれながら長くなる */
+const L6_SETS = [
+  { at: 0, life: 2, ang: ang(40), x: -14, y: -12, L: 26, gap: 6, T: 3.6, bend: 3, glint: 2, seed: 501 },
+  { at: 1, life: 2, ang: ang(40), x: 0, y: 0, L: 30, gap: 6, T: 3.8, bend: 3, glint: 2, seed: 511 },
+  { at: 2, ang: ang(40), x: 14, y: 12, L: 34, gap: 6, T: 4, bend: 3, glint: 3, seed: 521 },
+];
+/** 左 7 段（size 20・4 段ヒット・踏み込み 8）: 左右から交互に 4 セット。直前の段より角が開き、最後だけ大きく飛沫が多い */
+const L7_SETS = [
+  { at: 0, life: 3, ang: ang(60), x: -14, y: -8, L: 28, gap: 6, T: 3.6, bend: 3, glint: 2, seed: 551 },
+  { at: 1, life: 3, ang: ang(120), x: 14, y: -6, L: 28, gap: 6, T: 3.6, bend: 3, glint: 2, seed: 561 },
+  { at: 2, life: 3, ang: ang(38), x: -8, y: 8, L: 32, gap: 6, T: 3.8, bend: 3, glint: 2, seed: 571 },
+  { at: 3, ang: ang(142), x: 10, y: 10, L: 38, gap: 7, T: 4.4, bend: 4, glint: 3, seed: 581, drops: 9, dropSpeed: 4 },
+];
+/** 左 8 段（終撃・heavy・size 22）: 深く太い 2 つのセット。2 つ目が大きく、振り切りで飛沫が多い */
+const L8_SETS = [
   { at: 0, life: 2, ang: ang(58), x: -16, y: -4, L: 38, gap: 8, T: 5, bend: 4, glint: 3, seed: 501, drops: 7, dropSpeed: 4 },
   { at: 2, ang: ang(100), x: 10, y: 3, L: 50, gap: 10, T: 7, bend: 5, glint: 3, seed: 511, drops: 12, dropSpeed: 4.5, life: 5 },
 ];
@@ -253,30 +272,88 @@ function clawFlurry(frame, f) {
   }
 }
 
-/** 右: 喉裂き（box reach 14 / size 24・heavy・2 段ヒット）。細く長い鋭い一閃が走り、2 段目で裂け目が開いて飛沫が噴く */
-function throatSlit(frame, f) {
-  const A = 3;
-  const N = 9;
-  const p = f < A ? easeSwing((f + 1) / A) : 1;
-  const k = f < A ? 0 : (f - A + 1) / (N - A + 1);
-  const ax = -10;
-  const ay = -30;
-  const bx = 10;
-  const by = 30;
-  // 2 段目（f = A）で裂け目が開く: 一瞬だけ太くなってから痩せて崩れる
-  const T = f < A ? 5 : f === A ? 8 : 7 * (1 - k * 0.6);
-  lens(frame, { ax, ay, bx, by, T, bend: -4, grow: p, bias: 0.15, erosion: k * 0.9, seed: 1101 });
-  if (f === A - 1) sparkle(frame, bx - 1, by - 3, 3);
-  if (f === A) sparkle(frame, 0, 0, 3);
-  if (f >= A) {
-    // 断面から前（+x）へ噴く飛沫
-    shards(frame, f - A, 14, 1111, (i, rnd) => {
-      const t = 0.2 + 0.6 * rnd(1);
-      const a = (rnd(2) - 0.5) * 1.3;
-      const sp = 3 + rnd(3) * 4;
-      // 反りで前へふくらんだ線の上から出す（弦の上だと線の後ろから湧いて見える）
-      const bulge = 4 * 4 * t * (1 - t);
-      return { x: ax + (bx - ax) * t + 0.95 * bulge + 2, y: ay + (by - ay) * t - 0.32 * bulge, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 3 + Math.floor(rnd(4) * 3), size: rnd(5) > 0.4 ? 2 : 1 };
+/** 円周上の点の座標（爪痕の配置の表を短く書く） */
+const onCircle = (deg, r) => ({ x: Math.cos(deg * DEG) * r, y: Math.sin(deg * DEG) * r });
+
+/**
+ * 右: 追い爪（box reach 12 / size 22・3 段ヒット・踏み込み 12）: 前へ走る爪痕が 3 セット、1 セットごとに前へ詰めながら長くなる。
+ * 後ろには暗い速度線（獲物を追う走り）
+ */
+function chaseClaw(frame, f) {
+  const sets = [
+    { at: 0, life: 2, x: -14, L: 28, seed: 1701, drops: 3 },
+    { at: 1, life: 2, x: 2, L: 32, seed: 1711, drops: 3 },
+    { at: 2, life: 4, x: 20, L: 38, seed: 1721, drops: 8 },
+  ];
+  sets.forEach((s, i) => clawSet(frame, f, { grow: 2, ang: ang(6 - i * 4), y: (i - 1) * 3, gap: 6.5, T: 4, bend: 3, bendSign: 1, glint: 2, dropSpeed: 3.5, ...s }));
+  const k = f / 8;
+  if (k >= 0.8) return;
+  for (let i = 0; i < 3; i++) {
+    const y = (i - 1) * 12 + (hash1(i, 1731) - 0.5) * 3;
+    const x1 = -22 - k * 16 - hash1(i, 1732) * 6;
+    streakLine(frame, { ax: x1 - 12 - 12 * hash1(i, 1733), ay: y, bx: x1, by: y, bright: 0.3 * (1 - k) });
+  }
+}
+
+/**
+ * 右: 引き戻し爪（arc 140° reach 18・4 段ヒット。原点 = 自分）: 弧に沿って 4 セットの爪痕が +の側から順に並び、
+ * 通った跡を細い外周の線が結ぶ（引っ掻きの 3 本の弧と違い、爪痕の連なりで見せる）
+ */
+function clawReturn(frame, f) {
+  const R = 30;
+  const span = 140;
+  const angles = [-0.42, -0.14, 0.14, 0.42].map((u) => u * span);
+  angles.forEach((a, i) => {
+    const { x, y } = onCircle(a, R);
+    clawSet(frame, f, { at: i, grow: 2, life: i === 3 ? 4 : 2, ang: (a + 90) * DEG, x, y, L: 26, gap: 6, T: 3.8, bendRaw: -4, glint: 2, seed: 1801 + i * 10, drops: i === 3 ? 8 : 3, dropSpeed: 3.5 });
+  });
+  const head = Math.min(3, f) / 3;
+  const k = f < 4 ? 0 : (f - 3) / 5;
+  if (k < 0.9) arcLine(frame, { radius: R + 9, from: (-0.5 * span) * DEG, to: (-0.5 * span + span * (0.15 + 0.85 * head)) * DEG, bright: 0.5 * (1 - k) });
+}
+
+/**
+ * 右: 連ね爪（circle size 40・5 段ヒット。原点 = 当たりの中心）: 五角形の頂点に 5 セットが 1 フレームずつ順に刻まれ、
+ * 刻んだ頂点どうしを細い線が結んで鎖の輪ができていく。乱れ爪の「ばらばらの向き」と違い、輪郭が閉じる
+ */
+const CHAIN_POINTS = 5;
+function clawChain(frame, f) {
+  const R = 22;
+  const centers = [];
+  for (let j = 0; j < CHAIN_POINTS; j++) centers.push(onCircle(-90 + (360 / CHAIN_POINTS) * j, R));
+  centers.forEach((c, j) => {
+    const a = -90 + (360 / CHAIN_POINTS) * j;
+    clawSet(frame, f, { at: j, grow: 2, life: j === CHAIN_POINTS - 1 ? 4 : 3, ang: (a + 90) * DEG, x: c.x, y: c.y, L: 22, gap: 5.5, T: 3.8, bendRaw: -3, glint: 2, seed: 1901 + j * 10, drops: 3, dropSpeed: 3 });
+    // 次の頂点への鎖: 刻んだ次のフレームに現れ、しばらく残って薄れる
+    const next = centers[(j + 1) % CHAIN_POINTS];
+    const age = f - (j + 1);
+    if (next && age >= 0 && age <= 5) streakLine(frame, { ax: c.x, ay: c.y, bx: next.x, by: next.y, bright: 0.5 * (1 - age / 6) });
+  });
+}
+
+/**
+ * 右: 乱舞（circle size 44・8 段ヒット・heavy。原点 = 当たりの中心）: 周りを時計回りに 6 セットの爪痕が刻まれ、
+ * 続けて大きな 2 セットが X に交わって交点が弾ける。刻んだ 6 つは薄い外周の線でつながり、渦の中心へ X が落ちる形
+ */
+const FRENZY_RING = 6;
+const FRENZY_END = 14;
+function clawFrenzy(frame, f) {
+  for (let j = 0; j < FRENZY_RING; j++) {
+    const a = -90 + (360 / FRENZY_RING) * j;
+    const { x, y } = onCircle(a, 28);
+    clawSet(frame, f, { at: j, grow: 2, life: 4, ang: (a + 90) * DEG, x, y, L: 28, gap: 6, T: 4, bendRaw: -4, glint: 2, seed: 2001 + j * 10, drops: 3, dropSpeed: 3 });
+    const age = f - j;
+    if (age >= 0 && age <= 5) arcLine(frame, { radius: 40, from: (a - 40) * DEG, to: (a + 14) * DEG, bright: 0.45 * (1 - age / 6) });
+  }
+  clawSet(frame, f, { at: 7, grow: 2, life: 4, ang: ang(45), x: 0, y: 0, L: 52, gap: 9, T: 6, bend: 4, glint: 0, seed: 2101, drops: 0 });
+  clawSet(frame, f, { at: 8, grow: 2, life: 4, ang: ang(135), x: 0, y: 0, L: 52, gap: 9, T: 6, bend: 4, glint: 0, seed: 2111, drops: 0 });
+  if (f === 9) sparkle(frame, 0, 0, 4);
+  if (f === 10) sparkle(frame, 0, 0, 3);
+  if (f >= 9) {
+    shards(frame, f - 9, 14, 2121, (i, rnd) => {
+      const a = rnd(1) * Math.PI * 2;
+      const sp = 3 + rnd(2) * 3.5;
+      return { x: 0, y: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 3 + Math.floor(rnd(3) * 3), size: rnd(4) > 0.4 ? 2 : 1 };
     });
   }
 }
@@ -419,13 +496,19 @@ const FX = {
     "l:1": { sheet: "claws.l2", pivot: "anchor", base: 12, measure: "reach" },
     "l:2": { sheet: "claws.l3", pivot: "anchor", base: 12, measure: "reach" },
     "l:3": { sheet: "claws.l4", pivot: "anchor", base: 12, measure: "reach" },
-    "l:4": { sheet: "claws.l5", pivot: "anchor", base: 14, measure: "reach" },
+    "l:4": { sheet: "claws.l5", pivot: "anchor", base: 12, measure: "reach" },
+    "l:5": { sheet: "claws.l6", pivot: "anchor", base: 12, measure: "reach" },
+    "l:6": { sheet: "claws.l7", pivot: "anchor", base: 12, measure: "reach" },
+    "l:7": { sheet: "claws.l8", pivot: "anchor", base: 11.5, measure: "reach" },
     dash: { sheet: "claws.dash", pivot: "anchor", base: 14, measure: "reach" },
     "r:fangBite": { sheet: "claws.fangBite", pivot: "anchor", base: 12, measure: "reach" },
     "r:rake": { sheet: "claws.rake", pivot: "self", base: 18, measure: "reach" },
     "r:leapBack": { sheet: "claws.leapBack", pivot: "anchor", base: 12, measure: "reach" },
     "r:clawFlurry": { sheet: "claws.flurry", pivot: "anchor", base: 40, measure: "size" },
-    "r:throatSlit": { sheet: "claws.throatSlit", pivot: "anchor", base: 14, measure: "reach" },
+    "r:chaseClaw": { sheet: "claws.chase", pivot: "anchor", base: 12, measure: "reach" },
+    "r:clawReturn": { sheet: "claws.return", pivot: "self", base: 18, measure: "reach" },
+    "r:clawChain": { sheet: "claws.chain", pivot: "anchor", base: 40, measure: "size" },
+    "r:frenzy": { sheet: "claws.frenzy", pivot: "anchor", base: 44, measure: "size" },
     "branch:fangRush": { sheet: "claws.fangRush", pivot: "self", base: 30, measure: "reach" },
     "branch:lacerationDance": { sheet: "claws.dance", pivot: "anchor", base: 44, measure: "size" },
     "branch:crossClaw": { sheet: "claws.cross", pivot: "anchor", base: 14, measure: "reach" },
@@ -448,13 +531,19 @@ export const ATLAS = {
     setSheet("claws.l2", L2_SETS, 7, 3, 96),
     setSheet("claws.l3", L3_SETS, 8, 4, 96),
     setSheet("claws.l4", L4_SETS, 7, 3, 96),
-    setSheet("claws.l5", L5_SETS, 9, 4, 128),
+    setSheet("claws.l5", L5_SETS, 8, 4, 96),
+    setSheet("claws.l6", L6_SETS, 8, 4, 96),
+    setSheet("claws.l7", L7_SETS, 9, 5, 96),
+    setSheet("claws.l8", L8_SETS, 9, 4, 128),
     { key: "claws.dash", dirs: DIRS, frames: 8, active: 3, size: 112, draw: dash },
     { key: "claws.fangBite", dirs: DIRS, frames: 8, active: 3, size: 96, draw: fangBite },
     { key: "claws.rake", dirs: DIRS, frames: 8, active: 4, size: 104, draw: rake },
     { key: "claws.leapBack", dirs: DIRS, frames: 7, active: 3, size: 96, draw: leapBack },
     { key: "claws.flurry", dirs: 1, frames: 10, active: 6, size: 112, draw: clawFlurry },
-    { key: "claws.throatSlit", dirs: DIRS, frames: 9, active: 3, size: 96, draw: throatSlit },
+    { key: "claws.chase", dirs: DIRS, frames: 9, active: 4, size: 112, draw: chaseClaw },
+    { key: "claws.return", dirs: DIRS, frames: 9, active: 5, size: 104, draw: clawReturn },
+    { key: "claws.chain", dirs: 1, frames: 10, active: 6, size: 96, draw: clawChain },
+    { key: "claws.frenzy", dirs: 1, frames: FRENZY_END, active: 10, size: 128, draw: clawFrenzy },
     { key: "claws.fangRush", dirs: DIRS, frames: 9, active: 4, size: 176, draw: fangRush },
     { key: "claws.dance", dirs: 1, frames: 10, active: 6, size: 128, draw: lacerationDance },
     { key: "claws.cross", dirs: DIRS, frames: 9, active: 4, size: 112, draw: crossClaw },

@@ -5,14 +5,14 @@ import type { TerrainKind } from "../../core/terrain";
 import type { Vec } from "../../core/vec";
 import type { MovesetKey } from "../../data/weapons";
 import type { Scaling } from "../../loot/types";
-import type { CastParams, ShotEffect, SkillTag, VariantAxis } from "../types";
+import type { CastParams, ComboKey, ShotEffect, SkillTag, VariantAxis } from "../types";
 import type { ArtSkillKey } from "./keys";
 
 /**
- * 技（行為の列で書くスキル石）の型。docs/ideas/weapon-skills.md。
- * 共通技（どの武器種でも撃てる）と武器技（その武器種を装備しているときだけ撃てる）を同じ仕組みで書く。
- * 形・起点・付与する状態異常の種類などの union 文字列は TS（skills/arts/<群>.ts）、数値は
- * data/balance/skills/ART/<武器種 | common>.json の <技の key>.<行為の名前>
+ * 技（行為の列で書くスキル石）の型。docs/ideas/weapon-skills.md・docs/ideas/skills-7c-plan.md。
+ * 段取り 7c から技は共通技 60 だけ（どの武器種でも撃て、今の武器の型で形が変わる。skills/arts/transform.ts）。
+ * 形・起点・付与する状態異常の種類などの union 文字列は TS（skills/arts/common.ts・common2.ts）、数値は
+ * data/balance/skills/ART/common.json の <技の key>.<行為の名前>
  */
 
 /** 行為の種類。arc = 前方の扇 / ring = 円 / line = 帯 / dash = 踏み込み / blink = 照準地点へ跳ぶ / shot = 弾 / chain = 連鎖 / pull = 引き寄せ / buff = 自己強化 / detonate = 床の設置弾の起爆 */
@@ -60,6 +60,8 @@ export interface ArtAct {
   readonly heavy: boolean;
   /** 1 ヒットの基礎怯み値の上書き（省略は技の poise） */
   readonly poise?: number;
+  /** 基礎怯み値（上書きか技の poise）に掛ける倍率。読み込み時は 1、型の変形（重打）が変える */
+  readonly poiseMul: number;
   /** 生命がこの割合以下の敵（ボスを除く）を倒す */
   readonly execute?: number;
   readonly applies: readonly StatusApply[];
@@ -102,7 +104,7 @@ export interface ArtAct {
 /** TS 側の技の書き方 */
 export interface ArtSpec {
   readonly key: ArtSkillKey;
-  /** 武器技の武器種（null は共通技） */
+  /** 武器種の縛り。段取り 7c から全て null（武器種で撃てない制限を外した。arts.test.ts が検査する） */
   readonly moveset: MovesetKey | null;
   readonly name: string;
   /** HUD の 1 文字 */
@@ -119,7 +121,18 @@ export interface ArtSpec {
   readonly keywords?: KeywordProfile;
   /** 拾える最初の深度（省略 1） */
   readonly minDepth?: number;
+  /** 連携: この技が「後」になる組み合わせ（SkillDef.combos と同じ。skills/combos.ts の COMBOS の key） */
+  readonly combos?: readonly ComboKey[];
 }
+
+/**
+ * 変形の数値（data/balance/skills/ART/TRANSFORM/<型>.json の 1 ファイル。areaMul / hitsAdd / damageMul など）。
+ * 型ごとに項目が違い、それを読む変形の関数（ModifierDef.transform / 型の変形表）だけが名前を知っている
+ */
+export type TransformNumbers = Readonly<Record<string, number>>;
+
+/** 技の行為の列を作り替える純関数（state も rng も読まない。同じ入力に同じ出力） */
+export type ArtActsTransform = (acts: readonly ArtAct[], n: TransformNumbers) => ArtAct[];
 
 /** 読み込み済みの技 */
 export interface ArtDef {
@@ -131,11 +144,14 @@ export interface ArtDef {
   readonly minDepth: number;
 }
 
-/** 遅れて出る行為の予約（SkillRunState.artQueue） */
+/**
+ * 遅れて出る行為の予約（SkillRunState.artQueue）。型の変形で行為の数が変わる（鎖の引き寄せ・鈴の写し）ので、
+ * 添字で ART_DEFS を引き直さず、発動時に決めた行為そのものを持ち運ぶ
+ */
 export interface ArtPending {
   timer: number;
   key: ArtSkillKey;
-  act: number;
+  act: ArtAct;
   params: CastParams;
   origin: Vec;
   dir: Vec;

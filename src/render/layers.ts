@@ -6,7 +6,7 @@ import { type HudLayout, hudLayout } from "./renderMath";
 
 /**
  * 画面の描画の層（下から順に描く）。UI 同士が重なったとき、どちらが上に来るかをここで決める。
- * - world: マップ・床・拠点の台・敵・自分・弾・スキルの設置物・浮き文字（カメラの座標系）
+ * - world: マップ・床・拠点の町・敵・自分・弾・スキルの設置物・浮き文字（カメラの座標系）
  * - worldOverlay: ワールドにだけ掛ける画面効果（暗がり・霧・周辺減光・スロー・被弾の赤・白い閃光・撃破の光条・ボスの黒帯）。
  *   HUD は覆わず、フラッシュ中も体力やスキルが読める
  * - hud: 常に出す計器（体力・気力・ミニマップ・右上の欄・ボスの体力・コンボ・スキル枠・変身の行）
@@ -25,9 +25,12 @@ export type RenderLayer = (typeof RENDER_LAYERS)[number];
 export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = {
   world: [
     "drawTiles",
-    "drawBiomeTint",
+    "drawInvertedTint",
     "drawTerrainLayer",
+    "drawMapLight",
+    "drawTileOverlays",
     "drawGroundMarks",
+    "drawJinzu",
     "drawPickups",
     "drawFloorItems",
     "drawGroundHazards",
@@ -35,14 +38,16 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawLinks",
     "drawEliteChains",
     "drawRunWorld",
-    "drawHubSpots",
+    "drawTownBack",
     "drawEnemies",
     "drawDeathFx",
     "drawBossDeath",
-    "drawProjectiles",
-    "drawLasers",
     "drawPlayerAuras",
     "drawPlayer",
+    "drawTownFront",
+    "drawFrontLip",
+    "drawProjectiles",
+    "drawLasers",
     "drawReaper",
     "drawSkillAir",
     "drawSmokeLayer",
@@ -55,7 +60,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
   hud: ["drawHud", "drawSkillSlots"],
   hudOverlay: ["drawChainHud"],
   transition: ["drawFloorWipe", "drawFloorCard"],
-  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawDeath"],
+  popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawReforgeChoice", "drawDeath"],
   cursor: ["drawCrosshair"],
 };
 

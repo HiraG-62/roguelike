@@ -10,25 +10,43 @@ import type { BoonDef, BoonKey } from "./boonDefs";
  * 強さは格（深いほど高い格が出る）、方向性は芯で分けて持たせる。state.boons は変えず、格は boonRun.grades に別に持つ
  */
 
-/** 1 = 並 / 2 = 大祝福 / 3 = 神威 */
-export type BoonGrade = 1 | 2 | 3;
+/** 1 = 並 / 2 = 大祝福 / 3 = 神威 / 4 = 至高 / 5 = 極致。抽選で出るのは 3 まで、4・5 は錬磨だけ（docs/ideas/boon-impl.md 2-5） */
+export type BoonGrade = 1 | 2 | 3 | 4 | 5;
 
-export const BOON_GRADES: readonly BoonGrade[] = [1, 2, 3];
+export const BOON_GRADES: readonly BoonGrade[] = [1, 2, 3, 4, 5];
 
 const GRADE_MIN: BoonGrade = 1;
 const GRADE_GRAND: BoonGrade = 2;
+/** 抽選（と下駄）で届く上限 */
 const GRADE_MAX: BoonGrade = 3;
+const GRADE_SUPREME: BoonGrade = 4;
+/** 錬磨で届く上限 */
+export const GRADE_TOP: BoonGrade = 5;
 /** 格の抽選が始まる深度（祝福の提示は深度 2 から。ここを 0 段目として perDepth を積む） */
 const GRADE_DEPTH_ORIGIN = 2;
 
 /** 表示ラベル（並は語を出さない） */
-export const BOON_GRADE_LABEL: Readonly<Record<BoonGrade, string>> = { 1: "", 2: "大祝福", 3: "神威" };
+export const BOON_GRADE_LABEL: Readonly<Record<BoonGrade, string>> = { 1: "", 2: "大祝福", 3: "神威", 4: "至高", 5: "極致" };
 
 /** 数値を格に丸める（下駄を足した後に 3 で止める） */
 export function clampGrade(value: number): BoonGrade {
   if (value >= GRADE_MAX) return GRADE_MAX;
   if (value >= GRADE_GRAND) return GRADE_GRAND;
   return GRADE_MIN;
+}
+
+/** 錬磨で 1 段上げた格（極致で止まる） */
+export function temperGrade(grade: BoonGrade): BoonGrade {
+  if (grade >= GRADE_TOP) return GRADE_TOP;
+  if (grade >= GRADE_SUPREME) return GRADE_TOP;
+  if (grade >= GRADE_MAX) return GRADE_SUPREME;
+  if (grade >= GRADE_GRAND) return GRADE_MAX;
+  return GRADE_GRAND;
+}
+
+/** 錬磨でまだ上げられる格か */
+export function canRaiseGrade(grade: BoonGrade): boolean {
+  return grade < GRADE_TOP;
 }
 
 /** 大祝福・神威の出る確率（shift は芯などの加算。合計が 1 を超えないよう神威を優先して詰める） */

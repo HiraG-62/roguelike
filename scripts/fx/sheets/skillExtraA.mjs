@@ -1376,26 +1376,6 @@ const FX = {
       cast: { sheet: "skillExtraA.kindleFlint", life: 0.35, base: KINDLE.radiusPx },
       act: { sheet: "skillExtraA.kindleBurst", life: 0.45, base: KINDLE.burstPx, ground: "skillExtraA.kindleScorch" },
     },
-    prismShard: {
-      ramp: "light",
-      cast: { sheet: "skillExtraA.prismSplit", life: 0.28, base: 0 },
-      fly: { sheet: "skillExtraA.prismShot", base: 0, period: 0.3 },
-    },
-    fullMoon: {
-      ramp: "light",
-      // act: pos = 撃った位置（満月）、to = 壁（三日月のしぶき）。月光の帯は pos → to に並べる
-      act: { sheet: "skillExtraA.moonMuzzle", life: 0.45, base: 0, beam: { sheet: "skillExtraA.moonBeam", step: MOON.beamStep }, tip: "skillExtraA.moonTip" },
-    },
-    dregsBlade: {
-      ramp: "steel",
-      active: { sheet: "skillExtraA.dregsSlashes", base: DREGS.radiusPx },
-    },
-    shadowStep: {
-      ramp: "dark",
-      // cast: pos = 発った所。end: pos = 着いた所、to = 発った所（影の筋を並べる）
-      cast: { sheet: "skillExtraA.shadowSink", life: 0.4, base: 0, ground: "skillExtraA.shadowPool" },
-      end: { sheet: "skillExtraA.shadowRise", life: 0.4, base: 0, ground: "skillExtraA.shadowPool", beam: { sheet: "skillExtraA.shadowTrail", step: SHADOW.trailStep } },
-    },
     iceBreaker: {
       ramp: "ice",
       // act: pos = 自分（扇の根元）。end: 凍った敵が砕けた所（size = 破片の半径）

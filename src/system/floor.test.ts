@@ -10,22 +10,22 @@ import type { Enemy, GameState, RoomState } from "../core/state";
 import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
-import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
+import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
 import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
-import { BOSS, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
-import { grantBoon } from "./boons";
-import { resolveRules } from "./rules";
-import { ROAMING_ROOM, reinforceDue, roamCap, roamerCount, updateRoamers } from "./spawner";
+import { ARC, BOSS, DEEP, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
+import { ROAMING_ROOM, updateRoamers } from "./spawner";
 import { nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
 import { FLOOR_KINDS, biomeEnemyWeight, floorKindCandidates, floorKindWeight, isInvertedDepth } from "./biomes";
 import { stairsTilesValid, updateSpecialRooms } from "./specialRooms";
+import { apprenticeExtraExits } from "./exits";
 import { overlapsWall } from "./physics";
 import { engagedRoomIndex, isEngaged } from "./engagement";
 import { isLastKillInEngagedRoom } from "./combat";
-import { VIEW_H, VIEW_W } from "../core/view";
 import { slayFloorLord } from "./testHelpers";
+import { generateLordHallMap } from "../map/layout/lordHall";
+import { bossKeyForDepth } from "./boss";
 
 /** 広いマップ（面積 3.5〜5 倍）を何十枚も作るテストの制限時間（ms）。既定の 5 秒では並列実行の負荷で足りない */
 const WIDE_FLOOR_LOOP_TIMEOUT = 30_000;
@@ -77,12 +77,13 @@ describe("マップの広さ（MAP_SIZE）", () => {
     expect(Array.from(a.map.tiles)).toEqual(Array.from(b.map.tiles));
   });
 
-  it("ボス階は基準の大きさのまま", () => {
+  it("ボス階は面積の倍率を引かず、専用の部屋（lordHall）の大きさになる", () => {
     const state = createGame(4);
     state.depth = BOSS.interval;
     buildFloor(state);
     expect(state.floorAreaMul).toBe(1);
-    expect([state.map.width, state.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
+    const hall = generateLordHallMap(bossKeyForDepth(state.depth));
+    expect([state.map.width, state.map.height]).toEqual([hall.width, hall.height]);
   });
 
   it("部屋の敵の抽選回数は 面積の倍率 ^ roomEnemiesExp 倍（倍率 1 は基準のまま、部屋の上限は超えない）", () => {
@@ -101,13 +102,6 @@ describe("マップの広さ（MAP_SIZE）", () => {
     expect([small.map.width, small.map.height]).toEqual([MAP_SIZE.baseWidth, MAP_SIZE.baseHeight]);
     const wide = createGame(5);
     expect(wide.floorAreaMul, "抜けた後は MAP_SIZE の範囲").toBeGreaterThanOrEqual(MAP_SIZE.areaMulMin);
-  });
-
-  it("徘徊の上限は広い階ほど 面積の倍率 ^ roamCapExp 倍に増える", () => {
-    const depth = 2;
-    expect(roamCap(depth, 1)).toBe(roamCap(depth));
-    expect(roamCap(depth, 4)).toBe(Math.round(roamCap(depth) * 4 ** MAP_SIZE.roamCapExp));
-    expect(roamCap(depth, 4)).toBeGreaterThan(roamCap(depth));
   });
 });
 
@@ -140,12 +134,15 @@ describe("depth 2 の難度調整", () => {
 
 /**
  * 開始部屋以外で kind="normal" かつ doorTiles を持つ部屋を探し、封鎖する種類（伏兵）にする
- * （開放型フロアでは通常の部屋は封鎖しない）
+ * （開放型フロアでは通常の部屋は封鎖しない）。洞窟の塊は矩形の中心が壁のことがあり、そこにプレイヤーを立たせても
+ * 部屋に入ったことにならない（封鎖が掛からない）ので、矩形の中心が部屋の内側にあるものだけを選ぶ
  */
 function findLockableRoom(state: GameState): { room: RoomState; index: number } | null {
   for (let i = 1; i < state.rooms.length; i++) {
     const room = state.rooms[i]!;
     if (room.kind !== "normal" || room.cleared || room.doorTiles.length === 0) continue;
+    const center = rectCenterPx(room.rect);
+    if (!insideRoom(state, room, center.x, center.y, ROOM.enterMargin)) continue;
     room.kind = "ambush";
     return { room, index: i };
   }
@@ -383,7 +380,8 @@ describe("分岐路（階段ごとの行き先）", () => {
       // 階段は階の主（毎階、最後の部屋にいる）を倒すまで tile: -1 のまま（ensureForkStairs が撃破後に置く）
       slayFloorLord(state);
       expect(state.stairs.length, `seed=${seed}`).toBeGreaterThanOrEqual(1);
-      expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax);
+      // 見習い（createGame の既定）は階段が 1 本多い（出口の予告。system/exits.ts）
+      expect(state.stairs.length).toBeLessThanOrEqual(FLOOR_KIND.forkMax + apprenticeExtraExits(state));
       const kinds = state.stairs.map((s) => s.nextKind);
       expect(new Set(kinds).size).toBe(kinds.length);
       for (const k of kinds) expect(floorKindCandidates(state.depth + 1)).toContain(k);
@@ -516,29 +514,40 @@ describe("開放型フロア: 封鎖しない部屋の交戦と制圧", () => {
     expect(state.enemies.filter((e) => e.roomIndex === index && e.phase === "idle")).toHaveLength(0);
   });
 
-  it("部屋の敵を全滅させると 1 回だけ制圧し、湧水（onBoonRoomClear）と得点が 1 回だけ入る", () => {
+  it("部屋の敵を全滅させると 1 回だけ制圧し、制圧のイベントと得点が 1 回だけ入る", () => {
     const state = createGame(4);
-    grantBoon(state, "springWell");
     const index = openRoomWithEnemies(state);
     const room = state.rooms[index]!;
     state.player.body.pos = rectCenterPx(room.rect);
     state.player.invulnTimer = 999;
     updateRooms(state, FIXED_DT);
     killRoomEnemies(state, index);
-    state.player.mana = 0;
+    state.events = [];
+    state.pendingEvents = [];
+    const clears = (): number => [...state.events, ...state.pendingEvents].filter((e) => e.kind === "onRoomClear").length;
     const score = state.score;
     updateRooms(state, FIXED_DT);
-    // 湧水は BoonDef.rules（onRoomClear）。step と同じくステップ末の照合まで通す
-    resolveRules(state, 0);
     expect(room.cleared, "全滅で制圧").toBe(true);
-    expect(state.player.mana, "湧水でマナが満ちる").toBe(state.stats.maxMana);
+    expect(clears(), "制圧のイベント").toBe(1);
     expect(state.score - score, "制圧の得点").toBe(ROOM.clearBonus);
-    state.player.mana = 0;
     updateRooms(state, FIXED_DT);
     updateRooms(state, FIXED_DT);
-    resolveRules(state, 0);
-    expect(state.player.mana, "2 回目は起きない").toBe(0);
+    expect(clears(), "2 回目は積まない").toBe(1);
     expect(state.score - score, "得点も 1 回だけ").toBe(ROOM.clearBonus);
+  });
+
+  it("従魔（眷属）は部屋の制圧の数に入れない", () => {
+    const state = createGame(4);
+    const index = openRoomWithEnemies(state);
+    const room = state.rooms[index]!;
+    state.player.body.pos = rectCenterPx(room.rect);
+    state.player.invulnTimer = 999;
+    updateRooms(state, FIXED_DT);
+    const mine = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
+    expect(mine.length, "部屋に敵がいる").toBeGreaterThan(0);
+    for (const e of mine) e.allyUntil = state.time + 60;
+    updateRooms(state, FIXED_DT);
+    expect(room.cleared, "残りが従魔だけなら制圧").toBe(true);
   });
 
   it("交戦していない部屋は、敵がいても制圧されない。敵を置けなかった通常の部屋は最初から制圧済み", () => {
@@ -647,23 +656,26 @@ describe("交戦中（isEngaged）: 封鎖中 または 開放型の交戦中", 
 });
 
 describe("開放型フロア: 徘徊", () => {
-  it("生成時に一部の敵が徘徊（どの部屋にも属さない）になり、目的地は封鎖しない部屋の中心。開始の部屋には敵がいない", () => {
+  it("生成時に長蛇（通路の陣）が徘徊（どの部屋にも属さない）として立ち、目的地は封鎖しない部屋の中心。開始の部屋には敵がいない", () => {
     let roamers = 0;
     for (let seed = 0; seed < 20; seed++) {
       const state = createGame(seed);
       const start = state.rooms[0]!;
       for (const e of state.enemies) {
+        // 市の商人（system/merchants.ts）と壺・木箱（system/containers.ts）は敵の陣ではない（前室が取れなければ開始の部屋にも立つ）
+        if (enemyDef(e.defKey).merchant === true || enemyDef(e.defKey).container !== undefined) continue;
         const tx = Math.floor(e.body.pos.x / TILE_SIZE);
         const ty = Math.floor(e.body.pos.y / TILE_SIZE);
         expect(start.tiles?.has(toIndex(state.map, tx, ty)) ?? false, `seed=${seed} 開始の部屋に敵`).toBe(false);
         if (e.roomIndex !== ROAMING_ROOM) continue;
         roamers++;
+        expect(e.jinId, "徘徊は長蛇の陣に属する").toBeDefined();
         const roam = e.ai?.roam;
         expect(roam, "徘徊の目的地").toBeDefined();
         const centers = state.rooms.filter((r, i) => i !== 0 && !ROOM_KIND.locks[r.kind]).map((r) => rectCenterPx(r.rect));
         expect(centers.some((c) => c.x === roam!.x && c.y === roam!.y), "目的地は開始以外の封鎖しない部屋の中心").toBe(true);
       }
-      // 徘徊を抜いても、敵を置いた部屋には 1 体以上残る
+      // 陣を置いた通常の部屋は未制圧で、敵が 1 体以上いる
       state.rooms.forEach((room, i) => {
         if (i === 0 || room.cleared || room.kind !== "normal") return;
         expect(state.enemies.some((e) => e.roomIndex === i), `seed=${seed} room=${i}`).toBe(true);
@@ -709,56 +721,24 @@ describe("開放型フロア: 徘徊", () => {
   });
 });
 
-describe("開放型フロア: 時間経過の増援", () => {
-  it("reinforceDelay 秒後から reinforceInterval 秒ごとに増援の時刻が来る（ボス階は来ない）", () => {
+describe("開放型フロア: 時間経過では湧かない（増援の代わりは 3b の陣の長居）", () => {
+  it("階に長く居ても、部屋の外で敵が増えない（陣で配った数のまま）", () => {
     const state = createGame(3);
-    state.floorTime = ROAM.reinforceDelay - FIXED_DT / 2;
-    expect(reinforceDue(state, FIXED_DT)).toBe(true);
-    state.floorTime = ROAM.reinforceDelay + FIXED_DT;
-    expect(reinforceDue(state, FIXED_DT)).toBe(false);
-    state.floorTime = ROAM.reinforceDelay + ROAM.reinforceInterval - FIXED_DT / 2;
-    expect(reinforceDue(state, FIXED_DT)).toBe(true);
-    state.floorTime = ROAM.reinforceDelay - 1;
-    expect(reinforceDue(state, FIXED_DT)).toBe(false);
-  });
-
-  it("増援は画面外の壁でない床に徘徊として湧き、徘徊の上限を超えない", () => {
-    const state = createGame(3);
-    state.enemies = state.enemies.filter((e) => e.roomIndex !== ROAMING_ROOM);
-    const cap = roamCap(state.depth, state.floorAreaMul);
-    for (let n = 0; n < cap * 3; n++) {
-      state.floorTime = ROAM.reinforceDelay + n * ROAM.reinforceInterval - FIXED_DT / 2;
+    const before = state.enemies.length;
+    const LONG_STAY_SEC = 120;
+    const STEP_SEC = 5;
+    for (let t = 0; t < LONG_STAY_SEC; t += STEP_SEC) {
+      state.floorTime = t;
       updateRooms(state, FIXED_DT);
-      expect(roamerCount(state), "上限").toBeLessThanOrEqual(cap);
     }
-    expect(roamerCount(state), "上限まで湧く").toBe(cap);
-    const p = state.player.body.pos;
-    for (const e of state.enemies.filter((x) => x.roomIndex === ROAMING_ROOM)) {
-      expect(overlapsWall(state, e.body.pos.x, e.body.pos.y, e.body.radius), "壁に埋まらない").toBe(false);
-      expect(Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y), "プレイヤーから離れる").toBeGreaterThanOrEqual(ROAM.minSpawnDist);
-      const c = state.camera.pos;
-      const inView = Math.abs(e.body.pos.x - c.x) < VIEW_W / 2 && Math.abs(e.body.pos.y - c.y) < VIEW_H / 2;
-      expect(inView, "カメラの表示範囲の外（画面の角にも湧かない）").toBe(false);
-      expect(e.ai?.roam, "徘徊の目的地").toBeDefined();
-    }
-  });
-
-  it("同じ seed と同じ時間経過なら同じ増援（決定的）", () => {
-    const run = (): string => {
-      const state = createGame(12);
-      for (let n = 0; n < 3; n++) {
-        state.floorTime = ROAM.reinforceDelay + n * ROAM.reinforceInterval - FIXED_DT / 2;
-        updateRooms(state, FIXED_DT);
-      }
-      return JSON.stringify(state.enemies.map((e) => [e.defKey, e.body.pos, e.roomIndex, e.ai?.roam]));
-    };
-    expect(run()).toBe(run());
+    expect(state.enemies.length, "敵の数は増えない").toBe(before);
   });
 });
 
 describe("巣窟（モンスターハウス）", () => {
   it("最初は無人で、入ると封鎖して波で湧き、全波を倒すと制圧・rare 以上が落ちて扉が開く", () => {
-    const { state, index } = floorWithHorde(5);
+    // ボス階（5）は専用の部屋で巣窟が出ないので、巣窟が 2 個まで出る深さの通常の階で探す
+    const { state, index } = floorWithHorde(ROOM_KIND.hordeSecondDepth + 2);
     const room = state.rooms[index]!;
     expect(state.enemies.filter((e) => e.roomIndex === index), "最初は無人").toHaveLength(0);
     state.player.body.pos = rectCenterPx(room.rect);
@@ -839,12 +819,14 @@ describe("反転層", () => {
   });
 });
 
-describe("無限の深み", () => {
-  it("深みでは部屋の敵数の上限が外れる", () => {
-    expect(maxEnemiesFor(FLOOR_KIND.deepDepth)).toBe(ROOM.maxEnemies + FLOOR_KIND.deepMaxEnemiesBonus);
-    expect(maxEnemiesFor(FLOOR_KIND.deepDepth - 1)).toBe(ROOM.maxEnemies);
+describe("深み", () => {
+  const finalDepth = ARC.floorsPerChapter * ARC.maxChapter + 1;
+
+  it("深みでは部屋の敵数の上限が DEEP.maxEnemiesBonus 増え、最深の間では増えない", () => {
+    expect(maxEnemiesFor(finalDepth + 1)).toBe(ROOM.maxEnemies + DEEP.maxEnemiesBonus);
+    expect(maxEnemiesFor(finalDepth), "最深の間").toBe(ROOM.maxEnemies);
     const state = createGame(1);
-    state.depth = FLOOR_KIND.deepDepth + 10;
+    state.depth = finalDepth + 10;
     expect(enemyCount(state)).toBeGreaterThan(ROOM.maxEnemies);
   });
 });
@@ -883,21 +865,17 @@ describe("戻る（上り階段）", () => {
     expect(a.enemies.length, "半分").toBe(bossCount + Math.ceil(nonBossCount / 2));
   });
 
-  it("戻ってから降り直した階では、振り分け点・階層到達の報酬を二重に取らない", () => {
+  it("戻ってから降り直した階では、階層到達の報酬を二重に取らない", () => {
     const state = createGame(5);
     state.depth = 6;
     state.runEvents.strata.deepest = 6;
     buildFloor(state, "rooms");
     ascend(state);
-    const points = state.runAttributes.unspent;
     const score = state.score;
     descend(state, "rooms");
     expect(state.depth).toBe(6);
-    expect(state.runAttributes.unspent, "振り分け点").toBe(points);
     expect(state.score, "スコア").toBe(score);
     expect(state.runEvents.strata.revisit, "帰還の印は消える").toBe(false);
-    descend(state, "rooms");
-    expect(state.runAttributes.unspent, "初めての階では点が入る").toBeGreaterThan(points);
   });
 
   it("上り階段は乗り続けたときだけ戻る（通りすがりでは戻らない）", () => {
@@ -970,18 +948,18 @@ describe("戻る（上り階段）: 階層到達の報酬", () => {
     expect(state.runEvents.strata.fresh, "初めての階").toBe(true);
   });
 
-  it("起点「死神の友」の振り分け点は降り直しでは入らない", () => {
+  it("起点「死神の友」の銭は降り直しでは入らない", () => {
     const state = createGame(5);
     state.origin = "reaperFriend";
     state.depth = 6;
     state.runEvents.strata.deepest = 6;
     buildFloor(state, "rooms");
     ascend(state);
-    const points = state.runAttributes.unspent;
+    const earned = state.economy.earned.event;
     descend(state, "rooms");
-    expect(state.runAttributes.unspent, "降り直し").toBe(points);
+    expect(state.economy.earned.event, "降り直し").toBe(earned);
     descend(state, "rooms");
-    expect(state.runAttributes.unspent, "初めての階では入る").toBeGreaterThan(points);
+    expect(state.economy.earned.event, "初めての階では入る").toBeGreaterThan(earned);
   });
 });
 

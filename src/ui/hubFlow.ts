@@ -9,34 +9,36 @@ import type { Item, Profile } from "../loot/types";
 import type { HubSpotKey } from "../map/hubMap";
 import type { AchievementSave } from "../meta/achievements";
 import type { CodexSave } from "../meta/codex";
-import type { HubProgressSource } from "../meta/hub";
 import type { ListEntry, ListTab } from "../meta/listScreen";
 import type { QuestSave } from "../meta/quests";
+import type { TownSource } from "../meta/townLook";
 import type { SkillProfile } from "../skills/types";
-import { closeBudModal } from "./bud";
 import { RACK_CLEAR_DETAIL, RACK_CLEAR_NAME, rackMovesetDetail } from "./rackScreen";
-import type { InventoryTab, InventoryUi } from "./inventory";
+import { openMenu } from "./menuActions";
+import type { InventoryUi, MenuEntry } from "./menuState";
 
 /** 台から開く、拠点の外の画面 */
 export type HubScreenKind = "origin" | "questBoard" | "codex" | "achievements" | "history";
 
 export type HubOpen =
-  | { kind: "inventory"; tab: InventoryTab; bud?: boolean }
+  | { kind: "inventory"; entry: MenuEntry }
   | { kind: "screen"; screen: HubScreenKind }
   | { kind: "altar" }
-  | { kind: "rack" };
+  | { kind: "rack" }
+  | { kind: "hall" };
 
 const HUB_OPEN: Readonly<Record<HubSpotKey, HubOpen>> = {
   well: { kind: "screen", screen: "origin" },
   board: { kind: "screen", screen: "questBoard" },
-  forge: { kind: "inventory", tab: "echo" },
-  library: { kind: "inventory", tab: "skills" },
+  forge: { kind: "inventory", entry: "anvil" },
+  library: { kind: "inventory", entry: "skills" },
   altar: { kind: "altar" },
-  garden: { kind: "inventory", tab: "equipment", bud: true },
+  garden: { kind: "inventory", entry: "bud" },
   history: { kind: "screen", screen: "history" },
   codex: { kind: "screen", screen: "codex" },
   achievements: { kind: "screen", screen: "achievements" },
   rack: { kind: "rack" },
+  hall: { kind: "hall" },
 };
 
 export function hubOpenFor(spot: HubSpotKey): HubOpen {
@@ -44,15 +46,11 @@ export function hubOpenFor(spot: HubSpotKey): HubOpen {
 }
 
 /**
- * 装備画面を指定のタブで開く。庭は芽があれば 2 択のモーダルも開く（バナーをクリックする手間を省く）。
+ * 装備画面を入口ごとの頁で開く（鍛冶場 = 金床の構え / 書庫 = スキルの頁 / 庭 = 芽のある部位の候補）。
  * 拠点の state を止めるのは、装備画面を開いている間に拠点の時間を進めないため（ランの Tab と同じ）
  */
-export function openInventoryAt(state: GameState, ui: InventoryUi, tab: InventoryTab, bud = false): void {
-  ui.open = true;
-  ui.tab = tab;
-  closeBudModal(ui.bud);
-  if (bud && state.pendingBud !== null) ui.bud.open = true;
-  state.paused = true;
+export function openInventoryAt(state: GameState, ui: InventoryUi, entry: MenuEntry): void {
+  openMenu(state, ui, entry);
 }
 
 /** 祭壇の一覧で「誓約を外す」行の key（誓約の key は ks_ で始まるので重ならない） */
@@ -87,7 +85,7 @@ export function trialKeyOfEntry(key: string): string | null {
 /**
  * 武器掛けの行が指すもの。key が null の行は「装備のものに戻す」。
  * 銃の家系（GUN_MOVESETS）も武器種の列に並ぶ（docs/ideas/weapon-redesign.md 5.4）。
- * 奥義はここでは選ばない（装備画面のステータスタブで選ぶ）
+ * 奥義はここでは選ばない（装備画面の装束の人影の書付、奥義の頁で選ぶ）
  */
 export type RackRow = { kind: "moveset"; key: MovesetKey | null };
 
@@ -154,7 +152,7 @@ export function hubProgressSource(
   codex: CodexSave,
   achievements: AchievementSave,
   quests: QuestSave,
-): HubProgressSource {
+): TownSource {
   const equipped = Object.values(profile.equipment).filter((it): it is Item => it !== null && it !== undefined);
   return {
     runs: profile.meta.runs,
@@ -163,6 +161,9 @@ export function hubProgressSource(
     hasBud: [...equipped, ...profile.stash].some(hasEverBudded),
     achievements,
     quests,
+    clears: profile.meta.clears,
+    bestClearTier: profile.meta.bestClearTier,
+    bestDepth: profile.meta.bestDepth,
   };
 }
 

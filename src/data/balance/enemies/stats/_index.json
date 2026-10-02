@@ -1,7 +1,7 @@
 {
   "_fields": {
     "radius": "体の当たり判定の半径。px（10px = 1m）。プレイヤーは 5。目安: 小型 4〜6、大型 8〜10、ボス 12〜14",
-    "hp": "生命。出現時に深度で 1 + 0.18 ×（深度 − 1）倍になる（深度 6 で 1.9 倍）。目安: 雑魚 14〜60、部屋主 160〜260、ボス 450〜1100",
+    "hp": "生命。出現時に深度で伸びる（ENEMY_SCALE.hpPerDepth と深みの指数。src/data/enemies.ts の depthHpScale）。目安: 雑魚 14〜60、部屋主 160〜260、章ボス 1200〜2400",
     "speed": "追う・逃げるときの移動速度。px/秒。プレイヤーの歩きは 120。0 はその場から動かない（設置物）。目安 25〜95",
     "contactDamage": "攻撃中（strike）に体が触れたときのダメージ。深度 2 つごとに +2 される。0 は触れても痛くない（射撃型など）。目安 5〜30",
     "windup": "攻撃の予備動作（予告）の秒。長いほど避けやすい（テレグラフ原則）。深度 1 つごとに 1.5% 短くなり、最短でこの値の 0.75 倍（ENEMY_TEMPO）。目安 0.35〜0.9",
@@ -35,7 +35,8 @@
     "deathBomb.radius": "倒れた場所に残す時限爆発の範囲の半径。px",
     "deathBomb.damage": "時限爆発のダメージ。深度 2 つごとに +2",
     "deathBomb.fuse": "時限爆発が爆ぜるまでの秒（予告の長さ）",
-    "timid.lifetime": "攻撃せずに逃げ回り、見つかってからこの秒で消える（金色スライム）"
+    "timid.lifetime": "攻撃せずに逃げ回り、見つかってからこの秒で消える（金色スライム）",
+    "aimTracking": "true なら攻撃の瞬間までプレイヤーを狙い続ける（狙いの正確さが個性の敵。砲台）。省略時は予備動作の残りが ENEMY_TEMPO.aimLockSec / aimLockRatio を切ったところで向きが固まる。予備動作の始まりで固定する behavior（レーザーなど）は影響を受けない"
   },
-  "_order": ["slime", "eye", "boar", "knight", "bomber", "laserEye", "golem", "bat", "wisp", "kingSlime", "boneLord", "poisonSlime", "iceSlime", "fireSlime", "goldSlime", "boneBoar", "boarDouble", "curseEye", "frostEye", "blackKnight", "lavaGolem", "frostGolem", "crystalGolem", "frostWisp", "purpleLaser", "flyingBook", "ashBat", "sproutSlime", "spikeRat", "twinEye", "triLaser", "shadowBat", "wolf", "multiBomber", "spearman", "hornBeetle", "netter", "carrionFly", "thunderWisp", "skeleton", "fuseRat", "crystalMite", "echoStriker", "packLeader", "manaLeech", "scavenger", "graveBell", "silencer", "frostCrusher", "twinShade", "mimic", "hollowArmor", "hollowWraith", "boneConductor", "twinBrother", "twinSister", "frostGiant", "icePillar", "trainingDummy", "mirrorSelf", "mudman", "toad", "oiler", "flameEater", "windSprite", "mineLayer", "enemyMine", "bellImp", "bannerBearer", "banner", "burrower", "dropper", "absorber", "homunculus", "scribeImp", "crossGolem", "chainWarden", "hollow", "lurker", "iceBoar", "sootBomber", "mossGolem", "swampWisp", "frostToad", "magmaToad", "oilSlime", "stormEye", "emberRat", "giantToad", "forgeMaster", "anvil", "turretMaster", "turret", "basilisk", "shadowStalker", "oilKing", "broodMother", "broodEgg", "librarian", "mirrorKnight", "mirrorImage", "thiefKing", "thief", "reaperShade"]
+  "_order": ["slime", "eye", "boar", "knight", "bomber", "laserEye", "golem", "bat", "wisp", "kingSlime", "boneLord", "poisonSlime", "iceSlime", "fireSlime", "goldSlime", "boneBoar", "boarDouble", "curseEye", "frostEye", "blackKnight", "lavaGolem", "frostGolem", "crystalGolem", "frostWisp", "purpleLaser", "flyingBook", "ashBat", "sproutSlime", "spikeRat", "twinEye", "triLaser", "shadowBat", "wolf", "multiBomber", "spearman", "hornBeetle", "netter", "carrionFly", "thunderWisp", "skeleton", "fuseRat", "crystalMite", "echoStriker", "packLeader", "manaLeech", "scavenger", "graveBell", "silencer", "frostCrusher", "twinShade", "mimic", "hollowArmor", "hollowWraith", "boneConductor", "twinBrother", "twinSister", "frostGiant", "icePillar", "trainingDummy", "mirrorSelf", "mudman", "toad", "oiler", "flameEater", "windSprite", "mineLayer", "enemyMine", "bellImp", "bannerBearer", "banner", "burrower", "dropper", "absorber", "homunculus", "scribeImp", "crossGolem", "chainWarden", "hollow", "lurker", "iceBoar", "sootBomber", "mossGolem", "swampWisp", "frostToad", "magmaToad", "oilSlime", "stormEye", "emberRat", "giantToad", "forgeMaster", "anvil", "turretMaster", "turret", "basilisk", "shadowStalker", "oilKing", "broodMother", "broodEgg", "librarian", "mirrorKnight", "mirrorImage", "thiefKing", "thief", "reaperShade", "merchant", "pot", "crate", "mirrorPane", "deepLord", "gatePillar", "crownSlime"]
 }

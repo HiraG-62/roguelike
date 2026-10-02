@@ -623,7 +623,7 @@ const FX = {
     dash: { sheet: "axe.dash", pivot: "self", base: 26, measure: "reach" },
     "r:axeChop": { sheet: "axe.chop", pivot: "anchor", base: 20, measure: "reach" },
     "r:axeWhirl": { sheet: "axe.whirl", pivot: "self", base: 52, measure: "size" },
-    "r:greatSplit": { sheet: "axe.split", pivot: "anchor", base: 22, measure: "reach" },
+    "r:rend": { sheet: "axe.split", pivot: "anchor", base: 22, measure: "reach" },
     "branch:cleave": { sheet: "axe.cleave", pivot: "anchor", base: 20, measure: "reach" },
     "branch:axeSpin": { sheet: "axe.spin", pivot: "self", base: 50, measure: "size" },
     "branch:neckChop": { sheet: "axe.neck", pivot: "self", base: 26, measure: "reach" },

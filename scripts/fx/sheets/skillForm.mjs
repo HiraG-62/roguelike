@@ -1149,24 +1149,6 @@ const AURA_SIZE = 80;
  */
 const FX = {
   skills: {
-    titanForm: {
-      ramp: "steel",
-      cast: { sheet: "skillForm.titanCast", life: 0.5, base: TITAN.radiusPx, pivot: "pos", ground: "skillForm.titanCastGround" },
-      aura: { sheet: "skillForm.titanAura", base: 0, period: 2.4 },
-      end: { sheet: "skillForm.titanEnd", life: 0.4, base: 0, pivot: "pos" },
-    },
-    swiftForm: {
-      ramp: "steel",
-      cast: { sheet: "skillForm.swiftCast", life: 0.35, base: SWIFT.radiusPx, pivot: "pos" },
-      aura: { sheet: "skillForm.swiftAura", base: 0, period: 0.9 },
-      end: { sheet: "skillForm.swiftEnd", life: 0.35, base: 0, pivot: "pos" },
-    },
-    spiritForm: {
-      ramp: "light",
-      cast: { sheet: "skillForm.spiritCast", life: 0.5, base: SPIRIT.radiusPx, pivot: "pos", ground: "skillForm.spiritCastGround" },
-      aura: { sheet: "skillForm.spiritAura", base: 0, period: 1.2, ground: "skillForm.spiritAuraGround" },
-      end: { sheet: "skillForm.spiritEnd", life: 0.4, base: 0, pivot: "pos" },
-    },
     wolfForm: {
       ramp: "brass",
       cast: { sheet: "skillForm.wolfCast", life: 0.45, base: 0, pivot: "pos" },

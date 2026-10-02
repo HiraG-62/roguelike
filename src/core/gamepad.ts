@@ -43,6 +43,8 @@ export interface GamepadFrame {
   attackHeld: boolean;
   shootHeld: boolean;
   specialPressed: boolean;
+  /** 受け流し（既定は RB） */
+  parryPressed: boolean;
   confirmPressed: boolean;
   /** A の押下中（LB のスキル層を除く）。拠点の出撃の長押しが読む */
   confirmHeld: boolean;
@@ -63,6 +65,8 @@ export interface GamepadFrame {
   skill4Held: boolean;
   /** 床の遺物・スキル石を拾う（既定は右スティック押し込み。照準スティックの先を注目して押し込む） */
   interactPressed: boolean;
+  /** 瓶を飲む（既定は十字キー上。移動にも使うので、飲むときに少し上へ寄る） */
+  flaskPressed: boolean;
   /** 床のアイテム情報ポップアップの表示切替（既定は割り当て無し） */
   toggleDropInfoPressed: boolean;
   /** 何かのボタンを押しているかスティックを倒している。照準の入力元をパッドへ切り替える合図（core/input.ts） */
@@ -77,6 +81,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   attackHeld: false,
   shootHeld: false,
   specialPressed: false,
+  parryPressed: false,
   confirmPressed: false,
   confirmHeld: false,
   escapePressed: false,
@@ -90,6 +95,7 @@ export const EMPTY_GAMEPAD_FRAME: Readonly<GamepadFrame> = {
   skill3Held: false,
   skill4Held: false,
   interactPressed: false,
+  flaskPressed: false,
   toggleDropInfoPressed: false,
   active: false,
 };
@@ -255,6 +261,7 @@ export class GamepadInput {
       attackHeld: a.attack.held,
       shootHeld: a.shoot.held,
       specialPressed: a.special.pressed,
+      parryPressed: a.parry.pressed,
       confirmPressed: menuJust(PAD_A),
       confirmHeld: (isDown[PAD_A] ?? false) && !consumed(PAD_A),
       escapePressed: menuJust(PAD_B) || justPressed(PAD_START),
@@ -268,6 +275,7 @@ export class GamepadInput {
       skill3Held: a.skill3.held,
       skill4Held: a.skill4.held,
       interactPressed: a.interact.pressed,
+      flaskPressed: a.flask.pressed,
       toggleDropInfoPressed: a.toggleDropInfo.pressed,
       active: isDown.some(Boolean) || !isZero(leftStick) || aimDir !== null,
     };

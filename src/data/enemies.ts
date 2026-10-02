@@ -1,12 +1,15 @@
+import { curveAt } from "../core/scale";
 import type { StatusKind } from "../core/status";
 import type { FloorKind, RallyKind } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
+import type { EnemyRole } from "./enemyRoles";
 import { BALANCE } from "./balance";
 import { ENEMY_SCALE } from "./tuning";
 import { WAVE3_ENEMIES } from "./enemiesWave3";
 
 export type EnemyBehavior =
   | "chaser"
+  | "crownBearer"
   | "shooter"
   | "charger"
   | "knight"
@@ -99,7 +102,15 @@ export type EnemyBehavior =
   | "librarian"
   | "mirrorKnight"
   /** ボス: 盗賊王（逃げながら罠を撒き、追い詰めるとダウン。src/system/bossThiefKing.ts） */
-  | "thiefKing";
+  | "thiefKing"
+  /** ボス: 最深の主（門柱の四門 → 陥没 → 第三の顔。src/system/bossDeepLord.ts） */
+  | "deepLord"
+  /** 跳んで着地で円に当てる（着地点に影の予告。src/system/enemyLeap.ts。毒スライム） */
+  | "leaper"
+  /** 商人（台座を並べて立つ。殴られるまで気付かず、怒ると品を投げる。src/system/merchants.ts） */
+  | "merchant"
+  /** 壺・木箱（割ると銭が出る。動かず、気付かず、攻撃しない。src/system/containers.ts） */
+  | "container";
 
 /** 再配色種: 元の絵のパレット文字を差し替えて別の絵にする（render/sprites.ts） */
 export interface SpriteRecolor {
@@ -169,6 +180,8 @@ export interface EnemyDef {
   hp: number;
   speed: number;
   behavior: EnemyBehavior;
+  /** 陣での役割。省略時は enemyRoles.ts の roleOf が behavior と swarm / explode から決める（表と違うときだけ書く） */
+  role?: EnemyRole;
   /** strike 中に接触したときのダメージ */
   contactDamage: number;
   /** 攻撃の予備動作時間（秒）。長いほど避けやすい */
@@ -213,6 +226,8 @@ export interface EnemyDef {
   chargeTrail?: "boneWall" | "rockfall" | "ice";
   /** 突進が折れ線の 2 本になる（二度突きの猪。数値は tuning の DOUBLE_CHARGE、処理は src/system/enemyBehaviors.ts） */
   doubleCharge?: boolean;
+  /** 攻撃の瞬間までプレイヤーを狙い続ける（狙いの正確さが個性の敵。既定は攻撃の少し前に向きが固まる） */
+  aimTracking?: boolean;
   /** 攻撃せずに逃げ回り、lifetime 秒で消える（金色スライム） */
   timid?: { lifetime: number };
   /** プレイヤーがこの状態異常のとき足が速くなる（腐肉蝿） */
@@ -252,6 +267,10 @@ export interface EnemyDef {
   terrainSpeed?: { on: readonly TerrainKind[]; mul: number };
   /** 被弾すると足元に小さな地形を出す（苔ゴーレムの胞子） */
   sporeOnHit?: TerrainKind;
+  /** 商人（src/system/merchants.ts）。殴られるまで気付かず、図鑑と陣の計測に数えない */
+  merchant?: boolean;
+  /** 壺・木箱（src/system/containers.ts）。1 撃で割れ、撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、図鑑と陣の計測にも数えない */
+  container?: "pot" | "crate";
 }
 
 /**
@@ -267,7 +286,7 @@ const N = BALANCE.enemies.stats;
  */
 const WAVE2_ENEMIES: readonly EnemyDef[] = [
   // ---- 再配色種（元の敵の絵と behavior に、追加の挙動を 1 つ） ----
-  { key: "poisonSlime", name: "毒スライム", sprite: "poisonSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "chaser", color: "#b060e0", deathTerrain: { kind: "bog", radius: 16 }, ...N.poisonSlime },
+  { key: "poisonSlime", name: "毒スライム", sprite: "poisonSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "leaper", color: "#b060e0", deathTerrain: { kind: "bog", radius: 16 }, ...N.poisonSlime },
   { key: "iceSlime", name: "氷スライム", sprite: "iceSlime", recolor: { base: "slime", swap: { g: "3", G: "4", h: "2" } }, behavior: "chaser", color: "#8fd0ff", deathTerrain: { kind: "ice", radius: 16 }, ...N.iceSlime },
   { key: "fireSlime", name: "炎スライム", sprite: "fireSlime", recolor: { base: "slime", swap: { g: "o", G: "O", h: "y" } }, behavior: "chaser", color: "#e88838", ...N.fireSlime },
   { key: "goldSlime", name: "金色スライム", sprite: "goldSlime", recolor: { base: "slime", swap: { g: "y", G: "Y", h: "1" } }, behavior: "chaser", color: "#f8d848", ...N.goldSlime },
@@ -293,7 +312,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "multiBomber", name: "連投ゴブリン", sprite: "multiBomber", recolor: { base: "bomber", swap: { g: "o", G: "O", h: "q" } }, behavior: "bomber", color: "#e88838", ...N.multiBomber },
   { key: "spearman", name: "槍兵", sprite: "spearman", recolor: { base: "knight", swap: { b: "o", B: "O", a: "q" } }, behavior: "charger", color: "#e88838", ...N.spearman },
   { key: "hornBeetle", name: "角甲虫", sprite: "beetle", behavior: "charger", color: "#58d058", chargeTrail: "rockfall", ...N.hornBeetle },
-  { key: "netter", name: "投網兵", sprite: "netter", recolor: { base: "bomber", swap: { g: "c", G: "C", h: "1" } }, behavior: "shooter", color: "#60e0f0", ...N.netter },
+  { key: "netter", name: "投網兵", sprite: "netter", recolor: { base: "bomber", swap: { g: "c", G: "C", h: "1" } }, behavior: "shooter", role: "disruptor", color: "#60e0f0", ...N.netter },
   { key: "carrionFly", name: "腐肉蝿", sprite: "carrionFly", recolor: { base: "bat", swap: { P: "v", p: "J" } }, behavior: "bat", color: "#a0e040", frenzy: { vs: ["bleed", "poison"], speedMul: 1.5 }, ...N.carrionFly },
   { key: "thunderWisp", name: "雷鬼火", sprite: "thunderWisp", recolor: { base: "wisp", swap: { c: "N", C: "y" } }, behavior: "wisp", color: "#fff4a0", phasing: true, deathRally: { kind: "charged", radius: 60, time: 5 }, ...N.thunderWisp },
   { key: "skeleton", name: "骸骨兵", sprite: "skeleton", behavior: "chaser", color: "#e0d8c0", ...N.skeleton },
@@ -301,7 +320,7 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "fuseRat", name: "導火鼠", sprite: "fuseRat", recolor: { base: "rat", swap: { S: "O", s: "o", r: "y" } }, behavior: "kamikaze", color: "#e88838", ...N.fuseRat },
   { key: "crystalMite", name: "結晶ダニ", sprite: "mite", behavior: "kamikaze", color: "#60e0f0", ...N.crystalMite },
   { key: "echoStriker", name: "残像打ち", sprite: "hooded", behavior: "echoStriker", color: "#5a4a8a", ...N.echoStriker },
-  { key: "packLeader", name: "群れの長", sprite: "packLeader", recolor: { base: "wolf", swap: { S: "W", s: "q" } }, behavior: "packLeader", color: "#7a6a58", pack: { minion: "wolf", count: 3 }, ...N.packLeader },
+  { key: "packLeader", name: "群れの長", sprite: "packLeader", recolor: { base: "wolf", swap: { S: "W", s: "q" } }, behavior: "packLeader", role: "support", color: "#7a6a58", pack: { minion: "wolf", count: 3 }, ...N.packLeader },
   { key: "manaLeech", name: "気力喰い", sprite: "leech", behavior: "manaLeech", color: "#3c7ad8", ...N.manaLeech },
   { key: "scavenger", name: "骨拾い", sprite: "ghoul", behavior: "scavenger", color: "#5b7e48", ...N.scavenger },
   { key: "graveBell", name: "墓守の鐘", sprite: "bell", behavior: "graveBell", color: "#f8d848", noCorpse: true, ...N.graveBell },
@@ -322,6 +341,11 @@ const WAVE2_ENEMIES: readonly EnemyDef[] = [
   { key: "trainingDummy", name: "木人", sprite: "trainingDummy", recolor: { base: "icePillar", swap: { "1": "T", "2": "T", "3": "T", "4": "X" } }, behavior: "inert", color: "#c8a070", noCorpse: true, ...N.trainingDummy },
   // ---- 鏡の部屋の写し（src/system/specialRooms.ts が HP・エリート修飾子をプレイヤーの今のビルドから決める）----
   { key: "mirrorSelf", name: "鏡像", sprite: "mirrorSelf", recolor: { base: "player", swap: { b: "p", B: "P", a: "e", t: "3", T: "4", o: "A", O: "9" } }, behavior: "charger", color: "#c0e0ff", noCorpse: true, ...N.mirrorSelf },
+  // ---- 商人（src/system/merchants.ts が毎階の前室に立たせる。抽選には出ない）----
+  { key: "merchant", name: "商人", sprite: "merchant", behavior: "merchant", color: "#e0b050", noCorpse: true, merchant: true, ...N.merchant },
+  // ---- 壺・木箱（src/system/containers.ts が塊の隅と通路の行き止まりに置く。抽選には出ない。絵は sprites/economy.ts）----
+  { key: "pot", name: "壺", sprite: "pot", behavior: "container", color: "#c07840", noCorpse: true, container: "pot", ...N.pot },
+  { key: "crate", name: "木箱", sprite: "crate", behavior: "container", color: "#a07050", noCorpse: true, container: "crate", ...N.crate },
 ];
 
 export const ENEMIES: readonly EnemyDef[] = [
@@ -334,6 +358,8 @@ export const ENEMIES: readonly EnemyDef[] = [
   { key: "golem", name: "ゴーレム", sprite: "golem", behavior: "golem", color: "#a8a290", ...N.golem },
   { key: "bat", name: "蝙蝠", sprite: "bat", behavior: "bat", color: "#8060a0", ...N.bat },
   { key: "wisp", name: "鬼火", sprite: "wisp", behavior: "wisp", color: "#60c0ff", phasing: true, ...N.wisp },
+  // スライム王の分裂体のうち 1 体が被る冠（段階 2 の「大将」。割ると王が大きなダウン）。王が置くだけなので出現の重みは無い。絵は毒スライムの再配色の仮（冠の絵は後の段。色は予告の色に紛れない色）
+  { key: "crownSlime", name: "冠スライム", sprite: "crownSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "crownBearer", color: "#a080d8", noCorpse: true, ...N.crownSlime },
   { key: "kingSlime", name: "スライム王", sprite: "kingSlime", behavior: "kingSlime", color: "#40c040", boss: true, ...N.kingSlime },
   { key: "boneLord", name: "骸骨卿", sprite: "boneLord", behavior: "boneLord", color: "#d0c8a8", boss: true, ...N.boneLord },
   ...WAVE2_ENEMIES,
@@ -368,11 +394,22 @@ export function enemiesForDepth(depth: number): EnemyDef[] {
   return ENEMIES.filter((e) => !e.boss && depth >= e.minDepth);
 }
 
-/** 深さによるステータス倍率 */
-export function depthHpScale(depth: number): number {
-  return 1 + (depth - 1) * ENEMY_SCALE.hpPerDepth;
+/** 章は線形、ENEMY_SCALE.deepDepth 以降は指数（core/scale.ts の共通の曲線） */
+function enemyCurve(perDepth: number, deepGrowth: number, depth: number): number {
+  return curveAt({ perDepth, deepDepth: ENEMY_SCALE.deepDepth, deepGrowth }, depth);
 }
 
-export function depthDamageBonus(depth: number): number {
-  return Math.floor((depth - 1) / 2) * 2;
+/** 深さによる敵の生命倍率。怯み耐性も同じ曲線（system/poise.ts の basePoiseMax） */
+export function depthHpScale(depth: number): number {
+  return enemyCurve(ENEMY_SCALE.hpPerDepth, ENEMY_SCALE.deepHpGrowth, depth);
+}
+
+/** 深さによる敵の攻撃倍率（深度 1 で 1 倍） */
+export function depthDamageMul(depth: number): number {
+  return ENEMY_SCALE.damageMul * enemyCurve(ENEMY_SCALE.damagePerDepth, ENEMY_SCALE.deepDamageGrowth, depth);
+}
+
+/** 敵の攻撃の深度補正。基礎の攻撃に倍率を掛けて丸める（敵ごとの個性を保つため flat 加算はしない） */
+export function depthDamage(base: number, depth: number): number {
+  return Math.round(base * depthDamageMul(depth));
 }

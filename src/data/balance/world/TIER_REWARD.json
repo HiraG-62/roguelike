@@ -1,0 +1,13 @@
+{
+  "_note": "踏破した最高位階の見返り（meta/tierRewards.ts。docs/ideas/meta-impl.md 2-6）。強さを直接は配らず、選べる幅（章の市の品・出口の本数）だけを増やす。実績の位階（1 / 5 / 10 / 15 / 20）は TS の CLEAR_TITLE_TIERS",
+  "_fields": {
+    "marketTier": "章の市の品が増える最高位階（これ以上の位階で踏破していると効く）",
+    "marketExtra": "章の市に足す品。key は商人の品の種類（stock と同じ）、値は足す個数",
+    "exitTier": "出口（階段）が増える最高位階",
+    "exitExtra": "出口を足す本数（置ける場所が足りなければ置けた数まで）"
+  },
+  "marketTier": 3,
+  "marketExtra": { "rune": 1 },
+  "exitTier": 10,
+  "exitExtra": 1
+}

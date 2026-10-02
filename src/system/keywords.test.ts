@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DamageTag } from "../core/damage";
 import { ELEMENTS } from "../core/element";
 import { KEYWORDS, KEYWORD_DEFS, type Keyword, emptyProfile, kw, mergeProfiles, profileKeywords } from "../core/keywords";
 import { createRng } from "../core/rng";
@@ -22,6 +23,7 @@ import {
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import type { SkillProfile } from "../skills/types";
 import { BOONS, BOON_KEYS, type BoonTag } from "./boonDefs";
+import { RESONANCE_EXCLUDED } from "./resonance";
 import { boonAffinityMul, equipmentTags } from "./boons";
 import { KEYSTONE_NAME, KS } from "./keystones";
 import {
@@ -60,6 +62,11 @@ const LEGACY_STATUS_TAGS: Readonly<Partial<Record<StatusKind, readonly BoonTag[]
   guarded: ["guarded"],
 };
 
+/** 旧 xxxDamageMul > 1 の読み替え（増が正、またはそのタグに掛かる倍が 1 より大きい。段取り 4a） */
+function damageRaised(stats: Readonly<PlayerStats>, tag: DamageTag): boolean {
+  return stats.increased[tag] > 0 || stats.more.some((m) => m.tags?.includes(tag) === true && m.mul > 1);
+}
+
 function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   const tags = new Set<BoonTag>();
   const effects = new Set(stats.triggers.map((t) => t.effect));
@@ -74,7 +81,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   if (stats.shockChance > 0 || effects.has("chainLightning")) tags.add("shock");
   if (stats.explodeOnKillChance > 0 || effects.has("explode") || ks.has(KS.blink)) tags.add("explode");
   if (
-    stats.meleeDamageMul > d.meleeDamageMul ||
+    damageRaised(stats, "melee") ||
     stats.meleeDamageFlat > d.meleeDamageFlat ||
     stats.attackSpeedMul > d.attackSpeedMul ||
     triggers.has("onMeleeHit") ||
@@ -84,7 +91,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     tags.add("melee");
   }
   if (
-    stats.rangedDamageMul > d.rangedDamageMul ||
+    damageRaised(stats, "ranged") ||
     stats.rangedDamageFlat > d.rangedDamageFlat ||
     stats.fireRateMul > d.fireRateMul ||
     stats.projectileCount > d.projectileCount ||
@@ -109,7 +116,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
   if (stats.comboDamagePerStack > 0 || stats.comboWindowBonus > 0 || conditions.has("comboAbove10")) tags.add("combo");
   if (
     stats.energyGainMul > d.energyGainMul ||
-    stats.burstDamageMul > d.burstDamageMul ||
+    damageRaised(stats, "ultimate") ||
     stats.burstRadiusMul > d.burstRadiusMul ||
     effects.has("energy") ||
     conditions.has("fullEnergy")
@@ -117,7 +124,7 @@ function legacyEquipmentTags(stats: Readonly<PlayerStats>): Set<BoonTag> {
     tags.add("energy");
   }
   if (stats.critChance > d.critChance || stats.critMul > d.critMul) tags.add("crit");
-  if (stats.lifeOnHit > 0 || stats.lifeOnKill > 0 || stats.hpRegen > 0 || effects.has("heal") || ks.has(KS.vampire) || ks.has(KS.berserker)) {
+  if (stats.lifeOnHit > 0 || stats.lifeOnKill > 0 || stats.hpRegen > 0 || effects.has("heal") || ks.has(KS.vampire)) {
     tags.add("hp");
   }
   if (triggers.has("onRoomClear") || conditions.has("roomLocked")) tags.add("room");
@@ -180,7 +187,7 @@ describe("語の型", () => {
     const frostGolem = enemyKeywords(golemDef);
     expect(frostGolem.consumes, "霜ゴーレムは炎が弱点").toContain("elFire");
     expect(frostGolem.produces, "霜ゴーレムは氷属性で攻撃する").toContain("elIce");
-    expect(skillKeywords(SKILL_DEFS.thunder).produces, "雷撃は雷属性").toContain("elLightning");
+    expect(skillKeywords(SKILL_DEFS.commonThunderclap).produces, "雷鳴は雷属性").toContain("elLightning");
     expect(statsKeywords({ ...DEFAULT_STATS, infuse: { ...DEFAULT_STATS.infuse, fire: 0.4 } }).produces, "炎の変換").toContain("elFire");
   });
 
@@ -219,8 +226,9 @@ describe("全要素が語を持つ", () => {
     for (const [key, p] of Object.entries(FLOOR_KEYWORDS)) expect(profileKeywords(p).length, `フロア ${key}`).toBeGreaterThan(0);
   });
 
-  it("全語に「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり）", () => {
-    const coverage = keywordCoverage(keywordSources());
+  it("全語に「出す」要素と「食う」要素が 1 つ以上ある（無い語は網の行き止まり。共鳴で数えない色・反転・無属性は除く）", () => {
+    const excluded = new Set<Keyword>(RESONANCE_EXCLUDED);
+    const coverage = keywordCoverage(keywordSources()).filter((c) => !excluded.has(c.key));
     const noProducer = coverage.filter((c) => c.produces === 0).map((c) => c.key);
     const noConsumer = coverage.filter((c) => c.consumes === 0).map((c) => c.key);
     expect(noProducer, "出す要素が無い語（どこかの要素の produces に足す）").toEqual([]);
@@ -233,7 +241,7 @@ describe("装備の語の推論", () => {
     expect(profileKeywords(statsKeywords(DEFAULT_STATS)), "基礎値").toEqual([]);
   });
 
-  it("性質・誓約・トリガー・proc・共鳴から語を読む", () => {
+  it("性質・誓約・トリガー・proc から語を読む", () => {
     const stats: PlayerStats = {
       ...DEFAULT_STATS,
       burnChance: 0.2,
@@ -241,26 +249,21 @@ describe("装備の語の推論", () => {
       keystones: [KS.blink],
       triggers: [{ trigger: "onKill", condition: "belowHalfHp", effect: "inflict", status: "poison", magnitude: 1, chance: 0.3 }],
       statusProcs: [{ kind: "bleed", chance: 0.2, stacks: 1, duration: 3, potency: 1, on: "melee", requiresCrit: true }],
-      resonance: {
-        kind: "dominant",
-        colors: ["umbra"],
-        ratios: { crimson: 0.4, azure: 0, jade: 0, gold: 0, umbra: 0.6 },
-      },
     };
     const p = statsKeywords(stats);
     const has = (list: readonly Keyword[], words: readonly Keyword[]): boolean => words.every((w) => list.includes(w));
-    expect(has(p.produces, ["burn", "explode", "poison", "bleed", "crimson", "umbra"]), `出す: ${p.produces.join(",")}`).toBe(true);
-    expect(has(p.consumes, ["hurt", "dash", "kill", "lowHp", "melee", "crit", "umbra", "inverted"]), `食う: ${p.consumes.join(",")}`).toBe(
+    expect(has(p.produces, ["burn", "explode", "poison", "bleed", "umbra"]), `出す: ${p.produces.join(",")}`).toBe(true);
+    expect(has(p.consumes, ["hurt", "dash", "kill", "lowHp", "melee", "crit"]), `食う: ${p.consumes.join(",")}`).toBe(
       true,
     );
     expect(p.amplifies.includes("dash"), "瞬歩はダッシュを強める").toBe(true);
   });
 
   it("スキル石は命中で付ける状態異常とマナ消費、差した刻印符の語も持つ", () => {
-    const p = skillKeywords(SKILL_DEFS.thunder, ["curse"]);
-    expect(p.produces.includes("shock"), "雷撃の感電").toBe(true);
+    const p = skillKeywords(SKILL_DEFS.commonThunderclap, ["burst"]);
+    expect(p.produces.includes("shock"), "雷鳴の感電").toBe(true);
     expect(p.consumes.includes("mana"), "マナ型はマナを食う").toBe(true);
-    expect(p.produces.includes("vulnerable"), "刻印符 呪い の脆弱").toBe(true);
+    expect(p.produces.includes("explode"), "刻印符 爆ぜ の爆発").toBe(true);
   });
 });
 
@@ -299,8 +302,8 @@ describe("溢れ・枯れ・相性", () => {
   it("祝福の抽選: 飢えを埋める候補は重みが affinityWeightMul 倍", () => {
     // マナを食うだけのビルド（マナ型のスキル石だけ）で確かめる
     const build = kw([], ["mana"]);
-    expect(boonAffinityMul(BOONS.springWell, build), "湧水はマナを出す").toBe(BOON.affinityWeightMul);
-    expect(boonAffinityMul(BOONS.dashGun, build), "疾走射撃は関係なし").toBe(1);
+    expect(boonAffinityMul(BOONS.moonRead, build), "月読は気力を出す").toBe(BOON.affinityWeightMul);
+    expect(boonAffinityMul(BOONS.passCut, build), "抜き胴は関係なし").toBe(1);
   });
 });
 

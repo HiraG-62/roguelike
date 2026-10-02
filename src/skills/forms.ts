@@ -4,11 +4,11 @@ import { type Enemy, type GameState, pushSfx } from "../core/state";
 import type { StatusProc } from "../core/status";
 import { type Vec, add, scale } from "../core/vec";
 import { STATUS } from "../data/tuning";
-import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, defineMoveset } from "../data/weapons";
+import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, MOVESETS, defineMoveset } from "../data/weapons";
 import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
-import { addFloatingText, addSkillFx, shake, spawnBurst, spawnRing, withSkillFx } from "../system/effects";
+import { addFloatingText, addHeadLabel, addSkillFx, shake, spawnBurst, spawnRing, withSkillFx } from "../system/effects";
 import { canAffordSkill, paySkillCost } from "../system/keystones";
 import { circlesOverlap } from "../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../system/statusEffects";
@@ -16,12 +16,13 @@ import { endUltimate } from "../system/ultimates";
 import { SKILL } from "./data";
 import { castElement, skillPower } from "./hit";
 import { spawnShot } from "./shots";
+import { FORM_TUNING } from "./tuning2";
 import { SHAPE_TUNING as S } from "./tuning3";
 import { type CastParams, type ShapeFormState, type SkillDef, type SkillKey, WAVE3_SKILL_KEYS, type Wave3SkillKey } from "./types";
 
 /**
  * 変身（docs/ideas/skills-expansion.md 1-H #56〜#60）。左右クリックの動作そのものを差し替える 5 種の状態遷移と、
- * 第 2 弾の 3 種（剛 / 迅 / 霊の型。skills/actions2.ts）も含めた変身 8 種の共通規則（同時に 1 つ・共有の待ち）を持つ。
+ * 変身の共通規則（同時に 1 つ・共有の待ち・解けた後の反動）を持つ。第 2 弾の武器種の変身 3 種は段取り 7c で削った
  *
  * - 狼化・鉄塊化は近接の型（MovesetDef）を差し替える。player.ts は shapeMoveset を装備の武器種より先に読む
  * - 右クリックの差し替え（遠吠え・砲撃）は player.ts が shapeButtonPress に先に渡す
@@ -48,7 +49,6 @@ export const SHAPE_COLOR: Readonly<Record<Wave3SkillKey, string>> = {
   pyreForm: COLOR_PYRE,
 };
 
-const TEXT_SCALE = 1;
 const TEXT_LIFE = 1.2;
 const NOTICE_SCALE = 0.9;
 const NOTICE_LIFE = 0.4;
@@ -80,14 +80,19 @@ export function isShapeKey(key: SkillKey): key is Wave3SkillKey {
   return (WAVE3_SKILL_KEYS as readonly string[]).includes(key);
 }
 
-/** 変身 8 種（第 2 弾の 3 種を含む）か */
+/** 変身 5 種か */
 export function isFormSkill(def: Readonly<SkillDef>): boolean {
   return def.tags.includes("form");
 }
 
-/** どれかの変身中か（第 2 弾の武器種の変身も含む） */
+/** どれかの変身中か */
 export function inAnyForm(state: GameState): boolean {
-  return state.skills.form !== null || state.skills.shape !== null;
+  return state.skills.shape !== null;
+}
+
+/** 変身が解けた後の反動の移動倍率 */
+export function formRecoverMoveMul(state: GameState): number {
+  return state.skills.formRecover > 0 ? FORM_TUNING.recoverMoveMul : 1;
 }
 
 function shapeKey(state: GameState): Wave3SkillKey | null {
@@ -164,7 +169,7 @@ export interface ShapeCastCtx {
 
 /**
  * 発動（system/skills.ts の castNow / executeRemote から）。remote（反響）は砲身化の砲撃 1 発だけで変身しない。
- * ほかの変身は canAttach で反響・遅延・投げ刃・罠化が付かない
+ * ほかの変身は canAttach で反響・遅延・照準起点・据え置きが付かない
  */
 export function castShape(state: GameState, key: Wave3SkillKey, ctx: ShapeCastCtx): void {
   if (ctx.remote) {
@@ -174,10 +179,9 @@ export function castShape(state: GameState, key: Wave3SkillKey, ctx: ShapeCastCt
   startShape(state, key, ctx.slot, ctx.params);
 }
 
-/** 変身の持続（時間で切れない変身は 0）。持続の変異・延長（durationMul）・深化（formDurationMul）を畳む */
+/** 変身の持続（時間で切れない変身は 0）。持続の変異（durationMul）を畳む */
 export function shapeDuration(key: Wave3SkillKey, params: Readonly<CastParams>): number {
-  const base = timedDuration(key);
-  return base * params.durationMul * params.formDurationMul;
+  return timedDuration(key) * params.durationMul;
 }
 
 function timedDuration(key: Wave3SkillKey): number {
@@ -206,7 +210,7 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
     slot,
     elapsed: 0,
     total: shapeDuration(key, params),
-    recover: SKILL[key].recover * params.formRecoverMul,
+    recover: SKILL[key].recover,
     params,
     actionLeft: 0,
     passed: new Set(),
@@ -218,7 +222,7 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
     spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
   });
   addSkillFx(state, key, "cast", p.body.pos, { angle: Math.atan2(p.facing.y, p.facing.x), element: castElement(params) });
-  addFloatingText(state, p.body.pos, SKILL_NAME[key], color, TEXT_SCALE, TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, SKILL_NAME[key], color, TEXT_LIFE);
   pushSfx(state, "formShift");
   if (key === "siegeForm") openFire(state, rs.shape, params);
   if (key === "pyreForm") ensurePyreProcs(state, params);
@@ -245,10 +249,11 @@ function openFire(state: GameState, shape: ShapeFormState, params: CastParams): 
 }
 
 /**
- * 変身の時間経過（updateSkills が updateForm の後に毎ステップ呼ぶ）。
+ * 変身の時間経過（updateSkills が毎ステップ呼ぶ）。反動の残り秒もここで減らす。
  * 砲身化はダッシュで、業火の化身は気力切れで、時間の変身は持続が尽きると解ける
  */
 export function updateShape(state: GameState, dt: number): void {
+  state.skills.formRecover = Math.max(0, state.skills.formRecover - dt);
   const shape = state.skills.shape;
   if (!shape) return;
   shape.elapsed += dt;
@@ -290,9 +295,9 @@ export function endShape(state: GameState, cause: ShapeEndCause): void {
   if (shape.key === "pyreForm" && cause === "empty") selfBurn(state);
   // 差し替えた近接の型の段は装備の武器種では引けないので、振りの途中なら止める
   if (shape.moveset && state.player.attack.phase !== "none") cancelAttack(state);
-  rs.formRecover = shape.recover;
   addSkillFx(state, shape.key, "end", state.player.body.pos, { element: castElement(shape.params) });
-  addFloatingText(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], NOTICE_SCALE, TEXT_LIFE / 2);
+  rs.formRecover = shape.recover;
+  addHeadLabel(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], TEXT_LIFE / 2);
 }
 
 /** 砲身化・業火の化身をもう一度撃った: 払わずに解く（自傷なし） */
@@ -301,7 +306,7 @@ export function toggleOffShape(state: GameState): void {
 }
 
 // ---------------------------------------------------------------------------
-// 共有の待ち（変身 8 種）
+// 共有の待ち（変身 5 種）
 // ---------------------------------------------------------------------------
 
 /**
@@ -424,7 +429,6 @@ function shellParams(base: CastParams, paid: number, origin: Vec): CastParams {
     manaPaid: paid,
     refundPool: { left: paid },
     hitRefundPool: { left: paid * SKILL.modifier.refund.cap },
-    gaspPool: { left: base.lastGasp === null ? 0 : SKILL.modifier.lastGasp.maxPerCast },
     hitLog: new Set(),
     origin: { ...origin },
   };
@@ -501,7 +505,6 @@ function pyreProcs(params: Readonly<CastParams>): StatusProc[] {
 
 /**
  * 近接・射撃の on-hit 付与に燃焼を差し込む。装備を替えると applyStats が stats を作り直して消えるので毎ステップ確かめる
- * （第 2 弾の変身が武器種を差し直すのと同じやり方）
  */
 function ensurePyreProcs(state: GameState, params: Readonly<CastParams>): void {
   if (state.stats.statusProcs.some((proc) => PYRE_PROCS.has(proc))) return;
@@ -576,6 +579,9 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       steps: [bite],
       dashAttack: bite,
       attackMoveMul: w.attackMoveMul,
+      weight: "light",
+      // 変身中も型は装備の武器種のまま（戦意を変身で失わない）
+      form: MOVESETS[equipped].form,
       primary: "melee",
       steps2: [{ kind: "swing", key: "wolfHowl", name: "遠吠え", desc: "周りの敵に恐怖を付ける", cooldown: 0, step: bite }],
       branches: [],
@@ -593,6 +599,9 @@ function buildMoveset(equipped: MovesetKey, key: Wave3SkillKey, params: Readonly
       steps: [swing],
       dashAttack: swing,
       attackMoveMul: f.attackMoveMul,
+      weight: "heavy",
+      // 変身中も型は装備の武器種のまま（戦意を変身で失わない）
+      form: MOVESETS[equipped].form,
       primary: "melee",
       steps2: [{ kind: "swing", key: "ironSwing", name: "鉄塊の振り", desc: "重い振りで大きく怯ませる", cooldown: 0, step: swing }],
       branches: [],

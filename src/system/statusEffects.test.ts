@@ -38,7 +38,7 @@ import {
   updateStatusEffects,
 } from "./statusEffects";
 import { TRAIT_COLORS } from "../loot/types";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import { step } from "../core/game";
 import { descend } from "./floor";
 
@@ -253,8 +253,8 @@ describe("相互作用（E-3）", () => {
     expect(BIG_HP - poisoned.hp).toBe(expected * STATUS.bleed.poisonMul);
   });
 
-  it("脆弱 + 怯み: 乗算（× 1.2 × damageVsStaggeredMul）", () => {
-    const state = arena(5, { damageVsStaggeredMul: 2 });
+  it("脆弱 + 怯み: 乗算（× 1.2 × 怯み中の増）", () => {
+    const state = arena(5, { increased: increasedWith({ vsStaggered: 1 }) });
     const e = sturdy(state, "golem");
     applyStatus(state, on(e), apply("stagger", 1), "player");
     applyStatus(state, on(e), apply("vulnerable", 4), "player");
@@ -487,7 +487,7 @@ describe("マナの回収（B-1）", () => {
       });
     }
     updateProjectiles(state, FIXED_DT);
-    expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap, 5);
+    expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap * MANA.attackGainScale, 5);
   });
 
   it("静寂の誓いでは射撃の命中でマナが戻らない", () => {
@@ -700,9 +700,9 @@ describe("追加の状態異常: 効果", () => {
     expect(BIG_HP - 100 - b.hp).toBe(Math.round(Math.round(100 * STATUS.doom.vulnerableRatio) * STATUS.vulnerable.mul));
   });
 
-  it("彩痕: 共鳴と同じ色なら被ダメ ×1.15。対応する状態異常が入ると色爆（蒼 = 冷気 +2）で彩痕は消える", () => {
+  it("彩痕: 色の状態異常（蒼 = 冷気）が共鳴していれば被ダメ ×1.15。対応する状態異常が入ると色爆（蒼 = 冷気 +2）で彩痕は消える", () => {
     const state = arena();
-    state.stats.resonance = { ...state.stats.resonance, kind: "dominant", colors: ["azure"] };
+    state.boonRun.resonance = [{ keyword: "chill", step: 1, produces: 2, consumes: 2, amplifies: 0 }];
     const e = sturdy(state, "golem");
     applyStatus(state, on(e), apply("hue", 6, 1, TRAIT_COLORS.indexOf("azure")), "player");
     expect(enemyStatusTakenMul(state, e)).toBeCloseTo(STATUS.hue.takenMul, 5);

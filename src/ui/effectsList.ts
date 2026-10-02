@@ -1,12 +1,12 @@
 import type { GameState } from "../core/state";
-import { STATUS_LABEL } from "../core/status";
-import { BOONS } from "../system/boonDefs";
+import { BOONS, type BoonDef, type LineageKey } from "../system/boonDefs";
 import { BOON_GRADE_LABEL, boonGradeOf } from "../system/boonGrade";
-import { ownedCore } from "../system/boonCores";
+import { isDeepDepth } from "../system/chapters";
+import { countPer } from "../system/modifiers";
 
 /**
- * 装備画面のステータスタブ「効果」頁: 今かかっている状態異常・持っている祝福・芯・一時強化の一覧（読むだけ）。
- * ラン中（state.sandbox が立っていない）だけ意味がある。拠点では空。docs/GLOSSARY.md の表記に揃える
+ * 書付「系譜」「祝福」の祝福の行: 持っている祝福・芯の名前・格・研鑽の数え・効果の説明（読むだけ）。
+ * 状態異常・一時強化の一覧は装備画面から外した（HUD のまま。docs/ideas/inventory-v2/E-impl.md 7 章の 17）。docs/GLOSSARY.md の表記に揃える
  */
 
 export interface EffectRow {
@@ -18,58 +18,37 @@ export interface EffectRow {
   detail: string;
 }
 
-/** 小数第 1 位までの秒表記（末尾の .0 は落とす） */
-function formatSeconds(sec: number): string {
-  const v = Number(Math.max(0, sec).toFixed(1));
-  return `${v}秒`;
+/** 研鑽の札の今の数え（倒した数・燃やした数など）。数えを持たない札は null。小数は切り捨て */
+export function temperCount(state: GameState, def: Readonly<BoonDef>): number | null {
+  if (def.card !== "temper") return null;
+  if (def.temperStat !== undefined) return Math.floor(state.boonRun.tallies[def.temperStat.tally] ?? 0);
+  const per = def.modifiers?.find((m) => m.per !== undefined)?.per;
+  return per === undefined ? null : Math.floor(countPer(state, per.count, null));
 }
 
-/** 今かかっている状態異常（プレイヤー）。良い状態・堅守なども含め、付いているものをすべて出す */
-export function statusEffectRows(state: GameState): EffectRow[] {
-  return state.player.status.effects.map((e) => ({
-    key: `status:${e.kind}`,
-    name: e.stacks > 1 ? `${STATUS_LABEL[e.kind]}×${e.stacks}` : STATUS_LABEL[e.kind],
-    info: formatSeconds(e.time),
-    detail: "",
-  }));
+/** 札が上限（研鑽の cap か「〜につき」の cap）を持つか。深みではそれが外れる */
+function hasCap(def: Readonly<BoonDef>): boolean {
+  return def.temperStat?.cap !== undefined || (def.modifiers ?? []).some((m) => m.per?.cap !== undefined);
 }
 
-/** 持っている祝福（芯を除く）。名前・格・効果の短い説明 */
-export function boonRows(state: GameState): EffectRow[] {
+const DEEP_UNCAPPED_NOTE = "（深み: 最大なし）";
+
+function boonRow(state: GameState, def: Readonly<BoonDef>): EffectRow {
+  const grade = BOON_GRADE_LABEL[boonGradeOf(state, def.key)];
+  const count = temperCount(state, def);
+  const note = isDeepDepth(state.depth) && hasCap(def) ? DEEP_UNCAPPED_NOTE : "";
+  return { key: `boon:${def.key}`, name: def.name, info: count === null ? grade : `${grade}・${count}`, detail: def.desc + note };
+}
+
+/** その系譜の札（融合の札は両方の系譜に入る）。持っている順 */
+export function lineageBoonRows(state: GameState, lineage: LineageKey): EffectRow[] {
   return state.boons
     .map((key) => BOONS[key])
-    .filter((def) => def.core !== true)
-    .map((def) => ({ key: `boon:${def.key}`, name: def.name, info: BOON_GRADE_LABEL[boonGradeOf(state, def.key)], detail: def.desc }));
+    .filter((def) => def.core !== true && (def.lineage === lineage || def.fusion?.includes(lineage) === true))
+    .map((def) => boonRow(state, def));
 }
 
-const CORE_INFO = "芯";
-
-/** 持っている芯（1 ランに 1 つ）。無ければ空配列 */
-export function coreRows(state: GameState): EffectRow[] {
-  const def = ownedCore(state);
-  return def ? [{ key: `core:${def.key}`, name: def.name, info: CORE_INFO, detail: def.desc }] : [];
-}
-
-const BUFF_DAMAGE_NAME = "ダメージ強化";
-const BUFF_SPEED_NAME = "移動速度強化";
-const BUFF_INVULN_NAME = "無敵";
-
-/** その他の一時強化（祝福・スキル・奥義が掛ける秒限りの倍率）。掛かっていなければ空配列 */
-export function buffRows(state: GameState): EffectRow[] {
-  const b = state.player.buffs;
-  const rows: EffectRow[] = [];
-  if (b.damage.time > 0 && b.damage.mul !== 1) {
-    rows.push({ key: "buff:damage", name: BUFF_DAMAGE_NAME, info: formatSeconds(b.damage.time), detail: `与ダメージ ${Math.round(b.damage.mul * 100)}%` });
-  }
-  if (b.speed.time > 0 && b.speed.mul !== 1) {
-    rows.push({ key: "buff:speed", name: BUFF_SPEED_NAME, info: formatSeconds(b.speed.time), detail: `移動速度 ${Math.round(b.speed.mul * 100)}%` });
-  }
-  if (b.invuln > 0) rows.push({ key: "buff:invuln", name: BUFF_INVULN_NAME, info: formatSeconds(b.invuln), detail: "攻撃を受けない" });
-  return rows;
-}
-
-/** ラン中だけ意味がある効果の一覧（芯 → 祝福 → 状態異常 → 一時強化）。拠点では空 */
-export function runEffectRows(state: GameState): EffectRow[] {
-  if (state.sandbox === true) return [];
-  return [...coreRows(state), ...boonRows(state), ...statusEffectRows(state), ...buffRows(state)];
+/** 祝福 1 つの行（書付「祝福」） */
+export function boonSheetRow(state: GameState, def: Readonly<BoonDef>): EffectRow {
+  return boonRow(state, def);
 }

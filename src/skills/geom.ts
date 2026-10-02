@@ -1,6 +1,6 @@
 import type { Enemy, GameState } from "../core/state";
 import { type Vec, add, angle, length, normalize, scale, sub } from "../core/vec";
-import { overlapsWall } from "../system/physics";
+import { overlapsShotWall } from "../system/physics";
 import { enemiesInRadius } from "../system/statusEffects";
 
 /** スキルの当たり判定に使う幾何の小道具（扇・線分・壁までの光線） */
@@ -58,7 +58,7 @@ export function rayEnd(state: GameState, origin: Vec, dir: Vec, maxLength: numbe
   let end = { ...origin };
   for (let t = step; t <= maxLength; t += step) {
     const next = add(origin, scale(d, t));
-    if (overlapsWall(state, next.x, next.y, 0)) break;
+    if (overlapsShotWall(state, next.x, next.y, 0)) break;
     end = next;
   }
   return end;

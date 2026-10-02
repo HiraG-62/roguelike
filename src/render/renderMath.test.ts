@@ -23,9 +23,9 @@ import {
 } from "./renderMath";
 import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
 import { MOVESETS } from "../data/weapons";
-import { createMap, setTile, Tile } from "../map/grid";
-import { BOSS, ELITE, ENEMY_AI, FX_WAVE3, PLAYER } from "../data/tuning";
-import { RARITIES, TRAIT_COLOR_HEX, createEmptyResonance, type Resonance } from "../loot/types";
+import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
+import { RARITIES } from "../loot/types";
+import { KEYWORD_DEFS, type Keyword, type ResonanceStep } from "../core/keywords";
 import {
   KEYSTONE_GROUP_COLOR,
   LOOT_PILLAR_HEIGHTS,
@@ -40,62 +40,17 @@ import {
   crackPixels,
   damageTextStyle,
   fitTooltip,
-  floorVariant,
   floorWipeCover,
   pulse,
   spriteFeetY,
   tileHash,
-  wallMask,
-  wallStyle,
   computeViewScale,
 } from "./renderMath";
 import { TILE_SIZE } from "../map/grid";
 
-describe("floorVariant", () => {
-  it("決定的で範囲内", () => {
-    for (let y = 0; y < 20; y++) {
-      for (let x = 0; x < 20; x++) {
-        const v = floorVariant(x, y, 6);
-        expect(v).toBe(floorVariant(x, y, 6));
-        expect(v).toBeGreaterThanOrEqual(0);
-        expect(v).toBeLessThan(6);
-      }
-    }
-  });
-
-  it("全バリアントが出現する", () => {
-    const seen = new Set<number>();
-    for (let i = 0; i < 400; i++) seen.add(floorVariant(i % 20, Math.floor(i / 20), 6));
-    expect(seen.size).toBe(6);
-  });
-
+describe("tileHash", () => {
   it("負の座標でも符号なし", () => {
     expect(tileHash(-3, -7)).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("wallStyle", () => {
-  it("下が床なら face、横だけ床なら top、埋まっていれば none", () => {
-    const map = createMap(5, 5);
-    setTile(map, 2, 2, Tile.Floor);
-    expect(wallStyle(map, 2, 1)).toBe("face");
-    expect(wallStyle(map, 1, 2)).toBe("top");
-    expect(wallStyle(map, 2, 3)).toBe("top");
-    expect(wallStyle(map, 0, 0)).toBe("none");
-  });
-});
-
-describe("wallMask", () => {
-  it("隣接 4 方向の床をビットにする", () => {
-    const map = createMap(5, 5);
-    setTile(map, 2, 1, Tile.Floor); // N
-    setTile(map, 3, 2, Tile.Floor); // E
-    expect(wallMask(map, 2, 2)).toBe(1 | 2);
-  });
-
-  it("周囲が全部壁なら 0", () => {
-    const map = createMap(5, 5);
-    expect(wallMask(map, 2, 2)).toBe(0);
   });
 });
 
@@ -367,23 +322,22 @@ describe("カウンターの白黒の濃さ（7-10）", () => {
 });
 
 describe("共鳴のまとい（7-14）", () => {
-  function res(partial: Partial<Resonance>): Resonance {
-    return { ...createEmptyResonance(), ...partial };
+  function step(keyword: Keyword, n: number): ResonanceStep {
+    return { keyword, step: n, produces: 2, consumes: 2, amplifies: 0 };
   }
 
-  it("共鳴が無ければ描かない。散りも描かない", () => {
-    expect(resonanceMantleColors(createEmptyResonance())).toEqual([]);
-    expect(resonanceMantleColors(res({ kind: "scatter" }))).toEqual([]);
+  it("共鳴が無ければ描かない", () => {
+    expect(resonanceMantleColors([])).toEqual([]);
   });
 
-  it("単色・三和音は配合の色", () => {
-    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["crimson"] }))).toEqual([TRAIT_COLOR_HEX.crimson]);
-    expect(resonanceMantleColors(res({ kind: "triad", colors: ["crimson", "azure", "jade"] })).length, "三和音は 3 色").toBe(3);
+  it("共鳴している語の色を段の高い順に。同段は並び順（KEYWORDS 順）", () => {
+    const colors = resonanceMantleColors([step("melee", 1), step("burn", 3), step("shock", 1)]);
+    expect(colors).toEqual([KEYWORD_DEFS.burn.color, KEYWORD_DEFS.melee.color, KEYWORD_DEFS.shock.color]);
   });
 
-  it("陰画は冥を重ね、星座は星の色を足す", () => {
-    expect(resonanceMantleColors(res({ kind: "dominant", colors: ["gold"], form: "negative" }))).toEqual([TRAIT_COLOR_HEX.gold, TRAIT_COLOR_HEX.umbra]);
-    expect(resonanceMantleColors(res({ kind: "none", constellation: "twins" })), "星座だけでも描く").toEqual([FX_WAVE3.mantle.constellationColor]);
+  it("最大 3 色", () => {
+    const colors = resonanceMantleColors([step("melee", 1), step("ranged", 2), step("burn", 1), step("chill", 3)]);
+    expect(colors, "段の低い 1 つは落とす").toEqual([KEYWORD_DEFS.chill.color, KEYWORD_DEFS.ranged.color, KEYWORD_DEFS.melee.color]);
   });
 });
 
@@ -392,9 +346,10 @@ describe("誓約のオーラ（7-20）", () => {
     expect(keystoneAuraColors([])).toEqual([]);
   });
 
-  it("同じ系統の誓約は 1 色、系統が違えば色が増える。知らない key は無視する", () => {
-    expect(keystoneAuraColors(["ks_glassCannon", "ks_juggernaut"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
-    expect(keystoneAuraColors(["ks_glassCannon", "ks_berserker", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
+  it("同じ組の誓約は 1 色、組が違えば色が増える。知らない key は無視する", () => {
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_vampire"]), "どちらも body").toEqual([KEYSTONE_GROUP_COLOR.body]);
+    expect(keystoneAuraColors(["ks_glassCannon", "ks_mushin", "ks_unknown"])).toEqual([KEYSTONE_GROUP_COLOR.body, KEYSTONE_GROUP_COLOR.tempo]);
+    expect(keystoneAuraColors(["ks_goldCage"]), "銭の系統").toEqual([KEYSTONE_GROUP_COLOR.coin]);
   });
 
   it("輪を系統の数の弧に分け、隙間を空けて回す", () => {

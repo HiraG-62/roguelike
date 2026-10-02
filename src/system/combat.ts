@@ -1,32 +1,51 @@
-import { type DamageKind, type Enemy, type GameState, pushLog, pushSfx } from "../core/state";
+import { type DamageKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
+import { formatAmount } from "../core/units";
+import type { HurtCause } from "../core/hurt";
+import { noteHurt } from "./deathCause";
 import { enemyDef, isBossClass } from "../data/enemies";
-import { ACTION, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
+import { behaviorOf } from "./behaviors/registry";
+import { ACTION, BOON_LINEAGE, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
-import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
+import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing, addHeadLabel } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
 import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effects";
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
-import { KS, berserkerMul, bladeOathMul, gamblerMul, hasKeystone, healMul, regenAllowed } from "./keystones";
+import { emitNoise } from "./noise";
+import { KS, evadeManaMul, hasKeystone, healMul, killManaMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
-import { applyOnHitStatus, enemyDamageMul, explodeOnKill, hasStatus, removeStatus } from "./statusEffects";
-import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusOutgoingMul, playerStatusTakenMul } from "./statusEffects";
+import { applyOnHitStatus, enemyDamageMul, explodeOnKill, findStatus, hasStatus, removeStatus } from "./statusEffects";
+import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from "./statusEffects";
+import { isAllied } from "./rules";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
+import { isStrike, shieldsMerchant } from "./merchantAi";
 import { fireTrigger } from "./triggers";
 import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
-import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitOutgoingMul, traitPoiseMul } from "./traitHooks";
+import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitPoiseMul } from "./traitHooks";
+import { relicDeferDelay, relicForgiveOnKill, relicIncomingMul, relicPayWithCoins, relicRevive } from "./namedRelics";
+import { buildContext, collectMore, collectTraitIncreased, finishBreakdown, increasedFactor, poiseIncreasedMul } from "./damageMods";
+import type { DamageBreakdown } from "../core/damage";
 import { interceptEnemyDamage } from "./elites";
-import { WAVE3_SKILL_TUNING } from "../skills/tuning3";
-import { boonJustEligible, comboAfterHurt, onBoonComboHit, onBoonCrit, onBoonJust, onBoonKill, onBoonShatter, tryRevive } from "./boons";
-import { boonForcesCrit, boonPoise } from "./boonRules";
+import { boonJustEligible, comboAfterHurt, hasBoon, onBoonKill } from "./boons";
+import { MOON_REPRIEVE_KEY, MOON_TOTALITY_KEY } from "./boonDefs/moon";
+import { BOONS } from "./boonDefs";
 import { guardDamageMul, tryParry } from "./weaponArts";
 import type { AttackProfile } from "../core/element";
 import { type ElementAffinity, type OutgoingElement, defenseReduction, enemyAttackOf, outgoingElement, playerMitigationMul, resolveAttack, rollElementAffinity, showAffinity } from "./elementCombat";
-import { noteUltimateKill, ultimateBlocksEnergy, ultimateCritBonus, ultimateIncomingMul, ultimateOutgoingMul } from "./ultimates";
-import type { MovesetKey } from "../data/weapons";
+import { wardIncomingMul } from "./dashForms";
+import { noteUltimateKill, ultimateBlocksEnergy, ultimateIncomingMul } from "./ultimates";
+import type { ButtonKey, MovesetKey } from "../data/weapons";
+import { chargeArmorOf } from "./morale";
+import { noteHitMoments, noteRiposte } from "./moments";
+import { noteBraceBlockMana, noteHitMana } from "./manaSources";
+import { shareLinkedDamage } from "./formMarks";
+import { dropCoins, spillCoins } from "./economy";
+import { containerBroken } from "./containers";
+import { bossOnAnswer } from "./boss";
+import { noteBossFightHit } from "./bossRecord";
 
 export const COLOR_DAMAGE = "#ffffff";
 export const COLOR_HURT = "#ff5050";
@@ -47,6 +66,8 @@ const HEAVY_TEXT_SCALE = 1.4;
 const HEAVY_PARTICLES = 10;
 const LIGHT_PARTICLES = 5;
 const SHATTER_TEXT = "砕き";
+/** 氷獄の溜めの種類 */
+const ICE_VAULT: VaultKind = "ice";
 const SHATTER_PARTICLES = 12;
 /** 撃破の瞬間、攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5） */
 const KILL_DIRECTIONAL_PARTICLES = 8;
@@ -71,6 +92,13 @@ export interface HitOptions {
   silent?: boolean;
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
+  /**
+   * 出端の命中（system/readTiming.ts の yellowAt）。怯み値は溜め、墨入れに入っていて溢れても墨入れの攻撃は止めず技の後へ先送りする
+   * （PoiseHitOptions.readStart）。重い得物の出端でも「下絵は打って止められる」を残しつつ、墨入れを止めるのは受け流しだけの約束を守る
+   */
+  readStart?: boolean;
+  /** 出端の止め（FEEL.hitstopCounter）を入れる。通常命中の上限の例外。多段の 2 発目以降には付けない */
+  counterStop?: boolean;
   /** 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-2）。showHit のヒットストップに反映 */
   finisher?: boolean;
   /**
@@ -78,9 +106,17 @@ export interface HitOptions {
    * 射撃は weight: "heavy" のときだけ bulletHitHeavy に差し替える（family は使わない）
    */
   impact?: { family: HitFamily; weight: HitWeight; weapon?: MovesetKey };
+  /** 終撃のヒットストップの底上げ（武器の重さの hitstopFinisher。省略は FEEL.hitstopFinisher） */
+  finisherHitstop?: number;
+  /** 戦意を使った放出の一撃（system/morale.ts。onFinisher の tag） */
+  release?: boolean;
+  /** 当てたレーン（双撃の判定。近接の振り・レーンの弾だけ。system/moments.ts） */
+  lane?: ButtonKey;
+  /** 墨印を記す弾（書の左の字）の命中。記すだけで、この命中では墨印を読まない */
+  inscribes?: boolean;
 }
 
-/** rollOutgoing の追加指定。skill はスキル由来（skillDamageMul を掛ける） */
+/** rollOutgoing の追加指定。skill はスキル由来（スキルの増 increased.skill が足される） */
 export interface OutgoingOptions {
   skill?: boolean;
   /**
@@ -88,6 +124,12 @@ export interface OutgoingOptions {
    * proc = 素性なし（防御・耐性を掛けない）。null を渡すと素性なし
    */
   attack?: AttackProfile | null;
+  /** 放出の一撃（与ダメのタグ release が付く） */
+  release?: boolean;
+  /** 必ず会心にする（長銃の満ちた 1 発）。会心の乱数は従来どおり引く */
+  forceCrit?: boolean;
+  /** 出端の一撃（与ダメのタグ counter が付く） */
+  counter?: boolean;
 }
 
 export interface OutgoingHit {
@@ -95,6 +137,8 @@ export interface OutgoingHit {
   crit: boolean;
   /** 属性の弱点 / 耐性に当たったか（素性なし・敵なしは neutral） */
   affinity: ElementAffinity;
+  /** 増・倍・敵側の内訳（表示・テスト・QA 用） */
+  breakdown: DamageBreakdown;
 }
 
 /** コンボ数からスコア倍率。5 ヒットごとに +0.5 */
@@ -103,23 +147,18 @@ export function comboMultiplier(count: number): number {
 }
 
 export function registerComboHit(state: GameState): void {
+  if (hasKeystone(state, KS.mushin)) return;
   state.combo.count += 1;
   state.combo.timer = FEEL.comboWindow + state.stats.comboWindowBonus;
   state.combo.popTimer = COMBO_POP_TIME;
   state.combo.best = Math.max(state.combo.best, state.combo.count);
-  onBoonComboHit(state);
   pushComboEvent(state);
 }
 
-/** コンボによる与ダメ倍率 */
-export function comboDamageMul(state: GameState): number {
-  const s = state.stats;
-  return 1 + Math.min(s.comboDamageCap, state.combo.count * s.comboDamagePerStack);
-}
-
 /**
- * プレイヤー由来の与ダメを stats / バフ / キーストーンで仕上げる。
- * base は tuning の基礎値（melee / ranged は flat と mul をここで足す）
+ * プレイヤー由来の与ダメを増と倍で仕上げる（docs/ideas/scaling-impl.md 2-1。集め方は system/damageMods.ts）。
+ * base は tuning の基礎値（melee / ranged は flat をここで足す）。
+ * 乱数の順は従来と同じ: 会心 → 賭博師 → 属性の抽選
  */
 export function rollOutgoing(
   state: GameState,
@@ -129,35 +168,19 @@ export function rollOutgoing(
   opts: OutgoingOptions = {},
 ): OutgoingHit {
   const s = state.stats;
-  const p = state.player;
-  let amount = base;
-  if (kind === "melee") amount = (base + s.meleeDamageFlat) * s.meleeDamageMul;
-  if (kind === "ranged") amount = (base + s.rangedDamageFlat) * s.rangedDamageMul;
-  if (opts.skill) amount *= s.skillDamageMul;
-  if (hasStatus(p.status, "weaken")) amount *= 1 - STATUS.weaken.mul;
-  amount *= playerStatusOutgoingMul(state);
-  // 持続の奥義の倍率（通常攻撃だけ。奥義の行為は proc なので掛からない）
-  if (kind === "melee" || kind === "ranged") amount *= ultimateOutgoingMul(state, enemy);
-  // 霊体化（skills/forms.ts）はすり抜ける代わりに与ダメが落ちる。forms.ts を import すると循環の評価順が崩れるので state を直に見る
-  if (state.skills.shape?.key === "wraithForm") amount *= WAVE3_SKILL_TUNING.wraithForm.outgoingMul;
-
-  let crit = false;
-  if (kind !== "proc") {
-    if (enemy && isStaggered(enemy)) amount *= s.damageVsStaggeredMul;
-    amount *= comboDamageMul(state);
-    if (p.justTimer > 0) amount *= s.justDodgeDamageMul;
-    if (p.buffs.damage.time > 0) amount *= p.buffs.damage.mul;
-    crit = state.rng.chance(s.critChance + ultimateCritBonus(state)) || boonForcesCrit(state, enemy, kind);
-    if (crit) amount *= s.critMul;
-  }
-  amount *= berserkerMul(state);
-  amount *= gamblerMul(state);
-  // ks_bladeOath（近間の誓い）: 近接・射撃・スキルに効く。素性なしの proc は距離を測る意味が薄いので対象外
-  if (kind !== "proc" || opts.skill) amount *= bladeOathMul(state, enemy);
-  amount *= traitOutgoingMul(state, enemy, kind, opts.skill === true);
+  const skill = opts.skill === true;
+  let raw = base;
+  if (kind === "melee") raw = base + s.meleeDamageFlat;
+  if (kind === "ranged") raw = base + s.rangedDamageFlat;
+  const ctx = buildContext(enemy, kind, opts);
+  const { more, crit } = collectMore(state, enemy, ctx, skill, opts.forceCrit === true);
+  ctx.crit = crit;
+  // 性質の加算は敵の状態を読むので、状態異常を付けうる属性の抽選より前に数える
+  const trait = collectTraitIncreased(state, enemy, ctx, skill);
   const element = enemy ? genreAndElement(state, enemy, kind, opts) : null;
-  if (element) amount *= element.mul;
-  return { amount: Math.max(MIN_DAMAGE, Math.round(amount)), crit, affinity: element?.affinity ?? "neutral" };
+  const shares = element?.shares ?? [];
+  const breakdown = finishBreakdown(raw, increasedFactor(state, ctx, trait, shares), more, element?.mul ?? 1, MIN_DAMAGE);
+  return { amount: breakdown.amount, crit, affinity: element?.affinity ?? "neutral", breakdown };
 }
 
 /** A-8: 敵の防御（質軸）と属性耐性の倍率。弱点 / 耐性の表示と、属性が呼ぶ状態異常の抽選もここで起こす */
@@ -181,9 +204,12 @@ export function damageEnemy(
   knockForce: number,
   opts: HitOptions = {},
 ): boolean {
-  if (enemy.hp <= 0) return false;
+  // 従魔（眷属の Rule 効果 tameEnemy）はプレイヤーの攻撃でも巻き添えでも傷つかない
+  if (enemy.hp <= 0 || isAllied(state, enemy)) return false;
   const kind = opts.kind ?? "proc";
-  const poise = boonPoise(state, enemy, kind, opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true);
+  // 怒っていない商人: 巻き添え・交戦中の一撃は受け止め、平時の 1 発目は警告だけ（system/merchantAi.ts）
+  if (shieldsMerchant(state, enemy, isStrike(kind, opts.silent))) return false;
+  const poise = (opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;
   // 凍結中の被弾は「砕き」。継続ダメージ（silent）では砕けない
@@ -192,10 +218,14 @@ export function damageEnemy(
   amount = pacifistMercyClamp(state, enemy, amount);
   const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
+  // 砕きで凍結が消える前に積む（砕く一撃そのものも溜めに入る）
+  stashFrozenDamage(state, enemy, amount);
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
-  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
+  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true, readStart: opts.readStart });
   if (heavy) onTraitStagger(state, enemy);
+  // 反応ルール（間合い取り）。怯み値を入れた後に呼ぶので、この一撃で怯んだ敵は動かさない
+  if (!opts.silent && kind !== "proc") behaviorOf(def).onStruck(state, enemy, def);
 
   const dir = normalize(knockDir);
   if (!opts.silent) {
@@ -203,7 +233,8 @@ export function damageEnemy(
     // 怯んでいない敵は押し出しすぎない（殴っても射程外へ逃げない）
     const knockMul = isStaggered(enemy) ? 1 : POISE.knockbackUnstaggered;
     if (knockForce > 0) enemy.knock = scale(dir, knockForce * knockMul);
-    registerComboHit(state);
+    // 壺・木箱を割ってもコンボは伸びない（割って回るだけでコンボを保てないように）
+    if (def.container === undefined) registerComboHit(state);
     showHit(state, enemy, amount, dir, def.color, opts, heavy);
     onHitFx(state, enemy, opts);
   }
@@ -217,15 +248,20 @@ export function damageEnemy(
     if (!heavy && !skipsThump(opts.impact?.family)) pushSfx(state, "hitThump");
   }
   if (kind === "ranged") pushSfx(state, opts.impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit");
+  if (!opts.silent && (kind === "melee" || kind === "ranged")) emitNoise(state, enemy.body.pos, "hit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);
-    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
+    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit, inscribes: opts.inscribes });
     onTraitHit(state, enemy, kind, opts.skill === true);
   }
 
-  if (opts.crit) onBoonCrit(state, enemy, amount);
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
+  noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
+  // 流儀の気力の源: 背面の命中・遠い命中（system/manaSources.ts）
+  noteHitMana(state, enemy, kind, opts.skill === true, opts.silent === true);
+  // 一蓮托生: 鎖で繋いだ敵どうしで与ダメを分け合う（system/formMarks.ts）
+  shareLinkedDamage(state, enemy, amount, kind, opts.silent === true);
   if (enemy.hp > 0) return false;
   spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy, dir);
@@ -252,13 +288,28 @@ export function pacifistMercyClamp(state: GameState, enemy: Enemy, amount: numbe
   return Math.max(0, Math.min(amount, room));
 }
 
+/**
+ * 氷獄（docs/ideas/boon-impl.md 2-6）: 凍った敵に与えた傷を Enemy.vault（ice）に写して溜める（与えた傷はそのまま入る）。
+ * 溜めを出す Rule（releaseVault ice）を持つときだけ積み、砕きの Rule が一度に出す。別の種類の溜めがある敵には積まない
+ */
+function stashFrozenDamage(state: GameState, enemy: Enemy, amount: number): void {
+  if (amount <= 0 || !hasStatus(enemy.status, "freeze")) return;
+  if (enemy.vault !== undefined && enemy.vault.kind !== ICE_VAULT) return;
+  if (!holdsVaultRelease(state, ICE_VAULT)) return;
+  enemy.vault = { kind: ICE_VAULT, amount: (enemy.vault?.amount ?? 0) + amount };
+}
+
+/** 持っている祝福のどれかが、その種類の溜めを出す Rule（releaseVault）を持つか */
+function holdsVaultRelease(state: GameState, kind: VaultKind): boolean {
+  return state.boons.some((key) => (BOONS[key].rules ?? []).some((r) => r.then.kind === "releaseVault" && r.then.vault === kind));
+}
+
 /** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */
 function shatterFreeze(state: GameState, enemy: Enemy): void {
   removeStatus(state, { kind: "enemy", enemy }, "freeze");
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
+  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6, "status");
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
-  onBoonShatter(state, enemy);
   pushShatterEvent(state, enemy);
 }
 
@@ -270,12 +321,16 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   const comboText = comboDamageText(state.combo.count, textColor, textScale, opts.crit === true);
   const textKind = damageTextKind(state, enemy, opts);
   const look = damageTextLook(textKind, comboText);
-  addFloatingText(state, enemy.body.pos, String(amount), look.color, look.scale, undefined, textKind);
+  addFloatingText(state, enemy.body.pos, formatAmount(amount), look.color, look.scale, undefined, textKind);
   spawnDirectional(state, enemy.body.pos, dir, color, heavy ? HEAVY_PARTICLES : LIGHT_PARTICLES, 140);
   const base = opts.hitstopSteps ?? FEEL.hitstopLight;
   let steps = (heavy ? Math.max(base, FEEL.hitstopHeavy) : base) + (opts.crit ? PLAYER.critHitstopBonus : 0);
   // 武器種の最終段・フィニッシュ派生の命中は、他の値より軽ければ底上げする（docs/ideas/combat-feel-design.md D-2）
-  if (opts.finisher) steps = Math.max(steps, FEEL.hitstopFinisher);
+  if (opts.finisher) steps = Math.max(steps, opts.finisherHitstop ?? FEEL.hitstopFinisher);
+  // 通常命中は 1 か所で上限を掛ける（段の JSON の hitstop が 269 か所あるので個別には直さない）
+  if (!heavy && !opts.finisher && !opts.crit) steps = Math.min(steps, FEEL.hitstopNormalMax);
+  // 出端は読みの報酬なので上限の例外（止めの表: 出端 5）
+  if (opts.counterStop === true) steps = Math.max(steps, FEEL.hitstopCounter);
   hitstop(state, steps);
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
@@ -307,8 +362,19 @@ export function gainEnergy(state: GameState, amount: number): void {
   p.energy = Math.min(p.maxEnergy, p.energy + amount * state.stats.energyGainMul);
 }
 
+/** 撃破の止めを長くする節目: 精鋭・ボス・陣の大将・陣の最後の 1 体（普通の撃破は短く切って手数のテンポを守る） */
+function killIsMark(state: GameState, enemy: Enemy, boss: boolean): boolean {
+  if (boss || enemy.elite !== undefined) return true;
+  if (enemy.jinId === undefined) return false;
+  const jin = state.jins.find((j) => j.id === enemy.jinId);
+  if (jin?.leaderId === enemy.id) return true;
+  return !state.enemies.some((o) => o !== enemy && o.hp > 0 && o.jinId === enemy.jinId);
+}
+
 function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   const def = enemyDef(enemy.defKey);
+  // 壺・木箱は撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、銭と瓶だけ（system/containers.ts）
+  if (def.container !== undefined) return containerBroken(state, enemy);
   // 鐘の蘇生体は撃破数・ドロップ・来歴の撃破に数えない（蘇生と撃破を繰り返して稼がせない）
   const counted = enemy.revived !== true;
   if (counted) state.kills += 1;
@@ -319,20 +385,21 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   spawnBurst(state, enemy.body.pos, "#ffffff", 6, 90, 0.25, 1.5);
   // 攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5）
   spawnDirectional(state, enemy.body.pos, dir, def.color, KILL_DIRECTIONAL_PARTICLES, KILL_DIRECTIONAL_SPEED);
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 6 }, `+${gained}`, "#ffd75f", 1.1, 0.8);
-  hitstop(state, FEEL.hitstopKill);
+  hitstop(state, killIsMark(state, enemy, def.boss === true) ? FEEL.hitstopKillMark : FEEL.hitstopKill);
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, dir, FEEL.kickHeavy);
   pushSfx(state, "kill");
 
   applyLifeOnKill(state);
-  gainMana(state, MANA.onKill + state.stats.manaOnKill);
+  gainMana(state, (MANA.onKill + state.stats.manaOnKill) * killManaMul(state));
   if (counted) rollEnemyDrop(state, enemy);
+  dropCoins(state, enemy);
   explodeOnKill(state, enemy);
   fireTrigger(state, "onKill", { pos: { ...enemy.body.pos }, targetId: enemy.id });
   pushKillEvents(state, enemy);
   onBoonKill(state, enemy);
   onTraitKill(state, enemy);
+  relicForgiveOnKill(state);
   if (counted) recordProvenance(state, { kind: "kill", enemyKey: enemy.defKey, boss: def.boss === true });
   if (isLastKillInEngagedRoom(state, enemy)) lastKillFx(state, enemy);
 }
@@ -354,7 +421,7 @@ function lastKillFx(state: GameState, enemy: Enemy): void {
   state.slowmo = Math.max(state.slowmo, c.slowmo);
   state.flash = Math.max(state.flash, c.flash);
   const pos = { x: enemy.body.pos.x, y: enemy.body.pos.y - c.textOffsetY };
-  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife, "notice");
   spawnRing(state, enemy.body.pos, c.ringRadius, c.color, c.ringLife);
   spawnBurst(state, enemy.body.pos, c.color, c.particles, 220, 0.6, 2.5);
   shake(state, FEEL.shakeSpecial);
@@ -436,7 +503,8 @@ export function enemyNearPlayer(state: GameState, radius: number): boolean {
   const r2 = radius * radius;
   const near = (x: number, y: number): boolean => (x - pos.x) ** 2 + (y - pos.y) ** 2 <= r2;
   if (state.reaper && near(state.reaper.pos.x, state.reaper.pos.y)) return true;
-  return state.enemies.some((e) => e.hp > 0 && near(e.body.pos.x, e.body.pos.y));
+  // 壺・木箱は戦いの相手ではない（そばを通っただけで自然回復を止めない）
+  return state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).container === undefined && near(e.body.pos.x, e.body.pos.y));
 }
 
 /**
@@ -459,11 +527,14 @@ export function tickHpRegen(state: GameState, dt: number): void {
   healPlayer(state, regen * dt, { silent: true });
 }
 
-export type PlayerHitResult = "hit" | "dodged" | "ignored";
+/** parried = 受け流した（弾は消え、攻撃した敵は止まる。避けた dodged と同じく「当たり判定は済んだ」扱い） */
+export type PlayerHitResult = "hit" | "dodged" | "ignored" | "parried";
 
 export interface DamagePlayerOptions {
   /** true なら無敵中でも JUST 回避（スロー・ゲージ）を発生させない。単に "ignored" 扱い（Reaper の常時接触が稼ぎ場にならないように） */
   noJust?: boolean;
+  /** 被弾の出どころ（死因の元。system/deathCause.ts）。省略は attacker から推定（いれば一撃、いなければ余波） */
+  cause?: HurtCause;
 }
 
 /** armor の被ダメ軽減率（PoE 風の逓減式）。0..ARMOR_MAX_REDUCTION */
@@ -489,45 +560,64 @@ export function damagePlayer(
   const p = state.player;
   if (state.status !== "playing") return "ignored";
   if (p.invulnTimer > 0 || p.buffs.invuln > 0) {
+    // 不退の構えで受けた量は盾持ちの気力の源（system/manaSources.ts）
+    noteBraceBlockMana(state, amount);
     if (!opts.noJust && (p.dashTimer > 0 || boonJustEligible(state)) && !p.dodgedThisDash) {
       justDodge(state, attacker);
+      if (attacker) bossOnAnswer(state, attacker, "just");
       return "dodged";
     }
     return "ignored";
   }
-  // 右クリックの固有技: 受け流しの窓は無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
-  if (tryParry(state, attacker)) return "ignored";
+  // 受け流し（共通の窓と剣の右 1 段目の構え）は被弾を無効化、盾の構えは前からの被ダメを減らす（system/weaponArts.ts）
+  if (tryParry(state, attacker, fromPos)) return "parried";
 
-  const raw = amount * playerTakenMul(state) * enemyDamageMul(attacker) * traitIncomingMul(state, attacker) * guardDamageMul(state, fromPos) * ultimateIncomingMul(state, fromPos);
-  const taken = mitigate(state, raw, enemyAttackOf(attacker));
-  p.hp = Math.max(0, p.hp - taken);
+  // 重打の溜め中は堅く、押されない（docs/ideas/weapon-forms-impl.md 3-4）
+  const chargeArmor = chargeArmorOf(state);
+  const raw =
+    amount *
+    playerTakenMul(state) *
+    enemyDamageMul(attacker) *
+    traitIncomingMul(state, attacker) *
+    relicIncomingMul(state) *
+    guardDamageMul(state, fromPos, amount, attacker) *
+    ultimateIncomingMul(state, fromPos) *
+    // 護り足（巫女の流儀のダッシュ）の結界
+    wardIncomingMul(state) *
+    (chargeArmor?.damageTakenMul ?? 1);
+  const taken = relicPayWithCoins(state, mitigate(state, raw, enemyAttackOf(attacker)));
+  p.hp = Math.max(0, p.hp - takeNowOrDefer(state, taken));
+  noteHurt(state, attacker, opts.cause);
+  spillCoins(state, fromPos);
   addRegain(state, taken);
   onPlayerHurtStatus(state);
   recordProvenance(state, { kind: "hurt" });
+  noteBossFightHit(state);
   p.invulnTimer = PLAYER.hurtInvuln;
   p.hitFlash = PLAYER_HIT_FLASH;
   const away = normalize(sub(p.body.pos, fromPos));
   // 鉄塊化（skills/forms.ts）は押されず、振りも止まらない
   const braced = state.skills.shape?.key === "ironForm";
-  if (!braced && !hasKeystone(state, KS.juggernaut)) p.knock = scale(away, PLAYER.hurtKnockback);
+  if (!braced && !chargeArmor?.noKnock && !(state.stats.traits.unmoving > 0)) p.knock = scale(away, PLAYER.hurtKnockback);
   if (!braced) cancelAttack(state);
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
 
-  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3);
+  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HURT, 12, 150, 0.4, 2);
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeHurt);
   state.flash = Math.max(state.flash, 0.35);
 
-  if (p.hp <= 0 && !tryRevive(state)) {
+  if (p.hp <= 0) {
     killPlayer(state);
     return "hit";
   }
   pushSfx(state, "hurt");
+  if (chargeArmor) noteRiposte(state, "chargeEndure", attacker);
   reflectThorns(state, attacker);
   fireTrigger(state, "onHurt", { pos: { ...p.body.pos }, targetId: attacker?.id });
-  pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" } });
+  pushEvent(state, { kind: "onHurt", actor: "enemy", pos: { ...p.body.pos }, targetId: attacker?.id, sourceId: attacker?.id, source: { kind: "enemy", key: attacker?.defKey ?? "" }, amount: taken });
   return "hit";
 }
 
@@ -538,14 +628,82 @@ function playerTakenMul(state: GameState): number {
 
 /**
  * 状態異常の継続ダメージ（燃焼・毒・出血・蒸発）。無敵・ノックバック・コンボ切れ・リゲインを起こさない。
- * 0 になったら再起を試し、だめなら倒れる
+ * 0 になったら倒れる
  */
-export function damagePlayerDot(state: GameState, amount: number): void {
+export function damagePlayerDot(state: GameState, amount: number, cause?: HurtCause): void {
   const p = state.player;
   if (state.status !== "playing" || amount <= 0) return;
   p.hp = Math.max(0, p.hp - amount);
-  if (p.hp > 0 || tryRevive(state)) return;
+  noteHurt(state, undefined, cause);
+  if (p.hp > 0) return;
   killPlayer(state);
+}
+
+// -----------------------------------------------------------------------------
+// 遅れて来る傷（月蝕の系譜。docs/ideas/boon-impl.md 2-6）
+// -----------------------------------------------------------------------------
+
+/** 遅れて来た傷の数字の大きさ（被弾の数字より少し小さく、別の出来事に見せる） */
+const DEFERRED_TEXT_SCALE = 1.1;
+/** 皆既の溜め（宣告） */
+const DOOM_VAULT: VaultKind = "doom";
+
+/** 執行猶予: 受けた傷を今は減らさず Player.deferredDamage へ回す（被弾の硬直・無敵・コンボ切れはその場で起きる）。今減らす量を返す */
+function takeNowOrDefer(state: GameState, taken: number): number {
+  const delay = hasBoon(state, MOON_REPRIEVE_KEY) ? BOON_LINEAGE.moon.moonReprieve.delay : relicDeferDelay(state);
+  if (taken <= 0 || delay === undefined) return taken;
+  const p = state.player;
+  (p.deferredDamage ??= []).push({ amount: taken, due: state.time + delay });
+  return 0;
+}
+
+/** 毎ステップ（player.ts の updatePlayer）: 期限の来た遅れて来る傷を払い、宣告の溜め（皆既）を写して明けた分を出す */
+export function tickDelayedDamage(state: GameState): void {
+  payDeferredDamage(state);
+  const echo = hasBoon(state, MOON_TOTALITY_KEY);
+  for (const e of state.enemies) {
+    if (e.hp > 0) tickDoomVault(state, e, echo);
+  }
+}
+
+/** 期限の来た傷をまとめて受ける（継続ダメージと同じく無敵・硬直を起こさず、0 になれば倒れる） */
+function payDeferredDamage(state: GameState): void {
+  const p = state.player;
+  const list = p.deferredDamage;
+  if (list === undefined || list.length === 0) return;
+  const due = list.filter((d) => d.due <= state.time).reduce((sum, d) => sum + d.amount, 0);
+  if (due <= 0) return;
+  p.deferredDamage = list.filter((d) => d.due > state.time);
+  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE, undefined, "normal");
+  damagePlayerDot(state, due, { kind: "deferred", key: "" });
+}
+
+/**
+ * 皆既: 宣告の間に与えた傷（宣告を付けた時の生命 − 今の生命）を Enemy.vault（doom）に写し、宣告が明けたら echoRatio 倍で出す。
+ * 宣告の付け直しは溜めが減ることで分かる（付け直しの瞬間の生命から数え直す）ので、その時も前の溜めを出す。別の種類の溜めがある敵には写さない
+ */
+function tickDoomVault(state: GameState, e: Enemy, echo: boolean): void {
+  const held = e.vault?.kind === DOOM_VAULT ? e.vault.amount : undefined;
+  if (held !== undefined && (doomDamage(e) ?? -1) < held) releaseDoomVault(state, e, held);
+  if (!echo) return;
+  const now = doomDamage(e);
+  if (now === undefined) return;
+  if (e.vault !== undefined && e.vault.kind !== DOOM_VAULT) return;
+  e.vault = { kind: DOOM_VAULT, amount: now };
+}
+
+/** 今の宣告の間に減った生命。宣告が無ければ undefined */
+function doomDamage(e: Enemy): number | undefined {
+  const mark = findStatus(e.status, "doom")?.hpMark;
+  return mark === undefined ? undefined : Math.max(0, mark - e.hp);
+}
+
+function releaseDoomVault(state: GameState, e: Enemy, held: number): void {
+  delete e.vault;
+  const amount = Math.round(held * BOON_LINEAGE.moon.moonTotality.echoRatio);
+  if (amount < 1) return;
+  spawnRing(state, e.body.pos, e.body.radius * 2, BOON_LINEAGE.moon.moonTotality.color, STATUS.fxLife);
+  damageEnemy(state, e, amount, { x: 0, y: 0 }, 0, { hitstopSteps: 0 });
 }
 
 function reflectThorns(state: GameState, attacker: Enemy | undefined): void {
@@ -563,6 +721,7 @@ function killPlayer(state: GameState): void {
     p.hp = p.maxHp;
     return;
   }
+  if (relicRevive(state)) return;
   state.status = "dead";
   state.deathTimer = 0;
   spawnBurst(state, p.body.pos, "#ffffff", 40, 220, 0.9, 3);
@@ -590,21 +749,18 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   const p = state.player;
   p.dodgedThisDash = true;
   p.justTimer = state.stats.justDodgeWindow;
-  // 直後に攻撃を押すと回避した敵へ瞬間移動斬り（player.ts の tryJustCounter）
-  p.justCounterTimer = ACTION.justCounter.window;
-  p.justCounterTargetId = attacker && attacker.hp > 0 ? attacker.id : null;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
-  gainMana(state, MANA.onJust);
+  gainMana(state, MANA.onJust * evadeManaMul(state));
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);
+  addHeadLabel(state, p.body.pos, "見切り！", COLOR_JUST, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   justFx(state);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "just");
-  onBoonJust(state);
   fireTrigger(state, "onJustDodge", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onJustDodge", "just", { sourceId: attacker?.id });
+  noteRiposte(state, "justDodge", attacker);
   recordProvenance(state, { kind: "just" });
 }
 
@@ -633,7 +789,7 @@ export function healPlayer(state: GameState, amount: number, opts: HealOptions =
   const gained = p.hp - before;
   if (gained <= 0 || opts.silent) return gained;
   const shown = Math.round(gained);
-  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2);
+  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HEAL, 10, 80, 0.5, 2);
   pushSfx(state, "heal");
   return gained;

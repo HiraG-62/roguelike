@@ -1,16 +1,22 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { FEEL, MANA } from "../data/tuning";
+import { ACTION, FEEL, MANA } from "../data/tuning";
 import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
-import { boonAttackManaMul } from "./boons";
-import { onBoonProjectileHit, onBoonProjectileWall } from "./boonRules";
+import { isAllied } from "./rules";
 import { attackManaMul } from "./keystones";
-import { gainAttackMana } from "./mana";
-import { circlesOverlap, overlapsWall } from "./physics";
+import { gainWeaponMana } from "./mana";
+import { attackHitManaMul } from "./manaSources";
+import { merchantSheltered } from "./merchantAi";
+import { bossOnAnswer } from "./boss";
+import { fireDebana } from "./debana";
+import { noteRiposte } from "./moments";
+import { currentForm } from "./morale";
+import { circlesOverlap, overlapsShotWall } from "./physics";
+import { yellowAt } from "./readTiming";
 import { blastMulAt } from "./blast";
 import { applyStatus, inflictOnPlayer } from "./statusEffects";
 import { placeTerrain, swallowedBySmoke } from "./terrain";
@@ -48,8 +54,7 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
   pr.pos.y += pr.vel.y * dt;
 
   // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）
-  if (!pr.shot?.orbit && overlapsWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
-    if (onBoonProjectileWall(state, pr, dt)) return;
+  if (!pr.shot?.orbit && overlapsShotWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
     if (def && hitWallByShot(state, pr, def, prev, dt)) return;
     pr.life = 0;
     spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
@@ -63,9 +68,26 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
     if (def?.mine) updateMine(state, pr, def);
     else if (def?.lob) updateLob(state, pr, def);
     else hitEnemies(state, pr);
+    if (pr.shot?.returning) cutEnemyShotsByRecall(state, pr);
     if (def?.boomerang) catchBoomerang(state, pr, def);
   } else {
     hitPlayer(state, pr);
+  }
+}
+
+/** 戻りの弾（手元返し・回転刃の帰り）が触れた敵弾を消して応手（recallCut）にする。応手を持つ型（投具）だけ消す */
+function cutEnemyShotsByRecall(state: GameState, pr: Projectile): void {
+  if (pr.life <= 0 || !currentForm(state).riposte.includes("recallCut")) return;
+  for (const enemyShot of state.projectiles) {
+    if (enemyShot.owner !== "enemy" || enemyShot.life <= 0) continue;
+    if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, enemyShot.pos.x, enemyShot.pos.y, enemyShot.radius)) continue;
+    enemyShot.life = 0;
+    spawnBurst(state, enemyShot.pos, enemyShot.color, 4, 60, 0.2, 1.5);
+    noteRiposte(
+      state,
+      "recallCut",
+      state.enemies.find((e) => e.id === enemyShot.sourceId),
+    );
   }
 }
 
@@ -84,6 +106,11 @@ function leaveTerrain(state: GameState, pr: Projectile): void {
 function applyShotStatus(state: GameState, pr: Projectile, e: Enemy): void {
   if (!pr.applies || e.hp <= 0) return;
   for (const apply of pr.applies) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+}
+
+/** 墨印を記す弾（書の左の字）。記すだけで、同じ命中で墨印を読まない（statusReactions.ts の recite の条件） */
+function inscribesInk(pr: Projectile): boolean {
+  return pr.applies?.some((a) => a.kind === "inkMark") === true;
 }
 
 /** プレイヤー弾の弾の定義（src/loot/bullets.ts）。作業領域を持たない弾は undefined（まっすぐ飛ぶだけ） */
@@ -223,7 +250,7 @@ function nearestEnemy(state: GameState, pos: Vec, range: number, skip: ReadonlyS
   let best: Vec | undefined;
   let bestDist = range;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.hidden || skip.has(e.id)) continue;
+    if (e.hp <= 0 || e.hidden || skip.has(e.id) || isAllied(state, e)) continue;
     const d = length(sub(e.body.pos, pos));
     if (d >= bestDist) continue;
     bestDist = d;
@@ -265,8 +292,8 @@ function hitWallByShot(state: GameState, pr: Projectile, def: BulletDef, prev: V
 function bounceShot(state: GameState, pr: Projectile, def: BulletDef, prev: Vec, dt: number): boolean {
   const left = pr.shot?.bouncesLeft ?? 0;
   if (!def.bounce || !pr.shot || left <= 0) return false;
-  const hitX = overlapsWall(state, prev.x + pr.vel.x * dt, prev.y, pr.radius);
-  const hitY = overlapsWall(state, prev.x, prev.y + pr.vel.y * dt, pr.radius);
+  const hitX = overlapsShotWall(state, prev.x + pr.vel.x * dt, prev.y, pr.radius);
+  const hitY = overlapsShotWall(state, prev.x, prev.y + pr.vel.y * dt, pr.radius);
   // 角に真っ直ぐ入ったとき（どちらの軸単独でも当たらない）は両方を返す
   const flipBoth = !hitX && !hitY;
   pr.pos = prev;
@@ -295,7 +322,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   if (pr.shot) pr.shot.detonated = true;
   pr.life = 0;
   for (const e of state.enemies) {
-    if (e.hp <= 0 || e.hidden) continue;
+    if (e.hp <= 0 || e.hidden || isAllied(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
@@ -331,36 +358,54 @@ function groupNewVolley(state: GameState): void {
 }
 
 /** 射撃弾の命中 1 体ごとにマナを回収する。1 回の射撃で MANA.shotVolleyCap 回まで */
-function gainShotMana(state: GameState, pr: Projectile): void {
+function gainShotMana(state: GameState, pr: Projectile, debana = false): void {
   if (pr.kind !== "ranged") return;
   const volley = pr.volley ?? { manaHits: 0 };
   pr.volley = volley;
   if (volley.manaHits >= MANA.shotVolleyCap) return;
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
-  gainAttackMana(state, MANA.onShot, attackManaMul(state) * boonAttackManaMul(state));
+  // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
+  gainWeaponMana(state, (pr.shotMana ?? MANA.onShot) * (debana ? MANA.onCounterMul : 1) * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
 function hitEnemies(state: GameState, pr: Projectile): void {
   for (const e of state.enemies) {
-    if (e.hp <= 0 || pr.hitIds.has(e.id)) continue;
+    // 従魔（眷属）と、交戦中で身を守っている商人は撃ち抜く（貫通を減らさず、傷つけない）
+    if (e.hp <= 0 || pr.hitIds.has(e.id) || isAllied(state, e) || merchantSheltered(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage * onBoonProjectileHit(state, pr, e), pr.kind, { attack: pr.attack });
-    gainShotMana(state, pr);
+    // 出端: 放出の弾を撃った時に、この敵の予告が下絵だった（弾の飛ぶ間に墨入れへ入っていても。system/readTiming.ts）
+    const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
+    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
+    const amount = debana ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
+    gainShotMana(state, pr, debana);
     // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
     const heavy = shotDefOf(pr)?.charge !== undefined;
-    damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
+    const pos = { ...e.body.pos };
+    damageEnemy(state, e, amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,
       kind: pr.kind,
       crit: out.crit,
-      poise: pr.poise ?? 0,
+      poise: (pr.poise ?? 0) * (debana ? ACTION.counter.poiseMul : 1),
+      guardBreak: debana,
+      readStart: debana,
+      counterStop: debana,
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
       energy: pr.energy,
+      // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
+      finisher: pr.release?.finisher,
+      release: pr.release !== undefined,
+      lane: pr.lane,
+      inscribes: inscribesInk(pr),
     });
+    if (debana) {
+      fireDebana(state, e, pos);
+      bossOnAnswer(state, e, "debana");
+    }
     applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）
     if (pr.shot?.orbit) continue;
@@ -379,7 +424,7 @@ function hitPlayer(state: GameState, pr: Projectile): void {
   const p = state.player.body;
   if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, p.pos.x, p.pos.y, p.radius)) return;
   const attacker = pr.sourceId === undefined ? undefined : state.enemies.find((e) => e.id === pr.sourceId);
-  const result = damagePlayer(state, pr.damage, pr.pos, attacker);
+  const result = damagePlayer(state, pr.damage, pr.pos, attacker, { cause: { kind: "shot" } });
   if (result === "hit") inflictOnPlayer(state, attacker, "bullet");
   // 被弾したか回避したら弾は消える。被弾後無敵中はすり抜ける
   if (result === "ignored") return;

@@ -1,15 +1,12 @@
 {
-  "_note": "連携（docs/ideas/skills-expansion.md 4章）の受付秒（window）と効果",
-  "wellThunder": { "window": 2.5, "shockBonus": 1 },
+  "_note": "連携（docs/ideas/skills-expansion.md 4章）の受付秒（window）と効果。段取り 7c で後が技（共通技）になった連携は倍率（apply）だけを持つ",
   "hookWhirl": { "window": 0.8, "areaMul": 1.2 },
   "parryRail": { "window": 1, "damageMul": 1.5, "aimMul": 0 },
   "diveQuake": { "window": 0.6, "windupMul": 0.05, "areaMul": 1.2 },
   "contagionUnravel": { "window": 1.5 },
-  "pactWhirl": { "window": 4, "bleedStacks": 1, "bleedTime": 4, "bleedPotency": 1 },
   "frostBreaker": { "window": 3 },
   "shadowExploit": { "window": 0.8 },
-  "hasteSpiral": { "window": 3 },
-  "reelStomp": { "window": 1 },
+  "reelStomp": { "_note": "吸い風→衝撃波の範囲と怯み値の倍率（旧 震脚の comboAreaMul / comboPoiseMul）", "window": 1, "areaMul": 1.3, "poiseMul": 1.5 },
   "color": "#ffe070",
   "textScale": 1,
   "textLife": 0.7

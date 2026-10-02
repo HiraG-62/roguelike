@@ -107,7 +107,7 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   manaFull: "（気力満タン）",
   manaLow: "（気力残りわずか）",
   selfAfflicted: "（自分が状態異常中）",
-  targetInWindup: "（相手が予備動作中）",
+  targetInWindup: "（相手の予告が下絵）",
   targetGuarded: "（相手が堅守中）",
   targetMultiStatus: "（相手の状態異常が 2 種以上）",
   targetElite: "（相手が精鋭）",
@@ -350,8 +350,8 @@ const TARGETED_TRIGGERS: ReadonlySet<TriggerKind> = new Set([
 function targetConditionFits(trigger: TriggerKind, condition: TriggerCondition): boolean {
   if (!TARGET_CONDITIONS.has(condition)) return true;
   if (!TARGETED_TRIGGERS.has(trigger)) return false;
-  // カウンターは予備動作中の敵にしか起きない（常に真）/ 怯むと予備動作は取り消される（常に偽）/ 被弾は攻撃の後
-  if (condition === "targetInWindup") return trigger !== "onCounter" && trigger !== "onStagger" && trigger !== "onHurt";
+  // 出端の命中は赤に入っていることがある（常には真でない）/ 怯むと予備動作は取り消される（常に偽）/ 被弾は攻撃の後
+  if (condition === "targetInWindup") return trigger !== "onStagger" && trigger !== "onHurt";
   // 攻撃してきた敵が堅守中というのはほぼ起きない
   if (condition === "targetGuarded") return trigger !== "onHurt";
   return true;

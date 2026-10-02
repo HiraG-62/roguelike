@@ -1,0 +1,4 @@
+{
+  "bulwarkRound": { "arcDeg": 360, "moveMul": 0 },
+  "bulwarkThrow": { "magnitude": 3, "icd": 0 }
+}

@@ -1,0 +1,26 @@
+{
+  "_fields": {
+    "slow": "付ける冷気の遅さの下限（0..1。冷気は 1 重ねにつき STATUS.chill.slowPerStack の遅さで、これより大きければこちら）。格で伸びる",
+    "stacks": "付ける冷気の重ね（回）。重ねが STATUS.chill.maxStacks に届くと凍結に変わる",
+    "duration": "付ける状態異常・置く地形の持続。秒",
+    "radius": "効果の半径（範囲・移す・置く地形）。px（10px = 1m）。格で広がる",
+    "chillRadius": "ダッシュの終わりに冷気を付ける半径。px（10px = 1m）。格で広がる",
+    "ratio": "ダメージ。近接 1 段目の威力に掛ける割合。格で伸びる",
+    "shards": "氷の破片の数（全方位へ等間隔）",
+    "window": "スキルの命中と砕きを同じ一撃とみなす窓。秒（1 ステップ以上）",
+    "every": "研鑽の数えの何回で 1 段か（回）",
+    "perStep": "研鑽 1 段あたりの量（倍なら 0.01 = ×1.01 ずつ、増なら 0.03 = +3%）",
+    "releaseMul": "氷獄の溜めを出す倍率（溜めた傷 × これ）。格で伸びる"
+  },
+  "frostBreath": { "slow": 0.12, "stacks": 1, "duration": 2 },
+  "shatterBell": { "ratio": 0.5, "radius": 64 },
+  "frostFeet": { "radius": 14, "duration": 5, "stacks": 1, "chillRadius": 32 },
+  "frostPierce": { "stacks": 2, "duration": 2, "radius": 44, "window": 0.05 },
+  "eternalWinter": { "radius": 72, "duration": 1.2 },
+  "chillShatter": { "ratio": 0.3, "shards": 6 },
+  "frostRead": { "slow": 0.12, "stacks": 2, "duration": 2 },
+  "iceRelay": { "radius": 60 },
+  "frostShards": { "every": 5, "perStep": 0.01 },
+  "frostDeep": { "every": 5, "perStep": 0.03 },
+  "frostPrison": { "releaseMul": 0.75 }
+}

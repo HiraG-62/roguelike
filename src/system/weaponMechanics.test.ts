@@ -125,8 +125,8 @@ describe("武器 Wave 4: 型の復元（JSON → 型）", () => {
 
   it("杖以外の既存の武器種は cast を持たず、弾の段の弾は applies を持たない（挙動は不変）", () => {
     for (const m of Object.values(MOVESETS)) {
-      // 杖は魔法の武器種に作り替えた（wandMagic.test.ts）
-      if (m.key === "wand") continue;
+      // 杖は魔法の武器種に作り替えた（wandMagic.test.ts）。書（段取り 5d）は派生の頁飛ばしが頁の弾を撃つ
+      if (m.key === "wand" || m.key === "book") continue;
       expect(movesetCasts(m), m.key).toEqual([]);
       for (const s of m.steps2) {
         if (s.kind === "volley") expect(s.throw.applies, `${m.key}.${s.key}`).toBeUndefined();
@@ -293,7 +293,8 @@ describe("武器 Wave 4: 振りで敵弾を消す（cutsBullets）", () => {
   it("cutsBullets の振りは弾返しなしでも敵弾を消す", () => {
     patchMoveset("sword", (m) => ({ ...m, steps: m.steps.map((s) => ({ ...s, cutsBullets: true })) }));
     const state = arena();
-    const pr = enemyBullet(state, 22);
+    // 剣の 1 段目の予備動作（0.12 秒）が明けて active に入る頃に、弾が刃の届く所へ来る距離
+    const pr = enemyBullet(state, 34);
     swing(state);
     expect(pr.owner, "撃ち返さない").toBe("enemy");
     expect(state.projectiles.includes(pr) && pr.life > 0, "敵弾が消えている").toBe(false);

@@ -44,6 +44,35 @@ export const EVENT_KINDS = [
   "onShatter",
   /** 通常の振り（近接の連撃・ダッシュ攻撃）の命中。tag = SWING_TAG の段の種類。スキルや衝撃波の近接命中は含まない */
   "onSwingHit",
+  // ---- 2026-09-30 追加（武器の型の共通の瞬間。docs/ideas/weapon-forms-impl.md 3-3、system/moments.ts） ----
+  /** 交戦の外で待った後の最初の一撃（近接・射撃・スキル）。対象 = 当てた敵 */
+  "onFirstStrike",
+  /** 終撃の命中（最終段・フィニッシュ派生・最大溜め・終撃になる放出）。対象 = 当てた敵、tag = release なら放出の一撃 */
+  "onFinisher",
+  /** 戦意が満ちた瞬間（amount = 満ちた量、tag = 型の key） */
+  "onBrim",
+  /** 戦意を使った（amount = 使った量、tag = 型の key） */
+  "onRelease",
+  /** 型の応手（tag = RiposteSource。受け流し・カウンター・見切り…）。既存の onCounter / onJustDodge も並べて出す */
+  "onRiposte",
+  /** 左右の違うレーンの命中が窓の中で続いた。対象 = 当てた敵、tag = 当てたレーン */
+  "onTwinStrike",
+  // ---- 2026-09-30 追加（銭。docs/ideas/economy-impl.md 2-10、system/economy.ts）----
+  /** 銭を得た（amount = 額、tag = CoinSource。こぼれた銭の拾い直しも起きる） */
+  "onCoinPickup",
+  /** 銭を払った（amount = 額、tag = SpendKind） */
+  "onCoinSpend",
+  /** 被弾で銭がこぼれた（amount = 額） */
+  "onCoinSpill",
+  /** 瓶を飲んだ（amount = 回復量。system/flask.ts） */
+  "onFlask",
+  /** 受け流しの成功（全武器共通の窓・剣の構え。system/parry.ts。賭けの凌ぎが数える） */
+  "onParry",
+  // ---- 2026-09-30 追加（祝福の中身。docs/ideas/boon-impl.md 2-6） ----
+  /** 処刑（system/poise.ts の tryExecute）。対象 = 処刑した敵（倒れた瞬間の状態異常を写す） */
+  "onExecute",
+  /** 壁叩きつけ（system/enemies.ts の wallSplat）。対象 = 壁に叩きつけた敵 */
+  "onWallSlam",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -83,8 +112,12 @@ export interface GameEvent {
   room?: number;
   /** 起こした敵の id（被弾の攻撃者など） */
   sourceId?: number;
-  /** 連鎖深さ。0 = 操作や system が直接起こしたもの */
+  /** 連鎖深さ。0 = 操作や system が直接起こしたもの。SYNERGY.maxDepth は性能の保険（連鎖は visits と coef で止まる） */
   depth: number;
+  /** この連鎖で対象になった敵 id の列（重複あり。自分の targetId を含む）。同じ敵への訪問回数の判定に使う。省略 = 空 */
+  visits?: readonly number[];
+  /** 連鎖係数の累積（0..1）。次の Rule の確率に掛かる。省略 = 1 */
+  coef?: number;
   source: EventSource;
   /** 付随の key（反応の種類・付いた状態異常・地形の種類・部屋の種類） */
   tag?: string;
@@ -94,8 +127,11 @@ export interface GameEvent {
   amount?: number;
 }
 
-/** pushEvent に渡す形。depth は照合中かどうかで pushEvent が決める */
-export type EventInput = Omit<GameEvent, "depth">;
+/** onCounter の tag: 出端（下絵の間に振り始めた一撃 / 撃った放出の弾）か、受け流しか。出端だけに効かせたい物はこれで見る */
+export type CounterTag = "debana" | "parry";
+
+/** pushEvent に渡す形。depth / visits / coef は照合中かどうかで pushEvent が決める */
+export type EventInput = Omit<GameEvent, "depth" | "visits" | "coef">;
 
 export interface RecentEvent {
   /** 最後に起きた state.time */
@@ -117,6 +153,10 @@ export interface RuleRunState {
   depth: number;
   /** 照合中の Rule の持ち主。効果が起こしたイベントの出どころに使う */
   owner: EventSource | null;
+  /** 照合中のイベントまでに訪れた敵 id の列。効果が起こしたイベントへ写す */
+  visits: readonly number[];
+  /** 照合中の効果が起こすイベントの連鎖係数（元のイベントの係数 × 効果の係数） */
+  coef: number;
   /** 語ごとの今の窓での発動回数（SYNERGY.keywordBudget） */
   keywordUse: Map<string, number>;
   /** 語の窓の残り秒 */
@@ -125,16 +165,21 @@ export interface RuleRunState {
   playerTerrain: string;
   /** 上限（maxEventsPerStep / maxPendingEvents）で捨てたイベントの累計。黙って消えると連鎖の不発を追えないので数える */
   droppedEvents: number;
+  /** 性能の歯止め（system/limits.ts の LIMITS）で古い順に消した弾・設置物の累計 */
+  trimmed: number;
 }
 
 export function createRuleRunState(): RuleRunState {
   return {
     depth: 0,
     owner: null,
+    visits: [],
+    coef: 1,
     keywordUse: new Map(),
     keywordWindowLeft: SYNERGY.keywordWindow,
     playerTerrain: "none",
     droppedEvents: 0,
+    trimmed: 0,
   };
 }
 
@@ -158,11 +203,19 @@ export function enemyTarget(
 
 /**
  * イベントを積む。照合中（resolveRules が効果を実行している間）は深さ +1 で次ステップへ持ち越す。
- * 同ステップで再帰させないので、環が回っても 1 ステップに 1 段しか進まない（決定的）
+ * 同ステップで再帰させないので、環が回っても 1 ステップに 1 段しか進まない（決定的）。
+ * 照合中は訪れた敵の列と連鎖係数を引き継ぎ、操作や system が直接起こしたものは自分の対象だけから数え直す
  */
 export function pushEvent(state: GameState, input: EventInput): void {
   const run = state.ruleRun;
-  const ev: GameEvent = { ...input, depth: run.depth, source: run.owner ?? input.source };
+  const chained = run.depth > 0;
+  const ev: GameEvent = {
+    ...input,
+    depth: run.depth,
+    source: run.owner ?? input.source,
+    visits: chainVisits(chained ? run.visits : [], input.targetId),
+    coef: chained ? run.coef : 1,
+  };
   noteRecent(state, ev.kind);
   const queue = run.depth > 0 ? state.pendingEvents : state.events;
   const cap = run.depth > 0 ? SYNERGY.maxPendingEvents : SYNERGY.maxEventsPerStep;
@@ -171,6 +224,13 @@ export function pushEvent(state: GameState, input: EventInput): void {
     return;
   }
   queue.push(ev);
+}
+
+/** 訪れた敵の列に対象を足す。長さは SYNERGY.maxDepth で切る（direct は深さを進めずに列を伸ばせるので、性能の保険） */
+function chainVisits(prev: readonly number[], targetId: number | undefined): readonly number[] {
+  if (targetId === undefined) return prev;
+  const next = [...prev, targetId];
+  return next.length > SYNERGY.maxDepth ? next.slice(next.length - SYNERGY.maxDepth) : next;
 }
 
 /** 条件 recent と UI 用の直近記録。窓の外なら数え直す */

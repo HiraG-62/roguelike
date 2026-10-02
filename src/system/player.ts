@@ -1,9 +1,10 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx } from "../core/state";
+import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx, runOver } from "../core/state";
 import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
-import { ACTION, BOON, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
+import { emitNoise } from "./noise";
+import { ACTION, BOON_LINEAGE, ECONOMY, FEEL, FORM, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
   type ButtonKey,
   type HitShape,
@@ -27,9 +28,12 @@ import {
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
+import { enemyDef } from "../data/enemies";
+import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
-import { cancelAttack, damageEnemy, gainEnergy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen, tickRegain } from "./combat";
-import { addFloatingText, markShotBullet, shake, spawnBurst, spawnLine } from "./effects";
+import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
+import { EARTH_WALL_SLAM_KEY } from "./boonDefs/earth";
+import { markShotBullet, shake, spawnBurst, spawnLine, addHeadLabel } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
 import { type HitWeight, hitFamily } from "./effects";
 import { currentBullet } from "../loot/bullets";
@@ -37,13 +41,13 @@ import { KS, attackManaMul, hasKeystone, payOverclock, payOverclockShoot } from 
 import { type Box, boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
 import { applyStatus, explodeAt, hasStatus, playerStatusMoveMul } from "./statusEffects";
 import { terrainSlide } from "./terrain";
-import { addRunAttributes, deriveAttributes, scaled, withRatio } from "./attributes";
+import { deriveAttributes, scaled, withRatio } from "./attributes";
 import { applyRunStats } from "./runSetup";
-import { gainAttackMana } from "./mana";
+import { applyResonance } from "./resonance";
+import { gainWeaponMana } from "./mana";
 import { type StatusApply, createStatusBag } from "../core/status";
 import {
   cancelSkills,
-  consumeLungeCombo,
   frenzyMul,
   onSkillMeleeHit,
   onSkillPlayerShoot,
@@ -54,29 +58,19 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
-import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
-import { onTraitCounter } from "./traitHooks";
-import {
-  boonAttackManaMul,
-  boonMoveMul,
-  boonNormalAttackBonus,
-  boonSwingCombo,
-  canShootWhileDashing,
-  foldBoonStats,
-  hasBoon,
-  onBoonDash,
-  onBoonDashEnd,
-  onBoonMeleeHit,
-  onBoonShoot,
-  onBoonSwing,
-  tryDashGuard,
-} from "./boons";
-import { boonCounterable, onBoonShootInput } from "./boonRules";
+import { pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
+import { bossOnAnswer } from "./boss";
+import { fireDebana, noteCommittedHit } from "./debana";
+import { NEVER_TIME, yellowAt } from "./readTiming";
+import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
+import { isDeepDepth } from "./chapters";
+import { isAllied } from "./rules";
 import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 import {
   actionCooldownLeft,
   artLocksActions,
   artMoveMul,
+  castOverride,
   emitArtVolley,
   endArtHold,
   finishArtHold,
@@ -86,8 +80,16 @@ import {
   startLaneArt,
   updateArt,
 } from "./weaponArts";
+import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
+import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
+import { onFormMeleeHit } from "./formMarks";
+import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
+import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { relicBlocksSwing, relicStride, tickNamedRelics } from "./namedRelics";
+import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
+import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -100,8 +102,6 @@ const SLASH_SFX: readonly SfxName[] = ["slash1", "slash2", "slash3"];
 const SPIN_SFX: SfxName = "slash1";
 /** 装備変更で HP 割合を維持するときの生存中の下限 */
 const MIN_ALIVE_HP = 1;
-/** 突進斬りから繋がる近接の段（0 始まり） */
-const LUNGE_FOLLOW_COMBO = 1;
 /** 祝福・スキルが「最終段」として読む combo（剣の 3 段目と同じ 2） */
 const FINISHER_COMBO = PLAYER.melee.length - 1;
 const FULL_TURN = Math.PI * 2;
@@ -117,6 +117,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     body: { pos: { ...pos }, vel: { x: 0, y: 0 }, radius: PLAYER.radius },
     hp: stats.maxHp,
     maxHp: stats.maxHp,
+    flasks: Math.min(ECONOMY.flask.start, stats.flaskMax),
+    flaskReadyAt: 0,
     facing: { x: 1, y: 0 },
     dashTimer: 0,
     dashCooldown: 0,
@@ -143,6 +145,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       hitTick: 0,
       lane: "primary",
       bufferedLane: "primary",
+      startedAt: NEVER_TIME,
+      readIds: new Set(),
     },
     shootCooldown: 0,
     energy: 0,
@@ -158,8 +162,6 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     regainPool: 0,
     regainTimer: 0,
     regainStep: 0,
-    justCounterTimer: 0,
-    justCounterTargetId: null,
     dashAttackQueued: false,
     dashStrike: false,
     mana: stats.maxMana,
@@ -171,14 +173,17 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     shotBurst: { left: 0, timer: 0, side: 1 },
     swingImpact: 0,
     art: { cooldown: 0, holding: false, holdTime: 0, recover: 0, cooldowns: new Map() },
+    parry: { window: 0, recover: 0 },
     ultimate: createUltimateState(),
+    morale: createMorale(),
+    moment: createMoment(),
   };
 }
 
 /**
  * 装備変更などで stats が変わったときにプレイヤーへ反映する。
  * maxHp が変わったら現在 HP の割合を維持する。
- * 集計順は 装備 → ラン内振り分け → ステータスの派生 → 祝福（docs/COMBAT_DESIGN.md A-4 から祝福を最後へ移した）
+ * 集計順は 装備 → ステータスの派生 → 祝福（docs/COMBAT_DESIGN.md A-4 から祝福を最後へ移した）
  */
 export function applyStats(state: GameState, equipStats: PlayerStats): void {
   const p = state.player;
@@ -188,18 +193,21 @@ export function applyStats(state: GameState, equipStats: PlayerStats): void {
   // 祝福（ラン内）は装備の stats に畳み込む。装備画面から呼ばれても祝福が消えない
   state.boonRun.baseStats = base;
   // 派生 → 祝福の順: 祝福の固定値（硝子の見切りの最大 HP 1 など）を体力の加算で崩さない
-  const derived = deriveAttributes(addRunAttributes(base, state.runAttributes.alloc));
-  const stats = foldBoonStats(derived, state.boons, state.boonRun);
+  const derived = deriveAttributes(base);
+  const stats = foldBoonStats(derived, state.boons, state.boonRun, isDeepDepth(state.depth));
+  applyResonance(state, stats);
   // 武器種が変わったら持続の奥義を終える（別の武器種の型に同じ差し替えを畳まない）
   const movesetChanged = state.stats.moveset !== stats.moveset;
   state.stats = stats;
   if (movesetChanged) endUltimate(state, "manual");
+  if (movesetChanged) resetMorale(p);
   p.maxHp = stats.maxHp;
   // 精神が下がって上限が縮んだときだけ切り詰める（増えたぶんは自然回復で埋める）
   p.mana = Math.min(p.mana, stats.maxMana);
   p.dashChargesLeft = Math.min(p.dashChargesLeft, stats.dashCharges);
+  p.flasks = Math.min(p.flasks, Math.max(0, Math.floor(stats.flaskMax)));
   // 死亡中に装備画面を触っても蘇生しない
-  if (state.status === "dead") return;
+  if (runOver(state)) return;
   // 丸めない（付け外しの往復で HP が増える抜け道を作らない）。生存中は最低 1
   p.hp = Math.min(p.maxHp, Math.max(MIN_ALIVE_HP, p.maxHp * ratio));
 }
@@ -231,7 +239,7 @@ export interface MeleeStep {
   mana: number;
   pull: boolean;
   throw: boolean;
-  /** 突きの先端判定（槍・鞭）。突き以外の形では持たない */
+  /** 先端判定（槍・鞭の突き、棍は薙ぎ・回しも。stepTip）。持たない段は根元と先端を区別しない */
   tip?: TipDef;
   /** 1 振りの多段ヒット数（1 以上） */
   hits: number;
@@ -251,6 +259,8 @@ export interface MeleeStep {
   cast?: CastDef;
   /** 弾返し・弾斬りが無くても敵弾を消す（MeleeStepDef.cutsBullets） */
   cutsBullets: boolean;
+  /** 戦意を使った放出の振り（system/morale.ts。与ダメのタグ release・終撃の判定） */
+  release?: boolean;
 }
 
 /** 装備中の武器種。武器なしは剣 */
@@ -261,11 +271,11 @@ export function currentMoveset(stats: Readonly<PlayerStats>): MovesetDef {
 
 /**
  * いま振る近接の型。狼化・鉄塊化の最中は変身の型（skills/forms.ts）、それ以外は装備の武器種に
- * 持続の奥義の差し替え（system/ultimates.ts）→ ジョブ固有の派生の順に重ねた型
+ * 持続の奥義の差し替え（system/ultimates.ts）→ 改鋳（data/reforges.ts）→ ジョブ固有の派生の順に重ねた型
  */
 export function playerMoveset(state: GameState): MovesetDef {
   // 奥義の差し替えはジョブ派生の後に畳む（ジョブの合成の cache は武器種の key で引くので、差し替えた型を渡すと古い型が返る）
-  return shapeMoveset(state) ?? ultimateMoveset(state, withJobBranch(currentMoveset(state.stats), state.job));
+  return shapeMoveset(state) ?? ultimateMoveset(state, withReforges(withJobBranch(currentMoveset(state.stats), state.job), state.reforges));
 }
 
 /** ジョブ × 武器種ごとの合成済みの型。毎ステップ新しいオブジェクトを作らない（中身は定義から決まるので決定性に影響しない） */
@@ -320,33 +330,44 @@ export function meleeStep(
   branch = -1,
   moveset: MovesetDef = currentMoveset(stats),
   lane: ButtonKey = "primary",
+  release?: ReleaseMul,
 ): MeleeStep | undefined {
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch, lane);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
-  return scaleStep(stats, base, moveset, level);
+  return scaleStep(stats, base, moveset, level, release);
 }
 
-/** 段の定義に stats と溜めの段の倍率を掛ける（meleeStep と溜め中の回しが使う） */
-function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: MovesetDef, level?: MeleeChargeDef["levels"][number]): MeleeStep {
+/**
+ * 段の定義に stats と溜めの段の倍率を掛ける（meleeStep と溜め中の回しが使う）。
+ * release は戦意の放出の倍率（system/morale.ts。放出の段の振りだけ）
+ */
+function scaleStep(
+  stats: Readonly<PlayerStats>,
+  base: MeleeStepDef,
+  moveset: MovesetDef,
+  level?: MeleeChargeDef["levels"][number],
+  release?: ReleaseMul,
+): MeleeStep {
   const speed = stats.attackSpeedMul;
-  const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1);
+  const reachMul = stats.meleeReachMul * (level?.reachMul ?? 1) * (release?.reachMul ?? 1);
+  const weight = WEAPON.weightClass[moveset.weight];
   return {
     windup: base.windup / speed,
     active: base.active / speed,
-    recover: base.recover / speed,
-    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1),
-    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1),
+    recover: (base.recover * weight.recoverMul) / speed,
+    damage: scaled(stats, base.scaling) * (level?.damageMul ?? 1) * weight.damageMul * (release?.damageMul ?? 1),
+    poise: withRatio(stats, base.poise, base.poiseRatio) * stats.poiseDamageMul * (level?.poiseMul ?? 1) * weight.poiseMul * (release?.poiseMul ?? 1),
     reach: base.reach * reachMul,
     size: base.size * reachMul,
-    knockback: base.knockback * stats.knockbackMul,
+    knockback: base.knockback * stats.knockbackMul * (release?.knockbackMul ?? 1),
     heavy: base.heavy,
     shape: base.shape,
     mana: base.mana,
     pull: base.pull ?? false,
     throw: base.throw ?? false,
-    tip: base.shape.kind === "thrust" ? moveset.tip : undefined,
-    hits: Math.max(1, base.hits ?? 1),
+    tip: stepTip(moveset.tip, base.shape),
+    hits: Math.max(1, base.hits ?? 1) + (release?.hitsAdd ?? 0),
     hitstop: base.hitstop,
     shake: base.shake ?? 0,
     lunge: base.lunge ?? 0,
@@ -354,16 +375,25 @@ function scaleStep(stats: Readonly<PlayerStats>, base: MeleeStepDef, moveset: Mo
     applies: base.applies ?? [],
     cancel: base.cancel,
     invuln: base.invuln ?? 0,
-    cast: base.cast,
-    cutsBullets: base.cutsBullets ?? false,
+    // 長柄: 放出の突きは貫く穂先の弾を撃ち、穂先を持つ突きは敵弾を払う（data/weaponForms.ts）
+    cast: base.cast ?? formReleaseCast(moveset, base, release !== undefined),
+    cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
+    ...(release ? { release: true } : {}),
   };
+}
+
+/** 段が持つ先端判定。突きの段と、sweep の武器種（棍）の薙ぎ・回しの段だけが持つ */
+function stepTip(tip: TipDef | undefined, shape: Readonly<HitShape>): TipDef | undefined {
+  if (!tip) return undefined;
+  if (shape.kind === "thrust") return tip;
+  return tip.sweep === true && (shape.kind === "arc" || shape.kind === "circle") ? tip : undefined;
 }
 
 /** 今の振りの段（描画用。振っていなければ undefined） */
 export function currentMeleeStep(state: GameState): MeleeStep | undefined {
   const p = state.player;
   if (!isAttacking(p)) return undefined;
-  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state), p.attack.lane);
+  return meleeStep(state.stats, p.attack.step, p.dashStrike, p.attack.chargeLevel, p.attack.branch, playerMoveset(state), p.attack.lane, swingReleaseMul(state));
 }
 
 /** 射撃 1 発の基礎威力（今の銃の弾の係数を評価した値。銃の弾の damageMul は含まない） */
@@ -402,6 +432,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   // 血の契約の吸収は前フレームの敵・弾による与ダメも拾う
   trackDamageDealt(state);
   tickTimers(state, dt);
+  // 戦意と共通の瞬間（止まっている秒を数えるので入力を渡す）
+  tickFormState(state, input, dt);
   const aiming = applyAim(state, input);
   // 鉄塊化は被弾硬直を受けない（敵の攻撃が付けた怯みを判定より先に外す）
   shrugStagger(state);
@@ -416,24 +448,67 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
   updateAttack(state, dt);
   updateMovement(state, input, dt, aiming);
+  relicStride(state, dt);
+  tickNamedRelics(state);
   const shotHeld = shotButtonHeld(state, input);
-  onBoonShootInput(state, shotHeld);
   // 射撃は銃の家系だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
   const canShoot = shotHeld && !staggered && !skillLocksAttack(state) && !artLocksActions(state);
   if (isGun(playerMoveset(state))) updateShooting(state, canShoot, dt, aimDistance(state, input));
   else resetShooting(p);
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
-  if (hasKeystone(state, KS.juggernaut)) p.knock = { x: 0, y: 0 };
+  if (state.stats.traits.unmoving > 0) p.knock = { x: 0, y: 0 };
   trackDamageDealt(state);
 }
 
 /** ダッシュ・近接・奥義の入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
-  if (input.dashPressed && !skillLocksDash(state)) tryDash(state, input);
-  if (!skillLocksAttack(state) && !artLocksActions(state)) readAttackButtons(state, input);
+  releaseFrozenInput(state);
+  if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
+  if (input.parryPressed) startParry(state);
+  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
+}
+
+/**
+ * ヒットストップ中の押下を覚える（core/game.ts の止めの分岐から毎ステップ）。止まっている間は updatePlayer が通らず、
+ * 押した瞬間の入力が 1 ステップで消えるので、受け流し・ダッシュは守りの席へ、攻撃はボタンだけ覚える。
+ * 後から押した方だけ残す。外した受け流しの硬直中・怯み中の押下は今どおり捨てる（連打の罰を消さない）
+ */
+export function latchFrozenInput(state: GameState, input: FrameInput): void {
+  const p = state.player;
+  // 右は押しっぱなししか来ないので、止めの間も前のステップとの差で押した瞬間を取る（押しっぱなしで毎ステップ覚え直し、
+  // 後から押した受け流し・ダッシュを消さないように）
+  const secondaryPressed = input.shootHeld && !p.secondaryWasHeld;
+  p.secondaryWasHeld = input.shootHeld;
+  if (isPlayerStaggered(p)) return;
+  if (input.dashPressed) {
+    p.guardBuffer = { kind: "dash", input: { ...input } };
+    p.frozenAttack = undefined;
+  } else if (input.parryPressed && p.parry.recover <= 0) {
+    p.guardBuffer = { kind: "parry", input: { ...input } };
+    p.frozenAttack = undefined;
+  }
+  const attack: ButtonKey | undefined = input.attackPressed ? "primary" : secondaryPressed ? "secondary" : undefined;
+  if (attack === undefined) return;
+  p.frozenAttack = attack;
+  p.guardBuffer = undefined;
+}
+
+/** 止めが明けた最初のステップで、覚えていた押下を出す（readActions の頭。守りが先、攻撃が後で、後から押した方だけが残っている） */
+function releaseFrozenInput(state: GameState): void {
+  const p = state.player;
+  const guard = p.guardBuffer;
+  const attack = p.frozenAttack;
+  p.guardBuffer = undefined;
+  p.frozenAttack = undefined;
+  if (guard?.kind === "dash" && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, guard.input);
+  if (guard?.kind === "parry") startParry(state);
+  if (attack === undefined || skillLocksAttack(state) || artLocksActions(state) || dashLocksActions(state)) return;
+  onButtonPress(state, attack);
+  // 右は「前フレームとの差」で押した瞬間を取るので、続く readAttackButtons が同じ押下をもう一度拾わないようにする
+  if (attack === "secondary") p.secondaryWasHeld = true;
 }
 
 /**
@@ -518,6 +593,8 @@ function pressSecondary(state: GameState, moveset: MovesetDef): void {
   const p = state.player;
   const a = p.attack;
   if (isDashing(p)) return;
+  // 短銃の装填の拍に押せたら強装填（右の段は出さない）
+  if (primeReload(state)) return;
   if (a.phase === "none") {
     startLaneStep(state, moveset, a.step);
     return;
@@ -573,11 +650,15 @@ export function logButton(p: Player, button: ButtonKey): void {
   a.inputTimer = WEAPON.chainWindow;
 }
 
-/** 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ） */
+/**
+ * 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ）。
+ * 窓は振っていない間だけ減らす（振り終わりから数える）: 振りが窓より長い重い武器でも、振り終えてから押して連撃を続けられる
+ */
 function tickButtonChain(p: Player, dt: number): void {
   const a = p.attack;
+  if (a.phase !== "none" || a.charging) return;
   a.inputTimer = Math.max(0, a.inputTimer - dt);
-  if (a.inputTimer > 0 || a.phase !== "none" || a.charging) return;
+  if (a.inputTimer > 0) return;
   a.inputs.length = 0;
   if (!p.art.holding) a.step = 0;
 }
@@ -589,12 +670,12 @@ function meleeBlocked(state: GameState): boolean {
 
 /**
  * 出た段の列（予約中の段を含む）に今の押下を足した列の末尾が派生に一致したら派生を出す
- * （振っている最中なら今の振りの後に予約）。出したら true。JUST 回避カウンターの受付中は見切り斬りを優先する
+ * （振っている最中なら今の振りの後に予約）。出したら true
  */
 function tryBranch(state: GameState, moveset: MovesetDef, button: ButtonKey): boolean {
   const p = state.player;
   const index = matchBranch(moveset, [...plannedInputs(state), button]);
-  if (index === undefined || meleeBlocked(state) || p.justCounterTimer > 0) return false;
+  if (index === undefined || meleeBlocked(state)) return false;
   cancelCharge(p);
   if (p.attack.phase === "none") startBranch(state, index);
   else p.attack.pendingBranch = index;
@@ -640,6 +721,7 @@ function applyAim(state: GameState, input: FrameInput): boolean {
 function tickTimers(state: GameState, dt: number): void {
   const p = state.player;
   tickDashCharges(state, dt);
+  tickParry(state, dt);
   p.invulnTimer = Math.max(0, p.invulnTimer - dt);
   p.hitFlash = Math.max(0, p.hitFlash - dt);
   p.swingImpact = Math.max(0, p.swingImpact - dt);
@@ -649,18 +731,17 @@ function tickTimers(state: GameState, dt: number): void {
   p.buffs.speed.time = Math.max(0, p.buffs.speed.time - dt);
   p.buffs.invuln = Math.max(0, p.buffs.invuln - dt);
   p.lifeOnHitWindow.timer = Math.max(0, p.lifeOnHitWindow.timer - dt);
-  p.justCounterTimer = Math.max(0, p.justCounterTimer - dt);
-  if (p.justCounterTimer === 0) p.justCounterTargetId = null;
   tickRegain(state, dt);
   tickButtonChain(p, dt);
   tickTriggerCooldowns(state, dt);
   tickHpRegen(state, dt);
+  tickDelayedDamage(state);
   if (p.dashTimer > 0) {
+    tickDashForm(state);
     p.dashTimer = Math.max(0, p.dashTimer - dt);
     // ダッシュが終わった直後、猶予ぶんの無敵を残す
     if (p.dashTimer === 0) {
       p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.graceInvuln);
-      onBoonDashEnd(state);
       pushPlayerEvent(state, "onDashEnd", "dash");
     }
   }
@@ -680,32 +761,49 @@ function tickDashCharges(state: GameState, dt: number): void {
   if (p.dashChargesLeft < max) p.dashCooldown = dashCooldownTime(state.stats);
 }
 
+/**
+ * 振っている最中にダッシュで取り消せるか（武器の重さ。docs/ideas/combat-core-impl.md 2-5）。
+ * 発生（windup）は全重さで取り消せない。持続（active）は lockActive、硬直（recover）は最初の lockRecoverRatio まで取り消せない。
+ * 振っていない・溜め中・構え中（振りの相ではない）は常に取り消せる
+ */
+export function canDashCancel(state: GameState): boolean {
+  const p = state.player;
+  if (!isAttacking(p)) return true;
+  // 詰め足（剣士の流儀）は持続・硬直の途中でも出せる
+  if (dashIgnoresSwingLock(state)) return true;
+  const step = currentMeleeStep(state);
+  if (!step) return true;
+  const weight = WEAPON.weightClass[playerMoveset(state).weight];
+  if (p.attack.phase === "windup") return false;
+  if (p.attack.phase === "active") return !weight.lockActive;
+  return p.attack.timer <= step.recover * (1 - weight.lockRecoverRatio);
+}
+
 function tryDash(state: GameState, input: FrameInput): void {
   const p = state.player;
   if (p.dashChargesLeft <= 0 || isDashing(p)) return;
+  // 取り消せない相の入力は捨てる（回数も減らさない。手触りで不満が出たら先行入力を足す）
+  if (!canDashCancel(state)) return;
   p.dashChargesLeft -= 1;
   if (p.dashCooldown <= 0) p.dashCooldown = dashCooldownTime(state.stats);
-  if (tryDashGuard(state)) return;
-  p.dashDir = isZero(input.move) ? { ...p.facing } : normalize(input.move);
+  // 流儀の不退（と祝福「鉄壁の構え」）はダッシュの代わりにその場で構える
+  if (replaceDash(state)) return;
+  p.dashDir = dashDirection(state, input);
   p.facing = { ...p.dashDir };
   p.knock = { x: 0, y: 0 };
-  // ダッシュで攻撃・溜め・予約した派生をキャンセルできる（手触り重視）
+  // ダッシュで攻撃・溜め・予約した派生をキャンセルできる（手触り重視）。詰め足は取り消す前に次の段を覚える
+  keepChainThroughDash(state);
   cancelAttack(state);
   cancelCharge(p);
   endArtHold(state);
   p.attack.pendingBranch = -1;
   spawnBurst(state, p.body.pos, "#ffffff", 6, 40, 0.2, 1.5);
   pushSfx(state, "dash");
+  emitNoise(state, p.body.pos, "dash");
 
-  if (hasKeystone(state, KS.blink)) {
-    blink(state);
-  } else {
-    const time = dashTime(state.stats);
-    p.dashTimer = time;
-    // 無敵はダッシュの前半だけ。後半は被弾するので、ダッシュを押すタイミングが問われる
-    p.invulnTimer = Math.max(p.invulnTimer, Math.min(time, PLAYER.dash.invulnTime));
-    p.dodgedThisDash = false;
-  }
+  // 秒・無敵・始まりの効果は流儀のダッシュの形が決める（system/dashForms.ts）
+  if (hasKeystone(state, KS.blink)) blink(state);
+  else runDashForm(state);
   onBoonDash(state);
   fireTrigger(state, "onDash", { pos: { ...p.body.pos } });
   pushPlayerEvent(state, "onDash", "dash");
@@ -721,11 +819,21 @@ function blink(state: GameState): void {
   explodeAt(state, p.body.pos, KEYSTONE.blinkRadius, KEYSTONE.blinkDamage);
 }
 
+/**
+ * 攻撃中の移動倍率。武器種の attackMoveMul を重さの帯に丸め、終撃（最終段・フィニッシュ派生）は重さごとの倍率で上書きする。
+ * 溜め中（chargeMul）・構え中（artMoveMul）は呼び出し側で別に掛ける
+ */
+export function attackMoveMulOf(moveset: MovesetDef, combo: number): number {
+  const w = WEAPON.weightClass[moveset.weight];
+  if (combo === FINISHER_COMBO && w.finisherMoveMul >= 0) return w.finisherMoveMul;
+  return Math.min(w.moveMulMax, Math.max(w.moveMulMin, moveset.attackMoveMul));
+}
+
 function updateMovement(state: GameState, input: FrameInput, dt: number, aiming: boolean): void {
   const p = state.player;
   let vel: Vec;
   if (isDashing(p)) {
-    vel = scale(p.dashDir, PLAYER.dash.speed);
+    vel = scale(p.dashDir, dashSpeed(state));
     // 残像
     if (state.tick % 2 === 0) {
       state.particles.push({
@@ -743,7 +851,7 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     const moveset = playerMoveset(state);
     const chargeMul = p.attack.charging ? (meleeChargeOf(moveset)?.moveMul ?? 1) : 1;
     const attackMul =
-      (isAttacking(p) ? moveset.attackMoveMul : 1) *
+      (isAttacking(p) ? attackMoveMulOf(moveset, p.attack.combo) : 1) *
       chargeMul *
       artMoveMul(state) *
       ultimateMoveMul(state) *
@@ -768,7 +876,6 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
     // 壁ダッシュは即終了して次の行動へ
     p.dashTimer = 0;
     p.invulnTimer = Math.max(p.invulnTimer, PLAYER.dash.graceInvuln);
-    onBoonDashEnd(state);
     pushPlayerEvent(state, "onDashEnd", "dash");
   }
   // 壁に止められた軸の速度は残さない（氷床の滑りが前の速度を引き継ぐので、壁へ押し付けた速度が溜まらないように）
@@ -778,7 +885,6 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
 
 /** 近接の連撃ボタン。charge は押したボタンが「溜め」の役割か */
 function tryAttack(state: GameState, charge = false): void {
-  if (tryJustCounter(state)) return;
   const p = state.player;
   // ダッシュ中の攻撃はダッシュ終了と同時のダッシュ攻撃として予約する
   if (isDashing(p)) {
@@ -802,9 +908,9 @@ function tryAttack(state: GameState, charge = false): void {
   a.bufferedLane = "primary";
 }
 
-/** 次の段を振る。突進斬り直後は 2 段目から。logAs は派生の列に積むボタン（省略は振りのレーン） */
+/** 次の段を振る。logAs は派生の列に積むボタン（省略は振りのレーン） */
 function startNextSwing(state: GameState, logAs?: ButtonKey): void {
-  startSwing(state, consumeLungeCombo(state) ? LUNGE_FOLLOW_COMBO : state.player.attack.step, false, 0, "primary", logAs);
+  startSwing(state, state.player.attack.step, false, 0, "primary", logAs);
 }
 
 function beginCharge(p: Player): void {
@@ -857,6 +963,9 @@ function spinWhileCharging(state: GameState, charge: MeleeChargeDef, before: num
   const step = scaleStep(actionStats(state), spin.step, playerMoveset(state));
   p.attack.dir = { ...p.facing };
   p.attack.hitIds.clear();
+  // 回しは区切りごとが 1 つの突き。その時点の予告の色で出端を判定する
+  p.attack.startedAt = state.time;
+  p.attack.readIds.clear();
   resolveMeleeHits(state, step);
   spawnTrail(state, step);
   pushSfx(state, SPIN_SFX);
@@ -922,7 +1031,7 @@ function startBranch(state: GameState, index: number): void {
   // 弾・付随効果は振り始めに出す（予約のまま捨てられた派生では出さない）
   onBranchStart(state, branch);
   // 派生成立の合図（docs/ideas/combat-feel-design.md D-1）
-  addFloatingText(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextScale, FEEL.branchTextLife);
+  addHeadLabel(state, state.player.body.pos, branch.name, FEEL.branchTextColor, FEEL.branchTextLife);
   pushSfx(state, "branch");
 }
 
@@ -945,10 +1054,14 @@ interface SwingSpec {
 }
 
 function beginSwing(state: GameState, spec: SwingSpec): void {
+  if (relicBlocksSwing(state, spec.dashStrike)) return;
   const p = state.player;
   const moveset = playerMoveset(state);
-  const step = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);
-  if (!step) return;
+  const plain = meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane);
+  if (!plain) return;
+  // 放出の段なら戦意を振りの開始で使う（空振りでも消える）。その振りの間は放出の倍率で数える
+  const release = startSwingMoments(state, moveset, spec);
+  const step = release ? (meleeStep(actionStats(state), spec.step, spec.dashStrike, spec.chargeLevel, spec.branch, moveset, spec.lane, release) ?? plain) : plain;
   const a = p.attack;
   // 派生の照合は実際に出た段で行う（派生そのものは startBranch が列を捨てる）
   if (spec.branch < 0) logButton(p, spec.logAs ?? spec.lane);
@@ -967,6 +1080,8 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
   if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
   a.hitIds.clear();
+  a.readIds.clear();
+  a.startedAt = state.time;
   a.hitTick = 0;
   a.dir = { ...p.facing };
   if (step.invuln > 0) p.invulnTimer = Math.max(p.invulnTimer, step.invuln);
@@ -974,7 +1089,6 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   if (sfx) pushSfx(state, sfx);
   onSwingFx(state);
   payOverclock(state, PLAYER.overclockHpCost);
-  onBoonSwing(state, spec.combo, spec.dashStrike);
   pushSwingEvent(state, spec.combo, spec.dashStrike, step.damage);
   ultimateOnSwing(state);
 }
@@ -983,7 +1097,7 @@ function updateAttack(state: GameState, dt: number): void {
   const p = state.player;
   const a = p.attack;
   if (a.phase === "none") return;
-  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state), a.lane);
+  const step = meleeStep(actionStats(state), a.step, p.dashStrike, a.chargeLevel, a.branch, playerMoveset(state), a.lane, swingReleaseMul(state));
   if (!step) {
     cancelAttack(state);
     return;
@@ -1009,7 +1123,7 @@ function updateAttack(state: GameState, dt: number): void {
       a.timer = step.active;
       spawnTrail(state, step);
       // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
-      if (step.cast) emitArtVolley(state, step.cast.throw);
+      if (step.cast) emitArtVolley(state, step.cast.throw, castOverride(state, a.lane));
       break;
     case "active":
       a.phase = "recover";
@@ -1139,7 +1253,7 @@ export function meleeBox(p: Player, reach: number, size: number): Box {
   return { x: c.x - size / 2, y: c.y - size / 2, w: size, h: size };
 }
 
-/** 近接の当たり方。tip は突きの先端（穂先・鞭の先） */
+/** 近接の当たり方。tip は先端（穂先・鞭の先・棍の棒先） */
 export type MeleeContact = "none" | "hit" | "tip";
 
 /** 円（敵・弾）が今の振りの形に入っているか。形ごとの reach / size の意味は HitShape を参照 */
@@ -1151,10 +1265,12 @@ export function meleeContact(p: Player, step: Readonly<MeleeStep>, pos: Vec, rad
       return boxCircleOverlap(meleeBox(p, step.reach, step.size), pos.x, pos.y, radius) ? "hit" : "none";
     case "circle": {
       const c = add(origin, scale(dir, step.reach));
-      return circlesOverlap(c.x, c.y, step.size / 2, pos.x, pos.y, radius) ? "hit" : "none";
+      if (!circlesOverlap(c.x, c.y, step.size / 2, pos.x, pos.y, radius)) return "none";
+      return rimContact(step, length(sub(pos, c)) + radius, step.size / 2);
     }
     case "arc":
-      return arcContains(origin, dir, step.reach, step.shape.deg, pos, radius) ? "hit" : "none";
+      if (!arcContains(origin, dir, step.reach, step.shape.deg, pos, radius)) return "none";
+      return rimContact(step, length(sub(pos, origin)) + radius, step.reach);
     case "thrust":
       return thrustContact(origin, dir, step, pos, radius);
   }
@@ -1176,6 +1292,12 @@ function normalizeAngle(a: number): number {
   if (r > Math.PI) r -= FULL_TURN;
   if (r < -Math.PI) r += FULL_TURN;
   return r;
+}
+
+/** 薙ぎ・回しの先端（棍）: 中心からの遠い縁 far が外周 tip.ratio に入れば tip。先端判定の無い段は hit */
+function rimContact(step: Readonly<MeleeStep>, far: number, rim: number): MeleeContact {
+  if (!step.tip) return "hit";
+  return far >= rim * (1 - step.tip.ratio) ? "tip" : "hit";
 }
 
 /** 突き: 攻撃方向へ長さ reach・幅 size の帯。先端 tip.ratio に入れば tip */
@@ -1206,7 +1328,8 @@ export function meleeAnchor(p: Player, step: Readonly<MeleeStep>): { pos: Vec; s
 function resolveMeleeHits(state: GameState, step: MeleeStep): void {
   const p = state.player;
   for (const e of state.enemies) {
-    if (p.attack.hitIds.has(e.id) || e.hp <= 0) continue;
+    // 従魔（眷属）は斬り抜ける（命中・ヒットストップ・気力を起こさない）
+    if (p.attack.hitIds.has(e.id) || e.hp <= 0 || isAllied(state, e)) continue;
     const contact = meleeContact(p, step, e.body.pos, e.body.radius);
     if (contact === "none") continue;
     p.attack.hitIds.add(e.id);
@@ -1217,16 +1340,17 @@ function resolveMeleeHits(state: GameState, step: MeleeStep): void {
 
 /**
  * 近接の active と敵弾。デフォルトでは素通りする（docs/COMBAT_DESIGN.md C-1 の 5 / 6）。
- * 祝福「弾返し」なら撃ち返し、性質「弾斬り」か段の cutsBullets（扇子の払い）なら消す。両方あれば撃ち返しを優先する
+ * 性質「弾斬り」か段の cutsBullets（扇子の払い）なら消す
  */
 function resolveMeleeBullets(state: GameState, step: MeleeStep): void {
-  const reflect = hasBoon(state, "reflect");
-  if (!reflect && state.stats.bulletCut <= 0 && !step.cutsBullets) return;
+  if (state.stats.bulletCut <= 0 && !step.cutsBullets) return;
   for (const pr of state.projectiles) {
     if (pr.owner !== "enemy" || pr.life <= 0) continue;
     if (meleeContact(state.player, step, pr.pos, pr.radius) === "none") continue;
-    if (reflect) reflectProjectile(state, pr);
-    else cutProjectile(state, pr);
+    cutProjectile(state, pr);
+    // 敵弾を消した: 扇の風と応手
+    gainMorale(state, "bulletCut");
+    noteRiposte(state, "bulletCut");
   }
 }
 
@@ -1242,45 +1366,65 @@ function stepHitEnergy(state: GameState, step: Readonly<MeleeStep>): number {
   return meleeHitEnergy(baseSec, step.hits);
 }
 
-/** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は突きの先端に当たった */
+/**
+ * 近接 1 ヒット。予告が下絵の間に振り始めた一撃なら出端（命中の瞬間に墨入れへ入っていても。system/readTiming.ts）。tip は先端に当たった。
+ * 威力・怯み値は多段の命中ごとに掛かるが、出来事（音・イベント・応手）は 1 振り × 1 体に 1 回
+ */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
   const p = state.player;
-  const counter = isCounterable(e) || boonCounterable(state, e);
+  const counter = yellowAt(e, p.attack.startedAt);
+  const firstOnEnemy = !p.attack.readIds.has(e.id);
+  p.attack.readIds.add(e.id);
   const tipMul = tipMultipliers(step, tip);
-  // 霊刃（spiritBlade）: 通常攻撃に霊力の係数が加わる
-  const out = rollOutgoing(state, e, (step.damage + boonNormalAttackBonus(state)) * tipMul.damage, "melee");
+  // 型の印（穂先の戦意・鎖の繋ぎ・裂きが開く傷。system/formMarks.ts）
+  const formMul = onFormMeleeHit(state, e, step, tip, counter);
+  const out = rollOutgoing(state, e, step.damage * tipMul.damage * formMul.damage, "melee", { release: step.release, counter });
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
-  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : FEEL.hitstopLight);
+  const weight = WEAPON.weightClass[playerMoveset(state).weight];
+  const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : weight.hitstop);
   if (step.shake > 0) shake(state, step.shake);
   const pos = { ...e.body.pos };
-  if (step.heavy) e.wallSplat = true;
-  // 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-1 / D-5）
-  const finisher = p.attack.combo === FINISHER_COMBO;
+  const slam = releaseSlamMul(state, step);
+  if (step.heavy || slam > 1) e.wallSplat = true;
+  // 武器種の最終段・フィニッシュ派生・終撃になる放出の命中（docs/ideas/combat-feel-design.md D-1 / D-5）
+  const finisher = p.attack.combo === FINISHER_COMBO || (step.release === true && releaseIsFinisher(state));
   p.swingImpact = FEEL.swingImpact;
   if (finisher) pushSfx(state, "finisherHit");
-  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback, {
-    poise: counterPoise(step, counter) * tipMul.poise,
-    hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
+  // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
+  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
+    poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
+    hitstopSteps: baseHitstop,
+    readStart: counter,
+    counterStop: counter && firstOnEnemy,
     energy: stepHitEnergy(state, step),
     kind: "melee",
     crit: out.crit,
-    guardBreak: counter,
+    guardBreak: counter || (finisher && weight.finisherGuardBreak),
     finisher,
+    finisherHitstop: weight.hitstopFinisher,
+    release: step.release,
+    lane: p.attack.lane,
     impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo), weapon: playerMoveset(state).key },
   });
-  if (counter) showCounter(state, pos);
-  if (counter) onTraitCounter(state, e);
-  if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
+  if (firstOnEnemy) noteReadOutcome(state, e, pos, counter);
+  // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
+  if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
   gainMeleeMana(state, step.mana * tipMul.mana, counter);
+  noteMeleeHitMana(state, tip);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
-  onBoonMeleeHit(state, e, counter);
   pushSwingHitEvent(state, e, p.attack.combo, p.dashStrike);
   ultimateOnSwingHit(state, e);
   onSkillMeleeHit(state, e, p.attack.combo);
   onShapeMeleeHit(state, e);
   applyStepStatus(state, e, step);
+}
+
+/** 壁際（大地の加護）: 放出の一撃は大きく弾き、壁に当たれば叩きつけにする。吹き飛ばしの倍率（持っていない・放出でなければ 1） */
+export function releaseSlamMul(state: GameState, step: Readonly<MeleeStep>): number {
+  if (step.release !== true || !hasBoon(state, EARTH_WALL_SLAM_KEY)) return 1;
+  return BOON_LINEAGE.earth.earthWallSlam.knockMul;
 }
 
 /** 段の applies（斧の出血・分銅の崩勢・ジョブの派生の弱体など）を命中した敵へ付ける。倒れた敵には付けない */
@@ -1312,7 +1456,8 @@ function gainMeleeMana(state: GameState, base: number, counter: boolean): void {
   if (state.player.attack.hitIds.size > MANA.meleeTargetCap) return;
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
-  gainAttackMana(state, base * mul, attackManaMul(state) * boonAttackManaMul(state));
+  // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
+  gainWeaponMana(state, base * mul * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 近接 1 ヒットの怯み値。カウンターは確定の怯みではなく怯み値を倍にする（敵の強靭 ×0.5 と相殺して等倍になる） */
@@ -1320,35 +1465,21 @@ export function counterPoise(step: Readonly<MeleeStep>, counter: boolean): numbe
   return counter ? step.poise * ACTION.counter.poiseMul : step.poise;
 }
 
-/** カウンターヒットになる敵の状態（予備動作中） */
-export function isCounterable(e: Enemy): boolean {
-  return e.phase === "windup";
-}
-
-function showCounter(state: GameState, pos: Vec): void {
-  const c = ACTION.counter;
-  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
-  spawnBurst(state, pos, c.color, c.particles, 150, 0.35, 2);
-  pushSfx(state, "counter");
-}
-
-/** 敵弾をプレイヤー弾に変えて攻撃方向へ撃ち返す（スキルのパリィとは別） */
-function reflectProjectile(state: GameState, pr: Projectile): void {
-  const r = ACTION.reflect;
-  const speed = length(pr.vel) * r.speedMul;
-  pr.owner = "player";
-  pr.vel = scale(state.player.attack.dir, speed);
-  pr.damage = pr.damage * r.damageMul;
-  pr.kind = "ranged";
-  pr.color = r.color;
-  pr.hitIds.clear();
-  pr.pierceLeft = r.pierce;
-  pr.sourceId = undefined;
-  pr.life = Math.max(pr.life, r.minLife);
-  gainEnergy(state, r.energy * BOON.parryEnergyMul);
-  addFloatingText(state, pr.pos, r.text, r.color, r.textScale, r.textLife);
-  spawnBurst(state, pr.pos, r.color, r.particles, 100, 0.25, 1.5);
-  pushSfx(state, "reflect");
+/**
+ * 命中の読みの結果の出来事（1 振り × 1 体に 1 回）。出端なら音・粒・白黒・墨の飛沫と起点・応手、
+ * 墨入れの間の普通の命中なら鈍い打音だけ（倍も盾抜けも無いと音で伝える）
+ */
+function noteReadOutcome(state: GameState, e: Enemy, pos: Vec, counter: boolean): void {
+  const p = state.player;
+  if (!counter) {
+    noteCommittedHit(state, e);
+    return;
+  }
+  fireDebana(state, e, pos);
+  // ボスには答えとして届ける（damageEnemy の後。怯み値で先に怯んでいても答えは数える）
+  bossOnAnswer(state, e, "debana");
+  // 右の溜め（居合）を離した振りの出端は居合の応手、それ以外はカウンターの応手
+  noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
 }
 
 /** 性質「弾斬り」: 敵弾を斬って消す（撃ち返しはしない） */
@@ -1358,64 +1489,6 @@ function cutProjectile(state: GameState, pr: Projectile): void {
   spawnBurst(state, pr.pos, c.color, c.particles, 80, 0.2, 1.5);
 }
 
-/** 祝福「見切り斬り」: JUST 回避直後の攻撃で回避した敵の手前へ瞬間移動して重い一撃。出したら true */
-function tryJustCounter(state: GameState): boolean {
-  const p = state.player;
-  if (!hasBoon(state, "justSlash")) return false;
-  if (p.justCounterTimer <= 0 || p.justCounterTargetId === null) return false;
-  const targetId = p.justCounterTargetId;
-  p.justCounterTimer = 0;
-  p.justCounterTargetId = null;
-  const target = state.enemies.find((e) => e.id === targetId && e.hp > 0);
-  if (!target) return false;
-  if (dist(p.body.pos, target.body.pos) > ACTION.justCounter.maxRange) return false;
-  justCounterStrike(state, target);
-  return true;
-}
-
-function justCounterStrike(state: GameState, target: Enemy): void {
-  const p = state.player;
-  const j = ACTION.justCounter;
-  const from = { ...p.body.pos };
-  const toEnemy = sub(target.body.pos, p.body.pos);
-  const dir = normalize(toEnemy, p.facing);
-  // 壁は無視しない（moveBody が壁の手前で止める）。敵の縁の少し手前で止まる
-  const travel = Math.max(0, length(toEnemy) - target.body.radius - p.body.radius - j.gap);
-  cancelAttack(state);
-  p.dashTimer = 0;
-  p.knock = { x: 0, y: 0 };
-  moveBody(state, p.body, dir.x * travel, dir.y * travel);
-  p.facing = { ...dir };
-
-  // 見た目は最終段の振り。対象にはここで当てるので hitIds に入れて二重ヒットを防ぐ
-  const lastStep = playerMoveset(state).steps.length - 1;
-  startSwing(state, lastStep);
-  p.attack.dir = { ...dir };
-  p.attack.hitIds.add(target.id);
-  const step = meleeStep(actionStats(state), lastStep, false, 0, -1, playerMoveset(state), "primary");
-  if (!step) return;
-  const out = rollOutgoing(state, target, step.damage, "melee");
-  const hitPos = { ...target.body.pos };
-  target.wallSplat = true;
-  damageEnemy(state, target, Math.round(out.amount * j.damageMul), dir, step.knockback, {
-    poise: j.poise * state.stats.poiseDamageMul,
-    hitstopSteps: FEEL.hitstopHeavy + j.hitstopBonus,
-    energy: stepHitEnergy(state, step),
-    kind: "melee",
-    crit: out.crit,
-    guardBreak: true,
-    impact: { family: hitFamily(playerMoveset(state).key), weight: "heavy", weapon: playerMoveset(state).key },
-  });
-  gainMeleeMana(state, step.mana, false);
-  p.meleeHitCount += 1;
-  spawnLine(state, from, p.body.pos, j.color, j.lineLife);
-  spawnBurst(state, p.body.pos, j.color, j.particles, 160, 0.4, 2);
-  addFloatingText(state, p.body.pos, j.text, j.color, j.textScale, j.textLife);
-  pushSfx(state, "counter");
-  fireTrigger(state, "onMeleeHit", { pos: hitPos, targetId: target.id });
-  fireTrigger(state, "everyNthMeleeHit", { pos: hitPos, targetId: target.id });
-}
-
 /** ダッシュ中に予約した攻撃を、ダッシュが終わった瞬間に出す */
 function releaseDashAttack(state: GameState): void {
   const p = state.player;
@@ -1423,7 +1496,9 @@ function releaseDashAttack(state: GameState): void {
   p.dashAttackQueued = false;
   if (skillLocksAttack(state) || isPlayerStaggered(p)) return;
   cancelAttack(state);
-  startSwing(state, 0, true);
+  // 詰め足（剣士の流儀）はダッシュ攻撃にせず、覚えた段から連撃を続ける
+  if (dashKeepsChain(state)) startNextSwing(state);
+  else startSwing(state, 0, true);
 }
 
 /** n 発を扇状に並べた角度オフセット（ラジアン）。1 発なら [0]。間隔は銃の弾ごと（既定は PLAYER.projectileSpreadDeg） */
@@ -1476,7 +1551,7 @@ function updateBurst(state: GameState, shot: BulletDef, dt: number): void {
 function canContinueBurst(state: GameState): boolean {
   const p = state.player;
   if (isAttacking(p) || isPlayerStaggered(p)) return false;
-  return !isDashing(p) || canShootWhileDashing(state);
+  return !isDashing(p);
 }
 
 /** 銃を持っていない間は射撃の途中経過を持ち越さない */
@@ -1517,8 +1592,8 @@ function updateShotCharge(state: GameState, shot: BulletDef, held: boolean, dt: 
 /** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中） */
 function canShootNow(state: GameState): boolean {
   const p = state.player;
-  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging) return false;
-  return !isDashing(p) || canShootWhileDashing(state);
+  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || isReloading(state)) return false;
+  return !isDashing(p);
 }
 
 function tryShoot(state: GameState, aim?: number): void {
@@ -1559,6 +1634,12 @@ export interface VolleyOverride {
   energy?: number;
   /** 命中・炸裂で付ける状態異常（ThrowArtDef.applies） */
   applies?: readonly StatusApply[];
+  /** 撃ったレーン（双撃の判定。Projectile.lane） */
+  lane?: ButtonKey;
+  /** 放出の弾（Projectile.release） */
+  release?: { finisher: boolean; crit: boolean };
+  /** 命中ごとの気力（Projectile.shotMana。ThrowArtDef.mana） */
+  shotMana?: number;
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1567,7 +1648,7 @@ function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: numb
   const damageMul = (charged?.damageMul ?? shot.damageMul) * (override.damageMul ?? 1);
   const speed = PLAYER.shoot.speed * shot.speedMul * s.projectileSpeedMul;
   return {
-    damage: override.damage ?? shotDamage(s) * damageMul + boonNormalAttackBonus(state),
+    damage: override.damage ?? shotDamage(s) * damageMul,
     poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
     radius: charged?.radius ?? shot.radius,
     pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
@@ -1626,7 +1707,8 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   const s = state.stats;
   const shot = ultimateShot(state, currentShot(s));
   p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
-  emitVolley(state, shot, level, aim, { energy: gunShotEnergy(state, shot, level) });
+  // 満ちた後の 1 発（長銃）は戦意を使った放出の弾
+  emitVolley(state, shot, level, aim, { energy: gunShotEnergy(state, shot, level), lane: "primary", ...startShotMoments(state) });
   if (!shot.burst) return;
   p.shotBurst.left = shot.burst.count - 1;
   p.shotBurst.timer = shot.burst.interval;
@@ -1649,6 +1731,12 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
+/** 短銃（型 pistol）が、盾持ちの零距離（FORM.pistol.zeroDistance）で撃ったか。盾を抜ける弾の印（docs/ideas/reading-core-impl.md 2-5） */
+function shotIsPointBlank(state: GameState, muzzle: Vec): boolean {
+  if (formOf(playerMoveset(state)).key !== "pistol") return false;
+  return state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).blocks === true && dist(e.body.pos, muzzle) <= FORM.pistol.zeroDistance);
+}
+
 /** 弾を出す（再使用時間は触らない。三点の続きの弾・右レーンと派生の弾もここを通る）。出したら true */
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
@@ -1657,6 +1745,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   const baseAngle = angle(dir) + swayOffset(state, shot);
   const spec = volleySpec(state, shot, level, aim, override);
   const firstShot = state.projectiles.length;
+  const pointBlank = shotIsPointBlank(state, muzzle);
   let orbitIndex = shot.orbit ? orbitingCount(state) : 0;
   for (const offset of spreadOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg)) {
     const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
@@ -1681,11 +1770,17 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       // 周回する弾は 1 周ごとに当て直すので、持続の奥義が終わった後に奥義ゲージを溜め直させない
       ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
+      ...(override.lane ? { lane: override.lane } : {}),
+      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
+      ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
+      ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
+      ...(pointBlank ? { pointBlank: true } : {}),
     });
   }
   const fired = state.projectiles.slice(firstShot);
+  // 短銃の弾倉は左の射撃 1 回で 1 発数える（右レーンの弾・三点の続きは数えない）
+  if (override.lane === "primary") noteShotFired(state);
   for (const pr of fired) markShotBullet(pr, shot.key);
-  onBoonShoot(state, fired);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   const sparks = shot.look?.particles ?? MUZZLE_PARTICLES;
   spawnBurst(state, muzzle, spec.color, sparks, 60, 0.12, 1.5);

@@ -1,7 +1,7 @@
 import { type EventActor, type EventSource, type GameEvent, type StatusSnap, happenedWithin } from "../core/events";
 import type { Element } from "../core/element";
-import { type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword } from "../core/rules";
-import { type Enemy, type GameState, allocId } from "../core/state";
+import { type PerCounter, type Rule, type RuleAttackVia, type RuleCondition, type RuleEffect, effectKeyword, procCoefficientOf } from "../core/rules";
+import { type Enemy, type GameState, allocId, pushSfx } from "../core/state";
 import type { StatusKind } from "../core/status";
 import type { TerrainKind } from "../core/terrain";
 import { type Vec, dist, fromAngle, normalize, scale, sub } from "../core/vec";
@@ -11,37 +11,48 @@ import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import { BOONS } from "./boonDefs";
 import { isRoamerTarget, isRoamingEnemy, slashBase, spawnBoonWave } from "./boonRules";
-import { offerBoonsFromRule } from "./boons";
+import { addTally, offerBoonsFromRule } from "./boons";
 import { gradeMagnitudeMul, gradedEffect, gradedIcd, ruleOwnerGrade } from "./boonGrade";
 import { damageEnemy, healPlayer, healSustained, rollOutgoing } from "./combat";
 import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAttack } from "./elementCombat";
 import { engagedRoomIndex } from "./engagement";
 import { isFavoredWeapon, jobRules } from "./jobs";
-import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { keystoneRules } from "./keystones";
+import { spawnBurst, spawnLine, spawnRing, addFloatingTextOnce } from "./effects";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
 import { applyStatus, chainLightning, enemiesInRadius, explodeAt, findStatus, hasStatus, removeStatus } from "./statusEffects";
 import { dropItem } from "./loot";
 import { addPoise } from "./poise";
 import { reaperWarning } from "./reaper";
-import { dropRune } from "./skills";
-import { enemyDef } from "../data/enemies";
+import { dropRune, resolveSlot } from "./skills";
+import { applyCoinRuleEffect, spendCoins } from "./economy";
+import { enemyDef, isExecuteImmune } from "../data/enemies";
 import { movesetRules } from "../data/weapons";
+import { reforgeRules } from "./reforge";
+import { formOfKey } from "../data/weaponForms";
 import { sustainRules } from "../data/ultimates";
 import { ultimateBlocksEnergy, ultimateReady } from "./ultimates";
 import { conditionMet, isNthHit, runEffect } from "./triggers";
 import { gainMana } from "./mana";
+import { onManaSource } from "./manaSources";
+import { addMoraleAmount, releaseTerrainRadiusBonus } from "./morale";
 import type { TriggerEffectKind } from "../loot/types";
+import { hasReach } from "../loot/reach";
 import { noteChainRecord, noteRunEvents } from "../meta/runRecord";
 import { statsBulletHas } from "../loot/bullets";
+import type { CastParams } from "../skills/types";
+import { countPer } from "./modifiers";
 
 /**
  * 統一ルールの照合（docs/ideas/synergy-web.md 3-3）。step の combo の後・effects の前に 1 回呼ぶ。
  * - 積んだ順のイベントに、固定順の Rule（祝福の取得順 → スキルスロット順 → 対象の敵）を照合する
  * - 効果が起こしたイベントは深さ +1 で次ステップへ（pushEvent が pendingEvents へ積む）。同ステップで再帰しない
- * - 深さ SYNERGY.maxDepth 以上は照合しない。効果量は深さごとに × SYNERGY.chainDecay
+ * - 連鎖は 3 つで止まる（docs/ideas/scaling-impl.md 2-7）: 範囲に次の標的がいない・同じ敵への訪問回数（1 + chainRevisits を超えたら
+ *   その敵から先へ跳ばない）・連鎖係数（効果ごとの procCoefficient の積が次の Rule の確率に掛かる）。効果量は深さによらず等倍。
+ *   深さ SYNERGY.maxDepth 以上は照合しない（性能の保険）
  * - ICD は 3 層: Rule ごと（ruleIcd）・語ごとの回数上限（keywordBudget）・敵ごと（StatusBag.procIcd）
- * - direct の Rule（旧フックから移した祝福）は連鎖に数えない: 深さを進めず、減衰・語の上限・深さの上限・連鎖の記録から外す
+ * - direct の Rule（旧フックから移した祝福）は連鎖に数えない: 深さを進めず、訪問回数・連鎖係数・語の上限・深さの上限・連鎖の記録から外す
  * 装備の tr: は fireTrigger がその場で同じ文法（ruleFromTrigger）を照合するので、ここでは集めない（二重発火を防ぐ）
  */
 
@@ -98,15 +109,19 @@ export function resolveRules(state: GameState, dt: number, rules?: readonly Rule
 
 /**
  * 今のビルドが持つ Rule を固定順で集める（決定性: 同じ状態なら同じ順）。
- * 装備スロット → 共鳴 → 誓約 → ジョブ → 祝福の取得順 → スキルスロット順 → 部屋 → 敵 id 順。
- * 装備（tr:）は fireTrigger が即時に照合する。共鳴・誓約・部屋の Rule はまだ無い（置き場ができたらここへ足す）。
+ * 装備 → 誓約 → ジョブ → 武器種 → 改鋳 → 持続の奥義 → 祝福の取得順 → スキルスロット順 → 敵 id 順。
+ * 装備の Rule は computeStats が stats.rules に装備スロット順で畳んだもの（転じ・名のある遺物）。
+ * 装備トリガー（tr:）は fireTrigger が即時に照合するのでここには入らない。
  * 敵の Rule はイベントの対象ごとに enemyRulesOf が引く
  */
 export function collectRules(state: GameState): Rule[] {
   const out: Rule[] = [];
+  out.push(...state.stats.rules, ...keystoneRules(state.stats.keystones));
   out.push(...jobRules(state.job));
   // 武器種の固有効果（data/weapons.ts の MovesetDef.rules）。ジョブの直後に固定順で足す
   out.push(...movesetRules(state.stats.moveset));
+  // 改鋳の起点（data/reforges.ts。型の合う改鋳だけ）
+  out.push(...reforgeRules(state));
   // 持続中の奥義の固有効果（data/ultimates.ts の SustainDef.rules）。持続中だけ集める
   out.push(...sustainRules(state.player.ultimate.active));
   for (const key of state.boons) out.push(...(BOONS[key].rules ?? []));
@@ -145,11 +160,16 @@ function scopeMatches(rule: Readonly<Rule>, ev: GameEvent): boolean {
 
 function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
   if (rule.when !== ev.kind || !scopeMatches(rule, ev)) return;
+  if (BOOKKEEPING_EFFECTS.has(rule.then.kind)) {
+    tryBookkeepingRule(state, rule, ev, fired);
+    return;
+  }
   if (rule.direct === true) {
     tryDirectRule(state, rule, ev, fired);
     return;
   }
   if (ev.depth >= SYNERGY.maxDepth) return;
+  if (revisitExceeded(state, ev)) return;
   if (rule.group !== undefined && fired.has(rule.group)) return;
   if ((state.ruleIcd.get(icdKeyOf(rule)) ?? 0) > 0) return;
   if (!ruleConditionsMet(state, rule.if, ev)) return;
@@ -158,8 +178,9 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   if (used >= SYNERGY.keywordBudget) return;
   const procTarget = PROC_ICD_EFFECTS.has(rule.then.kind) ? liveTarget(state, ev.targetId) : undefined;
   if (procTarget !== undefined && procTarget.status.procIcd > 0) return;
-  // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）
-  if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
+  // 乱数は照合順に引く。確定（1 以上）なら引かない（Rule を足しても他の乱数列をずらさない）。連鎖係数が 1 未満なら確定の Rule も引く
+  const chance = chainedChance(state, rule, ev);
+  if (chance < 1 && !state.rng.chance(chance)) return;
   // 祝福の格（神威）は ICD を縮める。direct（旧フックの回数と揃えたもの）には掛けない
   if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), gradedIcd(rule.icd, ruleOwnerGrade(state, rule.owner)));
   if (rule.group !== undefined) fired.add(rule.group);
@@ -169,9 +190,25 @@ function tryRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: S
   recordChain(state, keyword, ev.depth);
 }
 
+/** この連鎖で対象の敵を訪れた回数が 1 + chainRevisits を超えたか。超えたらその敵から先へ跳ばない（命中そのものは入っている） */
+function revisitExceeded(state: GameState, ev: GameEvent): boolean {
+  const target = ev.targetId;
+  if (target === undefined || ev.visits === undefined) return false;
+  let count = 0;
+  for (const id of ev.visits) if (id === target) count++;
+  return count > 1 + state.stats.chainRevisits;
+}
+
+/** 連鎖係数を掛けた確率（1 で切る）。連鎖の源（chainCoefBonus）は係数だけを押し上げる */
+function chainedChance(state: GameState, rule: Readonly<Rule>, ev: GameEvent): number {
+  if (hasReach(state.stats, "chain")) return Math.min(1, rule.chance);
+  const coef = Math.min(1, (ev.coef ?? 1) * (1 + state.stats.chainCoefBonus));
+  return Math.min(1, rule.chance * coef);
+}
+
 /**
  * 直接の効果（旧フックから移した祝福）。フックはどの深さの出来事でも等倍で起き、語の上限も procIcd も持たなかったので、
- * それと同じに照合する（ICD・確率・group は通常どおり見る）
+ * それと同じに照合する（ICD・確率・group は通常どおり見る。訪問回数・連鎖係数は見ない）
  */
 function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
   if (rule.group !== undefined && fired.has(rule.group)) return;
@@ -182,14 +219,41 @@ function tryDirectRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fi
   if (rule.group !== undefined) fired.add(rule.group);
   const run = state.ruleRun;
   const prevDepth = run.depth;
-  // 深さはイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い。減衰は掛けない）
+  const prevVisits = run.visits;
+  const prevCoef = run.coef;
+  // 深さ・訪れた敵・連鎖係数はイベントのまま・出どころも上書きしない（フックが起こした出来事と同じ扱い）
   run.depth = ev.depth;
+  run.visits = ev.visits ?? [];
+  run.coef = ev.coef ?? 1;
   try {
     const grade = ruleOwnerGrade(state, rule.owner);
     applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
+    if (rule.owner.kind === "boon") onManaSource(state, "boonFired");
   } finally {
     run.depth = prevDepth;
+    run.visits = prevVisits;
+    run.coef = prevCoef;
   }
+}
+
+/**
+ * 数えるだけの Rule（研鑽の tally）。何も起こさないので連鎖に数えず、深さ・訪問回数・語の上限・格・気力の源から外す
+ * （連鎖の奥で起きた撃破も数え、語の上限で数え漏らさない）。ICD・確率・group・条件は通常どおり見る
+ */
+function tryBookkeepingRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent, fired: Set<string>): void {
+  if (rule.group !== undefined && fired.has(rule.group)) return;
+  if ((state.ruleIcd.get(icdKeyOf(rule)) ?? 0) > 0) return;
+  if (!ruleConditionsMet(state, rule.if, ev)) return;
+  if (rule.chance < 1 && !state.rng.chance(rule.chance)) return;
+  if (rule.icd > 0) state.ruleIcd.set(icdKeyOf(rule), rule.icd);
+  if (rule.group !== undefined) fired.add(rule.group);
+  applyTally(state, rule.then, ev);
+}
+
+/** 研鑽の数え: 格を掛けない量（scaleBy は効く）で boonRun.tallies を進める */
+function applyTally(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): void {
+  if (effect.key === undefined) return;
+  addTally(state, effect.key, baseMagnitude(state, effect, ev), effect.mode ?? "add");
 }
 
 /** ICD の鍵（icdKey で複数の Rule が 1 つの ICD を分け合う） */
@@ -197,25 +261,40 @@ function icdKeyOf(rule: Readonly<Rule>): string {
   return rule.icdKey ?? rule.id;
 }
 
-/** 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころで持ち越される */
+/**
+ * 効果を実行する。この間に積まれたイベントは深さ +1・持ち主の出どころ・訪れた敵の列・連鎖係数（× この効果の係数）で持ち越される。
+ * 効果量は深さによらず等倍（連鎖は訪問回数と連鎖係数で止まる）
+ */
 function runRule(state: GameState, rule: Readonly<Rule>, ev: GameEvent): void {
   const run = state.ruleRun;
   const prevDepth = run.depth;
   const prevOwner = run.owner;
+  const prevVisits = run.visits;
+  const prevCoef = run.coef;
   run.depth = ev.depth + 1;
   run.owner = rule.owner;
+  run.visits = ev.visits ?? [];
+  run.coef = (ev.coef ?? 1) * procCoefficientOf(rule.then);
   try {
     // 祝福の格は効果量・半径に掛かる（呪い付き・祝福以外の Rule は並 = ×1）
     const grade = ruleOwnerGrade(state, rule.owner);
-    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, SYNERGY.chainDecay ** ev.depth * gradeMagnitudeMul(grade));
+    applyRuleEffect(state, gradedEffect(rule.then, grade), ev, gradeMagnitudeMul(grade));
+    // 加護（祝福の Rule）の発火は巫女の流儀の気力の源（段取り 5d。system/manaSources.ts）
+    if (rule.owner.kind === "boon") onManaSource(state, "boonFired");
   } finally {
     run.depth = prevDepth;
     run.owner = prevOwner;
+    run.visits = prevVisits;
+    run.coef = prevCoef;
   }
 }
 
-function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, decay: number): void {
-  const magnitude = baseMagnitude(state, effect, ev) * decay;
+function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, gradeMul: number): void {
+  if (effect.kind === "tally") {
+    applyTally(state, effect, ev);
+    return;
+  }
+  const magnitude = baseMagnitude(state, effect, ev) * gradeMul;
   applyEffectBody(state, effect, ev, magnitude);
   if (effect.text !== undefined) ruleText(state, effect.text, effect.color);
 }
@@ -223,6 +302,7 @@ function applyRuleEffect(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
 function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): void {
   if (applyVitalEffect(state, effect, magnitude)) return;
   if (applyMigratedEffect(state, effect, ev, magnitude)) return;
+  if (applyLineageEffect(state, effect, ev, magnitude)) return;
   switch (effect.kind) {
     case "spreadStatus":
       spreadStatus(state, effect, ev, magnitude);
@@ -277,7 +357,21 @@ function applyEffectBody(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
     case "reclaim":
     case "resetCombo":
     case "reserveVault":
+    case "gainCoins":
+    case "spendCoins":
+    case "scatterCoins":
+    case "gainMorale":
       // applyMigratedEffect が扱い済み
+      return;
+    case "tally":
+    case "refreshSkills":
+    case "echoLast":
+    case "retarget":
+    case "detonatePlaced":
+    case "tameEnemy":
+    case "coinShot":
+    case "releaseVault":
+      // applyRuleEffect / applyLineageEffect が扱い済み
       return;
     default:
       runTriggerEffect(state, effect.kind, effect, ev, magnitude);
@@ -340,6 +434,14 @@ function applyMigratedPlayerEffect(state: GameState, effect: Readonly<RuleEffect
       if (effect.status === undefined) return false;
       extendTargetStatus(state, ev, effect.status, magnitude);
       return true;
+    case "gainCoins":
+    case "spendCoins":
+    case "scatterCoins":
+      applyCoinRuleEffect(state, effect.kind, magnitude, ev.pos);
+      return true;
+    case "gainMorale":
+      addMoraleAmount(state, magnitude);
+      return true;
     default:
       return false;
   }
@@ -368,7 +470,7 @@ function reserveVault(state: GameState, effect: Readonly<RuleEffect>, pos: Vec):
   const run = state.boonRun;
   if (run.vaultNext) return;
   run.vaultNext = true;
-  if (effect.text !== undefined) addFloatingText(state, pos, effect.text, effect.color ?? BOON.ruleTextColor, BOON.ruleTextScale, VAULT_TEXT_LIFE);
+  if (effect.text !== undefined) addFloatingTextOnce(state, pos, effect.text, effect.color ?? BOON.ruleTextColor, BOON.ruleTextScale, VAULT_TEXT_LIFE, "label", { sameWord: true });
 }
 
 /** roomEnemies の相手: 徘徊の敵か、イベントの部屋（無ければ交戦中の部屋）の生きた敵 */
@@ -504,7 +606,7 @@ function afflict(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, 
 
 /** 効果の浮き文字（旧フックの「湧水」「結界」など）。自分の頭上に出す */
 function ruleText(state: GameState, text: string, color: string | undefined): void {
-  addFloatingText(state, state.player.body.pos, text, color ?? BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+  addFloatingTextOnce(state, state.player.body.pos, text, color ?? BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife, "label", { sameWord: true });
 }
 
 /** 氷の破片: pos から全方位へ count 発（祝福の氷砕。素性なしの proc 弾） */
@@ -530,7 +632,8 @@ function spawnShards(state: GameState, pos: Vec, count: number, damage: number):
 
 /** 地形の効果（置く・火をつける・広げる）。半径の既定は BOON.ruleTerrainRadius */
 function applyTerrainEffect(state: GameState, effect: Readonly<RuleEffect>, pos: Vec): void {
-  const radius = effect.radius ?? BOON.ruleTerrainRadius;
+  // 扇の突風（放出の振り）の間は広げる半径が風の分だけ伸びる
+  const radius = (effect.radius ?? BOON.ruleTerrainRadius) + (effect.kind === "spreadTerrain" ? releaseTerrainRadiusBonus(state) : 0);
   if (effect.kind === "igniteTerrain") {
     igniteTerrainAt(state, pos.x, pos.y, radius);
     return;
@@ -563,7 +666,7 @@ function applyPlayerSideEffect(state: GameState, effect: Readonly<RuleEffect>, e
     case "refillDash": {
       const max = state.stats.dashCharges;
       p.dashChargesLeft = effect.fill === true ? max : Math.min(max, p.dashChargesLeft + Math.max(1, effect.count ?? 1));
-      if (effect.quiet !== true) addFloatingText(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+      if (effect.quiet !== true) addFloatingTextOnce(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife, "label", { sameWord: true });
       return;
     }
     default:
@@ -608,6 +711,10 @@ function scaledMagnitude(state: GameState, effect: Readonly<RuleEffect>, ev: Gam
       const snap = effect.status === undefined ? undefined : sourceStatus(state, ev, effect.status);
       return (snap?.potency ?? 0) * effect.magnitude;
     }
+    case "coins":
+      return state.economy.coins * effect.magnitude;
+    case "counter":
+      return effect.counter === undefined ? 0 : countOf(state, effect.counter, ev.targetId) * effect.magnitude;
     default:
       return effect.magnitude;
   }
@@ -766,9 +873,28 @@ function migratedConditionHolds(state: GameState, c: RuleCondition, subject: Con
       return p.ultimate.active !== null;
     case "lane":
       return p.attack.lane === c.lane;
+    case "form":
+      // 条件 moveset と同じく装備の武器種で見る（変身・奥義の差し替えも key と型は装備のまま）
+      return c.forms.includes(formOfKey(state.stats.moveset).key);
+    case "coinsAtLeast":
+      return state.economy.coins >= c.amount;
+    case "targetWithin":
+      return dist(subject.pos, p.body.pos) <= c.radius;
+    case "counter":
+      return counterInRange(countOf(state, c.counter, subject.targetId), c.atLeast, c.atMost);
     default:
       return false;
   }
+}
+
+/** 「〜につき」の数（対象の敵を数えるものは生きている対象で見る） */
+function countOf(state: GameState, counter: PerCounter, targetId: number | undefined): number {
+  return countPer(state, counter, liveTarget(state, targetId) ?? null);
+}
+
+function counterInRange(n: number, atLeast: number | undefined, atMost: number | undefined): boolean {
+  if (atLeast !== undefined && n < atLeast) return false;
+  return atMost === undefined || n <= atMost;
 }
 
 function targetElite(state: GameState, subject: ConditionSubject): boolean {
@@ -811,6 +937,210 @@ function targetHas(state: GameState, subject: ConditionSubject, kind: StatusKind
   if (subject.targetStatus !== undefined) return subject.targetStatus.some((s) => s.kind === kind);
   const target = liveTarget(state, subject.targetId);
   return target !== undefined && hasStatus(target.status, kind);
+}
+
+// -----------------------------------------------------------------------------
+// 祝福の中身で足した効果（docs/ideas/boon-impl.md 2-6 末尾）
+// -----------------------------------------------------------------------------
+
+/** 数えるだけの効果（tryBookkeepingRule の経路） */
+const BOOKKEEPING_EFFECTS: ReadonlySet<RuleEffect["kind"]> = new Set<RuleEffect["kind"]>(["tally"]);
+
+/** 祝福の中身で足した効果。扱ったら true */
+function applyLineageEffect(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, magnitude: number): boolean {
+  switch (effect.kind) {
+    case "refreshSkills":
+      refreshSkills(state, effect.fill === true, magnitude);
+      return true;
+    case "echoLast":
+      echoLastCast(state, magnitude);
+      return true;
+    case "retarget":
+      retarget(state, effect, ev);
+      return true;
+    case "detonatePlaced":
+      detonatePlaced(state, effect, ev, magnitude);
+      return true;
+    case "tameEnemy":
+      tameEnemies(state, effect, ev);
+      return true;
+    case "coinShot":
+      coinShot(state, effect, magnitude);
+      return true;
+    case "releaseVault":
+      releaseVault(state, effect, ev, magnitude);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** 全スロットの再使用時間を全長の fraction だけ戻し、最低間隔の残りも同じ割合で縮める（受け流しの成功の戻しと同じ測り方） */
+function refreshSkills(state: GameState, fill: boolean, fraction: number): void {
+  const f = fill ? 1 : Math.max(0, Math.min(1, fraction));
+  for (const slot of state.skills.slots) {
+    slot.cooldownLeft = Math.max(0, slot.cooldownLeft - slot.cooldownTotal * f);
+    slot.intervalLeft *= 1 - f;
+  }
+}
+
+/**
+ * 直前に撃ったスキルを自分の位置からもう一度撃つ（反響と同じ写しの発動。次の updateSkills で出る）。
+ * 気力・再使用は払わず、払い戻し・地形化の残りは 0 から（写しで資源を増やさない）。反響・遅延は付けない。
+ * スロットの石が撃った時と変わっていれば撃たない
+ */
+function echoLastCast(state: GameState, damageMul: number): void {
+  const rs = state.skills;
+  const last = rs.lastCast;
+  if (last === null) return;
+  const r = resolveSlot(state, last.slot);
+  if (r === null || r.def.key !== last.skillKey) return;
+  const p = state.player;
+  const origin = { ...p.body.pos };
+  const params: CastParams = {
+    ...r.params,
+    damageMul: r.params.damageMul * damageMul,
+    slot: last.slot,
+    origin,
+    manaPaid: 0,
+    refundPool: { left: 0 },
+    hitRefundPool: { left: 0 },
+    leyPool: { left: 0 },
+    hitLog: new Set(),
+    echo: null,
+    delay: null,
+  };
+  rs.echoes.push({ kind: "echo", timer: 0, total: 0, skillKey: last.skillKey, origin, dir: { ...p.facing }, target: { ...last.pos }, params });
+}
+
+/** 号令: 従魔・召喚・設置物が duration 秒のあいだ対象の敵を狙う（狙う側は focusTarget で読む） */
+function retarget(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): void {
+  const target = liveTarget(state, ev.targetId);
+  if (target === undefined) return;
+  state.boonRun.focus = { id: target.id, until: state.time + (effect.duration ?? TRIGGER.defaultDuration) };
+}
+
+/** 号令で狙う敵（切れた・倒れた・味方にした敵なら undefined）。召喚・設置物・味方の敵の狙いが読む */
+export function focusTarget(state: GameState): Enemy | undefined {
+  const f = state.boonRun.focus;
+  if (f === null || f.until <= state.time) return undefined;
+  const e = liveTarget(state, f.id);
+  return e === undefined || isAllied(state, e) ? undefined : e;
+}
+
+/** 設置物の置き場（数える・起爆する順。決定性のため固定の順）。配列は state のものをそのまま返す（splice で消す） */
+export function placedPools(state: GameState): { pos: Vec }[][] {
+  const rs = state.skills;
+  return [rs.kegs, rs.graves, rs.turrets, rs.mines, rs.wells, rs.fields, rs.mires ?? [], rs.springs, rs.stakes, rs.traps];
+}
+
+/** 従魔・召喚・設置物の数（設置物 + 味方にした敵。PerCounter minions） */
+export function minionCount(state: GameState): number {
+  let n = 0;
+  for (const pool of placedPools(state)) n += pool.length;
+  return n + state.enemies.filter((e) => isAllied(state, e)).length;
+}
+
+/** from に最も近い設置物を消して位置を返す（同じ距離なら置き場の順・古い順）。無ければ undefined */
+function takeNearestPlaced(state: GameState, from: Vec): Vec | undefined {
+  let best: { pool: { pos: Vec }[]; index: number; d: number } | undefined;
+  for (const pool of placedPools(state)) {
+    pool.forEach((item, index) => {
+      const d = dist(from, item.pos);
+      if (best === undefined || d < best.d) best = { pool, index, d };
+    });
+  }
+  if (best === undefined) return undefined;
+  const [taken] = best.pool.splice(best.index, 1);
+  return taken === undefined ? undefined : { ...taken.pos };
+}
+
+/** 供物: 最も近い設置物を count 個消し、その位置で爆発（半径 radius。無ければ状態異常の爆発と同じ） */
+function detonatePlaced(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, damage: number): void {
+  const n = Math.max(1, Math.round(effect.count ?? 1));
+  const radius = effect.radius ?? STATUS.explodeRadius;
+  for (let i = 0; i < n; i++) {
+    const pos = takeNearestPlaced(state, ev.pos);
+    if (pos === undefined) return;
+    explodeAt(state, pos, radius, damage);
+  }
+}
+
+/** 味方になっている敵か（allyUntil が今より先で、生きている） */
+export function isAllied(state: GameState, e: Readonly<Enemy>): boolean {
+  return e.allyUntil !== undefined && e.allyUntil > state.time && e.hp > 0;
+}
+
+/**
+ * 従魔: 対象（radius があれば半径内の近い順）を duration 秒だけ味方にする。同時に従えるのは count 体まで。
+ * cost があれば 1 体ごとに銭を払い、払えなければそこで止める（買収。従えられなかったのに払わない）
+ */
+function tameEnemies(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): void {
+  const limit = Math.max(1, Math.round(effect.count ?? 1));
+  let room = limit - state.enemies.filter((e) => isAllied(state, e)).length;
+  const until = state.time + (effect.duration ?? TRIGGER.defaultDuration);
+  const cost = Math.max(0, Math.round(effect.cost ?? 0));
+  for (const e of tameCandidates(state, effect, ev)) {
+    if (room <= 0) return;
+    if (cost > 0 && !spendCoins(state, cost, "rule")) return;
+    e.allyUntil = until;
+    room--;
+  }
+}
+
+function tameCandidates(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent): Enemy[] {
+  const ok = (e: Enemy): boolean => tameable(state, e) && (effect.onlyWith === undefined || hasStatus(e.status, effect.onlyWith));
+  if (effect.radius === undefined) {
+    const target = liveTarget(state, ev.targetId);
+    return target !== undefined && ok(target) ? [target] : [];
+  }
+  return enemiesInRadius(state, ev.pos, effect.radius)
+    .filter(ok)
+    .sort((a, b) => dist(ev.pos, a.body.pos) - dist(ev.pos, b.body.pos) || a.id - b.id);
+}
+
+/**
+ * 従えられる敵: 生きていて、まだ味方でなく、処刑の効かない相手（ボス級・部屋主・変身する敵）でも階の主でもない。
+ * 商人・壺や木箱も従えない（従魔の狙いからも外している相手。system/enemies.ts の allyTarget）。
+ * 階の主を従えると主の部屋が制圧扱いになり（roomAlive は従魔を数えない）、主を倒す前に部屋の報酬が出てしまう
+ */
+function tameable(state: GameState, e: Enemy): boolean {
+  if (e.hp <= 0 || isAllied(state, e) || state.boss?.enemyId === e.id) return false;
+  const def = enemyDef(e.defKey);
+  return !isExecuteImmune(def) && def.merchant !== true && def.container === undefined;
+}
+
+/** 投銭: 銭を払って向いている方へ銭の弾（素性なし）。威力 = 払った額 × perCoin。払えなければ不発 */
+function coinShot(state: GameState, effect: Readonly<RuleEffect>, perCoin: number): void {
+  const coins = state.economy.coins;
+  const cost = effect.share !== undefined ? Math.floor(coins * Math.max(0, Math.min(1, effect.share))) : Math.round(effect.count ?? 1);
+  if (cost <= 0 || !spendCoins(state, cost, "rule")) return;
+  const c = BOON.ruleCoinShot;
+  state.projectiles.push({
+    id: allocId(state),
+    owner: "player",
+    pos: { ...state.player.body.pos },
+    vel: scale(waveDir(state), c.speed),
+    radius: c.radius,
+    damage: cost * perCoin,
+    life: c.life,
+    color: c.color,
+    kind: "proc",
+    hitIds: new Set(),
+    pierceLeft: 0,
+  });
+  pushSfx(state, "shoot");
+}
+
+/** 溜めを出す: 対象の敵の溜め（種類が合えば）× mul を一度に与え、溜めを空にする（空にしてから打つので打った傷は溜め直さない） */
+function releaseVault(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, mul: number): void {
+  const target = liveTarget(state, ev.targetId);
+  const vault = target?.vault;
+  if (target === undefined || vault === undefined) return;
+  if (effect.vault !== undefined && vault.kind !== effect.vault) return;
+  delete target.vault;
+  const amount = Math.round(vault.amount * mul);
+  if (amount > 0) damageEnemy(state, target, amount, sub(target.body.pos, state.player.body.pos), 0, { hitstopSteps: 0 });
 }
 
 // -----------------------------------------------------------------------------

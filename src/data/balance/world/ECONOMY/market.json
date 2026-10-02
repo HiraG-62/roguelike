@@ -1,0 +1,34 @@
+{
+  "_note": "商人と市（system/merchants.ts。docs/ideas/economy-impl.md 2-5）。毎階の前室（最後の部屋に最も近い部屋）に市、章ボス階の前室は章の市。peddlerChance で階を歩く旅商人、隠し部屋が開くと闇市。台座に触れて買う。怒っていない商人は巻き添えで傷つかず、近くに敵がいる間は殴っても当たらず、平時は 1 発目が警告になる（2026-10-02 のプレイ所見「乱戦で誤って殴って敵対する」）",
+  "_fields": {
+    "stock": "商人の種類ごとの品の数（market 市 / chapterMarket 章の市 / peddler 旅商人 / blackMarket 闇市）。flask 瓶 / item 遺物 / rune 刻印符 / key 鍵 / reroll 仕入れ直し / cursedItem 反転の遺物 / skill 未所持のスキル石 / keystone 誓約。個",
+    "kindPriceMul": "商人の種類ごとに、品の値段（置いたときの値段）に掛ける倍率。書いていない品は 1",
+    "outlawPriceMul": "怒らせた商人を倒した後（無法者）、このランの値段に掛ける倍率",
+    "itemBoost": "市で買う遺物のレアリティの底上げ（dropItem の extraBoost）",
+    "offerSpacing": "台座の間隔。タイル（契約者の台座より詰める。品が多いので）",
+    "greetRange": "商人に近づいて一言が出る距離。px",
+    "color": "商人の名札・台座・浮き文字の色",
+    "throw": "怒った商人が投げる品。count 1 回に投げる数 / spreadDeg 両端の角度差（度）/ speed 速さ（px/秒）/ damage 1 つの威力（深度で伸びる）/ color 色",
+    "peddler": "旅商人（階を歩く商人）。chance 階に出る確率(0..1) / discount 助けた後のこのランの値引きの割合(0..1) / speed 歩く速さ（px/秒）/ minStartDist プレイヤーの開始位置からこの距離（px）以上離れた通路に出す / openRange プレイヤーがこの距離（px）まで近づくと足を止めて店を広げる / saveRadius 旅商人からこの距離（px）以内で敵を倒すと助けたことになる / threatPad 気付いている敵の体とこの距離（px）まで近いと襲われる / hurtDps 襲う敵 1 体あたりの毎秒のダメージ（深度で伸びる）",
+    "cursedItemBoost": "闇市の反転の遺物のレアリティの底上げ（dropItem の extraBoost）",
+    "patience": "怒っていない商人を誤って怒らせない仕組み（system/merchantAi.ts の shieldsMerchant）。shelterRange 商人からこの距離（px）以内に敵（壺・木箱・商人・従魔を除く。眠っている敵も数える）がいる間はプレイヤーの攻撃が当たらない / grace 警告の後この秒数以内の一撃は同じ一振りの続きとして数えない / window 警告の後この秒数以内にもう一度殴ると怒る（過ぎたら警告からやり直し）"
+  },
+  "stock": {
+    "market": { "flask": 1, "item": 1, "rune": 1, "key": 1, "reroll": 1 },
+    "chapterMarket": { "flask": 2, "item": 1, "key": 1, "reroll": 1 },
+    "peddler": { "flask": 1, "item": 1, "rune": 1 },
+    "blackMarket": { "cursedItem": 1, "skill": 1, "keystone": 1 }
+  },
+  "kindPriceMul": {
+    "peddler": { "flask": 0.8 }
+  },
+  "outlawPriceMul": 2,
+  "itemBoost": 2,
+  "offerSpacing": 2,
+  "greetRange": 56,
+  "color": "#e0b050",
+  "throw": { "count": 3, "spreadDeg": 30, "speed": 130, "damage": 7, "color": "#e0b050" },
+  "peddler": { "chance": 0.5, "discount": 0.1, "speed": 22, "minStartDist": 200, "openRange": 40, "saveRadius": 60, "threatPad": 6, "hurtDps": 8 },
+  "cursedItemBoost": 2,
+  "patience": { "shelterRange": 128, "grace": 0.4, "window": 3 }
+}

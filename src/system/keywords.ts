@@ -1,3 +1,4 @@
+import { type DamageTag, moreApplies } from "../core/damage";
 import {
   KEYWORDS,
   type Keyword,
@@ -12,12 +13,15 @@ import type { StatusKind, StatusProc } from "../core/status";
 import { ENEMY_COMBAT, type EnemyCombatDef } from "../data/enemyCombat";
 import { enemyDefense, enemyWeaknesses } from "../data/enemyDefense";
 import { ATTR } from "../data/tuning";
+import { affixDef, isKeystoneKey } from "../loot/affixes";
+import { uniqueDef } from "../loot/named";
+import { decodeTriggerRoll } from "../loot/triggers";
 import {
   ATTR_KEYS,
+  type AffixRoll,
   DEFAULT_STATS,
+  type Item,
   type PlayerStats,
-  TRAIT_COLORS,
-  type TraitColor,
   type TraitStats,
   type TriggerCondition,
   type TriggerEffectKind,
@@ -89,6 +93,8 @@ export const STATUS_KEYWORDS: Readonly<Record<StatusKind, readonly Keyword[]>> =
   wrath: ["hurt", "stagger"],
   fury: ["stagger"],
   charged: ["shock"],
+  wound: ["melee"],
+  inkMark: ["mana"],
 };
 
 /**
@@ -146,6 +152,17 @@ function below(id: NumericStat, tags: readonly BoonTag[], keywords: KeywordProfi
   return { id, tags, keywords, test: (s) => s[id] < D[id] };
 }
 
+/** そのタグの与ダメが上がっている（増が正、またはそのタグに掛かる倍が 1 より大きい）ときに成立。id は "increased.<tag>" */
+function damageAbove(tag: DamageTag, tags: readonly BoonTag[], keywords: KeywordProfile): StatRule {
+  const only: ReadonlySet<DamageTag> = new Set([tag]);
+  return {
+    id: `increased.${tag}`,
+    tags,
+    keywords,
+    test: (s) => s.increased[tag] > 0 || s.more.some((m) => m.tags !== undefined && moreApplies(m, only) && m.mul > 1),
+  };
+}
+
 /** 性質のルール変更（TraitStats）が 0 より大きいときに成立。祝福タグは持たない */
 function trait(id: NumericTrait, keywords: KeywordProfile): StatRule {
   return { id: `traits.${id}`, tags: [], keywords, test: (s) => s.traits[id] > 0 };
@@ -157,10 +174,10 @@ const STAT_RULES: readonly StatRule[] = [
   above("chillChance", ["chill"], kw(["chill"])),
   above("shockChance", ["shock"], kw(["shock"])),
   above("explodeOnKillChance", ["explode"], kw(["explode"], ["kill"])),
-  above("meleeDamageMul", ["melee"], kw([], [], ["melee"])),
+  damageAbove("melee", ["melee"], kw([], [], ["melee"])),
   above("meleeDamageFlat", ["melee"], kw([], [], ["melee"])),
   above("attackSpeedMul", ["melee"], kw([], [], ["melee"])),
-  above("rangedDamageMul", ["ranged"], kw([], [], ["ranged"])),
+  damageAbove("ranged", ["ranged"], kw([], [], ["ranged"])),
   above("rangedDamageFlat", ["ranged"], kw([], [], ["ranged"])),
   above("fireRateMul", ["ranged"], kw([], [], ["ranged"])),
   above("projectileCount", ["ranged"], kw([], [], ["ranged", "bullet"])),
@@ -173,7 +190,7 @@ const STAT_RULES: readonly StatRule[] = [
   above("comboDamagePerStack", ["combo"], kw([], ["combo"])),
   above("comboWindowBonus", ["combo"], kw([], [], ["combo"])),
   above("energyGainMul", ["energy"], kw([], [], ["energy"])),
-  above("burstDamageMul", ["energy"], kw([], [], ["energy"])),
+  damageAbove("ultimate", ["energy"], kw([], [], ["energy"])),
   above("burstRadiusMul", ["energy"], kw([], [], ["energy"])),
   above("critChance", ["crit"], kw(["crit"])),
   above("critMul", ["crit"], kw([], [], ["crit"])),
@@ -197,7 +214,7 @@ const STAT_RULES: readonly StatRule[] = [
   below("damageTakenMul", [], kw([], [], ["hurt"])),
   above("armor", [], kw([], [], ["hurt"])),
   above("knockbackMul", [], kw(["wall"])),
-  above("damageVsStaggeredMul", [], kw([], ["stagger"])),
+  damageAbove("vsStaggered", [], kw([], ["stagger"])),
   above("meleeReachMul", [], kw([], [], ["melee"])),
   above("projectileSpeedMul", [], kw([], [], ["bullet"])),
   above("burnDps", [], kw([], [], ["burn"])),
@@ -207,44 +224,22 @@ const STAT_RULES: readonly StatRule[] = [
   above("manaOnKill", [], kw(["mana"], ["kill"])),
   above("bulletCut", [], kw([], ["bullet"])),
   trait("manaOnStagger", kw(["mana"], ["stagger"])),
-  trait("lowManaGainMul", kw([], [], ["mana"])),
-  trait("fullManaSkillMul", kw([], ["mana"])),
-  trait("lowManaSkillMul", kw([], ["mana"])),
   trait("manaShieldCost", kw(["ward"], ["mana"])),
-  trait("silencedKillMana", kw(["mana"], ["silence", "kill"])),
-  trait("lastKillManaRatio", kw(["mana"], ["clear"])),
   trait("manaOverflowToEnergy", kw(["energy"], ["mana"])),
-  trait("damagePerStatusKind", kw([], ["reaction"])),
-  trait("damagePerSelfStatus", kw([], ["hurt"])),
-  trait("windupDamageMul", kw([], ["counter"])),
-  trait("guardedDamageMul", kw([], ["stagger"])),
-  trait("bossDamageMul", kw([], ["elite"])),
-  trait("lockedDamageMul", kw([], ["clear"])),
-  trait("darkRangedMul", kw([], [], ["ranged", "still"])),
-  trait("fearPoiseMul", kw([], ["fear"], ["stagger"])),
-  trait("silencedPoiseMul", kw([], ["silence"], ["stagger"])),
-  trait("vulnerablePoiseMul", kw([], ["vulnerable"], ["stagger"])),
-  trait("guardedPoiseMul", kw([], ["stagger"], ["stagger"])),
   trait("wedgePoiseMul", kw([], ["stagger"], ["stagger"])),
   trait("rangedPoiseMul", kw([], ["ranged"], ["stagger"])),
   trait("critPoiseMul", kw([], ["crit"], ["stagger"])),
   trait("guardPierce", kw([], ["stagger"])),
   trait("staggerQuake", kw(["stagger", "area"], ["stagger"])),
-  trait("healOnStagger", kw(["heal"], ["stagger"])),
-  trait("weakenedGuard", kw([], ["weaken"])),
   trait("lastKillClearsBullets", kw([], ["clear", "bullet"])),
   trait("lastKillEnergy", kw(["energy"], ["clear"])),
   trait("comboBreakWave", kw(["area"], ["combo"])),
   trait("inheritCharges", kw([], ["kill"])),
   trait("stakeDamage", kw([], ["bullet", "melee"])),
   trait("placedInfuse", kw([], ["placed", "melee"])),
-  trait("placedExtend", kw([], ["stagger"], ["placed"])),
   trait("lowHpSkillHaste", kw([], ["lowHp"])),
-  trait("boonEchoCrimson", kw([], ["crimson"])),
-  trait("boonEchoAzure", kw([], ["azure"])),
-  trait("boonEchoJade", kw([], ["jade"])),
-  trait("boonEchoGold", kw([], ["gold"])),
-  trait("boonEchoUmbra", kw([], ["umbra"])),
+  trait("stanceGuard", kw(["ward"], ["melee"])),
+  trait("unmoving", kw(["ward"], ["still"])),
   trait("gearInverted", kw(["inverted"])),
   // ---- 属性（docs/COMBAT_DESIGN.md A-8）。変換で通常攻撃がその属性を帯びる / 無の刻印でスキルが無属性に戻る ----
   ...ELEMENTS.filter((e) => e !== "none").map(
@@ -308,37 +303,31 @@ const TRIGGER_EFFECT_FACTS: Readonly<Record<TriggerEffectKind, StatFact>> = {
 
 /**
  * 誓約 → 語。どの誓約も冥の性質なので umbra を出す（keystoneFact が足す）。
- * 祝福タグは旧 equipmentTags が見ていた 5 つ（瞬歩・不殺・近間の誓い・吸血・狂戦士）だけ
+ * 祝福タグは旧 equipmentTags が見ていたもの（瞬歩・不殺・近間の誓い・吸血）だけ
  */
 const KEYSTONE_FACTS: Readonly<Record<string, StatFact>> = {
-  ks_glassCannon: { tags: [], keywords: kw(["lowHp"], [], ["melee", "ranged"]) },
-  [KS.berserker]: { tags: ["hp"], keywords: kw([], ["lowHp"]) },
+  [KS.glassCannon]: { tags: [], keywords: kw(["lowHp"], [], ["melee", "ranged"]) },
+  [KS.vampire]: { tags: ["hp"], keywords: kw(["heal"], ["melee"]) },
+  [KS.overclock]: { tags: [], keywords: kw(["lowHp"], [], ["melee", "ranged"]) },
+  [KS.gambler]: { tags: [], keywords: kw(["crit"]) },
+  [KS.readOath]: { tags: [], keywords: kw([], ["counter"]) },
+  [KS.mushin]: { tags: [], keywords: kw([], ["still"]) },
+  [KS.instant]: { tags: [], keywords: kw(["chill"], ["just"]) },
   [KS.blink]: { tags: ["explode", "dash"], keywords: kw(["explode"], ["dash"], ["dash"]) },
   [KS.pacifist]: { tags: ["stagger"], keywords: kw([], [], ["stagger"]) },
   [KS.bladeOath]: { tags: ["melee", "ranged"], keywords: kw([], [], ["melee", "ranged"]) },
-  [KS.juggernaut]: { tags: [], keywords: kw([], ["hurt"], ["hurt"]) },
-  [KS.gambler]: { tags: [], keywords: kw(["crit"]) },
-  [KS.vampire]: { tags: ["hp"], keywords: kw(["heal"], ["melee"]) },
-  [KS.overclock]: { tags: [], keywords: kw(["lowHp"], [], ["melee", "ranged"]) },
-  ks_windWalker: { tags: [], keywords: kw([], [], ["dash"]) },
+  [KS.farOath]: { tags: [], keywords: kw([], [], ["ranged"]) },
   [KS.overdraw]: { tags: [], keywords: kw(["lowHp"], ["mana"]) },
   [KS.silentVow]: { tags: [], keywords: kw(["mana"], [], ["still"]) },
-  [KS.thirst]: { tags: [], keywords: kw(["mana"], ["melee"]) },
-  [KS.pure]: { tags: [], keywords: kw(["ward"]) },
-  [KS.blight]: { tags: [], keywords: kw(["hurt"], [], ["reaction"]) },
-  [KS.contagion]: { tags: [], keywords: kw([], ["kill"], ["reaction"]) },
-  [KS.wedgeOath]: { tags: [], keywords: kw([], [], ["stagger"]) },
-  [KS.unshaken]: { tags: [], keywords: kw([], ["stagger"]) },
-  [KS.chokehold]: { tags: [], keywords: kw([], ["stagger"]) },
-  [KS.readOath]: { tags: [], keywords: kw([], ["counter"]) },
-  [KS.backwater]: { tags: [], keywords: kw(["heal"], ["clear"]) },
-  [KS.reaperOath]: { tags: [], keywords: kw(["elite"]) },
   [KS.chant]: { tags: [], keywords: kw(["mana"], ["melee"]) },
-  [KS.monochrome]: { tags: [], keywords: kw([], [], ["crimson", "azure", "jade", "gold", "umbra"]) },
-  [KS.colorless]: { tags: [], keywords: emptyProfile() },
-  [KS.mirror]: { tags: [], keywords: kw([], [], ["crimson", "azure", "jade", "gold"]) },
-  [KS.discipline]: { tags: [], keywords: emptyProfile() },
-  [KS.oblivion]: { tags: [], keywords: emptyProfile() },
+  [KS.pure]: { tags: [], keywords: kw(["ward"]) },
+  [KS.contagion]: { tags: [], keywords: kw([], ["kill"], ["reaction"]) },
+  [KS.unshaken]: { tags: [], keywords: kw([], ["stagger"]) },
+  [KS.poverty]: { tags: [], keywords: kw(["mana"]) },
+  [KS.goldCage]: { tags: [], keywords: emptyProfile() },
+  [KS.alms]: { tags: [], keywords: kw(["heal"]) },
+  [KS.breathOath]: { tags: [], keywords: kw(["mana"], ["just"]) },
+  [KS.brimOath]: { tags: [], keywords: kw([], ["mana"]) },
 };
 
 const KEYSTONE_UMBRA: KeywordProfile = kw(["umbra"]);
@@ -371,41 +360,45 @@ function triggerFacts(t: Readonly<TriggeredEffect>): StatFact[] {
   return facts;
 }
 
-/** 色 → 語（性質の色と語の key は同じ名前） */
-const COLOR_KEYWORD: Readonly<Record<TraitColor, Keyword>> = {
-  crimson: "crimson",
-  azure: "azure",
-  jade: "jade",
-  gold: "gold",
-  umbra: "umbra",
-};
-
-/** 配合に入っている色は「出す」、共鳴が成立した色は「食う」（虚極は反転も食う） */
-function resonanceFacts(stats: Readonly<PlayerStats>): StatFact[] {
-  const res = stats.resonance;
-  const facts: StatFact[] = [];
-  for (const c of TRAIT_COLORS) {
-    if (res.ratios[c] > 0) facts.push({ tags: [], keywords: kw([COLOR_KEYWORD[c]]) });
-  }
-  for (const c of res.colors) facts.push({ tags: [], keywords: resonanceConsumes(c) });
-  return facts;
-}
-
-function resonanceConsumes(color: TraitColor): KeywordProfile {
-  return color === "umbra" ? kw([], ["umbra", "inverted"]) : kw([], [COLOR_KEYWORD[color]]);
-}
-
-/** 装備から成立する事実をすべて集める（表の順 → トリガー → 誓約 → proc → 共鳴。順は結果に影響しない） */
+/** 装備から成立する事実をすべて集める（表の順 → トリガー → 誓約 → proc。順は結果に影響しない） */
 function statFacts(stats: Readonly<PlayerStats>): StatFact[] {
   const facts: StatFact[] = STAT_RULES.filter((r) => r.test(stats));
   for (const t of stats.triggers) facts.push(...triggerFacts(t));
   for (const key of stats.keystones) facts.push(keystoneFact(key));
   for (const proc of stats.statusProcs) facts.push(procFact(proc));
-  facts.push(...resonanceFacts(stats));
   return facts;
 }
 
-/** 装備（stats）の語。性質・変換・誓約・トリガー・共鳴から推論する */
+/** 誓約 1 つの語（源と糧の共鳴が遺物・ラン内の誓約の出どころとして数える。system/resonance.ts） */
+export function keystoneKeywords(key: string): KeywordProfile {
+  return keystoneFact(key).keywords;
+}
+
+/**
+ * 遺物 1 つの語（源と糧の共鳴の出どころ 1 つ。system/resonance.ts）。性質・転じの定義の keywords、誓約の語、
+ * トリガーの語、名のある遺物の語の和。地金・implicit は数えない（地金の筋力で全遺物が近接を強めにならないように）。
+ * 反転した性質は効果が裏返っているので数えない
+ */
+export function relicKeywords(item: Readonly<Item>): KeywordProfile {
+  const parts: KeywordProfile[] = [];
+  for (const roll of item.affixes) {
+    if (roll.inverted === true) continue;
+    parts.push(...rollKeywords(roll));
+  }
+  const named = item.namedKey === undefined ? undefined : uniqueDef(item.namedKey);
+  if (named?.keywords) parts.push(named.keywords);
+  return mergeProfiles(emptyProfile(), ...parts);
+}
+
+function rollKeywords(roll: Readonly<AffixRoll>): KeywordProfile[] {
+  if (isKeystoneKey(roll.key)) return [keystoneKeywords(roll.key)];
+  const trigger = decodeTriggerRoll(roll);
+  if (trigger !== null) return triggerFacts(trigger).map((f) => f.keywords);
+  const def = affixDef(roll.key);
+  return def?.keywords ? [def.keywords] : [];
+}
+
+/** 装備（stats）の語。性質・変換・誓約・トリガーから推論する */
 export function statsKeywords(stats: Readonly<PlayerStats>): KeywordProfile {
   return mergeProfiles(...statFacts(stats).map((f) => f.keywords));
 }
@@ -544,10 +537,6 @@ function equipmentSources(): KeywordSource[] {
   for (const [k, f] of Object.entries(TRIGGER_EFFECT_FACTS)) list.push(src(`effect:${k}`, f.keywords));
   for (const k of Object.keys(KEYSTONE_FACTS)) list.push(src(`keystone:${k}`, keystoneFact(k).keywords));
   for (const [k, words] of Object.entries(STATUS_KEYWORDS)) list.push(src(`proc:${k}`, kw(words)));
-  for (const c of TRAIT_COLORS) {
-    list.push(src(`color:${c}`, kw([COLOR_KEYWORD[c]])));
-    list.push(src(`resonance:${c}`, resonanceConsumes(c)));
-  }
   return list;
 }
 

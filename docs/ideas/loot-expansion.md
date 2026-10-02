@@ -612,6 +612,8 @@
 
 ### 7-1. 節目
 
+2026-10-02: 下表の節目の値は基準の値で、判定・表示は 10 倍（`BUD.thresholdScale`）。同じ遺物には 1 ランで芽が 1 つまで（`BUD.perRunPerItem`）。設計は `docs/LOOT_DESIGN.md`「来歴と芽」。
+
 要追加: `Provenance` の新カウンタ（下表の key）と `ProvenanceEvent` の種類。触るファイル: `loot/types.ts`、`loot/provenance.ts`、`loot/names.ts`（銘の名詞）、各 system の呼び出し元。
 
 | # | 節目 | カウンタ key | 閾値 | 色 | 銘の名詞の例 | コスト |

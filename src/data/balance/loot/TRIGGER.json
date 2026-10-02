@@ -20,7 +20,19 @@
   "inflictBleed": 1.5,
   "inflictShock": 6,
   "trait": {
-    "lowManaRatio": 0.25,
+    "_fields": {
+      "momentWindowSec": "応手・双撃・先制の後に条件の族の増が効く窓。秒",
+      "moraleEvery": "性質「戦意 N につき」の N。戦意",
+      "comboEvery": "性質「コンボ N につき」の N。コンボ数",
+      "speedToDamageCap": "転じ「移動速度 → 与ダメージ」の増の上限。割合（0.5 = +50%）",
+      "manaPerProjectile": "転じ「最大気力 → 弾数」で弾 1 本に換える最大気力。気力",
+      "manaToProjectileRegenMul": "転じ「最大気力 → 弾数」の代償: 気力自然回復に掛ける倍。倍率",
+      "coinsPerMoreStep": "転じ「持ち金 → 倍」で 1 段と数える持ち金。銭",
+      "coinsMoreCap": "転じ「持ち金 → 倍」の上限（倍の 1 を超える分）。割合",
+      "critRuleIcd": "転じ「会心時: 〜」の Rule の内部クールダウン。秒",
+      "armorPerPoiseStep": "転じ「防御力 → 怯み値」で 1 段と数える防御力。防御力",
+      "lifePerAreaStep": "転じ「最大生命 → 範囲攻撃」で 1 段と数える最大生命。生命"
+    },
     "manaShieldMul": 0.5,
     "manaShieldColor": "#80c0ff",
     "staggerQuakeRadius": 72,
@@ -31,9 +43,7 @@
     "stakeMax": 8,
     "stakeColor": "#ffd060",
     "inheritDuration": 3,
-    "placedExtendRadius": 80,
     "lowHpRatio": 0.5,
-    "boonEchoOffPenalty": 0.02,
     "spreadCloseRange": 48,
     "alternateWindow": 2,
     "terrainBlastRadius": 56,
@@ -42,6 +52,17 @@
     "burningKillFireRadius": 12,
     "iceTrailRadius": 8,
     "rapidBrandSec": 4,
-    "elementMinMul": 0.1
+    "elementMinMul": 0.1,
+    "momentWindowSec": 2,
+    "moraleEvery": 10,
+    "comboEvery": 10,
+    "speedToDamageCap": 0.5,
+    "manaPerProjectile": 40,
+    "manaToProjectileRegenMul": 0.5,
+    "coinsPerMoreStep": 10,
+    "coinsMoreCap": 0.5,
+    "critRuleIcd": 1,
+    "armorPerPoiseStep": 10,
+    "lifePerAreaStep": 50
   }
 }

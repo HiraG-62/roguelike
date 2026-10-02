@@ -1,25 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { affixDef } from "./affixes";
-import { traitColorOf } from "./colors";
 import {
-  CALM_COST,
-  DYE_COST,
-  PARE_COST,
+  ECHO_OPS,
+  ECHO_OP_HINT,
+  ECHO_OP_LABEL,
+  RECALL_COST,
   STIR_COST,
   TRANSFER_COST,
   applyEchoResult,
   convertLegacyWallet,
   craftEcho,
-  craftRng,
   createEchoWallet,
-  dyeTrait,
+  echoCost,
   shatterYield,
   type EchoCraftState,
   type EchoRequest,
   type EchoWallet,
 } from "./crafting";
 import { CRAFT_KEY, createCraftSave, loadCraft, saveCraft } from "./craftingStore";
-import { VESSEL_CAPACITY } from "./generator";
 import { createEmptyProfile, createEmptyProvenance, type AffixRoll, type Item } from "./types";
 
 const RICH = 100;
@@ -55,10 +52,10 @@ function state(echoes: EchoWallet = richEchoes()): EchoCraftState {
   return { echoes, counter: 0 };
 }
 
-const melee: AffixRoll = { key: "meleeDamagePct", value: 30, nominal: 25, flux: 0.2, color: "crimson", origin: "found" };
-const life: AffixRoll = { key: "maxLife", value: 20, nominal: 20, flux: 0, color: "jade", origin: "found" };
+const melee: AffixRoll = { key: "damageVsStaggered", value: 30, nominal: 25, flux: 0.2, color: "crimson", origin: "found" };
+const life: AffixRoll = { key: "attr_str", value: 20, nominal: 20, flux: 0, color: "jade", origin: "found" };
 const invertedSpeed: AffixRoll = {
-  key: "attackSpeed",
+  key: "attr_vit",
   value: -5,
   nominal: 10,
   flux: -1.5,
@@ -66,7 +63,7 @@ const invertedSpeed: AffixRoll = {
   color: "umbra",
   origin: "found",
 };
-const grown: AffixRoll = { key: "critChance", value: 4, nominal: 4, flux: 0, color: "gold", origin: "bud" };
+const grown: AffixRoll = { key: "attr_dex", value: 4, nominal: 4, flux: 0, color: "gold", origin: "bud" };
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -95,6 +92,25 @@ function okItem(result: ReturnType<typeof craftEcho>): Item {
   if (!result.ok || result.item === null) throw new Error(`craft failed: ${result.message}`);
   return result.item;
 }
+
+describe("残響の操作", () => {
+  it("操作は砕く・注ぎ・移し・呼び戻し・煽りの 5 つ（この順）", () => {
+    expect([...ECHO_OPS], "5 つに絞る").toEqual(["shatter", "pour", "transfer", "recall", "stir"]);
+  });
+
+  it("どの操作にも表示名と説明があり、費用は砕く・注ぎが無料、他は冥響", () => {
+    for (const op of ECHO_OPS) {
+      expect(ECHO_OP_LABEL[op].length, `${op} の表示名`).toBeGreaterThan(0);
+      expect(ECHO_OP_HINT[op].length, `${op} の説明`).toBeGreaterThan(0);
+    }
+    const item = makeItem();
+    expect(echoCost({ op: "shatter", item })).toBeNull();
+    expect(echoCost({ op: "pour", item, target: item })).toBeNull();
+    expect(echoCost({ op: "transfer", item, target: item, what: { kind: "inscription" } })).toEqual({ color: "umbra", amount: TRANSFER_COST });
+    expect(echoCost({ op: "recall", item, budIndex: 0 })).toEqual({ color: "umbra", amount: RECALL_COST });
+    expect(echoCost({ op: "stir", item, traitIndex: 0 })).toEqual({ color: "umbra", amount: STIR_COST });
+  });
+});
 
 describe("砕く", () => {
   it("性質の色ごとに残響を得る。性質が無ければベースの傾きの色を 1", () => {
@@ -133,86 +149,12 @@ describe("共通: 決定性・通貨・拒否", () => {
 
   it("成立しない操作は invalid で、通貨も counter も変わらない", () => {
     const s = state();
-    const result = craftEcho(s, { op: "dye", item: makeItem(), traitIndex: 0, color: "crimson" });
+    const keystone = makeItem({ affixes: [{ key: "ks_blink", value: 0, color: "umbra" }] });
+    const result = craftEcho(s, { op: "stir", item: keystone, traitIndex: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("invalid");
     expect(s.echoes).toEqual(richEchoes());
     expect(s.counter).toBe(0);
-  });
-});
-
-describe("染め", () => {
-  it(`目標色の残響 ${DYE_COST} で、同じ色の別の性質に置き換える（揺らぎは引き継ぐ）`, () => {
-    const s = state();
-    const after = okItem(craftEcho(s, { op: "dye", item: makeItem(), traitIndex: 0, color: "azure" }));
-    const dyed = after.affixes[0];
-    expect(dyed && traitColorOf(dyed)).toBe("azure");
-    expect(dyed?.key).not.toBe("meleeDamagePct");
-    expect(dyed?.flux).toBeCloseTo(0.2);
-    expect(s.echoes.azure).toBe(RICH - DYE_COST);
-    expect(after.affixes).toHaveLength(3);
-  });
-
-  it("提示中の芽の候補（budOffer）と同じ key は染めで選ばれない", () => {
-    const item = makeItem();
-    const sampleKeys = (budOfferKey: string | null, samples: number): Set<string> => {
-      const keys = new Set<string>();
-      const target = budOfferKey === null ? item : { ...item, budOffer: { milestone: "m", options: [{ ...life, key: budOfferKey }, life] as [AffixRoll, AffixRoll] } };
-      for (let i = 0; i < samples; i++) {
-        const key = dyeTrait(target, 0, "azure", craftRng(item.id, i))?.affixes[0]?.key;
-        if (key !== undefined) keys.add(key);
-      }
-      return keys;
-    };
-    const SAMPLES = 100;
-    const withoutOffer = sampleKeys(null, SAMPLES);
-    expect(withoutOffer.size).toBeGreaterThan(1);
-    const candidate = [...withoutOffer][0];
-    if (candidate === undefined) throw new Error("候補が取れなかった");
-    expect(sampleKeys(candidate, SAMPLES).has(candidate)).toBe(false);
-  });
-
-  it("右手の家系を守る: 銃のアイテムを染めても family:melee の性質は出ず、剣を染めても family:gun は出ない", () => {
-    const gun = makeItem({ baseKey: "pistol" });
-    const meleeItem = makeItem({ baseKey: "longsword" });
-    const colors = ["crimson", "azure", "jade", "gold", "umbra"] as const;
-    for (let i = 0; i < 200; i++) {
-      for (const color of colors) {
-        const gunDyed = dyeTrait(gun, 0, color, craftRng(`${gun.id}-${color}`, i));
-        const key = gunDyed?.affixes[0]?.key;
-        if (key !== undefined) expect(affixDef(key)?.family, `${color} ${i}: ${key}`).not.toBe("melee");
-
-        const meleeDyed = dyeTrait(meleeItem, 0, color, craftRng(`${meleeItem.id}-${color}`, i));
-        const meleeKey = meleeDyed?.affixes[0]?.key;
-        if (meleeKey !== undefined) expect(affixDef(meleeKey)?.family, `${color} ${i}: ${meleeKey}`).not.toBe("gun");
-      }
-    }
-  });
-});
-
-describe("鎮め", () => {
-  it(`性質の色の残響 ${CALM_COST} で揺らぎを半分に。余白が 1 減る`, () => {
-    const s = state();
-    const after = okItem(craftEcho(s, { op: "calm", item: makeItem(), traitIndex: 0 }));
-    expect(after.affixes[0]?.flux).toBeCloseTo(0.1);
-    expect(after.affixes[0]?.value).toBe(Math.round(25 * 1.1));
-    expect(after.margin).toBe(1);
-    expect(s.echoes.crimson).toBe(RICH - CALM_COST);
-  });
-
-  it("反転は解け、色は定義の色に戻る（冥響で払う）", () => {
-    const s = state();
-    const after = okItem(craftEcho(s, { op: "calm", item: makeItem(), traitIndex: 2 }));
-    const calmed = after.affixes[2];
-    expect(calmed?.inverted).toBeUndefined();
-    expect(calmed?.value).toBeGreaterThan(0);
-    expect(calmed && traitColorOf(calmed)).toBe("crimson");
-    expect(s.echoes.umbra).toBe(RICH - CALM_COST);
-  });
-
-  it("揺らぎが無い・余白が無いと拒否", () => {
-    expect(craftEcho(state(), { op: "calm", item: makeItem(), traitIndex: 1 }).ok).toBe(false);
-    expect(craftEcho(state(), { op: "calm", item: makeItem({ margin: 0 }), traitIndex: 0 }).ok).toBe(false);
   });
 });
 
@@ -235,19 +177,6 @@ describe("煽り", () => {
   });
 });
 
-describe("削ぎ", () => {
-  it(`性質の色の残響 ${PARE_COST} で性質を消し、余白を 1 戻す（器の容量まで）`, () => {
-    const s = state();
-    const after = okItem(craftEcho(s, { op: "pare", item: makeItem(), traitIndex: 1 }));
-    expect(after.affixes.map((r) => r.key)).toEqual(["meleeDamagePct", "attackSpeed"]);
-    expect(after.margin).toBe(3);
-    expect(after.marginMax).toBe(3);
-    expect(s.echoes.jade).toBe(RICH - PARE_COST);
-    const full = okItem(craftEcho(state(), { op: "pare", item: makeItem({ margin: VESSEL_CAPACITY }), traitIndex: 0 }));
-    expect(full.margin).toBe(VESSEL_CAPACITY);
-  });
-});
-
 describe("移し", () => {
   it(`冥響 ${TRANSFER_COST} で芽吹いた性質を同じ部位の別の遺物へ。元は失われ、受け手の余白を 1 使う`, () => {
     const profile = createEmptyProfile();
@@ -258,7 +187,7 @@ describe("移し", () => {
     const result = craftEcho(s, { op: "transfer", item: source, target, what: { kind: "bud", traitIndex: 1 } });
     const after = okItem(result);
     expect(after.id).toBe("dst");
-    expect(after.affixes.map((r) => r.key)).toEqual(["maxLife", "critChance"]);
+    expect(after.affixes.map((r) => r.key)).toEqual(["attr_str", "attr_dex"]);
     expect(after.margin).toBe(1);
     expect(s.echoes.umbra).toBe(RICH - TRANSFER_COST);
     expect(applyEchoResult(profile, result)).toBe(true);

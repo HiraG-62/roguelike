@@ -1,7 +1,7 @@
-import type { GameState } from "../core/state";
+import { type GameState, runOver } from "../core/state";
+import { enemyDef } from "../data/enemies";
 import { ENEMY_AI, MANA } from "../data/tuning";
 import { hasStatus } from "./statusEffects";
-import { SKILL } from "../skills/data";
 import { manaRegenAllowed } from "./keystones";
 import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
 
@@ -11,44 +11,41 @@ import { spillManaOverflow, traitManaGainMul } from "./traitHooks";
  */
 
 /**
- * 回収する。manaGainMul を掛け、後払いの返済残があれば先にそちらへ充て、上限で止める。実際に増えた量を返す
+ * 回収する。manaGainMul を掛け、上限で止める。実際に増えた量を返す
  */
 export function gainMana(state: GameState, amount: number): number {
-  if (amount <= 0 || state.status === "dead") return 0;
+  if (amount <= 0 || runOver(state)) return 0;
   return addMana(state, amount * state.stats.manaGainMul * traitManaGainMul(state));
 }
 
 /**
  * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中の回収。mul は呼び出し側の誓約 × 祝福の倍率。
- * 性質「底打ち」と合わせた積を MANA.attackGainMulMax で止める。後払いの返済残がある間は owedAttackManaMul（0）
+ * 性質「底打ち」と合わせた積を MANA.attackGainMulMax で止める
  */
 export function gainAttackMana(state: GameState, base: number, mul: number): number {
-  if (base <= 0 || state.status === "dead") return 0;
-  const owed = state.skills.debtOwed > 0 ? SKILL.modifier.deferred.owedAttackManaMul : 1;
+  if (base <= 0 || runOver(state)) return 0;
   // 沈黙中はスキルを撃てない代わりに、通常攻撃で溜める量が増える（docs/ideas/enemies.md H8。上限の外で掛ける）
   const silenced = hasStatus(state.player.status, "silence") ? ENEMY_AI.silencedAttackManaMul : 1;
-  const total = Math.min(MANA.attackGainMulMax, mul * traitManaGainMul(state)) * owed * silenced;
+  const total = Math.min(MANA.attackGainMulMax, mul * traitManaGainMul(state)) * silenced;
   if (total <= 0) return 0;
   return addMana(state, base * total * state.stats.manaGainMul);
 }
 
-/** 返済残へ先に充ててから足し、上限で溢れた分を必殺ゲージへ移す */
+/**
+ * 武器そのもの（近接の段・ダッシュ攻撃・弾）の命中の回収。素の倍率 MANA.attackGainScale を掛けてから gainAttackMana へ。
+ * 武器ごとの段の値を書き換えずに、序盤の連発をまとめて絞るための口（流儀の源は gainAttackMana を直に呼び、絞らない）
+ */
+export function gainWeaponMana(state: GameState, base: number, mul: number): number {
+  return gainAttackMana(state, base * MANA.attackGainScale, mul);
+}
+
+/** 足して、上限で溢れた分を必殺ゲージへ移す */
 function addMana(state: GameState, raw: number): number {
   const p = state.player;
   const before = p.mana;
-  const left = repayDebt(state, raw);
-  p.mana = Math.min(state.stats.maxMana, p.mana + left);
-  spillManaOverflow(state, before + left - p.mana);
+  p.mana = Math.min(state.stats.maxMana, p.mana + raw);
+  spillManaOverflow(state, before + raw - p.mana);
   return Math.max(0, p.mana - before);
-}
-
-/** 後払いの返済残を回収から差し引き、残りを返す */
-function repayDebt(state: GameState, raw: number): number {
-  const rs = state.skills;
-  if (rs.debtOwed <= 0) return raw;
-  const paid = Math.min(rs.debtOwed, raw);
-  rs.debtOwed -= paid;
-  return raw - paid;
 }
 
 /** コストを払えるか */
@@ -69,8 +66,8 @@ export function spendMana(state: GameState, cost: number): boolean {
  * 開放型フロアでは封鎖がほぼ無いので「近くに敵がいるか」で戦闘中を判定する
  */
 export function tickMana(state: GameState, dt: number): void {
-  if (state.status === "dead") return;
-  // 渇きの誓約は自然回復そのものを止める（精神の派生ぶんも含めて）
+  if (runOver(state)) return;
+  // 自然回復そのものを止める誓約が付くと止まる（精神の派生ぶんも含めて。今は止める誓約が無く、口だけ残してある）
   if (!manaRegenAllowed(state)) return;
   const p = state.player;
   const max = state.stats.maxMana;
@@ -78,10 +75,8 @@ export function tickMana(state: GameState, dt: number): void {
   const pos = p.body.pos;
   const r2 = MANA.combatRadius * MANA.combatRadius;
   const fighting =
-    state.rooms.some((r) => r.locked) || state.enemies.some((e) => e.hp > 0 && (e.body.pos.x - pos.x) ** 2 + (e.body.pos.y - pos.y) ** 2 <= r2);
-  // 後払いの返済残がある間は自然回復しない（owedRegenMul）
-  const owed = state.skills.debtOwed > 0 ? SKILL.modifier.deferred.owedRegenMul : 1;
-  const rate = state.stats.manaRegen * (fighting ? 1 : MANA.idleRegenMul) * owed;
+    state.rooms.some((r) => r.locked) || state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).container === undefined && (e.body.pos.x - pos.x) ** 2 + (e.body.pos.y - pos.y) ** 2 <= r2);
+  const rate = state.stats.manaRegen * (fighting ? 1 : MANA.idleRegenMul);
   p.mana = Math.min(max, p.mana + rate * dt);
 }
 

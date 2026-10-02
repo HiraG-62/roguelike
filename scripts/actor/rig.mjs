@@ -116,15 +116,19 @@ function capital(key) {
   return `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
 }
 
-/** 歩き: 8 枚で 1 歩ずつ 2 歩。上体は接地で沈み、蹴り出しで浮く */
+/**
+ * 歩き: 8 枚で 1 歩ずつ 2 歩。上体は接地で沈み、蹴り出しで浮く。
+ * 前へ歩く足は「浮いて前（+x）へ振り出し、着いたら体の下を後ろへ流れる」。浮かせるのは足の x が増えている間
+ * （fx = cos t の増える側は sin t < 0）。逆にすると、着いた足が前へ滑って後ずさりに見える
+ */
 export const WALK_FRAMES = 8;
 function walkPose(f) {
   const t = (f / WALK_FRAMES) * TAU;
   const stride = 5;
   const fx = Math.cos(t) * stride;
   const bx = -fx;
-  const liftF = Math.max(0, Math.sin(t)) * 3;
-  const liftB = Math.max(0, -Math.sin(t)) * 3;
+  const liftF = Math.max(0, -Math.sin(t)) * 3;
+  const liftB = Math.max(0, Math.sin(t)) * 3;
   const bob = Math.abs(Math.cos(t)) > 0.7 ? 1 : 0;
   return pose({ bob, lean: 1, footF: { x: fx + 0.5, lift: liftF }, footB: { x: bx - 0.5, lift: liftB }, sway: 0.6 + Math.sin(t * 2) * 0.25 });
 }
@@ -190,6 +194,16 @@ const ATTACK_KEYS = {
     { lean: 5, bob: 4, footF: f(12), footB: f(-9, 1), tilt: 1, sway: 1.1, reach: 2.5 },
     { lean: 3, bob: 3, footF: f(9), footB: f(-7), tilt: 0.5, sway: 0.6, reach: 1 },
   ],
+  // 居合（刀の右の溜め）: 0-1 = 足を大きく開いて腰を深く落とし、上体をわずかに前へ（鞘に手を添えて柄を握る構え）、
+  // 2-3 = 低いまま前足を大きく踏み出し、肩を入れて抜き付ける、4 = 抜き切った残心、5 = 戻し
+  atkIai: [
+    { lean: 1.5, bob: 5, footF: f(8), footB: f(-8), tilt: 0.5, sway: -0.2, reach: -1 },
+    { lean: 2, bob: 6, footF: f(8.5), footB: f(-8.5, 0.5), tilt: 0.5, sway: -0.3, breath: 0.4, reach: -1.5 },
+    { lean: 5, bob: 4.5, footF: f(12), footB: f(-9, 1), tilt: 1, sway: 1, reach: 2.5 },
+    { lean: 6, bob: 4, footF: f(13), footB: f(-9, 1.5), tilt: 1, sway: 1.3, reach: 3 },
+    { lean: 5, bob: 4, footF: f(13), footB: f(-9, 1), tilt: 0.5, sway: 1.1, reach: 2.5 },
+    { lean: 3, bob: 3, footF: f(9), footB: f(-7), tilt: 0.5, sway: 0.6, reach: 1 },
+  ],
   // 回転: 腰を落として逆へひねり、足を開いたまま布を振り回す
   atkSpin: [
     { lean: -1, bob: 3.5, footF: f(7), footB: f(-7), sway: -0.4, reach: -0.5 },
@@ -215,7 +229,7 @@ export const BODY_CLIPS = [
 
 /**
  * ジョブの体のシート一式。draw(frame, sk, clip) で部品を塗る。
- * 肩・頭・腰の位置の印は骨組みから置く（腕と頭上の印を実行時に合わせる）
+ * 肩・頭・腰の位置の印は骨組みから置く（腰は鞘を下げる位置）（腕と頭上の印を実行時に合わせる）
  */
 export function bodySheets(key, draw) {
   return BODY_CLIPS.map((clip) => ({
@@ -232,6 +246,7 @@ export function bodySheets(key, draw) {
       frame.anchor("shoulderF", sk.shoulderF.x, sk.shoulderF.y);
       frame.anchor("shoulderB", sk.shoulderB.x, sk.shoulderB.y);
       frame.anchor("head", sk.head.x, sk.head.y);
+      frame.anchor("hip", sk.hip.x, sk.hip.y);
     },
   }));
 }

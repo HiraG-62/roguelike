@@ -9,10 +9,13 @@ import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
 import { type ButtonKey, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { FORMS } from "../data/weaponForms";
 import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
 import {
   type MeleeStep,
+  attackMoveMulOf,
+  canDashCancel,
   dashCooldownTime,
   hookCombo,
   isPlayerStaggered,
@@ -25,7 +28,7 @@ import {
 import { ultimateDamage } from "./ultimates";
 import { collectRules } from "./rules";
 import { hasStatus } from "./statusEffects";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 
 /**
  * 無効化手段の整理と手触り（docs/COMBAT_DESIGN.md C 章・段階 1 の L4）。
@@ -107,7 +110,7 @@ function staggerPlayer(state: GameState): void {
   state.player.status.effects.push(effect);
 }
 
-describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
+describe("ダッシュの無敵（前半だけ）", () => {
   it("ダッシュ直後は JUST 回避になる", () => {
     const state = arena();
     step(state, withInput({ dashPressed: true }), FIXED_DT);
@@ -116,7 +119,7 @@ describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
     expect(state.player.dodgedThisDash, "このダッシュで JUST を取った").toBe(true);
   });
 
-  it("無敵は invulnTime で切れ、ダッシュ中でも 0.10 秒後は被弾する", () => {
+  it("無敵は invulnTime で切れ、ダッシュ中でも無敵が切れた後は被弾する", () => {
     const state = arena();
     step(state, withInput({ dashPressed: true }), FIXED_DT);
     expect(state.player.invulnTimer, "無敵はダッシュ全長ではなく invulnTime").toBeCloseTo(PLAYER.dash.invulnTime);
@@ -127,10 +130,10 @@ describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
     expect(state.player.hp).toBeLessThan(hp);
   });
 
-  it("ダッシュ後の猶予無敵は無く、CD は 0.45 秒", () => {
+  it("ダッシュ後の猶予無敵は無く、再使用は PLAYER.dash.cooldown（基礎 1 回ぶん）", () => {
     const state = arena();
     expect(dashCooldownTime(state.stats), "基礎のダッシュ CD").toBeCloseTo(PLAYER.dash.cooldown);
-    expect(PLAYER.dash.cooldown).toBeCloseTo(0.45);
+    expect(PLAYER.dash.cooldown, "無敵を連打で繋げない長さ（invulnTime より十分長い）").toBeGreaterThan(PLAYER.dash.invulnTime * 5);
     step(state, withInput({ dashPressed: true }), FIXED_DT);
     while (state.player.dashTimer > 0) step(state, withInput({}), FIXED_DT);
     expect(state.player.invulnTimer, "終了直後に無敵が残らない").toBe(0);
@@ -140,7 +143,8 @@ describe("ダッシュの無敵（前半 0.10 秒だけ）", () => {
 describe("弾斬り（性質 bulletCut）", () => {
   it("bulletCut があると近接の active で敵弾が消え、撃ち返しはしない", () => {
     const state = arena(5, { bulletCut: 1 });
-    const pr = enemyBullet(state, 22);
+    // 剣の 1 段目の予備動作（0.12 秒）が明けて active に入る頃に、弾が刃の届く所へ来る距離
+    const pr = enemyBullet(state, 34);
     swing(state);
     expect(pr.owner, "撃ち返さない").toBe("enemy");
     expect(state.projectiles.includes(pr) && pr.life > 0, "敵弾が消えている").toBe(false);
@@ -156,7 +160,7 @@ describe("近接命中のマナ回収", () => {
     e.maxHp = 1000;
     swing(state);
     expect(e.hp, "当たっている").toBeLessThan(1000);
-    expect(state.player.mana, "1 段目の回収量").toBeCloseTo(MANA.onMelee[0] ?? 0);
+    expect(state.player.mana, "1 段目の回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.attackGainScale);
   });
 
   it("カウンターヒットなら倍", () => {
@@ -165,7 +169,7 @@ describe("近接命中のマナ回収", () => {
     e.phase = "windup";
     e.phaseTimer = LONG_WINDUP;
     swing(state);
-    expect(state.player.mana, "カウンターの回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.onCounterMul);
+    expect(state.player.mana, "カウンターの回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.onCounterMul * MANA.attackGainScale);
   });
 
   it("静寂の誓い（ks_silentVow）があると近接命中でマナが戻らない", () => {
@@ -190,7 +194,7 @@ describe("近接命中のマナ回収", () => {
     }
     swing(state);
     expect(crowd.every((e) => e.hp < 1000), "全員に当たっている").toBe(true);
-    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.meleeTargetCap);
+    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.meleeTargetCap * MANA.attackGainScale);
   });
 });
 
@@ -260,10 +264,10 @@ describe("射撃・バーストの威力と怯み値", () => {
     expect(shot.poise, "射撃の怯み値").toBeCloseTo(PLAYER.shoot.poise * state.stats.poiseDamageMul);
   });
 
-  it("バーストは burstDamageMul を掛け、無敵は 0.15 秒", () => {
-    const state = arena(5, { burstDamageMul: 2 });
+  it("バーストは奥義の増を掛け、無敵は 0.15 秒", () => {
+    const state = arena(5, { increased: increasedWith({ ultimate: 1 }) });
     const scaling = ULTIMATE.defs.sword.fullMoon.nova.scaling;
-    expect(ultimateDamage(state.stats, scaling), "バースト威力 × burstDamageMul").toBeCloseTo(ultimateDamage({ ...state.stats, burstDamageMul: 1 }, scaling) * 2);
+    expect(ultimateDamage(state.stats, scaling), "バースト威力 × 奥義の増").toBeCloseTo(ultimateDamage({ ...state.stats, increased: increasedWith({}) }, scaling) * 2);
     state.player.energy = ULTIMATE.common.cost;
     step(state, withInput({ specialPressed: true }), FIXED_DT);
     expect(state.player.energy, "ゲージを消費した").toBe(0);
@@ -379,7 +383,8 @@ describe("武器種: 各段が当たる", () => {
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const maxStep = runCombo(state, e);
       const steps = MOVESETS[key].steps;
-      const hits = steps.reduce((sum, s) => sum + (s.hits ?? 1), 0);
+      // 当たり判定の大きさ 0 の段は純粋な詠唱（書の左）。当たるのは字（弾）で、近接の命中には数えない
+      const hits = steps.reduce((sum, s) => sum + (s.cast !== undefined && s.size === 0 ? 0 : (s.hits ?? 1)), 0);
       expect(maxStep, "最終段まで進んだ").toBe(steps.length - 1);
       expect(state.player.attack.branch, "派生は出ていない").toBe(-1);
       expect(state.player.meleeHitCount, "段ごとのヒット数の合計だけ当たった").toBe(hits);
@@ -469,13 +474,31 @@ describe("武器種: 形とリーチ", () => {
     expect(e2.knock.x, "拳の投げ: 背後（-x）へ飛ぶ").toBeLessThan(0);
   });
 
-  it("双剣の 5 段は最終段だけが祝福の最終段（combo 2）になる", () => {
+  it("双剣の 6 段は最終段だけが祝福の最終段（combo 2）になる", () => {
     const twin = MOVESETS.twinBlades;
+    expect(twin.steps.length, "連刃の型の下限（FORM.flurry.stepsMin）").toBe(FORMS.flurry.steps.min);
     expect(hookCombo(twin, 0)).toBe(0);
     expect(hookCombo(twin, 2), "途中の段は 1").toBe(1);
-    expect(hookCombo(twin, 3), "途中の段は 1").toBe(1);
-    expect(hookCombo(twin, 4), "最終段は 2").toBe(2);
+    expect(hookCombo(twin, 4), "途中の段は 1").toBe(1);
+    expect(hookCombo(twin, twin.steps.length - 1), "最終段は 2").toBe(2);
+    expect(hookCombo(twin, twin.steps.length - 1, "secondary"), "右の最終段（乱舞）も 2").toBe(2);
     expect(hookCombo(MOVESETS.sword, 2), "剣の 3 段目は従来どおり 2").toBe(2);
+  });
+
+  it("連刃の 3 武器種は段数が 双剣 6・拳 6・爪 8 で、右の最終段が乱舞（放出の段）になる", () => {
+    const EXPECTED_STEPS = { twinBlades: 6, fists: 6, claws: 8 } as const;
+    const form = FORMS.flurry;
+    for (const [key, count] of Object.entries(EXPECTED_STEPS) as [keyof typeof EXPECTED_STEPS, number][]) {
+      const m = MOVESETS[key];
+      expect(m.steps.length, `${key} の左の段数`).toBe(count);
+      expect(m.steps2.length, `${key} の右の段数`).toBe(count);
+      expect(count, `${key} が型の幅に入る`).toBeGreaterThanOrEqual(form.steps.min);
+      expect(count, `${key} が型の幅に入る`).toBeLessThanOrEqual(form.steps.max);
+      expect(m.steps2[count - 1]?.key, `${key} の右の最終段`).toBe("frenzy");
+      expect(m.steps2.filter((s) => s.key === "frenzy").length, `${key} の乱舞は 1 つだけ`).toBe(1);
+      expect(hookCombo(m, count - 1), `${key} の左の最終段は終撃`).toBe(2);
+      expect(hookCombo(m, count - 2), `${key} の左の最終段の 1 つ前は途中`).toBe(1);
+    }
   });
 });
 
@@ -609,7 +632,8 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
 
   it("剣: 左・左・右で十字断ち（フィニッシュとして祝福に最終段を渡す）", () => {
     const state = arena(5);
-    play(state, [{ attackPressed: true }, ...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
+    // 先行入力は前の段の予備動作が終わってから（active / recover の間）
+    play(state, [{ attackPressed: true }, ...idle(9), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("crossCut");
     expect(state.player.attack.combo, "フィニッシュは combo 2").toBe(2);
@@ -648,7 +672,7 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     play(state, [{ attackPressed: true, attackHeld: true }]);
     expect(state.player.attack.phase, "左で振った").toBe("windup");
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "振り始めではまだ撃たない").toBe(0);
-    play(state, [...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
+    play(state, [...idle(9), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("lightningBolt");
 
@@ -736,25 +760,25 @@ describe("左右アクションの共有の段カウンタ（docs/ideas/ougi-and
     expect(names, "右（受け流し）→ 左の 2 段目 → 踏み込み斬り").toEqual(["primary:1", "steppingCut"]);
   });
 
-  it("右レーンの最終段は終撃として扱われる（得物の誉れが乗る）", () => {
-    const energyAfterRightFinisher = (withBoon: boolean): number => {
+  it("右レーンの最終段は終撃として扱われる（豪遊の銭が乗る）", () => {
+    const coinsAfterRightFinisher = (withBoon: boolean): number => {
       const state = arena(5);
       state.job = "swordsman";
       // 祝福は装備の stats から畳み直す。空の装備は素手（拳）になるので、arena の剣の stats を装備の stats として使わせる
       state.boonRun.baseStats = state.stats;
-      if (withBoon) grantBoon(state, "favoredPride");
+      if (withBoon) grantBoon(state, "lavishBlade");
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
       const log = swingLog(state, ["secondary", "secondary", "secondary"]);
       expect(log.at(-1), "右の 3 段目（斬り上げ）まで振った").toEqual({ step: 2, lane: "secondary", branch: -1 });
       expect(e.hp, "当たった").toBeLessThan(TOUGH_HP);
-      return state.player.energy;
+      return state.economy.coins;
     };
     const state = arena(5);
     expect(hookCombo(MOVESETS.sword, 2, "secondary"), "右の最終段は combo 2").toBe(2);
     expect(hookCombo(MOVESETS.sidearm, 2, "secondary"), "銃の右レーンの最終段も終撃").toBe(2);
     expect(hookCombo(MOVESETS.sidearm, 0, "primary"), "銃の左（反転撃ち）は連撃ではない").toBe(0);
     expect(state.player.energy).toBe(0);
-    expect(energyAfterRightFinisher(true), "得物の誉れで奥義ゲージが増える").toBeGreaterThan(energyAfterRightFinisher(false));
+    expect(coinsAfterRightFinisher(true), "豪遊で銭が入る").toBeGreaterThan(coinsAfterRightFinisher(false));
   });
 
   it("ジョブ派生 左左左右 は右レーンの 4 段目を上書きする", () => {
@@ -911,5 +935,108 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     expect(hammerIds.some((id) => id.startsWith("player:moveset.axe:")), "斧の固有効果は入らない").toBe(false);
     const sword = arena(5);
     expect(collectRules(sword).some((r) => r.id.startsWith("player:moveset.")), "剣は固有効果なし").toBe(false);
+  });
+});
+
+describe("武器の重さ（ダッシュの取り消し・攻撃中の移動・硬直）", () => {
+  const MAX_WAIT_STEPS = 120;
+
+  /** 1 段目を押して、指定の相に入るまで回す */
+  function swingUntil(moveset: "greatsword" | "sword" | "twinBlades", phase: "active" | "recover"): GameState {
+    const state = arena(5, { moveset });
+    step(state, withInput({ attackPressed: true }), FIXED_DT);
+    for (let i = 0; i < MAX_WAIT_STEPS && state.player.attack.phase !== phase; i++) step(state, withInput({}), FIXED_DT);
+    if (state.player.attack.phase !== phase) throw new Error(`${phase} に入らない`);
+    return state;
+  }
+
+  it("発生中はどの重さでもダッシュで取り消せず、入力は捨てられて回数も減らない", () => {
+    for (const key of ["twinBlades", "sword", "greatsword"] as const) {
+      const state = arena(5, { moveset: key });
+      step(state, withInput({ attackPressed: true }), FIXED_DT);
+      expect(state.player.attack.phase, `${key} は振り始めが発生`).toBe("windup");
+      const charges = state.player.dashChargesLeft;
+      step(state, withInput({ dashPressed: true }), FIXED_DT);
+      expect(state.player.dashChargesLeft, `${key} の発生中は回数が減らない`).toBe(charges);
+      expect(state.player.dashTimer, `${key} の発生中はダッシュが出ない`).toBe(0);
+    }
+  });
+
+  it("重い武器（大剣）は持続中にダッシュを押しても切れず、回数も減らない", () => {
+    const state = swingUntil("greatsword", "active");
+    const charges = state.player.dashChargesLeft;
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(canDashCancel(state), "持続中は取り消せない").toBe(false);
+    expect(state.player.dashChargesLeft, "回数が減らない").toBe(charges);
+    expect(state.player.attack.phase, "振りが続く").not.toBe("none");
+  });
+
+  it("軽い武器（双剣）は持続中にダッシュで切れる", () => {
+    const state = swingUntil("twinBlades", "active");
+    const charges = state.player.dashChargesLeft;
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(state.player.dashChargesLeft, "回数を使った").toBe(charges - 1);
+    expect(state.player.attack.phase, "振りが消えた").toBe("none");
+  });
+
+  it("重い武器は硬直の前半は切れず、後半（残りが半分以下）で切れる", () => {
+    const state = swingUntil("greatsword", "recover");
+    expect(canDashCancel(state), "硬直の最初は取り消せない").toBe(false);
+    const step0 = meleeStep(state.stats, state.player.attack.step, false, 0, -1, playerMoveset(state));
+    if (!step0) throw new Error("段が無い");
+    const ratio = WEAPON.weightClass.heavy.lockRecoverRatio;
+    for (let i = 0; i < MAX_WAIT_STEPS && state.player.attack.timer > step0.recover * (1 - ratio); i++) step(state, withInput({}), FIXED_DT);
+    expect(state.player.attack.phase, "まだ硬直中").toBe("recover");
+    expect(canDashCancel(state), "後半は取り消せる").toBe(true);
+  });
+
+  it("中の剣は硬直に入れば切れる（lockRecoverRatio 0）", () => {
+    const state = swingUntil("sword", "recover");
+    expect(canDashCancel(state), "硬直では取り消せる").toBe(true);
+  });
+
+  it("溜め中はダッシュで切れる（振りの相ではない）", () => {
+    const state = arena(5, { moveset: "greatsword" });
+    step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    expect(canDashCancel(state), "溜め中").toBe(true);
+  });
+
+  it("攻撃中の移動倍率は武器種の値を重さの帯に丸める（重は 0、軽は帯の中）", () => {
+    const light = WEAPON.weightClass.light;
+    const heavy = WEAPON.weightClass.heavy;
+    expect(attackMoveMulOf(MOVESETS.greatsword, 0), "大剣は止まる").toBe(heavy.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.fists, 0), "拳は等倍から帯の上限へ").toBe(light.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.twinBlades, 0), "双剣は帯の中ならそのまま").toBe(MOVESETS.twinBlades.attackMoveMul);
+  });
+
+  it("終撃は中で足が止まり、軽は止まらない", () => {
+    const finisher = (key: "sword" | "twinBlades"): number => attackMoveMulOf(MOVESETS[key], hookCombo(MOVESETS[key], MOVESETS[key].steps.length - 1));
+    expect(finisher("sword"), "中の終撃").toBe(WEAPON.weightClass.medium.finisherMoveMul);
+    expect(finisher("sword")).toBe(0);
+    expect(finisher("twinBlades"), "軽の終撃は段と同じ").toBeGreaterThan(0);
+  });
+
+  it("recoverMul が硬直に掛かる", () => {
+    const state = arena(5, { moveset: "sword" });
+    const base = meleeStep(state.stats, 0)?.recover;
+    const weight = WEAPON.weightClass.medium;
+    const saved = weight.recoverMul;
+    try {
+      Object.assign(weight, { recoverMul: 2 });
+      const doubled = meleeStep(state.stats, 0)?.recover;
+      expect(base).toBeDefined();
+      expect(doubled).toBeCloseTo((base ?? 0) * 2);
+    } finally {
+      Object.assign(weight, { recoverMul: saved });
+    }
+  });
+
+  it("ダッシュの無敵は dashInvulnBonus だけ伸びる（ダッシュ時間を超えない）", () => {
+    const state = arena(5, { dashInvulnBonus: 0.03 });
+    step(state, withInput({ dashPressed: true }), FIXED_DT);
+    expect(state.player.invulnTimer).toBeCloseTo(PLAYER.dash.invulnTime + 0.03);
+    const long = arena(5, { dashInvulnBonus: 10 });
+    step(long, withInput({ dashPressed: true }), FIXED_DT);
+    expect(long.player.invulnTimer, "ダッシュ時間で頭打ち").toBeLessThanOrEqual(PLAYER.dash.time);
   });
 });

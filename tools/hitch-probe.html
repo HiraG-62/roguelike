@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <base href="/" />
+    <title>hitch-probe（開発用。配布物には入らない）</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+      body { display: flex; align-items: center; justify-content: center; }
+      canvas { image-rendering: pixelated; }
+      @font-face { font-family: "DotGothic16"; src: url("/fonts/DotGothic16-Regular.ttf") format("truetype"); font-display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/tools/hitchProbe.ts"></script>
+  </body>
+</html>

@@ -1,10 +1,12 @@
 {
-  "_note": "戦闘中の回復を束ねる窓（system/combat.ts。docs/COMBAT_DESIGN.md「回復の設計」）。sustainWindow は秒、sustainCapRatio は割合、killHealMinCombo はコンボ数。descendHealRatio は降階の回復（system/floor.ts の healOnDescend）",
+  "_note": "戦闘中の回復を束ねる窓（system/combat.ts。docs/COMBAT_DESIGN.md「回復の設計」）。sustainWindow は秒、sustainCapRatio は割合、killHealMinCombo はコンボ数。descendHealRatio は降階の回復（system/floor.ts の healOnDescend）。2026-09-30 に 0.35 → 0.15（core-synthesis 3-5: 回復を絞り、瓶などの資源にする）",
   "_fields": {
-    "descendHealRatio": "初めて着いた階へ降りたとき、失った生命（maxHp - hp）のうちこの割合を回復する。割合(0..1)"
+    "descendHealRatio": "初めて着いた階へ降りたとき、失った生命（maxHp - hp）のうちこの割合を回復する。割合(0..1)",
+    "heartChanceByChapter": "部屋を制圧したときにハートを落とす確率を章ごとに（1 章から順。章より深い階は最後の値）。割合(0..1)。試練の部屋は確定。章が進むほど絞る（回復は瓶と泉へ）"
   },
   "sustainWindow": 1,
   "sustainCapRatio": 0.04,
   "killHealMinCombo": 5,
-  "descendHealRatio": 0.35
+  "descendHealRatio": 0.15,
+  "heartChanceByChapter": [0.1, 0.08, 0.06, 0.04]
 }

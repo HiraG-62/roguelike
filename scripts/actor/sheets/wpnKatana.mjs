@@ -1,7 +1,9 @@
 // 刀: 細身で反りのある片刃。刃（-y の縁）に白い刃文、黒鉄の峰、金の鎺（はばき）、黒鉄と金の丸い鍔、
-// 白い鮫皮に黒い柄巻きの菱の目、金の柄頭。両手で持つ
+// 白い鮫皮に黒い柄巻きの菱の目、金の柄頭。両手で持つ。
+// 鞘（`wpnKatana.sheath`）: 黒漆に金の鯉口と鐺、栗形。原点 = 鯉口、+x = 鐺の向き。刀身と同じ反りで、納めた刀（写しの絵）の刃を覆う。
+// 腰に刃を上にして差すので、写しの絵（刃が上の側）と揃えて写しで描く
 import { capsule, ellipse, paint, polygon, union } from "../paint.mjs";
-import { DARK_STEEL, GOLD, STEEL, weaponSheets } from "../weapon.mjs";
+import { DARK_STEEL, GOLD, STEEL, WEAPON_DIRS, weaponSheets } from "../weapon.mjs";
 
 /** 添える後ろの手（握りから柄頭の側へ） */
 const OFF_GRIP = -5.5;
@@ -16,6 +18,14 @@ const TIP = 5;
 /** 柄巻き・鮫皮の色 */
 const ITO = ["#15141c", "#23222e", "#34323f", "#474455"];
 const SAME = ["#6b6a70", "#a6a3a0", "#cfcbc3", "#ece8de"];
+/** 鞘の黒漆 */
+const URUSHI = ["#1b1420", "#382a3e", "#584260", "#8c7494"];
+/** 鯉口の位置（握りから刃の向きへ、ドット。鍔のすぐ先）。実行時の構えの meta.sheath と同じ値 */
+const MOUTH_X = 6;
+/** 鞘の長さ（鯉口から鐺まで）と半幅（鯉口・鐺の側） */
+const SHEATH_LEN = 39;
+const SHEATH_HALF0 = 2.3;
+const SHEATH_HALF1 = 1.9;
 
 /** 反りの中心線（x での y） */
 function spineY(x) {
@@ -66,8 +76,41 @@ function draw(frame) {
   paint(frame, capsule(1.2, 0, 2.2, 0, 2.1), GOLD);
 }
 
+/** 鞘の中心線（鯉口からの x での y。刀身の反りと同じ） */
+function sheathY(x) {
+  return spineY(x + MOUTH_X);
+}
+
+function sheathFn(x, y) {
+  if (x < 0 || x > SHEATH_LEN) return null;
+  const c = sheathY(x);
+  const half = SHEATH_HALF0 + (SHEATH_HALF1 - SHEATH_HALF0) * (x / SHEATH_LEN);
+  // 鐺の角を丸める
+  const end = SHEATH_LEN - x < 1 ? half * Math.sqrt(Math.max(0, SHEATH_LEN - x)) : half;
+  if (y < c - end || y > c + end) return null;
+  return y < c ? { nx: 0.1, ny: -0.8 } : { nx: 0.1, ny: 0.6 };
+}
+
+function drawSheath(frame) {
+  paint(frame, sheathFn, URUSHI, { maxShade: 2 });
+  // 漆の艶: 刃の側（-y）の縁に沿った細い光
+  paint(frame, (x, y) => (sheathFn(x, y) && x > 2 && x < SHEATH_LEN - 3 && y < sheathY(x) - SHEATH_HALF1 + 0.7 ? 3 : null), URUSHI, { rim: false });
+  // 鯉口（金の口金）と鐺（金の石突き）
+  paint(frame, (x, y) => (x <= 1.4 && sheathFn(x, y) ? { nx: 0.1, ny: y < sheathY(x) ? -0.8 : 0.6 } : null), GOLD);
+  paint(frame, (x, y) => (x >= SHEATH_LEN - 2.4 && sheathFn(x, y) ? { nx: 0.1, ny: y < sheathY(x) ? -0.8 : 0.6 } : null), GOLD);
+  // 栗形（下緒を通す小さな突起。鯉口の近くの刃の側）
+  paint(frame, ellipse(5.5, sheathY(5.5) - SHEATH_HALF0 - 0.4, 1.3, 1), DARK_STEEL);
+}
+
 export const ATLAS = {
   key: "wpnKatana",
-  sheets: weaponSheets("wpnKatana", draw, { size: 96, edge: true }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "ready", restDeg: -22, restHand: [8, 7], swayDeg: 2, restMirror: true } },
+  sheets: [
+    ...weaponSheets("wpnKatana", draw, { size: 96, edge: true }),
+    { frames: 1, dirs: WEAPON_DIRS, w: 96, h: 96, ox: 48, oy: 48, localLight: true, mirror: true, key: "wpnKatana.sheath", draw: (frame) => drawSheath(frame) },
+  ],
+  meta: {
+    offGrip: OFF_GRIP,
+    // sheath: 鯉口の位置（腰から、ドット）・鞘の向き（度）・納めた刀の握りから鯉口まで（ドット）。iai: 右の溜めを納刀の構えと抜き付けで描く
+    stance: { grip: "two", body: "ready", restDeg: -22, restHand: [8, 7], swayDeg: 2, restMirror: true, restFront: true, sheath: [4, -2, 172, MOUTH_X], iai: true },
+  },
 };

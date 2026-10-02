@@ -8,6 +8,7 @@ import {
   ORIGIN_ROWS,
   type OriginScreen,
   START_LABEL,
+  carryLine,
   cursorDescription,
   jobCursorDetail,
   originRowTop,
@@ -35,7 +36,7 @@ const DESC_PAD = 6;
 const DESC_LINES = 2;
 const MARK_ON = "■";
 const MARK_OFF = "□";
-const MARK_PICK = "▶";
+const MARK_PICK = "◆";
 const WEAK_PREFIX = "弱点";
 
 export function drawOriginScreen(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>, time: number, rowGap: number): void {
@@ -47,6 +48,7 @@ export function drawOriginScreen(ctx: CanvasRenderingContext2D, ui: Readonly<Ori
   }
   drawText(ctx, "起点を選ぶ", VIEW_W / 2, ORIGIN_LAYOUT.titleY, TEXT.TITLE, COLOR_TITLE, "center");
   drawText(ctx, `ジョブ: ${JOBS[ui.job].name}`, VIEW_W - ORIGIN_LAYOUT.leftX, ORIGIN_LAYOUT.titleY, TEXT.SMALL, COLOR_SELECTED, "right");
+  drawText(ctx, carryLine(ui), ORIGIN_LAYOUT.leftX, ORIGIN_LAYOUT.titleY, TEXT.SMALL, COLOR_HEADER);
   drawText(ctx, "起点", ORIGIN_LAYOUT.leftX, ORIGIN_LAYOUT.headerY, TEXT.SMALL, COLOR_HEADER);
   drawText(ctx, `縛り（位階 ${originTier(ui)}）`, ORIGIN_LAYOUT.rightX, ORIGIN_LAYOUT.headerY, TEXT.SMALL, COLOR_HEADER);
   drawOriginColumn(ctx, ui, time, rowGap);
@@ -95,7 +97,7 @@ function drawJobColumn(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>
   });
 }
 
-/** 右の詳細欄: 名前・概要・ステータス・得意な武器・ルール 2 つ・初期スキル石・弱点。欄の下端で打ち切る */
+/** 右の詳細欄: 名前・概要・ステータス・ダッシュ・気力・ルール 2 つ・初期武器・初期スキル石。欄の下端で打ち切る */
 function drawJobDetail(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>): void {
   const { name, desc } = cursorDescription(ui);
   const line = textLineHeight(TEXT.SMALL);

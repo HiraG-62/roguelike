@@ -13,7 +13,7 @@ import { pushPlayerEvent } from "../core/events";
 import { type Rule, SCOPE_ANY, ruleId } from "../core/rules";
 import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
 import { createSkillRunState, updateSkills } from "./skills";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
 import {
   chosenUltimate,
   endUltimate,
@@ -124,7 +124,7 @@ describe("奥義の発動", () => {
     const e1 = dummy(base, NEAR);
     const far1 = dummy(base, radius + 10);
     tryUltimate(base);
-    const doubled = ready("sword.fullMoon", { burstDamageMul: 2, burstRadiusMul: 1.5 });
+    const doubled = ready("sword.fullMoon", { increased: increasedWith({ ultimate: 1 }), burstRadiusMul: 1.5 });
     const e2 = dummy(doubled, NEAR);
     const far2 = dummy(doubled, radius + 10);
     tryUltimate(doubled);
@@ -180,7 +180,7 @@ describe("一撃の奥義の行為", () => {
     tryUltimate(a);
     const shotsA = a.projectiles.filter((p) => p.owner === "player");
     expect(shotsA, "弾の数").toHaveLength(n);
-    const b = ready("gunner.deathRondo", { burstDamageMul: 2 });
+    const b = ready("gunner.deathRondo", { increased: increasedWith({ ultimate: 1 }) });
     tryUltimate(b);
     const shotB = b.projectiles.find((p) => p.owner === "player");
     expect(shotB?.damage, "弾の威力 2 倍").toBeCloseTo((shotsA[0]?.damage ?? 0) * 2, 5);
@@ -299,8 +299,8 @@ describe("持続の奥義", () => {
     expect(playerMoveset(state).steps[0]?.reach, "装備の型に戻る").toBe(base.steps[0]?.reach);
   });
 
-  it("持続中の倍率は通常攻撃に burstDamageMul を二重に掛けない", () => {
-    const state = arena(5, { moveset: "wand", burstDamageMul: 3 });
+  it("持続中の倍率は通常攻撃に奥義の増を二重に掛けない", () => {
+    const state = arena(5, { moveset: "wand", increased: increasedWith({ ultimate: 2 }) });
     const plain = rollOutgoing(state, null, 100, "melee").amount;
     state.player.ultimate.active = "wand.incantation";
     const mul = ULTIMATE.defs.wand.incantation.mul.damage;

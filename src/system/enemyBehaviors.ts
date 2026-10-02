@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, normalize, scale, sub } from "../core/vec";
-import { type EnemyDef, depthDamageBonus, enemyDef } from "../data/enemies";
+import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { DOUBLE_CHARGE, ENEMY_AI } from "../data/tuning";
 import { addFloatingText, shake, spawnBurst, spawnRing } from "./effects";
 import { spawnLanding, spawnShockwave } from "./hazards";
@@ -45,7 +45,7 @@ export function detonate(state: GameState, e: Enemy, def: EnemyDef): void {
   const ex = def.explode;
   if (!ex) return;
   const source = { defKey: def.key, roomIndex: e.roomIndex };
-  blastBoth(state, e.body.pos, ex.radius, ex.damage + depthDamageBonus(state.depth), ex.color, source, e.id);
+  blastBoth(state, e.body.pos, ex.radius, depthDamage(ex.damage, state.depth), ex.color, source, e.id);
   // 予告の円（予備動作の影）がそのまま地形の予告になる
   if (ex.terrain) placeTerrain(state, e.body.pos.x, e.body.pos.y, ex.terrain, ex.radius * 0.6);
   e.vanished = true;
@@ -88,7 +88,7 @@ export function strikeEcho(state: GameState, e: Enemy, def: EnemyDef): void {
   const t = ENEMY_AI.echoStriker;
   const target = e.ai?.target ?? state.player.body.pos;
   // 炸裂は敵にも当たる（E32: 過去の位置へ敵を集めれば武器になる）
-  blastBoth(state, target, t.radius, t.damage + depthDamageBonus(state.depth), t.color, { defKey: def.key, roomIndex: e.roomIndex }, e.id);
+  blastBoth(state, target, t.radius, depthDamage(t.damage, state.depth), t.color, { defKey: def.key, roomIndex: e.roomIndex }, e.id);
 }
 
 // -----------------------------------------------------------------------------
@@ -124,7 +124,7 @@ export function frostCrusherReady(state: GameState): boolean {
 }
 
 export function strikeShockRing(state: GameState, e: Enemy, radius: number, damage: number, color: string): void {
-  spawnShockwave(state, e.body.pos, radius, damage + depthDamageBonus(state.depth), e.id);
+  spawnShockwave(state, e.body.pos, radius, depthDamage(damage, state.depth), e.id);
   spawnBurst(state, e.body.pos, color, 14, 110, 0.4, 2.5);
   shake(state, 4);
 }
@@ -155,7 +155,7 @@ export function rallyFollowers(
 export function conductorVolley(state: GameState, e: Enemy): void {
   const c = ENEMY_AI.conductor;
   if (isSilenced(e)) return;
-  const damage = c.bulletDamage + depthDamageBonus(state.depth);
+  const damage = depthDamage(c.bulletDamage, state.depth);
   for (const dir of fanDirections(e.strikeDir, c.bulletCount, c.spreadDeg)) {
     const pos = add(e.body.pos, scale(dir, e.body.radius + 2));
     fireEnemyBullet(state, { pos, dir, speed: c.bulletSpeed, damage, color: c.color, sourceId: e.id });
@@ -207,7 +207,7 @@ export function finishEating(state: GameState, e: Enemy, def: EnemyDef): void {
   e.maxHp += bonus;
   e.hp += bonus;
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, "成長", s.color, 1, 0.8);
+  addFloatingText(state, e.body.pos, "成長", s.color, 1, 0.8, "status");
   spawnBurst(state, e.body.pos, s.color, 10, 70, 0.3, 1.5);
 }
 
@@ -249,14 +249,14 @@ export function ringBell(state: GameState, e: Enemy): void {
   pushSfx(state, "enemyWindup");
   if (left > 0) {
     ai.counter = left;
-    addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, String(left), g.color, 1.2, 0.8);
+    addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, String(left), g.color, 1.2, 0.8, "status");
     return;
   }
   ai.counter = g.rings;
   const corpse = nearestCorpse(state, e.body.pos, Infinity, e.roomIndex);
   if (!corpse) return;
   reviveCorpse(state, corpse);
-  addFloatingText(state, corpse.pos, "蘇生", g.color, 1.1, 0.9);
+  addFloatingText(state, corpse.pos, "蘇生", g.color, 1.1, 0.9, "status");
 }
 
 // -----------------------------------------------------------------------------
@@ -289,7 +289,7 @@ export function transformIfBroken(state: GameState, e: Enemy, def: EnemyDef): bo
   initEnemyPoise(e, state.depth);
   const h = ENEMY_AI.hollowArmor;
   spawnBurst(state, e.body.pos, h.color, 24, 150, 0.5, 2.5);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 12 }, "鎧割れ", h.color, 1.3, 1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 12 }, "鎧割れ", h.color, 1.3, 1, "status");
   shake(state, 5);
   pushSfx(state, "guardBreak");
   // 割れた瞬間は隙（自傷扱い: 拘束上限を数えない）

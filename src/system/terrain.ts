@@ -68,10 +68,21 @@ export function ensureTerrainLayer(state: GameState): TerrainLayer {
   return layer;
 }
 
+/** 地図の浅い地形（見本の浅瀬・断片の「~」）を自然配置より先に写す。乱数は使わない */
+function stampShallow(state: GameState, layer: TerrainLayer): void {
+  const shallow = state.map.shallow;
+  if (!shallow) return;
+  for (let i = 0; i < shallow.length && i < layer.kinds.length; i++) {
+    const code = shallow[i] ?? NONE;
+    if (code !== NONE && layer.kinds[i] === NONE) layer.kinds[i] = code;
+  }
+}
+
 /** フロアの自然配置を 1 回だけ入れる（スキルなどで先に置かれた地形は上書きしない） */
 function planOnce(state: GameState, layer: TerrainLayer): void {
   if (layer.planned) return;
   layer.planned = true;
+  stampShallow(state, layer);
   const skip = new Set([START_ROOM, state.map.rooms.length - 1]);
   const planned = planTerrain(state.rng, state.map, state.depth, skip);
   for (let i = 0; i < planned.length; i++) {
@@ -364,7 +375,7 @@ function tickFireSpread(state: GameState, layer: TerrainLayer, i: number, dt: nu
 }
 
 /**
- * 崩れる床（地裂きの刻印符「地崩れ」）: 敵が乗り続けたセルは TERRAIN_RUBBLE.fallDelay 秒で抜け、乗っている敵が落ちる。
+ * 崩れる床（共通技「地裂き」「地叩き」・改鋳「余震」）: 敵が乗り続けたセルは TERRAIN_RUBBLE.fallDelay 秒で抜け、乗っている敵が落ちる。
  * 乗っている間は rubbleLoad が溜まり（描画が揺らして予告する）、誰も乗っていないステップで 0 に戻る。
  * 毎ステップ判定する（効果の周期 tickInterval では 1 秒の予告がぶれるため）。プレイヤーは落ちない
  */
@@ -502,7 +513,7 @@ function onLava(state: GameState, target: StatusTarget): void {
   if (target.kind === "player") {
     if (playerUntouchable(state)) return;
     give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);
-    damagePlayerDot(state, TERRAIN.lava.damage);
+    damagePlayerDot(state, TERRAIN.lava.damage, { kind: "terrain", key: "lava" });
     return;
   }
   give(state, target, "burn", 1, TERRAIN.lava.burnDuration, TERRAIN.lava.burnDps);

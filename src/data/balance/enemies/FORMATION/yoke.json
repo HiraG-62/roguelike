@@ -1,0 +1,11 @@
+{
+  "layout": "twoRows",
+  "minDepth": 2,
+  "weight": 1.5,
+  "spacing": 22,
+  "rotate": { "restMul": 1.5, "stepInCooldown": 0.1 },
+  "slots": [
+    { "role": "vanguard", "grade": "normal", "share": 0.7, "min": 4 },
+    { "role": "shooter", "grade": "normal", "share": 0.3, "min": 1, "max": 2 }
+  ]
+}

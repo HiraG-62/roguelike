@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "./game";
 import { EMPTY_INPUT, type FrameInput } from "./input";
 import { FIXED_DT } from "./loop";
-import { PLAYER } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { MOVESETS } from "../data/weapons";
 import { createEnemy } from "../system/enemies";
 import { createEmptyProfile, type Item } from "../loot/types";
+import { withFixedLayout } from "../map/layout/select";
 
 function withInput(partial: Partial<FrameInput>): FrameInput {
   return { ...EMPTY_INPUT, move: { ...EMPTY_INPUT.move }, ...partial };
@@ -35,7 +35,7 @@ describe("createGame", () => {
     expect(fingerprint(a)).toBe(fingerprint(b));
   });
 
-  it("装備の stats が maxHp に反映され、runs が 1 増える", () => {
+  it("装備の性質が stats に反映され、runs が 1 増える", () => {
     const profile = createEmptyProfile();
     const armor: Item = {
       id: "test-armor",
@@ -46,14 +46,13 @@ describe("createGame", () => {
       itemLevel: 1,
       name: "Test Armor",
       implicit: null,
-      affixes: [{ key: "maxLife", kind: "prefix", tier: 1, value: 40 }],
+      affixes: [{ key: "damageVsStaggered", kind: "prefix", tier: 1, value: 40 }],
       foundDepth: 1,
       foundAt: 0,
     };
     profile.equipment.armor = armor;
     const state = createGame(7, "7", profile);
-    expect(state.stats.maxHp).toBe(PLAYER.maxHp + 40);
-    expect(state.player.maxHp).toBe(PLAYER.maxHp + 40);
+    expect(state.stats.increased.vsStaggered, "怯み中の敵への増").toBeCloseTo(0.4);
     expect(state.player.hp).toBe(state.player.maxHp);
     expect(profile.meta.runs).toBe(1);
     expect(state.sfx).toEqual([]);
@@ -140,7 +139,8 @@ describe("player actions", () => {
 describe("floor / rooms", () => {
   it("通常の部屋は入っても封鎖されず、部屋の敵を全滅させると制圧になる（開放型フロア）", async () => {
     const { rectCenterPx } = await import("../map/grid");
-    const state = createGame(11);
+    // seed 11 の旧生成の階は部屋 1 に敵がいる（階の型の地図では部屋 1 が空で最初から制圧済みのことがある）
+    const state = withFixedLayout("legacy", () => createGame(11));
     const room = state.rooms[1]!;
     state.player.body.pos = rectCenterPx(room.rect);
     state.player.invulnTimer = 999;

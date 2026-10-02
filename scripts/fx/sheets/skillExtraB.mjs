@@ -1519,51 +1519,6 @@ const FX = {
       ramp: "dark",
       cast: { sheet: "skillExtraB.grudgeWave", life: 0.42, base: GRUDGE.radiusPx, ground: "skillExtraB.grudgeGround" },
     },
-    guillotine: {
-      ramp: "steel",
-      active: { sheet: "skillExtraB.guillotineAim", base: GUILLO.lengthPx },
-      act: { sheet: "skillExtraB.guillotineDrop", life: 0.4, base: GUILLO.lengthPx, ground: "skillExtraB.guillotineCrack" },
-    },
-    ricochet: {
-      ramp: "brass",
-      cast: { sheet: "skillExtraB.ricochetMuzzle", life: 0.18 },
-      fly: { sheet: "skillExtraB.ricochetFly", base: 0, period: 0.2 },
-      act: { sheet: "skillExtraB.ricochetSpark", life: 0.25 },
-    },
-    galeSlash: {
-      ramp: "steel",
-      cast: { sheet: "skillExtraB.galeCast", life: 0.22 },
-      fly: { sheet: "skillExtraB.galeFly", base: 0, period: 0.3 },
-      act: { sheet: "skillExtraB.galeCut", life: 0.2 },
-    },
-    scatterSigil: {
-      ramp: "brass",
-      cast: { sheet: "skillExtraB.scatterCast", life: 0.3 },
-      fly: { sheet: "skillExtraB.scatterPellet", base: 0, period: 0.15 },
-    },
-    stomp: {
-      ramp: "steel",
-      cast: { sheet: "skillExtraB.stompAir", life: 0.45, base: STOMP.radiusPx, ground: "skillExtraB.stompGround" },
-    },
-    threadReel: {
-      ramp: "steel",
-      // cast: pos = 自分（糸巻き）、to = 照準（鉤）。糸は pos → to に並べる。巻き取りまでの溜め（delay）の間ずっと見せる
-      cast: { sheet: "skillExtraB.threadSpool", life: 0.3, beam: { sheet: "skillExtraB.threadLoose", step: THREAD.stepPx }, tip: "skillExtraB.threadHook" },
-      act: { sheet: "skillExtraB.threadWind", life: 0.25, beam: { sheet: "skillExtraB.threadTaut", step: THREAD.stepPx }, tip: "skillExtraB.threadSnap" },
-    },
-    meteorDive: {
-      ramp: "fire",
-      cast: { sheet: "skillExtraB.meteorLeap", life: 0.3 },
-      // act: 落下点（空中にいる間 = air 秒）。地面の照準は敵にも見える予告
-      act: { sheet: "skillExtraB.meteorFall", life: 0.4, base: METEOR.radiusPx, ground: "skillExtraB.meteorMark" },
-      end: { sheet: "skillExtraB.meteorImpact", life: 0.5, base: METEOR.radiusPx, ground: "skillExtraB.meteorCrater" },
-    },
-    swallowFlip: {
-      ramp: "steel",
-      active: { sheet: "skillExtraB.swallowDash", base: 0 },
-      // end: pos = 着地点、to = 元の位置。往復の道筋は pos → to
-      end: { sheet: "skillExtraB.swallowReturn", life: 0.32, beam: { sheet: "skillExtraB.swallowTrail", step: SWALLOW_STEP_PX } },
-    },
     backflow: {
       ramp: "steel",
       // cast: pos = 元いた所、to = 戻った先
@@ -1583,15 +1538,6 @@ const FX = {
       cast: { sheet: "skillExtraB.graveStab", life: 0.3 },
       placed: { sheet: "skillExtraB.graveSword", base: 0, period: 1.6, ground: "skillExtraB.graveGround" },
       act: { sheet: "skillExtraB.graveSpin", life: 0.25, base: GRAVE.radiusPx },
-    },
-    boneRing: {
-      ramp: "light",
-      cast: { sheet: "skillExtraB.boneRise", life: 0.35 },
-      // 纏い = 骨の通り道。周期は骨が 1 周する時間（2π / spin）
-      aura: { sheet: "skillExtraB.boneDust", base: 0, period: TAU / BONE.spin, ground: "skillExtraB.boneOrbit" },
-      // 骨片 1 本（fxSkill.ts の placedOf が骨の位置ごとに載せる前提）
-      placed: { sheet: "skillExtraB.boneShard", base: 0, period: 0.5 },
-      act: { sheet: "skillExtraB.boneBreak", life: 0.25 },
     },
     manaSpring: {
       ramp: "ice",

@@ -1,0 +1,25 @@
+{
+  "_note": "ランの章立て（system/chapters.ts。docs/ideas/economy-impl.md 2-8）。章ボスは core-synthesis 1 章の E29 に従い スライム王 → 盗賊王 → 油壺の王 → 鏡の騎士。骸骨卿・霜の巨人・双子の騎士・群れの母・図書館の司書は最後の章より深い階（深み）の回転に回る。章の境の休符（章の 1 階目）は階の主を出さず、泉を必ず 1 つ置く",
+  "_fields": {
+    "floorsPerChapter": "1 章の階数。深度 1〜floorsPerChapter が章 1。章ボスは各章の最後の階（floorsPerChapter の倍数）",
+    "maxChapter": "章の数。これより深い階は最後の章のまま（深み）",
+    "chapters": "章ごとの行（1 章から順）。boss は章の最後の階に出る階層ボスの key（data/enemies.ts の EnemyDef）",
+    "lordSkipFirstFloor": "true なら、章の 1 階目（休符。深度 1 は除く）に階の主を出さない。ただの部屋として遊べる",
+    "restFountain": "true なら、章の 1 階目（休符）に泉を必ず 1 つ置く。休符の泉は呪いを付けず、瓶を上限まで満たす",
+    "finalBoss": "最深の間（章の階数 × 章の数 + 1 = 深度 21）の主の key（最深の主 deepLord）",
+    "surfaceHold": "地上への道に乗り続けて踏破になるまでの秒",
+    "surfaceOffset": "地上への道を最深の間の中央（階段）から右へ何タイル離して置くか",
+    "surfaceColor": "地上への道の色（台座・乗り続ける輪・ラベル）",
+    "aheadColor": "章の主の予習（章の休符と深度 16 の到着で出すログ）の色"
+  },
+  "floorsPerChapter": 5,
+  "maxChapter": 4,
+  "chapters": [{ "boss": "kingSlime" }, { "boss": "thiefKing" }, { "boss": "oilKing" }, { "boss": "mirrorKnight" }],
+  "lordSkipFirstFloor": true,
+  "restFountain": true,
+  "finalBoss": "deepLord",
+  "surfaceHold": 1.5,
+  "surfaceOffset": 2,
+  "surfaceColor": "#d0f0ff",
+  "aheadColor": "#ffd75f"
+}

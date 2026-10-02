@@ -1201,12 +1201,6 @@ function side(radius, pad) {
 
 const FX = {
   skills: {
-    frag: {
-      ramp: "fire",
-      fly: { sheet: "skillBase.fragFly", base: 0, period: 0.3, ground: "skillBase.fragShadow" },
-      placed: { sheet: "skillBase.fragFuse", base: FRAG.radiusPx, period: 0.25, ground: "skillBase.fragFuseGround" },
-      end: { sheet: "skillBase.fragBlast", life: 0.5, base: FRAG.radiusPx, pivot: "pos", ground: "skillBase.fragScorch" },
-    },
     parry: {
       ramp: "steel",
       active: { sheet: "skillBase.parryGuard", base: 0 },
@@ -1216,16 +1210,6 @@ const FX = {
       ramp: "fire",
       cast: { sheet: "skillBase.pactSplash", life: 0.6, base: 0, pivot: "pos", ground: "skillBase.pactSigil" },
       aura: { sheet: "skillBase.pactAura", base: 0, period: 0.9, ground: "skillBase.pactAuraGround" },
-    },
-    quake: {
-      ramp: "steel",
-      active: { sheet: "skillBase.quakePebbles", base: QUAKE.radiusPx, ground: "skillBase.quakeCharge" },
-      act: { sheet: "skillBase.quakeRocks", life: 0.5, base: QUAKE.radiusPx, pivot: "pos", ground: "skillBase.quakeSplit" },
-    },
-    thunder: {
-      ramp: "lightning",
-      placed: { sheet: "skillBase.thunderLeader", base: THUNDER.radiusPx, period: 0.3, ground: "skillBase.thunderOmen" },
-      end: { sheet: "skillBase.thunderBolt", life: 0.35, base: THUNDER.radiusPx, pivot: "pos", ground: "skillBase.thunderScorch" },
     },
     gravityWell: {
       ramp: "dark",
@@ -1249,11 +1233,6 @@ const FX = {
       active: { sheet: "skillBase.hookExtend", base: HOOK.rangePx },
       // end: pos = 手元（引き寄せ先）、to = 鎌が刺さった所（敵・壁・届いた先）。鎖は pos → to に並べる
       end: { sheet: "skillBase.hookYank", life: 0.25, base: 0, pivot: "pos", beam: { sheet: "skillBase.hookChain", step: (HOOK.link * 2) / PX }, tip: "skillBase.hookBite" },
-    },
-    spiral: {
-      ramp: "steel",
-      active: { sheet: "skillBase.spiralChannel", base: 0 },
-      fly: { sheet: "skillBase.spiralBullet", base: 0, period: 0.2 },
     },
   },
 };

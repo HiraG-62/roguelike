@@ -1,48 +1,80 @@
 import type { EventKind, EventSource } from "../core/events";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
-import type { Attributes, PlayerStats } from "../loot/types";
+import type { Attributes } from "../loot/types";
 import type { QuestKey } from "../meta/quests";
 import type { SkillKey } from "../skills/types";
+import type { LineageKey } from "../system/boonDefs";
 import { BALANCE } from "./balance";
-import { JOB, WEAPON } from "./tuning";
+import { JOB, MANA_SOURCE, WEAPON } from "./tuning";
 import { reviveStep } from "./weapons";
 import type { BranchDef, ButtonKey, MovesetKey } from "./weapons";
 
-/** 数値は src/data/balance/jobs/ の attributes / weakness（見習いは数値を持たないのでここで空を渡す） */
+/** 数値は src/data/balance/jobs/ の attributes / MANA_SOURCE（見習いは数値を持たないのでここで空を渡す） */
 const JOB_ATTRIBUTES = BALANCE.jobs.attributes;
-const JOB_WEAKNESS = BALANCE.jobs.weakness;
+const MS = MANA_SOURCE;
 
 /**
- * ジョブ（docs/COMBAT_DESIGN.md A-9）。起点とは別の軸で、ラン開始時に 1 つ選ぶ。
- * ジョブはステータスの偏り・得意な武器種・固有のルール 2 つ・初期スキル石・弱点を持つ。
- * 数値は src/data/tuning.ts の JOB、畳み込みと開始時の処理は src/system/jobs.ts
+ * ジョブ = 流儀（docs/COMBAT_DESIGN.md A-9、docs/ideas/weapon-forms-impl.md 3-7）。起点とは別の軸で、ラン開始時に 1 つ選ぶ。
+ * ジョブはステータスの偏り・ダッシュの形・気力の源・固有のルール 2 つ・初期スキル石・初期武器を持つ。
+ * 得意武器の倍率と弱点は段取り 5c で削った（武器の型と直交させ、どの武器でも流儀の指の動きが変わるようにする）。
+ * 数値は src/data/tuning.ts の JOB / DASH_FORM / MANA_SOURCE、畳み込みと開始時の処理は src/system/jobs.ts、
+ * ダッシュの形は src/system/dashForms.ts、気力の源は src/system/manaSources.ts
  */
 
-export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer", "hexer", "lancer", "invoker", "shadow", "alchemist"] as const;
+export const JOB_KEYS = ["none", "swordsman", "hunter", "brawler", "shieldBearer", "hexer", "lancer", "invoker", "shadow", "alchemist", "onmyoji", "miko"] as const;
 export type JobKey = (typeof JOB_KEYS)[number];
 
-/** 弱点・得意で掛ける倍率の対象（いずれも掛け算で効く数値） */
-export type JobMulStat =
-  | "maxHp"
-  | "meleeDamageMul"
-  | "rangedDamageMul"
-  | "skillDamageMul"
-  | "moveSpeedMul"
-  | "attackSpeedMul"
-  | "dashCooldownMul"
-  | "damageTakenMul";
-export type JobStatMul = Partial<Record<JobMulStat, number>>;
+/** ダッシュの形（src/system/dashForms.ts）。数値は DASH_FORM.<形>。新しい形は末尾に足す */
+export const DASH_FORM_KEYS = ["standard", "step", "leap", "slip", "brace", "mist", "vault", "blink", "shadow", "flask", "swap", "ward"] as const;
+export type DashForm = (typeof DASH_FORM_KEYS)[number];
+
+/** ダッシュの形の表示名（docs/GLOSSARY.md）。「踏み込み」「飛び退き」「跳躍」「瞬歩」「霧」「結界」（スキル「結界杭」）は既存の語と重なるので避けた */
+export const DASH_FORM_NAMES: Readonly<Record<DashForm, string>> = {
+  standard: "駆け",
+  step: "詰め足",
+  leap: "退き足",
+  slip: "紙一重",
+  brace: "不退",
+  mist: "霧隠れ",
+  vault: "跳び越え",
+  blink: "転移",
+  shadow: "影潜り",
+  flask: "瓶投げ",
+  swap: "入れ替わり",
+  ward: "護り足",
+};
+
+/**
+ * 気力の源（src/system/manaSources.ts）。流儀ごとに気力がどこから湧くか。
+ * attackHit は通常攻撃の命中の回収（MANA.onMelee / onShot）に掛ける倍率。見習いは 1、他は JOB.manaBaseMul の下地。
+ * minionHit（陰陽師。skills/hit.ts の SkillHitSpec.minion）・boonFired（巫女。system/rules.ts の加護の発火）
+ */
+export type ManaSource =
+  | { readonly kind: "attackHit"; readonly mul: number }
+  | { readonly kind: "riposte"; readonly amount: number }
+  | { readonly kind: "finisher"; readonly amount: number }
+  | { readonly kind: "rangedHitFar"; readonly perMeter: number; readonly minDistance: number }
+  | { readonly kind: "comboHit"; readonly perCombo: number; readonly comboCap: number }
+  | { readonly kind: "guardBlock"; readonly perDamage: number }
+  | { readonly kind: "statusTick"; readonly perSec: number }
+  | { readonly kind: "tipHit"; readonly amount: number }
+  | { readonly kind: "skillHit"; readonly amount: number }
+  | { readonly kind: "backstab"; readonly amount: number }
+  | { readonly kind: "reaction"; readonly amount: number }
+  | { readonly kind: "minionHit"; readonly amount: number }
+  | { readonly kind: "boonFired"; readonly amount: number };
+export type ManaSourceKind = ManaSource["kind"];
+
+/** 見習い以外の通常攻撃の命中の下地（枯渇で遊べなくならない保険） */
+const BASE_ATTACK_MANA: ManaSource = { kind: "attackHit", mul: JOB.manaBaseMul };
+/** 見習いは通常攻撃の命中だけで今までどおり湧く */
+const PLAIN_ATTACK_MANA: ManaSource = { kind: "attackHit", mul: 1 };
 
 export interface JobRuleDef {
   /** 何ができるかの 1 文（起点画面の説明） */
   text: string;
   rule: Rule;
-}
-
-export interface JobWeakness {
-  text: string;
-  mul: JobStatMul;
 }
 
 export interface JobDef {
@@ -51,35 +83,27 @@ export interface JobDef {
   desc: string;
   /** 基礎値（各 5）に足す偏り。合計は 0（どれかを伸ばせばどれかが下がる） */
   attributes: Partial<Attributes>;
-  /** この武器種を持つ間、その武器の攻撃（近接なら近接、銃なら射撃）の威力と速度が上がる（JOB.favoredMeleeMul / favoredAttackSpeedMul） */
-  favored: readonly MovesetKey[];
+  /** ダッシュの形（src/system/dashForms.ts） */
+  dash: DashForm;
+  /** 気力の源（src/system/manaSources.ts）。attackHit を必ず 1 つ持つ */
+  mana: readonly ManaSource[];
   rules: readonly JobRuleDef[];
   /** 開始時に足元へ置くスキル石 */
   starterSkill: SkillKey | null;
-  /** 開始時に渡す素の武器（src/loot/bases.ts の BASES の key）。得意な武器種の器。剣は武器なしで振れるので剣士は打刀 */
+  /** 開始時に渡す素の武器（src/loot/bases.ts の BASES の key）。剣は武器なしで振れるので剣士は打刀 */
   starterWeapon: string | null;
-  /** トレードオフ。単一最強を作らない */
-  weakness: JobWeakness | null;
   keywords: KeywordProfile;
   /** この依頼を達成すると選べる（src/meta/quests.ts）。無ければ最初から選べる */
   unlockedBy?: QuestKey;
+  /** 流儀の専用系譜（docs/ideas/boon-impl.md 2-1）。出口の予告で祝福の系譜に選ばれやすい。見習いは持たない */
+  lineage?: LineageKey;
 }
 
 const ALWAYS = 1;
-const NO_ICD = 0;
 const PERCENT = 100;
+const NO_ICD = 0;
 /** 広げる状態異常の強さの倍率（元と同じ） */
 const SAME_POTENCY = 1;
-
-/** 倍率が 1 からどれだけ離れているか（%）。0.85 → 15、1.15 → 15。説明文の数値を tuning から作る */
-function lessPct(mul: number): number {
-  return Math.round(Math.abs(1 - mul) * PERCENT);
-}
-
-/** damageTakenMul のように 1 より大きくなる弱点の増加分（%） */
-function morePct(mul: number): number {
-  return Math.round((mul - 1) * PERCENT);
-}
 
 function owner(job: JobKey): EventSource {
   // EventSource に job の種類は無いので、プレイヤー由来として key で区別する
@@ -107,18 +131,20 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     name: "見習い",
     desc: "ジョブなし。ステータスの増減も固有のルールもない。",
     attributes: {},
-    favored: [],
+    dash: "standard",
+    mana: [PLAIN_ATTACK_MANA],
     rules: [],
     starterSkill: null,
     starterWeapon: null,
-    weakness: null,
     keywords: kw([]),
   },
   swordsman: {
+    lineage: "blade",
     name: "剣士",
     desc: "連撃を締めくくる終撃で敵を崩し、見切りから斬り返す。",
     attributes: JOB_ATTRIBUTES.swordsman,
-    favored: ["sword", "greatsword", "katana"],
+    dash: "step",
+    mana: [BASE_ATTACK_MANA, { kind: "riposte", amount: MS.swordsman.riposte }, { kind: "finisher", amount: MS.swordsman.finisher }],
     rules: [
       jobRule("swordsman", 0, `終撃が当たると怯み値 ${JOB.swordsmanFinisherPoise} を上乗せする。`, {
         when: "onMeleeHit",
@@ -130,18 +156,19 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         then: { kind: "damageBuff", magnitude: JOB.swordsmanJustBuffPct, duration: JOB.swordsmanJustBuffSec },
       }),
     ],
-    starterSkill: "lunge",
+    starterSkill: "commonLunge",
     starterWeapon: "katana",
-    weakness: { text: `スキルの威力が ${lessPct(JOB.swordsmanSkillMul)}% 落ちる。`, mul: JOB_WEAKNESS.swordsman },
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
   },
   hunter: {
+    lineage: "thunder",
     name: "狩人",
-    desc: "予備動作中の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
+    desc: "予告が下絵の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
-    favored: ["longarm", "thrown", "whip"],
+    dash: "leap",
+    mana: [BASE_ATTACK_MANA, { kind: "rangedHitFar", perMeter: MS.hunter.perMeter, minDistance: MS.hunter.minDistance }],
     rules: [
-      jobRule("hunter", 0, `予備動作中の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
+      jobRule("hunter", 0, `予告が下絵の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetInWindup" }],
         then: { kind: "addPoise", magnitude: JOB.hunterWindupPoise },
@@ -153,16 +180,17 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         icd: JOB.hunterEliteIcd,
       }),
     ],
-    starterSkill: "railshot",
+    starterSkill: "commonRailshot",
     starterWeapon: "crossbow",
-    weakness: { text: `最大生命が ${lessPct(JOB.hunterHpMul)}% 減る。`, mul: JOB_WEAKNESS.hunter },
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
   },
   brawler: {
+    lineage: "blade",
     name: "拳闘士",
     desc: "殴り続けると衝撃波を放ち、被弾すると攻撃が強まる。",
     attributes: JOB_ATTRIBUTES.brawler,
-    favored: ["fists", "cleaver", "staff"],
+    dash: "slip",
+    mana: [BASE_ATTACK_MANA, { kind: "comboHit", perCombo: MS.brawler.perCombo, comboCap: MS.brawler.comboCap }],
     rules: [
       jobRule("brawler", 0, `近接を ${JOB.brawlerEveryHits} 回当てるごとに周りへ衝撃波。`, {
         when: "onMeleeHit",
@@ -174,16 +202,17 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         then: { kind: "damageBuff", magnitude: JOB.brawlerHurtBuffPct, duration: JOB.brawlerHurtBuffSec },
       }),
     ],
-    starterSkill: "quake",
+    starterSkill: "commonQuake",
     starterWeapon: "gauntlets",
-    weakness: { text: `受けるダメージが ${morePct(JOB.brawlerDamageTakenMul)}% 増える。`, mul: JOB_WEAKNESS.brawler },
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
   },
   shieldBearer: {
+    lineage: "earth",
     name: "盾持ち",
     desc: "被弾の直後は無敵になり、カウンターで衝撃波を放つ。",
     attributes: JOB_ATTRIBUTES.shieldBearer,
-    favored: ["sword", "cleaver", "staff"],
+    dash: "brace",
+    mana: [BASE_ATTACK_MANA, { kind: "guardBlock", perDamage: MS.shieldBearer.perDamage }],
     rules: [
       jobRule("shieldBearer", 0, `被弾すると ${JOB.shieldHurtInvulnSec} 秒間無敵（${JOB.shieldHurtIcd} 秒に 1 回）。`, {
         when: "onHurt",
@@ -197,14 +226,15 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "parry",
     starterWeapon: "machete",
-    weakness: { text: `移動速度が ${lessPct(JOB.shieldMoveMul)}% 落ちる。`, mul: JOB_WEAKNESS.shieldBearer },
     keywords: kw(["ward", "counter", "area"], ["hurt"]),
   },
   hexer: {
+    lineage: "moon",
     name: "呪術師",
     desc: "状態異常を付けるたびに気力が戻り、倒した敵から毒を広げる。",
     attributes: JOB_ATTRIBUTES.hexer,
-    favored: ["scythe", "wand"],
+    dash: "mist",
+    mana: [BASE_ATTACK_MANA, { kind: "statusTick", perSec: MS.hexer.perSec }],
     rules: [
       jobRule("hexer", 0, `敵に状態異常を付けるたびに気力 +${JOB.hexerStatusMana}。`, {
         when: "onStatusApplied",
@@ -220,15 +250,16 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "contagion",
     starterWeapon: "sickle",
-    weakness: { text: `近接の威力が ${lessPct(JOB.hexerMeleeMul)}% 落ちる。`, mul: JOB_WEAKNESS.hexer },
     keywords: kw(["mana", "poison"], ["poison", "kill"]),
     unlockedBy: "bloodPath",
   },
   lancer: {
+    lineage: "earth",
     name: "槍兵",
     desc: "堅守中の敵を崩しやすく、怯ませるたびに奥義ゲージが溜まる。",
     attributes: JOB_ATTRIBUTES.lancer,
-    favored: ["spear", "scythe"],
+    dash: "vault",
+    mana: [BASE_ATTACK_MANA, { kind: "tipHit", amount: MS.lancer.tipHit }],
     rules: [
       jobRule("lancer", 0, `堅守中の敵に近接を当てると怯み値 ${JOB.lancerGuardPoise} を上乗せする。`, {
         when: "onMeleeHit",
@@ -242,15 +273,16 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "chainHook",
     starterWeapon: "spear",
-    weakness: { text: `ダッシュの再使用時間が ${lessPct(JOB.lancerDashCdMul)}% 延びる。`, mul: JOB_WEAKNESS.lancer },
     keywords: kw(["stagger", "energy"], ["melee"]),
     unlockedBy: "critStorm",
   },
   invoker: {
+    lineage: "cycle",
     name: "術士",
     desc: "スキルを使うと攻撃が強まり、気力が少ないときは撃破で気力を取り戻す。",
     attributes: JOB_ATTRIBUTES.invoker,
-    favored: ["wand", "whip"],
+    dash: "blink",
+    mana: [BASE_ATTACK_MANA, { kind: "skillHit", amount: MS.invoker.skillHit }],
     rules: [
       jobRule("invoker", 0, `スキルを使うと ${JOB.invokerCastBuffSec} 秒間ダメージ +${JOB.invokerCastBuffPct}%。`, {
         when: "onSkillCast",
@@ -262,17 +294,18 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         then: { kind: "restoreMana", magnitude: JOB.invokerLowManaKill },
       }),
     ],
-    starterSkill: "thunder",
+    starterSkill: "commonThunderclap",
     starterWeapon: "wand",
-    weakness: { text: `最大生命が ${lessPct(JOB.invokerHpMul)}% 減る。`, mul: JOB_WEAKNESS.invoker },
     keywords: kw(["mana"], ["mana", "kill"]),
     unlockedBy: "chainWeaver",
   },
   shadow: {
+    lineage: "blade",
     name: "影",
     desc: "ダッシュ直後の近接で敵を脆弱にし、見切りで移動が速くなる。",
     attributes: JOB_ATTRIBUTES.shadow,
-    favored: ["twinBlades", "fists"],
+    dash: "shadow",
+    mana: [BASE_ATTACK_MANA, { kind: "backstab", amount: MS.shadow.backstab }],
     rules: [
       jobRule("shadow", 0, `ダッシュを終えて ${JOB.shadowAfterDashSec} 秒以内の近接は敵を ${JOB.shadowVulnerableSec} 秒間脆弱にする。`, {
         when: "onMeleeHit",
@@ -285,17 +318,18 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
         then: { kind: "speedBuff", magnitude: JOB.shadowJustSpeedPct, duration: JOB.shadowJustSpeedSec },
       }),
     ],
-    starterSkill: "shadowStep",
+    starterSkill: "commonBackstab",
     starterWeapon: "twinDaggers",
-    weakness: { text: `最大生命が ${lessPct(JOB.shadowHpMul)}% 減る。`, mul: JOB_WEAKNESS.shadow },
     keywords: kw(["dash", "vulnerable"], ["dash", "just"]),
     unlockedBy: "justDancer",
   },
   alchemist: {
+    lineage: "ash",
     name: "錬金術師",
     desc: "反応を起こすたびに奥義ゲージが溜まり、状態異常が 2 種以上付いた敵は倒すと爆発する。",
     attributes: JOB_ATTRIBUTES.alchemist,
-    favored: ["staff", "cleaver"],
+    dash: "flask",
+    mana: [BASE_ATTACK_MANA, { kind: "reaction", amount: MS.alchemist.reaction }],
     rules: [
       jobRule("alchemist", 0, `状態異常の反応を起こすと奥義ゲージ +${JOB.alchemistReactionEnergy}。`, {
         when: "onReaction",
@@ -311,9 +345,52 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     ],
     starterSkill: "powderKeg",
     starterWeapon: "staff",
-    weakness: { text: `攻撃速度が ${lessPct(JOB.alchemistAttackSpeedMul)}% 落ちる。`, mul: JOB_WEAKNESS.alchemist },
     keywords: kw(["reaction", "energy", "explode"], ["reaction", "kill"]),
     unlockedBy: "deepChain",
+  },
+  onmyoji: {
+    lineage: "horde",
+    name: "陰陽師",
+    desc: "設置物・連動体を敵に当てて気力を得る。ダッシュで自分の設置物と入れ替わり、スキルを当てた敵を弱らせる。",
+    attributes: JOB_ATTRIBUTES.onmyoji,
+    dash: "swap",
+    mana: [BASE_ATTACK_MANA, { kind: "minionHit", amount: MS.onmyoji.minionHit }],
+    rules: [
+      jobRule("onmyoji", 0, `スキルが敵に当たると ${JOB.onmyojiWeakenSec} 秒間弱体にする。`, {
+        when: "onSkillHit",
+        // 敵ごとの再付与の間隔は inflict 自身が持つ（規則の ICD だと範囲の命中で 1 体にしか付かない）
+        then: { kind: "inflict", status: "weaken", magnitude: JOB.onmyojiWeakenSec },
+      }),
+      jobRule("onmyoji", 1, `弱体の敵を倒すと奥義ゲージ +${JOB.onmyojiKillEnergy}。`, {
+        when: "onKill",
+        if: [{ kind: "targetHas", status: "weaken" }],
+        then: { kind: "energy", magnitude: JOB.onmyojiKillEnergy },
+      }),
+    ],
+    starterSkill: "mines",
+    starterWeapon: "ironFan",
+    keywords: kw(["placed", "weaken", "energy"], ["kill"]),
+  },
+  miko: {
+    name: "巫女",
+    desc: "祝福の加護が発動するたびに気力が湧く。ダッシュの着地に結界を張り、被弾を祓う。",
+    attributes: JOB_ATTRIBUTES.miko,
+    dash: "ward",
+    mana: [BASE_ATTACK_MANA, { kind: "boonFired", amount: MS.miko.boonFired }],
+    rules: [
+      jobRule("miko", 0, `被弾すると状態異常を 1 つ祓う（${JOB.mikoHurtIcd} 秒に 1 回）。`, {
+        when: "onHurt",
+        then: { kind: "cleanse", magnitude: 1 },
+        icd: JOB.mikoHurtIcd,
+      }),
+      jobRule("miko", 1, `部屋を制圧すると最大生命の ${Math.round(JOB.mikoClearHealRatio * PERCENT)}% を回復する。`, {
+        when: "onRoomClear",
+        then: { kind: "healDirect", magnitude: JOB.mikoClearHealRatio, scaleBy: "maxHp" },
+      }),
+    ],
+    starterSkill: "manaSpring",
+    starterWeapon: "wand",
+    keywords: kw(["ward", "heal"], ["hurt", "clear"]),
   },
 };
 
@@ -340,6 +417,8 @@ const JOB_BRANCH_NAMES: Readonly<Record<Exclude<JobKey, "none">, string>> = {
   invoker: "魔力放出",
   shadow: "影縫い",
   alchemist: "反応刃",
+  onmyoji: "式打ち",
+  miko: "祓い斬り",
 };
 
 /**
@@ -356,6 +435,8 @@ export const JOB_BRANCHES: Readonly<Record<Exclude<JobKey, "none">, BranchDef>> 
   invoker: jobBranchDef("invoker"),
   shadow: jobBranchDef("shadow"),
   alchemist: jobBranchDef("alchemist"),
+  onmyoji: jobBranchDef("onmyoji"),
+  miko: jobBranchDef("miko"),
 };
 
 function jobBranchDef(job: Exclude<JobKey, "none">): BranchDef {
@@ -367,9 +448,27 @@ export function jobBranch(job: JobKey): BranchDef | undefined {
   return job === "none" ? undefined : JOB_BRANCHES[job];
 }
 
-/** 倍率を掛ける（PlayerStats の該当フィールドだけ。書き換えるのは渡した stats） */
-export function applyJobMul(stats: PlayerStats, mul: Readonly<JobStatMul>): void {
-  for (const [key, value] of Object.entries(mul) as [JobMulStat, number | undefined][]) {
-    if (value !== undefined) stats[key] *= value;
-  }
+/**
+ * 旧「得意な武器」（段取り 5c で流儀から外した。ジョブの倍率はもう無く、起点画面にも出さない）。
+ * 得意武器を読む性質・誓約・祝福・刻印符（system/jobs.ts の isFavoredWeapon・favoredWeapon 条件・心得・変身の持続）を
+ * 段取り 7 で整理するまでの橋渡し。ここを消すときはそれらを先に外す
+ */
+const LEGACY_FAVORED: Readonly<Record<JobKey, readonly MovesetKey[]>> = {
+  none: [],
+  swordsman: ["sword", "greatsword", "katana"],
+  hunter: ["longarm", "thrown", "whip"],
+  brawler: ["fists", "cleaver", "staff"],
+  shieldBearer: ["sword", "cleaver", "staff"],
+  hexer: ["scythe", "wand"],
+  lancer: ["spear", "scythe"],
+  invoker: ["wand", "whip"],
+  shadow: ["twinBlades", "fists"],
+  alchemist: ["staff", "cleaver"],
+  onmyoji: ["fan", "wand"],
+  miko: ["wand", "staff"],
+};
+
+/** 旧「得意な武器」の武器種（見習いは空） */
+export function favoredMovesets(job: JobKey): readonly MovesetKey[] {
+  return LEGACY_FAVORED[job];
 }

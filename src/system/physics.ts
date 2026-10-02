@@ -4,10 +4,15 @@ import { TILE_SIZE, Tile, getTile, inBounds, toIndex } from "../map/grid";
 /** 1 回の移動を分割する最大距離（px）。タイルをすり抜けない程度に小さく */
 const SUB_STEP = 4;
 
-/** タイル座標が通行不能か。ロック中の扉も壁扱い */
+/** 体が入れない地形（壁・穴）。弾・光線・視線は穴を越えるので、そちらは overlapsShotWall を使う */
+function isBodyBlockingTile(tile: Tile): boolean {
+  return tile === Tile.Wall || tile === Tile.Pit;
+}
+
+/** タイル座標が通行不能か。ロック中の扉も壁扱い（穴も体は通れない） */
 export function isSolidTile(state: GameState, tx: number, ty: number): boolean {
   if (!inBounds(state.map, tx, ty)) return true;
-  if (getTile(state.map, tx, ty) === Tile.Wall) return true;
+  if (isBodyBlockingTile(getTile(state.map, tx, ty))) return true;
   return state.lockedTiles.has(toIndex(state.map, tx, ty));
 }
 
@@ -39,6 +44,18 @@ export function overlapsWall(state: GameState, x: number, y: number, r: number):
 }
 
 /**
+ * 弾・光線・爆風の壁判定: 壁と封鎖の扉だけ。穴（Tile.Pit）は越える。
+ * 体の判定（overlapsWall）と分けるのは、川・池越しに撃てるようにするため
+ */
+export function overlapsShotWall(state: GameState, x: number, y: number, r: number): boolean {
+  return overlapsTileRange(x, y, r, (tx, ty) => {
+    if (!inBounds(state.map, tx, ty)) return true;
+    if (getTile(state.map, tx, ty) === Tile.Wall) return true;
+    return state.lockedTiles.has(toIndex(state.map, tx, ty));
+  });
+}
+
+/**
  * overlapsWall 相当だが、ロック中タイルを数えるかを選べる。
  * `ignoreLocked: true` で「ロックを無視した実際の壁だけ」との重なりを見られる
  * （ドアタイル上に敵を残さない処理で、ロック前後の solid 判定を揃えるのに使う）
@@ -47,7 +64,7 @@ export function overlapsSolid(state: GameState, x: number, y: number, r: number,
   const ignoreLocked = opts?.ignoreLocked === true;
   return overlapsTileRange(x, y, r, (tx, ty) => {
     if (!inBounds(state.map, tx, ty)) return true;
-    if (getTile(state.map, tx, ty) === Tile.Wall) return true;
+    if (isBodyBlockingTile(getTile(state.map, tx, ty))) return true;
     return !ignoreLocked && state.lockedTiles.has(toIndex(state.map, tx, ty));
   });
 }

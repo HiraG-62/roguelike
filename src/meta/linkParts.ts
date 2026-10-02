@@ -80,6 +80,7 @@ export const REACTION_PARTS: Readonly<Record<ReactionKey, ReactionParts>> = {
   hueBurst: { parts: ["hue", "hueMatch"] },
   manaCut: { parts: ["siphon", "silence"], constant: true },
   rally: { parts: ["chill", "haste"] },
+  recite: { parts: ["inkMark", "hit"] },
 };
 
 export function reactionPartLabel(part: ReactionPart): string {

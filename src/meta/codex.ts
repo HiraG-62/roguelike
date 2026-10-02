@@ -2,11 +2,12 @@ import type { Keyword } from "../core/keywords";
 import type { FloorKind, GameState, RoomKind } from "../core/state";
 import { REACTION_KEYS, type ReactionKey, type StatusKind } from "../core/status";
 import { ENEMIES, type EnemyDef } from "../data/enemies";
+import { META } from "../data/tuning";
 import { baseDef } from "../loot/bases";
 import { UNIQUES, type UniqueDef } from "../loot/named";
 import type { Item, Profile } from "../loot/types";
 import { FLOOR_KINDS, floorKindLabel } from "../system/biomes";
-import { BOONS, BOON_KEYS, type BoonDef } from "../system/boonDefs";
+import { BOONS, BOON_CARD_LABEL, BOON_KEYS, type BoonDef, LINEAGE_LABEL } from "../system/boonDefs";
 import { STATUS_KEYWORDS } from "../system/keywords";
 import { ROOM_KIND_LABEL } from "../system/specialRooms";
 import { COMBOS } from "../skills/combos";
@@ -156,6 +157,8 @@ export interface CodexSave {
   version: 1;
   enemiesSeen: string[];
   enemyKills: Record<string, number>;
+  /** 敵の key → その敵に倒された回数（段取り 9。予告の図解の開く条件。旧データには無く {} で補う） */
+  enemyDeaths: Record<string, number>;
   relics: string[];
   boons: string[];
   reactions: Record<string, number>;
@@ -178,6 +181,7 @@ export function createCodexSave(): CodexSave {
     version: 1,
     enemiesSeen: [],
     enemyKills: {},
+    enemyDeaths: {},
     relics: [],
     boons: [],
     reactions: {},
@@ -189,9 +193,9 @@ export function createCodexSave(): CodexSave {
   };
 }
 
-/** 図鑑に載せない敵（設置物・動かない氷柱。図鑑を埋め切れるように） */
+/** 図鑑に載せない敵（設置物・動かない氷柱。図鑑を埋め切れるように）。商人（def.merchant）・壺と木箱（def.container）も載せない */
 const HIDDEN_BEHAVIORS: ReadonlySet<EnemyDef["behavior"]> = new Set<EnemyDef["behavior"]>(["inert", "mine"]);
-export const CODEX_ENEMIES: readonly EnemyDef[] = ENEMIES.filter((d) => !HIDDEN_BEHAVIORS.has(d.behavior)).sort(
+export const CODEX_ENEMIES: readonly EnemyDef[] = ENEMIES.filter((d) => !HIDDEN_BEHAVIORS.has(d.behavior) && d.merchant !== true && d.container === undefined).sort(
   (a, b) => a.minDepth - b.minDepth,
 );
 
@@ -277,6 +281,12 @@ function addFirstSeen(save: CodexSave, firstDepth: ReadonlyMap<string, number>, 
   return added;
 }
 
+/** 倒された回数を 1 足す（main.ts の recordMeta が死因の key で呼ぶ）。敵の key だけ数え、null・未知（状態異常・地形など）は何もしない */
+export function recordDefeat(save: CodexSave, key: string | null): void {
+  if (key === null || !isEnemyKey(key)) return;
+  save.enemyDeaths[key] = (save.enemyDeaths[key] ?? 0) + 1;
+}
+
 /**
  * ラン 1 回ぶんの記録を保存データへ畳む（保存データを書き換える）。戻り値は初めて載った項目の数。
  * 未知の key（消えた敵など）は載せない
@@ -316,6 +326,16 @@ export interface CodexEntry {
 /** 図鑑の頁（依頼の報酬）。持っているタブは未発見のヒントが 1 段詳しくなる */
 export type CodexPages = ReadonlySet<CodexTab>;
 
+/** 図鑑の敵の頁に付く、予告の図解の案内（info の語と detail の操作）。画面の決定キーは固定なので語で書く */
+const DIAGRAM_INFO = "図解";
+const DIAGRAM_DETAIL = "Enter: 予告の図解";
+
+/** その敵の予告の図解を開けるか（見た敵で、倒された回数が META.diagramDeaths に届いている）。main.ts の決定の判定もこれを通す */
+export function diagramOpenable(save: CodexSave, key: string): boolean {
+  if (!save.enemiesSeen.includes(key) && (save.enemyKills[key] ?? 0) === 0) return false;
+  return (save.enemyDeaths[key] ?? 0) >= META.diagramDeaths;
+}
+
 function enemyEntries(save: CodexSave, page: boolean): CodexEntry[] {
   const seen = new Set(save.enemiesSeen);
   return CODEX_ENEMIES.map((d) => {
@@ -327,8 +347,11 @@ function enemyEntries(save: CodexSave, page: boolean): CodexEntry[] {
       const name = page ? `${[...d.name][0] ?? ""}${UNKNOWN_PART}${UNKNOWN_PART}` : UNKNOWN_NAME;
       return { key: d.key, known, name, info: role, detail: `${where}現れる。` };
     }
-    const info = kills > 0 ? `撃破 ${kills}` : "未撃破";
-    return { key: d.key, known, name: d.name, info, detail: [role, where, info].filter((s) => s !== "").join(" / ") };
+    const killInfo = kills > 0 ? `撃破 ${kills}` : "未撃破";
+    const diagram = diagramOpenable(save, d.key);
+    const info = diagram ? `${killInfo} / ${DIAGRAM_INFO}` : killInfo;
+    const detail = [role, where, killInfo, diagram ? DIAGRAM_DETAIL : ""].filter((s) => s !== "").join(" / ");
+    return { key: d.key, known, name: d.name, info, detail };
   });
 }
 
@@ -348,18 +371,21 @@ function relicEntries(save: CodexSave, page: boolean): CodexEntry[] {
   });
 }
 
-const BOON_RARITY_LABEL: Readonly<Record<BoonDef["rarity"], string>> = {
-  common: "通常",
-  rare: "希少",
-  epic: "極稀",
-};
+/** 図鑑の祝福の分類（呪い付き / 芯 / 融合 / 「系譜 札の種類」） */
+function boonKindLabel(def: BoonDef): string {
+  if (def.cursed) return "呪い付き";
+  if (def.core === true) return "芯";
+  if (def.fusion !== undefined) return `融合 ${def.fusion.map((l) => LINEAGE_LABEL[l]).join("×")}`;
+  if (def.lineage === undefined || def.card === undefined) return "";
+  return `${LINEAGE_LABEL[def.lineage]} ${BOON_CARD_LABEL[def.card]}`;
+}
 
 function boonEntries(save: CodexSave, page: boolean): CodexEntry[] {
   const taken = new Set(save.boons);
   return BOON_KEYS.map((key) => {
     const def = BOONS[key];
     const known = taken.has(key);
-    const info = `${BOON_RARITY_LABEL[def.rarity]}${def.cursed ? "・呪い" : ""}`;
+    const info = boonKindLabel(def);
     if (known) return { key, known, name: def.name, info, detail: def.desc };
     const detail = page ? def.desc : "まだ受けたことのない祝福。";
     return { key, known, name: UNKNOWN_NAME, info, detail };

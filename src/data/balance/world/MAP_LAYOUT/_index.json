@@ -1,0 +1,94 @@
+{
+  "_note": "階の型 8 種（src/map/layout/）の選び方と拡縮と検査の数値。通常の階は chooseLayout が 8 型から 1 つ選ぶ（ボス階は専用の部屋 lordHall。今の洞窟と部屋＋通路は生成失敗時の代わりとテストの固定だけ）。型ごとの形の数値は同じディレクトリの <型>.json。初期値は 2026-10-01 の設計（docs/ideas/map-gen-impl.md 2-3・5 章）。章の倍率はゆるい偏り（全部の型が全部の章に出る）。前の階と同じ型は出さない。floorKind ごとの倍率 biomeMul は必要になったら足す（キーはフロア種別、値は型ごとの倍率。空のオブジェクトは JSON に置けないので今は書かない）",
+  "_fields": {
+    "weight": "型ごとの基本の重み。倍率（1 = 並）。大きいほど出やすい",
+    "chapterMul": "章ごとの重みの倍率（添字 0 = 1 章目）。書かない型は 1。章が配列より多ければ最後の行",
+    "deepMul": "深み（最後の章の先）での重みの倍率。chapterMul の代わりに掛かる。書かない型は 1",
+    "minDepth": "この深度より浅い階には出さない型ごとの下限。深度（1 始まり）",
+    "repeatMul": "前の階と同じ型の重みに掛ける倍率。0 で連続しない",
+    "previewWidth": "見本の幅。タイル。拡縮の基準（S = √(幅 × 高さ ÷ (previewWidth × previewHeight))）",
+    "previewHeight": "見本の高さ。タイル",
+    "unitExp": "長さの倍率 u = S ^ unitExp の指数。0 で長さを伸ばさず個数だけ増やし、1 で S 倍。目安 0.5〜0.8",
+    "areaScale": "型ごとの面積の縮み。倍率（1 = 縮めない）。幅と高さが √ 倍になる。床の割合が低い型を小さい地図にして階段までの歩数を揃える",
+    "validate": "生成後の検査の閾値。落ちたら同じ乱数で作り直す",
+    "validate.minRooms": "部屋として数える塊（roomMinTiles 以上）の最小数。個",
+    "validate.roomMinTiles": "部屋として数える最小のタイル数。タイル",
+    "validate.minFloorRatio": "通れる床が地図全体に占める割合の下限。割合（0..1）",
+    "validate.maxFloorRatio": "通れる床の割合の上限。割合（0..1）",
+    "validate.mainPathWidth": "開始から主の間まで通れなければならない道の幅。タイル（2 = 2x2 の窓が通れる）",
+    "validate.lordFill": "主の間の広さの下限 = π × 主の半径² × この割合。割合（0..1）",
+    "minNodeTiles": "部屋に育たなかった（これ未満の）ノードを捨てる下限。タイル。開始と主の間は捨てずに失敗にする",
+    "cavern": "大洞窟の形の数値（cavern.json）",
+    "river": "谷・川筋の形の数値（river.json）",
+    "ring": "環状の形の数値（ring.json）",
+    "court": "中庭・寺院の形の数値（court.json）",
+    "drunk": "掘り手の迷い道の形の数値（drunk.json）",
+    "isle": "島と桟道の形の数値（isle.json）",
+    "terrace": "縦穴・段々の形の数値（terrace.json）",
+    "prefab": "断片の組み合わせの形の数値（prefab.json）"
+  },
+  "weight": {
+    "cavern": 1,
+    "river": 1,
+    "ring": 1,
+    "court": 1,
+    "drunk": 1,
+    "isle": 1,
+    "terrace": 1,
+    "prefab": 1
+  },
+  "chapterMul": [
+    {
+      "cavern": 1.5,
+      "drunk": 1.3,
+      "river": 1.2,
+      "court": 0.6
+    },
+    {
+      "court": 1.5,
+      "prefab": 1.4,
+      "ring": 1.2
+    },
+    {
+      "river": 1.3,
+      "terrace": 1.4,
+      "ring": 1.2
+    },
+    {
+      "isle": 1.5,
+      "terrace": 1.3
+    }
+  ],
+  "deepMul": {
+    "isle": 2,
+    "terrace": 1.5
+  },
+  "minDepth": {
+    "cavern": 1,
+    "river": 1,
+    "ring": 1,
+    "court": 1,
+    "drunk": 1,
+    "isle": 1,
+    "terrace": 1,
+    "prefab": 1
+  },
+  "repeatMul": 0,
+  "previewWidth": 64,
+  "previewHeight": 40,
+  "unitExp": 0.65,
+  "areaScale": {
+    "court": 0.85,
+    "prefab": 0.9
+  },
+  "validate": {
+    "minRooms": 8,
+    "roomMinTiles": 24,
+    "minFloorRatio": 0.3,
+    "maxFloorRatio": 0.7,
+    "mainPathWidth": 2,
+    "lordFill": 0.6
+  },
+  "minNodeTiles": 6,
+  "_order": ["weight", "chapterMul", "deepMul", "minDepth", "repeatMul", "previewWidth", "previewHeight", "unitExp", "areaScale", "validate", "minNodeTiles", "cavern", "river", "ring", "court", "drunk", "isle", "terrace", "prefab"]
+}

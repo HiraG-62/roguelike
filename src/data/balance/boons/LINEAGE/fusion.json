@@ -1,0 +1,31 @@
+{
+  "_fields": {
+    "ratio": "近接 1 段目の威力に掛ける割合（雷火・迅雷 = 連鎖雷 / 返し打ち = 追撃）",
+    "icd": "同じ札が続けて発動しない間隔（内部 CD）。秒（BOON.ruleMinIcd が下限）",
+    "radius": "効果の半径。px",
+    "count": "同時に従える敵の上限。体",
+    "duration": "従える秒 / 付ける状態異常の秒。秒",
+    "window": "直前の出来事からの窓（返し打ち = 応手から / 磐石 = 被弾から）。秒",
+    "poise": "返し打ち: 追撃で入れる怯み値",
+    "combo": "この数以上のコンボで起きる（影群 / 迅雷）",
+    "hpRatio": "磐石: 壁叩きつけの追撃のダメージ。最大生命に対する割合",
+    "burn": "寒熱: 周りへ付ける燃焼の強さ（毎秒のダメージ）",
+    "chill": "寒熱: 周りへ付ける冷気の強さ（減速）",
+    "coins": "得る銭（豪遊 = 終撃 1 回）。銭",
+    "cost": "払う銭（豪遊 = 弾にする銭 / 買収 = 1 体を従える銭）。銭",
+    "perCoin": "豪遊: 弾にした銭 1 につきのダメージ",
+    "manaPerCoin": "両替: 拾った銭 1 につき戻す気力"
+  },
+  "thunderBlast": { "ratio": 0.5, "icd": 0.3 },
+  "chainHerd": { "radius": 64, "count": 2, "duration": 10 },
+  "counterSlam": { "window": 1, "poise": 60, "ratio": 1 },
+  "shadowHorde": { "combo": 10, "duration": 8, "count": 2, "icd": 2 },
+  "bindExecuted": { "radius": 64, "count": 3, "duration": 15 },
+  "winterNest": { "duration": 0.6, "icd": 1 },
+  "bulwark": { "window": 3, "hpRatio": 0.3 },
+  "galeStrike": { "combo": 5, "ratio": 0.6, "icd": 0.5 },
+  "reactionChain": { "radius": 48, "burn": 2, "chill": 0.8, "duration": 3, "icd": 0.5 },
+  "clearMirror": { "manaPerCoin": 1 },
+  "lavishBlade": { "coins": 2, "cost": 5, "perCoin": 4 },
+  "bribe": { "cost": 10, "duration": 15, "count": 2, "icd": 1 }
+}

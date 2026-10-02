@@ -1,0 +1,13 @@
+{
+  "_note": "符号表の検査の閾（data/signs.ts・data/signs.test.ts）。予告の 4 色（薄墨・濃墨・朱・胡粉）を、世界の層の他の色が横取りしていないかを機械で縛る。検査専用でゲームの動きには効かない",
+  "_fields": {
+    "oklabMinDist": "予約色（薄墨・濃墨・朱・胡粉）と世界の層の他の色の OKLab の距離の下限",
+    "lumaMinDelta": "距離が足りなくても通す相対輝度の差の下限(0..1)。形や動きが違えば明るさで分かれる",
+    "readyCommitLumaMin": "薄墨（下絵）と濃墨（墨入れ）、胡粉と濃墨の相対輝度の差の下限(0..1)。灰色にしても 2 段が明暗で分かれる",
+    "usuzumiChromaMax": "下絵の薄墨（滲み・筋）の色の彩度（OKLab の a, b の長さ）の上限。色味の無い灰に保ち、色の予告と取り違えない"
+  },
+  "oklabMinDist": 0.12,
+  "lumaMinDelta": 0.15,
+  "readyCommitLumaMin": 0.2,
+  "usuzumiChromaMax": 0.04
+}

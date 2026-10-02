@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "node scripts/check.mjs",
+    "check:fast": "node scripts/check.mjs --fast",
     "qa:full": "node scripts/qa-full.mjs",
+    "qa:probe": "node scripts/qa-probe.mjs",
+    "qa:gear": "node scripts/qa-gear.mjs",
     "audit:docs": "node scripts/audit-agent-docs.mjs",
     "balance:gen": "node scripts/balance-assemble.mjs",
     "fx:gen": "node scripts/fx/gen.mjs",
@@ -19,7 +22,10 @@
     "actor:gen": "node scripts/actor/gen.mjs",
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:build": "node scripts/electron-build.mjs",
-    "sync:claude": "node scripts/sync-claude-global.mjs"
+    "sync:claude": "node scripts/sync-claude-global.mjs",
+    "map:shot": "node scripts/map-shot.mjs",
+    "menu:shot": "node scripts/menu-shot.mjs",
+    "hitch:probe": "node scripts/hitch-probe.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",

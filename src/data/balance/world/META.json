@@ -1,8 +1,12 @@
 {
   "_fields": {
     "questOffers": "依頼の候補として並べる数",
+    "questTagWeight": "依頼の 3 択で、持ち物の系統と依頼の系統が 1 つ重なるごとに足す重み（基本の重みは 1。0 で持ち物を見ない）",
+    "diagramDeaths": "図鑑の敵の頁で予告の図解を開ける、その敵に倒された回数",
     "roomSampleTicks": "図鑑に今いる部屋の種類を記録する間隔。ステップ（60Hz）"
   },
   "questOffers": 3,
+  "questTagWeight": 2,
+  "diagramDeaths": 3,
   "roomSampleTicks": 15
 }

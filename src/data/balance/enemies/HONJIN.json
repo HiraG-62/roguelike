@@ -1,0 +1,24 @@
+{
+  "_note": "本陣（階に数個だけ立つ山。大将が床に突撃の道筋〔陣図〕を書き、墨の入った画の隊だけが総掛かりで走る）の選び方と報酬。system/jinzu.ts の planHonjin が階の生成の最後（planJins の後）に乱数を引かずに選ぶ。docs/ideas/jinzu-impl.md（2026-10-02 決定: 章 1 は深度 4 の 1 つだけ・陣形は章ごとに開く・報酬は鍵を必ず落とすだけ）。数は章の値（countByChapter）を深度の値（countByDepth）が上書きする。休符の階とボス階は 0",
+  "_fields": {
+    "countByChapter": "章ごとの 1 階あたりの本陣の数（章 1 から。最後の章より深い階は最後の値）。休符の階とボス階は 0。上限は max",
+    "countByDepth": "深度ごとの本陣の数（文字列の深度 → 数）。countByChapter より優先する。章 1 は深度 4 だけ 1（他の深度は 0）",
+    "max": "1 階の本陣の上限",
+    "formationsByChapter": "章ごとに本陣になれる陣形の key（章 1 から。最後の章より深い階は最後の値）。FORMATION の minDepth は上書きしない",
+    "minSpacing": "本陣どうしの中心の最小距離。px",
+    "minRoomOrder": "塊の並び（index ÷ (塊の数 − 1)）がこれ以上の塊の陣だけが本陣になれる（開始の近くに山を置かない）。割合(0..1)",
+    "leaderExclude": "大将に格上げしない精鋭の修飾子（障壁の・堅牢の・見切りのは筆が止められなくなる、号令のは陣図と働きが重なる）",
+    "keyChance": "本陣の決着で鍵を落とす確率（ECONOMY.key.leaderJinChance の代わり）。割合(0..1)",
+    "trial": "開発の試し陣",
+    "depth": "0 以外ならその深度で、最初の戦いの塊のすぐ奥の陣を鶴翼にして本陣にする（人の読みの確認と jinzuProbe 用。本番は 0）"
+  },
+  "countByChapter": [0, 2, 2, 3],
+  "countByDepth": { "4": 1 },
+  "max": 4,
+  "formationsByChapter": [["craneWing"], ["craneWing", "fishScale", "arrowhead"], ["craneWing", "fishScale", "arrowhead"], ["craneWing", "fishScale", "arrowhead"]],
+  "minSpacing": 320,
+  "minRoomOrder": 0.3,
+  "leaderExclude": ["shielded", "bulwark", "evasive", "commanding"],
+  "keyChance": 1,
+  "trial": { "depth": 0 }
+}

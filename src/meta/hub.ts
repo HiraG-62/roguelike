@@ -4,25 +4,60 @@
  */
 import { ENEMIES } from "../data/enemies";
 import { HUB, HUB_DECOR } from "../data/tuning";
-import type { HubSpotKey } from "../map/hubMap";
+import type { HubLotKey, HubSpotKey } from "../map/hubMap";
+import { hallBossKeys } from "../system/bossHallKeys";
 import { type AchievementSave, currentTitleLabel } from "./achievements";
 import { type CodexSave, type CodexTab, codexTabCount } from "./codex";
 import type { HubSave } from "./hubStore";
 import { type QuestSave, createQuestSave } from "./quests";
+import { steleLabel } from "./tierRewards";
 
-export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden"] as const;
+export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden", "hall"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
+/** 表示名は門前町の建物名（内部 key は据え置き。docs/GLOSSARY.md） */
 export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
   well: "井戸",
-  board: "掲示板",
-  forge: "鍛冶場",
-  archive: "記録室",
+  board: "高札",
+  forge: "鍛冶屋",
+  archive: "記録の蔵",
   rack: "武器掛け",
-  library: "図書館",
-  training: "訓練場",
-  altar: "祭壇",
+  library: "書庫",
+  training: "稽古場",
+  altar: "社",
   garden: "庭",
+  hall: "御堂",
+};
+
+/** 門前町の敷地（HubLotKey）と設備の対応。社 = 祭壇・御堂 = ボスの間・武器小屋 = 武器掛け・稽古場の区画 = 訓練場 */
+export const FACILITY_OF_LOT: Readonly<Record<HubLotKey, FacilityKey>> = {
+  shrine: "altar",
+  hall: "hall",
+  forge: "forge",
+  library: "library",
+  well: "well",
+  board: "board",
+  archive: "archive",
+  garden: "garden",
+  rackShed: "rack",
+  yard: "training",
+};
+
+/**
+ * 未建設の設備に近づいたとき出す解放の手がかり（1 行）。builtFacilities の条件と揃える。
+ * 最初から建っている設備は出る場面が無いが、全設備に持たせて表の抜けを型で防ぐ
+ */
+export const FACILITY_HINT: Readonly<Record<FacilityKey, string>> = {
+  well: "はじめから建っている",
+  board: "はじめから建っている",
+  forge: "はじめから建っている",
+  archive: "はじめから建っている",
+  rack: "はじめから建っている",
+  library: "スキル石を手にすると建つ",
+  training: `試し場を見つけるか、${HUB.trainingRuns} 回探索すると建つ`,
+  altar: "祭壇の部屋を見つけると建つ",
+  garden: "芽の出た装備を持つと建つ",
+  hall: "章ボスか最深の主を倒すと建つ",
 };
 
 /** history・codex・achievements は archive */
@@ -37,6 +72,7 @@ export const FACILITY_OF_SPOT: Readonly<Record<HubSpotKey, FacilityKey>> = {
   codex: "archive",
   achievements: "archive",
   rack: "rack",
+  hall: "hall",
 };
 
 /** 最初から建っている設備。建った演出は出さない（初回に 4 枚のバナーが並ばないように） */
@@ -57,6 +93,9 @@ export interface HubProgressSource {
   achievements: AchievementSave;
   /** 依頼の報酬の称号を名乗っているときに名前を引くため。省略時は実績の称号だけ引ける */
   quests?: QuestSave;
+  /** 踏破の回数と最高位階（踏破の碑。profile.meta の写し。省略は踏破なし） */
+  clears?: number;
+  bestClearTier?: number;
 }
 
 /** 建っている設備。既存の保存データから導く純関数で、stats には触れない */
@@ -66,6 +105,7 @@ export function builtFacilities(src: HubProgressSource): FacilityKey[] {
   if (src.codex.roomKinds.includes(TRAINING_ROOM) || src.runs >= HUB.trainingRuns) built.add("training");
   if (src.codex.roomKinds.includes(ALTAR_ROOM)) built.add("altar");
   if (src.hasBud) built.add("garden");
+  if (hallBossKeys().some((k) => (src.codex.enemyKills[k] ?? 0) > 0)) built.add("hall");
   // 表示順を安定させるため FACILITY_KEYS の順で返す
   return FACILITY_KEYS.filter((k) => built.has(k));
 }
@@ -112,7 +152,7 @@ export function shelfCount(codex: CodexSave): number {
 function shelfDecor(codex: CodexSave): HubDecor[] {
   const shelves = shelfCount(codex);
   if (shelves <= 0) return [];
-  return [{ key: "shelf", label: `記録室の書架 ${shelves} 段` }];
+  return [{ key: "shelf", label: `記録の蔵の書架 ${shelves} 段` }];
 }
 
 function titleDecor(src: HubProgressSource): HubDecor[] {
@@ -121,9 +161,15 @@ function titleDecor(src: HubProgressSource): HubDecor[] {
   return [{ key: "title", label: `看板「${label}」` }];
 }
 
-/** 拠点の飾り。ボスの記念品 → 書架 → 称号の看板の順 */
+/** 踏破の碑。踏破したことがあるときだけ（飾りは数行しか出ないので先頭に置く） */
+function steleDecor(src: HubProgressSource): HubDecor[] {
+  const label = steleLabel({ clears: src.clears, bestClearTier: src.bestClearTier });
+  return label === null ? [] : [{ key: "stele", label }];
+}
+
+/** 拠点の飾り。踏破の碑 → ボスの記念品 → 書架 → 称号の看板の順 */
 export function hubDecorations(src: HubProgressSource): HubDecor[] {
-  return [...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
+  return [...steleDecor(src), ...trophyDecor(src.codex), ...shelfDecor(src.codex), ...titleDecor(src)];
 }
 
 /** まだ「建った」演出を見せていない設備（最初から建っているものは除く） */

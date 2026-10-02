@@ -1,0 +1,25 @@
+{
+  "_fields": {
+    "ratio": "連鎖する雷・追撃のダメージ。近接 1 段目の威力に掛ける割合。格で伸びる",
+    "critRatio": "会心の一撃のダメージに掛ける割合（会心雷撃の連鎖する雷の 1 回のダメージ）。格で伸びる",
+    "shockRatio": "付ける感電の強さ（感電の連鎖のダメージ）。近接 1 段目の威力に掛ける割合。装備の感電の強さ（shockDamage）の方が強ければそちら。格で伸びる",
+    "stacks": "付ける感電の重ね（回）。重ねが STATUS.shock.maxStacks に届くと麻痺に変わる",
+    "duration": "付ける感電の持続。秒",
+    "radius": "範囲の半径。px（10px = 1m）。格で広がる",
+    "icd": "Rule の内部 CD。秒（BOON.ruleMinIcd が下限）",
+    "every": "研鑽の数えの何回で 1 段か（回）",
+    "perStep": "研鑽 1 段あたりの量（連鎖係数なら 0.02 = +2%、倍なら 0.01 = ×1.01 ずつ）",
+    "revisits": "連鎖が同じ敵へ戻れる回数に足す数（還雷。1 以上で連鎖する雷が最後の敵から来た道を戻る）"
+  },
+  "chargedBlade": { "ratio": 0.5, "icd": 0.3 },
+  "boltDrop": { "ratio": 1, "shockRatio": 0.5, "stacks": 1, "duration": 2.5, "icd": 0.2 },
+  "staticDash": { "ratio": 0.7 },
+  "thunderLeap": { "ratio": 0.4, "icd": 0.4 },
+  "thunderDrum": { "ratio": 0.8, "shockRatio": 0.5, "stacks": 2, "duration": 2.5, "radius": 96 },
+  "critChain": { "critRatio": 0.5, "icd": 0.2 },
+  "thunderMark": { "ratio": 1.2 },
+  "collapseChain": { "ratio": 0.6, "icd": 0.2 },
+  "thunderLink": { "every": 5, "perStep": 0.02 },
+  "thunderCharge": { "every": 10, "perStep": 0.01 },
+  "thunderReturn": { "revisits": 1 }
+}

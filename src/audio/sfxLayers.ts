@@ -26,6 +26,8 @@ const SLASH_RING = [1, 1.5, 1.62, 1.82, 2.03, 2.33] as const;
 const CLANG = [1, 1.34, 2.19, 2.83] as const;
 const CRYSTAL = [1, 1.53, 2.37, 3.1] as const;
 const CHAIN = [1, 1.37, 1.93, 2.61] as const;
+/** 拍子木・板の木の鳴り（非整数倍で、金属より短く乾く） */
+const WOOD = [1, 1.38, 2.11] as const;
 /** 鐘（FM）の変調比。整数でない比が鐘らしい濁った倍音を作る */
 const BELL_FM_RATIO = 1.4;
 
@@ -179,6 +181,61 @@ export const LAYERED_SFX = {
   ],
   /** 近接命中の低域のドン。hit と一緒に積む（重撃は hitHeavy が自分で低域を持つ） */
   hitThump: [{ k: "kick", from: 150, to: 50, drop: 0.05, dur: 0.1, peak: 0.5, drive: 1.5 }],
+  /** 墨入れの間の命中: 出端の澄んだ音の対。短く低い、木を叩く鈍い音（高域・火花なし） */
+  hitCommitted: [
+    { k: "click", freq: 900, peak: 0.25 },
+    { k: "kick", from: 170, to: 80, drop: 0.04, dur: 0.08, peak: 0.45, drive: 1.2 },
+    { k: "noise", filter: "lowpass", from: 700, to: 250, dur: 0.06, q: 1, peak: 0.3 },
+  ],
+  /** 下絵を崩した: 紙を擦る、短く小さな下降の帯域ノイズ（高域だけ。命中音と重ならない） */
+  sketchErase: [{ k: "noise", filter: "bandpass", from: 7000, to: 3200, dur: 0.1, q: 0.9, peak: 0.2 }],
+  /** 柝頭: 拍子木の高く乾いた小さな 1 打（帯域ノイズ 25ms + 2.4kHz 付近の非整数倍の木の鳴り）。小さく、鳴り続けても耳が痛くならない */
+  commitClack: [
+    { k: "click", freq: 3400, peak: 0.45 },
+    { k: "noise", filter: "bandpass", from: 4500, to: 2500, dur: 0.025, q: 2, peak: 0.5 },
+    { k: "metal", freq: 2400, ratios: WOOD, dur: 0.04, peak: 0.12 },
+  ],
+  /** 附打: 板を打つ低く強い 1 打（0.8〜2kHz の板の鳴り + 150 → 80Hz の胴）。柝頭より低く重い。受け流しの成功だけに鳴らす */
+  tsukeHeavy: [
+    { k: "click", freq: 1800, peak: 0.7 },
+    { k: "kick", from: 150, to: 80, drop: 0.05, dur: 0.14, peak: 0.8, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 2000, to: 800, dur: 0.07, q: 1.2, peak: 0.6 },
+    { k: "metal", freq: 1100, ratios: WOOD, dur: 0.12, peak: 0.1 },
+  ],
+  // ---- 本陣の陣図（docs/ideas/jinzu-impl.md。仮の合成。正式な音は後）----
+  /** 軍配を掲げた: 太鼓 1 打（低い kick）+ 低い法螺（鋸歯の長い和音） */
+  jinzuRaise: [
+    { k: "kick", from: 150, to: 52, drop: 0.1, dur: 0.3, peak: 0.55, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 900, to: 160, dur: 0.18, attack: 0.004, peak: 0.2 },
+    { k: "chord", type: "sawtooth", freqs: [98, 147], dur: 0.55, peak: 0.12, at: 0.06 },
+  ],
+  /** 画が出た: 筆の擦れ（短い帯域ノイズの掃引） */
+  jinzuStroke: [{ k: "noise", filter: "bandpass", from: 1800, to: 4200, dur: 0.16, q: 1.1, attack: 0.05, peak: 0.16 }],
+  /** 墨が入った: 柝（木の打音）。高めの短い金属の部分音 */
+  jinzuInk: [
+    { k: "click", freq: 3200, peak: 0.3 },
+    { k: "metal", freq: 1250, ratios: [1, 2.3, 3.4], dur: 0.09, peak: 0.28 },
+  ],
+  /** 筆が折れた: 竹の割れる乾いた破裂 + 低い裂け */
+  jinzuBreak: [
+    { k: "click", freq: 4200, peak: 0.45 },
+    { k: "noise", filter: "bandpass", from: 3600, to: 900, dur: 0.14, q: 1.4, peak: 0.4 },
+    { k: "metal", freq: 820, ratios: [1, 1.9, 3.1], dur: 0.12, peak: 0.2, at: 0.02 },
+  ],
+  /** 総掛かり: 鬨の声（上ずる群声を重ねた長めの音）+ 太鼓 */
+  jinzuCharge: [
+    { k: "kick", from: 120, to: 48, drop: 0.09, dur: 0.28, peak: 0.5, drive: 2 },
+    { k: "sweep", type: "sawtooth", from: 150, to: 230, dur: 0.5, peak: 0.1, at: 0.04 },
+    { k: "sweep", type: "sawtooth", from: 190, to: 280, dur: 0.46, peak: 0.08, at: 0.08 },
+    { k: "noise", filter: "bandpass", from: 500, to: 1100, dur: 0.5, q: 0.8, attack: 0.12, peak: 0.16, at: 0.04 },
+  ],
+  /** 旗倒れ: 布の倒れる風切り（下降の帯域ノイズ）+ 太鼓の乱れ打ち */
+  flagFall: [
+    { k: "noise", filter: "bandpass", from: 1600, to: 300, dur: 0.4, q: 0.9, attack: 0.08, peak: 0.28 },
+    { k: "kick", from: 130, to: 50, drop: 0.08, dur: 0.22, peak: 0.5, drive: 2, at: 0.1 },
+    { k: "kick", from: 118, to: 46, drop: 0.08, dur: 0.22, peak: 0.45, drive: 2, at: 0.2 },
+    { k: "kick", from: 140, to: 54, drop: 0.08, dur: 0.26, peak: 0.55, drive: 2, at: 0.3 },
+  ],
   hitHeavy: [
     { k: "click", freq: 2000, peak: 0.6 },
     { k: "kick", from: 120, to: 38, drop: 0.09, dur: 0.26, peak: 0.7, drive: 2.5 },
@@ -714,6 +771,53 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "bandpass", from: 3000, to: 1100, dur: 0.12, q: 2, peak: 0.14, at: 0.06 },
     { k: "tone", type: "sine", freq: 261.6, dur: 0.6, peak: 0.22, at: 0.1 },
     { k: "tone", type: "sine", freq: 261.6 * BELL_PARTIAL, dur: 0.4, peak: 0.09, at: 0.1 },
+  ],
+
+  // ---- 銭・瓶・商人・賭け・壺と木箱（docs/ideas/economy-impl.md 4 章 6e）----
+  // 銭を拾う: 連続で鳴るので短く軽く、高い硬貨の「チリン」（非整数倍の部分音）だけ。同フレームの重複は pushSfx が、30ms 未満の連発は SfxPlayer が落とす
+  coinPickup: [
+    { k: "click", freq: 6500, peak: 0.16 },
+    { k: "metal", freq: 2637, ratios: [1, 1.5, 2.76], dur: 0.12, peak: 0.07 },
+    { k: "tone", type: "sine", freq: 3520, dur: 0.08, peak: 0.05, at: 0.03 },
+  ],
+  // 銭がこぼれる: 被弾の衝撃のあとに硬貨が床を跳ねる「ジャラッ」（粒が下がっていく crackle + 低めの金属）
+  coinSpill: [
+    { k: "noise", filter: "bandpass", from: 5500, to: 3000, dur: 0.1, q: 1.5, peak: 0.2 },
+    { k: "crackle", freq: 4200, count: 6, gap: 0.035, peak: 0.16, q: 5, at: 0.02 },
+    { k: "metal", freq: 1900, ratios: CLANG, dur: 0.25, peak: 0.05, at: 0.03 },
+  ],
+  // 瓶を飲む: 喉を鳴らす低い 2 拍の泡（blips の上昇）+ 栓の抜ける小さな破裂（回復の heal は healPlayer が重ねる）
+  flaskDrink: [
+    { k: "click", freq: 1800, peak: 0.18 },
+    { k: "blips", type: "sine", from: 220, to: 420, count: 3, note: 0.05, gap: 0.03, peak: 0.16, at: 0.02 },
+    { k: "noise", filter: "lowpass", from: 900, to: 250, dur: 0.15, peak: 0.16, at: 0.02 },
+  ],
+  // 商人が怒る: 下がる不機嫌な 2 音の唸り + 品物を叩く金属の打撃（低く暗い。可愛くしない）
+  merchantProvoked: [
+    { k: "sweep", type: "sawtooth", from: 320, to: 150, dur: 0.16, peak: 0.12 },
+    { k: "sweep", type: "triangle", from: 260, to: 110, dur: 0.2, peak: 0.16, at: 0.12 },
+    { k: "kick", from: 130, to: 55, drop: 0.06, dur: 0.14, peak: 0.3, drive: 2, at: 0.1 },
+    { k: "metal", freq: 900, ratios: CLANG, dur: 0.2, peak: 0.05, at: 0.1 },
+  ],
+  // 賭けの勝ち: 上がる 4 音 + 硬貨のきらめき。負けより長く明るい
+  betWin: [
+    { k: "arp", type: "triangle", freqs: [659.25, 830.61, 987.77, 1318.5], note: 0.06, gap: 0.012, peak: 0.2 },
+    { k: "metal", freq: 3136, ratios: [1, 1.5, 2.76], dur: 0.4, peak: 0.07, at: 0.2 },
+    { k: "crackle", freq: 5000, count: 4, gap: 0.04, peak: 0.12, q: 5, at: 0.22 },
+  ],
+  // 賭けの負け: 下がる短 2 音 + こもった低い落ち（statusFear の下降より遅く、暗くて軽い）
+  betLose: [
+    { k: "arp", type: "triangle", freqs: [392, 329.63, 261.63], note: 0.09, gap: 0.02, peak: 0.2 },
+    { k: "tone", type: "sine", freq: 98, dur: 0.3, peak: 0.28, at: 0.1 },
+    { k: "noise", filter: "lowpass", from: 700, to: 120, dur: 0.2, peak: 0.16, at: 0.1 },
+  ],
+  // 壺・木箱が割れる: 乾いた陶器の破裂（高めの click + 帯域ノイズ）+ 破片が散る粒 + 短い低い胴鳴り。壁への当たり（wallHit）より高く散らばる
+  containerBreak: [
+    { k: "click", freq: 3200, peak: 0.4 },
+    { k: "noise", filter: "bandpass", from: 3500, to: 900, dur: 0.09, q: 1, peak: 0.42, drive: 2 },
+    { k: "kick", from: 170, to: 70, drop: 0.04, dur: 0.09, peak: 0.28 },
+    { k: "crackle", freq: 3800, count: 5, gap: 0.03, peak: 0.16, q: 4, at: 0.03 },
+    { k: "noise", filter: "lowpass", from: 700, to: 150, dur: 0.12, peak: 0.15, at: 0.02 },
   ],
 } as const satisfies Partial<Record<SfxName, readonly Layer[]>>;
 

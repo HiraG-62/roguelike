@@ -1,0 +1,30 @@
+{
+  "_note": "大地の札（怯み・重さ・壁。docs/ideas/boon-impl.md 2-6）。札 key ごとのブロック。名前・説明・Rule は src/system/boonDefs/earth.ts。壁際の放出の叩きつけは src/system/player.ts の releaseSlamMul。真髄は設計の「地投げ」が大きいので「怯んだ敵の撃破で衝撃波 + 周りを怯ませる」に落とした（激震）",
+  "_fields": {
+    "poise": "与える怯み値",
+    "icd": "Rule の内部 CD（秒。BOON.ruleMinIcd 未満は切り上げ）",
+    "knockMul": "放出の一撃の吹き飛ばしの倍率（壁叩きつけが起きる強さにする）",
+    "strikeRatio": "追撃の威力（近接 1 段目の威力 × この値）",
+    "window": "放出から壁叩きつけの追撃が出る秒",
+    "radius": "範囲の半径（px。10px = 1m）",
+    "duration": "付ける状態・地形の秒",
+    "wrathStacks": "自分に付く怒気の数（1 つにつき怯み値 +STATUS.wrath.poisePerStack）。STATUS.wrath.maxStacks に届くと激昂に昇華するので、それより 1 少なく",
+    "nearMul": "自分から radius 以内の敵への与ダメの倍",
+    "farMul": "radius より遠い敵への与ダメの倍（1 未満 = 下がる）",
+    "every": "研鑽の段: 数えがいくつで 1 段か",
+    "amount": "研鑽の 1 段あたりの倍（0.01 = +1%）",
+    "waveRatio": "撃破した位置の衝撃波の威力（近接 1 段目の威力 × この値）",
+    "staggerTime": "周りの敵を怯ませる秒"
+  },
+  "leyLine": { "poise": 4, "icd": 0.1 },
+  "earthWallSlam": { "knockMul": 1.6, "strikeRatio": 1.5, "window": 1.5, "icd": 0.1 },
+  "footBreak": { "radius": 20, "duration": 6 },
+  "earthQuake": { "poise": 6, "icd": 0.1 },
+  "earthWrath": { "poise": 30 },
+  "crumble": { "duration": 4, "icd": 1 },
+  "usurp": { "wrathStacks": 4, "duration": 4 },
+  "earthDomain": { "radius": 60, "nearMul": 1.2, "farMul": 0.9 },
+  "earthTrophy": { "every": 3, "amount": 0.05 },
+  "earthRampart": { "every": 5, "amount": 0.03 },
+  "earthTremor": { "waveRatio": 1.5, "radius": 60, "staggerTime": 1.2, "icd": 0.1 }
+}

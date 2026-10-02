@@ -11,24 +11,22 @@ export const PITCH_JITTER_RATIO = 0.03;
 /** ノイズバッファの長さの目安（秒）。必要な長さに応じて slice して使う */
 const NOISE_BUFFER_SECONDS = 2;
 
-let cachedNoiseBuffer: AudioBuffer | null = null;
-let cachedNoiseBufferCtx: BaseAudioContext | null = null;
+/** AudioContext ごとのノイズ（効果音の温め用の OfflineAudioContext と本番の文脈が入れ替わっても作り直さない） */
+const noiseBuffers = new WeakMap<BaseAudioContext, AudioBuffer>();
 
 /**
  * ホワイトノイズ用の AudioBuffer を取得する（AudioContext ごとにキャッシュ）。
  */
 export function getNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
-  if (cachedNoiseBuffer !== null && cachedNoiseBufferCtx === ctx) {
-    return cachedNoiseBuffer;
-  }
+  const cached = noiseBuffers.get(ctx);
+  if (cached) return cached;
   const length = Math.floor(ctx.sampleRate * NOISE_BUFFER_SECONDS);
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < length; i++) {
     data[i] = Math.random() * 2 - 1;
   }
-  cachedNoiseBuffer = buffer;
-  cachedNoiseBufferCtx = ctx;
+  noiseBuffers.set(ctx, buffer);
   return buffer;
 }
 

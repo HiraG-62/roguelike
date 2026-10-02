@@ -1,8 +1,8 @@
 import type { GameState } from "../core/state";
 import { createRng, hashSeed, type Rng } from "../core/rng";
 import { ENEMIES } from "../data/enemies";
-import { KEYSTONE } from "../data/tuning";
-import { affixDef } from "./affixes";
+import { BUD } from "../data/tuning";
+import { affixDef, slotAllows } from "./affixes";
 import { baseDef, baseFamily } from "./bases";
 import { OPPOSITE_COLOR } from "./colors";
 import { fluxClassOf } from "./flux";
@@ -46,6 +46,7 @@ export type ProvenanceEvent =
   | { kind: "weakHit" }
   | { kind: "resistedHit" }
   | { kind: "terrainKill" }
+  /** ジョブの初期武器と同じ型での撃破（旧「得意武器での撃破」。key は旧セーブの数えを引き継ぐため据え置き） */
   | { kind: "favoredKill" }
   | { kind: "chargedHit" }
   | { kind: "branchHit" }
@@ -73,20 +74,28 @@ type CounterKey =
   | "returns";
 
 export interface MilestoneDef {
+  /** 保存データの milestones / buds が参照する ID。倍率を掛ける前の基準の値で組む（変えると届いた節目に芽が出直す） */
   key: string;
   counter: CounterKey;
+  /** 判定に使う値（基準の値 × BUD.thresholdScale） */
   threshold: number;
   /** 芽の片方の色（もう片方は OPPOSITE_COLOR） */
   color: TraitColor;
   label: string;
   /** 敵種別の撃破数で数える節目（killsByEnemy[enemyKey]）。counter は kills のまま */
   enemyKey?: string;
-  /** 目覚め: 芽の片方をこの性質（affixes.ts の awakening）にする */
+  /** 目覚め: 芽の片方をこの性質にする（段取り 7d から普通の性質を名指しする。専用の性質は無い） */
   awakening?: string;
 }
 
-function milestone(counter: CounterKey, threshold: number, color: TraitColor, label: string, awakening?: string): MilestoneDef {
-  const def: MilestoneDef = { key: `${counter}:${threshold}`, counter, threshold, color, label: `${label} ${threshold}` };
+/** 基準の値に倍率を掛けた、判定と表示に使う値 */
+function scaledThreshold(base: number): number {
+  return base * BUD.thresholdScale;
+}
+
+function milestone(counter: CounterKey, base: number, color: TraitColor, label: string, awakening?: string): MilestoneDef {
+  const threshold = scaledThreshold(base);
+  const def: MilestoneDef = { key: `${counter}:${base}`, counter, threshold, color, label: `${label} ${threshold}` };
   if (awakening !== undefined) def.awakening = awakening;
   return def;
 }
@@ -96,9 +105,10 @@ function enemyName(key: string): string {
 }
 
 /** 敵種別の撃破数の節目（目覚めを出す）。key は "enemy:<敵種>:<数>" */
-function enemyMilestone(enemyKey: string, threshold: number, color: TraitColor, awakening: string): MilestoneDef {
+function enemyMilestone(enemyKey: string, base: number, color: TraitColor, awakening: string): MilestoneDef {
+  const threshold = scaledThreshold(base);
   return {
-    key: `enemy:${enemyKey}:${threshold}`,
+    key: `enemy:${enemyKey}:${base}`,
     counter: "kills",
     threshold,
     color,
@@ -108,42 +118,42 @@ function enemyMilestone(enemyKey: string, threshold: number, color: TraitColor, 
   };
 }
 
-/** 節目の表。表の順に判定し、1 度に提示する芽は 1 つ */
+/** 節目の表（基準の値は倍率を掛ける前）。表の順に判定し、1 度に提示する芽は 1 つ */
 export const MILESTONES: readonly MilestoneDef[] = [
   milestone("kills", 50, "crimson", "撃破"),
   milestone("justDodges", 20, "gold", "見切り"),
   milestone("hurtTaken", 40, "jade", "被弾"),
   milestone("bosses", 1, "umbra", "ボス撃破"),
   // 第 2 弾で目覚めを名指しするようにした節目（key は変えないので、到達済みの遺物に芽が出直すことはない）
-  milestone("floorsCleared", 10, "azure", "階層踏破", "emberWalk"),
-  milestone("roomsCleared", 25, "jade", "部屋制圧", "siegeHeart"),
+  milestone("floorsCleared", 10, "azure", "階層踏破", "emberTrail"),
+  milestone("roomsCleared", 25, "jade", "部屋制圧", "siegeGuard"),
   milestone("kills", 200, "crimson", "撃破"),
   milestone("justDodges", 60, "gold", "見切り"),
   milestone("hurtTaken", 150, "jade", "被弾"),
   milestone("bosses", 3, "umbra", "ボス撃破"),
-  milestone("floorsCleared", 30, "azure", "階層踏破", "frostWalk"),
+  milestone("floorsCleared", 30, "azure", "階層踏破", "frostTrail"),
   milestone("kills", 500, "crimson", "撃破"),
   // ---- 2026-09 追加。旧セーブの到達済み節目の並びを崩さないよう末尾に足す ----
-  milestone("staggers", 100, "crimson", "怯ませ", "hueBreak"),
+  milestone("staggers", 100, "crimson", "怯ませ", "elementalBreak"),
   milestone("counters", 30, "gold", "カウンター", "firstMove"),
-  milestone("skillCasts", 300, "azure", "スキル発動", "battleRhythm"),
-  milestone("eliteKills", 30, "crimson", "精鋭撃破", "plunder"),
+  milestone("skillCasts", 300, "azure", "スキル発動", "switchBreath"),
+  milestone("eliteKills", 30, "crimson", "精鋭撃破"),
   milestone("lastKills", 20, "gold", "殲滅", "curtainCall"),
-  enemyMilestone("knight", 30, "crimson", "shieldSplitter"),
-  enemyMilestone("bomber", 40, "crimson", "kickback"),
-  milestone("staggers", 400, "crimson", "怯ませ", "brokenBreaker"),
+  enemyMilestone("knight", 30, "crimson", "guardedBane"),
+  enemyMilestone("bomber", 40, "crimson", "counterWave"),
+  milestone("staggers", 400, "crimson", "怯ませ"),
   milestone("counters", 120, "gold", "カウンター"),
-  milestone("skillCasts", 1200, "azure", "スキル発動", "stormConduit"),
+  milestone("skillCasts", 1200, "azure", "スキル発動", "conductor"),
   // ---- 2026-09 第 2 弾: 属性・地形・ジョブ・武器種の節目（すべて目覚めを名指しする）----
-  milestone("weakHits", 150, "azure", "弱点攻撃", "weakInsight"),
-  milestone("resistedHits", 150, "umbra", "耐性で軽減", "counterGrain"),
-  milestone("terrainKills", 60, "jade", "地形上での撃破", "groundWisdom"),
-  milestone("favoredKills", 150, "crimson", "得意武器での撃破", "schoolMastery"),
-  milestone("chargedHits", 100, "crimson", "溜め攻撃の命中", "fullCharge"),
-  milestone("branchHits", 150, "gold", "派生の命中", "formBreaker"),
-  milestone("weakHits", 600, "gold", "弱点攻撃", "sevenHues"),
-  milestone("terrainKills", 250, "jade", "地形上での撃破", "mireLord"),
-  milestone("favoredKills", 600, "gold", "得意武器での撃破", "schoolSecret"),
+  milestone("weakHits", 150, "azure", "弱点攻撃", "prismEdge"),
+  milestone("resistedHits", 150, "umbra", "耐性で軽減", "backlash"),
+  milestone("terrainKills", 60, "jade", "地形上での撃破", "groundRooted"),
+  milestone("favoredKills", 150, "crimson", "初期武器と同じ型での撃破"),
+  milestone("chargedHits", 100, "crimson", "溜め攻撃の命中", "chargeCore"),
+  milestone("branchHits", 150, "gold", "派生の命中", "branchArt"),
+  milestone("weakHits", 600, "gold", "弱点攻撃", "prismEdge"),
+  milestone("terrainKills", 250, "jade", "地形上での撃破", "terrainHunter"),
+  milestone("favoredKills", 600, "gold", "初期武器と同じ型での撃破", "branchArt"),
   // ---- 2026-09-24 第 4 弾: 上り階段で浅い階へ戻った探索を共にした（docs/ideas/run-expansion.md 4 章の見送り分）----
   milestone("returns", 1, "azure", "帰還"),
 ];
@@ -151,9 +161,6 @@ export const MILESTONES: readonly MilestoneDef[] = [
 /** 来歴を 2 倍で積むベース（印章指輪） */
 const DOUBLE_PROGRESS_BASES: ReadonlySet<string> = new Set(["signet"]);
 const DOUBLE_PROGRESS = 2;
-/** 来歴の誓約の key（loot から system/keystones.ts を import しないよう文字列で持つ） */
-const DISCIPLINE_KEY = "ks_discipline";
-const OBLIVION_KEY = "ks_oblivion";
 
 const MILESTONE_BY_KEY: ReadonlyMap<string, MilestoneDef> = new Map(MILESTONES.map((m) => [m.key, m]));
 
@@ -267,7 +274,7 @@ export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
   };
   const base = baseDef(item.baseKey);
   const family = base === undefined ? undefined : baseFamily(base);
-  const along = rollAwakening(rng, def, used, opts) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts, family);
+  const along = rollAwakening(rng, def, used, opts, item.slot, family) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts, family);
   if (along === undefined) return null;
   used.add(along.key);
   const against = rollTraitOfColor(rng, item.slot, OPPOSITE_COLOR[def.color], used, opts, family);
@@ -275,11 +282,22 @@ export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
   return { milestone: def.key, options: [along, against] };
 }
 
-/** 目覚め（節目が名指しする芽専用の性質）。既に出ていれば undefined（通常の芽に戻る） */
-function rollAwakening(rng: Rng, def: MilestoneDef, used: ReadonlySet<string>, opts: TraitRollOptions): AffixRoll | undefined {
+/**
+ * 目覚め（節目が名指しする性質）。既に出ている・この部位や右手の家系に付かない性質なら undefined（通常の芽に戻る）。
+ * 段取り 7d から名指しは普通の性質なので、部位（slots）と家系（family）の決まりを守る
+ */
+function rollAwakening(
+  rng: Rng,
+  def: MilestoneDef,
+  used: ReadonlySet<string>,
+  opts: TraitRollOptions,
+  slot: Item["slot"],
+  family: "melee" | "gun" | undefined,
+): AffixRoll | undefined {
   if (def.awakening === undefined || used.has(def.awakening)) return undefined;
   const trait = affixDef(def.awakening);
-  if (trait === undefined) return undefined;
+  if (trait === undefined || !slotAllows(trait, slot)) return undefined;
+  if (trait.family !== undefined && family !== undefined && trait.family !== family) return undefined;
   return rollTableTrait(rng, trait, opts);
 }
 
@@ -311,7 +329,8 @@ export function maybeInscribe(item: Item): boolean {
 
 /**
  * 提示中の芽から index（0 / 1）を選ぶ（その場で書き換える）。
- * 選んだ性質を加え、余白を 1 減らし、履歴に残す。余白が 0 になれば銘を刻み、次の節目があれば続けて提示する。
+ * 選んだ性質を加え、余白を 1 減らし、履歴に残す。余白が 0 になれば銘を刻む。
+ * 次の節目はここでは出さない（1 ランの上限を守るため。recordProvenance の次の出来事で出る）。
  * 選べたら選んだ性質、提示が無い / index 不正なら null
  */
 export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
@@ -326,7 +345,6 @@ export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
   item.budOffer = null;
   item.rarity = fluxClassOf(item.affixes);
   if (!maybeInscribe(item)) item.name = nameItem(item);
-  offerNextBud(item);
   return chosen;
 }
 
@@ -357,6 +375,13 @@ export function findPendingBud(profile: Profile): PendingBud | null {
   return null;
 }
 
+/** この遺物に、今のランでまだ芽を出してよいか（BUD.perRunPerItem。前のランから持ち越した芽は数えない） */
+function canOfferBudThisRun(state: GameState, item: Item): boolean {
+  let count = 0;
+  for (const id of state.budOfferedThisRun) if (id === item.id) count += 1;
+  return count < BUD.perRunPerItem;
+}
+
 /**
  * 出来事を装備中の全アイテムの来歴に積み、節目に達したら芽を提示する。
  * state.pendingBud を更新し、新しい芽が出たらプロフィールを保存する。
@@ -365,10 +390,6 @@ export function findPendingBud(profile: Profile): PendingBud | null {
 export function recordProvenance(state: GameState, event: ProvenanceEvent): void {
   // 拠点の木人で来歴を育てられないようにする
   if (state.sandbox) return;
-  const keystones = state.stats.keystones;
-  // 忘却の誓い: 来歴は積もらず、芽も出ない
-  if (keystones.includes(OBLIVION_KEY)) return;
-  const pace = keystones.includes(DISCIPLINE_KEY) ? KEYSTONE.disciplineProgress : 1;
   let offered = false;
   for (const slot of SLOTS) {
     const item = state.profile.equipment[slot];
@@ -376,10 +397,14 @@ export function recordProvenance(state: GameState, event: ProvenanceEvent): void
     ensureGrowthFields(item);
     const provenance = item.provenance;
     if (provenance !== undefined) {
-      const times = pace * progressFor(item.baseKey);
+      const times = progressFor(item.baseKey);
       for (let i = 0; i < times; i++) bumpProvenance(provenance, event, state.depth);
     }
-    if (offerNextBud(item)) offered = true;
+    // 上限で止めた節目は到達済みにしない。次のランで芽になる
+    if (!canOfferBudThisRun(state, item)) continue;
+    if (!offerNextBud(item)) continue;
+    state.budOfferedThisRun.push(item.id);
+    offered = true;
   }
   if (!offered) return;
   state.pendingBud = findPendingBud(state.profile);

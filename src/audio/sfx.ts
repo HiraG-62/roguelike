@@ -13,6 +13,7 @@ import {
   createFilter,
   createGainNode,
   createNoiseSource,
+  getNoiseBuffer,
   createOsc,
   jitterPitch,
   pitchSweep,
@@ -30,6 +31,8 @@ export interface SfxPlayOptions {
   volume?: number;
   /** 周波数の倍率（デフォルト 1 = 元のピッチ） */
   pitch?: number;
+  /** 左右の振り -1（左）..1（右）。省略は中央。StereoPannerNode が無い環境では無視する（柝頭が敵の方向を耳で言う） */
+  pan?: number;
 }
 
 /** 効果音定義に渡す内部オプション（ピッチ倍率にランダムな揺らぎが乗った後の値ではなく元の倍率） */
@@ -60,6 +63,10 @@ const LIMITER_ATTACK_SECONDS = 0.001;
 const LIMITER_RELEASE_SECONDS = 0.08;
 
 const MIN_SWEEP_FREQ = 20;
+/** 効果音の温め（scheduleWarm）: 1 回に通す数・鳴らさない文脈の長さ（標本数）と標本化周波数（描画しないので最小限） */
+const WARM_BATCH = 8;
+const WARM_LENGTH = 1;
+const WARM_SAMPLE_RATE = 8000;
 const TAIL_MARGIN_SECONDS = 0.1;
 
 function clamp01(value: number): number {
@@ -637,7 +644,7 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     return Math.max(noise, stab);
   },
 
-  // 台座に触れた: 上がる 3 音
+  // 台座を使った: 上がる 3 音
   pedestalUse: (ctx, dest, opts) =>
     arpeggio(ctx, dest, opts, {
       type: "triangle",
@@ -964,11 +971,42 @@ export class SfxPlayer {
 
       this.ctx = ctx;
       this.masterGain = masterGain;
+      // 2 秒ぶんのノイズを作るのは数 ms かかる。ゲーム中の最初の 1 音で止まらないよう、操作を受けたこの時に作っておく
+      getNoiseBuffer(ctx);
+      this.scheduleWarm();
       return;
     }
     if (this.ctx.state === "suspended") {
       void this.ctx.resume();
     }
+  }
+
+  /**
+   * すべての効果音の組み立てを、鳴らさない OfflineAudioContext で一度ずつ通す（数個ずつ間を空けて）。
+   * 初めて鳴る音は組み立ての関数の初回の実行で 1 音 1ms ほどかかり、初めての命中・撃破のフレームで 10ms 以上止まっていた
+   */
+  private scheduleWarm(): void {
+    const OfflineCtor = globalThis.OfflineAudioContext;
+    if (typeof OfflineCtor !== "function") return;
+    const offline = new OfflineCtor(1, WARM_LENGTH, WARM_SAMPLE_RATE);
+    const sink = offline.createGain();
+    sink.connect(offline.destination);
+    const names = Object.keys(SFX_DEFINITIONS) as SfxName[];
+    let next = 0;
+    const tick = (): void => {
+      const end = Math.min(names.length, next + WARM_BATCH);
+      for (; next < end; next++) {
+        const name = names[next];
+        if (name === undefined) continue;
+        try {
+          SFX_DEFINITIONS[name](offline, sink, { pitch: 1 });
+        } catch {
+          // 温めに失敗しても本番の再生には響かない
+        }
+      }
+      if (next < names.length) setTimeout(tick, 0);
+    };
+    setTimeout(tick, 0);
   }
 
   /** 効果音を再生する。unlock() 前は何もしない。 */
@@ -985,7 +1023,12 @@ export class SfxPlayer {
 
     this.lastPlayedAt.set(name, now);
 
-    const voiceGain = createGainNode(ctx, this.masterGain);
+    const panner = opts.pan !== undefined && typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
+    if (panner) {
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, opts.pan ?? 0)), now);
+      panner.connect(this.masterGain);
+    }
+    const voiceGain = createGainNode(ctx, panner ?? this.masterGain);
     voiceGain.gain.setValueAtTime(clamp01(opts.volume ?? 1), now);
 
     const definition = SFX_DEFINITIONS[name];

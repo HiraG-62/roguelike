@@ -1,0 +1,11 @@
+{
+  "_note": "ボスの間（拠点の台から、倒した章ボスと最深の主に今の装備の写しで挑み直す。system/bossHall.ts。docs/ideas/meta-impl.md 2-7）。練習の場なので祝福は無く、保存データには挑戦・撃破・最速・最少の被弾だけを残す",
+  "_fields": {
+    "seedPrefix": "ボスの間の階を作る seed の文字列の頭。後ろにボスの key を付ける（同じボスは毎回同じ部屋になる）",
+    "doorInset": "挑む前にプレイヤーを置く位置。ボス部屋の扉タイルから部屋の中心へ何タイル入るか。タイル",
+    "resultColor": "結果の見出し（撃破・力尽きた）の色"
+  },
+  "seedPrefix": "hall:",
+  "doorInset": 2,
+  "resultColor": "#ffd75f"
+}

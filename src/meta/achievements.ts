@@ -11,6 +11,7 @@ import { CHAIN_SEPARATOR, CODEX_ENEMIES, type CodexSave } from "./codex";
 import { discoveryCount, discoveryCountOf } from "./links";
 import { QUEST_KEYS, type QuestKey, type QuestSave, completedQuestCount, isOriginUnlocked, isQuestKey, questTitles } from "./quests";
 import { isRecord, readJson, sanitizeCount, writeJson } from "./storage";
+import { CLEAR_TITLE_TIERS, bestClearTierOf, hasCleared } from "./tierRewards";
 
 /**
  * 実績と称号（docs/ideas/meta-and-weapons.md 4-1・4-7、docs/ideas/synergy-web.md 5-f）。
@@ -78,6 +79,24 @@ function history(ctx: AchievementContext): NonNullable<ProfileMeta["history"]> {
   return ctx.meta.history ?? [];
 }
 
+/** 位階の踏破の実績名（key は clearTier{位階}。位階は CLEAR_TITLE_TIERS） */
+const CLEAR_TIER_NAME: Readonly<Record<(typeof CLEAR_TITLE_TIERS)[number], string>> = {
+  1: "縛りを越えた者",
+  5: "百戦の踏破者",
+  10: "鉄鎖の踏破者",
+  15: "羅刹の踏破者",
+  20: "極位の踏破者",
+};
+
+function clearTierAchievement(tier: (typeof CLEAR_TITLE_TIERS)[number]): AchievementDef {
+  return {
+    key: `clearTier${tier}`,
+    name: CLEAR_TIER_NAME[tier],
+    desc: `位階 ${tier} 以上の縛りで踏破する。`,
+    check: (c) => hasCleared(c.meta) && bestClearTierOf(c.meta) >= tier,
+  };
+}
+
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "firstRun", name: "初めの一歩", desc: "探索を 1 回終える。", check: (c) => c.meta.runs >= 1 },
   { key: "tenRuns", name: "常連", desc: "探索を 10 回終える。", check: (c) => c.meta.runs >= 10 },
@@ -95,7 +114,8 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "bossAll", name: "王たちの墓標", desc: "すべての種類のボスを倒す。", check: (c) => BOSS_KEYS.length > 0 && bossesKilled(c) >= BOSS_KEYS.length },
   { key: "relic1", name: "名を知る者", desc: "名のある遺物を 1 つ手に入れる。", check: (c) => c.codex.relics.length >= 1 },
   { key: "relic10", name: "蒐集家", desc: "名のある遺物を 10 種類手に入れる。", check: (c) => c.codex.relics.length >= 10 },
-  { key: "relic25", name: "宝物庫の主", desc: "名のある遺物を 25 種類手に入れる。", check: (c) => c.codex.relics.length >= 25 },
+  // key は旧名のまま（名のある遺物は 18 種になった。docs/ideas/relics-7d-plan.md 3 章）
+  { key: "relic25", name: "宝物庫の主", desc: "名のある遺物を 18 種類手に入れる。", check: (c) => c.codex.relics.length >= 18 },
   { key: "boon20", name: "祝福を知る", desc: "祝福を 20 種類受ける。", check: (c) => c.codex.boons.length >= 20 },
   { key: "boon60", name: "祝福の書", desc: "祝福を 60 種類受ける。", check: (c) => c.codex.boons.length >= 60 },
   { key: "cursed5", name: "呪いの友", desc: "呪い付きの祝福を 5 種類受ける。", check: (c) => cursedBoonsTaken(c) >= 5 },
@@ -121,6 +141,10 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { key: "daily", name: "日課", desc: "デイリーシードに挑む。", check: (c) => history(c).some((h) => isDailySeedText(h.seedText)) },
   { key: "combo50", name: "途切れぬ手", desc: "1 回の探索で 50 コンボをつなぐ。", check: (c) => history(c).some((h) => h.bestCombo >= 50) },
   { key: "longRun", name: "長い夜", desc: "1 回の探索を 20 分以上続ける。", check: (c) => history(c).some((h) => h.durationSec >= LONG_RUN_SECONDS) },
+  // ---- 踏破と仇討ち（docs/ideas/meta-impl.md 2-6。位階の見返りは meta/tierRewards.ts）----
+  { key: "clear", name: "踏破者", desc: "踏破する。", check: (c) => hasCleared(c.meta) },
+  ...CLEAR_TITLE_TIERS.map(clearTierAchievement),
+  { key: "avenge", name: "仇討ち", desc: "仇を討つ。", check: (c) => history(c).some((h) => h.avenged === true) },
 ];
 
 const ACHIEVEMENT_KEYS: ReadonlySet<string> = new Set(ACHIEVEMENTS.map((a) => a.key));

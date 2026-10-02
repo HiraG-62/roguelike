@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { rectCenterPx } from "../map/grid";
+import { withFixedLayout } from "../map/layout/select";
 import { createGame } from "../core/game";
 import { LOOT_DROP, PICKUP, STASH_CAPACITY } from "../data/tuning";
 import type { GameState } from "../core/state";
@@ -21,9 +22,9 @@ import {
   enemyDropChance,
   focusedDrop,
   roomClearDropChance,
-  updateDropInteract,
   updateFloorItems,
 } from "./loot";
+import { updateInteract } from "./interact";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { enemyDef } from "../data/enemies";
 import { ROAMING_ROOM } from "./spawner";
@@ -62,7 +63,7 @@ function placeItem(state: GameState, dx: number, dy = 0): { id: number; item: It
 }
 
 function interactAt(state: GameState, world: Vec | null): void {
-  updateDropInteract(state, withInput({ interactPressed: true, aimScreen: world === null ? null : screenOf(state, world) }));
+  updateInteract(state, withInput({ interactPressed: true, aimScreen: world === null ? null : screenOf(state, world) }));
 }
 
 describe("装備ドロップと拾得", () => {
@@ -88,13 +89,14 @@ describe("装備ドロップと拾得", () => {
     expect(state.floorItems, "床から消える").toHaveLength(0);
     expect(state.profile.stash.map((it) => it.id), "倉庫に入る").toContain(item.id);
     expect(state.sfx.some((s) => s === "pickup" || s === "lootRare"), "拾得音").toBe(true);
-    expect(state.texts.some((t) => t.text === item.name), "名前の浮き文字").toBe(true);
+    expect(state.texts.some((t) => t.text === item.name), "名前は浮き文字にしない（戦闘の文字を増やさない）").toBe(false);
+    expect(state.log.some((l) => l.text.includes(item.name)), "名前は左下のログに出る").toBe(true);
   });
 
   it("インタラクトを押していなければ注目していても拾わない", () => {
     const state = arena();
     const { pos } = placeItem(state, 20);
-    updateDropInteract(state, withInput({ aimScreen: screenOf(state, pos) }));
+    updateInteract(state, withInput({ aimScreen: screenOf(state, pos) }));
     expect(state.floorItems).toHaveLength(1);
   });
 
@@ -195,7 +197,8 @@ describe("装備ドロップと拾得", () => {
   });
 
   it("部屋を制圧すると制圧の音が鳴る（報酬は深度別の確率）", () => {
-    const state = createGame(11);
+    // seed 11 の旧生成の階は部屋 1 に敵がいる（階の型の地図では部屋 1 が空で最初から制圧済みのことがある）
+    const state = withFixedLayout("legacy", () => createGame(11));
     const room = state.rooms[1]!;
     state.player.body.pos = rectCenterPx(room.rect);
     step(state, withInput({}), FIXED_DT);
@@ -208,10 +211,24 @@ describe("装備ドロップと拾得", () => {
   it("階層を降りると LOOT_DROP.depthArrivalChance でボーナスが落ちる", async () => {
     const { descend } = await import("./floor");
     // seed 11 は着いた階が入れ替え部屋（invertHall）等で始めから遺物を置くため、統合チェックには使わない
-    const state = createGame(1);
-    descend(state);
-    expect(state.floorItems.length, "多くても 1 個").toBeLessThanOrEqual(1);
-    expect(state.sfx).toContain("descend");
+    // 階の生成そのものが置く遺物（敵の数や配りで増減する）と分けるため、確率を 0 と 1 にして同じ seed で降りた差を見る
+    const arrivalCount = (chance: number): { items: number; sfx: readonly string[] } => {
+      // 定数は readonly なので、差し替えて finally で戻すためだけに書き込み可能な型で見る
+      const drop = LOOT_DROP as { depthArrivalChance: number };
+      const original = drop.depthArrivalChance;
+      drop.depthArrivalChance = chance;
+      try {
+        const state = createGame(1);
+        descend(state);
+        return { items: state.floorItems.length, sfx: state.sfx };
+      } finally {
+        drop.depthArrivalChance = original;
+      }
+    };
+    const without = arrivalCount(0);
+    const always = arrivalCount(1);
+    expect(always.items - without.items, "到着ボーナスは多くても 1 個（確率 1 で 1 個）").toBe(1);
+    expect(always.sfx).toContain("descend");
     const trials = arena(9);
     let dropped = 0;
     const TRIALS = 2000;

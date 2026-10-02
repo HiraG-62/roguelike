@@ -1,0 +1,4 @@
+{
+  "crusherStride": { "moveMul": 0.9, "maxLevels": 2 },
+  "crusherQuake": { "radius": 28, "duration": 5, "icd": 0.3 }
+}

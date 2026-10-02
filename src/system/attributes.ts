@@ -67,13 +67,6 @@ export function scaledAtBase(s: Readonly<Scaling>): number {
   return v;
 }
 
-/** ラン内の振り分けを生のステータスに足す（逓減前）。入力は書き換えない */
-export function addRunAttributes(stats: Readonly<PlayerStats>, alloc: Readonly<Attributes>): PlayerStats {
-  const attributes = { ...stats.attributes };
-  for (const k of ATTR_KEYS) attributes[k] += alloc[k];
-  return { ...stats, attributes };
-}
-
 /**
  * 実効値を計算し、基礎値からの差分を既存フィールドへ畳み込む（docs/COMBAT_DESIGN.md A-1）。
  * 装備のソフトキャップの後に掛けるので二重には潰さない。入力は書き換えない

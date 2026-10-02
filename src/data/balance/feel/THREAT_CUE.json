@@ -1,0 +1,27 @@
+{
+  "_note": "敵の攻撃が自分に掛かるかの判定の余裕と、殺気（画面外の敵が自分に掛かる攻撃へ入った合図）・被弾筋（当てた相手から自分への墨の一筆）の見た目（system/threat.ts・render/threatCue.ts）。見た目だけでゲームの結果には効かない",
+  "_fields": {
+    "hitPad": "「掛かる」とみなす余裕（論理 px）。線の端・輪や扇の縁から自分の体の半径にこれを足した内側なら掛かるとみなす",
+    "shotAimDeg": "線も範囲も持たない射手などが、自分を狙っているとみなす角度（度）。狙いの向きと自分の方向の差がこれ以下なら掛かる",
+    "edgeSec": "殺気（画面の縁の墨の払い）が出ている秒数",
+    "edgeMax": "殺気の同時に出す最大の数（古い物から消す）",
+    "edgeLength": "殺気の払いの長さ（論理 px。縁から画面の内側へ向かう）",
+    "edgeInset": "殺気の払いの根元を画面の縁から内側へ置く距離（論理 px）",
+    "traceSec": "被弾筋（当てた相手から自分への墨の一筆）が乾いて消えるまでの秒数",
+    "traceSecLow": "生命が少ないとき（traceLowHpRatio 以下）の被弾筋の秒数。長く残して「何に当たったか」を見せる",
+    "traceLowHpRatio": "被弾筋を長く残す生命の割合(0..1)",
+    "traceAlpha": "被弾筋の最初の濃さ(0..1)。赤い芯を持たない墨の影",
+    "traceSourceReach": "弾を出どころにするとき、被弾の瞬間に自分からこの距離（論理 px）以内の敵弾だけを探す"
+  },
+  "hitPad": 4,
+  "shotAimDeg": 20,
+  "edgeSec": 0.3,
+  "edgeMax": 3,
+  "edgeLength": 14,
+  "edgeInset": 6,
+  "traceSec": 0.8,
+  "traceSecLow": 1.2,
+  "traceLowHpRatio": 0.3,
+  "traceAlpha": 0.7,
+  "traceSourceReach": 48
+}

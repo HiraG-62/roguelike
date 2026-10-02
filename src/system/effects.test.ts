@@ -196,13 +196,14 @@ describe("死に方", () => {
 });
 
 describe("コンボの浮き文字", () => {
-  it("コンボ数の段で大きさと色が変わる", () => {
+  it("コンボ数の段で色だけが変わり、大きさは変えない", () => {
     expect(comboTier(5), "10 未満は段なし").toBeUndefined();
     const low = comboDamageText(10, "#ffffff", 1, false);
     const high = comboDamageText(100, "#ffffff", 1, false);
-    expect(low.scale, "10 コンボで少し大きい").toBeGreaterThan(1);
-    expect(high.scale, "100 コンボはもっと大きい").toBeGreaterThan(low.scale);
-    expect(high.color, "色も変わる").not.toBe("#ffffff");
+    expect(low.scale, "10 コンボでも大きくしない").toBe(1);
+    expect(high.scale, "100 コンボでも大きくしない").toBe(1);
+    expect(high.color, "色は変わる").not.toBe("#ffffff");
+    expect(low.color, "段ごとに色が違う").not.toBe(high.color);
   });
 
   it("会心の色はコンボの色で上書きしない", () => {
@@ -218,17 +219,17 @@ describe("効果音の名前", () => {
     for (const b of Object.values(BULLETS)) expect(names.has(shotSfxName(b)), `発射音 ${b.key}`).toBe(true);
     expect(shotSfxName(bulletDef("pistol")), "性質の無い弾は shoot").toBe("shoot");
     expect(shotSfxName(bulletDef("mortar")), "曲射筒は曲射の音").toBe("shotLob");
-    // 武器 Wave 4 の 4 種（爪・チェーンアレイ・チャクラム・扇子）は既存の振り音を流用する（docs/ideas/weapons-wave4.md 8 章 9）
-    const sharedSwing = 4;
-    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音（流用の 4 種を除く）").toBe(MOVESET_KEYS.length - sharedSwing);
+    // 武器 Wave 4 の 4 種（爪・チェーンアレイ・チャクラム・扇子）と段取り 5d の書・鈴は既存の振り音を流用する（docs/ideas/weapons-wave4.md 8 章 9）
+    const sharedSwing = 6;
+    expect(new Set(MOVESET_KEYS.map(swingSfxName)).size, "武器種ごとに別の音（流用の 6 種を除く）").toBe(MOVESET_KEYS.length - sharedSwing);
   });
 
-  it("27 武器種すべてに命中音の系統がある", () => {
+  it("29 武器種すべてに命中音の系統がある", () => {
     for (const key of MOVESET_KEYS) {
       const family = hitFamily(key);
       expect(["slash", "blunt", "pierce", "lash"], `${key} の系統`).toContain(family);
     }
-    expect(MOVESET_KEYS.length, "武器種は 27 種").toBe(27);
+    expect(MOVESET_KEYS.length, "武器種は 29 種").toBe(29);
   });
 
   it("命中音は系統と重さで名前が決まり、SFX_NAMES にすべて登録されている", () => {
@@ -356,6 +357,15 @@ describe("ダメージ文字の種類（7-19）", () => {
     expect(state.texts.find((t) => t.text === "3")?.kind, "弱点の数字").toBe("weak");
   });
 
+  it("大きなダメージの浮き文字は K で出る", () => {
+    const state = arena(26);
+    const e = placeEnemy(state, "slime", 30);
+    e.hp = 999_999_999;
+    state.texts = [];
+    damageEnemy(state, e, 123_456, { x: 1, y: 0 }, 0, { kind: "melee" });
+    expect(state.texts.some((t) => t.text === "123K"), "1 万以上は K").toBe(true);
+  });
+
   it("継続ダメージは敵ごとに束ねて、間隔ごとに 1 つの小さな数字にする", () => {
     const state = arena(24);
     const e = placeEnemy(state, "slime", 30);
@@ -378,11 +388,11 @@ describe("ダメージ文字の種類（7-19）", () => {
     expect(dotTextColor(new Set<StatusKind>())).toBe(FX_WAVE3.damageText.dot.other);
   });
 
-  it("ダメージ以外の浮き文字は種類を持たない", () => {
+  it("種類を省いた浮き文字は label（小さく短く出る文字）になる", () => {
     const state = arena(25);
     state.texts = [];
     addFloatingText(state, { x: 0, y: 0 }, "見切り！", "#fff");
-    expect(state.texts[0]?.kind).toBeUndefined();
+    expect(state.texts[0]?.kind).toBe("label");
   });
 });
 

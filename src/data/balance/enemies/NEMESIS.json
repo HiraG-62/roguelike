@@ -1,0 +1,21 @@
+{
+  "_note": "仇（前のランで力尽きた相手が次のランで眠った陣に 1 体混ざる。src/system/nemesis.ts。docs/ideas/meta-impl.md 2-4）。修飾子は記録から 1 つ足し、格は猛。倒すと仇討ちの報酬",
+  "_fields": {
+    "minDepth": "仇が出る最も浅い階",
+    "depthLead": "倒された深度より何階手前から出すか（出る階 = max(minDepth, 倒された深度 − depthLead, 敵の minDepth)）",
+    "hpMul": "仇の生命の倍率（猛・精鋭の倍率の上に掛ける）",
+    "maxedHpMul": "記録の修飾子が既に 2 つ（頭打ち）の仇に更に掛ける生命の倍率",
+    "rewardItems": "仇討ちで落とす遺物の数",
+    "rewardBoost": "仇討ちの遺物のレア度の上乗せ（ROOM_KIND.challengeRareBoost と揃える）",
+    "rewardKeys": "仇討ちで落とす鍵の数",
+    "color": "仇の気配のログ・仇討ちの浮き文字の色"
+  },
+  "minDepth": 2,
+  "depthLead": 1,
+  "hpMul": 1.5,
+  "maxedHpMul": 1.3,
+  "rewardItems": 1,
+  "rewardBoost": 6,
+  "rewardKeys": 1,
+  "color": "#ff5050"
+}

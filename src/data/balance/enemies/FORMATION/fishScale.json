@@ -1,0 +1,23 @@
+{
+  "layout": "wedge",
+  "minDepth": 1,
+  "weight": 3,
+  "spacing": 20,
+  "jinzu": {
+    "leaderSeat": "rear",
+    "strokeSec": 0.7,
+    "strokes": [
+      { "squad": "front", "path": "thrust", "pass": 0, "beyond": 40 },
+      { "squad": "midLeft", "path": "thrust", "pass": 18, "beyond": 30 },
+      { "squad": "midRight", "path": "thrust", "pass": 18, "beyond": 30 },
+      { "squad": "backLeft", "path": "thrust", "pass": 34, "beyond": 30 },
+      { "squad": "backRight", "path": "thrust", "pass": 34, "beyond": 30 }
+    ]
+  },
+  "slots": [
+    { "role": "vanguard", "grade": "strong", "share": 0.3, "min": 0, "max": 1 },
+    { "role": "vanguard", "grade": "elite", "share": 0.2, "min": 0, "max": 1 },
+    { "role": "vanguard", "grade": "normal", "share": 0.35, "min": 2 },
+    { "role": "charge", "grade": "normal", "share": 0.15, "min": 0, "max": 2 }
+  ]
+}

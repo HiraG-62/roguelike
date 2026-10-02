@@ -3,16 +3,12 @@ import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { describeTrait } from "../loot/describe";
 import { TRAIT_COLOR_LABEL, type AffixRoll, type PendingBud } from "../loot/types";
-import { type BudUi, layoutBudModal } from "../ui/bud";
 import type { Rect } from "../ui/inventoryLayout";
 import {
-  COLOR_DIM,
   COLOR_GROWN,
-  COLOR_PANEL_BG,
   COLOR_TEXT,
   FLUX_MARK,
   GROWN_MARK,
-  TEXT_PAD_X,
   bodyLineH,
   fillRectPx,
   strokeRectPx,
@@ -22,8 +18,8 @@ import { TEXT, drawText, textWidth, truncateText, wrapText } from "./pixelText";
 
 /**
  * 芽（2 択の成長）の描画。
- * - 戦闘中: 芽が出た直後だけ画面右下に小さなカード 2 枚（ゲームは止めない）、その後は「✦ 芽」の点滅アイコンだけ
- * - 装備画面: 2 択のモーダル（当たり判定は ui/bud.ts の layoutBudModal と共有）
+ * - 戦闘中: 芽が出た直後だけ画面右下に小さなカード 2 枚（ゲームは止めない）、その後は「★ 芽」の点滅アイコンだけ
+ * 装備画面では候補の頁の先頭の芽吹きの札で選ぶ（ui/candidates.ts）
  */
 
 /** 芽が出てからカードを出しておく秒数（以降はアイコンだけ） */
@@ -42,12 +38,7 @@ const MINI_CARD_H = 28;
 const MINI_CARD_GAP = 4;
 const MINI_HEAD_GAP = 2;
 const CARD_PAD = 4;
-const MODAL_TITLE_Y = 11;
-const MODAL_SUB_Y = 21;
-const MODAL_HINT_FROM_BOTTOM = 6;
-const COLOR_OVERLAY = "rgba(0,0,0,0.6)";
 const COLOR_CARD = "rgba(16,16,28,0.95)";
-const COLOR_CARD_HOVER = "rgba(32,40,32,0.98)";
 const COLOR_ICON_BG = "rgba(12,12,18,0.85)";
 const COLOR_ICON_OFF = "#3f7050";
 
@@ -96,17 +87,16 @@ function drawMiniCards(ctx: CanvasRenderingContext2D, pending: PendingBud, botto
   drawText(ctx, truncateText(head, totalW, m), VIEW_W - HUD_RIGHT, top - MINI_HEAD_GAP, m, COLOR_GROWN, "right");
   pending.options.forEach((roll, i) => {
     const r = { x: left + i * (MINI_CARD_W + MINI_CARD_GAP), y: top, w: MINI_CARD_W, h: MINI_CARD_H };
-    drawTraitCard(ctx, r, roll, i, false);
+    drawTraitCard(ctx, r, roll, i);
   });
 }
 
 /** 候補 1 つのカード。見出しは番号と色、本文は describeTrait の文言と揺らぎの印 */
-function drawTraitCard(ctx: CanvasRenderingContext2D, r: Rect, roll: AffixRoll, index: number, hover: boolean): void {
+function drawTraitCard(ctx: CanvasRenderingContext2D, r: Rect, roll: AffixRoll, index: number): void {
   const line = describeTrait(roll);
   const color = traitColor(line);
-  fillRectPx(ctx, r, hover ? COLOR_CARD_HOVER : COLOR_CARD);
+  fillRectPx(ctx, r, COLOR_CARD);
   strokeRectPx(ctx, r, color);
-  if (hover) strokeRectPx(ctx, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, color);
   const m = TEXT.SMALL;
   const lineH = bodyLineH();
   const x = r.x + CARD_PAD;
@@ -118,33 +108,4 @@ function drawTraitCard(ctx: CanvasRenderingContext2D, r: Rect, roll: AffixRoll, 
   const capacity = Math.max(1, Math.floor((r.h - CARD_PAD) / lineH) - 1);
   const rows = wrapText(line.text, maxWidth, m).slice(0, capacity);
   rows.forEach((text, i) => drawText(ctx, truncateText(text, maxWidth, m), x, r.y + lineH * (i + 2), m, COLOR_TEXT));
-}
-
-/** 2 択を選ぶキー（スキル 1 / 2 の主キー。ui/bud.ts の pressedIndex と同じ入力） */
-const BUD_PICK_ACTIONS = ["skill1", "skill2"] as const;
-function budPickKeys(): string {
-  return BUD_PICK_ACTIONS.map((a) => keyLabel(a, { keyboardOnly: true, first: true })).join(" / ");
-}
-
-/** 装備画面の 2 択モーダル */
-export function drawBudModal(ctx: CanvasRenderingContext2D, state: GameState, bud: BudUi): void {
-  const pending = state.pendingBud;
-  if (!bud.open || pending === null) return;
-  const { frame, cards } = layoutBudModal();
-  fillRectPx(ctx, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, COLOR_OVERLAY);
-  fillRectPx(ctx, frame, COLOR_PANEL_BG);
-  strokeRectPx(ctx, frame, COLOR_GROWN);
-  const m = TEXT.SMALL;
-  const cx = frame.x + frame.w / 2;
-  const maxWidth = frame.w - TEXT_PAD_X * 2;
-  const itemName = state.profile.equipment[pending.slot]?.name ?? "";
-  drawText(ctx, truncateText(`${GROWN_MARK} 芽吹き: ${itemName}`, maxWidth, m), cx, frame.y + MODAL_TITLE_Y, TEXT.BODY, COLOR_GROWN, "center");
-  const sub = `${pending.milestoneLabel}で芽が出た`;
-  drawText(ctx, truncateText(sub, maxWidth, m), cx, frame.y + MODAL_SUB_Y, m, COLOR_DIM, "center");
-  pending.options.forEach((roll, i) => {
-    const r = cards[i];
-    if (r) drawTraitCard(ctx, r, roll, i, bud.hover === i);
-  });
-  const hint = `${budPickKeys()} / クリック: 選ぶ　枠の外をクリック: 閉じる`;
-  drawText(ctx, truncateText(hint, maxWidth, m), cx, frame.y + frame.h - MODAL_HINT_FROM_BOTTOM, m, COLOR_DIM, "center");
 }

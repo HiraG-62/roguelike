@@ -1,15 +1,16 @@
-import type { GameState } from "../core/state";
+import type { Enemy, GameState } from "../core/state";
 import { type EnemyBehavior, type EnemyDef, enemiesForDepth, enemyDef } from "../data/enemies";
 import { FLOOR_LORD } from "../data/tuning";
 import { rectCenter, rectCenterPx, setTile, Tile } from "../map/grid";
 import { biomeEnemyWeight } from "./biomes";
 import { createEnemy } from "./enemies";
-import { eliteKindsFor, makeElite } from "./elites";
+import { eliteKindsFor, makeElite, makeElitePair } from "./elites";
 
 /**
  * 毎階の最後の部屋に出る「階の主」（内部 key floorLord。表示は「階の主」）。
  * 部屋主（lairMaster）を優先して選び、外れたら通常敵を 1 体格上げして「〜の長」にする。
- * 5 の倍数の階は今までどおり boss.ts の階層ボス（BOSS_ROTATION）が出る（buildFloor が振り分ける）
+ * 5 の倍数の階は boss.ts の階層ボス（章ボス / 深みの回転）が出る（buildFloor が振り分ける）。
+ * 章の 1 階目（休符。system/chapters.ts の skipsFloorLord）は主を出さない
  */
 
 /**
@@ -29,7 +30,7 @@ export interface FloorLordPick {
   lair: boolean;
 }
 
-function lordCandidates(depth: number): EnemyDef[] {
+export function lordCandidates(depth: number): EnemyDef[] {
   return enemiesForDepth(depth).filter((d) => d.lairMaster === true && !LORD_EXCLUDED_BEHAVIORS.has(d.behavior) && !selfDestructs(d));
 }
 
@@ -62,25 +63,50 @@ export function pickFloorLordDef(state: GameState): FloorLordPick {
   return { def: pickWeighted(state, champions), lair: false };
 }
 
-/** 部屋主はそのままの名前、格上げした通常敵は「〜の長」 */
-function lordName(def: EnemyDef, lair: boolean): string {
-  return lair ? def.name : `${def.name}の長`;
+/**
+ * 浅い階（captainMaxDepth 以下）で通常敵を格上げした主は「隊長」。号令のを添えて周りの取り巻きを率いる
+ * （docs/ideas/jin-impl.md 3-2。浅い階の主を単騎の硬い敵にせず、率いる者として読ませる）
+ */
+export function isCaptain(depth: number, lair: boolean): boolean {
+  return !lair && depth <= FLOOR_LORD.captainMaxDepth;
 }
 
-/** 最後の部屋を「階の主」の部屋にする: 階段を隠して主を置き、必ず精鋭修飾子を 1 つ付ける */
+/** 部屋主はそのままの名前、格上げした通常敵は「〜の長」、浅い階なら「〜の隊長」 */
+function lordName(def: EnemyDef, lair: boolean, captain: boolean): string {
+  if (lair) return def.name;
+  return captain ? `${def.name}の隊長` : `${def.name}の長`;
+}
+
+function lordHpMul(lair: boolean, captain: boolean): number {
+  if (lair) return FLOOR_LORD.hpMulLair;
+  return captain ? FLOOR_LORD.captainHpMul : FLOOR_LORD.hpMulChampion;
+}
+
+/** 隊長は主の修飾子（号令の以外）に号令のを添える。それ以外は精鋭修飾子を 1 つ */
+function makeLordElite(state: GameState, e: Enemy, def: EnemyDef, captain: boolean): void {
+  const kinds = eliteKindsFor(def);
+  if (!captain) {
+    makeElite(e, state.rng.pick(kinds));
+    return;
+  }
+  makeElitePair(e, state.rng.pick(kinds.filter((k) => k !== "commanding")), "commanding");
+}
+
+/** 最後の部屋を「階の主」の部屋にする: 階段を隠して主を置き、必ず精鋭修飾子を付ける */
 export function setupFloorLordRoom(state: GameState, roomIndex: number): void {
   const room = state.rooms[roomIndex];
   if (!room) return;
   const c = rectCenter(room.rect);
   setTile(state.map, c.x, c.y, Tile.Floor);
   const { def, lair } = pickFloorLordDef(state);
+  const captain = isCaptain(state.depth, lair);
   const e = createEnemy(state, def, rectCenterPx(room.rect), roomIndex, false);
-  e.maxHp = Math.round(e.maxHp * (lair ? FLOOR_LORD.hpMulLair : FLOOR_LORD.hpMulChampion));
+  e.maxHp = Math.round(e.maxHp * lordHpMul(lair, captain));
   e.hp = e.maxHp;
   e.poise.max *= FLOOR_LORD.poiseMul;
-  makeElite(e, state.rng.pick(eliteKindsFor(def)));
+  makeLordElite(state, e, def, captain);
   state.enemies.push(e);
-  state.boss = { enemyId: e.id, name: lordName(def, lair), roomIndex, introTimer: 0, defeated: false, major: false };
+  state.boss = { enemyId: e.id, name: lordName(def, lair, captain), roomIndex, introTimer: 0, defeated: false, major: false };
 }
 
 /** この階の主（major を問わない）の部屋が封鎖中か */

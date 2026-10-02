@@ -1,9 +1,16 @@
+import type { Keyword } from "../core/keywords";
 import { createRng } from "../core/rng";
 import type { GameState } from "../core/state";
 import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { META } from "../data/tuning";
 import { uniqueDef } from "../loot/named";
+import { computeStats } from "../loot/stats";
+import type { Profile } from "../loot/types";
+import { SKILL_DEFS } from "../skills/data";
+import { stoneInSlot } from "../skills/persistence";
+import type { SkillProfile } from "../skills/types";
 import { BOONS } from "../system/boonDefs";
+import { skillKeywords, statsKeywords } from "../system/keywords";
 import { ORIGINS, ORIGIN_KEYS, type OriginKey, runTier } from "../system/runSetup";
 import { CODEX_TAB_LABEL, type CodexTab } from "./codex";
 import { type LinkKind, linkId } from "./links";
@@ -218,6 +225,8 @@ export interface QuestDef {
   /** 今の進行（goal 以上で達成） */
   measure: (s: QuestSnapshot) => number;
   reward: QuestReward;
+  /** 持ち物の語（core/keywords.ts）と重なると 3 択に出やすくなる。語で言えない依頼は省く（重みは常に 1） */
+  keywords?: readonly Keyword[];
 }
 
 /** 条件付きの深さ（条件を満たしていなければ 0） */
@@ -226,9 +235,9 @@ function depthIf(ok: boolean, depth: number): number {
 }
 
 export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
-  burnout: { name: "燃え尽き", desc: "燃焼中の敵を 50 体倒す。", goal: 50, measure: (s) => s.burnKills, reward: { kind: "title", title: "灰を撒く者" } },
-  steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "link" } },
-  shaker: { name: "揺さぶり", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "unshakenScale" } },
+  burnout: { name: "燃え尽き", desc: "燃焼中の敵を 50 体倒す。", goal: 50, measure: (s) => s.burnKills, reward: { kind: "title", title: "灰を撒く者" }, keywords: ["burn"] },
+  steamHand: { name: "蒸気の手", desc: "蒸発（燃焼 + 冷気）を 10 回起こす。", goal: 10, measure: (s) => s.vaporizes, reward: { kind: "page", page: "link" }, keywords: ["burn", "chill", "reaction"] },
+  shaker: { name: "揺さぶり", desc: "敵を 100 回怯ませる。", goal: 100, measure: (s) => s.staggers, reward: { kind: "relic", relic: "herdFlute" }, keywords: ["stagger"] },
   oathless: {
     name: "誓約を持たずに",
     desc: "誓約を一度も持たずに地下 5 階へ着く。",
@@ -236,14 +245,14 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
     measure: (s) => depthIf(s.keystones === 0, s.depth),
     reward: { kind: "title", title: "誓わぬ者" },
   },
-  alchemist: { name: "反応の目録", desc: "状態異常の反応を 10 種類起こす。", goal: 10, measure: (s) => s.reactionKinds, reward: { kind: "origin", origin: "chanter" } },
-  comboArtist: { name: "連携の稽古", desc: "スキルの連携を 5 回決める。", goal: 5, measure: (s) => s.skillCombos, reward: { kind: "relic", relic: "chantRosary" } },
-  hordeBreaker: { name: "巣窟崩し", desc: "巣窟を 3 つ制圧する。", goal: 3, measure: (s) => s.hordesCleared, reward: { kind: "relic", relic: "lastBell" } },
-  kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "kingslayerCollar" } },
-  untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" } },
-  justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" } },
-  counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "returningSwallow" } },
-  plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "contagionFang" } },
+  alchemist: { name: "反応の目録", desc: "状態異常の反応を 10 種類起こす。", goal: 10, measure: (s) => s.reactionKinds, reward: { kind: "origin", origin: "chanter" }, keywords: ["reaction"] },
+  comboArtist: { name: "連携の稽古", desc: "スキルの連携を 5 回決める。", goal: 5, measure: (s) => s.skillCombos, reward: { kind: "relic", relic: "pilgrimBeads" }, keywords: ["mana"] },
+  hordeBreaker: { name: "巣窟崩し", desc: "巣窟を 3 つ制圧する。", goal: 3, measure: (s) => s.hordesCleared, reward: { kind: "relic", relic: "bellTongue" }, keywords: ["area"] },
+  kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "plainBlade" } },
+  untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" }, keywords: ["ward", "dash"] },
+  justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" }, keywords: ["just", "dash"] },
+  counterman: { name: "返し手", desc: "出端か受け流しを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "starReader" }, keywords: ["counter"] },
+  plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "layeredNecklace" }, keywords: ["burn", "chill", "shock", "poison", "bleed"] },
   cursedDepth: {
     name: "呪いを抱く",
     desc: "呪い付きの祝福を 2 つ持ったまま地下 4 階へ着く。",
@@ -261,19 +270,19 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   reaperDance: { name: "死神と踊る", desc: "死神が出ている間に階段を降りる。", goal: 1, measure: (s) => s.reaperEscapes, reward: { kind: "origin", origin: "reaperFriend" } },
   chainWeaver: { name: "連鎖の糸", desc: "連鎖を 20 回つなぐ。", goal: 20, measure: (s) => s.chains, reward: { kind: "job", job: "invoker" } },
   deepChain: { name: "三段の連鎖", desc: "3 段の連鎖をつなぐ。", goal: 3, measure: (s) => s.maxChainLen, reward: { kind: "job", job: "alchemist" } },
-  frostbite: { name: "凍てつく刃", desc: "冷気か凍結の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.chillKills, reward: { kind: "title", title: "霜の手" } },
-  venomGarden: { name: "毒の庭", desc: "毒の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.poisonKills, reward: { kind: "page", page: "relic" } },
-  bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "job", job: "hexer" } },
-  critStorm: { name: "急所読み", desc: "会心を 150 回出す。", goal: 150, measure: (s) => s.crits, reward: { kind: "job", job: "lancer" } },
-  spellweaver: { name: "詠唱の道", desc: "スキルを 60 回使う。", goal: 60, measure: (s) => s.skillCasts, reward: { kind: "page", page: "place" } },
+  frostbite: { name: "凍てつく刃", desc: "冷気か凍結の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.chillKills, reward: { kind: "title", title: "霜の手" }, keywords: ["chill"] },
+  venomGarden: { name: "毒の庭", desc: "毒の付いた敵を 30 体倒す。", goal: 30, measure: (s) => s.poisonKills, reward: { kind: "page", page: "relic" }, keywords: ["poison"] },
+  bloodPath: { name: "血の道", desc: "出血中の敵を 30 体倒す。", goal: 30, measure: (s) => s.bleedKills, reward: { kind: "job", job: "hexer" }, keywords: ["bleed"] },
+  critStorm: { name: "急所読み", desc: "会心を 150 回出す。", goal: 150, measure: (s) => s.crits, reward: { kind: "job", job: "lancer" }, keywords: ["crit"] },
+  spellweaver: { name: "詠唱の道", desc: "スキルを 60 回使う。", goal: 60, measure: (s) => s.skillCasts, reward: { kind: "page", page: "place" }, keywords: ["mana"] },
   deepDiver: { name: "深みへ", desc: "地下 8 階へ着く。", goal: 8, measure: (s) => s.depth, reward: { kind: "title", title: "深淵を覗く者" } },
-  trialWalker: { name: "試練を越えて", desc: "試練の部屋を 2 つ制圧する。", goal: 2, measure: (s) => s.challengesCleared, reward: { kind: "page", page: "boon" } },
-  lairHunter: { name: "部屋主狩り", desc: "部屋主を 3 体倒す。", goal: 3, measure: (s) => s.lairKills, reward: { kind: "title", title: "主狩り" } },
-  thunderRing: { name: "雷の狩り", desc: "感電中の敵を 30 体倒す。", goal: 30, measure: (s) => s.shockKills, reward: { kind: "title", title: "雷を纏う者" } },
-  burstMaster: { name: "全力解放", desc: "奥義を 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" } },
+  trialWalker: { name: "試練を越えて", desc: "試練の部屋を 2 つ制圧する。", goal: 2, measure: (s) => s.challengesCleared, reward: { kind: "page", page: "boon" }, keywords: ["clear"] },
+  lairHunter: { name: "部屋主狩り", desc: "部屋主を 3 体倒す。", goal: 3, measure: (s) => s.lairKills, reward: { kind: "title", title: "主狩り" }, keywords: ["elite"] },
+  thunderRing: { name: "雷の狩り", desc: "感電中の敵を 30 体倒す。", goal: 30, measure: (s) => s.shockKills, reward: { kind: "title", title: "雷を纏う者" }, keywords: ["shock"] },
+  burstMaster: { name: "全力解放", desc: "奥義を 8 回放つ。", goal: 8, measure: (s) => s.bursts, reward: { kind: "title", title: "解き放つ者" }, keywords: ["energy"] },
   // ---- 発見の依頼（docs/ideas/synergy-web.md 5-e）。図鑑の既知はラン開始時の写し ----
   pathfinder: { name: "未踏の連携", desc: "図鑑に無い連携を 2 種見つける。", goal: 2, measure: (s) => s.newLinks, reward: { kind: "title", title: "未踏を拓く者" } },
-  newReaction: { name: "新しい反応", desc: "図鑑に無い反応を 1 種起こす。", goal: 1, measure: (s) => s.newReactions, reward: { kind: "title", title: "錬金の徒" } },
+  newReaction: { name: "新しい反応", desc: "図鑑に無い反応を 1 種起こす。", goal: 1, measure: (s) => s.newReactions, reward: { kind: "title", title: "錬金の徒" }, keywords: ["reaction"] },
   comboForms: { name: "連携の型", desc: "スキルの連携を 3 種決める。", goal: 3, measure: (s) => s.comboKinds, reward: { kind: "title", title: "型の探究者" } },
   chainForms: { name: "糸の綾", desc: "連鎖を 4 種類つなぐ。", goal: 4, measure: (s) => s.chainKinds, reward: { kind: "title", title: "糸を手繰る者" } },
   linkWeb: { name: "網の目", desc: "1 回の探索で連携を 10 種成立させる。", goal: 10, measure: (s) => s.linkKinds, reward: { kind: "page", page: "link" } },
@@ -390,11 +399,46 @@ export function questTitles(save: Readonly<QuestSave>): { key: QuestKey; title: 
 /** 抽選の種をランの seed から離す（同じ seed でもゲームの乱数列とは別の並びにする） */
 const OFFER_SALT = 0x51e57;
 
+/** 持ち物の語。装備（stats の推論）と装着中のスキル石の produces / consumes / amplifies をまとめる（依頼の重みにだけ使う） */
+export function loadoutKeywords(profile: Readonly<Pick<Profile, "equipment">>, skillProfile: Readonly<SkillProfile>): Set<Keyword> {
+  const parts = [statsKeywords(computeStats(profile.equipment))];
+  for (let i = 0; i < skillProfile.loadout.length; i++) {
+    const stone = stoneInSlot(skillProfile, i);
+    if (stone) parts.push(skillKeywords(SKILL_DEFS[stone.skillKey]));
+  }
+  const out = new Set<Keyword>();
+  for (const p of parts) for (const k of [...p.produces, ...p.consumes, ...p.amplifies]) out.add(k);
+  return out;
+}
+
+/** 依頼の重み = 1 + questTagWeight × 持ち物の語と重なる数 */
+function offerWeight(key: QuestKey, build: ReadonlySet<Keyword>): number {
+  const overlap = (QUESTS[key].keywords ?? []).filter((k) => build.has(k)).length;
+  return 1 + META.questTagWeight * overlap;
+}
+
+/** 重みつきで 1 つ選んで pool から取り除く。rng.next() を 1 回引く */
+function takeWeighted(pool: QuestKey[], weights: readonly number[], next: () => number): QuestKey | undefined {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = next() * total;
+  for (let i = 0; i < pool.length; i++) {
+    roll -= weights[i] ?? 0;
+    if (roll < 0 || i === pool.length - 1) return pool.splice(i, 1)[0];
+  }
+  return undefined;
+}
+
 /**
  * 3 択の候補。未達成を優先し、足りなければ達成済みで埋める（達成済みは報酬なしで受けられる）。
- * seed はランのシード（hashSeed）。state.rng は使わない（ゲームの乱数列を動かさない）
+ * seed はランのシード（hashSeed）。state.rng は使わない（ゲームの乱数列を動かさない）。
+ * build（持ち物の語）と重なる依頼ほど出やすい。重みが全部 1（語が無い・重み 0）のときは従来と同じ引き方で、同じ seed なら同じ並びになる
  */
-export function pickQuestOffers(save: Readonly<QuestSave>, seed: number, count: number = META.questOffers): QuestKey[] {
+export function pickQuestOffers(
+  save: Readonly<QuestSave>,
+  seed: number,
+  count: number = META.questOffers,
+  build: ReadonlySet<Keyword> = new Set(),
+): QuestKey[] {
   const rng = createRng((seed ^ OFFER_SALT) >>> 0);
   const open = QUEST_KEYS.filter((k) => !isQuestCompleted(save, k));
   const done = QUEST_KEYS.filter((k) => isQuestCompleted(save, k));
@@ -402,8 +446,9 @@ export function pickQuestOffers(save: Readonly<QuestSave>, seed: number, count: 
   for (const pool of [open, done]) {
     const rest = [...pool];
     while (out.length < count && rest.length > 0) {
-      const index = rng.int(0, rest.length - 1);
-      const [picked] = rest.splice(index, 1);
+      const weights = rest.map((k) => offerWeight(k, build));
+      const flat = weights.every((w) => w === 1);
+      const picked = flat ? rest.splice(rng.int(0, rest.length - 1), 1)[0] : takeWeighted(rest, weights, () => rng.next());
       if (picked !== undefined) out.push(picked);
     }
   }

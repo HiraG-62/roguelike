@@ -19,6 +19,7 @@ import {
   backOriginStage,
   jobCursorDetail,
   pointOriginRow,
+  carryLine,
   createOriginScreen,
   cursorDescription,
   moveOriginCursor,
@@ -35,6 +36,11 @@ function game(setup: RunSetup, seed = 21) {
 }
 
 describe("起点画面の操作", () => {
+  it("持ち込む部位を 1 行で出す（無ければ「なし」）", () => {
+    expect(carryLine(createOriginScreen(undefined, new Set(), new Set(), ["mainHand", "ring", "amulet"]))).toBe("持ち込み: 右手・指輪・首飾り");
+    expect(carryLine(createOriginScreen())).toBe("持ち込み: なし");
+  });
+
   it("ジョブの段から開き、決定で起点の段の「出発」へ進み、もう一度の決定で始められる", () => {
     const ui = createOriginScreen();
     expect(ui.stage, "ジョブの段から").toBe("job");
@@ -148,10 +154,10 @@ describe("起点の適用", () => {
     expect(boon && BOONS[boon].tags.includes("melee")).toBe(true);
   });
 
-  it("呪われた者: 呪い付きの祝福 2 つと振り分け点 4", () => {
+  it("呪われた者: 呪い付きの祝福 2 つと銭", () => {
     const s = game({ origin: "cursedOne", modifiers: [] });
     expect(s.boons.filter((k) => BOONS[k].cursed).length).toBe(ORIGIN.cursedBoons);
-    expect(s.runAttributes.unspent).toBe(ORIGIN.cursedPoints);
+    expect(s.economy.earned.event, "起点の銭").toBe(Math.round(ORIGIN.cursedCoins * s.stats.coinGainMul));
   });
 
   it("素手: 地下 3 階までは装備が封印され、着くと解ける", () => {
@@ -165,24 +171,24 @@ describe("起点の適用", () => {
       itemLevel: 1,
       name: "試しの鎧",
       implicit: null,
-      affixes: [{ key: "maxLife", value: 40 }],
+      affixes: [{ key: "damageVsStaggered", value: 40 }],
       foundDepth: 1,
       foundAt: 0,
     };
     profile.equipment.armor = armor;
     const s = createGame(21, "21", profile, undefined, { origin: "unarmed", modifiers: [] });
     const bare = computeStats(createEmptyEquipment());
-    expect(s.runAttributes.unspent).toBe(ORIGIN.unarmedPoints);
-    expect(s.stats.maxHp).toBe(bare.maxHp);
+    expect(s.economy.earned.event, "起点の銭").toBe(Math.round(ORIGIN.unarmedCoins * s.stats.coinGainMul));
+    expect(s.stats.increased.vsStaggered).toBe(bare.increased.vsStaggered);
     while (s.depth < ORIGIN.unarmedUnsealDepth) descend(s);
-    expect(s.stats.maxHp, "封印が解けて装備の最大 HP が乗る").toBeGreaterThan(bare.maxHp);
+    expect(s.stats.increased.vsStaggered, "封印が解けて装備の性質が乗る").toBeGreaterThan(bare.increased.vsStaggered);
   });
 
-  it("詠み手: 刻印符を差して始まり、最大 HP が 2 割減る", () => {
+  it("詠み手: 刻印符を手持ちに持って始まり（スキルへは付かない）、最大 HP が 2 割減る", () => {
     const base = game({ origin: "wanderer", modifiers: [] });
     const s = game({ origin: "chanter", modifiers: [] });
-    const runes = s.skills.slots.reduce((n, slot) => n + slot.modifiers.length, 0);
-    expect(runes).toBeGreaterThan(0);
+    expect(s.skills.hand, "手持ちに開始の符").toHaveLength(ORIGIN.chanterRunes);
+    expect(s.skills.slots.every((slot) => slot.modifiers.length === 0), "スキルには付いていない").toBe(true);
     expect(s.stats.maxHp).toBeCloseTo(base.stats.maxHp * ORIGIN.chanterHpMul);
   });
 
@@ -191,16 +197,13 @@ describe("起点の適用", () => {
     expect(s.stats.keystones).toContain("ks_gambler");
   });
 
-  it("死神の友: 階に入ってすぐ死神が出て、足は遅い。降りるたびに振り分け点が 1 多い", () => {
+  it("死神の友: 階に入ってすぐ死神が出て、足は遅い。初めての階へ降りるたびに銭を得る", () => {
     const s = game({ origin: "reaperFriend", modifiers: [] });
     step(s, withInput({}), FIXED_DT);
     expect(s.reaper).not.toBeNull();
-    const before = s.runAttributes.unspent;
-    const plain = game({ origin: "wanderer", modifiers: [] });
-    const plainBefore = plain.runAttributes.unspent;
+    const before = s.economy.earned.event;
     descend(s);
-    descend(plain);
-    expect(s.runAttributes.unspent - before).toBe(plain.runAttributes.unspent - plainBefore + ORIGIN.reaperFriendPoints);
+    expect(s.economy.earned.event - before, "降りた階の銭").toBe(Math.round(ORIGIN.reaperFriendCoins * s.stats.coinGainMul));
     expect(ORIGIN.reaperFriendSpeedMul * REAPER.speed).toBeLessThan(REAPER.speed);
   });
 });

@@ -8,12 +8,11 @@ import {
   ATTR_KEYS,
   DEFAULT_STATS,
   createEmptyEquipment,
-  uniformAttributes,
   type AttrKey,
   type PlayerStats,
   type Scaling,
 } from "../loot/types";
-import { addRunAttributes, buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
+import { buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
 import { applyStats } from "./player";
 
 /** 素の stats（装備なし）の生ステータスを 1 つだけ変えたもの */
@@ -140,16 +139,6 @@ describe("deriveAttributes（派生）", () => {
   });
 });
 
-describe("addRunAttributes（ラン内振り分け）", () => {
-  it("生の値に足し、入力は書き換えない", () => {
-    const base = computeStats(createEmptyEquipment());
-    const alloc = { ...uniformAttributes(0), str: 3, spi: 1 };
-    const out = addRunAttributes(base, alloc);
-    expect(out.attributes).toEqual({ str: 8, dex: 5, vit: 5, mnd: 5, spi: 6, def: 5 });
-    expect(base.attributes, "入力の attributes が変わった").toEqual(uniformAttributes(ATTR.base));
-  });
-});
-
 describe("applyStats への組み込み", () => {
   it("開始時の state.stats は基礎値なら computeStats と一致する", () => {
     const state = createGame(1);
@@ -157,17 +146,17 @@ describe("applyStats への組み込み", () => {
     expect(state.player.mana, "マナは満タンで始まる").toBe(DEFAULT_STATS.maxMana);
   });
 
-  it("振り分けが派生に反映され、何度呼んでも二重に掛からない", () => {
+  it("装備が上げた体力が派生に反映され、何度呼んでも二重に掛からない", () => {
     const state = createGame(1);
-    state.runAttributes.alloc.vit = 10;
-    const equip = computeStats(state.profile.equipment);
+    const plain = computeStats(state.profile.equipment);
+    const equip = { ...plain, attributes: { ...plain.attributes, vit: plain.attributes.vit + 10 } };
     applyStats(state, equip);
     const once = state.stats.maxHp;
     applyStats(state, equip);
-    expect(state.stats.attributes.vit).toBe(15);
+    expect(state.stats.attributes.vit).toBe(ATTR.base + 10);
     expect(state.stats.maxHp, "二重に掛かった").toBe(once);
-    expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(computeStats(state.profile.equipment).maxHp + ATTR.vitMaxHp * 10);
-    expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は振り分け前").toBe(ATTR.base);
+    expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(plain.maxHp + ATTR.vitMaxHp * 10);
+    expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は派生前の生値").toBe(ATTR.base + 10);
   });
 });
 
@@ -199,26 +188,20 @@ function atBase(s: Scaling): number {
   return scaled(deriveAttributes(computeStats(createEmptyEquipment())), s);
 }
 
+// 近接の 3 段とダッシュ攻撃は 2026-10-02 の振りの速さの見直し（docs/ideas/weapon-tempo.md）で振りを遅くし 1 撃を重くした値
 const BASELINE: readonly BaselineRow[] = [
-  { label: "近接 1 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[0]!.scaling) },
-  { label: "近接 2 段", pinned: 7.8, scaling: { base: 4.8, str: 0.6 }, current: () => atBase(PLAYER.melee[1]!.scaling) },
-  { label: "近接 3 段", pinned: 15.6, scaling: { base: 9.6, str: 1.2 }, current: () => atBase(PLAYER.melee[2]!.scaling) },
-  { label: "ダッシュ攻撃", pinned: 11.2, scaling: { base: 7.2, str: 0.8 }, current: () => atBase(ACTION.dashAttack.scaling) },
+  { label: "近接 1 段", pinned: 11.185, scaling: { base: 6.88, str: 0.861 }, current: () => atBase(PLAYER.melee[0]!.scaling) },
+  { label: "近接 2 段", pinned: 11.745, scaling: { base: 7.23, str: 0.903 }, current: () => atBase(PLAYER.melee[1]!.scaling) },
+  { label: "近接 3 段", pinned: 29.53, scaling: { base: 18.17, str: 2.272 }, current: () => atBase(PLAYER.melee[2]!.scaling) },
+  { label: "ダッシュ攻撃", pinned: 15.99, scaling: { base: 10.28, str: 1.142 }, current: () => atBase(ACTION.dashAttack.scaling) },
   { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
   { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(ULTIMATE.defs.sword.fullMoon.nova.scaling) },
   { label: "壁叩きつけ", pinned: 10, scaling: { base: 7, str: 0.6 }, current: () => ACTION.wallSplat.damage },
-  { label: "旋風斬り（1 回転）", pinned: 8.9, scaling: { base: 4.9, str: 0.4, spi: 0.4 }, current: () => atBase(SKILL.whirl.damage) },
-  { label: "突進斬り", pinned: 18.4, scaling: { base: 10.4, str: 1, dex: 0.6 }, current: () => atBase(SKILL.lunge.damage) },
-  { label: "グレネード", pinned: 33.8, scaling: { base: 19.8, dex: 1.4, spi: 1.4 }, current: () => atBase(SKILL.frag.damage) },
-  { label: "撃ち抜き", pinned: 39, scaling: { base: 23, dex: 2, spi: 1.2 }, current: () => atBase(SKILL.railshot.damage) },
   { label: "パリィ（衝撃波）", pinned: 12, scaling: { base: 6, str: 0.6, spi: 0.6 }, current: () => atBase(SKILL.parry.damage) },
-  { label: "地裂き", pinned: 24.7, scaling: { base: 12.7, str: 1.6, spi: 0.8 }, current: () => atBase(SKILL.quake.damage) },
-  { label: "雷撃", pinned: 26.7, scaling: { base: 12.7, dex: 1.2, spi: 1.6 }, current: () => atBase(SKILL.thunder.damage) },
   { label: "引力球（tick）", pinned: 3.3, scaling: { base: 1.3, spi: 0.4 }, current: () => atBase(SKILL.gravityWell.tickDamage) },
   { label: "引力球（破裂）", pinned: 20.1, scaling: { base: 10.1, spi: 2 }, current: () => atBase(SKILL.gravityWell.burstDamage) },
   { label: "地雷", pinned: 22.1, scaling: { base: 10.1, dex: 1.2, spi: 1.2 }, current: () => atBase(SKILL.mines.damage) },
   { label: "鎖鎌", pinned: 15.6, scaling: { base: 7.6, str: 1, dex: 0.6 }, current: () => atBase(SKILL.chainHook.damage) },
-  { label: "回転弾幕（1 発）", pinned: 5.5, scaling: { base: 2.5, dex: 0.3, spi: 0.3 }, current: () => atBase(SKILL.spiral.damage) },
   { label: "氷結地帯（tick）", pinned: 4.3, scaling: { base: 1.3, spi: 0.6 }, current: () => atBase(SKILL.frostField.tickDamage) },
 ];
 

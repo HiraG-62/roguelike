@@ -15,7 +15,28 @@ export const DEFAULT_SPRITE_DOTS: SpriteDots = 1;
  * 密度 1 以外のキーだけ載せる。ポーズ（`<key>.windup` / `<key>.strike`）は元のキーの値を継ぐので載せなくてよい。
  * 再配色種は描画側で元のキーの値を継ぐ
  */
-export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {};
+export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {
+  // 経済の絵（sprites/economy.ts）
+  "pickup.coin.small": 2,
+  "pickup.coin.mid": 2,
+  "pickup.coin.big": 2,
+  "pickup.key": 2,
+  "pickup.flask": 2,
+  "pickup.flaskEmpty": 2,
+  "hud.flask": 2,
+  "prop.lockedChest": 2,
+  "prop.donation": 2,
+  pot: 2,
+  crate: 2,
+  merchant: 2,
+  merchantChapter: 2,
+  merchantPeddler: 2,
+  merchantBlack: 2,
+  // 最深の間（sprites/bosses.ts・sprites/still.ts）
+  deepLord: 2,
+  gatePillar: 2,
+  mirrorPane: 2,
+};
 
 /** ポーズの接尾辞を外した元のキー */
 export function baseOfPose(key: string): string {
