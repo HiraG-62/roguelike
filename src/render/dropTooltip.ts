@@ -4,10 +4,11 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type DamageModDiff, computeStats, damageModDiffs, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
-import { SKILL_DEFS, formatVariant, stoneLabel, transformLabel } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, formatVariant, modifierVerb, stoneLabel, transformLabel } from "../skills/data";
+import { STONE_TUNING } from "../skills/tuning2";
 import { currentForm } from "../system/morale";
 import type { FormKey } from "../data/weaponForms";
-import type { SkillStone } from "../skills/types";
+import type { ModifierKey, SkillDef, SkillStone } from "../skills/types";
 import { weaponArtLabel } from "../skills/arts";
 import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
 import { type Rect, SLOT_LABEL } from "../ui/inventoryLayout";
@@ -51,6 +52,7 @@ const COLOR_HINT_SHADOW = "#000000";
 const COLOR_BETTER = "#7fe07f";
 const COLOR_WORSE = COLOR_WARN;
 const COLOR_STONE = "#b080ff";
+const COLOR_RUNE = SKILL.drop.runeColor;
 /** 武器技の「〇〇専用」 */
 const COLOR_WEAPON_ART = "#ffd080";
 export const MARK_UP = "▲";
@@ -119,7 +121,12 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   return [head, ...shown];
 }
 
-/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸（装備画面のツールチップの要約）。form は今の武器の型 */
+/** 宿り符の 1 行「宿り符 連鎖: 〜」（リンクを使わずに効く。docs/ideas/skill-stone-hunt.md） */
+export function dwellLine(key: ModifierKey, def: Readonly<SkillDef>): string {
+  return `宿り符 ${MODIFIERS[key].name}: ${modifierVerb(key, def)}`;
+}
+
+/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸・宿り符（装備画面のツールチップの要約）。form は今の武器の型 */
 export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
   const transform = form === undefined ? null : transformLabel(form, stone.skillKey);
@@ -132,6 +139,7 @@ export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
   for (const v of stone.variants) lines.push({ text: formatVariant(v, def), color: COLOR_TEXT });
+  if (stone.dwell !== undefined) lines.push({ text: dwellLine(stone.dwell, def), color: STONE_TUNING.dwellColor });
   return lines;
 }
 
@@ -141,8 +149,18 @@ export interface DropTipContent {
   tail: TipLine[];
 }
 
+/** 刻印符: 名前・何をするか（付けるスキルが決まっていないので気力型の読み替えはしない） */
+export function runeLines(key: ModifierKey): TipLine[] {
+  const def = MODIFIERS[key];
+  return [
+    { text: `刻印符: ${def.name}`, color: COLOR_RUNE },
+    { text: def.verb, color: COLOR_TEXT },
+  ];
+}
+
 export function dropTipContent(state: GameState, drop: FocusedDrop): DropTipContent {
   if (drop.kind === "stone") return { body: stoneLines(drop.stone, currentForm(state).key), tail: [] };
+  if (drop.kind === "rune") return { body: runeLines(drop.modifier), tail: [] };
   return { body: itemTipLines(state, drop.item), tail: compareLines(state, drop.item) };
 }
 

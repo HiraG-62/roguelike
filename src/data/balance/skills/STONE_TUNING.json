@@ -1,0 +1,19 @@
+{
+  "_note": "スキル石の個体差と処分（docs/ideas/skill-stone-hunt.md）。2026-10-02 のユーザーの決定: 同じスキルの石を集めて良い個体を求めるハクスラにする。宿り符は刻印符 1 枚が石に宿って生まれるもので、リンクを使わずに効く（まれ。深いほど出やすい）。処分は砕く（冥響）と注ぎ（同じスキルの装着中の石へ使い込みを移す）",
+  "_fields": {
+    "dwellChanceMin": "深度 1 で拾った石に宿り符が付く確率（0〜1）。目安 0.005〜0.02",
+    "dwellChanceMax": "dwellCapDepth 以降の確率（0〜1）。間は深度で直線に上がる。目安 0.03〜0.08",
+    "dwellCapDepth": "確率が最大に届く深度。目安 15〜25",
+    "shatterUmbra": "石を 1 つ処分したときに得る冥響（宿り符なし）。個",
+    "shatterUmbraDwell": "宿り符のある石を処分したときに得る冥響。個",
+    "dwellColor": "宿り符の表示色（書付・候補の札・床の石の札）",
+    "pourShare": "注ぎで装着中の石へ移す使い込み（発動数・命中数）の割合（0〜1）。遺物の注ぎ（来歴の半分）と同じ 0.5"
+  },
+  "dwellChanceMin": 0.01,
+  "dwellChanceMax": 0.05,
+  "dwellCapDepth": 20,
+  "shatterUmbra": 1,
+  "shatterUmbraDwell": 3,
+  "pourShare": 0.5,
+  "dwellColor": "#ffd860"
+}

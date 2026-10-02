@@ -9,16 +9,17 @@ import { dominantColor } from "../loot/names";
 import { addToStash, saveProfile } from "../loot/profile";
 import { chooseBudOnItem, findPendingBud } from "../loot/provenance";
 import { computeStats } from "../loot/stats";
-import { SKILL, stoneLabel } from "../skills/data";
+import { SKILL, dwellLabel, stoneLabel } from "../skills/data";
+import { STONE_TUNING } from "../skills/tuning2";
 import { generateSkillStone } from "../skills/generator";
 import { addStone, saveSkillProfile } from "../skills/persistence";
-import type { SkillStone } from "../skills/types";
+import type { ModifierKey, SkillStone } from "../skills/types";
 import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity, type Slot } from "../loot/types";
 import { addFloatingText, inscribeFx } from "./effects";
 import { overlapsWall } from "./physics";
 import { applyStats } from "./player";
 import { ROAMING_ROOM } from "./spawner";
-import { rollEnemyRuneDrop } from "./skills";
+import { pickUpRune, rollEnemyRuneDrop } from "./skills";
 
 /**
  * 装備のドロップと拾得、芽の選択。docs/LOOT_DESIGN.md「ドロップ」「来歴と芽」。
@@ -146,14 +147,20 @@ export type DropKind = "item" | "stone";
 
 export type FocusedDrop =
   | { kind: "item"; id: number; pos: Vec; inReach: boolean; item: Item }
-  | { kind: "stone"; id: number; pos: Vec; inReach: boolean; stone: SkillStone };
+  | { kind: "stone"; id: number; pos: Vec; inReach: boolean; stone: SkillStone }
+  | { kind: "rune"; id: number; pos: Vec; inReach: boolean; modifier: ModifierKey };
 
-type DropCandidate = { kind: "item"; id: number; pos: Vec; item: Item } | { kind: "stone"; id: number; pos: Vec; stone: SkillStone };
+type DropCandidate =
+  | { kind: "item"; id: number; pos: Vec; item: Item }
+  | { kind: "stone"; id: number; pos: Vec; stone: SkillStone }
+  | { kind: "rune"; id: number; pos: Vec; modifier: ModifierKey };
 
+/** 注目できる床の物（遺物 → スキル石 → 刻印符の順。同距離はこの順で先の物） */
 function dropCandidates(state: GameState): DropCandidate[] {
   const items: DropCandidate[] = state.floorItems.map((fi) => ({ kind: "item", id: fi.id, pos: fi.pos, item: fi.item }));
   const stones: DropCandidate[] = state.skills.floorStones.map((fs) => ({ kind: "stone", id: fs.id, pos: fs.pos, stone: fs.stone }));
-  return [...items, ...stones];
+  const runes: DropCandidate[] = state.skills.runes.map((r) => ({ kind: "rune", id: r.id, pos: r.pos, modifier: r.modifier }));
+  return [...items, ...stones, ...runes];
 }
 
 /** 照準の世界座標。照準が無い（マウス未使用・パッドの右スティック中立）なら null */
@@ -233,6 +240,10 @@ export function updateDropInteract(state: GameState, input: FrameInput): void {
     if (pickUp(state, focus.item, focus.pos)) state.floorItems = state.floorItems.filter((fi) => fi.id !== focus.id);
     return;
   }
+  if (focus.kind === "rune") {
+    pickUpRune(state, focus.id);
+    return;
+  }
   if (pickUpStone(state, focus.stone, focus.pos)) {
     state.skills.floorStones = state.skills.floorStones.filter((fs) => fs.id !== focus.id);
   }
@@ -247,7 +258,10 @@ function pickUpStone(state: GameState, stone: SkillStone, pos: Vec): boolean {
   }
   saveSkillProfile(profile);
   const label = stoneLabel(stone);
-  pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
+  const dwell = dwellLabel(stone);
+  // 宿り符のある石はまれなので、ログも金で目立たせる
+  if (dwell === null) pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
+  else pushLog(state, `スキル石: ${label}（${dwell}）`, STONE_TUNING.dwellColor);
   pushSfx(state, "lootRare");
   return true;
 }

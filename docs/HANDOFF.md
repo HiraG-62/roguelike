@@ -2,6 +2,12 @@
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
+## 0-夜. スキル石の厳選（2026-10-02 夜。クラウドセッション、ブランチ `claude/busy-cori-fvxzkl`）
+
+- ユーザーと相談して決めた（`docs/ideas/skill-stone-hunt.md` の表）: 同じスキルの石を集めて良い個体を求める。変異は必ず 1 本以上、まれに**宿り符**（リンクを使わない符。深度 1 で 1% → 20 階で 5%）。候補の頁で同じスキルを**束**にまとめ、札の 2 段目に変異と宿り符、差の欄で付けている石と比べる。長押しで**処分**（冥響。同じスキルを付けていれば使い込みの半分を注ぐ）、束の長押しでまとめて注ぐ。倉庫 400。使い込みの芽は 400 / 1600 回・1 ランで 1 つまで。刻印符も拾うキーで拾う。`REPLAY_VERSION` 39
+- 確認の撮影: `npm run menu:shot -- --only "cand-group+focus=first"`（束の頁）/ `"cand-stone+focus=first"`（束の札）
+- 未確認: 実機で札の 2 段目が読めるか（論理 8px の字を 2 段）・宿り符の確率の手触り・倉庫が束でどれだけ片付くか
+
 ## 0. 現在地（2026-10-02 朝。ローカルセッション）
 
 - ブランチは `master` → `perf/floor-gen-time` → `perf/hitch-warmup` → `feat/room-jin-and-hub` の積み重ね（最新は `feat/room-jin-and-hub`。**push していない**。ユーザーの承認後に `git push -u origin feat/room-jin-and-hub` で master へ PR を 1 本）。`npm run check` 通過（テスト 7,464 件）。`REPLAY_VERSION` 35

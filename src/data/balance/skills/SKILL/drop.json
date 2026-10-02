@@ -7,8 +7,6 @@
   "runeColor": "#ffb040",
   "runeOffsetX": 14,
   "depthOffsetY": 14,
-  "pickupRadius": 8,
-  "pickupDelay": 0.3,
   "runeOnKill": { "normal": 0.01, "elite": 0.12, "boss": 0.6, "library": 0.05, "nest": 0.04 },
   "runeOnKillPerDepth": 0.001,
   "runeOnKillDepthCap": 0.02

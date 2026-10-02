@@ -5,8 +5,10 @@ import { describeTrait } from "../loot/describe";
 import { equipItem, saveProfile, unequipItem } from "../loot/profile";
 import type { AffixRoll, Item } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
-import { equipStone, findStone, salvageStone, saveSkillProfile, stoneInSlot, unequipSlot } from "../skills/persistence";
-import type { SkillResource, SkillStone } from "../skills/types";
+import { disposeStone, equipStone, findStone, saveSkillProfile, stoneInSlot, unequipSlot } from "../skills/persistence";
+import { ECHO_LABEL } from "../loot/crafting";
+import { saveCraft } from "../loot/craftingStore";
+import type { SkillKey, SkillResource, SkillStone } from "../skills/types";
 import { relicKeywords, skillKeywords } from "../system/keywords";
 import { chooseBud } from "../system/loot";
 import { returnInactiveRunes } from "../system/skills";
@@ -90,10 +92,14 @@ export const SORT_LABEL: Readonly<Record<CandidateSort, { chip: string; long: st
 /** 倉庫の物 1 つ（遺物かスキル石） */
 export type CandidateSubject = { kind: "item"; item: Item } | { kind: "stone"; stone: SkillStone };
 
-/** 頁の 1 枚。芽吹きの札と空けるは倉庫の物ではないが 1 枚に数える */
+/**
+ * 頁の 1 枚。芽吹きの札と空けるは倉庫の物ではないが 1 枚に数える。
+ * group = 同じスキルの石が 2 個以上あるときの束（決定でその束の頁へ。docs/ideas/skill-stone-hunt.md）
+ */
 export type CandidateEntry =
   | { kind: "bud"; n: 0 | 1; roll: AffixRoll }
   | { kind: "subject"; subject: CandidateSubject }
+  | { kind: "group"; skillKey: SkillKey; stones: SkillStone[] }
   | { kind: "clear" };
 
 export function subjectId(s: Readonly<CandidateSubject>): string {
@@ -118,7 +124,10 @@ export function candidateBase(state: Readonly<GameState>, target: Readonly<Candi
       return state.profile.stash.filter((it) => it.slot === target.slot).map((item) => ({ kind: "item", item }));
     case "stone": {
       const worn = stoneInSlot(state.skills.profile, target.index);
-      return state.skills.profile.stones.filter((s) => s.id !== worn?.id).map((stone) => ({ kind: "stone", stone }));
+      const group = target.group;
+      return state.skills.profile.stones
+        .filter((s) => s.id !== worn?.id && (group === undefined || s.skillKey === group))
+        .map((stone) => ({ kind: "stone", stone }));
     }
     case "flow":
       return state.profile.stash
@@ -159,7 +168,7 @@ export function nextFilter(state: Readonly<GameState>, target: Readonly<Candidat
 export function tryOnTargetOf(target: Readonly<CandidateTarget>, subject: Readonly<CandidateSubject>): TryOnTarget | null {
   if (subject.kind === "item") return { kind: "relic", slot: subject.item.slot, item: subject.item };
   if (target.kind !== "stone") return null;
-  return { kind: "stone", index: target.index, skillKey: subject.stone.skillKey };
+  return { kind: "stone", index: target.index, skillKey: subject.stone.skillKey, ...(subject.stone.dwell === undefined ? {} : { dwell: subject.stone.dwell }) };
 }
 
 function foundAtOf(s: Readonly<CandidateSubject>): number {
@@ -253,17 +262,62 @@ export function candidateEntries(state: Readonly<GameState>, view: Readonly<Cand
   const pinned = view.pinnedId;
   const ordered = pinned !== null && byId.has(pinned) ? [pinned, ...ids.filter((id) => id !== pinned)] : ids;
   const entries: CandidateEntry[] = budEntries(state, view.target);
-  for (const id of ordered) {
-    const subject = byId.get(id);
-    if (subject !== undefined) entries.push({ kind: "subject", subject });
-  }
+  const subjects = ordered.map((id) => byId.get(id)).filter((x): x is CandidateSubject => x !== undefined);
+  entries.push(...(groupsStones(view.target) ? groupStones(subjects) : subjects.map((subject): CandidateEntry => ({ kind: "subject", subject }))));
   if (isFilled(state, view.target)) entries.push({ kind: "clear" });
   return entries;
+}
+
+/** 石の候補の一覧（束を開いていない頁）だけ、同じスキルの石を束ねる */
+function groupsStones(target: Readonly<CandidateTarget>): boolean {
+  return target.kind === "stone" && target.group === undefined;
+}
+
+/**
+ * 同じスキルの石が 2 個以上なら 1 枚の束にする（束は最初に出てきた位置、中の石は並びの順）。1 個だけのスキルは石の札のまま
+ */
+export function groupStones(subjects: readonly CandidateSubject[]): CandidateEntry[] {
+  const byKey = new Map<SkillKey, SkillStone[]>();
+  for (const s of subjects) {
+    if (s.kind !== "stone") continue;
+    const list = byKey.get(s.stone.skillKey);
+    if (list === undefined) byKey.set(s.stone.skillKey, [s.stone]);
+    else list.push(s.stone);
+  }
+  const out: CandidateEntry[] = [];
+  const placed = new Set<SkillKey>();
+  for (const s of subjects) {
+    if (s.kind !== "stone") {
+      out.push({ kind: "subject", subject: s });
+      continue;
+    }
+    const key = s.stone.skillKey;
+    if (placed.has(key)) continue;
+    placed.add(key);
+    const stones = byKey.get(key) ?? [s.stone];
+    out.push(stones.length > 1 ? { kind: "group", skillKey: key, stones } : { kind: "subject", subject: s });
+  }
+  return out;
+}
+
+/** 束の代表の石（試着・書付に使う。束の石はどれも同じスキル） */
+export function groupHead(entry: Readonly<CandidateEntry & { kind: "group" }>): SkillStone | null {
+  return entry.stones[0] ?? null;
+}
+
+/** その石を指す札の焦点（束に入っていれば束の焦点） */
+function stoneFocusId(state: Readonly<GameState>, view: Readonly<CandidatesView>, stoneId: string): string | null {
+  for (const e of candidateEntries(state, view)) {
+    if (e.kind === "subject" && subjectId(e.subject) === stoneId) return entryFocusId(e);
+    if (e.kind === "group" && e.stones.some((st) => st.id === stoneId)) return entryFocusId(e);
+  }
+  return null;
 }
 
 export function entryFocusId(entry: Readonly<CandidateEntry>): string {
   if (entry.kind === "bud") return fid.bud(entry.n);
   if (entry.kind === "clear") return fid.clear;
+  if (entry.kind === "group") return fid.group(entry.skillKey);
   return fid.cand(subjectId(entry.subject));
 }
 
@@ -296,10 +350,22 @@ export function visibleEntries(entries: readonly CandidateEntry[], offset: numbe
   return entries.slice(offset, offset + CANDIDATE_PAGE);
 }
 
-function entryHit(entry: Readonly<CandidateEntry>, rect: MenuHit["rect"], target: Readonly<CandidateTarget>): MenuHit {
+function entryHit(state: Readonly<GameState>, entry: Readonly<CandidateEntry>, rect: MenuHit["rect"], view: Readonly<CandidatesView>): MenuHit {
+  const target = view.target;
   const id = entryFocusId(entry);
   if (entry.kind === "bud") return { id, rect, act: { kind: "chooseBud", option: entry.n }, hold: null, nav: true };
   if (entry.kind === "clear") return { id, rect, act: { kind: "clearSlot" }, hold: null, nav: true };
+  if (entry.kind === "group") {
+    const index = target.kind === "stone" ? target.index : 0;
+    const pour = wornSkillKey(state, target) === entry.skillKey;
+    return {
+      id,
+      rect,
+      act: { kind: "push", view: { ...view, focus: null, target: { kind: "stone", index, group: entry.skillKey }, offset: 0, order: null, pinnedId: null } },
+      hold: pour ? { kind: "pourGroup", skillKey: entry.skillKey } : null,
+      nav: true,
+    };
+  }
   const s = entry.subject;
   if (s.kind === "item") return { id, rect, act: { kind: "equip", itemId: s.item.id }, hold: null, nav: true };
   const index = target.kind === "stone" ? target.index : 0;
@@ -380,7 +446,7 @@ function layout(state: Readonly<GameState>, _ui: Readonly<InventoryUi>, view: Re
   const entries = candidateEntries(state, view);
   syncPage(view as CandidatesView, entries);
   const cards = visibleEntries(entries, view.offset).map((entry, i) =>
-    entryHit(entry, { x: CAND_CARD.x, y: CAND_CARD.y + i * CAND_CARD.step, w: CAND_CARD.w, h: CAND_CARD.h }, view.target),
+    entryHit(state, entry, { x: CAND_CARD.x, y: CAND_CARD.y + i * CAND_CARD.step, w: CAND_CARD.w, h: CAND_CARD.h }, view),
   );
   return [...cards, ...sortChipHits(view.offset === 0), ...filterChipHits(view.target, view.offset === 0), ...partHits(view.target), ...gemHits(state, view.target)];
 }
@@ -437,7 +503,7 @@ function equipSkillStone(state: GameState, ui: InventoryUi, view: CandidatesView
   showNote(ui, `付けた: ${SKILL_DEFS[stone.skillKey].name}${back > 0 ? STONE_RUNES_BACK : ""}`);
   view.pinnedId = previous?.id ?? null;
   resetOrder(view);
-  refocus(ui, view, previous === null ? null : fid.cand(previous.id));
+  refocus(ui, view, previous === null ? null : stoneFocusId(state, view, previous.id));
 }
 
 function clearTarget(state: GameState, ui: InventoryUi, view: CandidatesView): void {
@@ -476,18 +542,72 @@ function budChoose(state: GameState, ui: InventoryUi, view: CandidatesView, opti
   refocus(ui, view, null);
 }
 
+/** 今の枠に付けている石のスキル（石の候補でなければ null） */
+function wornSkillKey(state: Readonly<GameState>, target: Readonly<CandidateTarget>): SkillKey | null {
+  if (target.kind !== "stone") return null;
+  return stoneInSlot(state.skills.profile, target.index)?.skillKey ?? null;
+}
+
+/** 処分の知らせ「処分した　冥響 +1」「注いだ 発動 +120　冥響 +1」 */
+function disposalNote(casts: number, poured: boolean, umbra: number): string {
+  const head = poured && casts > 0 ? `注いだ 発動 +${casts}` : "処分した";
+  return `${head}　${ECHO_LABEL.umbra} +${umbra}`;
+}
+
+/** 冥響を財布へ入れて保存する */
+function gainUmbra(ui: InventoryUi, umbra: number): void {
+  if (umbra <= 0) return;
+  ui.craft.echoes.umbra += umbra;
+  saveCraft(ui.craft);
+}
+
+/**
+ * 石の処分（長押し）。冥響を得て、今の枠に同じスキルの石を付けていれば使い込みの一部を注ぐ（遺物の「注ぎ」と同じ形）
+ */
 function salvage(state: GameState, ui: InventoryUi, view: CandidatesView, stoneId: string): void {
   const before = candidateEntries(state, view);
   const at = before.findIndex((e) => e.kind === "subject" && subjectId(e.subject) === stoneId);
-  if (!salvageStone(state.skills.profile, stoneId)) return;
+  const worn = view.target.kind === "stone" ? stoneInSlot(state.skills.profile, view.target.index) : null;
+  const result = disposeStone(state.skills.profile, stoneId, worn?.id ?? null);
+  if (result === null) return;
   saveSkillProfile(state.skills.profile);
+  gainUmbra(ui, result.umbra);
   pushSfx(state, "dismantle");
-  showNote(ui, "分解した");
+  showNote(ui, disposalNote(result.casts, result.poured !== null, result.umbra));
   resetOrder(view);
   // 分解した札の位置に残った札へ焦点を置く（頁が先頭に戻っても読んでいた場所を失わない）
   const after = candidateEntries(state, view);
   const next = after[Math.min(Math.max(0, at), after.length - 1)];
   refocus(ui, view, next === undefined ? null : entryFocusId(next));
+}
+
+/**
+ * 束の長押し: 宿り符の無い石を、今の枠に付けている同じスキルの石へまとめて注ぐ。
+ * 宿り符のある石と、ほかの枠に付けている石は残す
+ */
+function pourGroup(state: GameState, ui: InventoryUi, view: CandidatesView, skillKey: SkillKey): void {
+  const profile = state.skills.profile;
+  const worn = view.target.kind === "stone" ? stoneInSlot(profile, view.target.index) : null;
+  if (worn === null || worn.skillKey !== skillKey) return;
+  const victims = profile.stones.filter((st) => st.skillKey === skillKey && st.id !== worn.id && st.dwell === undefined && !profile.loadout.includes(st.id));
+  if (victims.length === 0) {
+    showNote(ui, "注げる石なし（宿り符の石は残す）");
+    return;
+  }
+  let umbra = 0;
+  let casts = 0;
+  for (const st of victims) {
+    const r = disposeStone(profile, st.id, worn.id);
+    if (r === null) continue;
+    umbra += r.umbra;
+    casts += r.casts;
+  }
+  saveSkillProfile(profile);
+  gainUmbra(ui, umbra);
+  pushSfx(state, "dismantle");
+  showNote(ui, `${victims.length} 個を注いだ 発動 +${casts}　${ECHO_LABEL.umbra} +${umbra}`);
+  resetOrder(view);
+  refocus(ui, view, null);
 }
 
 function act(state: GameState, ui: InventoryUi, view: CandidatesView, a: MenuAct): void {
@@ -518,6 +638,9 @@ function act(state: GameState, ui: InventoryUi, view: CandidatesView, a: MenuAct
     case "salvageStone":
       salvage(state, ui, view, a.stoneId);
       return;
+    case "pourGroup":
+      pourGroup(state, ui, view, a.skillKey);
+      return;
     default:
       return;
   }
@@ -536,7 +659,7 @@ export function targetLabel(target: Readonly<CandidateTarget>): string {
     case "slot":
       return SLOT_LABEL[target.slot];
     case "stone":
-      return `スキル ${target.index + 1}`;
+      return target.group === undefined ? `スキル ${target.index + 1}` : `スキル ${target.index + 1} › ${SKILL_DEFS[target.group].name}`;
     case "flow":
       return `${KEYWORD_DEFS[target.keyword].label}系 › ${VERB_LABEL[target.verb]}`;
   }
@@ -549,10 +672,16 @@ function header(state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Rea
 }
 
 const GUIDE: readonly GuideVerb[] = ["move", "equip", "sort", "sheet", "back"];
+/** 石の候補は長押しで処分できる（冥響、同じスキルを付けていれば注ぐ） */
+const STONE_GUIDE: readonly GuideVerb[] = ["move", "equip", "dispose", "sort", "sheet", "back"];
 
 function sheetFor(state: Readonly<GameState>, view: Readonly<CandidatesView>): SheetSubject | null {
   const entry = focusedEntry(state, view);
   if (entry === null || entry.kind === "clear") return null;
+  if (entry.kind === "group") {
+    const head = groupHead(entry);
+    return head === null ? null : { kind: "stonePair", stoneId: head.id, index: view.target.kind === "stone" ? view.target.index : 0 };
+  }
   if (entry.kind === "bud") {
     const worn = view.target.kind === "slot" ? state.profile.equipment[view.target.slot] : null;
     return worn === null || worn === undefined ? null : { kind: "item", itemId: worn.id };
@@ -565,7 +694,7 @@ function sheetFor(state: Readonly<GameState>, view: Readonly<CandidatesView>): S
 /** 札の上にいるときだけ頁を送る（並びの札の上では送らない） */
 function onCard(view: Readonly<CandidatesView>): boolean {
   const f = view.focus;
-  return fidArgs(f, "c") !== null || fidArgs(f, "bud") !== null || f === fid.clear;
+  return fidArgs(f, "c") !== null || fidArgs(f, "cg") !== null || fidArgs(f, "bud") !== null || f === fid.clear;
 }
 
 function edge(state: Readonly<GameState>, ui: InventoryUi, view: CandidatesView, dx: number, dy: number): boolean {
@@ -611,7 +740,7 @@ export const CANDIDATES_VIEW: ViewModule<CandidatesView> = {
   act,
   header,
   tag: (_state, _ui, view, focus): MenuTag => chipTag(view, focus),
-  guide: () => GUIDE,
+  guide: (_state, view) => (view.target.kind === "stone" ? STONE_GUIDE : GUIDE),
   sheetFor,
   back: () => false,
   edge,
@@ -621,6 +750,12 @@ export const CANDIDATES_VIEW: ViewModule<CandidatesView> = {
 /** 焦点の札を替えたときの試着（動く紋用。遺物と石の候補だけ。部位を空ける札は外したときの結果） */
 export function tryOnForEntry(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>, base: Readonly<TryOnBase> = tryOnBase(state)): TryOnResult | null {
   if (entry.kind === "bud") return null;
+  if (entry.kind === "group") {
+    const head = groupHead(entry);
+    if (head === null) return null;
+    const to = tryOnTargetOf(view.target, { kind: "stone", stone: head });
+    return to === null ? null : tryOn(base, to);
+  }
   if (entry.kind === "clear") {
     const t = view.target;
     if (t.kind === "slot") return tryOn(base, { kind: "relic", slot: t.slot, item: null });

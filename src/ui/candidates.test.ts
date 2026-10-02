@@ -261,6 +261,73 @@ describe("候補の頁", () => {
     expect(profile.stones.some((s) => s.id === third.id), "長押しで分解した").toBe(false);
   });
 
+  it("同じスキルの石は 1 枚の束にまとまり、決定でその束の頁へ入る（1 個だけのスキルは石の札のまま）", () => {
+    const state = plainState();
+    const profile = state.skills.profile;
+    profile.stones = [];
+    profile.loadout = [null, null, null, null];
+    const [keyA, keyB, keyC] = SKILL_KEYS;
+    if (!keyA || !keyB || !keyC) throw new Error("スキルが足りない");
+    const dupes = [0, 1, 2].map((i) => stoneFromSeed(20 + i, { skillKey: keyB, foundDepth: 1, now: i }));
+    const lone = stoneFromSeed(30, { skillKey: keyC, foundDepth: 1, now: 9 });
+    const worn = stoneFromSeed(31, { skillKey: keyA, foundDepth: 1, now: 10 });
+    for (const st of [...dupes, lone, worn]) addStone(profile, st);
+    equipStone(profile, worn.id, 1);
+
+    const ui = openCandidates(state, { ...candidatesFor(createInventoryUi(createCraftSave()), "head"), target: { kind: "stone", index: 1 } });
+    const view = topCandidates(ui);
+    const entries = candidateEntries(state, view);
+    const group = entries.find((e) => e.kind === "group");
+    expect(group?.kind === "group" ? group.stones.length : 0, "同じスキルの 3 個が 1 束").toBe(3);
+    expect(entries.map(entryFocusId)).toContain(fid.cand(lone.id));
+    expect(entries.filter((e) => e.kind === "subject" && e.subject.kind === "stone" && e.subject.stone.skillKey === keyB), "束の石は一覧に直接並ばない").toHaveLength(0);
+
+    view.focus = fid.group(keyB);
+    frame(state, ui, { confirmPressed: true }, true);
+    frame(state, ui, {}, false);
+    const inner = topCandidates(ui);
+    expect(inner.target, "束の頁").toEqual({ kind: "stone", index: 1, group: keyB });
+    const innerIds = candidateEntries(state, inner).map(entryFocusId);
+    expect(innerIds).toEqual(expect.arrayContaining(dupes.map((d) => fid.cand(d.id))));
+    expect(innerIds, "束の頁にはそのスキルの石だけ").not.toContain(fid.cand(lone.id));
+  });
+
+  it("同じスキルを付けているとき、石の処分は使い込みを注いで冥響を得る。束の長押しは宿り符の石を残してまとめて注ぐ", () => {
+    const state = plainState();
+    const profile = state.skills.profile;
+    profile.stones = [];
+    profile.loadout = [null, null, null, null];
+    const key = SKILL_KEYS.find((k) => SKILL_DEFS[k].axes.length > 0);
+    if (!key) throw new Error("スキルが無い");
+    const worn = { ...stoneFromSeed(40, { skillKey: key, foundDepth: 1, now: 0 }), wear: { casts: 0, hits: 0, buds: [] } };
+    const grown = { ...stoneFromSeed(41, { skillKey: key, foundDepth: 1, now: 1 }), wear: { casts: 300, hits: 0, buds: [] } };
+    const fresh = stoneFromSeed(42, { skillKey: key, foundDepth: 1, now: 2 });
+    const rare = { ...stoneFromSeed(43, { skillKey: key, foundDepth: 1, now: 3 }), dwell: "echo" as const };
+    const extra = { ...stoneFromSeed(44, { skillKey: key, foundDepth: 1, now: 4 }), wear: { casts: 100, hits: 0, buds: [] } };
+    for (const st of [worn, grown, fresh, rare, extra]) addStone(profile, st);
+    equipStone(profile, worn.id, 0);
+
+    const ui = openCandidates(state, { ...candidatesFor(createInventoryUi(createCraftSave()), "head"), target: { kind: "stone", index: 0, group: key } });
+    const view = topCandidates(ui);
+    view.focus = fid.cand(grown.id);
+    frame(state, ui, { confirmPressed: true }, true);
+    for (let t = 0; t < MENU_HOLD_SECONDS + 0.1; t += DT) frame(state, ui, {}, true);
+    frame(state, ui, {}, false);
+    expect(profile.stones.some((st) => st.id === grown.id), "処分した").toBe(false);
+    expect(worn.wear.casts, "発動の半分が注がれる").toBe(150);
+    expect(ui.craft.echoes.umbra, "冥響を得る").toBe(1);
+
+    ui.stack.pop();
+    const top = openCandidates(state, { ...candidatesFor(createInventoryUi(createCraftSave()), "head"), target: { kind: "stone", index: 0 } });
+    const list = topCandidates(top);
+    list.focus = fid.group(key);
+    frame(state, top, { confirmPressed: true }, true);
+    for (let t = 0; t < MENU_HOLD_SECONDS + 0.1; t += DT) frame(state, top, {}, true);
+    frame(state, top, {}, false);
+    expect(profile.stones.map((st) => st.id).sort(), "付けている石と宿り符の石だけ残る").toEqual([worn.id, rare.id].sort());
+    expect(worn.wear.casts, "まとめて注いだ分も足される").toBe(200);
+  });
+
   it("芽のある部位は先頭に芽吹きの札 2 枚が出て、決定で芽吹く", () => {
     const state = plainState();
     const offerA: AffixRoll = { key: "armorFlat", value: 3, nominal: 3, flux: 0, color: "gold", origin: "found" };

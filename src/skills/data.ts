@@ -340,12 +340,15 @@ export function modifiersClash(a: ModifierKey, b: ModifierKey): boolean {
 
 /**
  * スロットの修飾子のうち実際に効くもの。付けられるものを古い順に、リンクの残りに収まる限り採る。
- * 型替え符は 1 枚まで、排他の組は古い方だけが効く
+ * 型替え符は 1 枚まで、排他の組は古い方だけが効く。
+ * dwell は石の宿り符（docs/ideas/skill-stone-hunt.md）: リンクを使わずに先頭で効き、ぶつかる符より優先する。
+ * 同じ符をラン内で付けても重ねて効かせず、そちらはリンクも使わない
  */
-export function activeModifiers(def: SkillDef, links: number, modifiers: readonly ModifierKey[]): ModifierKey[] {
-  const out: ModifierKey[] = [];
+export function activeModifiers(def: SkillDef, links: number, modifiers: readonly ModifierKey[], dwell?: ModifierKey): ModifierKey[] {
+  const out: ModifierKey[] = dwell !== undefined && canAttach(def, dwell) ? [dwell] : [];
   let used = 0;
   for (const key of modifiers) {
+    if (key === dwell) continue;
     if (!canAttach(def, key)) continue;
     const cost = modifierLinkCost(key);
     if (used + cost > links) continue;
@@ -441,7 +444,7 @@ export function resolveCast(def: SkillDef, stone: SkillStone, modifiers: readonl
   // 使い込みの芽: 威力と効果量を伸ばす
   const wear = wearPowerMul(stone);
   p = { ...p, damageMul: p.damageMul * wear, potencyMul: p.potencyMul * wear };
-  for (const key of activeModifiers(def, slotLinks(slot), modifiers)) p = MODIFIERS[key].apply(p, def);
+  for (const key of activeModifiers(def, slotLinks(slot), modifiers, stone.dwell)) p = MODIFIERS[key].apply(p, def);
   return p;
 }
 
@@ -506,6 +509,56 @@ export function formatVariant(roll: VariantRoll, def: Readonly<SkillDef>, resour
   const gainSign = shrinks ? -1 : 1;
   const label = roll.axis === "speedVsDamage" ? "発動時間" : gainLabel;
   return `${label} ${signed(Math.round(gainSign * c.gain * v * PERCENT))}% / ${cost}`;
+}
+
+/** 変異が変える量 1 つ（候補の札の 2 段目・差の欄）。good = 遊び手にとって伸びる向きか */
+export interface VariantEffect {
+  label: string;
+  /** % の増減（回数だけは個数） */
+  amount: number;
+  unit: "%" | "";
+  good: boolean;
+}
+
+/** 札に収まるよう短くした名前（書付の formatVariant は長い名前のまま） */
+const EFFECT_LABEL = { area: "範囲", time: "発動", count: "回数", duration: "持続", damage: "威力", potency: "効果量" } as const;
+
+function pctOf(after: number, before: number): number {
+  return before === 0 ? 0 : Math.round((after / before - 1) * PERCENT);
+}
+
+/**
+ * 石の変異をまとめた増減（軸をまたいで同じ量に掛かる分は掛け合わせる）。伸びる側を先に、大きい順。
+ * 0 になった量は出さない。resource は負担の名前（コスト / 再使用）を出し分ける
+ */
+export function variantEffects(stone: Readonly<SkillStone>, resource?: SkillResource): VariantEffect[] {
+  const def = SKILL_DEFS[stone.skillKey];
+  const base = baseCastParams(def);
+  let p = base;
+  for (const roll of stone.variants) {
+    if (def.axes.includes(roll.axis)) p = applyVariant(p, roll);
+  }
+  const burden = BURDEN_LABEL[resource ?? def.resource];
+  const raw: VariantEffect[] = [
+    { label: EFFECT_LABEL.area, amount: pctOf(p.areaMul, base.areaMul), unit: "%", good: p.areaMul > base.areaMul },
+    { label: burden, amount: pctOf(p.burdenMul, base.burdenMul), unit: "%", good: p.burdenMul < base.burdenMul },
+    { label: EFFECT_LABEL.time, amount: pctOf(p.timeMul, base.timeMul), unit: "%", good: p.timeMul < base.timeMul },
+    { label: EFFECT_LABEL.count, amount: p.countBonus - base.countBonus, unit: "", good: p.countBonus > base.countBonus },
+    { label: EFFECT_LABEL.duration, amount: pctOf(p.durationMul, base.durationMul), unit: "%", good: p.durationMul > base.durationMul },
+    { label: EFFECT_LABEL.damage, amount: pctOf(p.damageMul, base.damageMul), unit: "%", good: p.damageMul > base.damageMul },
+    { label: EFFECT_LABEL.potency, amount: pctOf(p.potencyMul, base.potencyMul), unit: "%", good: p.potencyMul > base.potencyMul },
+  ];
+  return raw.filter((e) => e.amount !== 0).sort((a, b) => Number(b.good) - Number(a.good) || Math.abs(b.amount) - Math.abs(a.amount));
+}
+
+/** 変異の量 1 つの短い文「範囲+24%」 */
+export function variantEffectText(e: Readonly<VariantEffect>): string {
+  return `${e.label}${signed(e.amount)}${e.unit}`;
+}
+
+/** 宿り符の短い印「宿 連鎖」（無ければ null） */
+export function dwellLabel(stone: Readonly<SkillStone>): string | null {
+  return stone.dwell === undefined ? null : `宿 ${MODIFIERS[stone.dwell].name}`;
 }
 
 /** 石の表示名（リンクはスロットの物なので石には出さない） */

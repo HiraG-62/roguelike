@@ -40,6 +40,8 @@ import { skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
 const BIG_HP = 1000;
+/** 床の物が落ちてから、触れているだけの時間（触れて拾う仕様だった頃の拾うまでの猶予より長く） */
+const SETTLE_TIME = 0.5;
 
 interface Loadout {
   key: SkillKey;
@@ -451,10 +453,12 @@ describe("刻印符（ラン内だけの物）", () => {
     expect(mods(state, 0), "最古の収束が押し出される").toEqual(["bloodPrice", "spillover", "echo", "streak"]);
   });
 
-  it("床の刻印符は触れると手持ちへ入る（スキルへは付かない。所持品もセーブも経由しない）", () => {
+  it("床の刻印符は注目 + 拾うキーで手持ちへ入る（触れただけでは拾わない。スキルへは付かない。所持品もセーブも経由しない）", () => {
     const state = skillArena([{ key: "parry" }, { key: "gravityWell" }]);
     dropRune(state, state.player.body.pos, "echo");
-    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    run(state, SETTLE_TIME);
+    expect(state.skills.runes, "触れただけでは拾わない").toHaveLength(1);
+    updateDropInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.runes, "床から消える").toHaveLength(0);
     expect(state.skills.hand, "手持ちへ入る").toEqual(["echo"]);
     expect(state.skills.slots.every((s) => s.runModifiers.length === 0), "どのスキルにも付かない").toBe(true);
@@ -465,7 +469,7 @@ describe("刻印符（ラン内だけの物）", () => {
   it("付けられるスキルが無い符でも拾えて手持ちに残る（付ける先は後から選ぶ）", () => {
     const state = skillArena([{ key: "parry" }]);
     dropRune(state, state.player.body.pos, "echo");
-    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    updateDropInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.runes, "床には残らない").toHaveLength(0);
     expect(state.skills.hand).toEqual(["echo"]);
   });
@@ -631,7 +635,7 @@ describe("ドロップ", () => {
     const fs = state.skills.floorStones[0];
     if (!fs) throw new Error("no stone");
     fs.pos = { ...state.player.body.pos };
-    run(state, SKILL.drop.pickupDelay + FIXED_DT);
+    run(state, SETTLE_TIME);
     expect(state.skills.floorStones, "触れただけでは拾わない（注目 + 拾うキー）").toHaveLength(1);
     // 照準なし（パッドの右スティック中立）なら手の届く最寄りを拾う
     updateDropInteract(state, withInput({ interactPressed: true }));
