@@ -13,7 +13,18 @@
     "ruleCoinShot.speed": "投銭（Rule 効果 coinShot）の銭の弾の速さ。px/秒",
     "ruleCoinShot.life": "投銭の銭の弾の寿命。秒",
     "ruleCoinShot.radius": "投銭の銭の弾の当たりの半径。px",
-    "ruleCoinShot.color": "投銭の銭の弾の色"
+    "ruleCoinShot.color": "投銭の銭の弾の色",
+    "glassDamageMore": "芯 硝子の刃: 与ダメージの倍（more。1.3 = ×1.3）。全タグに掛かる",
+    "glassDamageTakenMul": "硝子の刃の代償: 被ダメージの倍率（damageTakenMul に掛ける）",
+    "heavyPoiseMul": "芯 重心: 敵への怯み値の倍率（poiseDamageMul に掛ける）",
+    "heavyKnockbackMul": "重心: ノックバックの倍率（knockbackMul に掛ける）",
+    "heavyAttackSpeedMul": "重心の代償: 攻撃速度の倍率（attackSpeedMul に掛ける）",
+    "wellspringMana": "芯 気の泉: 最大気力への加算。気力",
+    "wellspringManaGainMul": "気の泉: 気力の獲得の倍率（manaGainMul に掛ける）",
+    "wellspringHpMul": "気の泉の代償: 最大生命の倍率（maxHp に掛ける。最小 1 に丸める）",
+    "greedCoinGainMul": "芯 銭の亡者: 銭の獲得の倍率（coinGainMul に掛ける）",
+    "greedMagnetMul": "銭の亡者: 銭・鍵を引き寄せる半径の倍率（coinMagnetMul に掛ける）",
+    "greedSpillMul": "銭の亡者の代償: 被弾でこぼれる銭の倍率（coinSpillMul に掛ける）"
   },
   "choiceCount": 3,
   "cursedChance": 0.4,
@@ -83,5 +94,16 @@
   "mirageCooldownMul": 0.6,
   "mirageBlastRatio": 0.6,
   "mirageBlastRadius": 24,
-  "mirageMoveMul": 0.8
+  "mirageMoveMul": 0.8,
+  "glassDamageMore": 1.3,
+  "glassDamageTakenMul": 1.3,
+  "heavyPoiseMul": 1.5,
+  "heavyKnockbackMul": 1.3,
+  "heavyAttackSpeedMul": 0.88,
+  "wellspringMana": 30,
+  "wellspringManaGainMul": 1.4,
+  "wellspringHpMul": 0.85,
+  "greedCoinGainMul": 1.5,
+  "greedMagnetMul": 2,
+  "greedSpillMul": 3
 }
