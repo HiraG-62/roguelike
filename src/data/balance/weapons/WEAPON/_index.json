@@ -1,6 +1,6 @@
 {
   "_fields": {
-    "chainWindow": "派生の入力列を保つ秒（最後の押下から）。この間に次を押せば左右共有の段カウンタも続く。目安 0.4〜0.6。右レーンの段に置くと、その段を出した後の窓だけを上書きする（再使用・laneGap より十分長く）",
+    "chainWindow": "派生の入力列を保つ秒（振り終わりから。振っている間は減らない）。この間に次を押せば左右共有の段カウンタも続く。目安 0.3〜0.5。右レーンの段に置くと、その段を出した後の窓だけを上書きする（再使用・laneGap より十分長く）",
     "chainMaxInputs": "派生の照合に残す直近の入力の数。最長の派生の入力数以上にする",
     "laneGap": "右レーンの弾・手元返しの段を出した後、次の弾・手元返しの段を押せない秒（連打で弾を一度に出さない）。目安 0.2〜0.4",
     "attackMoveMul": "攻撃中の移動速度の倍率（1 = 等倍）。実際は weightClass の帯（weight の moveMulMin〜Max）に丸めて使う",
@@ -66,7 +66,7 @@
   "chargeRingColors": ["#ffffff","#ffd75f","#ff9040","#ff4060"],
   "chargeRingRadius": 9,
   "chargeRingStep": 3,
-  "chainWindow": 0.5,
+  "chainWindow": 0.4,
   "chainMaxInputs": 5,
   "trailLife": 0.12,
   "meleeDamageScale": 0.6,

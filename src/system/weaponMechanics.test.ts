@@ -293,7 +293,8 @@ describe("武器 Wave 4: 振りで敵弾を消す（cutsBullets）", () => {
   it("cutsBullets の振りは弾返しなしでも敵弾を消す", () => {
     patchMoveset("sword", (m) => ({ ...m, steps: m.steps.map((s) => ({ ...s, cutsBullets: true })) }));
     const state = arena();
-    const pr = enemyBullet(state, 22);
+    // 剣の 1 段目の予備動作（0.12 秒）が明けて active に入る頃に、弾が刃の届く所へ来る距離
+    const pr = enemyBullet(state, 34);
     swing(state);
     expect(pr.owner, "撃ち返さない").toBe("enemy");
     expect(state.projectiles.includes(pr) && pr.life > 0, "敵弾が消えている").toBe(false);

@@ -1,5 +1,5 @@
 [
-  {"windup":0.035,"active":0.08,"recover":0.1,"scaling":{"base":4.8,"str":0.35,"dex":0.25},"poiseRatio":{"str":0.14,"dex":0.1},"poise":8,"reach":13.5,"size":22,"knockback":140,"heavy":false,"lunge":4},
-  {"windup":0.035,"active":0.08,"recover":0.1,"scaling":{"base":4.8,"str":0.35,"dex":0.25},"poiseRatio":{"str":0.14,"dex":0.1},"poise":8,"reach":14,"size":21.5,"knockback":160,"heavy":false,"lunge":4},
-  {"windup":0.06,"active":0.1,"recover":0.2,"scaling":{"base":9.6,"str":0.8,"dex":0.4},"poiseRatio":{"str":0.4,"dex":0.26},"poise":22,"reach":13,"size":23,"knockback":320,"heavy":true,"lunge":8}
+  {"windup":0.12,"active":0.08,"recover":0.2,"scaling":{"base":6.88,"str":0.502,"dex":0.359},"poiseRatio":{"str":0.201,"dex":0.143},"poise":11.5,"reach":13.5,"size":22,"knockback":140,"heavy":false,"lunge":4},
+  {"windup":0.12,"active":0.08,"recover":0.2,"scaling":{"base":7.23,"str":0.527,"dex":0.376},"poiseRatio":{"str":0.211,"dex":0.151},"poise":12,"reach":14,"size":21.5,"knockback":160,"heavy":false,"lunge":4},
+  {"windup":0.21,"active":0.1,"recover":0.4,"scaling":{"base":18.17,"str":1.515,"dex":0.757},"poiseRatio":{"str":0.757,"dex":0.492},"poise":41.6,"reach":13,"size":23,"knockback":320,"heavy":true,"lunge":8}
 ]
