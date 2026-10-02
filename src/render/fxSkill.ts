@@ -14,7 +14,7 @@ import { graveRadius, kegRadius, springRadius } from "../skills/summons";
 import type { ActiveCast, CastParams, SkillKey } from "../skills/types";
 import { hookRange } from "../system/skills";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
-import { SKILL_FX, type SkillFx, type SkillLoop, type SkillPiece, mirrorFlip, rampOfElement, skillSheet } from "./fxMotions";
+import { ART_FX_KEY, SKILL_FX, type SkillFx, type SkillLoop, type SkillPiece, isArtFxKey, mirrorFlip, rampOfElement, skillSheet } from "./fxMotions";
 
 /** 置いてある物 1 つ（場・設置物）。スキルの key・中心・大きさ（半径 px。0 は拡縮しない）・発動の値 */
 interface Placed {
@@ -47,6 +47,46 @@ interface Moving {
 interface Aura {
   key: string;
   element: string;
+}
+
+/**
+ * スキルの絵の表。技は自分の表が無ければ汎用の技の絵（ART_FX_KEY）で描く（弾・置いた物・纏いもこの表で引く）
+ */
+function fxOf(key: string): SkillFx | undefined {
+  const own = SKILL_FX[key];
+  if (!isArtFxKey(key)) return own;
+  const generic = SKILL_FX[ART_FX_KEY];
+  if (!own || !generic) return own ?? generic;
+  const cached = MERGED.get(key);
+  if (cached) return cached;
+  // 技の表に無い絵（弾・纏いなど）は汎用の表から補う
+  const merged: SkillFx = { ...generic, ...definedOf(own), acts: { ...generic.acts, ...own.acts } };
+  MERGED.set(key, merged);
+  return merged;
+}
+
+const MERGED = new Map<string, SkillFx>();
+
+function definedOf(fx: SkillFx): Partial<SkillFx> {
+  return Object.fromEntries(Object.entries(fx).filter(([, v]) => v !== undefined)) as Partial<SkillFx>;
+}
+
+/** 行為の絵の選び分けの候補: 細分（`arcWide`）→ 種類（`arc`）の順 */
+function variantChain(variant: string): string[] {
+  const kind = /^[a-z]+/.exec(variant)?.[0] ?? variant;
+  return kind === variant ? [variant] : [variant, kind];
+}
+
+/** 行為の出来事の絵: 技の表 → 汎用の技の表の順に、細分 → 種類で探す（配色はその技の表で決める） */
+function actPieceOf(key: string, variant: string): SkillPiece | undefined {
+  const chain = variantChain(variant);
+  for (const table of [SKILL_FX[key], isArtFxKey(key) ? SKILL_FX[ART_FX_KEY] : undefined]) {
+    for (const v of chain) {
+      const piece = table?.acts?.[v];
+      if (piece) return piece;
+    }
+  }
+  return undefined;
 }
 
 /** 発動中の絵の大きさ（絵の表の base と比べて拡縮する）。載っていないスキルは 0（拡縮しない）。スキルの絵を足すときにここへ足す */
@@ -108,9 +148,14 @@ function paramsElement(params: Readonly<CastParams>): string {
 
 /** スキルの絵が読めていて、手続きの輪・線・粒と skillHud の描画を省いてよいか */
 export function skillSpritesReady(key: string, bank: FxSpriteBank): boolean {
-  const fx = SKILL_FX[key];
-  const sheet = fx ? skillSheet(fx) : undefined;
-  return sheet !== undefined && bank.has(sheet);
+  const ready = (fx: SkillFx | undefined): boolean => {
+    const sheet = fx ? skillSheet(fx) : undefined;
+    return sheet !== undefined && bank.has(sheet);
+  };
+  const own = SKILL_FX[key];
+  if (!isArtFxKey(key)) return ready(own);
+  // 技: 汎用の絵が読めていて、自分の表があればそれも読めていること（無い種類の行為は汎用の絵で描くため）
+  return ready(SKILL_FX[ART_FX_KEY]) && (own === undefined || ready(own));
 }
 
 function scaleOf(size: number, base: number): number {
@@ -142,13 +187,14 @@ function drawPiece(ctx: CanvasRenderingContext2D, bank: FxSpriteBank, ev: SkillF
   }
 }
 
-function pieceOf(fx: SkillFx, ev: Pick<SkillFxEvent, "part">): SkillPiece | undefined {
+function pieceOf(fx: SkillFx, ev: Pick<SkillFxEvent, "key" | "part" | "variant">): SkillPiece | undefined {
+  if (ev.variant !== "") return actPieceOf(ev.key, ev.variant);
   return ev.part === "cast" ? fx.cast : ev.part === "act" ? fx.act : fx.end;
 }
 
 function drawEvents(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   for (const ev of state.effects?.skills ?? []) {
-    const fx = SKILL_FX[ev.key];
+    const fx = fxOf(ev.key);
     const piece = fx ? pieceOf(fx, ev) : undefined;
     if (fx && piece) drawPiece(ctx, bank, ev, piece, rampOf(fx, ev.key, ev.element), ground);
   }
@@ -158,7 +204,7 @@ function drawEvents(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
 function drawActive(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   const a = state.skills.active;
   if (!a || a.phase !== "main") return;
-  const fx = SKILL_FX[a.skillKey];
+  const fx = fxOf(a.skillKey);
   const loop = fx?.active;
   const sheet = ground ? loop?.ground : loop?.sheet;
   if (!fx || !loop || !sheet || !bank.has(sheet)) return;
@@ -174,7 +220,7 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
 /** 置いてある間の絵: period 秒で繰り返す（向きなし）。物ごとに位置で位相をずらし、同じ物が並んでも揃って瞬かない */
 function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   for (const it of placedOf(state)) {
-    const fx = SKILL_FX[it.key];
+    const fx = fxOf(it.key);
     const loop: SkillLoop | undefined = fx?.placed;
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
@@ -187,7 +233,7 @@ function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
 /** 飛んでいる間の絵: 速度の向きを向いて period 秒で繰り返す */
 function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   for (const it of movingOf(state)) {
-    const fx = SKILL_FX[it.key];
+    const fx = fxOf(it.key);
     const loop = fx?.fly;
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
@@ -201,7 +247,7 @@ function drawMoving(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
 function drawAuras(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpriteBank, ground: boolean): void {
   const pos = state.player.body.pos;
   for (const it of aurasOf(state)) {
-    const fx = SKILL_FX[it.key];
+    const fx = fxOf(it.key);
     const loop = fx?.aura;
     const sheet = ground ? loop?.ground : loop?.sheet;
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;

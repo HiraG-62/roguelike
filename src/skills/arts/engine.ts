@@ -6,7 +6,7 @@ import type { FormKey } from "../../data/weaponForms";
 import { MOVESETS } from "../../data/weapons";
 import { FEEL } from "../../data/tuning";
 import { damageEnemy, healPlayer } from "../../system/combat";
-import { spawnBlast, spawnBurst, spawnLine, spawnRing } from "../../system/effects";
+import { addSkillFx, spawnBlast, spawnBurst, spawnLine, spawnRing, withSkillFx } from "../../system/effects";
 import { gainMana } from "../../system/mana";
 import { currentForm } from "../../system/morale";
 import { circlesOverlap, moveBody, overlapsWall } from "../../system/physics";
@@ -16,7 +16,7 @@ import { detonateOwnMines } from "../../system/weaponArts";
 import type { CastCtx } from "../actions";
 import { MODIFIERS, NO_NUMBERS, SKILL, SKILL_DEFS } from "../data";
 import { enemiesInCone, enemiesOnSegment, enemyNear, rayEnd } from "../geom";
-import { LEYLINE_TERRAIN, applySkillStatuses, castAttack, skillHit, skillPower } from "../hit";
+import { LEYLINE_TERRAIN, applySkillStatuses, castAttack, castElement, skillHit, skillPower } from "../hit";
 import { spawnFan } from "../shots";
 import type { CastParams, ModifierKey, ShotPath, ShotSteer, SkillShot } from "../types";
 import { ART_DEFS } from "./index";
@@ -51,6 +51,10 @@ const COLOR_BUFF = "#ffe080";
 const TERRAIN_STEP_MUL = 2;
 const MIN_TERRAIN_STEP = 8;
 
+/** 扇の絵の選び分けの境（度）。これ以上は広い扇（arcWide）・ほぼ一周（arcFull） */
+const ARC_WIDE_DEG = 160;
+const ARC_FULL_DEG = 300;
+
 /** 1 回の行為の文脈 */
 interface ActCtx {
   readonly key: ArtSkillKey;
@@ -63,6 +67,25 @@ interface ActCtx {
 
 function artColor(params: Readonly<CastParams>): string {
   return ELEMENT_COLOR[castAttack(params)?.element ?? "none"];
+}
+
+/**
+ * 行為の見た目の出来事（render/fxSkill.ts が技の絵の表の acts[variant] で描く）。ロジックは変えない。
+ * variant は行為の種類と、絵を分けたい細分（arcWide / ringTarget / dashBack …）
+ */
+function actFx(state: GameState, ctx: ActCtx, variant: string, pos: Vec, opts: { to?: Vec; size?: number; angle?: number } = {}): void {
+  addSkillFx(state, ctx.key, "act", pos, {
+    variant,
+    to: opts.to,
+    size: opts.size,
+    angle: opts.angle ?? Math.atan2(ctx.dir.y, ctx.dir.x),
+    element: castElement(ctx.params),
+  });
+}
+
+function arcVariant(deg: number): string {
+  if (deg >= ARC_FULL_DEG) return "arcFull";
+  return deg >= ARC_WIDE_DEG ? "arcWide" : "arc";
 }
 
 function rotate(dir: Vec, deg: number): Vec {
@@ -193,6 +216,7 @@ function runAct(state: GameState, act: ArtAct, ctx: ActCtx): void {
       return;
     case "detonate":
       detonateOwnMines(state);
+      actFx(state, ctx, "detonate", ctx.pos);
       return;
   }
 }
@@ -268,10 +292,13 @@ function runArc(state: GameState, act: ArtAct, ctx: ActCtx): void {
   terrainAt(state, act, ctx, add(ctx.pos, scale(ctx.dir, reach / 2)));
   const color = artColor(ctx.params);
   const base = Math.atan2(ctx.dir.y, ctx.dir.x);
-  for (let i = 0; i < ARC_RAYS; i++) {
-    const a = base - half + (half * 2 * i) / (ARC_RAYS - 1);
-    spawnLine(state, ctx.pos, add(ctx.pos, scale(fromAngle(a), reach)), color, LINE_LIFE);
-  }
+  withSkillFx(state, ctx.key, () => {
+    for (let i = 0; i < ARC_RAYS; i++) {
+      const a = base - half + (half * 2 * i) / (ARC_RAYS - 1);
+      spawnLine(state, ctx.pos, add(ctx.pos, scale(fromAngle(a), reach)), color, LINE_LIFE);
+    }
+  });
+  actFx(state, ctx, arcVariant(act.deg), ctx.pos, { size: reach });
 }
 
 function runRing(state: GameState, act: ArtAct, ctx: ActCtx): void {
@@ -281,18 +308,21 @@ function runRing(state: GameState, act: ArtAct, ctx: ActCtx): void {
   terrainAt(state, act, ctx, ctx.pos);
   const color = artColor(ctx.params);
   if (act.anchor === "target") {
-    spawnBlast(state, ctx.pos, radius, color);
+    withSkillFx(state, ctx.key, () => spawnBlast(state, ctx.pos, radius, color));
+    actFx(state, ctx, "ringTarget", ctx.pos, { size: radius });
     pushSfx(state, "explode");
     return;
   }
-  spawnRing(state, ctx.pos, radius, color, RING_LIFE);
+  withSkillFx(state, ctx.key, () => spawnRing(state, ctx.pos, radius, color, RING_LIFE));
+  actFx(state, ctx, "ring", ctx.pos, { size: radius });
 }
 
 function runLine(state: GameState, act: ArtAct, ctx: ActCtx): void {
   const end = rayEnd(state, ctx.pos, ctx.dir, act.length * ctx.params.areaMul);
   for (const e of enemiesOnSegment(state, ctx.pos, end, (act.width * ctx.params.areaMul) / 2)) strike(state, act, ctx, e, ctx.pos);
   terrainAlong(state, act, ctx, ctx.pos, end);
-  spawnLine(state, ctx.pos, end, artColor(ctx.params), LINE_LIFE);
+  withSkillFx(state, ctx.key, () => spawnLine(state, ctx.pos, end, artColor(ctx.params), LINE_LIFE));
+  actFx(state, ctx, "line", ctx.pos, { to: end, size: act.width * ctx.params.areaMul });
 }
 
 /** 踏み込み（distance が負なら後ろへ）。通り道の敵に当て、終点に地形（軌跡なら通り道にも） */
@@ -316,7 +346,8 @@ function runDash(state: GameState, act: ArtAct, ctx: ActCtx): void {
   }
   terrainAt(state, act, ctx, end);
   trailAlong(state, ctx.params, start, end);
-  dashFx(state, start, end, artColor(ctx.params));
+  withSkillFx(state, ctx.key, () => dashFx(state, start, end, artColor(ctx.params)));
+  actFx(state, ctx, back ? "dashBack" : "dash", start, { to: end, size: act.width * ctx.params.areaMul, angle: Math.atan2(dir.y, dir.x) });
 }
 
 function dashFx(state: GameState, from: Vec, to: Vec, color: string): void {
@@ -333,7 +364,8 @@ function runBlink(state: GameState, act: ArtAct, ctx: ActCtx): void {
   moveBody(state, p.body, delta.x, delta.y);
   p.invulnTimer = Math.max(p.invulnTimer, act.invuln);
   trailAlong(state, ctx.params, from, p.body.pos);
-  dashFx(state, from, p.body.pos, artColor(ctx.params));
+  withSkillFx(state, ctx.key, () => dashFx(state, from, p.body.pos, artColor(ctx.params)));
+  actFx(state, ctx, "blink", from, { to: p.body.pos, angle: Math.atan2(p.body.pos.y - from.y, p.body.pos.x - from.x) });
   pushSfx(state, "dash");
 }
 
@@ -368,6 +400,7 @@ function runShot(state: GameState, act: ArtAct, ctx: ActCtx): void {
     bounces: act.bounces,
     applies: act.applies,
   }));
+  actFx(state, ctx, "shot", ctx.pos);
   if (params.shotPath) steerShots(state, state.skills.shots.slice(before), params.shotPath);
 }
 
@@ -382,7 +415,9 @@ function runChain(state: GameState, act: ArtAct, ctx: ActCtx): void {
   for (let i = 0; i <= act.jumps && cur; i++) {
     hit.add(cur.id);
     const at = { ...cur.body.pos };
-    spawnLine(state, from, at, color, LINE_LIFE);
+    const segFrom = from;
+    withSkillFx(state, ctx.key, () => spawnLine(state, segFrom, at, color, LINE_LIFE));
+    actFx(state, ctx, "chain", from, { to: at, angle: Math.atan2(at.y - from.y, at.x - from.x) });
     strike(state, act, ctx, cur, from);
     from = at;
     cur = nearestUnhit(state, at, act.jumpRange * ctx.params.areaMul, hit);
@@ -413,12 +448,13 @@ function runPull(state: GameState, act: ArtAct, ctx: ActCtx): void {
         const move = scale(normalize(rel, ctx.dir), act.toDistance - d);
         const from = { ...e.body.pos };
         moveBody(state, e.body, move.x, move.y);
-        spawnLine(state, from, e.body.pos, color, LINE_LIFE);
+        withSkillFx(state, ctx.key, () => spawnLine(state, from, e.body.pos, color, LINE_LIFE));
       }
     }
     if (act.damage || act.applies.length > 0) strike(state, act, ctx, e, ctx.pos);
   }
-  spawnRing(state, ctx.pos, act.radius * ctx.params.areaMul, color, RING_LIFE);
+  withSkillFx(state, ctx.key, () => spawnRing(state, ctx.pos, act.radius * ctx.params.areaMul, color, RING_LIFE));
+  actFx(state, ctx, "pull", ctx.pos, { size: act.radius * ctx.params.areaMul });
 }
 
 /** 自己強化（remote では出ない）。倍率・回復・気力は効果量（potencyMul）、秒は持続（durationMul）で伸びる */
@@ -434,7 +470,8 @@ function runBuff(state: GameState, act: ArtAct, ctx: ActCtx): void {
   if (act.heal !== undefined) healPlayer(state, p.maxHp * act.heal * params.potencyMul);
   if (act.mana !== undefined) gainMana(state, act.mana * params.potencyMul);
   for (const s of act.self) applyStatus(state, { kind: "player" }, { ...s, duration: s.duration * params.durationMul }, "player");
-  spawnBurst(state, p.body.pos, COLOR_BUFF, BUFF_PARTICLES, BUFF_PARTICLE_SPEED, BUFF_PARTICLE_LIFE, BUFF_PARTICLE_SIZE);
+  withSkillFx(state, ctx.key, () => spawnBurst(state, p.body.pos, COLOR_BUFF, BUFF_PARTICLES, BUFF_PARTICLE_SPEED, BUFF_PARTICLE_LIFE, BUFF_PARTICLE_SIZE));
+  actFx(state, ctx, "buff", p.body.pos);
 }
 
 // ---------------------------------------------------------------------------

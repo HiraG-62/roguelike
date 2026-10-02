@@ -720,6 +720,11 @@ export interface SkillFxEvent {
   size: number;
   /** 配色を決める属性（Element。刻印符で差し替わる。none は絵の表の配色） */
   element: string;
+  /**
+   * 技の行為の絵の選び分け（行為の種類 arc / ring / line … と、扇の広さ・照準地点の輪などの細分。render/fxSkill.ts の artVariant）。
+   * 手書きのスキルは空
+   */
+  variant: string;
   age: number;
   life: number;
 }

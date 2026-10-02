@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, haloAlpha, lifeFrame, loopFrame, pickDir, rampColors, rampGlow, rampHalo, snapArt, swingFrame } from "./fxSprites";
-import { BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
+import { ART_FX_KEY, BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
 import { LEGACY_SKILL_KEYS, SKILL_KEYS } from "../skills/types";
 import { ultPiece } from "./fxUltimate";
 import { BULLETS } from "../loot/bullets";
@@ -322,14 +322,14 @@ const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
     const all: (FxSheetKey | undefined)[] = [fx.active, fx.placed, fx.fly, fx.aura].flatMap((l) => [l?.sheet, l?.ground]);
-    for (const p of [fx.cast, fx.act, fx.end]) if (p) all.push(p.sheet, p.ground, p.beam?.sheet, p.tip);
+    for (const p of [fx.cast, fx.act, fx.end, ...Object.values(fx.acts ?? {})]) if (p) all.push(p.sheet, p.ground, p.beam?.sheet, p.tip);
     return all.filter((k): k is FxSheetKey => k !== undefined);
   };
 
   it("表のスキルは実在し、絵はスキル石のアトラス（`skill<形>`）に載る", () => {
     expect(Object.keys(SKILL_FX).length).toBeGreaterThan(0);
     for (const [key, fx] of Object.entries(SKILL_FX)) {
-      expect(SKILL_KEYS as readonly string[], key).toContain(key);
+      if (key !== ART_FX_KEY) expect(SKILL_KEYS as readonly string[], key).toContain(key);
       const sheets = sheetsOf(fx);
       expect(sheets.length, `${key} に絵がある`).toBeGreaterThan(0);
       for (const sheet of sheets) expect(FX_SHEETS[sheet].atlas, `${key} ${sheet}`).toMatch(/^skill[A-Z]/);
@@ -346,6 +346,7 @@ describe("fxMotions: スキル石の絵の表", () => {
         for (const part of ["cast", "act", "end", "active", "placed", "fly", "aura"] as const) {
           if (row[part] !== undefined) expect(fx?.[part], `${key} ${part}`).toBeDefined();
         }
+        for (const variant of Object.keys((row.acts ?? {}) as Record<string, unknown>)) expect(fx?.acts?.[variant], `${key} acts.${variant}`).toBeDefined();
       }
     }
   });

@@ -388,7 +388,7 @@ export function addSkillFx(
   key: string,
   part: SkillFxPart,
   pos: Vec,
-  opts: { index?: number; to?: Vec; angle?: number; size?: number; element?: string } = {},
+  opts: { index?: number; to?: Vec; angle?: number; size?: number; element?: string; variant?: string } = {},
 ): void {
   const fx = fxState(state);
   fx.skills.push({
@@ -400,6 +400,7 @@ export function addSkillFx(
     angle: opts.angle ?? 0,
     size: opts.size ?? 0,
     element: opts.element ?? "none",
+    variant: opts.variant ?? "",
     age: 0,
     life: FX_ATTACK.sprite.ultEventLife,
   });

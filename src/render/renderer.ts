@@ -110,7 +110,7 @@ import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, ram
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
-import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlas, ultimateAtlas } from "./fxMotions";
+import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
 import { drawFieldPickup } from "./coinUi";
@@ -814,7 +814,7 @@ export class Renderer {
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
     // 装備中の武器種のエフェクトのアトラスだけを持つ（持ち替えたら前の武器種の分を捨てて読み直す）
     const moveset = playerMoveset(state).key;
-    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset), ...equippedSkillKeys(state).map(skillAtlas)]);
+    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset), ...equippedSkillKeys(state).flatMap(skillAtlases)]);
     this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
     this.track(state);
     const cam = state.camera;
