@@ -364,6 +364,21 @@ export function shapeButtonPress(state: GameState, button: ButtonKey): boolean {
   return true;
 }
 
+/** 差し替えた近接の型の振りの絵（acts の細分）。装備の武器種の振りの絵の上に、変身の振りの絵を重ねる */
+const SHAPE_SWING_FX: Readonly<Partial<Record<Wave3SkillKey, string>>> = {
+  wolfForm: "bite",
+  ironForm: "swing",
+};
+
+/** 振りが当たりの区間に入った瞬間（player.ts の updateAttack から）。狼化の噛みつき・鉄塊化の重い振りの絵を積む（演出だけ） */
+export function noteShapeSwing(state: GameState): void {
+  const shape = state.skills.shape;
+  const variant = shape?.moveset ? SHAPE_SWING_FX[shape.key] : undefined;
+  if (!shape || !variant) return;
+  const p = state.player;
+  addSkillFx(state, shape.key, "act", p.body.pos, { angle: Math.atan2(p.attack.dir.y, p.attack.dir.x), element: castElement(shape.params), variant });
+}
+
 /** 近接の命中（player.ts の meleeHitEnemy から）。狼化の噛みつきは出血を付ける */
 export function onShapeMeleeHit(state: GameState, e: Enemy): void {
   const shape = state.skills.shape;

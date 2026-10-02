@@ -65,7 +65,7 @@ import { NEVER_TIME, yellowAt } from "./readTiming";
 import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
 import { isDeepDepth } from "./chapters";
 import { isAllied } from "./rules";
-import { onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
+import { noteShapeSwing, onShapeMeleeHit, shapeButtonPress, shapeLocksShot, shapeMoveset, shrugStagger } from "../skills/forms";
 import {
   actionCooldownLeft,
   artLocksActions,
@@ -1122,6 +1122,7 @@ function updateAttack(state: GameState, dt: number): void {
       a.phase = "active";
       a.timer = step.active;
       spawnTrail(state, step);
+      noteShapeSwing(state);
       // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
       if (step.cast) emitArtVolley(state, step.cast.throw, castOverride(state, a.lane));
       break;
