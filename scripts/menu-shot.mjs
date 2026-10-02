@@ -5,9 +5,9 @@
  *   npm run menu:shot                                   既定の場面を menu-shot-out（一時フォルダ）へ
  *   npm run menu:shot -- --out <dir>                    出力先を変える（リポジトリの外を推奨）
  *   npm run menu:shot -- --only skills-lift             1 場面だけ
- *   npm run menu:shot -- --only "cand-stone+focus=first" 場面名の後ろに「+」でクエリを足せる（focus=first = 候補の先頭の札に焦点）
+ *   npm run menu:shot -- --only "cand-stone+focus=first" 場面名の後ろに「+」でクエリを足せる（focus=first = 候補の先頭の札に焦点、focus=2 = 3 枚目の札に焦点）
  *
- * 場面: attire / attire-swap（体の候補）/ skills（手持ちつき）/ skills-lift（手持ちの符を持ち上げ中）/ cand-stone（スキル枠の候補）/ cand-slot（頭の候補）。
+ * 場面: attire / attire-swap（体の候補）/ skills（手持ちつき）/ skills-lift（手持ちの符を持ち上げ中）/ cand-stone（スキル枠の候補）/ cand-group（スキル枠の候補の束を開いた頁）/ cand-slot（頭の候補）。
  * 別の作業ツリーの vite が同じ port を使っているときは MAP_SHOT_PORT で逃がす（map:shot と共通）
  */
 import { mkdirSync } from "node:fs";
@@ -21,7 +21,7 @@ const BASE = `http://localhost:${PORT}`;
 const VIEWPORT = { width: 1920, height: 1080 };
 const READY_TIMEOUT_MS = 120_000;
 
-const SCENES = ["attire", "attire-swap+focus=first", "skills", "skills-lift", "cand-stone+focus=first", "cand-slot+focus=first"];
+const SCENES = ["attire", "attire-swap+focus=first", "skills", "skills-lift", "cand-stone+focus=first", "cand-group+focus=first", "cand-slot+focus=first"];
 
 function parseArgs(argv) {
   const opts = { out: path.join(tmpdir(), "menu-shot-out"), only: null };

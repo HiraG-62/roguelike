@@ -1,10 +1,12 @@
 import { saveStorage } from "../save/backend";
-import { SKILL, SKILL_DEFS } from "./data";
+import { SKILL, SKILL_DEFS, canAttach } from "./data";
 import { stoneFromSeed } from "./generator";
 import { migrateSkillKey } from "./legacyKeys";
 import {
+  MODIFIER_KEYS,
   SKILL_KEYS,
   VARIANT_AXES,
+  type ModifierKey,
   type SkillKey,
   type SkillProfile,
   type SkillStone,
@@ -13,7 +15,7 @@ import {
   type VariantRoll,
   type WearBud,
 } from "./types";
-import { WEAR_TUNING } from "./tuning2";
+import { STONE_TUNING, WEAR_TUNING } from "./tuning2";
 
 /**
  * スキル石の永続化。装備プロフィール（roguelike.profile.v1）とは別キーにする
@@ -78,6 +80,13 @@ function wearField(wear: StoneWear | null): { wear?: StoneWear } {
   return wear ? { wear } : {};
 }
 
+/** 宿り符（省略可）。知らない key・そのスキルに付けられない符は無しとして読む */
+function dwellField(v: unknown, skillKey: SkillKey): { dwell?: ModifierKey } {
+  if (typeof v !== "string" || !(MODIFIER_KEYS as readonly string[]).includes(v)) return {};
+  const key = v as ModifierKey;
+  return canAttach(SKILL_DEFS[skillKey], key) ? { dwell: key } : {};
+}
+
 function sanitizeStone(v: unknown): SkillStone | null {
   if (!isRecord(v)) return null;
   const { id, seed, variants, foundDepth, foundAt, wear } = v;
@@ -99,6 +108,7 @@ function sanitizeStone(v: unknown): SkillStone | null {
     foundDepth,
     foundAt,
     ...wearField(sanitizeWear(wear)),
+    ...dwellField(v.dwell, skillKey),
   };
 }
 
@@ -211,6 +221,44 @@ export function equipStone(profile: SkillProfile, stoneId: string, slot: number)
 export function unequipSlot(profile: SkillProfile, slot: number): void {
   if (slot < 0 || slot >= profile.loadout.length) return;
   profile.loadout[slot] = null;
+}
+
+/** 石を処分したときに得る冥響（宿り符のある石は多い）。docs/ideas/skill-stone-hunt.md */
+export function shatterUmbra(stone: Readonly<SkillStone>): number {
+  return stone.dwell === undefined ? STONE_TUNING.shatterUmbra : STONE_TUNING.shatterUmbraDwell;
+}
+
+/** 注ぎで移る使い込み（発動数・命中数の pourShare。芽そのものは移さず、受け手の次の発動で節目を判定する） */
+export function pourAmount(stone: Readonly<SkillStone>): { casts: number; hits: number } {
+  const wear = stone.wear;
+  if (!wear) return { casts: 0, hits: 0 };
+  return { casts: Math.floor(wear.casts * STONE_TUNING.pourShare), hits: Math.floor(wear.hits * STONE_TUNING.pourShare) };
+}
+
+/** 処分の結果。umbra = 得た冥響、poured = 注いだ先の石の id（注がなかったら null） */
+export interface StoneDisposal {
+  umbra: number;
+  poured: string | null;
+  casts: number;
+}
+
+/**
+ * 処分（分解）: 石を消して冥響を返す。intoId に同じスキルの別の石を渡せば、使い込みの一部をそこへ注ぐ（遺物の「注ぎ」と同じ形）。
+ * 装着中なら外す。石が無ければ null
+ */
+export function disposeStone(profile: SkillProfile, stoneId: string, intoId: string | null = null): StoneDisposal | null {
+  const stone = findStone(profile, stoneId);
+  if (!stone) return null;
+  const into = intoId === null || intoId === stoneId ? null : findStone(profile, intoId);
+  const target = into !== null && into.skillKey === stone.skillKey ? into : null;
+  const share = pourAmount(stone);
+  if (target !== null && share.casts + share.hits > 0) {
+    const wear = target.wear ?? { casts: 0, hits: 0, buds: [] };
+    target.wear = { ...wear, casts: wear.casts + share.casts, hits: wear.hits + share.hits };
+  }
+  const umbra = shatterUmbra(stone);
+  salvageStone(profile, stoneId);
+  return { umbra, poured: target === null ? null : target.id, casts: target === null ? 0 : share.casts };
 }
 
 /** 分解（削除）。装着中なら外す */

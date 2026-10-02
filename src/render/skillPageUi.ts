@@ -1,6 +1,7 @@
 import { KEYWORD_DEFS, profileKeywords } from "../core/keywords";
 import type { GameState } from "../core/state";
-import { MODIFIERS, SKILL, SKILL_DEFS, slotLinks } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, dwellLabel, slotLinks } from "../skills/data";
+import { STONE_TUNING } from "../skills/tuning2";
 import { stoneInSlot } from "../skills/persistence";
 import type { ModifierKey } from "../skills/types";
 import { skillKeywords } from "../system/keywords";
@@ -49,6 +50,8 @@ const KEYWORD_DISC = 12;
 const KEYWORD_PITCH = 16;
 const KEYWORD_Y = 76;
 const KEYWORDS_MAX = 3;
+/** 宿り符の印「宿 連鎖」の y（穴の下端 120 と列の下端 134 の間） */
+const DWELL_Y = 123;
 const EMPTY_NAME = "空き";
 const LIFT_LABEL_RIGHT = 470;
 const LIFT_LABEL_Y = 139;
@@ -104,7 +107,10 @@ function drawStone(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, i:
     align: "center",
     maxW: COL_W - 4,
   });
-  if (!def) return;
+  if (!def || !stone) return;
+  // 宿り符は穴を使わないので、穴の下に石の物として出す
+  const dwell = dwellLabel(stone);
+  if (dwell !== null) menuText(ctx, dwell, x + COL_W / 2, DWELL_Y, { size: "SMALL", color: STONE_TUNING.dwellColor, role: "ornament", align: "center", maxW: COL_W - 4 });
   const keywords = profileKeywords(skillKeywords(def)).slice(0, KEYWORDS_MAX);
   const x0 = x + COL_W / 2 - ((keywords.length - 1) * KEYWORD_PITCH) / 2;
   keywords.forEach((k, j) => drawGlyphDisc(ctx, k, x0 + j * KEYWORD_PITCH, KEYWORD_Y, KEYWORD_DISC, KEYWORD_DEFS[k].color));

@@ -388,6 +388,11 @@ export interface SkillStone {
   foundAt: number;
   /** 使い込み（docs/ideas/skills-expansion.md 5 章）。旧セーブ・未使用の石には無いので省略可 */
   wear?: StoneWear;
+  /**
+   * 宿り符（docs/ideas/skill-stone-hunt.md）。生まれつき石に宿った刻印符 1 枚で、リンクを使わずに効く。
+   * その石のスキルに付けられる符だけが宿る。まれなので省略可（無い石が大半）
+   */
+  dwell?: ModifierKey;
 }
 
 /** 使い込みの芽。威力・効果量 +（skills/tuning2.ts の WEAR_TUNING）。旧セーブの「枠」の芽は読み込み時にこれへ写す */
@@ -696,6 +701,8 @@ export interface SkillRunState {
   fields: FrostField[];
   /** 泥沼の領域。後から足した設置物なので省略可（最初に置いたときに作る。system/skills.ts の初期化に手を入れない） */
   mires?: MireZone[];
+  /** このランで使い込みの芽を出した石の id（出た数だけ並ぶ。WEAR_TUNING.perRunPerStone の判定。ラン内だけ。最初の芽で作る） */
+  wearBudsThisRun?: string[];
   runes: RuneTablet[];
   /**
    * 手持ちの刻印符（拾った符・起点「詠み手」の符。まだどのスキルにも付いていない。拾った順。上限なし。ラン内だけでセーブしない）。

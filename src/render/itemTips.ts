@@ -4,7 +4,7 @@ import { isKeystoneKey, keystoneConflicts } from "../loot/affixes";
 import { type SynergyDescription, describeItem, describeSynergy, itemKindName } from "../loot/describe";
 import { SLOTS, type Item } from "../loot/types";
 import { MODIFIERS, SKILL, SKILL_DEFS, castBurden, castInterval, formatVariant, modifierVerb, resolveCast, slotLinks, stoneLabel, transformLabel } from "../skills/data";
-import { WEAR_TUNING } from "../skills/tuning2";
+import { STONE_TUNING, WEAR_TUNING } from "../skills/tuning2";
 import { wearSummary } from "../skills/wear";
 import { COMBOS, comboAfter } from "../skills/combos";
 import { stoneInSlot } from "../skills/persistence";
@@ -237,6 +237,9 @@ export function stoneDetailLines(state: GameState, stone: SkillStone): { lines: 
     { text: def.verb, color: COLOR_TEXT },
   ];
   for (const v of stone.variants) lines.push({ text: formatVariant(v, def, params.resource), color: COLOR_TEXT });
+  if (stone.dwell !== undefined) {
+    lines.push({ text: `宿り符 ${MODIFIERS[stone.dwell].name}: ${modifierVerb(stone.dwell, def, params.resource)}`, color: STONE_TUNING.dwellColor });
+  }
   if (slot >= 0) {
     for (const m of slotModifierView(state, slot)) {
       const d = MODIFIERS[m.key];

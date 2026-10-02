@@ -3,7 +3,7 @@ import type { Keyword, KeywordVerb } from "../core/keywords";
 import type { Vec } from "../core/vec";
 import type { EchoOp } from "../loot/crafting";
 import type { Slot } from "../loot/types";
-import type { ModifierKey } from "../skills/types";
+import type { ModifierKey, SkillKey } from "../skills/types";
 import type { BoonKey, LineageKey } from "../system/boonDefs";
 import type { CandidateFilterAxis, CandidateSort, FocusId, HandOptionAxis, MenuFace, MenuHit } from "./menuState";
 import { pointInRect } from "./inventoryLayout";
@@ -41,6 +41,8 @@ export const fid = {
   kw: (kw: Keyword): FocusId => join("kw", kw),
   sort: (s: CandidateSort): FocusId => join("sort", s),
   cand: (id: string): FocusId => join("c", id),
+  /** 同じスキルの石の束（候補の頁） */
+  group: (key: SkillKey): FocusId => join("cg", key),
   filter: (axis: CandidateFilterAxis): FocusId => join("filter", axis),
   gem: (i: number): FocusId => join("gem", i),
   handOpt: (axis: HandOptionAxis): FocusId => join("handopt", axis),

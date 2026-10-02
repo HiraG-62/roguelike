@@ -2,6 +2,7 @@ import { KEYWORDS, type Keyword } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { MENU_BUDGET, RESONANCE } from "../data/tuning";
 import { SLOTS, type Item, type Slot } from "../loot/types";
+import { stoneInSlot } from "../skills/persistence";
 import type { ModifierKey, SkillKey } from "../skills/types";
 import {
   RESONANCE_EXCLUDED,
@@ -143,8 +144,10 @@ export interface TryOnBase {
   ease: number;
   /** 素手の封印中は遺物が効かないので、遺物の試着は何も変えない */
   sealed: boolean;
-  /** 枠ごとの刻印符（石を替えても符は枠に付いたまま） */
+  /** 枠ごとの刻印符（石を替えても符は枠に付いたまま）。今の石の宿り符が先頭に入っている */
   stoneModifiers: readonly (readonly ModifierKey[])[];
+  /** 枠ごとの今の石の宿り符（替えたら外す。docs/ideas/skill-stone-hunt.md） */
+  stoneDwells: readonly (ModifierKey | null)[];
 }
 
 export function tryOnBase(state: Readonly<GameState>): TryOnBase {
@@ -153,13 +156,14 @@ export function tryOnBase(state: Readonly<GameState>): TryOnBase {
     ease: resonanceEaseOf(state),
     sealed: equipmentSealed(state),
     stoneModifiers: state.skills.slots.map((s) => s.modifiers),
+    stoneDwells: state.skills.slots.map((_, i) => stoneInSlot(state.skills.profile, i)?.dwell ?? null),
   };
 }
 
 /** 替える先。item / skillKey が null なら外す（「外すと細る帯」を引く） */
 export type TryOnTarget =
   | { kind: "relic"; slot: Slot; item: Readonly<Item> | null }
-  | { kind: "stone"; index: number; skillKey: SkillKey | null };
+  | { kind: "stone"; index: number; skillKey: SkillKey | null; dwell?: ModifierKey };
 
 const KIND_ORDER: readonly ResonanceOriginKind[] = ["relic", "stone", "boon", "job", "form", "reforge", "keystone"];
 
@@ -186,14 +190,21 @@ function insertionIndex(list: readonly OriginProfile[], origin: Readonly<Resonan
   return at < 0 ? list.length : at;
 }
 
+/** 石を替えた後の枠の符: 今の石の宿り符を外し、替える石の宿り符を先頭に置く（枠の符は残る） */
+function swappedModifiers(base: Readonly<TryOnBase>, index: number, dwell: ModifierKey | undefined): ModifierKey[] {
+  const current = base.stoneModifiers[index] ?? [];
+  const worn = base.stoneDwells[index] ?? null;
+  const rest = worn !== null && current[0] === worn ? current.slice(1) : [...current];
+  return dwell === undefined ? rest : [dwell, ...rest.filter((k) => k !== dwell)];
+}
+
 function replacement(base: Readonly<TryOnBase>, target: Readonly<TryOnTarget>): OriginProfile | null {
   if (target.kind === "relic") {
     if (target.item === null || base.sealed) return null;
     return { origin: { kind: "relic", id: target.item.id, slot: target.slot }, profile: relicProfileOf(target.item) };
   }
   if (target.skillKey === null) return null;
-  const modifiers = base.stoneModifiers[target.index] ?? [];
-  return { origin: { kind: "stone", id: target.skillKey, index: target.index }, profile: stoneProfileOf(target.skillKey, modifiers) };
+  return { origin: { kind: "stone", id: target.skillKey, index: target.index }, profile: stoneProfileOf(target.skillKey, swappedModifiers(base, target.index, target.dwell)) };
 }
 
 /** 替えた後の出どころ列と ease。基準は変えない */

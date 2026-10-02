@@ -242,7 +242,7 @@ function oneShortBase(k: Keyword): TryOnBase {
   const sources: OriginProfile[] = [];
   for (let i = 0; i < MIN_P; i++) sources.push(fake(`p${i}`, kw([k])));
   for (let i = 0; i < MIN_C - 1; i++) sources.push(fake(`c${i}`, kw([], [k])));
-  return { sources, ease: 0, sealed: false, stoneModifiers: [] };
+  return { sources, ease: 0, sealed: false, stoneModifiers: [], stoneDwells: [] };
 }
 
 const RING_AFFIXES = AFFIXES.filter((d) => d.slots.includes("ring") && d.keywords !== undefined);

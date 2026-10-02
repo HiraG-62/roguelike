@@ -5,6 +5,7 @@ import { FORMS, FORM_KEYS } from "../data/weaponForms";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
+import { WEAR_TUNING } from "../skills/tuning2";
 import type { ListEntry, ListTab } from "./listScreen";
 import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
@@ -302,12 +303,15 @@ const RELIC_TIPS: readonly TipDef[] = [
 ];
 
 const SKILL_TIPS: readonly TipDef[] = [
-  { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。" },
+  { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。同じスキルでも石ごとに変異（範囲と威力などの釣り合い）が違い、候補の頁の札の下の段に出る。同じスキルの石は束にまとまり、決定で 1 個ずつ見比べられる。" },
+  { key: "dwell", term: "宿り符", category: "skill", body: "まれに刻印符が宿って生まれる石。宿った符はリンクを使わずに効く。深い階ほど出やすい。金の光で落ちる。" },
+  { key: "stoneDispose", term: "処分", category: "skill", body: "候補の頁で石を長押しすると処分して冥響を得る（宿り符のある石は多い）。そのスキルを付けているときは、処分する石の使い込みの半分が付けている石へ注がれる。束を長押しすると、宿り符の無い石をまとめて注ぐ。" },
+  { key: "stoneWear", term: "使い込み", category: "skill", body: `石を手で撃った回数が ${WEAR_TUNING.milestones.join(" 回・")} 回に届くと、その石に威力の芽が出る。同じ石に出る芽は 1 回の探索で ${WEAR_TUNING.perRunPerStone} つまで。` },
   { key: "commonArt", term: "共通技", category: "skill", body: "どの武器種でも撃てるスキル石。旋風斬り・火球・瞬身のような剣技・魔法・体術。" },
   { key: "artTransform", term: "変形", category: "skill", body: "共通技は今の武器の型で形が変わる。重打なら広く重く、短銃なら振りが弾に、鎖なら当てる前に引き寄せる。今の変わり方は石のツールチップの「今の型」の行。" },
   { key: "manaType", term: "気力型", category: "skill", body: "撃つたびに気力を払うスキル。" },
   { key: "cooldownType", term: "再使用型", category: "skill", body: "撃つと再使用時間が経つまで撃てないスキル。" },
-  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。拾うと自動では付かず「手持ち」に入る（探索が終わると消える）。装備画面のスキルの頁の下の「手持ち」から符を選ぶと、付けられるスキルが金の破線で光り、決定で付く。付いている符は持ち上げて別の石へ移せ、長押しで外すと手持ちへ戻る。手持ちは種類・系統・付けられる物だけで絞り込み、並びも替えられる。" },
+  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。床の符はカーソルを合わせて拾うキーで拾う。拾うと自動では付かず「手持ち」に入る（探索が終わると消える）。装備画面のスキルの頁の下の「手持ち」から符を選ぶと、付けられるスキルが金の破線で光り、決定で付く。付いている符は持ち上げて別の石へ移せ、長押しで外すと手持ちへ戻る。手持ちは種類・系統・付けられる物だけで絞り込み、並びも替えられる。" },
   { key: "link", term: "リンク", category: "skill", body: "スロットごとに決まった、刻印符を付けられる本数（スロット 1 が最も多い）。型替え符は 2 本使い、1 スロットに 1 枚まで。" },
   { key: "combo", term: "連携", category: "skill", body: "スキルの直後に別のスキルを撃つと、後の方が変化する。HUD の枠の点滅する菱形が連携可の印。図鑑の連携の頁は、連携・反応・連鎖を初めて起こすと数える。" },
   { key: "form", term: "変身", category: "skill", body: "一定の間、姿が変わる強化スキル（狼化・霊体化・鉄塊化など）。変身中は左右の攻撃の動きが変わり、他のスキルは撃てない。" },

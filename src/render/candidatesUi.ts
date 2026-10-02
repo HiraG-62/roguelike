@@ -1,4 +1,4 @@
-import { KEYWORD_DEFS, profileKeywords } from "../core/keywords";
+import { KEYWORD_DEFS, type Keyword, profileKeywords } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { RELIC_GLYPHS } from "../data/sprites/attire";
 import { MENU_BUDGET } from "../data/tuning";
@@ -7,6 +7,7 @@ import type { AffixRoll, Item } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
+import { STONE_TUNING } from "../skills/tuning2";
 import { relicKeywords, skillKeywords } from "../system/keywords";
 import { itemColor } from "../system/loot";
 import {
@@ -26,6 +27,7 @@ import {
   entryFocusId,
   filterAvailable,
   focusedEntry,
+  groupHead,
   tryOnForEntry,
   visibleEntries,
 } from "../ui/candidates";
@@ -35,6 +37,7 @@ import { fid } from "../ui/menuFocus";
 import type { InventoryUi, LootSlot, MenuHit, ViewOf } from "../ui/menuState";
 import { isUnseen } from "../ui/seen";
 import { type StatChanges, statChangesOf } from "../ui/statDiff";
+import { type StoneCardChip, type StoneDiffView, groupCardChips, groupSwapDiff, stoneCardChips, stoneSwapDiff } from "../ui/stoneDiff";
 import { swapDiff } from "../ui/swapDiff";
 import { type BandDelta, type TryOnResult, tryOnBase } from "../ui/tryOn";
 import { drawFigure, drawRelicGlyph, drawStoneGem, glyphSize } from "./attireUi";
@@ -54,6 +57,7 @@ import {
   mixHex,
   px,
 } from "./crestDraw";
+import { TEXT, textWidth } from "./pixelText";
 
 /**
  * 候補の頁の描画（docs/ideas/inventory-v2/E-impl.md 4-3 E3、見本 E.html の ② 候補と比べる）。state と ui を読むだけ。
@@ -74,6 +78,10 @@ const TRY_PERIOD = 0.5;
 /** 札の絵・名前・丸印の位置 */
 const CARD_ICON = { x: 4, y: 6 } as const;
 const CARD_NAME = { x: 20, y: 7 } as const;
+/** 2 段の札（スキル石: 上 = 名前・下 = 宿り符と変異）の 2 行の y と、丸印を上の段に寄せた中心 */
+const CARD_TWO_LINE = { nameY: 3, chipY: 13, markY: 8 } as const;
+/** 2 段目の区切りの間（論理 px） */
+const CHIP_GAP = 5;
 const CARD_NAME_W = 150;
 const CARD_MARK_STEP = 14;
 const CARD_MARK_D = 12;
@@ -153,7 +161,8 @@ function changingSlot(view: Readonly<CandidatesView>, entry: Readonly<CandidateE
 function drawMiniGems(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry> | null): void {
   if (view.target.kind !== "stone") return;
   const tryNow = blinkOn(ui.time, TRY_PERIOD);
-  const trial = entry?.kind === "subject" && entry.subject.kind === "stone" && tryNow ? entry.subject.stone : null;
+  const focusStone = entry?.kind === "subject" && entry.subject.kind === "stone" ? entry.subject.stone : entry?.kind === "group" ? groupHead(entry) : null;
+  const trial = tryNow ? focusStone : null;
   const cleared = entry?.kind === "clear" && tryNow;
   for (let i = 0; i < state.skills.slots.length; i++) {
     const here = i === view.target.index;
@@ -227,12 +236,54 @@ function drawSubjectCard(ctx: CanvasRenderingContext2D, state: Readonly<GameStat
     drawStoneIcon(ctx, s.stone, x + CARD_ICON.x + 1, y + CARD_ICON.y);
   }
   const name = s.kind === "item" ? s.item.name : SKILL_DEFS[s.stone.skillKey].name;
-  menuText(ctx, name, x + CARD_NAME.x, y + CARD_NAME.y, { size: "SMALL", color: focused ? MENU_INK.focus : MENU_INK.text, role: "ornament", maxW: CARD_NAME_W - keywords.length * CARD_MARK_STEP });
+  const chips = s.kind === "stone" ? stoneCardChips(s.stone) : [];
+  drawCardText(ctx, name, chips, keywords, x, y, focused);
+  if (lost) px(ctx, x - 2, y + 9, 2, 5, MENU_INK.down);
+}
+
+const CHIP_COLOR: Readonly<Record<StoneCardChip["tone"], string>> = {
+  dwell: STONE_TUNING.dwellColor,
+  good: MENU_INK.up,
+  bad: MENU_INK.down,
+};
+
+/**
+ * 札の名前と系統の丸印。chips（宿り符）があれば 2 段にし、下の段に金で出す。変異の値は札に出さず差の欄に出す
+ * （docs/ideas/skill-stone-hunt.md）
+ */
+function drawCardText(ctx: CanvasRenderingContext2D, name: string, chips: readonly StoneCardChip[], keywords: readonly Keyword[], x: number, y: number, focused: boolean): void {
+  const twoLine = chips.length > 0;
+  const nameY = twoLine ? CARD_TWO_LINE.nameY : CARD_NAME.y;
+  menuText(ctx, name, x + CARD_NAME.x, y + nameY, { size: "SMALL", color: focused ? MENU_INK.focus : MENU_INK.text, role: "ornament", maxW: CARD_NAME_W - keywords.length * CARD_MARK_STEP });
+  const markY = twoLine ? CARD_TWO_LINE.markY : CAND_CARD.h >> 1;
   keywords.forEach((k, j) => {
     const cx = x + CAND_CARD.w - CARD_RIGHT - (keywords.length - j) * CARD_MARK_STEP + CARD_MARK_D / 2;
-    drawGlyphDisc(ctx, k, cx, y + (CAND_CARD.h >> 1), CARD_MARK_D, KEYWORD_DEFS[k].color);
+    drawGlyphDisc(ctx, k, cx, y + markY, CARD_MARK_D, KEYWORD_DEFS[k].color);
   });
-  if (lost) px(ctx, x - 2, y + 9, 2, 5, MENU_INK.down);
+  drawChips(ctx, chips, x + CARD_NAME.x, y + CARD_TWO_LINE.chipY, x + CAND_CARD.w - CARD_RIGHT, "ornament");
+}
+
+/** 色分けの区切りを左から並べる（right を越える区切りは描かない）。role は情報の予算での数え方（差の欄の行は文、札は飾り） */
+function drawChips(ctx: CanvasRenderingContext2D, chips: readonly StoneCardChip[], x: number, y: number, right: number, role: "sentence" | "ornament"): void {
+  let cx = x;
+  for (const chip of chips) {
+    const w = textWidth(chip.text, TEXT.SMALL);
+    if (cx + w > right) break;
+    menuText(ctx, chip.text, cx, y, { size: "SMALL", color: CHIP_COLOR[chip.tone], role });
+    cx += w + CHIP_GAP;
+  }
+}
+
+/** 同じスキルの石の束の札（名前 ×個数。束に宿り符があれば下の段に名前） */
+function drawGroupCard(ctx: CanvasRenderingContext2D, entry: Readonly<CandidateEntry & { kind: "group" }>, x: number, y: number, focused: boolean): void {
+  const head = groupHead(entry);
+  if (head === null) return;
+  drawStoneIcon(ctx, head, x + CARD_ICON.x + 1, y + CARD_ICON.y);
+  // 束の印: 石の絵の右下に重なった 2 枚目の角
+  px(ctx, x + CARD_ICON.x + 10, y + CARD_ICON.y + 9, 3, 1, MENU_INK.sub);
+  px(ctx, x + CARD_ICON.x + 12, y + CARD_ICON.y + 7, 1, 3, MENU_INK.sub);
+  const keywords = profileKeywords(skillKeywords(SKILL_DEFS[head.skillKey])).slice(0, CARD_MARKS_MAX);
+  drawCardText(ctx, `${SKILL_DEFS[head.skillKey].name} ×${entry.stones.length}`, groupCardChips(entry.stones), keywords, x, y, focused);
 }
 
 function drawBudCard(ctx: CanvasRenderingContext2D, roll: Readonly<AffixRoll>, x: number, y: number, focused: boolean): void {
@@ -262,6 +313,7 @@ function drawCards(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, vi
     box(ctx, x, y, CAND_CARD.w, CAND_CARD.h, focused ? MENU_INK.focus : MENU_INK.rule);
     if (entry.kind === "bud") drawBudCard(ctx, entry.roll, x, y, focused);
     else if (entry.kind === "clear") drawClearCard(ctx, x, y, focused);
+    else if (entry.kind === "group") drawGroupCard(ctx, entry, x, y, focused);
     else drawSubjectCard(ctx, state, entry, x, y, focused, cardLost(state, view, entry, base));
   });
   if (entries.length > view.offset + CANDIDATE_PAGE) {
@@ -307,6 +359,10 @@ function drawMorph(ctx: CanvasRenderingContext2D, ui: Readonly<InventoryUi>, res
 interface DiffLine {
   gain: boolean;
   text: string;
+  /** 得る・失うのどちらでもない行の頭（「変異」「束」）。あれば得る・失うの代わりに薄い色で出す */
+  label?: string;
+  /** 色分けして並べる区切り（変異の行）。あれば text の代わりに描く */
+  chips?: readonly StoneCardChip[];
 }
 
 interface DiffView {
@@ -334,12 +390,10 @@ function itemDiff(state: Readonly<GameState>, candidate: Readonly<Item>, current
   };
 }
 
-function stoneDiff(candidate: Readonly<SkillStone>, current: Readonly<SkillStone> | null): DiffView {
-  const next = SKILL_DEFS[candidate.skillKey];
-  const now = current === null ? null : SKILL_DEFS[current.skillKey];
-  const lines: DiffLine[] = [{ gain: true, text: next.verb }];
-  if (now !== null && now.verb !== next.verb) lines.push({ gain: false, text: now.verb });
-  return { title: now === null ? next.name : `${next.name}${NAME_JOINT}${now.name}`, stats: NO_STATS, lines, more: 0, empty: "" };
+/** 石の比べ（ui/stoneDiff.ts の行を差の欄の形へ） */
+function stoneDiffView(v: Readonly<StoneDiffView>): DiffView {
+  const lines = v.rows.map((r): DiffLine => ({ gain: r.tone !== "loss", text: r.text, ...(r.tone === "info" ? { label: r.label ?? "" } : {}), ...(r.chips === undefined ? {} : { chips: r.chips }) }));
+  return { title: v.title, stats: NO_STATS, lines, more: v.more, empty: "" };
 }
 
 function clearDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>): DiffView | null {
@@ -364,8 +418,13 @@ function budDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>, rol
 function diffOf(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>): DiffView | null {
   if (entry.kind === "bud") return budDiff(state, view, entry.roll);
   if (entry.kind === "clear") return clearDiff(state, view);
+  const worn = view.target.kind === "stone" ? stoneInSlot(state.skills.profile, view.target.index) : null;
+  if (entry.kind === "group") {
+    const g = groupSwapDiff(entry.stones, worn);
+    return g === null ? null : stoneDiffView(g);
+  }
   const s = entry.subject;
-  if (s.kind === "stone") return stoneDiff(s.stone, view.target.kind === "stone" ? stoneInSlot(state.skills.profile, view.target.index) : null);
+  if (s.kind === "stone") return stoneDiffView(stoneSwapDiff(s.stone, worn));
   return itemDiff(state, s.item, state.profile.equipment[s.item.slot] ?? null);
 }
 
@@ -389,8 +448,14 @@ function drawDiff(ctx: CanvasRenderingContext2D, diff: Readonly<DiffView>): void
   const textW = (stats.length === 0 ? TEXT_RIGHT : DIFF.statX - STAT_GAP) - DIFF.textX;
   diff.lines.forEach((line, i) => {
     const y = DIFF.rowY + i * DIFF.rowStep;
-    menuText(ctx, line.gain ? "得る" : "失う", TEXT_X, y, { size: "SMALL", color: line.gain ? MENU_INK.up : MENU_INK.down, role: "ornament" });
+    const head = line.label ?? (line.gain ? "得る" : "失う");
+    const headColor = line.label !== undefined ? MENU_INK.sub : line.gain ? MENU_INK.up : MENU_INK.down;
+    menuText(ctx, head, TEXT_X, y, { size: "SMALL", color: headColor, role: "ornament" });
     const more = i === diff.lines.length - 1 && diff.more > 0 ? `　ほか ${diff.more}` : "";
+    if (line.chips !== undefined && more === "") {
+      drawChips(ctx, line.chips, DIFF.textX, y, DIFF.textX + textW, "sentence");
+      return;
+    }
     menuText(ctx, `${line.text}${more}`, DIFF.textX, y, { size: "SMALL", color: MENU_INK.text, role: "sentence", maxW: textW });
   });
   stats.forEach((row, i) => {

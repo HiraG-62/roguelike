@@ -85,7 +85,7 @@ function pedestalCandidates(state: GameState): PedestalCandidate[] {
 }
 
 /**
- * 注目中の物。候補は 床の遺物 → スキル石 → 台座 の順（同距離なら先の候補）。
+ * 注目中の物。候補は 床の遺物 → スキル石 → 刻印符 → 台座 の順（同距離なら先の候補）。
  * 選び方は loot.ts の pickFocus（照準の近く → 照準への線の近くで手の届くもの → 照準が無ければ手の届く範囲で最も近いもの）
  */
 export function focusedInteract(state: GameState, aimWorld: Vec | null): InteractFocus | null {

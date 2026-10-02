@@ -1113,7 +1113,7 @@ function marketInput(state: GameState, bot: BotState, ware: Ware, dt: number): F
 
 /** 手の届くドロップ品で最も近いもの（まだ拾おうとしていないもの） */
 function reachableDrop(state: GameState, bot: BotState): { id: number; pos: Vec } | null {
-  const drops = [...state.floorItems, ...state.skills.floorStones];
+  const drops = [...state.floorItems, ...state.skills.floorStones, ...state.skills.runes];
   let best: { id: number; pos: Vec } | null = null;
   let bestDist = Infinity;
   for (const d of drops) {
@@ -1127,7 +1127,7 @@ function reachableDrop(state: GameState, bot: BotState): { id: number; pos: Vec 
 }
 
 /**
- * 探索中、手の届く遺物・スキル石にカーソルを合わせてインタラクトする（触れて拾う仕様だった頃と同じく、
+ * 探索中、手の届く遺物・スキル石・刻印符にカーソルを合わせてインタラクトする（触れて拾う仕様だった頃と同じく、
  * 寄り道はせず通り道で拾う）。1 つにつき 1 回だけ押す
  */
 function withDropPickup(state: GameState, bot: BotState, input: FrameInput): FrameInput {

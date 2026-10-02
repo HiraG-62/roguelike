@@ -227,14 +227,17 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
 /**
  * スロットの実効の刻印符 = ラン内の刻印符（古い順。刻印符はセーブに持たない）。
  * granted は祝福（スキルの加護 BoonDef.grantsModifier）が全スロットに足す符。拾った符の後ろに置き、
- * その石に付けられない符・既にある符は足さない（リンクの上限は activeModifiers が他の符と同じに数える）
+ * その石に付けられない符・既にある符は足さない（リンクの上限は activeModifiers が他の符と同じに数える）。
+ * 石の宿り符があれば先頭に置く
  */
 export function effectiveSlotModifiers(rs: Readonly<SkillRunState>, slot: number, granted: readonly ModifierKey[] = []): ModifierKey[] {
   const stone = stoneInSlot(rs.profile, slot);
   const chosen = [...(rs.slots[slot]?.runModifiers ?? [])];
   if (!stone) return chosen;
   const def = SKILL_DEFS[stone.skillKey];
-  return [...chosen, ...granted.filter((k) => !chosen.includes(k) && canAttach(def, k))];
+  // 宿り符は先頭に置く（共鳴・統一ルール・連動が他の符と同じに読む。リンクを使わないのは activeModifiers が数える）
+  const dwell = stone.dwell !== undefined && canAttach(def, stone.dwell) ? [stone.dwell] : [];
+  return [...dwell, ...chosen, ...granted.filter((k) => !chosen.includes(k) && !dwell.includes(k) && canAttach(def, k))];
 }
 
 /**
@@ -678,7 +681,7 @@ function hasChargeModifier(state: GameState, index: number): boolean {
   const stone = stoneInSlot(rs.profile, index);
   const slot = rs.slots[index];
   if (!stone || !slot) return false;
-  return activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(index), slot.modifiers).includes("charge");
+  return activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(index), slot.modifiers, stone.dwell).includes("charge");
 }
 
 /**
@@ -920,7 +923,7 @@ export function autoCastSlots(state: GameState, trigger: AutoCastTrigger): numbe
     const stone = stoneInSlot(rs.profile, i);
     const slot = rs.slots[i];
     if (!stone || !slot) continue;
-    const active = activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(i), slot.modifiers);
+    const active = activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(i), slot.modifiers, stone.dwell);
     if (active.some((k) => MODIFIERS[k].autoCast === trigger)) out.push(i);
   }
   return out;
@@ -1633,8 +1636,9 @@ export function returnInactiveRunes(state: GameState): number {
 export function usedLinks(rs: Readonly<SkillRunState>, slot: number): number {
   const stone = stoneInSlot(rs.profile, slot);
   if (!stone) return 0;
+  // 宿り符はリンクを使わない（effectiveSlotModifiers の先頭に入っている）
   return effectiveSlotModifiers(rs, slot)
-    .filter((k) => canAttach(SKILL_DEFS[stone.skillKey], k))
+    .filter((k) => k !== stone.dwell && canAttach(SKILL_DEFS[stone.skillKey], k))
     .reduce((sum, k) => sum + modifierLinkCost(k), 0);
 }
 
@@ -1686,22 +1690,22 @@ export function removeRunModifier(rs: SkillRunState, slot: number, modifier: Mod
   return true;
 }
 
-/** 床の刻印符を拾って手持ちへ入れる（付ける先は自分で選ぶ） */
+/** 床の刻印符の揺れ。拾得は遺物・スキル石と同じく注目 + インタラクト（system/interact.ts の updateInteract） */
 function updateRunes(state: GameState, dt: number): void {
+  for (const rune of state.skills.runes) rune.bobTime += dt;
+}
+
+/** 床の刻印符 id を拾って手持ちへ入れる（付ける先は自分で選ぶ）。無ければ false */
+export function pickUpRune(state: GameState, id: number): boolean {
   const rs = state.skills;
-  const body = state.player.body;
-  const picked = new Set<number>();
-  for (const rune of rs.runes) {
-    rune.bobTime += dt;
-    if (rune.bobTime < SKILL.drop.pickupDelay) continue;
-    if (!circlesOverlap(rune.pos.x, rune.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
-    const def = MODIFIERS[rune.modifier];
-    addToHand(state, rune.modifier);
-    picked.add(rune.id);
-    pushLog(state, `刻印符「${def.name}」を手持ちに入れた。`, def.color);
-    pushSfx(state, "runeAttach");
-  }
-  if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));
+  const rune = rs.runes.find((r) => r.id === id);
+  if (!rune) return false;
+  const def = MODIFIERS[rune.modifier];
+  addToHand(state, rune.modifier);
+  rs.runes = rs.runes.filter((r) => r.id !== id);
+  pushLog(state, `刻印符「${def.name}」を手持ちに入れた。`, def.color);
+  pushSfx(state, "runeAttach");
+  return true;
 }
 
 function updateFloorStones(state: GameState, dt: number): void {
@@ -1725,9 +1729,13 @@ export function slotModifierView(state: GameState, slot: number): { key: Modifie
   const stone = stoneInSlot(rs.profile, slot);
   if (!s) return [];
   const runCount = s.runModifiers.length;
-  const keys = effectiveSlotModifiers(rs, slot, boonGrantedModifiers(state));
-  const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(slot), keys)) : new Set<ModifierKey>();
-  return keys.map((key, i) => ({ key, active: active.has(key), run: i < runCount }));
+  const dwell = stone?.dwell;
+  const all = effectiveSlotModifiers(rs, slot, boonGrantedModifiers(state));
+  // 宿り符は石の物なので穴の並びには出さない（先頭に入っている 1 枚だけ除く）
+  const keys = dwell !== undefined && all[0] === dwell ? all.slice(1) : all;
+  const active = stone ? new Set(activeModifiers(SKILL_DEFS[stone.skillKey], slotLinks(slot), keys, dwell)) : new Set<ModifierKey>();
+  // 宿り符と同じ符は重ねて効かないので、穴の側は効いていない扱い
+  return keys.map((key, i) => ({ key, active: active.has(key) && key !== dwell, run: i < runCount }));
 }
 
 /**
