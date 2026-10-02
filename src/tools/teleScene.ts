@@ -1,7 +1,16 @@
 // 予告の撮影の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）。ゲーム本体からは import しない。
 // ?scene=tele&tele=crowd|shapes|solo|idle で、プレイヤーの周りに予備動作・攻撃中の敵を並べる（時間は進めず、描画だけ）。
 // 乱戦で黄と赤が線の質で読めるか・7 形の見え方を、章様式の明るさ違い（明るい氷河・暗闇の階）で確かめる
-import type { Enemy, GameState } from "../core/state";
+import { step } from "../core/game";
+import { EMPTY_INPUT } from "../core/input";
+import { FIXED_DT } from "../core/loop";
+import type { Enemy, GameState, Jin } from "../core/state";
+import type { Vec } from "../core/vec";
+import { Tile } from "../map/grid";
+import { invalidatePathing } from "../map/pathing";
+import { KS_JUMP } from "../system/bossKingSlime";
+import { makeHonjin } from "../system/jinzu";
+import { markWindupStart } from "../system/readTiming";
 import { ENEMY_TEMPO } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { createEnemy } from "../system/enemies";
@@ -22,6 +31,16 @@ const SHAPE_GAP = 54;
 const SHAPE_ROW_GAP = 70;
 /** 並べ撮りの怯み値の割合（下絵の欠けを見る） */
 const SHAPE_POISE = [0, 0.3, 0.6];
+/** 鶴翼の本陣の撮影: 大将から的（プレイヤー）までと、陣図を書かせる上限秒 */
+const JINZU_REACH = 150;
+const JINZU_MAX_SEC = 12;
+const JINZU_ROOM = 1;
+/** スライム王の撮影: 滞空の高さに入るまでの残り秒と、着地の影の半径・残り秒 */
+const KING_HOVER_TIMER = 1.4;
+const KING_WINDUP_TOTAL = 2;
+const KING_LANDING_RADIUS = 30;
+const KING_LANDING_TIME = 0.8;
+const CROWN_OFFSET = 70;
 
 /** aim が無ければ自分（プレイヤー）へ向ける。並べ撮りは線が重ならないよう、真っ直ぐ向かい合う向きを渡す */
 function setLook(e: Enemy, look: Look, state: GameState, aim?: { x: number; y: number }): void {
@@ -120,10 +139,86 @@ function placeSolo(state: GameState): void {
   spawnBomb(state, { x: p.x - 120, y: p.y + 100 }, 5, undefined, 1.2, 28);
 }
 
+function jinMember(state: GameState, jin: Jin, key: string, at: Vec): Enemy {
+  const e = createEnemy(state, enemyDef(key), at, 0, false);
+  e.roomIndex = jin.roomIndex;
+  e.jinId = jin.id;
+  e.phase = "chase";
+  e.attackCooldown = 99;
+  state.enemies.push(e);
+  return e;
+}
+
+/** 鶴翼の本陣が陣図を書いている途中: 本物の step を進め、墨の入った画と下絵の画が同時に見える所で止める（jinzu.test.ts の広場と同じ並べ方） */
+function placeJinzu(state: GameState): void {
+  state.map.tiles.fill(Tile.Floor);
+  invalidatePathing(state.map);
+  const pl = { x: Math.floor(state.map.width / 2) * 16, y: Math.floor(state.map.height / 2) * 16 };
+  state.player.body.pos = { ...pl };
+  state.player.invulnTimer = 999;
+  state.player.maxHp = 9999;
+  state.player.hp = 9999;
+  state.jins = [];
+  const room = state.rooms[JINZU_ROOM];
+  if (room) {
+    room.locked = false;
+    room.engaged = false;
+    room.cleared = false;
+  }
+  const L = { x: pl.x - JINZU_REACH, y: pl.y };
+  const jin: Jin = {
+    id: 1,
+    roomIndex: JINZU_ROOM,
+    formation: "craneWing",
+    center: { x: L.x + 20, y: L.y },
+    facing: { x: 1, y: 0 },
+    leaderId: null,
+    hpMul: 1,
+    morale: 0,
+    moraleMax: 0,
+    phase: "engaged",
+    engagedAt: state.time - 10,
+    secondWaveAt: null,
+    deathsTick: -1,
+    deathsInTick: 0,
+  };
+  state.jins.push(jin);
+  jinMember(state, jin, "eye", L);
+  jinMember(state, jin, "eye", { x: L.x + 8, y: L.y + 14 });
+  jinMember(state, jin, "eye", { x: L.x + 8, y: L.y - 14 });
+  for (const side of [1, -1]) {
+    for (const [du, dv] of [[60, 62], [60, 42], [40, 22]] as const) jinMember(state, jin, "slime", { x: L.x + du, y: L.y + side * dv });
+  }
+  if (!makeHonjin(state, jin)) return;
+  const jz = jin.jinzu;
+  const ready = (): boolean => (jz?.strokes.some((st) => st.state === "ink") ?? false) && (jz?.strokes.some((st) => st.state === "sketch") ?? false);
+  for (let i = 0; i < Math.ceil(JINZU_MAX_SEC / FIXED_DT) && !ready(); i++) step(state, EMPTY_INPUT, FIXED_DT);
+}
+
+/** スライム王の跳躍の滞空（予告は黄）。王は影の上に浮き、足元に着地の影、脇に冠スライム */
+function placeSlime(state: GameState): void {
+  const p = state.player.body.pos;
+  const king = createEnemy(state, enemyDef("kingSlime"), { x: p.x, y: p.y - 40 }, 0, false);
+  king.hidden = false;
+  king.phase = "windup";
+  markWindupStart(state, king);
+  king.windupTotal = KING_WINDUP_TOTAL;
+  king.phaseTimer = KING_HOVER_TIMER;
+  king.windupAt = state.time - 1;
+  if (king.ai) king.ai.move = KS_JUMP;
+  state.enemies.push(king);
+  const crown = createEnemy(state, enemyDef("crownSlime"), { x: p.x + CROWN_OFFSET, y: p.y - 40 }, 0, false);
+  crown.hidden = false;
+  state.enemies.push(crown);
+  spawnLanding(state, { x: p.x, y: p.y + 20 }, KING_LANDING_RADIUS, KING_LANDING_TIME, king.id, false);
+}
+
 export function placeTeleScene(state: GameState, kind: string): void {
   state.enemies = [];
   state.hazards = [];
-  if (kind === "shapes") placeShapes(state);
+  if (kind === "jinzu") placeJinzu(state);
+  else if (kind === "slime") placeSlime(state);
+  else if (kind === "shapes") placeShapes(state);
   else if (kind === "solo") placeSolo(state);
   else placeCrowd(state, kind === "idle");
   state.camera.pos = { ...state.player.body.pos };

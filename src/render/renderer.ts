@@ -1,4 +1,4 @@
-import { kingSlimeAirTime } from "../system/bossKingSlime";
+import { kingSlimeLift, kingSlimePose } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
 import { type BossState, type EliteKind, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
@@ -98,8 +98,8 @@ import { drawMoraleHud } from "./moraleHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { TelegraphLayer } from "./telegraphLayer";
-import { strokeInkRing } from "./telegraphInk";
-import { telegraphLineDir } from "./telegraphLineUi";
+import { strokeInkRing, telegraphStage } from "./telegraphInk";
+import { telegraphColor, telegraphLineDir } from "./telegraphLineUi";
 import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
@@ -218,6 +218,14 @@ const LANDING_ALPHA = 0.45;
 const LANDING_MIN_SCALE = 0.35;
 const LANDING_MAX_SCALE = 1.6;
 const KING_JUMP_HEIGHT = 40;
+// 冠スライムの頭上の冠（正式な絵までの仮の小さな印）: 台座 + 3 つの尖り
+const CROWN_COLOR = "#f0c040";
+const CROWN_EDGE = "#6a4a10";
+const CROWN_W = 7;
+const CROWN_BASE_H = 2;
+const CROWN_POINT_H = 2;
+const CROWN_GAP = 1;
+const LANDING_EDGE_ALPHA = 0.8;
 const BONE_WALL_COLOR = "#e8e0c8";
 const BONE_WALL_EDGE = "#8a8068";
 /** 盗賊王の柵（木の色。骨の壁と見分ける） */
@@ -950,7 +958,7 @@ export class Renderer {
       const sprite = this.sprite(enemyDef(e.defKey).sprite);
       const img = pick(sprite.white, this.enemyFrame(e, sprite));
       if (img) {
-        const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e);
+        const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e, state.depth);
         this.bossSnap = { img, w: sprite.w, h: sprite.h, x: e.body.pos.x, bottom, flip: e.facing.x < 0 };
       }
     }
@@ -1516,7 +1524,7 @@ export class Renderer {
 
     const frame = this.enemyFrame(e, sprite);
     let x = cx;
-    let bottom = feetY - this.jumpLift(e);
+    let bottom = feetY - this.jumpLift(e, state.depth);
     if (floating) bottom += Math.sin(e.animTime * FLOAT_BOB_SPEED + e.id) * FLOAT_BOB_AMOUNT;
     // 予備動作の体: 黄の間は攻撃の逆へのけぞって縦に縮む（溜め）、赤に入った瞬間に攻撃の向きへ伸びる（張り）
     const pose = telegraphPose(e, state.time, telegraphLineDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos));
@@ -1566,6 +1574,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
     drawEnemyStatusFx(ctx, e, x, bottom, sprite.w, sprite.h, state.time);
     if (isWisp) this.drawSparkles(x, bottom - 2, e.animTime, ENEMY_AI.wisp.color);
+    if (e.defKey === "crownSlime") this.drawCrownMark(x, bottom - e.body.radius * 2 * sy);
     if (def.blocks) this.drawKnightShield(state, e, cx, cy);
 
     // 予告（頭上の印・線・範囲）は全部の敵の後の 1 回の描き込み（telegraphLayer.ts）で描く
@@ -1623,9 +1632,17 @@ export class Renderer {
   private enemyFrame(e: Enemy, sprite: Sprite): number {
     const def = enemyDef(e.defKey);
     if (def.behavior === "kingSlime") {
-      if (e.phase === "windup") return KING_FRAME.crouch;
-      if (e.phase === "strike") return KING_FRAME.stretch;
-      if (e.phase === "recover") return KING_FRAME.squash;
+      switch (kingSlimePose(e)) {
+        case "crouch":
+          return KING_FRAME.crouch;
+        case "air":
+        case "fall":
+          return KING_FRAME.stretch;
+        case "land":
+          return KING_FRAME.squash;
+        default:
+          break;
+      }
       return Math.floor(e.animTime / (ENEMY_FRAME_TIME * 2)) % 2 === 0 ? KING_FRAME.idle : KING_FRAME.squash;
     }
     if (def.behavior === "boneLord") {
@@ -1636,13 +1653,23 @@ export class Renderer {
     return spriteFrame(sprite, e.animTime, ENEMY_FRAME_TIME);
   }
 
-  /** スライム王の跳躍中の高さ（空中の秒は技ごとに system/bossKingSlime.ts が決める。跳ばない技では null） */
-  private jumpLift(e: Enemy): number {
-    if (e.defKey !== "kingSlime" || e.phase !== "strike") return 0;
-    const total = kingSlimeAirTime(e);
-    if (total === null) return 0;
-    const t = Math.min(1, Math.max(0, 1 - e.phaseTimer / total));
-    return Math.sin(t * Math.PI) * KING_JUMP_HEIGHT;
+  /** スライム王の高さ（跳躍の上昇・滞空・落下と低い跳びは system/bossKingSlime.ts の kingSlimeLift が決める。王以外は 0） */
+  private jumpLift(e: Enemy, depth: number): number {
+    if (e.defKey !== "kingSlime") return 0;
+    return kingSlimeLift(e, depth) * KING_JUMP_HEIGHT;
+  }
+
+  /** 冠スライムの頭上の冠。王の陰で守られている大将だと一目で分かる印（座標は整数に丸めて滲ませない） */
+  private drawCrownMark(cx: number, headY: number): void {
+    const { ctx } = this;
+    const left = Math.round(cx - CROWN_W / 2);
+    const baseY = Math.round(headY) - CROWN_GAP - CROWN_BASE_H;
+    ctx.fillStyle = CROWN_EDGE;
+    ctx.fillRect(left - 1, baseY - CROWN_POINT_H - 1, CROWN_W + 2, CROWN_BASE_H + CROWN_POINT_H + 2);
+    ctx.fillStyle = CROWN_COLOR;
+    ctx.fillRect(left, baseY, CROWN_W, CROWN_BASE_H);
+    // 尖りは左・中・右の 3 つ
+    for (const dx of [0, Math.floor(CROWN_W / 2), CROWN_W - 1]) ctx.fillRect(left + dx, baseY - CROWN_POINT_H, 1, CROWN_POINT_H);
   }
 
   private drawEliteAura(state: GameState, e: Enemy, cx: number, feetY: number): void {
@@ -1771,7 +1798,7 @@ export class Renderer {
           this.drawShockwave(h);
           break;
         case "landing":
-          this.drawLanding(h);
+          this.drawLanding(state, h);
           break;
         case "boneWall":
           this.drawBoneWall(h);
@@ -1875,7 +1902,7 @@ export class Renderer {
   }
 
   /** 着地予告: 最終半径の赤い輪 + 縮んでいく影 */
-  private drawLanding(h: Hazard): void {
+  private drawLanding(state: GameState, h: Hazard): void {
     const { ctx } = this;
     const t = h.maxTime > 0 ? h.time / h.maxTime : 0;
     const scale = LANDING_MIN_SCALE + (LANDING_MAX_SCALE - LANDING_MIN_SCALE) * t;
@@ -1884,9 +1911,16 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(h.pos.x, h.pos.y, h.radius * scale * LANDING_RX, h.radius * scale * LANDING_RY, 0, 0, Math.PI * 2);
     ctx.fill();
-    // 出た時から必ず来る物なので墨入れの輪。薄れさせず、残り時間は影の縮みが持つ
+    // 縁は出した敵の予告と同じ色・同じ段（黄の間は下絵 = 打てば止められる、赤は墨入れ）。出した敵がいなければ墨入れ
+    const source = h.sourceId === undefined ? undefined : state.enemies.find((en) => en.id === h.sourceId);
+    if (source) {
+      ctx.strokeStyle = telegraphColor(source);
+      ctx.globalAlpha = LANDING_EDGE_ALPHA;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
-    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
+    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius, source ? telegraphStage(source) : "ink");
   }
 
   private drawBoneWall(h: Hazard): void {

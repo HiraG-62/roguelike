@@ -112,11 +112,13 @@ export function strokeInk(ctx: CanvasRenderingContext2D, s: Seg, id: number, cut
 }
 
 /** 地面の物（着地・爆弾・死に際の爆発）の輪を墨入れで描く（出た時から必ず来るので下絵を持たない。中の色は呼び側が先に塗る） */
-export function strokeInkRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+export function strokeInkRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, stage: InkStage = "ink"): void {
   const pen = new BrushPen(ctx);
   // 筆の変種と始点は位置の座標ハッシュ（同じ場所の物は同じ筆。rng は使わない）
   const id = Math.round(x * 7 + y * 13);
-  placeBrushArc(pen, x, y, r, ringStartAngle(id), RING_SWEEP, "ink", id, 0, 1, 1);
+  // 下絵（黄）の輪は欠けを怯み値なしの基準で引く（出した敵の怯み値は輪の持ち主が知らない）
+  const gap = stage === "sketch" ? sketchGap(0) : 0;
+  placeBrushArc(pen, x, y, r, ringStartAngle(id), RING_SWEEP, stage, id, gap, 1, 1);
   pen.end();
 }
 

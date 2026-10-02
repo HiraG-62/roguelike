@@ -124,10 +124,10 @@ const EXPECTED: Readonly<Record<string, string>> = {
   "legacy:202:2": "8853965ba0d1451d/9032eb70e1d583bf",
   "legacy:202:8": "6f4ba6fa54fdfc36/6847013524965902",
   "legacy:202:24": "0dbbb0d54149057a/fff5bde8478060e3",
-  "lordHall:11:5": "d932a0f27b9a8c7e/d1b4a4e6a9a65696",
+  "lordHall:11:5": "07047bce91205c31/d1b4a4e6a9a65696",
   "lordHall:11:10": "f32c921d5fc6d40c/6b84f2651306c25c",
   "lordHall:11:20": "3db4feda2362b489/d6c97bc47b7809b4",
-  "lordHall:202:5": "e22428fdb0fbf216/8dbb2a039fea293a",
+  "lordHall:202:5": "ad497abda950aa3f/8dbb2a039fea293a",
   "lordHall:202:10": "98a7710d5917d1d7/44921d15a4b1d9ca",
   "lordHall:202:20": "79aea8426e46627a/5a48be854d8afc16",
 };

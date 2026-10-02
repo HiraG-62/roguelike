@@ -44,6 +44,9 @@ const SHOTS = [
   ["tele-shapes", "depth=3&kind=cave&scene=tele&tele=shapes"],
   // 筆致の確認: 7 形 + 着地・爆弾を 1 つずつ離して置く（黄 = 上、赤 = 下）
   ["tele-solo", "depth=3&kind=cave&scene=tele&tele=solo"],
+  // 陣図の書きかけ（下絵 → 墨入れ）とスライム王の跳躍の滞空（王が浮き、影の縁と冠スライムの冠）
+  ["tele-jinzu", "depth=4&kind=cave&scene=tele&tele=jinzu"],
+  ["tele-slime", "depth=5&scene=tele&tele=slime"],
   ["tele-bright", "depth=13&kind=glacier&scene=tele&tele=crowd"],
   ["tele-dark", "depth=18&kind=dark&scene=tele&tele=crowd"],
 ];
