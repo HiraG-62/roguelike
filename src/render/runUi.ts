@@ -477,6 +477,8 @@ function stairsLine(state: GameState): HudLine | null {
 
 /** 右上 HUD の 1 行: 起点と位階（放浪者で縛りなしなら出さない）・銭と鍵（常に出す。資源なので 0 でも数字で見せる）・反転層 / 帰還 */
 export function drawRunSetupHud(ctx: CanvasRenderingContext2D, state: GameState, x: number, y: number): void {
+  // 拠点（門前町）はランの外なので起点・銭・鍵を出さない（右上が建物に重なる）
+  if (state.sandbox) return;
   const parts = runSetupParts(state);
   if (parts.length === 0) return;
   drawTextShadow(ctx, parts.join(" · "), x, y, TEXT.SMALL, COLOR_DIM, COLOR_SHADOW, "right");

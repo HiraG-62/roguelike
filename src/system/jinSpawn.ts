@@ -5,9 +5,8 @@ import { type EnemyDef, enemiesForDepth } from "../data/enemies";
 import { type EnemyGrade, type EnemyRole, roleOf } from "../data/enemyRoles";
 import { type FormationDef, type FormationKey, type FormationLeader, type FormationSlot, formationDef, roomFormations } from "../data/formations";
 import { ELITE, JIN } from "../data/tuning";
-import { TILE_SIZE, Tile, inBounds, rectCenterPx, toIndex } from "../map/grid";
+import { TILE_SIZE, inBounds, rectCenterPx, toIndex } from "../map/grid";
 import { layoutOffsets, rotateToFacing } from "../map/formation";
-import type { FloorLayout } from "../map/layout/types";
 import { lineOfSight, nextWaypoint } from "../map/pathing";
 import { biomeEnemyWeight } from "./biomes";
 import { NOTICE_RANGE, createEnemy } from "./enemies";
@@ -19,11 +18,13 @@ import { onRunEnemySpawned } from "./runEvents";
 import { canRoam, corridorTileList, pickRoamTarget } from "./spawner";
 import { ringLookoutBell } from "./noise";
 import { initJinMorale, updateJins, wakeJin as wakeJinMembers } from "./jin";
+import { isTrialDepth, planHonjin, trialRoomOf } from "./jinzu";
 
 /**
  * 陣の配り（docs/ideas/jin-impl.md 2-5・2-6・2-9）。部屋を置き換えず、封鎖しない通常の塊の上に陣を乗せる。
  * メンバーの roomIndex は陣が占める塊のままなので、交戦・制圧・殲滅・祝福の部屋フックはそのまま効く。
- * 塊の選び方は最遠点の逐次選択（乱数なし）、予算は三角分布（state.rng）、陣形は重みで抽選。
+ * 封鎖しない通常の塊には必ず 1 陣ずつ置く（空の部屋を作らない。2026-10-01）。陣の大きさは平均の予算を
+ * 塊の広さで寄せたもの（広い塊ほど大きい陣、塊の平均は平均の予算のまま）。予算は三角分布（state.rng）、陣形は重みで抽選。
  * 通路には長蛇（同じ種類の列）を置き、先頭の目的地を後ろが写して歩く（spawner.ts の retarget）。
  * 乱数は state.rng だけで、引く順は planJins の中で固定
  */
@@ -34,8 +35,6 @@ const START_ROOM = 0;
 const PLAYER_CLEARANCE = 40;
 /** 並べたい点が塞がっているとき、空きを探す範囲（タイル） */
 const SPOT_SEARCH_TILES = 6;
-/** 旧生成器の型名（floor.ts の LEGACY_LAYOUT と同じ） */
-const LEGACY_LAYOUT: FloorLayout = "legacy";
 /** 陣形の向きが決まらないときの正面 */
 const DEFAULT_FACING: Vec = { x: 1, y: 0 };
 
@@ -57,23 +56,29 @@ type AreaTest = (tile: number) => boolean;
 
 /**
  * フロア生成時: 陣を配る。skip は開始とボスの塊（陣を置かない）。
- * 1. 候補の塊から最遠点で陣の塊を選ぶ → 2. 予算と陣形を引いて陣を置く → 3. 通路に長蛇を置く
+ * 1. 候補の塊すべてに広さで寄せた予算を決める → 2. 予算と陣形を引いて陣を置く → 3. 通路に長蛇を置く
  */
 export function planJins(state: GameState, skip: ReadonlySet<number>): void {
-  const rooms = spreadRooms(state, jinCandidateRooms(state, skip), jinCount(state));
-  for (const index of rooms) {
+  const rooms = jinCandidateRooms(state, skip);
+  const means = roomBudgetMeans(state, rooms);
+  // 試し陣（HONJIN.trial。本番は無効）: 抽選の乱数は引いたまま、この塊の陣形だけを鶴翼にする
+  const trialRoom = isTrialDepth(state.depth) ? trialRoomOf(rooms) : undefined;
+  rooms.forEach((index, k) => {
     const room = state.rooms[index];
-    if (!room) continue;
-    const budget = jinBudget(state, index);
-    const formation = pickFormation(state);
-    if (!formation) continue;
+    if (!room) return;
+    const budget = jinBudget(state, index, means[k]);
+    const picked = pickFormation(state);
+    const formation = index === trialRoom ? (formationDef("craneWing") ?? picked) : picked;
+    if (!formation) return;
     const center = rectCenterPx(room.rect);
     spawnJin(state, index, formation, budget, center, roomFacing(state, index), roomArea(state, room), () => true);
-  }
+  });
   // 通路タイルは地図と部屋だけで決まり、長蛇を置いても変わらないので 1 回だけ数えて物見と分け合う
   const corridor = corridorTileList(state);
   placeColumns(state, corridor);
   placeLookouts(state, corridor);
+  // 本陣は置き終えた陣から乱数を引かずに選ぶ（後ろの乱数の順を変えない。system/jinzu.ts）
+  planHonjin(state);
 }
 
 /** 陣を起こす（気付いた者の近くだけ起こし、残りは後詰。本体は jin.ts） */
@@ -110,17 +115,6 @@ export function makeStrong(e: Enemy): void {
 // 数・場所・予算・陣形
 // -----------------------------------------------------------------------------
 
-/**
- * 陣の数: 床タイル総数 / tilesPerJin を minJins〜maxJins に収める（面積の倍率は床タイル数に含まれる）。
- * 旧生成の地図は部屋が少なく候補の塊で先に頭打ちになる前提で合わせた数なので、JIN.legacy の目安を使う
- */
-export function jinCount(state: GameState): number {
-  let floor = 0;
-  for (const t of state.map.tiles) if (t === Tile.Floor) floor++;
-  const rule = (state.floorLayout ?? LEGACY_LAYOUT) === LEGACY_LAYOUT ? JIN.legacy : JIN;
-  return clamp(Math.round(floor / rule.tilesPerJin), JIN.minJins, rule.maxJins);
-}
-
 /** 塊の床タイル数（矩形の部屋は幅 × 高さ） */
 function roomTileCount(room: RoomState): number {
   return room.tiles ? room.tiles.size : room.rect.w * room.rect.h;
@@ -137,34 +131,24 @@ export function jinCandidateRooms(state: GameState, skip: ReadonlySet<number>): 
     });
 }
 
+/** 陣の平均の予算（並の敵の体数）。深度で増える */
+function meanJinBudget(depth: number): number {
+  return JIN.budgetBase + depth * JIN.budgetPerDepth;
+}
+
 /**
- * 最遠点の逐次選択: 選んだ塊と開始の塊の中心からの最小距離が最大の候補を順に取る（同値は index が小さい方。乱数なし）。
- * 最小距離が minSpacing を切ったら止める
+ * 塊ごとの予算の平均。平均の予算に「塊の床タイル数 ^ roomAreaExp ÷ 候補の塊の平均」を掛ける
+ * （広い塊ほど大きい陣。候補の塊を均すと平均の予算になる。roomAreaExp 0 ですべて同じ）
  */
-export function spreadRooms(state: GameState, candidates: readonly number[], want: number): number[] {
-  const start = state.rooms[START_ROOM];
-  const anchors: Vec[] = start ? [rectCenterPx(start.rect)] : [];
-  const left = [...candidates];
-  const chosen: number[] = [];
-  while (chosen.length < want && left.length > 0) {
-    let best = -1;
-    let bestD = -1;
-    for (const i of left) {
-      const room = state.rooms[i];
-      if (!room) continue;
-      const d = minDistTo(rectCenterPx(room.rect), anchors);
-      if (d > bestD) {
-        best = i;
-        bestD = d;
-      }
-    }
-    const room = state.rooms[best];
-    if (!room || bestD < JIN.minSpacing) break;
-    chosen.push(best);
-    anchors.push(rectCenterPx(room.rect));
-    left.splice(left.indexOf(best), 1);
-  }
-  return chosen;
+export function roomBudgetMeans(state: GameState, rooms: readonly number[]): number[] {
+  const mean = meanJinBudget(state.depth);
+  const weights = rooms.map((i) => {
+    const room = state.rooms[i];
+    return room ? roomTileCount(room) ** JIN.roomAreaExp : 0;
+  });
+  const avg = weights.reduce((acc, w) => acc + w, 0) / Math.max(1, weights.length);
+  if (avg <= 0) return rooms.map(() => mean);
+  return weights.map((w) => (mean * w) / avg);
 }
 
 function minDistTo(p: Vec, anchors: readonly Vec[]): number {
@@ -174,14 +158,14 @@ function minDistTo(p: Vec, anchors: readonly Vec[]): number {
 }
 
 /**
- * 陣の予算（並の敵の体数に換算した重さ）。平均 budgetBase + 深度 × budgetPerDepth を三角分布で ±budgetSpread 揺らし、
- * 塊の並び（開始からの歩数順）で densityNearStart → densityNearEnd を掛ける（奥ほど厚い）。rng を 2 回引く
+ * 陣の予算（並の敵の体数に換算した重さ）。平均 mean（既定は budgetBase + 深度 × budgetPerDepth。planJins は塊ごとの配分）を
+ * 三角分布で ±budgetSpread 揺らし、塊の並び（開始からの歩数順）で densityNearStart → densityNearEnd を掛ける（奥ほど厚い）。
+ * 下限は minRoomBudget（小さい塊にも一団は置く）。rng を 2 回引く
  */
-export function jinBudget(state: GameState, roomIndex: number): number {
-  const mean = JIN.budgetBase + state.depth * JIN.budgetPerDepth;
+export function jinBudget(state: GameState, roomIndex: number, mean: number = meanJinBudget(state.depth)): number {
   const tri = (state.rng.next() + state.rng.next() - 1) * JIN.budgetSpread;
   const t = state.rooms.length > 1 ? roomIndex / (state.rooms.length - 1) : 0;
-  return Math.max(1, Math.round(mean * (1 + tri) * lerp(JIN.densityNearStart, JIN.densityNearEnd, t)));
+  return Math.max(JIN.minRoomBudget, Math.round(mean * (1 + tri) * lerp(JIN.densityNearStart, JIN.densityNearEnd, t)));
 }
 
 /** その深度の部屋の陣形を重みで 1 つ引く（rng 1 回）。候補が無ければ null */

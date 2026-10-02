@@ -439,7 +439,7 @@ const BURST_LIFE = 0.6;
 
 function sayAt(state: GameState, text: string, color: string): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 /**

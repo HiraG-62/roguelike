@@ -106,7 +106,7 @@ export function budgetViolations(census: Readonly<MenuCensus>, mode: MenuMode = 
   return [
     ...over("文の行", census.lines, lineLimit),
     ...over("BODY の行", census.bodyLines, MENU_BUDGET.bodyLines),
-    ...over("UI が出す数", census.numbers, MENU_BUDGET.numbers),
+    ...over("UI が出す数", census.numbers, mode === "compare" ? MENU_BUDGET.compareNumbers : MENU_BUDGET.numbers),
     ...over("候補", census.candidates, MENU_BUDGET.candidates),
     ...over("段の立った帯", census.steppedBands, MENU_BUDGET.bands.stepped),
     ...over("伏流の帯", census.undercurrentBands, MENU_BUDGET.bands.undercurrent),

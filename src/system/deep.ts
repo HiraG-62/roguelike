@@ -13,6 +13,6 @@ const DEEP_TEXT_LIFT = 10;
 /** 深みに初めて着いた告知。呼ぶのは floor.ts（深み 1 層目の初回だけ） */
 export function announceDeep(state: GameState): void {
   const pos = state.player.body.pos;
-  addFloatingText(state, { x: pos.x, y: pos.y - DEEP_TEXT_LIFT }, "深み", DEEP.color, DEEP_TEXT_SCALE, DEEP_TEXT_LIFE);
+  addFloatingText(state, { x: pos.x, y: pos.y - DEEP_TEXT_LIFT }, "深み", DEEP.color, DEEP_TEXT_SCALE, DEEP_TEXT_LIFE, "notice");
   pushLog(state, "更なる深みへ……。深淵が汝の力を解放する", DEEP.color);
 }

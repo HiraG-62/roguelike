@@ -9,7 +9,7 @@
 - URL: https://opengameart.org/content/16x16-puny-dungeon-tileset
 - ライセンス: CC0（Creative Commons Zero）
 - 取得日: 2026-09-24
-- 使用箇所: `public/assets/puny-dungeon/punyworld-dungeon-tileset.png`（未使用。取り込み基盤〔レーン B〕・タイル差し替え〔レーン C〕の完了後に `src/data/tiles.ts` から参照される予定）
+- 使用箇所: `public/assets/puny-dungeon/punyworld-dungeon-tileset.png`（`src/data/tiles.ts` の `TILE_SPRITES` が部屋の台座 `prop.*` と階段 `stairs` の絵だけを切り出す。床・壁は 2026-10-02 の門前町への作り直しで使わなくなった）
 - 改変: 未改変（原寸のまま配置）
 
 ## Tiny Dungeon（Kenney）
@@ -18,7 +18,7 @@
 - URL: https://kenney.nl/assets/tiny-dungeon
 - ライセンス: CC0（Creative Commons Zero）
 - 取得日: 2026-09-24
-- 使用箇所: `public/assets/kenney-tiny-dungeon/tilemap_packed.png`（未使用。取り込み基盤〔レーン B〕・タイル差し替え〔レーン C〕の完了後に `src/data/tiles.ts` から参照される予定）
+- 使用箇所: `public/assets/kenney-tiny-dungeon/tilemap_packed.png`（`src/data/tiles.ts` の `TILE_SPRITES` が部屋の台座 `prop.*` の絵だけを切り出す。拠点の設備の絵は 2026-10-02 の門前町への作り直しで使わなくなった）
 - 改変: 未改変（原寸のまま配置）
 
 ## 16x16 DungeonTileset II（0x72）※ 未取得

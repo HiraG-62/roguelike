@@ -891,7 +891,7 @@ function runOnce(seed: number, profileKind: ProfileKind, maxSteps: number, start
     // 1 枚目を選んで進める（人間のプレイに寄せる。無視しても進行は止まらないが、選ばないと
     // 余白・節目の実際の消化ペースが計測できない）
     if (state.pendingBud) {
-      chooseBud(state, 0);
+      chooseBud(state, state.pendingBud.slot, 0);
       metrics.budsChosen++;
     }
 
@@ -1138,7 +1138,7 @@ function runLayoutToStairs(kind: LayoutKind, seed: number): { layout: string | u
   const bot = createBotState(seed);
   for (let i = 0; i < LAYOUT_SMOKE_MAX_STEPS; i++) {
     if (state.status !== "playing") break;
-    if (state.pendingBud) chooseBud(state, 0);
+    if (state.pendingBud) chooseBud(state, state.pendingBud.slot, 0);
     step(state, botInput(state, bot, FIXED_DT), FIXED_DT);
     if (state.depth > 1) return { layout, steps: i + 1 };
   }
@@ -1186,7 +1186,7 @@ function runOnceFingerprint(seed: number, profileKind: ProfileKind, maxSteps: nu
   const bot = createBotState((seed * 2654435761 + 12345) >>> 0);
   for (let i = 0; i < maxSteps; i++) {
     if (state.status !== "playing") break;
-    if (state.pendingBud) chooseBud(state, 0);
+    if (state.pendingBud) chooseBud(state, state.pendingBud.slot, 0);
     const input = botInput(state, bot, FIXED_DT);
     step(state, input, FIXED_DT);
   }

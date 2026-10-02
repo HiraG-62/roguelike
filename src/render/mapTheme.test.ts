@@ -20,14 +20,21 @@ import {
   packedPitColors,
   rotateHue,
   styleFor,
+  townRoadTheme,
+  townTheme,
 } from "./mapTheme";
 import { STYLE_DEFS } from "../data/mapThemes";
 import type { MapPalette, MapTheme } from "./mapTypes";
 
 const DEPTHS = Array.from({ length: 25 }, (_, i) => i + 1);
 
-/** 予告の色（黄 / 赤）と、描画側の定数の赤 */
-const TELEGRAPH_COLORS = [TELEGRAPH.readyColor, TELEGRAPH.commitColor, "#ff4040"];
+/** 予告の朱（色を持つ唯一の予告の色。薄墨・濃墨・胡粉は明暗と形で床から分ける）と、描画側の定数の赤 */
+const TELEGRAPH_COLORS = [TELEGRAPH.shuColor, "#ff4040"];
+/**
+ * 溶岩の穴の本体は朱そのものの色で、朱から離せない（既知の例外。増やさない）。朱の点は必ず濃墨の一筆の中に置き、
+ * 胡粉の滲みで囲むので、溶岩の上でも形と明暗で分かれる
+ */
+const PIT_SHU_EXCEPTIONS = new Set([`lava.a~${TELEGRAPH.shuColor}`, `lava.deep~${TELEGRAPH.shuColor}`]);
 /** 地図の面として広く出る色（床・天面・側面・奈落）。差し色（accent）や光源の色は点・線にしか出ないので含めない */
 const SURFACE_KEYS: readonly (keyof MapPalette)[] = ["fD", "fB", "fL", "fH", "fO", "tB", "tD", "tL", "sB", "sL", "sD", "v1", "v2", "vD"];
 const RGB_DISTANCE_MIN = 60;
@@ -209,7 +216,7 @@ describe("mapTheme: 深みの変異", () => {
 describe("mapTheme: 予告の色との距離", () => {
   const targets = TELEGRAPH_COLORS.map(hexColor);
 
-  it("すべてのテーマの地図の面の色が、予告の色（黄 / 赤 / #ff4040）と RGB 距離 60 以上離れている", () => {
+  it("すべてのテーマの地図の面の色が、予告の朱と #ff4040 から RGB 距離 60 以上離れている", () => {
     const shown = new Set<string>();
     for (const depth of DEPTHS.concat([22, 27, 32, 33, 40])) {
       for (const kind of FLOOR_KINDS) {
@@ -234,6 +241,7 @@ describe("mapTheme: 予告の色との距離", () => {
       if (!colors) continue;
       for (const key of ["a", "deep", "foam", "bank", "mid"] as const) {
         for (const [i, target] of targets.entries()) {
+          if (PIT_SHU_EXCEPTIONS.has(`${pit}.${key}~${TELEGRAPH_COLORS[i]}`)) continue;
           expect(distance(colors[key], target), `${pit} の ${key} と ${TELEGRAPH_COLORS[i]}`).toBeGreaterThanOrEqual(RGB_DISTANCE_MIN);
         }
       }
@@ -273,5 +281,41 @@ describe("mapTheme: 色の計算", () => {
     const green = rotateHue(hexColor("#ff0000"), 120);
     expect(colorG(green), "緑が最大").toBeGreaterThan(colorR(green));
     expect(colorG(green)).toBeGreaterThan(colorB(green));
+  });
+});
+
+describe("mapTheme: 拠点（門前町）のテーマ", () => {
+  it("townTheme は様式 town で、いつも同じ参照を返し、key は town", () => {
+    expect(townTheme()).toBe(townTheme());
+    expect(townTheme().style).toBe("town");
+    expect(townTheme().key).toBe("town");
+  });
+
+  it("拠点は光の層で暗くしない（暗さ 0）。置物は無く、汚しは小石とひびだけ", () => {
+    const theme = townTheme();
+    expect(theme.dark, "暗さ").toBe(0);
+    expect(theme.props, "置物").toEqual([]);
+    expect(new Set(theme.decals), "汚し").toEqual(new Set(["pebble", "crack"]));
+  });
+
+  it("床は土の道（石畳の地帯が無い）。参道の石畳は切石で、土の床と別の key・配色", () => {
+    const theme = townTheme();
+    expect(theme.floorZone?.stone ?? 0, "石畳の地帯の閾値が 1 超 = 土だけ").toBeGreaterThan(1);
+    const road = townRoadTheme();
+    expect(townRoadTheme()).toBe(townRoadTheme());
+    expect(road.key).not.toBe(theme.key);
+    expect(road.floor).toBe("ashlar");
+    expect(road.palette.fB, "石畳の基本色は土と違う").not.toBe(theme.palette.fB);
+  });
+
+  it("拠点と石畳の面の色は、予告の色と RGB 距離 60 以上離れている", () => {
+    const targets = TELEGRAPH_COLORS.map(hexColor);
+    for (const theme of [townTheme(), townRoadTheme()]) {
+      for (const key of SURFACE_KEYS) {
+        for (const [i, target] of targets.entries()) {
+          expect(distance(theme.palette[key], target), `${theme.key} の ${key} と ${TELEGRAPH_COLORS[i]}`).toBeGreaterThanOrEqual(RGB_DISTANCE_MIN);
+        }
+      }
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { KEYWORD_DEFS } from "../core/keywords";
+import { KEYWORDS, KEYWORD_DEFS, type Keyword, profileKeywords } from "../core/keywords";
 import { type GameState, pushSfx } from "../core/state";
 import { MENU_BUDGET } from "../data/tuning";
 import { describeTrait } from "../loot/describe";
@@ -6,18 +6,23 @@ import { equipItem, saveProfile, unequipItem } from "../loot/profile";
 import type { AffixRoll, Item } from "../loot/types";
 import { SKILL_DEFS } from "../skills/data";
 import { equipStone, findStone, salvageStone, saveSkillProfile, stoneInSlot, unequipSlot } from "../skills/persistence";
-import type { SkillStone } from "../skills/types";
-import { relicKeywords } from "../system/keywords";
+import type { SkillResource, SkillStone } from "../skills/types";
+import { relicKeywords, skillKeywords } from "../system/keywords";
 import { chooseBud } from "../system/loot";
+import { returnInactiveRunes } from "../system/skills";
 import { SLOT_LABEL } from "./inventoryLayout";
 import { applyEquipmentChange, showNote } from "./menuActions";
 import { fid, fidArgs } from "./menuFocus";
 import {
   EMPTY_TAG,
+  NO_FILTER,
+  type CandidateFilter,
+  type CandidateFilterAxis,
   type CandidateSort,
   type CandidateTarget,
   type GuideVerb,
   type InventoryUi,
+  type LootSlot,
   type MenuAct,
   type MenuHeader,
   type MenuHit,
@@ -45,6 +50,30 @@ export const CANDIDATE_PAGE = MENU_BUDGET.candidates;
 export const CAND_CARD = { x: 120, y: 36, w: 180, h: 23, step: 26 } as const;
 /** 並びの札 3 つ（x 120 + i × 22・y 20・18 × 12） */
 export const SORT_CHIP = { x: 120, y: 20, w: 18, h: 12, step: 22 } as const;
+/** 絞り込みの札 2 つ（並びの札の右。系統 = 丸印を 1 つ選ぶ / 型 = 気力型か再使用型）。クリックか決定で値を順に送る */
+export const FILTER_CHIPS: Readonly<Record<CandidateFilterAxis, { x: number; y: number; w: number; h: number }>> = {
+  keyword: { x: 196, y: 20, w: 36, h: 12 },
+  resource: { x: 236, y: 20, w: 42, h: 12 },
+};
+/** 絞り込みの軸の順（札を並べる順） */
+export const FILTER_AXES: readonly CandidateFilterAxis[] = ["keyword", "resource"];
+/** スキル石の資源の型の表示名と送る順（GLOSSARY: 気力型 / 再使用型） */
+export const RESOURCE_ORDER: readonly SkillResource[] = ["mana", "cooldown"];
+export const RESOURCE_LABEL: Readonly<Record<SkillResource, string>> = { mana: "気力型", cooldown: "再使用型" };
+/** 左下の腰の石の当たり（描画は render/candidatesUi.ts の MINI_GEM と同じ座標。石の候補の頁だけ） */
+export const MINI_GEM = { x: 14, step: 22, y: 136 } as const;
+const MINI_GEM_HIT = { dx: -3, dy: -2, w: 22, h: 30 } as const;
+
+/** 左の小さな体の部位のマス（18px。描画は render/candidatesUi.ts、当たりは layout。座標の本体はここ） */
+export const MINI_PART = 18;
+export const MINI_PARTS: Readonly<Record<LootSlot, { x: number; y: number }>> = {
+  head: { x: 46, y: 24 },
+  amulet: { x: 84, y: 40 },
+  mainHand: { x: 10, y: 66 },
+  ring: { x: 84, y: 78 },
+  armor: { x: 10, y: 100 },
+  boots: { x: 46, y: 106 },
+};
 /** 並びの順（受け流しキーで送る順と同じ） */
 export const SORT_ORDER: readonly CandidateSort[] = ["fit", "new", "name"];
 /** 並びの札の 1 字と、荷札で言う名前 */
@@ -71,8 +100,19 @@ export function subjectId(s: Readonly<CandidateSubject>): string {
   return s.kind === "item" ? s.item.id : s.stone.id;
 }
 
-/** 並ぶ物（スキル石の枠は、その枠の石以外の石。系統からは全部位の倉庫の遺物だけ） */
-export function candidatePool(state: Readonly<GameState>, target: Readonly<CandidateTarget>): CandidateSubject[] {
+/** その物が関わる語（札の丸印と同じ元。絞り込みの系統の判定と選択肢に使う） */
+export function subjectKeywords(s: Readonly<CandidateSubject>): Keyword[] {
+  return profileKeywords(s.kind === "item" ? relicKeywords(s.item) : skillKeywords(SKILL_DEFS[s.stone.skillKey]));
+}
+
+function passesFilter(s: Readonly<CandidateSubject>, filter: Readonly<CandidateFilter>): boolean {
+  if (filter.keyword !== null && !subjectKeywords(s).includes(filter.keyword)) return false;
+  if (filter.resource !== null && (s.kind !== "stone" || SKILL_DEFS[s.stone.skillKey].resource !== filter.resource)) return false;
+  return true;
+}
+
+/** 並ぶ物（絞り込みの前）。スキル石の枠は、その枠の石以外の石。系統からは全部位の倉庫の遺物だけ */
+export function candidateBase(state: Readonly<GameState>, target: Readonly<CandidateTarget>): CandidateSubject[] {
   switch (target.kind) {
     case "slot":
       return state.profile.stash.filter((it) => it.slot === target.slot).map((item) => ({ kind: "item", item }));
@@ -85,6 +125,34 @@ export function candidatePool(state: Readonly<GameState>, target: Readonly<Candi
         .filter((it) => relicKeywords(it)[target.verb].includes(target.keyword))
         .map((item) => ({ kind: "item", item }));
   }
+}
+
+/** 並ぶ物（絞り込みのあと） */
+export function candidatePool(state: Readonly<GameState>, target: Readonly<CandidateTarget>, filter: Readonly<CandidateFilter> = NO_FILTER): CandidateSubject[] {
+  const base = candidateBase(state, target);
+  return filter.keyword === null && filter.resource === null ? base : base.filter((s) => passesFilter(s, filter));
+}
+
+/** 絞り込みの札が使えるか（系統の候補は系統で絞り済み、型は石の候補だけ） */
+export function filterAvailable(target: Readonly<CandidateTarget>, axis: CandidateFilterAxis): boolean {
+  if (target.kind === "flow") return false;
+  return axis === "keyword" || target.kind === "stone";
+}
+
+/** 絞り込みの札が送る値の順（null = 絞らない を先頭に。系統は今の候補に出てくる語だけを KEYWORDS の順で） */
+export function filterChoices(state: Readonly<GameState>, target: Readonly<CandidateTarget>, axis: CandidateFilterAxis): (Keyword | SkillResource | null)[] {
+  if (axis === "resource") return [null, ...RESOURCE_ORDER];
+  const present = new Set<Keyword>();
+  for (const s of candidateBase(state, target)) for (const k of subjectKeywords(s)) present.add(k);
+  return [null, ...KEYWORDS.filter((k) => present.has(k))];
+}
+
+/** 次の値（今の値が選択肢に無ければ先頭の「絞らない」の次） */
+export function nextFilter(state: Readonly<GameState>, target: Readonly<CandidateTarget>, filter: Readonly<CandidateFilter>, axis: CandidateFilterAxis): CandidateFilter {
+  const choices = filterChoices(state, target, axis);
+  const at = choices.indexOf(filter[axis]);
+  const next = choices[(at + 1) % choices.length] ?? null;
+  return axis === "keyword" ? { ...filter, keyword: next as Keyword | null } : { ...filter, resource: next as SkillResource | null };
 }
 
 /** その物に替えたときの試着の替え先（石の候補なら枠、遺物なら自分の部位） */
@@ -134,8 +202,8 @@ function fitOrder(state: Readonly<GameState>, target: Readonly<CandidateTarget>,
 }
 
 /** 並んだ id の列（芽吹きの札・空けるを含まない） */
-export function sortedIds(state: Readonly<GameState>, target: Readonly<CandidateTarget>, sort: CandidateSort): string[] {
-  const pool = candidatePool(state, target);
+export function sortedIds(state: Readonly<GameState>, target: Readonly<CandidateTarget>, sort: CandidateSort, filter: Readonly<CandidateFilter> = NO_FILTER): string[] {
+  const pool = candidatePool(state, target, filter);
   if (sort === "fit") return fitOrder(state, target, pool).map(subjectId);
   const sorted = [...pool];
   if (sort === "new") {
@@ -149,17 +217,21 @@ export function sortedIds(state: Readonly<GameState>, target: Readonly<Candidate
 /** 並びを作る（無ければ数えて view.order に入れる。頁を開いた後の 1 回と、並び・中身を変えた後の 1 回だけ） */
 function ensureOrder(state: Readonly<GameState>, view: Readonly<CandidatesView>): string[] {
   const memo = view as CandidatesView;
-  if (memo.order === null) memo.order = sortedIds(state, view.target, view.sort);
+  if (memo.order === null) memo.order = sortedIds(state, view.target, view.sort, view.filter ?? NO_FILTER);
   return memo.order;
 }
 
-/** 部位の候補で芽のある部位は、先頭に芽吹きの札 2 枚 */
+/**
+ * 部位の候補で芽のある部位は、先頭に芽吹きの札 2 枚。
+ * 開いた部位の遺物の提示（item.budOffer）から作る（state.pendingBud は先頭の 1 つだけなので使わない）
+ */
 function budEntries(state: Readonly<GameState>, target: Readonly<CandidateTarget>): CandidateEntry[] {
-  const pending = state.pendingBud;
-  if (target.kind !== "slot" || pending === null || pending.slot !== target.slot) return [];
+  if (target.kind !== "slot") return [];
+  const offer = state.profile.equipment[target.slot]?.budOffer;
+  if (offer === null || offer === undefined) return [];
   return [
-    { kind: "bud", n: 0, roll: pending.options[0] },
-    { kind: "bud", n: 1, roll: pending.options[1] },
+    { kind: "bud", n: 0, roll: offer.options[0] },
+    { kind: "bud", n: 1, roll: offer.options[1] },
   ];
 }
 
@@ -172,7 +244,7 @@ function isFilled(state: Readonly<GameState>, target: Readonly<CandidateTarget>)
 
 /** 頁に並ぶ札の全部（芽吹き → 外した物 → 並びの順 → 空ける） */
 export function candidateEntries(state: Readonly<GameState>, view: Readonly<CandidatesView>): CandidateEntry[] {
-  const pool = candidatePool(state, view.target);
+  const pool = candidatePool(state, view.target, view.filter ?? NO_FILTER);
   const byId = new Map(pool.map((s) => [subjectId(s), s] as const));
   const ids = ensureOrder(state, view).filter((id) => byId.has(id));
   // 並びを作った後に倉庫へ入った物は末尾に置く
@@ -251,18 +323,74 @@ function sortChipHits(reachable: boolean): MenuHit[] {
   }));
 }
 
+/** 絞り込みの札（並びの札と同じく頁の先頭でだけ方向で止まる。使えない軸は出さない） */
+function filterChipHits(target: Readonly<CandidateTarget>, reachable: boolean): MenuHit[] {
+  return FILTER_AXES.filter((axis) => filterAvailable(target, axis)).map((axis) => ({
+    id: fid.filter(axis),
+    rect: FILTER_CHIPS[axis],
+    act: { kind: "cycleFilter", axis },
+    hold: null,
+    nav: reachable,
+  }));
+}
+
+/**
+ * 左下の腰の石（石の候補だけ。今の枠は除く）。決定・クリックでその枠の候補の頁へ替える。部位のマスと同じく、通るだけでは焦点を奪わない
+ */
+function gemHits(state: Readonly<GameState>, target: Readonly<CandidateTarget>): MenuHit[] {
+  if (target.kind !== "stone") return [];
+  const hits: MenuHit[] = [];
+  for (let i = 0; i < state.skills.slots.length; i++) {
+    if (i === target.index) continue;
+    hits.push({
+      id: fid.gem(i),
+      rect: { x: MINI_GEM.x + i * MINI_GEM.step + MINI_GEM_HIT.dx, y: MINI_GEM.y + MINI_GEM_HIT.dy, w: MINI_GEM_HIT.w, h: MINI_GEM_HIT.h },
+      act: { kind: "switchStone", index: i },
+      hold: null,
+      nav: true,
+      hover: false,
+    });
+  }
+  return hits;
+}
+
+/**
+ * 左の部位のマス（部位の候補だけ。今の部位は除く）。決定・クリックでその部位の候補の頁へ替える。
+ * hover: false = マウスが通るだけでは焦点を奪わない（札の差と動く紋が通過で消えないように）。
+ * ← で札から移れるよう nav は true。札と並びの札より後ろに置く（ensureFocus が最初の nav を焦点にするため）
+ */
+function partHits(target: Readonly<CandidateTarget>): MenuHit[] {
+  if (target.kind !== "slot") return [];
+  return (Object.keys(MINI_PARTS) as LootSlot[])
+    .filter((slot) => slot !== target.slot)
+    .map((slot): MenuHit => {
+      const at = MINI_PARTS[slot];
+      return {
+        id: fid.part(slot),
+        rect: { x: at.x - 1, y: at.y - 1, w: MINI_PART + 2, h: MINI_PART + 2 },
+        act: { kind: "switchPart", slot },
+        hold: null,
+        nav: true,
+        hover: false,
+      };
+    });
+}
+
 function layout(state: Readonly<GameState>, _ui: Readonly<InventoryUi>, view: Readonly<CandidatesView>): MenuHit[] {
   const entries = candidateEntries(state, view);
   syncPage(view as CandidatesView, entries);
   const cards = visibleEntries(entries, view.offset).map((entry, i) =>
     entryHit(entry, { x: CAND_CARD.x, y: CAND_CARD.y + i * CAND_CARD.step, w: CAND_CARD.w, h: CAND_CARD.h }, view.target),
   );
-  return [...cards, ...sortChipHits(view.offset === 0)];
+  return [...cards, ...sortChipHits(view.offset === 0), ...filterChipHits(view.target, view.offset === 0), ...partHits(view.target), ...gemHits(state, view.target)];
 }
 
 // -----------------------------------------------------------------------------
 // 決定
 // -----------------------------------------------------------------------------
+
+/** 石を替えて付かなくなった符が手持ちへ戻ったときの知らせの続き */
+const STONE_RUNES_BACK = "　付かない符は手持ちへ";
 
 /** 並びを作り直させ、頁の先頭へ（付け替えの後・並びを変えた後） */
 function resetOrder(view: CandidatesView): void {
@@ -273,6 +401,16 @@ function resetOrder(view: CandidatesView): void {
 function refocus(ui: InventoryUi, view: CandidatesView, id: string | null): void {
   view.focus = id;
   ui.focusAt = ui.time;
+}
+
+/** 絞り込みの札を 1 つ送る（並びを作り直して頁の先頭へ。焦点は札に残す） */
+function cycleFilter(state: GameState, ui: InventoryUi, view: CandidatesView, axis: CandidateFilterAxis): void {
+  if (!filterAvailable(view.target, axis)) return;
+  view.filter = nextFilter(state, view.target, view.filter ?? NO_FILTER, axis);
+  view.pinnedId = null;
+  resetOrder(view);
+  refocus(ui, view, fid.filter(axis));
+  pushSfx(state, "uiClick");
 }
 
 function equipRelic(state: GameState, ui: InventoryUi, view: CandidatesView, itemId: string): void {
@@ -295,7 +433,8 @@ function equipSkillStone(state: GameState, ui: InventoryUi, view: CandidatesView
   if (!equipStone(profile, stoneId, index)) return;
   saveSkillProfile(profile);
   pushSfx(state, "equipOn");
-  showNote(ui, `付けた: ${SKILL_DEFS[stone.skillKey].name}`);
+  const back = returnInactiveRunes(state);
+  showNote(ui, `付けた: ${SKILL_DEFS[stone.skillKey].name}${back > 0 ? STONE_RUNES_BACK : ""}`);
   view.pinnedId = previous?.id ?? null;
   resetOrder(view);
   refocus(ui, view, previous === null ? null : fid.cand(previous.id));
@@ -316,7 +455,8 @@ function clearTarget(state: GameState, ui: InventoryUi, view: CandidatesView): v
     if (stone === null) return;
     unequipSlot(state.skills.profile, target.index);
     saveSkillProfile(state.skills.profile);
-    showNote(ui, `外した: ${SKILL_DEFS[stone.skillKey].name}`);
+    const back = returnInactiveRunes(state);
+    showNote(ui, `外した: ${SKILL_DEFS[stone.skillKey].name}${back > 0 ? STONE_RUNES_BACK : ""}`);
     view.pinnedId = stone.id;
     refocus(ui, view, fid.cand(stone.id));
   } else {
@@ -327,7 +467,8 @@ function clearTarget(state: GameState, ui: InventoryUi, view: CandidatesView): v
 }
 
 function budChoose(state: GameState, ui: InventoryUi, view: CandidatesView, option: number): void {
-  const chosen = chooseBud(state, option);
+  if (view.target.kind !== "slot") return;
+  const chosen = chooseBud(state, view.target.slot, option);
   if (chosen === null) return;
   pushSfx(state, "boonSelect");
   showNote(ui, `芽吹き: ${describeTrait(chosen).text}`);
@@ -358,6 +499,9 @@ function act(state: GameState, ui: InventoryUi, view: CandidatesView, a: MenuAct
       resetOrder(view);
       refocus(ui, view, null);
       pushSfx(state, "uiClick");
+      return;
+    case "cycleFilter":
+      cycleFilter(state, ui, view, a.axis);
       return;
     case "equip":
       equipRelic(state, ui, view, a.itemId);
@@ -409,7 +553,10 @@ const GUIDE: readonly GuideVerb[] = ["move", "equip", "sort", "sheet", "back"];
 function sheetFor(state: Readonly<GameState>, view: Readonly<CandidatesView>): SheetSubject | null {
   const entry = focusedEntry(state, view);
   if (entry === null || entry.kind === "clear") return null;
-  if (entry.kind === "bud") return state.pendingBud === null ? null : { kind: "item", itemId: state.pendingBud.itemId };
+  if (entry.kind === "bud") {
+    const worn = view.target.kind === "slot" ? state.profile.equipment[view.target.slot] : null;
+    return worn === null || worn === undefined ? null : { kind: "item", itemId: worn.id };
+  }
   const s = entry.subject;
   if (s.kind === "item") return { kind: "pair", itemId: s.item.id, slot: s.item.slot };
   return { kind: "stonePair", stoneId: s.stone.id, index: view.target.kind === "stone" ? view.target.index : 0 };
@@ -440,11 +587,30 @@ function leave(state: GameState, _ui: InventoryUi, view: CandidatesView): void {
   if (markSlotSeen(state.profile, view.target.slot)) saveProfile(state.profile);
 }
 
+const FILTER_TAG_TITLE: Readonly<Record<CandidateFilterAxis, string>> = { keyword: "系統で絞る", resource: "型で絞る" };
+const FILTER_ALL = "絞らない";
+const SORT_TAG_TITLE = "並び";
+const CHIP_HINT = "決定で次へ";
+
+/** 絞り込み・並びの札の荷札（札が何をするかを言う。候補の札の上では出さない） */
+function chipTag(view: Readonly<CandidatesView>, focus: Readonly<MenuHit> | null): MenuTag {
+  if (focus === null) return { ...EMPTY_TAG };
+  const filter = view.filter ?? NO_FILTER;
+  const axis = FILTER_AXES.find((a) => focus.id === fid.filter(a));
+  if (axis !== undefined) {
+    const value = axis === "keyword" ? (filter.keyword === null ? FILTER_ALL : `${KEYWORD_DEFS[filter.keyword].label}系`) : filter.resource === null ? FILTER_ALL : RESOURCE_LABEL[filter.resource];
+    return { title: `${FILTER_TAG_TITLE[axis]}  ${value}`, sub: CHIP_HINT, aside: null };
+  }
+  const sort = SORT_ORDER.find((s) => focus.id === fid.sort(s));
+  if (sort !== undefined) return { title: `${SORT_TAG_TITLE}  ${SORT_LABEL[sort].long}`, sub: "決定でこの並びにする", aside: null };
+  return { ...EMPTY_TAG };
+}
+
 export const CANDIDATES_VIEW: ViewModule<CandidatesView> = {
   layout,
   act,
   header,
-  tag: (): MenuTag => ({ ...EMPTY_TAG }),
+  tag: (_state, _ui, view, focus): MenuTag => chipTag(view, focus),
   guide: () => GUIDE,
   sheetFor,
   back: () => false,

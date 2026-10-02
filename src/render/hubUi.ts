@@ -7,28 +7,27 @@ import type { GameState } from "../core/state";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { HUB } from "../data/tuning";
-import type { HubSpotKey } from "../map/hubMap";
-import { FACILITY_NAME, FACILITY_OF_SPOT, type HubDecor } from "../meta/hub";
+import type { HubLayout, HubSpotKey } from "../map/hubMap";
+import type { Rect } from "../map/grid";
+import { FACILITY_HINT, FACILITY_NAME, FACILITY_OF_SPOT } from "../meta/hub";
+import type { TownLook } from "../meta/townLook";
 import { KEYSTONE_NAME } from "../system/keystones";
-import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_PANEL_BG, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
+import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_PANEL_BG, COLOR_SELECTED, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, drawTextShadow, textLineHeight, textWidth, truncateText } from "./pixelText";
-import type { Sprite } from "./sprites";
 import { TILE_SIZE } from "../map/grid";
-
-/** 拠点の設備の PNG 素材を引く（Renderer.atlasSprite）。無ければ絵を出さずラベルだけにする */
-export type HubSpriteLookup = (key: string) => Sprite | undefined;
 
 /** 台の描画に要るもの（renderer.setHubView で渡す） */
 export interface HubSpotsView {
   spots: Readonly<Record<HubSpotKey, Vec>>;
   available: ReadonlySet<HubSpotKey>;
   near: HubSpotKey | null;
+  /** 門前町の配置と景色（docs/ideas/hub-town-impl.md）。拠点は常にこれで描く */
+  town: { layout: HubLayout; look: TownLook };
 }
 
 export interface HubView extends HubSpotsView {
   departHold: number;
   trialKeystone: string | null;
-  decor: readonly HubDecor[];
   banner: string | null;
   /** 武器掛けで試している武器種の名前（「大剣」「二丁拳銃」。銃の家系も武器種の名前のみ）。無ければ null */
   trialWeapon?: string | null;
@@ -55,17 +54,8 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   hall: "挑む",
 };
 
-/** 記録室の 3 台は設備名だけだと区別できないので台の名前を出す */
-const SPOT_LABEL_OVERRIDE: Partial<Readonly<Record<HubSpotKey, string>>> = {
-  history: "探索履歴",
-  codex: "図鑑",
-  achievements: "実績",
-};
-
 const SHADOW = "#000000";
 const NEAR_COLOR = COLOR_SELECTED;
-/** 台の中心から名前までの上方向のずれ（論理 px） */
-const LABEL_RISE = 12;
 const MARGIN = 6;
 const LINE_H_MIN = 10;
 const GAUGE_W = 120;
@@ -77,43 +67,12 @@ const GAUGE_BOTTOM = 18;
 const BANNER_TOP = 36;
 const BANNER_PAD = 6;
 const TRIAL_TOP = 22;
-const DECOR_TOP = 22;
-const DECOR_W = 130;
-const DECOR_MAX_LINES = 6;
-
-function spotLabel(spot: HubSpotKey): string {
-  return SPOT_LABEL_OVERRIDE[spot] ?? FACILITY_NAME[FACILITY_OF_SPOT[spot]];
-}
+/** 石段の案内を出す、石段の矩形までの距離（論理 px。HubRun.nearGate と同じ HUB.gateNearMargin マス） */
+const GATE_PROMPT_RANGE = TILE_SIZE * HUB.gateNearMargin;
+const GATE_PROMPT_TEXT = "石段: 出撃";
 
 function lineH(m: number): number {
   return Math.max(LINE_H_MIN, textLineHeight(m));
-}
-
-/** atlas 上の設備の素材のキー（data/tiles.ts の hub.<HubSpotKey>） */
-export function hubSpriteKey(spot: HubSpotKey): string {
-  return `hub.${spot}`;
-}
-
-/** 素材の足元を台のタイルの下端に揃える。背の高い素材（書架）の分だけ上に伸びた量を返す */
-function drawSpotSprite(ctx: CanvasRenderingContext2D, sprite: Sprite | undefined, pos: Vec, ox: number, oy: number): number {
-  const img = sprite?.frames[0];
-  if (!img) return 0;
-  const bottom = pos.y + oy + TILE_SIZE / 2;
-  ctx.drawImage(img, Math.round(pos.x + ox - img.width / 2), Math.round(bottom - img.height));
-  return Math.max(0, img.height - TILE_SIZE);
-}
-
-/**
- * 台の絵と名前。マップの物なので renderer の world 層（drawRunWorld の直後）で描き、HUD や一覧より下に置く。
- * world 層はカメラで平行移動した座標系なので、renderer からは ox = oy = 0 で呼ぶ
- */
-export function drawHubSpots(ctx: CanvasRenderingContext2D, view: HubSpotsView, ox: number, oy: number, lookup: HubSpriteLookup | undefined): void {
-  for (const spot of view.available) {
-    const pos = view.spots[spot];
-    const rise = drawSpotSprite(ctx, lookup?.(hubSpriteKey(spot)), pos, ox, oy);
-    const color = view.near === spot ? NEAR_COLOR : COLOR_TEXT;
-    drawTextShadow(ctx, spotLabel(spot), pos.x + ox, pos.y + oy - LABEL_RISE - rise, TEXT.SMALL, color, SHADOW, "center");
-  }
 }
 
 /** 近い台の案内文。井戸だけ、寄進した総額があれば添える（使い道は今は無い。積み上がった記録として見せる） */
@@ -121,6 +80,50 @@ export function spotPrompt(spot: HubSpotKey, donated: number | undefined): strin
   const base = `${actionKeyLabel("interact")}: ${SPOT_ACTION[spot]}`;
   if (spot !== "well" || donated === undefined || donated <= 0) return base;
   return `${base}（寄進 ${donated}）`;
+}
+
+/** 点が石段（出撃の口）の矩形から range px 以内か。矩形が空（石段が無い拠点）なら false */
+export function nearGate(pos: Vec, gateZone: Rect, range: number = GATE_PROMPT_RANGE): boolean {
+  if (gateZone.w <= 0 || gateZone.h <= 0) return false;
+  const left = gateZone.x * TILE_SIZE;
+  const top = gateZone.y * TILE_SIZE;
+  const dx = Math.max(left - pos.x, 0, pos.x - (left + gateZone.w * TILE_SIZE));
+  const dy = Math.max(top - pos.y, 0, pos.y - (top + gateZone.h * TILE_SIZE));
+  return Math.hypot(dx, dy) <= range;
+}
+
+/** 石段の近くの案内。台の案内（近い台があるとき）が優先で、石段は台から離れているので同じ枠を使う */
+function drawGatePrompt(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
+  if (view.near !== null) return;
+  if (!nearGate(state.player.body.pos, view.town.layout.gateZone)) return;
+  drawTextShadow(ctx, GATE_PROMPT_TEXT, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, NEAR_COLOR, SHADOW, "center");
+}
+
+/** 未建設の設備の手がかりを出す、台からの距離（論理 px。台を開ける距離の 2 倍。空き地の手前に立てば読める） */
+const UNBUILT_HINT_RANGE = HUB.interactRadius * 2;
+
+/** 一番近い未建設の台（UNBUILT_HINT_RANGE 以内）。無ければ null */
+export function nearUnbuiltSpot(pos: Vec, view: Pick<HubSpotsView, "spots" | "available">, range: number = UNBUILT_HINT_RANGE): HubSpotKey | null {
+  let best: HubSpotKey | null = null;
+  let bestD = range;
+  for (const [spot, at] of Object.entries(view.spots) as [HubSpotKey, Vec][]) {
+    if (view.available.has(spot)) continue;
+    const d = Math.hypot(at.x - pos.x, at.y - pos.y);
+    if (d > bestD) continue;
+    best = spot;
+    bestD = d;
+  }
+  return best;
+}
+
+/** 未建設の空き地の前で、解放の手がかりを 1 行（「書庫（建設予定）: スキル石を手にすると建つ」） */
+function drawUnbuiltHint(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
+  if (view.near !== null) return;
+  const spot = nearUnbuiltSpot(state.player.body.pos, view);
+  if (spot === null) return;
+  const facility = FACILITY_OF_SPOT[spot];
+  const text = truncateText(`${FACILITY_NAME[facility]}（建設予定）: ${FACILITY_HINT[facility]}`, VIEW_W - MARGIN * 2, TEXT.BODY);
+  drawTextShadow(ctx, text, VIEW_W / 2, VIEW_H - PROMPT_BOTTOM, TEXT.BODY, COLOR_DIM, SHADOW, "center");
 }
 
 function drawPrompt(ctx: CanvasRenderingContext2D, view: HubView): void {
@@ -170,23 +173,14 @@ function drawBanner(ctx: CanvasRenderingContext2D, view: HubView): void {
   drawText(ctx, text, VIEW_W / 2, rect.y + rect.h / 2, m, COLOR_SELECTED, "center", "middle");
 }
 
-/** 飾りは右上に小さく並べる（拠点ではミニマップを出さないので空いている） */
-function drawDecor(ctx: CanvasRenderingContext2D, view: HubView): void {
-  const m = TEXT.SMALL;
-  const step = lineH(m);
-  const x = VIEW_W - MARGIN;
-  view.decor.slice(0, DECOR_MAX_LINES).forEach((d, i) => {
-    drawTextShadow(ctx, truncateText(d.label, DECOR_W, m), x, DECOR_TOP + step * i, m, COLOR_DIM, SHADOW, "right");
-  });
-}
-
 export function drawHubOverlay(ctx: CanvasRenderingContext2D, state: GameState, view: HubView): void {
   // 装備画面などを開いている間（paused）は、上に重なる画面の邪魔をしないよう出さない
   if (state.paused) return;
-  drawDecor(ctx, view);
   drawTrialKeystone(ctx, view);
   drawBanner(ctx, view);
   drawPrompt(ctx, view);
+  drawGatePrompt(ctx, state, view);
+  drawUnbuiltHint(ctx, state, view);
   drawRackStatus(ctx, view);
   drawDepartGauge(ctx, view);
 }

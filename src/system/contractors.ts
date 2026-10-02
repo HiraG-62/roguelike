@@ -178,7 +178,7 @@ const BURST_LIFE = 0.5;
 
 function sayAt(state: GameState, text: string, color: string): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------
@@ -435,7 +435,7 @@ function greet(state: GameState, who: Contractor): void {
   if (Math.hypot(p.x - who.pos.x, p.y - who.pos.y) > CONTRACT.greetRange) return;
   who.greeted = true;
   const def = CONTRACTORS[who.key];
-  addFloatingText(state, { x: who.pos.x, y: who.pos.y - TEXT_LIFT }, def.line, def.color, 1, TEXT_LIFE * 2);
+  addFloatingText(state, { x: who.pos.x, y: who.pos.y - TEXT_LIFT }, def.line, def.color, 1, TEXT_LIFE * 2, "notice");
   pushLog(state, `${def.name}「${def.line}」`, def.color);
 }
 

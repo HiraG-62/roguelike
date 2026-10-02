@@ -29,6 +29,7 @@
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（1 時間超。裏で回す）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run qa:probe` | `SIM_PROBE=1` で 1 対 1 / 集団の連打計測（約 1 分）。基準値の `src/qa/probe.md` を上書き。`-- --no-write` で書き出さない。`-- --weapons`（武器種 × 敵）/ `-- --bosses`（章ボス 4 と最深の主）/ `-- --deep`（深みの曲線・到達・壊れの重さ）でその節だけ測って差し替え |
 | `npm run map:shot` | 地図の見た目の確認用 PNG（`tools/map-shot.html` を Chromium で撮る。既定 14 場面）。`-- --only <名前>` / `-- --bench`（描画の ms）/ `-- --out <dir>` |
+| `npm run hitch:probe` | 一瞬の固まりの計測（bot が 60 秒遊び、重いフレームと原因の候補を出す）。`-- --seed / --depth / --frames / --threshold / --methods / --headed` |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
 | `npm run sync:claude` | ローカルの `~/.claude` を `.claude/global/` へ写す。`-- --check` で差分だけ確認 |
 | `node scripts/bump.mjs <patch / minor / major>` | バージョンを上げてコミットとタグを作る（`/bump`） |
@@ -115,6 +116,7 @@ CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/agents/`・`.claude/
 - 版は `scripts/bump.mjs`（`/bump`）で上げる。手で書き換えない。**メジャーはユーザーの指示があるときだけ**。α 期間は「0.0.xxα」で minor 相当でもパッチを上げる。判断基準は `/bump` の表
 - 変更内容はコミットのたびに統合役が `CHANGELOG.md` の `[Unreleased]` へ日本語で追記する（並列の Agent は触らない）
 - コミットは `<type>: <日本語の概要>`（feat / fix / refactor / docs / style / test / chore）。1 コミット = 1 論理変更。ユーザーの指示があるまでコミットしない
+- **改修はブランチを切って進め、master に直接コミットしない**。`npm run check` が通ったらユーザーに承認を求め、承認後に push して master へ PR を出す（マージはユーザー）。手順は `docs/AI_WORKFLOW.md` の「ブランチと PR」
 - PR はタイトルも本文も日本語（`<type>: <概要>` + 概要 / 変更 / 確認の 3 節）。UI が英語で自動生成した PR は日本語に書き直す。レビュー返信も日本語
 
 ## ドキュメント索引

@@ -13,17 +13,18 @@ import { MILESTONES, findPendingBud } from "../loot/provenance";
 import type { AffixRoll, Item, Slot } from "../loot/types";
 import { MemoryStorage } from "../meta/testStorage";
 import { setSaveStorage } from "../save/backend";
+import { SKILL_DEFS } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { addStone, equipStone, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS } from "../skills/types";
 import { RESONANCE_EXCLUDED } from "../system/resonance";
 import { withInput } from "../system/testHelpers";
-import { CANDIDATE_PAGE, CANDIDATES_VIEW, candidateEntries, entryFocusId, sortedIds } from "./candidates";
+import { CANDIDATE_PAGE, CANDIDATES_VIEW, MINI_PART, MINI_PARTS, candidateEntries, entryFocusId, filterAvailable, nextFilter, sortedIds, subjectId, subjectKeywords } from "./candidates";
 import { createInventoryUi, updateInventoryUi } from "./inventory";
 import { candidatesFor } from "./menuActions";
 import { fid } from "./menuFocus";
 import { MENU_HOLD_SECONDS } from "./menuInput";
-import { type InventoryUi, type MenuView, type ViewOf, topView } from "./menuState";
+import { type InventoryUi, type MenuView, NO_FILTER, type ViewOf, topView } from "./menuState";
 import { isUnseen } from "./seen";
 import { tryOn, tryOnBase } from "./tryOn";
 
@@ -284,6 +285,76 @@ describe("候補の頁", () => {
     expect(candidateEntries(state, view).map(entryFocusId)[0], "芽吹きの札は無くなる").toBe(fid.cand("stash-head"));
   });
 
+  it("複数の装備に芽があるとき、2 つ目の部位の頁にも札が出て、選ぶとその遺物だけ芽吹く", () => {
+    const state = plainState();
+    const milestone = MILESTONES[0]?.key ?? "kills:50";
+    const roll = (value: number): AffixRoll => ({ key: "armorFlat", value, nominal: value, flux: 0, color: "gold", origin: "found" });
+    state.profile.equipment.head = relic("head", "budded-head", { margin: 2, marginMax: 2, budOffer: { milestone, options: [roll(1), roll(2)] } });
+    state.profile.equipment.boots = relic("boots", "budded-boots", { margin: 2, marginMax: 2, budOffer: { milestone, options: [roll(5), roll(6)] } });
+    state.pendingBud = findPendingBud(state.profile);
+    expect(state.pendingBud?.slot, "pendingBud は SLOTS 順で先頭の 1 つだけ").not.toBe("boots");
+
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "boots"));
+    const view = topCandidates(ui);
+    expect(candidateEntries(state, view).map(entryFocusId).slice(0, 2), "pendingBud でない部位にも芽吹きの札").toEqual([fid.bud(0), fid.bud(1)]);
+    expect(CANDIDATES_VIEW.sheetFor(state, { ...view, focus: fid.bud(0) })?.kind, "芽の札の書付は開いた部位の遺物").toBe("item");
+
+    view.focus = fid.bud(1);
+    frame(state, ui, { confirmPressed: true });
+    const boots = state.profile.equipment.boots;
+    expect(boots?.affixes.some((a) => a.origin === "bud" && a.value === 6), "選んだ方が靴の遺物に付いた").toBe(true);
+    expect(boots?.budOffer ?? null, "靴の提示は消える").toBeNull();
+    const head = state.profile.equipment.head;
+    expect(head?.budOffer ?? null, "頭の芽は残る").not.toBeNull();
+    expect(head?.affixes.some((a) => a.origin === "bud"), "頭には付かない").toBe(false);
+    expect(state.pendingBud?.slot, "残った芽が pendingBud になる").toBe("head");
+  });
+
+  it("候補の頁の左の部位のマスをクリックすると、その部位の候補の頁に替わる（通過では焦点を奪わない）", () => {
+    const state = plainState();
+    state.profile.stash = [relic("head", "n1", { foundAt: 500 }), relic("boots", "b1", { foundAt: 10 })];
+    const fresh = state.profile.stash.find((it) => it.id === "n1");
+    if (fresh === undefined) throw new Error("遺物が無い");
+    expect(isUnseen(fresh, state.profile.meta), "最初は新着").toBe(true);
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    view.focus = fid.cand("n1");
+    const boots = MINI_PARTS.boots;
+    const aim = { x: boots.x + MINI_PART / 2, y: boots.y + MINI_PART / 2 };
+
+    frame(state, ui, { aimScreen: { x: 300, y: 200 } });
+    frame(state, ui, { aimScreen: aim });
+    expect(view.focus, "マウスが部位の上を通るだけでは焦点は札のまま").toBe(fid.cand("n1"));
+    expect(topCandidates(ui), "頁も替わらない").toBe(view);
+
+    frame(state, ui, { aimScreen: aim, clickPressed: true });
+    const next = topCandidates(ui);
+    expect(next.target, "靴の候補の頁").toEqual({ kind: "slot", slot: "boots" });
+    expect(ui.stack.map((v) => v.kind), "積み重ねは装束 → 候補のまま").toEqual(["attire", "candidates"]);
+    expect(ui.stack[0]?.focus, "装束の頁の焦点も靴").toBe(fid.part("boots"));
+    expect(isUnseen(fresh, state.profile.meta), "外れた頭の頁の新着は見たことになる").toBe(false);
+    const hitIds = CANDIDATES_VIEW.layout(state, ui, next).map((h) => h.id);
+    expect(hitIds, "今の部位のマスは当たりに出ない").not.toContain(fid.part("boots"));
+    expect(hitIds, "元の部位のマスが当たりに出る").toContain(fid.part("head"));
+  });
+
+  it("候補の頁で ← を押すと札から左の部位へ移れて、決定でその部位の候補の頁に替わる", () => {
+    const state = plainState();
+    for (let i = 0; i < 5; i++) state.profile.stash.push(relic("head", `h${i}`, { foundAt: 10 + i }));
+    state.profile.stash.push(relic("armor", "a1"));
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    view.focus = candidateEntries(state, view).map(entryFocusId)[3] ?? null;
+    frame(state, ui, { move: { x: -1, y: 0 } });
+    expect(view.focus?.startsWith("part:"), "札から部位のマスへ移った").toBe(true);
+    const slot = view.focus?.slice("part:".length);
+
+    frame(state, ui, { move: { x: 0, y: 0 } });
+    frame(state, ui, { confirmPressed: true });
+    expect(topCandidates(ui).target, "決定で、その部位の候補の頁").toEqual({ kind: "slot", slot });
+    expect(ui.stack[0]?.focus, "装束の頁の焦点も合う").toBe(fid.part(slot as Slot));
+  });
+
   it("候補の頁を離れるとその部位の新着が消える", () => {
     const state = plainState();
     state.profile.stash = [relic("head", "n1", { foundAt: 500 }), relic("ring", "n2", { foundAt: 600 })];
@@ -336,5 +407,115 @@ describe("候補の並びの計算", () => {
     const ms = performance.now() - t0;
     expect(order, "400 件が並ぶ").toHaveLength(400);
     expect(ms, `400 件の合の並び ${ms.toFixed(1)}ms`).toBeLessThan(PERF_LIMIT_MS);
+  });
+});
+
+/** 石 4 つを装着し、倉庫に石 6 つ（資源の型・系統がばらつく）を置いた state */
+function stoneState(): GameState {
+  const state = plainState();
+  const profile = state.skills.profile;
+  profile.stones = [];
+  profile.loadout = [null, null, null, null];
+  SKILL_KEYS.slice(0, 10).forEach((skillKey, i) => addStone(profile, stoneFromSeed(50 + i, { skillKey, foundDepth: 1, now: i })));
+  profile.stones.slice(0, 4).forEach((s, i) => equipStone(profile, s.id, i));
+  return state;
+}
+
+describe("候補の頁: 絞り込み", () => {
+  it("系統の札を決定するたびに次の語へ送り、その語に関わる石だけが並ぶ", () => {
+    const state = stoneState();
+    const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null });
+    const view = topCandidates(ui);
+    const all = ids(ui, state).filter((id) => id.startsWith("c:")).length;
+    expect(CANDIDATES_VIEW.layout(state, ui, view).map((h) => h.id), "札がある").toContain(fid.filter("keyword"));
+
+    view.focus = fid.filter("keyword");
+    frame(state, ui, { confirmPressed: true });
+    const keyword = view.filter?.keyword ?? null;
+    expect(keyword, "最初の語に絞られる").not.toBeNull();
+    const shown = candidateEntries(state, view).filter((e) => e.kind === "subject");
+    expect(shown.length, "絞ると減る（または同じ）").toBeLessThanOrEqual(all);
+    expect(shown.every((e) => e.kind === "subject" && subjectKeywords(e.subject).includes(keyword as Keyword)), "その語に関わる石だけ").toBe(true);
+    expect(view.focus, "焦点は札に残る").toBe(fid.filter("keyword"));
+    expect(view.offset, "頁の先頭へ").toBe(0);
+  });
+
+  it("型の札は気力型 → 再使用型 → 絞らない の順に送る", () => {
+    const state = stoneState();
+    const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null });
+    const view = topCandidates(ui);
+    view.focus = fid.filter("resource");
+    frame(state, ui, { confirmPressed: true });
+    expect(view.filter?.resource, "気力型").toBe("mana");
+    expect(candidateEntries(state, view).filter((e) => e.kind === "subject").every((e) => e.kind === "subject" && e.subject.kind === "stone" && SKILL_DEFS[e.subject.stone.skillKey].resource === "mana"), "気力型の石だけ").toBe(true);
+    frame(state, ui, {});
+    frame(state, ui, { confirmPressed: true });
+    expect(view.filter?.resource, "再使用型").toBe("cooldown");
+    frame(state, ui, {});
+    frame(state, ui, { confirmPressed: true });
+    expect(view.filter?.resource, "一巡して絞らない").toBeNull();
+  });
+
+  it("遺物の候補には型の札が出ない（系統だけ）。系統の候補には絞り込みの札が出ない", () => {
+    const state = plainState();
+    expect(filterAvailable({ kind: "slot", slot: "head" }, "keyword")).toBe(true);
+    expect(filterAvailable({ kind: "slot", slot: "head" }, "resource")).toBe(false);
+    expect(filterAvailable({ kind: "stone", index: 0 }, "resource")).toBe(true);
+    expect(filterAvailable({ kind: "flow", keyword: "burn", verb: "produces" }, "keyword")).toBe(false);
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const hitIds = CANDIDATES_VIEW.layout(state, ui, topCandidates(ui)).map((h) => h.id);
+    expect(hitIds).toContain(fid.filter("keyword"));
+    expect(hitIds).not.toContain(fid.filter("resource"));
+  });
+
+  it("絞り込みの結果が空でも札は残り、送り直せる", () => {
+    const state = stoneState();
+    const view: ViewOf<"candidates"> = { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null, filter: { keyword: "elLight", resource: null } };
+    const ui = openCandidates(state, view);
+    expect(candidateEntries(state, view).filter((e) => e.kind === "subject"), "光属性の石は無い").toHaveLength(0);
+    expect(CANDIDATES_VIEW.layout(state, ui, view).map((h) => h.id), "札は残る").toContain(fid.filter("keyword"));
+    const next = nextFilter(state, view.target, view.filter ?? NO_FILTER, "keyword");
+    expect(next.keyword, "手元の語に無い値からは先頭の「絞らない」へ").toBeNull();
+  });
+});
+
+describe("候補の頁: 腰の石の切り替え", () => {
+  it("石の候補の左下の石を決定すると、そのスキル枠の候補へ替わり、絞り込みを引き継ぐ", () => {
+    const state = stoneState();
+    const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null, filter: { keyword: null, resource: "mana" } });
+    const view = topCandidates(ui);
+    const hits = CANDIDATES_VIEW.layout(state, ui, view).map((h) => h.id);
+    expect(hits, "ほかの 3 枠の石に当たり").toEqual(expect.arrayContaining([fid.gem(1), fid.gem(2), fid.gem(3)]));
+    expect(hits, "今の枠の石には当たりが無い").not.toContain(fid.gem(0));
+
+    view.focus = fid.gem(2);
+    frame(state, ui, { confirmPressed: true });
+    const next = topCandidates(ui);
+    expect(next.target, "スキル 3 の候補").toEqual({ kind: "stone", index: 2 });
+    expect(next.filter, "絞り込みを引き継ぐ").toEqual({ keyword: null, resource: "mana" });
+    expect(ui.stack.map((v) => v.kind), "装束 → スキル → 候補の積み重ねのまま").toEqual(["attire", "skills", "candidates"]);
+    expect(ui.stack[1]?.focus, "スキルの頁の焦点も新しい石").toBe(fid.stone(2));
+    const worn = stoneInSlot(state.skills.profile, 2);
+    expect(candidateEntries(state, next).some((e) => e.kind === "subject" && subjectId(e.subject) === worn?.id), "付けている石は並ばない").toBe(false);
+  });
+
+  it("左下の石は方向キーで移れる（部位のマスと同じ）", () => {
+    const state = stoneState();
+    const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null });
+    const view = topCandidates(ui);
+    const gems = CANDIDATES_VIEW.layout(state, ui, view).filter((h) => h.id.startsWith("gem:"));
+    expect(gems.every((h) => h.nav && h.hover === false), "方向で止まり、通るだけでは焦点を奪わない").toBe(true);
+  });
+});
+
+describe("候補の頁: 並びの札の荷札", () => {
+  it("絞り込み・並びの札に焦点があると、何をする札かを荷札で言う", () => {
+    const state = stoneState();
+    const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null });
+    const view = topCandidates(ui);
+    const hit = (id: string) => CANDIDATES_VIEW.layout(state, ui, view).find((h) => h.id === id) ?? null;
+    expect(CANDIDATES_VIEW.tag(state, ui, view, hit(fid.filter("keyword"))).title).toContain("系統で絞る");
+    expect(CANDIDATES_VIEW.tag(state, ui, view, hit(fid.filter("resource"))).title).toContain("型で絞る");
+    expect(CANDIDATES_VIEW.tag(state, ui, view, hit(fid.sort("new"))).title).toContain("並び");
   });
 });

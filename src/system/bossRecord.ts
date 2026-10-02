@@ -10,7 +10,7 @@ import { addPoise } from "./poise";
  */
 
 /** 倒してもボスに怯み値を入れない取り巻き（卵は群れの母の crackEgg が別に入れる。地雷・置物・入れ物は戦いの相手でない） */
-const NO_MINION_POISE: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["egg", "mine", "inert", "container"]);
+const NO_MINION_POISE: ReadonlySet<EnemyBehavior> = new Set<EnemyBehavior>(["egg", "mine", "inert", "container", "crownBearer"]);
 
 /** 封鎖中の被弾を数える（combat.ts の damagePlayer が "hit" のとき） */
 export function noteBossFightHit(state: GameState): void {
@@ -24,6 +24,21 @@ export function noteBossDown(state: GameState, e: Enemy): void {
   const b = state.boss;
   if (!b || b.enemyId !== e.id) return;
   b.selfDowns = (b.selfDowns ?? 0) + 1;
+}
+
+/** 答えのダウン（出端・受け流しなどで入れたダウン）を浮き文字ごとに数える（bossKit.ts の bossDown）。ボス本人のときだけ */
+export function noteBossAnswer(state: GameState, e: Enemy, text: string): void {
+  const b = state.boss;
+  if (!b || b.enemyId !== e.id) return;
+  const answers = (b.answers ??= {});
+  answers[text] = (answers[text] ?? 0) + 1;
+}
+
+/** 段階の変わり目を、行為（答え）で進んだか失敗・保険で進んだかで記録する（bossKit.ts の advanceBossStage） */
+export function noteBossStage(state: GameState, e: Enemy, byAct: boolean): void {
+  const b = state.boss;
+  if (!b || b.enemyId !== e.id) return;
+  (b.actStages ??= []).push(byAct);
 }
 
 /**

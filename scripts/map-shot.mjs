@@ -8,26 +8,26 @@
  *   npm run map:shot -- --query "depth=9&kind=mine&seed=3&layout=court&tx=40&ty=30"   任意のクエリで 1 枚（名前は custom）
  *   npm run map:shot -- --bench [--only name] 撮らずに ?bench=1 で地図の描画と焼きの平均 ms を表示する
  *
- * playwright は PLAYWRIGHT_MODULE（パス）→ リポジトリの node_modules → `npm root -g` の順で探す。
- * Chromium は PLAYWRIGHT_BROWSERS_PATH（既定 /opt/pw-browsers）にあるものを使う（playwright install はしない）。
+ * playwright と vite の用意は browser-tools.mjs（playwright は PLAYWRIGHT_MODULE → リポジトリ → `npm root -g` の順。
+ * Chromium は PLAYWRIGHT_BROWSERS_PATH。クラウドでは /opt/pw-browsers。vite がすでに起きていれば使い回す）。
  */
-import { spawn, execSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { ensureVite, findPlaywright } from "./browser-tools.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 5199;
+/** 別の作業ツリーの vite が 5199 を使っているときは MAP_SHOT_PORT で逃がす（使い回すと別の作業ツリーの絵を撮る） */
+const PORT = Number(process.env.MAP_SHOT_PORT ?? 5199);
+/** headless でも GPU で描かせる起動オプション（Windows。scripts/hitch-probe.mjs と同じ） */
+const GPU_ARGS = process.platform === "win32" ? ["--enable-gpu", "--use-angle=d3d11", "--ignore-gpu-blocklist"] : [];
 const BASE = `http://localhost:${PORT}`;
 const VIEWPORT = { width: 1920, height: 1080 };
 const READY_TIMEOUT_MS = 120_000;
-const SERVER_TIMEOUT_MS = 60_000;
 
 /** 既定で撮る一覧（5-2 節の 12 枚 + river + court） */
 const SHOTS = [
-  ["hub", "kind=hub"],
+  ["hub-new", "kind=hub&scene=new"],
+  ["hub-full", "kind=hub&scene=full"],
   ["d3-cave", "depth=3&kind=cave"],
   ["d4-swamp", "depth=4&kind=swamp"],
   ["d5-boss", "depth=5"],
@@ -41,6 +41,16 @@ const SHOTS = [
   ["d23", "depth=23"],
   ["river", "depth=3&kind=cave&layout=river"],
   ["court", "depth=7&kind=rooms&layout=court"],
+  // 予告の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）: 乱戦 30 体 / 7 形の並べ撮り / 明るい章様式 / 暗闇の階
+  ["tele-crowd", "depth=3&kind=cave&scene=tele&tele=crowd"],
+  ["tele-shapes", "depth=3&kind=cave&scene=tele&tele=shapes"],
+  // 筆致の確認: 7 形 + 着地・爆弾を 1 つずつ離して置く（黄 = 上、赤 = 下）
+  ["tele-solo", "depth=3&kind=cave&scene=tele&tele=solo"],
+  // 陣図の書きかけ（下絵 → 墨入れ）とスライム王の跳躍の滞空（王が浮き、影の縁と冠スライムの冠）
+  ["tele-jinzu", "depth=4&kind=cave&scene=tele&tele=jinzu"],
+  ["tele-slime", "depth=5&scene=tele&tele=slime"],
+  ["tele-bright", "depth=13&kind=glacier&scene=tele&tele=crowd"],
+  ["tele-dark", "depth=18&kind=dark&scene=tele&tele=crowd"],
 ];
 
 function parseArgs(argv) {
@@ -57,42 +67,6 @@ function parseArgs(argv) {
     }
   }
   return opts;
-}
-
-function findPlaywright() {
-  const candidates = [];
-  if (process.env.PLAYWRIGHT_MODULE) candidates.push(process.env.PLAYWRIGHT_MODULE);
-  candidates.push(path.join(ROOT, "node_modules", "playwright"));
-  try {
-    candidates.push(path.join(execSync("npm root -g", { encoding: "utf8" }).trim(), "playwright"));
-  } catch {
-    // npm が無ければ次の候補へ
-  }
-  const found = candidates.find((c) => existsSync(c));
-  if (!found) throw new Error(`playwright が見つからない。探した場所: ${candidates.join(", ")}`);
-  return createRequire(path.join(found, "package.json"))(found);
-}
-
-async function waitForServer(url, child) {
-  const started = Date.now();
-  while (Date.now() - started < SERVER_TIMEOUT_MS) {
-    if (child.exitCode !== null) throw new Error(`vite が終了した（exit ${child.exitCode}）`);
-    try {
-      const res = await fetch(url);
-      if (res.ok) return;
-    } catch {
-      // まだ起きていない
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  throw new Error("vite が時間内に起動しなかった");
-}
-
-function startVite() {
-  const entry = path.join(ROOT, "node_modules", "vite", "bin", "vite.js");
-  const child = spawn(process.execPath, [entry, "--port", String(PORT), "--strictPort"], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
-  child.stderr.on("data", (d) => process.stderr.write(`[vite] ${d}`));
-  return child;
 }
 
 function pickShots(opts) {
@@ -115,17 +89,16 @@ async function openShot(page, query, bench) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/opt/pw-browsers";
   const { chromium } = findPlaywright();
   const shots = pickShots(opts);
   if (!opts.bench) mkdirSync(opts.out, { recursive: true });
 
-  const vite = startVite();
+  const vite = await ensureVite(PORT, `${BASE}/tools/map-shot.html`);
   let browser = null;
   let failed = false;
   try {
-    await waitForServer(`${BASE}/tools/map-shot.html`, vite);
-    browser = await chromium.launch({ args: ["--no-sandbox"] });
+    // 描画の ms は実機に近い GPU で測る（既定の headless は SwiftShader の CPU 描画になる。hitch-probe.mjs と同じ）
+    browser = await chromium.launch({ args: ["--no-sandbox", ...GPU_ARGS] });
     for (const [name, query] of shots) {
       // 1 枚ごとに新しいページ（同じページで読み直すとブラウザの資源が尽きることがある）
       const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
@@ -151,7 +124,7 @@ async function main() {
     }
   } finally {
     if (browser) await browser.close();
-    vite.kill();
+    vite.stop();
   }
   if (failed) process.exit(1);
 }

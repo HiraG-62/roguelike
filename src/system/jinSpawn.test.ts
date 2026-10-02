@@ -7,11 +7,12 @@ import { depthHpScale, enemyDef } from "../data/enemies";
 import { ROLE_ELITE_EXCLUDE, gradeOf, roleOf } from "../data/enemyRoles";
 import type { FormationSlot } from "../data/formations";
 import { ELITE, JIN } from "../data/tuning";
-import { TILE_SIZE, Tile, rectCenterPx, toIndex } from "../map/grid";
+import { TILE_SIZE, rectCenterPx, toIndex } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { NOTICE_RANGE, createEnemy } from "./enemies";
 import { buildFloor, updateRooms, withBaseAreaMul } from "./floor";
-import { createBossJin, gradeAtDepth, jinBudget, jinCount, jinPairMidpoints, makeStrong, nearestSleepingJin, slotCount, updateJinPhases, updateLookouts } from "./jinSpawn";
+import { withFixedLayout } from "../map/layout/select";
+import { createBossJin, gradeAtDepth, jinBudget, jinCandidateRooms, jinPairMidpoints, makeStrong, nearestSleepingJin, roomBudgetMeans, slotCount, updateJinPhases, updateLookouts } from "./jinSpawn";
 import { overlapsWall } from "./physics";
 import { roomLocks } from "./roomTypes";
 import { corridorTileList } from "./spawner";
@@ -73,7 +74,7 @@ describe("スロットの人数と格", () => {
     const hi = Math.ceil(mean * (1 + JIN.budgetSpread) * Math.max(JIN.densityNearStart, JIN.densityNearEnd));
     for (let i = 0; i < 50; i++) {
       const b = jinBudget(state, i % state.rooms.length);
-      expect(b).toBeGreaterThanOrEqual(Math.max(1, lo));
+      expect(b).toBeGreaterThanOrEqual(Math.max(JIN.minRoomBudget, lo));
       expect(b).toBeLessThanOrEqual(hi);
     }
   });
@@ -104,29 +105,33 @@ describe("陣の配り（planJins）", () => {
     }
   });
 
-  it("陣の数の目安は床タイル数 / tilesPerJin。旧生成の地図だけ JIN.legacy の目安を使う", () => {
-    const state = createGame(1);
-    let floor = 0;
-    for (const t of state.map.tiles) if (t === Tile.Floor) floor++;
-    const expected = (tilesPerJin: number, maxJins: number): number => Math.min(maxJins, Math.max(JIN.minJins, Math.round(floor / tilesPerJin)));
-    state.floorLayout = "cavern";
-    expect(jinCount(state), "型の地図").toBe(expected(JIN.tilesPerJin, JIN.maxJins));
-    state.floorLayout = "legacy";
-    expect(jinCount(state), "旧生成の地図").toBe(expected(JIN.legacy.tilesPerJin, JIN.legacy.maxJins));
-    expect(JIN.legacy.maxJins, "前提: 旧生成は部屋が少ないので上限が広い").toBeGreaterThan(JIN.maxJins);
+  it("開始・ボス以外の封鎖しない通常の塊には、すべて陣がある（空の部屋を作らない）", () => {
+    for (const layout of ["cavern", "river", "prefab", "legacy"] as const) {
+      for (let seed = 0; seed < SEEDS; seed++) {
+        const state = withFixedLayout(layout, () => createGame(seed));
+        const bossRoom = state.boss?.roomIndex;
+        const withJin = new Set(roomJins(state).map((j) => j.roomIndex));
+        state.rooms.forEach((room, i) => {
+          if (i === START_ROOM || i === bossRoom || room.kind !== "normal" || roomLocks(state, i)) return;
+          expect(withJin.has(i), `${layout} seed=${seed} 塊 ${i}`).toBe(true);
+        });
+      }
+    }
   });
 
-  it("陣の中心どうし（と開始の塊）は minSpacing 以上離れる", () => {
-    for (let seed = 0; seed < SEEDS; seed++) {
-      const state = createGame(seed);
-      const centers = [rectCenterPx(state.rooms[START_ROOM]!.rect), ...roomJins(state).map((j) => j.center)];
-      for (let a = 0; a < centers.length; a++) {
-        for (let b = a + 1; b < centers.length; b++) {
-          expect(dist(centers[a]!, centers[b]!), `seed=${seed}`).toBeGreaterThanOrEqual(JIN.minSpacing);
-        }
-      }
-      expect(roomJins(state).length, `seed=${seed} 上限`).toBeLessThanOrEqual(JIN.maxJins);
-    }
+  it("塊ごとの予算の平均は、平均の予算を広さ ^ roomAreaExp で寄せたもの（候補を均すと平均の予算）", () => {
+    const state = withFixedLayout("cavern", () => createGame(2));
+    const rooms = jinCandidateRooms(state, new Set([START_ROOM]));
+    const means = roomBudgetMeans(state, rooms);
+    const mean = JIN.budgetBase + state.depth * JIN.budgetPerDepth;
+    expect(means.reduce((a, b) => a + b, 0) / means.length).toBeCloseTo(mean, 6);
+    const tilesOf = (i: number): number => {
+      const r = state.rooms[i]!;
+      return r.tiles ? r.tiles.size : r.rect.w * r.rect.h;
+    };
+    // 広い塊ほど平均が大きい
+    const order = rooms.map((r, k) => ({ tiles: tilesOf(r), mean: means[k]! })).sort((a, b) => a.tiles - b.tiles);
+    for (let k = 1; k < order.length; k++) expect(order[k]!.mean).toBeGreaterThanOrEqual(order[k - 1]!.mean);
   });
 
   it("通常の塊の敵はすべて陣に属する（ボスの塊を除く）", () => {

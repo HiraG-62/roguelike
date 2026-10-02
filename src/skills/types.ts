@@ -420,7 +420,7 @@ export interface SkillSlotState {
   modifiers: ModifierKey[];
   /**
    * ラン内だけの刻印符（拾った符・起点「詠み手」・図書館など。セーブしない）。石ではなくスロットに属する（古い順）。
-   * 付け外しは system/skills.ts の attachRune / moveRunModifier / removeRunModifier
+   * 付け外しは system/skills.ts の attachFromHand / moveRunModifier / detachToHand（外した符は SkillRunState.hand へ戻る）
    */
   runModifiers: ModifierKey[];
   cooldownLeft: number;
@@ -697,6 +697,11 @@ export interface SkillRunState {
   /** 泥沼の領域。後から足した設置物なので省略可（最初に置いたときに作る。system/skills.ts の初期化に手を入れない） */
   mires?: MireZone[];
   runes: RuneTablet[];
+  /**
+   * 手持ちの刻印符（拾った符・起点「詠み手」の符。まだどのスキルにも付いていない。拾った順。上限なし。ラン内だけでセーブしない）。
+   * スキルへ付けるのも外す（= ここへ戻る）のも自分の操作で、リプレイは ReplayLoadout.handRunes に写す
+   */
+  hand: ModifierKey[];
   floorStones: FloorStone[];
   frenzy: TimedMul;
   lifesteal: TimedMul;

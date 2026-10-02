@@ -174,6 +174,67 @@ describe("訓練場と台", () => {
   });
 });
 
+describe("石段（出撃の口）", () => {
+  function standOnGate(session: HubSession): void {
+    const zone = session.hub.layout.gateZone;
+    session.state.player.body.pos = { x: (zone.x + zone.w / 2) * TILE_SIZE, y: (zone.y + zone.h / 2) * TILE_SIZE };
+  }
+
+  function standOutsideGate(session: HubSession): void {
+    session.state.player.body.pos = { ...session.hub.layout.playerStart };
+  }
+
+  it("開始位置は石段の外で、何もしなければ出撃しない", () => {
+    const session = hub();
+    expect(session.hub.gateArmed, "最初から出撃できる状態").toBe(true);
+    for (let i = 0; i < 30; i++) expect(stepHub(session, withInput({}), FIXED_DT).kind, "石段の外では出ない").toBe("none");
+    expect(session.hub.nearGate, "開始位置は門の近くではない").toBe(false);
+  });
+
+  it("石段に踏み込むと 1 回だけ depart を返し、入ったままでは再発火しない", () => {
+    const session = hub();
+    standOnGate(session);
+    expect(stepHub(session, withInput({}), FIXED_DT), "踏み込んだ瞬間に出撃").toEqual({ kind: "depart" });
+    expect(session.hub.gateArmed, "出撃で武装が解ける").toBe(false);
+    for (let i = 0; i < 20; i++) {
+      standOnGate(session);
+      expect(stepHub(session, withInput({}), FIXED_DT).kind, "入りっぱなしでは再発火しない").toBe("none");
+    }
+  });
+
+  it("石段の外へ出ると武装が戻り、もう一度踏み込むと再び出撃する", () => {
+    const session = hub();
+    standOnGate(session);
+    stepHub(session, withInput({}), FIXED_DT);
+    standOutsideGate(session);
+    stepHub(session, withInput({}), FIXED_DT);
+    expect(session.hub.gateArmed, "外に出たら武装").toBe(true);
+    standOnGate(session);
+    expect(stepHub(session, withInput({}), FIXED_DT).kind, "再び出撃").toBe("depart");
+  });
+
+  it("nearGate は石段を HUB.gateNearMargin タイル広げた範囲で立つ", () => {
+    const session = hub();
+    const zone = session.hub.layout.gateZone;
+    const pxAt = (tx: number, ty: number): { x: number; y: number } => ({ x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE });
+    session.state.player.body.pos = pxAt(zone.x, zone.y + zone.h - 1 + HUB.gateNearMargin);
+    stepHub(session, withInput({}), FIXED_DT);
+    expect(session.hub.nearGate, "余白の端は近い").toBe(true);
+    expect(session.hub.gateArmed, "近いだけでは出撃しない").toBe(true);
+    session.state.player.body.pos = pxAt(zone.x, zone.y + zone.h + HUB.gateNearMargin);
+    stepHub(session, withInput({}), FIXED_DT);
+    expect(session.hub.nearGate, "余白の外は近くない").toBe(false);
+  });
+
+  it("決定の長押しの出撃は石段の外でも残る", () => {
+    const session = hub();
+    const frames = Math.ceil(HUB.departHold / FIXED_DT) + 2;
+    const kinds: string[] = [];
+    for (let i = 0; i < frames; i++) kinds.push(stepHub(session, withInput({}), FIXED_DT, true).kind);
+    expect(kinds, "長押しで出撃").toContain("depart");
+  });
+});
+
 describe("祭壇の試し打ち", () => {
   it("setTrialKeystone で誓約の数値効果が stats に入り、null で外れる", () => {
     const session = hub();
@@ -315,6 +376,9 @@ describe("武器掛け", () => {
     const rack = layout.spots.rack;
     const nearest = Math.min(...layout.dummySpots.map((d) => Math.hypot(d.x - rack.x, d.y - rack.y)));
     expect(nearest, "木人まで 5 タイル以内").toBeLessThanOrEqual(TILE_SIZE * 5);
+    const [shedX, shedY] = [Math.floor(rack.x / TILE_SIZE), Math.floor(rack.y / TILE_SIZE)];
+    const yard = layout.lots.yard;
+    expect(shedX >= yard.x && shedX < yard.x + yard.w && shedY >= yard.y && shedY < yard.y + yard.h, "武器掛けは稽古場の中").toBe(true);
     for (const key of HUB_SPOT_KEYS) {
       if (key === "rack") continue;
       const p = layout.spots[key];

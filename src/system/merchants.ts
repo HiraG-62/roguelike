@@ -337,7 +337,7 @@ function becomeSaved(state: GameState, body: Enemy): void {
   repriceAll(state);
   const pos = body.body.pos;
   const pct = Math.round(ECONOMY.market.peddler.discount * PERCENT);
-  addFloatingText(state, { x: pos.x, y: pos.y - TEXT_LIFT }, SAVED_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2);
+  addFloatingText(state, { x: pos.x, y: pos.y - TEXT_LIFT }, SAVED_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2, "notice");
   pushLog(state, `${SAVED_TEXT}: このランの値段は ${pct}% 引き`, ECONOMY.market.color);
 }
 
@@ -402,7 +402,7 @@ function becomeOutlaw(state: GameState, pos: Vec): void {
   if (eco.outlaw) return;
   eco.outlaw = true;
   repriceAll(state);
-  addFloatingText(state, { x: pos.x, y: pos.y - TEXT_LIFT }, OUTLAW_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2);
+  addFloatingText(state, { x: pos.x, y: pos.y - TEXT_LIFT }, OUTLAW_TEXT, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2, "notice");
   pushLog(state, `${OUTLAW_TEXT}: このランの値段は ${ECONOMY.market.outlawPriceMul} 倍`, ECONOMY.market.color);
 }
 
@@ -412,7 +412,7 @@ function greet(state: GameState, m: Merchant): void {
   if (Math.hypot(p.x - m.pos.x, p.y - m.pos.y) > ECONOMY.market.greetRange) return;
   m.greeted = true;
   const line = GREETING[m.kind];
-  addFloatingText(state, { x: m.pos.x, y: m.pos.y - TEXT_LIFT }, line, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2);
+  addFloatingText(state, { x: m.pos.x, y: m.pos.y - TEXT_LIFT }, line, ECONOMY.market.color, TEXT_SCALE, TEXT_LIFE * 2, "notice");
   pushLog(state, `${MERCHANT_LABEL[m.kind]}の商人「${line}」`, ECONOMY.market.color);
 }
 
@@ -507,5 +507,5 @@ function restock(state: GameState, m: Merchant): void {
 
 function sayAtPlayer(state: GameState, text: string, color: string = ECONOMY.market.color): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, text, color, TEXT_SCALE, TEXT_LIFE, "notice");
 }

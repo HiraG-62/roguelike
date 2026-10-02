@@ -16,6 +16,7 @@ import { addToStash, chooseUltimate, ultimateChoice } from "../loot/profile";
 import { findPendingBud } from "../loot/provenance";
 import { UNARMED_MORE, computeStats } from "../loot/stats";
 import { type Item, type Profile, type Slot } from "../loot/types";
+import { TILE_SIZE, type Rect } from "../map/grid";
 import { HUB_SPOT_KEYS, type HubLayout, type HubSpotKey, buildHubMap } from "../map/hubMap";
 import type { SkillProfile } from "../skills/types";
 import { createCodexRun } from "../meta/codex";
@@ -54,6 +55,10 @@ export interface HubRun {
   dummyIds: number[];
   /** 反応する台（拠点の成長で建った設備。src/meta/hub.ts が決める） */
   available: ReadonlySet<HubSpotKey>;
+  /** 石段（gateZone）の近く（矩形を HUB.gateNearMargin タイル広げた範囲）にいる。門の名札・案内用 */
+  nearGate: boolean;
+  /** 石段で出撃できる状態。石段に入ると出撃して false になり、石段の外へ出ると true に戻る（入りっぱなしの再発火を防ぐ） */
+  gateArmed: boolean;
 }
 
 export interface HubSession {
@@ -92,6 +97,9 @@ export function createHub(
     dummyTimers: layout.dummySpots.map(() => 0),
     dummyIds: layout.dummySpots.map((pos) => placeDummy(state, pos)),
     available,
+    nearGate: false,
+    // 開始位置は石段の外なので、最初から出撃できる
+    gateArmed: true,
   };
   return { state, hub };
 }
@@ -158,6 +166,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
+    budOfferedThisRun: [],
     runKeystones: [],
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
@@ -218,6 +227,10 @@ export function stepHub(session: HubSession, input: FrameInput, dt: number, conf
     hub.departHold = 0;
     return { kind: "open", spot: hub.near };
   }
+  if (updateGate(session)) {
+    hub.departHold = 0;
+    return { kind: "depart" };
+  }
   return updateDepartHold(hub, confirmHeld, dt);
 }
 
@@ -247,6 +260,30 @@ function decayCombo(state: GameState, dt: number): void {
   if (c.timer > 0) return;
   c.count = 0;
   c.timer = 0;
+}
+
+function tileInRect(rect: Rect, tx: number, ty: number, margin = 0): boolean {
+  return tx >= rect.x - margin && tx < rect.x + rect.w + margin && ty >= rect.y - margin && ty < rect.y + rect.h + margin;
+}
+
+/**
+ * 石段の出入りを更新し、踏み込んだ瞬間（出撃できる状態で入った時）だけ true を返す。
+ * 台を開く操作を先に返すので、石段の上で台が反応していても出撃より開くが優先される
+ */
+function updateGate(session: HubSession): boolean {
+  const { state, hub } = session;
+  const pos = state.player.body.pos;
+  const tx = Math.floor(pos.x / TILE_SIZE);
+  const ty = Math.floor(pos.y / TILE_SIZE);
+  const zone = hub.layout.gateZone;
+  hub.nearGate = tileInRect(zone, tx, ty, HUB.gateNearMargin);
+  if (!tileInRect(zone, tx, ty)) {
+    hub.gateArmed = true;
+    return false;
+  }
+  if (!hub.gateArmed) return false;
+  hub.gateArmed = false;
+  return true;
 }
 
 function updateDepartHold(hub: HubRun, confirmHeld: boolean, dt: number): HubAction {

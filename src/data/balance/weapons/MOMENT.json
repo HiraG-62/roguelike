@@ -1,5 +1,5 @@
 {
-  "_note": "全ての型が出す共通の瞬間（先制・終撃・充溢・放出・応手・双撃。docs/ideas/weapon-forms-impl.md 3-3、src/system/moments.ts）。浮き文字の文言は src/data/weaponForms.ts の MOMENT_TEXT。応手は既存の「受け流し」「見切り！」「カウンター」を残し、応手そのものの浮き文字は出さない",
+  "_note": "全ての型が出す共通の瞬間（先制・終撃・充溢・放出・応手・双撃。docs/ideas/weapon-forms-impl.md 3-3、src/system/moments.ts）。浮き文字の文言は src/data/weaponForms.ts の MOMENT_TEXT。応手は既存の「受け流し」「見切り！」「カウンター」を残し、応手そのものの浮き文字は出さない。浮き文字を出すのは充溢・装填・強装填（自分の状態）だけで、先制・放出・双撃は音とイベントのみ（色・大きさ・秒は残してあるが文字は出さない。大きさは浮き文字の種類で決まるので scale は使わない）",
   "_fields": {
     "firstStrikeIdleSec": "先制が戻るまでの交戦の外の秒。交戦の外でこれだけ待った後の最初の一撃（近接・射撃・スキル）が先制（秒）",
     "twinStrikeWindowSec": "双撃の窓。左右の違うレーンの命中がこの秒以内に続けば双撃（秒。連撃の窓 WEAPON.chainWindow に近い値）",

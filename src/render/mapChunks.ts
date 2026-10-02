@@ -130,21 +130,27 @@ export function bakeBudget(wipe: boolean, inViewUnbaked: boolean): number {
   return BAKE_ROWS_PER_FRAME * (wipe && inViewUnbaked ? BAKE_ROWS_BOOST : 1);
 }
 
-/** 画素列から canvas を作る（既定）。テストでは差し替える */
-export type ChunkImageFactory = (pixels: Uint32Array) => HTMLCanvasElement;
+/** 画素列から canvas を作る（既定）。reuse があればその canvas に書き直す。テストでは差し替える */
+export type ChunkImageFactory = (pixels: Uint32Array, reuse: HTMLCanvasElement | null) => HTMLCanvasElement;
 
-function canvasFromPixels(pixels: Uint32Array): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
+/** 写しの ImageData（1 MB）。チャンクごとに作ると捨てたものが溜まって GC を重くするので使い回す */
+let scratchImage: ImageData | null = null;
+
+function canvasFromPixels(pixels: Uint32Array, reuse: HTMLCanvasElement | null): HTMLCanvasElement {
+  const canvas = reuse ?? document.createElement("canvas");
   canvas.width = CHUNK_DOTS;
   canvas.height = CHUNK_DOTS;
   const g = canvas.getContext("2d");
   if (!g) throw new Error("2D context unavailable");
-  // ABGR の 32bit をそのまま ImageData の RGBA バイト列として写す（リトルエンディアン）
-  const image = new ImageData(CHUNK_DOTS, CHUNK_DOTS);
-  new Uint32Array(image.data.buffer).set(pixels);
-  g.putImageData(image, 0, 0);
+  // ABGR の 32bit をそのまま ImageData の RGBA バイト列として写す（リトルエンディアン）。putImageData は合成せず置き換えるので、使い回しでも前の絵は残らない
+  scratchImage ??= new ImageData(CHUNK_DOTS, CHUNK_DOTS);
+  new Uint32Array(scratchImage.data.buffer).set(pixels);
+  g.putImageData(scratchImage, 0, 0);
   return canvas;
 }
+
+/** 手放したチャンクの canvas を取っておく数の上限（床と縁で 2 枚ずつ） */
+const SPARE_MAX = CHUNK_CACHE_MAX * 2;
 
 interface Chunk {
   key: number;
@@ -192,6 +198,10 @@ export class MapChunkCache {
   private rowsThisFrame = 0;
   private plan: ChunkPlanEntry[] = [];
   private readonly lightBuf: MapLight[] = [];
+  /**
+   * 手放したチャンクの canvas（512x512）。LRU や階の切り替えで捨てては作り直すと、GC の後始末で 50ms ほど止まることがあったので使い回す
+   */
+  private readonly spare: HTMLCanvasElement[] = [];
 
   constructor(private readonly makeImage: ChunkImageFactory = canvasFromPixels) {}
 
@@ -217,8 +227,14 @@ export class MapChunkCache {
     return this.plan.some((e) => e.inView && !this.chunks.get(e.key)?.ground);
   }
 
-  /** 全部捨てる（地図かテーマが変わったとき） */
+  /** 手元に取っておいた使い回しの canvas の数（テスト用） */
+  get spareCount(): number {
+    return this.spare.length;
+  }
+
+  /** 全部捨てる（地図かテーマが変わったとき）。canvas は使い回しに回す */
   clear(): void {
+    for (const chunk of this.chunks.values()) this.release(chunk);
     this.chunks.clear();
     this.plan = [];
     this.lightBuf.length = 0;
@@ -318,6 +334,7 @@ export class MapChunkCache {
     if (!chunk) return;
     chunk.lastUsed = this.frame;
     if (chunk.sum === chunkChecksum(map, entry.cx, entry.cy)) return;
+    this.release(chunk);
     this.chunks.delete(entry.key);
     // 隠し部屋が開くなど分類が変わったら、頂点の距離と置物の除外の印も作り直す（まれな出来事）
     this.depth = buildVertexDepth(map);
@@ -382,15 +399,28 @@ export class MapChunkCache {
   }
 
   private finish(chunk: Chunk, out: BakeOutput): void {
-    chunk.ground = this.makeImage(out.ground);
-    chunk.lip = hasPixels(out.lip) ? this.makeImage(out.lip) : null;
+    chunk.ground = this.makeImage(out.ground, this.spare.pop() ?? null);
+    chunk.lip = hasPixels(out.lip) ? this.makeImage(out.lip, this.spare.pop() ?? null) : null;
     chunk.lights = out.lights;
     chunk.job = null;
   }
 
   private evict(): void {
     if (this.chunks.size <= CHUNK_CACHE_MAX) return;
-    for (const key of lruVictims([...this.chunks.values()], CHUNK_CACHE_MAX, this.frame)) this.chunks.delete(key);
+    for (const key of lruVictims([...this.chunks.values()], CHUNK_CACHE_MAX, this.frame)) {
+      const chunk = this.chunks.get(key);
+      if (chunk) this.release(chunk);
+      this.chunks.delete(key);
+    }
+  }
+
+  /** チャンクの canvas を使い回しに回す（上限を超えた分は捨てる） */
+  private release(chunk: Chunk): void {
+    for (const canvas of [chunk.ground, chunk.lip]) {
+      if (canvas && this.spare.length < SPARE_MAX) this.spare.push(canvas);
+    }
+    chunk.ground = null;
+    chunk.lip = null;
   }
 
   /** 未焼きの範囲をマスごとの平塗りで埋める（黒い穴を出さない） */

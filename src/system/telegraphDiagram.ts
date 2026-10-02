@@ -28,7 +28,7 @@ export interface TelegraphDiagram {
   shape: DiagramShape;
   /** def.windup（秒） */
   windup: number;
-  /** 予備動作の始まりから赤（コミット。怯まず必ず出る）になるまでの秒 = windup × (1 − commitRatio) */
+  /** 予備動作の始まりから墨入れ（コミット。怯まず必ず出る）になるまでの秒 = windup × (1 − commitRatio) */
   commitFrom: number;
   /** def.strikeTime（秒） */
   strike: number;

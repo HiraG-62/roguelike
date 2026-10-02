@@ -142,7 +142,6 @@ describe("PLAYER / ACTION（プレイヤーの移動・ダッシュ・生命・�
 
   it("ACTION は combat の数値と actionText.ts の文言を合流する", () => {
     expect(ACTION.counter.damageMul).toBe(combatJson.ACTION.counter.damageMul);
-    expect(ACTION.counter.text).toBe(ACTION_TEXT.counter);
     expect(ACTION.lastKill.text).toBe(ACTION_TEXT.lastKill);
     expect(ACTION.dashAttack).toBe(BALANCE.weapons.ACTION_DASH_ATTACK);
   });

@@ -156,7 +156,7 @@ export function strikeBell(state: GameState, e: Enemy): void {
   const b = ENEMY_AI.bellImp;
   const count = rallyAround(state, e, "hastened", b.radius, b.rallyTime);
   spawnRing(state, e.body.pos, b.radius, b.color, 0.4);
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, `攻撃加速 ${count} 体`, b.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, `攻撃加速 ${count} 体`, b.color, TEXT_SCALE, TEXT_LIFE, "status");
   pushSfx(state, "enemyWindup");
 }
 
@@ -401,7 +401,7 @@ function copyLastSkill(state: GameState, e: Enemy): void {
   if (move === ai.move && ai.stage === PACK_DONE) return;
   ai.move = move;
   ai.stage = PACK_DONE;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, "模倣", ENEMY_AI.scribeImp.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, "模倣", ENEMY_AI.scribeImp.color, TEXT_SCALE, TEXT_LIFE, "status");
 }
 
 export function telegraphScribe(state: GameState, e: Enemy): void {
@@ -718,7 +718,7 @@ function feed(state: GameState, e: Enemy, def: EnemyDef): void {
   const f = ENEMY_AI.flameEater;
   e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * f.heal));
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, "捕食", f.color, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, e.body.pos, "捕食", f.color, TEXT_SCALE, TEXT_LIFE, "status");
   spawnBurst(state, e.body.pos, f.color, 10, 70, 0.3, 1.5);
   if (ai.counter >= f.maxGrowth) return;
   if (growBody(state, e, def.radius + (ai.counter + 1) * f.radiusPerGrowth)) ai.counter += 1;
@@ -768,7 +768,7 @@ function watchAnvil(state: GameState, e: Enemy): void {
   if (fixturesOf(state, e, "anvil").length > 0) return;
   const f = ENEMY_AI.forgeMaster;
   ai.move = FORGE_ENRAGED;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, "金床破壊", f.color, 1.3, 1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, "金床破壊", f.color, 1.3, 1, "status");
   pushSfx(state, "guardBreak");
   applyStagger(state, e, f.anvilBreakStagger, { selfInflicted: true });
 }
@@ -802,7 +802,7 @@ function tickTurretMaster(state: GameState, e: Enemy): void {
   if (alive >= ai.counter) return;
   ai.counter = alive;
   applyStagger(state, e, ENEMY_AI.turretMaster.turretBreakStagger, { selfInflicted: true });
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, `砲台 残り ${alive}`, ENEMY_AI.turretMaster.color, 1.1, 0.9);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 14 }, `砲台 残り ${alive}`, ENEMY_AI.turretMaster.color, 1.1, 0.9, "status");
 }
 
 /** 部屋の四隅（内側 1.5 マス）。壁に掛かれば砲台長の近くの空きへ */

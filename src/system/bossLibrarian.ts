@@ -96,7 +96,7 @@ function checkDroppedBook(state: GameState, e: Enemy): boolean {
   if (!interrupted) return false;
   ai.timer = NOT_READING;
   e.phase = "chase";
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, DROP_TEXT, BOSS.librarian.color, 1.4, 1.1);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 16 }, DROP_TEXT, BOSS.librarian.color, 1.4, 1.1, "status");
   spawnBurst(state, e.body.pos, "#e0d8c0", 16, 100, 0.4, 2);
   pushSfx(state, "guardBreak");
   applyStagger(state, e, BOSS.librarian.readDropStagger, { selfInflicted: true });

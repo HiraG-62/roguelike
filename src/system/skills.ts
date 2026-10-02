@@ -4,6 +4,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
+import { BLOOD_COLOR } from "../data/signs";
 import { BOON_LINEAGE, ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
@@ -84,7 +85,7 @@ import { applyBoonsToStats, boonGrantedModifiers, boonManaCostMul, hasBoon, onBo
 import { refreshResonance, resonanceStatsDiffer } from "./resonance";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, gainEnergy, healSustained, registerComboHit } from "./combat";
-import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { addFloatingText, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -106,13 +107,10 @@ import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } fro
  */
 
 const COLOR_NOT_READY = "#808080";
-const COLOR_BLOOD = "#ff4040";
+const COLOR_BLOOD = BLOOD_COLOR;
 const TEXT_SCALE = 0.9;
 const TEXT_LIFE = 0.4;
-const LABEL_SCALE = 1;
-const LABEL_LIFE = 1.4;
 const RING_LIFE = 0.15;
-const PARRY_TEXT_SCALE = 1.5;
 const PARRY_TEXT_LIFE = 0.7;
 /** パリィ成功直後、同じ攻撃の続きで被弾しないための無敵 */
 const PARRY_AFTER_INVULN = 0.2;
@@ -189,6 +187,7 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     mines: [],
     fields: [],
     runes: [],
+    hand: [],
     floorStones: [],
     frenzy: { time: 0, mul: 1 },
     lifesteal: { time: 0, mul: 0 },
@@ -971,7 +970,7 @@ function castBlock(state: GameState, key: SkillKey, target: Vec, params: Readonl
 
 /** 連携の成立を知らせる（浮き文字と効果音） */
 function announceCombo(state: GameState, combo: ComboDef): void {
-  addFloatingText(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, LABEL_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, state.player.body.pos, `連携: ${combo.name}`, COLOR_COMBO, PARRY_TEXT_LIFE);
   pushSfx(state, "synergy");
   noteSkillCombo(state, combo.key);
 }
@@ -1085,7 +1084,7 @@ function heatUp(state: GameState, slot: SkillSlotState, r: ResolvedSlot): void {
   slot.intervalLeft = Math.max(slot.intervalLeft, o.lockTime);
   const p = state.player;
   p.hp = Math.max(1, p.hp - p.maxHp * o.hpFraction);
-  addFloatingText(state, p.body.pos, OVERHEAT_TEXT, COLOR_OVERHEAT, LABEL_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, OVERHEAT_TEXT, COLOR_OVERHEAT, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_OVERHEAT, SPARK_COUNT, SPARK_SPEED, SPARK_LIFE, SPARK_SIZE);
 }
 
@@ -1140,7 +1139,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.bloodPact.buffScaling);
     state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * potency };
     state.skills.lifesteal = { time, mul: b.lifesteal * potency };
-    addFloatingText(state, p.body.pos, "血の契約", COLOR_BLOOD, LABEL_SCALE, PARRY_TEXT_LIFE);
+    addHeadLabel(state, p.body.pos, "血の契約", COLOR_BLOOD, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
   },
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
@@ -1152,7 +1151,7 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     const potency = params.potencyMul * buffMul(state.stats, SKILL_DEFS.haste.buffScaling);
     state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * potency };
     state.skills.exhaustTimer = 0;
-    addFloatingText(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, LABEL_SCALE, PARRY_TEXT_LIFE);
+    addHeadLabel(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, PARRY_TEXT_LIFE);
     spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5);
   },
   chainHook: (state, slot, params, dir) => startActive(state, slot, "chainHook", params, dir, SKILL.chainHook.extendTime * params.timeMul),
@@ -1326,7 +1325,7 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_SCALE, PARRY_TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_LIFE);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "parry");
@@ -1534,8 +1533,39 @@ export function dropRune(state: GameState, pos: Vec, modifier?: ModifierKey): vo
   pushSfx(state, "lootDrop");
 }
 
+/** 刻印符を手持ちへ入れる（床の符を拾ったとき・起点「詠み手」。スキルへ付けるのは自分の操作。刻印符はラン内だけの物） */
+export function addToHand(state: GameState, modifier: ModifierKey): void {
+  state.skills.hand.push(modifier);
+}
+
+/** 手持ちの符をスキルへ付ける結果。missing = 手持ちにその符が無い / 空きの無い・付けられない理由は RuneMoveBlock */
+export type HandAttachResult = "ok" | "missing" | RuneMoveBlock;
+
 /**
- * 刻印符を装着中スキルのリンク枠へ自動で差す（床の符を拾ったとき・起点「詠み手」・図書館など。刻印符はラン内だけの物）。
+ * 手持ちの符 modifier をスロット slot へ付ける。付けられなければ動かさず理由を返す（相性表・型替え符 1 枚・リンクの空きは runeMoveBlock と同じ）。
+ * slot.modifiers への反映は次のステップの syncSlotModifiers（装備画面の操作をリプレイの装備変更イベントと同じ時点に揃える）
+ */
+export function attachFromHand(state: GameState, slot: number, modifier: ModifierKey): HandAttachResult {
+  const rs = state.skills;
+  const idx = rs.hand.indexOf(modifier);
+  const dst = rs.slots[slot];
+  if (idx < 0 || !dst) return "missing";
+  const block = runeMoveBlock(rs, slot, modifier);
+  if (block) return block;
+  rs.hand.splice(idx, 1);
+  dst.runModifiers.push(modifier);
+  return "ok";
+}
+
+/** スロットのラン内の符を外して手持ちへ戻す。無ければ false。反映は moveRunModifier と同じく次のステップ */
+export function detachToHand(state: GameState, slot: number, modifier: ModifierKey): boolean {
+  if (!removeRunModifier(state.skills, slot, modifier)) return false;
+  state.skills.hand.push(modifier);
+  return true;
+}
+
+/**
+ * 刻印符を装着中スキルのリンク枠へ自動で差す（QA の bot の autoAttachHand が使う。手持ちは触らない。押し出された古い符は消える。ゲーム本体は使わない）。
  * 優先: 同じ符を持たず空きのあるスロット → 古い符を押し出して入れる → 同じ符を最新扱いに。
  * 差したスロット番号を返す（付けられる枠が無ければ -1）
  */
@@ -1580,6 +1610,23 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   slot.runModifiers.splice(slot.runModifiers.indexOf(modifier), 1);
   slot.runModifiers.push(modifier);
   return commit(first);
+}
+
+/**
+ * 石を替えた・外したあとに、付かなくなった符（今の石に付けられない・リンクに入りきらない・同時に効かない）を手持ちへ戻す。
+ * 効かない符をスロットに残さない（手持ちの欄で見えて付け直せるように）。戻した枚数を返す。祝福の符は触らない
+ */
+export function returnInactiveRunes(state: GameState): number {
+  let returned = 0;
+  state.skills.slots.forEach((_, i) => {
+    for (const m of slotModifierView(state, i)) {
+      if (!m.run || m.active) continue;
+      if (!removeRunModifier(state.skills, i, m.key)) continue;
+      state.skills.hand.push(m.key);
+      returned++;
+    }
+  });
+  return returned;
 }
 
 /** スロットの符が使っているリンク（石に付けられない符は効かないので数えない） */
@@ -1639,7 +1686,7 @@ export function removeRunModifier(rs: SkillRunState, slot: number, modifier: Mod
   return true;
 }
 
-/** 床の刻印符を拾って、付けられるスロットへ入れる。付けられるスキルが無ければ床に残す */
+/** 床の刻印符を拾って手持ちへ入れる（付ける先は自分で選ぶ） */
 function updateRunes(state: GameState, dt: number): void {
   const rs = state.skills;
   const body = state.player.body;
@@ -1649,15 +1696,9 @@ function updateRunes(state: GameState, dt: number): void {
     if (rune.bobTime < SKILL.drop.pickupDelay) continue;
     if (!circlesOverlap(rune.pos.x, rune.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
     const def = MODIFIERS[rune.modifier];
-    const slot = attachRune(state, rune.modifier);
-    if (slot < 0) {
-      if (!rune.warned) addFloatingText(state, rune.pos, "付ける先なし", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
-      rune.warned = true;
-      continue;
-    }
+    addToHand(state, rune.modifier);
     picked.add(rune.id);
-    addFloatingText(state, rune.pos, def.name, def.color, LABEL_SCALE, LABEL_LIFE);
-    pushLog(state, `刻印符「${def.name}」をスキル ${slot + 1} に付けた。`, def.color);
+    pushLog(state, `刻印符「${def.name}」を手持ちに入れた。`, def.color);
     pushSfx(state, "runeAttach");
   }
   if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));

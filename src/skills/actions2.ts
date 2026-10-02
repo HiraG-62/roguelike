@@ -6,7 +6,7 @@ import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec"
 import { STATUS } from "../data/tuning";
 import { type Scaling, TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { TILE_SIZE } from "../map/grid";
-import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addFloatingText, shake, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "../system/effects";
 import { applyStatus, convertStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
 import { placeTerrain, terrainAt } from "../system/terrain";
 import type { CastCtx } from "./actions";
@@ -220,7 +220,7 @@ function castLevelGround(state: GameState, ctx: CastCtx): void {
   spawnLine(state, ctx.origin, end, COLOR_STONE, LINE_LIFE * 2);
   shake(state, broken > 0 ? SHAKE_HEAVY : SHAKE_LIGHT);
   pushSfx(state, "explode");
-  if (broken > 0) addFloatingText(state, end, `地均し ${broken}`, COLOR_STONE, TEXT_SCALE, TEXT_LIFE);
+  if (broken > 0) addHeadLabel(state, ctx.origin, `地均し ${broken}`, COLOR_STONE, TEXT_LIFE);
   for (const e of enemiesOnSegment(state, ctx.origin, end, l.halfWidth * ctx.params.areaMul)) {
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir: ctx.dir, knockback: l.knockback, stagger: true, from: ctx.origin });
   }
@@ -253,7 +253,7 @@ function castEmberDraw(state: GameState, ctx: CastCtx): void {
   const bonus = Math.min(m.maxBonus, m.perCell * cells);
   const power = skillPower(state, m.damage, ctx.params) * (1 + bonus);
   const radius = Math.min(m.maxRadius, m.radius + m.radiusPerCell * cells) * ctx.params.areaMul;
-  if (cells > 0) addFloatingText(state, ctx.origin, `火吸い ${cells}`, COLOR_FIRE, TEXT_SCALE, TEXT_LIFE);
+  if (cells > 0) addHeadLabel(state, ctx.origin, `火吸い ${cells}`, COLOR_FIRE, TEXT_LIFE);
   pushSfx(state, "burn");
   const applies: readonly StatusApply[] = [{ kind: "burn", stacks: 1, duration: STATUS.burnDuration, potency: m.burnPotency }];
   spawnShot(state, ctx.origin, ctx.dir, ctx.params, {
@@ -391,7 +391,7 @@ function castDoomSentence(state: GameState, ctx: CastCtx): void {
   const power = skillPower(state, d.damage, ctx.params);
   spawnRing(state, at, radius, COLOR_DOOM, RING_LIFE * 2);
   pushSfx(state, "hitHeavy");
-  addFloatingText(state, at, "宣告", COLOR_DOOM, TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, at, "宣告", COLOR_DOOM, TEXT_SCALE, TEXT_LIFE, "status");
   for (const e of enemiesInRadius(state, at, radius)) {
     skillHit(state, e, ctx.params, { base: power, kind: "ranged", dir: sub(e.body.pos, at), knockback: d.knockback, stagger: false, from: at });
   }

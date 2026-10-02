@@ -9,6 +9,7 @@ import { followersOf } from "./enemyTraits";
 import { explodeHostile, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { applyStagger } from "./poise";
+import { markWindupStart } from "./readTiming";
 import { inflictOnPlayer } from "./statusEffects";
 import { phaseShift } from "./boss";
 
@@ -95,6 +96,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai) return;
   e.phase = "windup";
+  markWindupStart(state, e);
   pushSfx(state, "enemyWindup");
   if (ai.move === GIANT_MOVE_SLAM) {
     e.phaseTimer = scaledWindup(def.windup, state.depth);
@@ -193,7 +195,7 @@ function checkArmor(state: GameState, e: Enemy): void {
   if (followersOf(state, e).length > 0) return;
   ai.counter = UNARMORED;
   const g = BOSS.frostGiant;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 18 }, ARMOR_BREAK_TEXT, g.color, 1.5, 1.2);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 18 }, ARMOR_BREAK_TEXT, g.color, 1.5, 1.2, "status");
   spawnBurst(state, e.body.pos, g.color, 30, 180, 0.6, 2.5);
   shake(state, FEEL.shakeSpecial);
   pushSfx(state, "guardBreak");

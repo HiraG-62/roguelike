@@ -1,9 +1,11 @@
-// 書: 開いた魔導書。胸の前で見開きを開いて持ち、攻撃では照準へ突き出す（構えの braced。docs/ideas/tome-rework.md 1 章）。
-// 斜め上から見た浅い V 字の 2 頁: 牛血色の表紙の縁が見開きを囲み、4 隅に金の角、下の縁に頁の束の厚み、
-// 頁の中央（綴じ目の上）に淡い紫の印。原点（手のひら）は背の下端の中央で、拳が本の下縁に重なり下から支える。
-// 本は回さず常に頁を見せるので向き 1（rigWeapon は dirs 1 なら向き 0 を描き、左向きは組み立てた絵ごと反転する）。
-// 小さい見開きは形の関数で塗ると綴じ目と頁の線が潰れるので、1 ドットずつ模様（stamp）で置く。
-// 振りの間（wpnBook.swing）は頁が浮き上がり、中央の印が明るく光る。頁から出る文字の刃はエフェクト（fx レーン）が描く
+// 書: 開いた魔導書。頁を顔へ向けて胸の前で開いて持ち（読んでいる姿）、外からは表紙の側が見える。
+// 左の術の段は本を持ったまま後ろの手を突き出して放ち（playerRig の castOff）、右の段は本を照準へ突き出す（構えの braced）。
+// 外から見た見開き: 牛血色の表紙 2 枚が背（金の帯 2 本）で折れて浅い V に開き、上に頁の天（生成りの小口）が扇に覗く。
+// 背がいちばん手前なので上下の縁は真ん中ほど下がる。光の当たる左の表紙に淡い紫の印、4 隅に金の角。
+// 原点（手のひら）は背の下端で、拳が背の下に重なり下から支える。
+// 本は回さず常に同じ面を見せるので向き 1（rigWeapon は dirs 1 なら向き 0 を描き、左向きは組み立てた絵ごと反転する）。
+// 小さい本は形の関数で塗ると背と頁の線が潰れるので、1 ドットずつ模様（stamp）で置く。
+// 振りの間（wpnBook.swing）は頁の間と表紙の縁から光が漏れ、印が明るく光る。文字の弾・刃はエフェクト（fx レーン）が描く
 import { stamp } from "../paint.mjs";
 import { GOLD } from "../weapon.mjs";
 
@@ -22,47 +24,51 @@ const INK = {
   m: GEM[0], n: GEM[1], o: GEM[2], w: GEM[3],
 };
 
-/** 見開きの左端（正準座標）。幅 16 の真ん中（綴じ目の境）が原点の x、最下段が原点のすぐ上 */
+/** 本の左端（正準座標）。幅 16 の真ん中（背の 2 ドットの境）が原点の x、最下段（背の下端）が原点のすぐ上 */
 const LEFT = -8;
+/** 頁の間の光（術の出る所）: 背の上、頁の天が谷になる所（原点から上へ） */
+const MUZZLE_Y = -9;
 
-/** 待機の見開き（幅 16 × 高さ 10。輪郭を足して 18 × 12） */
+/**
+ * 待機: 外から見た開いた本（幅 16 × 高さ 10。輪郭を足して 18 × 12）。上 2〜3 行が頁の天（左は明るい s・r、右は陰の r・q）、
+ * その下が表紙（左 c・d、右 b・a）。背は x7（明）/ x8（暗）で金の帯 2 本。背が手前なので上下の縁は真ん中が 1 段下がる
+ */
 const HELD = [
-  "icc..........cci",
-  "cssccc....cccssb",
-  "crrssscbbcsssrrb",
-  "crqqqrrqsrrqqqrb",
-  "crrrrrrornrrrrrb",
-  "cqqqrrowonrrqqqb",
-  "crrrrrrnmrrrrrrb",
-  "cqqqrrrqsrrrqqqb",
-  "ibbbqqqpqqqqbbbh",
-  "....bbbaabbb....",
+  "ssss........rrrr",
+  "rrrrssssrrrrqqqq",
+  "idddrrrrqqqqccch",
+  "dcccddddacccbbba",
+  "dccccccihbbbbbba",
+  "dccocccdabbbbbba",
+  "dcnwnccdabbbbbba",
+  "dccmcccdabbbbbba",
+  "gbbbcccihbbbaaag",
+  "....bbbcaaaa....",
 ];
 
-/** 振りの間: 頁が浮き上がって反り、印が明るく光る（綴じ目から光が立ち、2 枚の頁が舞い上がる） */
+/** 振りの間: 頁の間と表紙の縁から術の光が漏れ、印が明るく光る（上に光の粒） */
 const SWING = [
-  "..ss...........w",
-  ".srrq.....ss....",
-  "..qq.....srrq...",
-  "...........q....",
-  "icc....oo....cci",
-  "csscccowwocccssb",
-  "crrsssowwosssrrb",
-  "crqqqowwwwoqqqrb",
-  "crrrrowwwwnrrrrb",
-  "cqqqrronnnrrqqqb",
-  "crrrrrrnmrrrrrrb",
-  "cqqqrrrqsrrrqqqb",
-  "ibbbqqqpqqqqbbbh",
-  "....bbbaabbb....",
+  "....w.......o...",
+  ".o.....w........",
+  ".......o..w.....",
+  "wwww........oooo",
+  "oooowwwwwwwwnnnn",
+  "idddooowwoooccch",
+  "occcddddacccbbbn",
+  "occccccihbbbbbbn",
+  "occwcccdabbbbbbn",
+  "ocowoccdabbbbbbn",
+  "occocccdabbbbbbn",
+  "gbbbcccihbbbaaag",
+  "....bbbcaaaa....",
 ];
 
 /** 模様の行を原点の上へ置く */
 function drawRows(rows) {
   return (frame) => {
     stamp(frame, LEFT, -rows.length, rows, INK);
-    // 頁から出る弾（頁飛ばし）の出る所: 中央の印
-    frame.anchor("muzzle", 0, -5);
+    // 術の弾（頁飛ばしの頁）の出る所: 頁の間（背の上の谷）
+    frame.anchor("muzzle", 0, MUZZLE_Y);
   };
 }
 
@@ -82,5 +88,5 @@ export const ATLAS = {
     // 振りの間だけ使う絵（実行時の renderer.ts が `<武器>.swing` があれば振りの間に替える）
     bookSheet("wpnBook.swing", SWING),
   ],
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 0, restHand: [6, 5], swayDeg: 2, braced: true } },
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 0, restHand: [-3, 9], swayDeg: 2, braced: true } },
 };

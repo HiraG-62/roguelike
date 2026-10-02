@@ -3,7 +3,7 @@ import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type 
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
 import { formatAmount } from "../core/units";
-import { EFFECTS, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
+import { EFFECTS, FLOAT_TEXT, FX_ATTACK, FX_WAVE3, REAPER } from "../data/tuning";
 import { type BulletFeature, type BulletNumbers, type MovesetKey, bulletFeatures } from "../data/weapons";
 import { weaponHitName } from "../audio/weaponHitNames";
 import type { SfxName } from "../audio/sfxNames";
@@ -129,7 +129,17 @@ export function spawnDirectional(
   capList(state.particles, EFFECTS.maxParticles);
 }
 
-/** kind はダメージ文字の種類（7-19）。ダメージ以外の文字は省略する */
+/** 種類ごとの寿命の上限。数字（normal・crit・weak…）は呼び出し側の寿命のまま */
+function cappedLife(kind: FloatTextKind, life: number): number {
+  if (kind === "status" || kind === "label" || kind === "notice") return Math.min(life, FLOAT_TEXT.lifeCap[kind]);
+  return life;
+}
+
+/**
+ * 浮き文字を足す。kind は種類（docs/ideas/meta-and-weapons.md 7-19）。省略は label（技名・自分の状態・拾い物の名前）で、
+ * 小さく短く出る。敵の状態は "status"、告知は "notice"、ダメージの数字は "normal" などを渡す。
+ * 大きさは種類で決まり scale では変わらない（描画は src/render/floatText.ts）。scale は数字の縁取りの重さだけに効く
+ */
 export function addFloatingText(
   state: GameState,
   pos: Vec,
@@ -137,8 +147,12 @@ export function addFloatingText(
   color: string,
   scale = 1,
   life = 0.6,
-  kind?: FloatTextKind,
+  kind: FloatTextKind = "label",
 ): void {
+  pushText(state, pos, text, color, scale, cappedLife(kind, life), kind, false);
+}
+
+function pushText(state: GameState, pos: Vec, text: string, color: string, scale: number, life: number, kind: FloatTextKind, head: boolean): void {
   state.texts.push({
     pos: { x: pos.x + (fxRandom(state) - 0.5) * 6, y: pos.y - 8 },
     vel: { x: (fxRandom(state) - 0.5) * 20, y: -40 },
@@ -147,9 +161,72 @@ export function addFloatingText(
     life,
     maxLife: life,
     scale,
-    ...(kind ? { kind } : {}),
+    kind,
+    ...(head ? { head } : {}),
   });
   capList(state.texts, EFFECTS.maxTexts);
+}
+
+/** 同じ文字が pos の近くにまだ濃く（残り寿命が dedupe.fresh 割より多く）残っているか */
+function hasFreshTextNear(state: GameState, pos: Vec, text: string, radius: number): boolean {
+  const r2 = radius * radius;
+  return state.texts.some(
+    (t) => t.text === text && t.life > t.maxLife * FLOAT_TEXT.dedupe.fresh && (t.pos.x - pos.x) ** 2 + (t.pos.y - pos.y) ** 2 <= r2,
+  );
+}
+
+/** 語ごとの最終表示時刻の記憶が増えすぎないように、古い順に捨てる上限 */
+const WORD_MEMORY_MAX = 48;
+
+/** 同じ語を sameWordSec 秒以内にもう出していたか。出していなければ今を記録する */
+function wordRecentlyShown(state: GameState, text: string): boolean {
+  const fx = fxState(state);
+  const memory = fx.wordAt ?? {};
+  fx.wordAt = memory;
+  const last = memory[text];
+  if (last !== undefined && state.time - last < FLOAT_TEXT.sameWordSec) return true;
+  memory[text] = state.time;
+  const keys = Object.keys(memory);
+  if (keys.length <= WORD_MEMORY_MAX) return false;
+  for (const k of keys) if (state.time - (memory[k] ?? 0) >= FLOAT_TEXT.sameWordSec) delete memory[k];
+  return false;
+}
+
+export interface FloatOnceOptions {
+  /** 同じ場所とみなす距離（px）。省略は FLOAT_TEXT.dedupe.radius */
+  radius?: number;
+  /** true なら同じ語を全体で sameWordSec 秒に 1 回までにする（祝福の効果の語。位置に関わらず） */
+  sameWord?: boolean;
+}
+
+/**
+ * 重複を抑えた浮き文字。同じ敵の近くに同じ文字が濃く残っていれば出さず、sameWord なら同じ語を 1 秒に 1 回までにする
+ * （多段ヒット・連射・毎フレーム起きる反応で画面を埋めない。state.texts と state.time を読むだけで判定でき、乱数も使わない）。
+ * 出したら true
+ */
+export function addFloatingTextOnce(
+  state: GameState,
+  pos: Vec,
+  text: string,
+  color: string,
+  scale = 1,
+  life = 0.6,
+  kind: FloatTextKind = "label",
+  opts: FloatOnceOptions = {},
+): boolean {
+  if (hasFreshTextNear(state, pos, text, opts.radius ?? FLOAT_TEXT.dedupe.radius)) return false;
+  if (opts.sameWord === true && wordRecentlyShown(state, text)) return false;
+  addFloatingText(state, pos, text, color, scale, life, kind);
+  return true;
+}
+
+/**
+ * 自分の頭上の技名（派生名・カウンター・パリィ・符の連携・変身の名前…）。前の技名が残っていれば消して 1 つだけにする。
+ * 消すのは head の付いた文字だけで、敵の状態や数字は消さない
+ */
+export function addHeadLabel(state: GameState, pos: Vec, text: string, color: string, life = 0.6): void {
+  state.texts = state.texts.filter((t) => t.head !== true);
+  pushText(state, pos, text, color, 1, cappedLife("label", life), "label", true);
 }
 
 export function shake(state: GameState, amount: number): void {
@@ -557,20 +634,18 @@ export function comboTier(count: number): (typeof EFFECTS.comboTiers)[number] | 
   return found;
 }
 
-/** ダメージ数字の色と大きさ。会心の色は残し、大きさだけコンボで伸ばす */
+/** ダメージ数字の色。会心の色は残し、コンボの段では色だけ変える（大きさは変えない。大きいのは会心の弾みだけ） */
 export function comboDamageText(count: number, color: string, textScale: number, crit: boolean): { color: string; scale: number } {
   const tier = comboTier(count);
   if (!tier) return { color, scale: textScale };
-  return { color: crit ? color : tier.color, scale: textScale * tier.scale };
+  return { color: crit ? color : tier.color, scale: textScale };
 }
 
-/** コンボが節目に届いたら大きな文字と音 */
+/** コンボが節目に届いたら輪と音（「N コンボ！」の文字は出さない。数は HUD のコンボ表示で読める） */
 function comboMilestoneFx(state: GameState, enemy: Enemy): void {
   const count = state.combo.count;
   if (!EFFECTS.comboMilestones.some((m) => m === count)) return;
   const color = comboTier(count)?.color ?? "#ffffff";
-  const pos = { x: state.player.body.pos.x, y: state.player.body.pos.y - EFFECTS.comboMilestoneRise };
-  addFloatingText(state, pos, `${count} コンボ！`, color, EFFECTS.comboMilestoneScale, EFFECTS.comboMilestoneLife);
   spawnRing(state, enemy.body.pos, EFFECTS.justRing.radius, color, EFFECTS.justRing.life);
   pushSfx(state, "comboMilestone");
 }
@@ -965,6 +1040,9 @@ export function damageTextLook(kind: FloatTextKind, base: Readonly<TextLook>): T
       return { color: base.color, scale: c.dot.scale };
     case "crit":
     case "normal":
+    case "status":
+    case "label":
+    case "notice":
       return { color: base.color, scale: base.scale };
   }
 }
@@ -1140,7 +1218,7 @@ export function lordPullFx(state: GameState, from: Vec, to: Vec): void {
   const color = lordPullColor(state);
   addMark(state, "lordPull", from, c.life, color, LORD_PULL_VANISH);
   addMark(state, "lordPull", to, c.delay + c.life, color, LORD_PULL_APPEAR);
-  addFloatingText(state, to, LORD_PULL_TEXT, color, LORD_PULL_TEXT_SCALE, LORD_PULL_TEXT_LIFE);
+  addFloatingText(state, to, LORD_PULL_TEXT, color, LORD_PULL_TEXT_SCALE, LORD_PULL_TEXT_LIFE, "notice");
   pushSfx(state, "dash");
 }
 

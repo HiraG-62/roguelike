@@ -10,7 +10,7 @@ import { buildFloor } from "../system/floor";
 import { updateRooms } from "../system/floor";
 import { applyStats, createPlayer } from "../system/player";
 import { refillMana, tickMana } from "../system/mana";
-import { updatePlayer } from "../system/player";
+import { latchFrozenInput, updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
 import { updateDropInteract } from "../system/loot";
 import { VIEW_H, VIEW_W } from "./view";
@@ -120,6 +120,7 @@ export function createGame(
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
+    budOfferedThisRun: [],
     runKeystones: originKeystones(setup.origin),
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],
@@ -176,6 +177,7 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
 
   if (state.hitstop > 0) {
     state.hitstop -= 1;
+    latchFrozenInput(state, input);
     updateCamera(state, dt, VIEW_W, VIEW_H);
     return;
   }

@@ -47,6 +47,7 @@ export const BEHAVIORS: Readonly<Record<EnemyBehavior, EnemyBehaviorBase>> = fre
   bat: new Flyer("bat"),
   wisp: new Wisp(),
   kingSlime: new BossDriven("kingSlime"),
+  crownBearer: new Stationary("crownBearer"),
   boneLord: new BossDriven("boneLord"),
   kamikaze: new Rusher("kamikaze", 0),
   echoStriker: new Backstepper("echoStriker", ENEMY_AI.echoStriker.keepAway),

@@ -1,13 +1,18 @@
 // 地図の見た目の確認用（docs/ideas/map-visual-impl.md 5-2 節）。ゲーム本体からは import しない。
 // クエリ: ?depth=&kind=&seed=&tx=&ty=&layout= で階を作って 1 回描き、window.__mapShotReady = true。
-// kind=hub で拠点。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
+// kind=hub で拠点（門前町。scene=new は空の保存、scene=full（既定）は全部建った景色）。?bench=1 は 300 フレーム横へ流して地図の描画と焼きの平均 ms を window.__mapBench に出す。
 // 実時間（performance.now）を使うのは計測だけで、ゲームの描画・state には入れない。
 import { createGame } from "../core/game";
 import { VIEW_H, VIEW_W } from "../core/view";
 import type { FloorKind, GameState } from "../core/state";
 import { SHEETS, TILE_SPRITES } from "../data/tiles";
 import { createEmptyProfile } from "../loot/types";
-import { HUB_SPOT_KEYS, type HubSpotKey } from "../map/hubMap";
+import { type HubSpotKey } from "../map/hubMap";
+import { FACILITY_KEYS, type HubProgressSource, availableSpots, builtFacilities } from "../meta/hub";
+import { createAchievementSave } from "../meta/achievements";
+import { createCodexSave } from "../meta/codex";
+import { createHubSave } from "../meta/hubStore";
+import { type TownLook, townLook } from "../meta/townLook";
 import { LAYOUT_KINDS, type FloorLayout } from "../map/layout/types";
 import { withFixedLayout } from "../map/layout/select";
 import { createDefaultSkillProfile } from "../skills/persistence";
@@ -16,7 +21,8 @@ import { createHub } from "../system/hub";
 import { defaultRunSetup } from "../system/runSetup";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { Renderer } from "../render/renderer";
-import type { HubSpotsView } from "../render/hubUi";
+import { type TownHubView, TownLayer, canvasFromTownPixels } from "../render/townScene";
+import { placeTeleScene } from "./teleScene";
 
 interface MapBench {
   frames: number;
@@ -30,12 +36,27 @@ interface MapBench {
   bakedRows: number;
   /** render() 全体の平均 ms */
   renderMsAvg: number;
+  /** 予告の描き込み（telegraphLayer）だけの平均 ms（予告の場面のみ。それ以外は 0） */
+  teleMsAvg: number;
+}
+
+interface TownOpenCost {
+  /** TownLayer の最初の prepare（道の石畳の焼き + 物の絵の最初の 1 フレーム分）の ms */
+  prepareMs: number;
+  /** 物の絵がすべて出来るまでの prepare の合計 ms（フレームに分けない場合の 1 回分） */
+  allMs: number;
+  /** 物の絵が出来るまでに掛かったフレーム数 */
+  frames: number;
+  /** 160x160 ドットの絵 25 枚 + 288x160 を canvas にする ms（C2 の絵が入った後の見積り） */
+  syntheticArtMs: number;
 }
 
 declare global {
   interface Window {
     __mapShotReady?: boolean;
     __mapBench?: MapBench;
+    /** 拠点を開いた直後の canvas 作成の ms（?scene=new|full のとき） */
+    __townOpen?: TownOpenCost;
     __mapShotError?: string;
   }
 }
@@ -91,14 +112,64 @@ function buildRun(q: URLSearchParams): GameState {
   else buildFloor(state, kind);
   state.flash = 0;
   placeCamera(state, q);
+  // 予告の撮影: 自分の周りに予備動作中の敵を並べる（scene=tele&tele=crowd|shapes。docs/ideas/ink-telegraph-impl.md 段 0-c）
+  if (q.get("scene") === "tele") placeTeleScene(state, q.get("tele") ?? "crowd");
   return state;
 }
 
-function buildHub(renderer: Renderer): GameState {
-  const available = new Set<HubSpotKey>(HUB_SPOT_KEYS);
+/** 空の保存（図鑑・実績・スキル石なし、1 回も出撃していない）の景色の材料 */
+const NEW_TOWN_SOURCE: HubProgressSource = { runs: 0, codex: createCodexSave(), stoneCount: 0, hasBud: false, achievements: createAchievementSave() };
+/** 全部建ち、灯籠・井戸・幟・碑・賑わいが最大の景色（手で組む。townLook の段の数値と独立に最大の見え方を撮る） */
+const FULL_TOWN_LOOK: TownLook = {
+  key: "shot-full",
+  built: new Set(FACILITY_KEYS),
+  lanterns: 8,
+  wellTier: 3,
+  trophies: [1, 2, 3, 4, 1, 2],
+  hallLit: true,
+  archiveLights: 5,
+  stele: 4,
+  deepestChapter: 4,
+  bustle: 4,
+  title: "拠点の主",
+};
+
+/** 場面に応じた門前町の景色。new は townLook の導出（建っている設備は builtFacilities から） */
+function townLookFor(scene: string): TownLook {
+  if (scene === "full") return FULL_TOWN_LOOK;
+  const built = builtFacilities(NEW_TOWN_SOURCE);
+  return { ...townLook(NEW_TOWN_SOURCE, createHubSave()), built: new Set(built) };
+}
+
+/** 拠点を開いた直後の canvas 作成を、新しい TownLayer で測る（実時間は計測だけで、描画・state には入れない） */
+function measureTownOpen(view: TownHubView): TownOpenCost {
+  const layer = new TownLayer();
+  const t0 = performance.now();
+  layer.prepare(view);
+  const prepareMs = performance.now() - t0;
+  let frames = 1;
+  while (layer.pendingCount > 0 && frames < 100) {
+    layer.prepare(view);
+    frames++;
+  }
+  const allMs = performance.now() - t0;
+  const s0 = performance.now();
+  const sized = [...Array.from({ length: 25 }, () => [160, 160] as const), [288, 160] as const];
+  for (const [w, h] of sized) canvasFromTownPixels(new Uint32Array(w * h).fill(0xff3030c0), w, h);
+  return { prepareMs, allMs, frames, syntheticArtMs: performance.now() - s0 };
+}
+
+function buildHub(renderer: Renderer, q: URLSearchParams): GameState {
+  const scene = q.get("scene");
+  const isNew = scene === "new";
+  const built = isNew ? builtFacilities(NEW_TOWN_SOURCE) : FACILITY_KEYS;
+  const available = availableSpots(built);
   const session = createHub(createEmptyProfile(), createDefaultSkillProfile(), available);
-  const view: HubSpotsView = { spots: session.hub.layout.spots, available, near: null };
+  const near = (q.get("near") as HubSpotKey | null) ?? null;
+  const view: TownHubView = { spots: session.hub.layout.spots, available, near, town: { layout: session.hub.layout, look: townLookFor(isNew ? "new" : "full") } };
+  window.__townOpen = measureTownOpen(view);
   renderer.setHubView(view);
+  placeCamera(session.state, q);
   return session.state;
 }
 
@@ -121,7 +192,36 @@ function bakedRowsOf(renderer: Renderer): number {
   return chunks?.lastBakedRows ?? 0;
 }
 
-function runBench(renderer: Renderer, state: GameState): MapBench {
+/**
+ * 予告の描き込みだけを繰り返し描いて平均 ms を出す（Renderer の private を添字で呼ぶ。計測専用）。
+ * canvas の描画は遅延するので、毎回 1 画素を読み戻して描き終わりを待ち、読み戻しだけの空の回との差を取る。
+ * 負荷の揺れに強いよう、平均ではなく最短の回を取る
+ */
+function measureTelegraphs(renderer: Renderer, state: GameState): number {
+  const layer = renderer["telegraphs"];
+  const helpers = renderer["telegraphHelpers"];
+  const cam = state.camera;
+  const ctx = renderer.context;
+  const runs = 60;
+  const pass = (draw: boolean): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < runs; i++) {
+      const t0 = performance.now();
+      ctx.save();
+      ctx.translate(Math.round(VIEW_W / 2 - cam.pos.x), Math.round(VIEW_H / 2 - cam.pos.y));
+      if (draw) layer.draw(ctx, state, helpers);
+      ctx.restore();
+      ctx.getImageData(0, 0, 1, 1);
+      best = Math.min(best, performance.now() - t0);
+    }
+    return best;
+  };
+  pass(false);
+  const empty = pass(false);
+  return pass(true) - empty;
+}
+
+function runBench(renderer: Renderer, state: GameState, still: boolean): MapBench {
   const maxX = state.map.width * TILE - VIEW_W / 2;
   const minX = VIEW_W / 2;
   let dir = 1;
@@ -133,9 +233,11 @@ function runBench(renderer: Renderer, state: GameState): MapBench {
   let rows = 0;
   let renderSum = 0;
   for (let f = 0; f < BENCH_FRAMES; f++) {
-    const next = state.camera.pos.x + dir * BENCH_SPEED;
+    // 予告の場面は敵を置いた所から動かさない（流すと予告が画面から出る）
+    const speed = still ? 0 : BENCH_SPEED;
+    const next = state.camera.pos.x + dir * speed;
     if (next > maxX || next < minX) dir = -dir;
-    state.camera.pos.x += dir * BENCH_SPEED;
+    state.camera.pos.x += dir * speed;
     renderer.beginFrame();
     const t0 = performance.now();
     drawMapOnly(renderer, state);
@@ -162,6 +264,7 @@ function runBench(renderer: Renderer, state: GameState): MapBench {
     bakeFrames: nBake,
     bakedRows: rows,
     renderMsAvg: renderSum / BENCH_FRAMES,
+    teleMsAvg: still ? measureTelegraphs(renderer, state) : 0,
   };
 }
 
@@ -186,7 +289,7 @@ async function main(): Promise<void> {
   const atlas = await loadImageAtlas(TILE_SPRITES, SHEETS);
   renderer.setAtlas(atlas);
 
-  const state = q.get("kind") === "hub" ? buildHub(renderer) : buildRun(q);
+  const state = q.get("kind") === "hub" ? buildHub(renderer, q) : buildRun(q);
   // 1 回目で描画側の追跡（階の名札の時刻・部屋の表）を初期化し、時間を進めてから撮る
   renderer.render(state, null, false);
   await waitPlayerArt(renderer, state);
@@ -194,7 +297,7 @@ async function main(): Promise<void> {
   if (typeof renderer.settleMap === "function") renderer.settleMap(state);
   renderer.render(state, null, false);
 
-  if (q.get("bench") === "1") window.__mapBench = runBench(renderer, state);
+  if (q.get("bench") === "1") window.__mapBench = runBench(renderer, state, q.get("scene") === "tele");
   window.__mapShotReady = true;
 }
 

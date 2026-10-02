@@ -177,7 +177,9 @@ export class FxSpriteBank {
       .decode()
       .then(() => {
         // 読み込み中に武器を持ち替えていたら捨てる
-        if (this.requested.has(atlas)) this.images.set(atlas, img);
+        if (!this.requested.has(atlas)) return;
+        primeReadback(img);
+        this.images.set(atlas, img);
       })
       .catch(() => {
         // 読めなければ手続きの描画のまま（requested に残して読み直さない）
@@ -222,6 +224,20 @@ export class FxSpriteBank {
     this.ramps.set(key, made);
     return made;
   }
+}
+
+/**
+ * 読み込んだ直後に 1 画素だけ CPU 側の canvas へ写して読み、アトラスを CPU 側へ展開させておく。
+ * しないと最初の再配色（攻撃が初めて出たフレーム）でアトラス全体の展開を待って 15〜25ms 止まる
+ */
+function primeReadback(img: HTMLImageElement): void {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return;
+  ctx.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1);
+  ctx.getImageData(0, 0, 1, 1);
 }
 
 /** アトラスから 1 フレームを切り出し、段の灰色を配色の色へ写す */

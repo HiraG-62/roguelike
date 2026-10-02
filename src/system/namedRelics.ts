@@ -112,7 +112,7 @@ export function relicRevive(state: GameState): boolean {
   p.hp = Math.max(MIN_HP, Math.round(p.maxHp * RELIC.sixCoins.hpRatio));
   // 遅れて来る傷が残っていると蘇った直後にまた倒れるので捨てる
   p.deferredDamage = [];
-  addFloatingText(state, p.body.pos, REVIVE_TEXT, REVIVE_COLOR, REVIVE_TEXT_SCALE);
+  addFloatingText(state, p.body.pos, REVIVE_TEXT, REVIVE_COLOR, REVIVE_TEXT_SCALE, undefined, "notice");
   pushSfx(state, REVIVE_SFX);
   return true;
 }

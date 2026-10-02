@@ -29,10 +29,11 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillProfile } from "../skills/types";
 import { SKILL } from "../skills/data";
-import { attachRune, moveRunModifier, removeRunModifier } from "../system/skills";
+import { addToHand, attachFromHand, detachToHand, moveRunModifier } from "../system/skills";
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
+import { HONJIN } from "../data/tuning";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
 import { type RunMetaSetup, emptyRunMeta, isEmptyRunMeta } from "../system/runMeta";
@@ -328,8 +329,9 @@ describe("記録 → 再生", () => {
   it("ラン中に刻印符を付け替えた操作がイベントとして記録され、再生で同じ符が並ぶ", () => {
     const { data, state } = recordRun("runes", createEmptyProfile(), randomInputs(13, 1500), (s, frame) => {
       if (frame === 300) {
-        // 装備画面で符を付ける / 移す / 外す相当（runModifiers を直接書く）
-        attachRune(s, "echo");
+        // 装備画面で符を拾う → 付ける / 移す / 外す相当（手持ちとスロットの符を直接書く）
+        addToHand(s, "echo");
+        attachFromHand(s, 0, "echo");
         return true;
       }
       if (frame === 700) {
@@ -337,7 +339,7 @@ describe("記録 → 再生", () => {
         return true;
       }
       if (frame === 1100) {
-        removeRunModifier(s.skills, 1, "echo");
+        detachToHand(s, 1, "echo");
         return true;
       }
       return false;
@@ -348,23 +350,57 @@ describe("記録 → 再生", () => {
       [[], ["echo"], [], []],
       undefined,
     ]);
+    expect(data.events.map((e) => e.loadout.handRunes), "外した符は手持ちへ戻り、手持ちが空の間は欄を書かない").toEqual([undefined, undefined, ["echo"]]);
     expect(data.events.every((e) => e.player === null), "装備は変わっていない").toBe(true);
     const played = playBack(data);
     expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+    expect(played.skills.hand, "外した符は手持ちで再生される").toEqual(["echo"]);
     expect(fingerprint(played)).toBe(fingerprint(state));
+  });
+
+  it("手持ちから付ける操作も、再生で同じ手持ちと同じ符になる（版 38）", () => {
+    const { data, state } = recordRun("hand-runes", createEmptyProfile(), randomInputs(21, 900), (s, frame) => {
+      if (frame === 200) {
+        addToHand(s, "echo");
+        addToHand(s, "echo");
+        addToHand(s, "focus");
+        return true;
+      }
+      if (frame === 500) {
+        attachFromHand(s, 0, "focus");
+        return true;
+      }
+      return false;
+    });
+    expect(data.events.map((e) => e.loadout.handRunes), "手持ちの写し").toEqual([["echo", "echo", "focus"], ["echo", "echo"]]);
+    const played = playBack(data);
+    expect(played.skills.hand).toEqual(["echo", "echo"]);
+    expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
+    expect(fingerprint(played)).toBe(fingerprint(state));
+  });
+
+  it("手持ちの欄は知らない符 key を捨て、壊れた欄は空として読む", () => {
+    const { data } = recordRun("hand-sanitize", createEmptyProfile(), randomInputs(3, 60));
+    const raw = JSON.parse(JSON.stringify(data)) as { snapshot: Record<string, unknown> };
+    raw.snapshot.handRunes = ["echo", "nope", 3];
+    expect(sanitizeReplay(raw)?.snapshot.handRunes, "知らない key は捨てる").toEqual(["echo"]);
+    raw.snapshot.handRunes = "bad";
+    expect(sanitizeReplay(raw)?.snapshot.handRunes, "壊れた欄は無し").toBeUndefined();
   });
 
   it("符を付けなかったランの記録は slotRunes の欄を持たない（旧記録と同じ形）", () => {
     const { data } = recordRun("no-runes", createEmptyProfile(), randomInputs(3, 60));
     expect("slotRunes" in data.snapshot).toBe(false);
+    expect("handRunes" in data.snapshot).toBe(false);
     expect("runeCount" in data.snapshot).toBe(false);
   });
 
   it("起点「詠み手」の開始時の符は snapshot に写り、再生でも同じ符で始まる", () => {
     const setup: RunSetup = { origin: "chanter", modifiers: [] };
     const { data, state } = recordRun("chanter-runes", createEmptyProfile(), randomInputs(5, 600), undefined, setup);
-    expect(data.snapshot.slotRunes?.some((r) => r.length > 0), "開始時の符が snapshot にある").toBe(true);
+    expect(data.snapshot.handRunes?.length, "開始時の符 2 枚は手持ちとして snapshot にある").toBe(2);
     const played = playBack(data);
+    expect(played.skills.hand, "再生でも同じ手持ちで始まる").toEqual(state.skills.hand);
     expect(played.skills.slots.map((sl) => sl.runModifiers)).toEqual(state.skills.slots.map((sl) => sl.runModifiers));
   });
 
@@ -444,6 +480,22 @@ describe("記録 → 再生", () => {
     const replayed = playBack(data);
     expect(fingerprint(replayed)).toBe(fingerprint(state));
     expect(replayed.nemesis?.enemyId, "同じ仇").toBe(state.nemesis?.enemyId);
+  });
+
+  it("本陣のある階（試し陣）の記録が再生で一致する（陣図は乱数を引かず、状態は入力と seed だけで決まる）", () => {
+    const backup = HONJIN.trial.depth;
+    (HONJIN.trial as { depth: number }).depth = 4;
+    try {
+      const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 4 };
+      const { data, state } = recordRun("honjin-replay", createEmptyProfile(), randomInputs(31, 2400), undefined, setup);
+      expect(createReplaySession(data).state.jins.some((j) => j.honjin), "再生側にも本陣が立つ").toBe(true);
+      const replayed = playBack(data);
+      expect(fingerprint(replayed), "本陣のある階でも再生が一致する").toBe(fingerprint(state));
+      const phases = (g: GameState): string => g.jins.map((j) => `${j.id}:${j.jinzu?.phase ?? "-"}:${j.jinzu?.surges ?? 0}:${Math.round(j.morale * 100)}`).join(",");
+      expect(phases(replayed), "陣図の段・回数・群勢も一致する").toBe(phases(state));
+    } finally {
+      (HONJIN.trial as { depth: number }).depth = backup;
+    }
   });
 
   it("runMeta の無い旧記録は空として再生でき、空の runMeta は書かない", () => {

@@ -220,6 +220,33 @@ export function focusPart(ui: InventoryUi, slot: Slot): void {
   setStack(ui, [attireRoot(ui, fid.part(slot))]);
 }
 
+/** 候補の頁の左の部位のマスから、その部位の候補の頁へ（装束の頁の焦点も新しい部位へ。focusPart や芽の入口と同じ形） */
+export function switchCandidatePart(ui: InventoryUi, slot: Slot): void {
+  setStack(ui, [attireRoot(ui, fid.part(slot)), candidatesFor(ui, slot)]);
+}
+
+/**
+ * 候補の頁の左下の腰の石から、そのスキル枠の候補の頁へ（スキルの頁・装束の頁の焦点もその石へ。部位の switchCandidatePart と同じ形）。
+ * 絞り込みは引き継ぐ（同じ条件で別の枠を見比べられる）。スキルの頁が積まれていればその手持ちの設定も残す
+ */
+export function switchCandidateStone(ui: InventoryUi, index: number): void {
+  const prevSkills = ui.stack.find((v): v is ViewOf<"skills"> => v.kind === "skills");
+  const prevCands = ui.stack[ui.stack.length - 1];
+  const filter = prevCands?.kind === "candidates" ? prevCands.filter : undefined;
+  const skills: ViewOf<"skills"> = { kind: "skills", focus: fid.stone(index), lift: null, ...(prevSkills?.hand === undefined ? {} : { hand: prevSkills.hand }) };
+  const cands: ViewOf<"candidates"> = {
+    kind: "candidates",
+    focus: null,
+    target: { kind: "stone", index },
+    sort: ui.sortPref,
+    offset: 0,
+    order: null,
+    pinnedId: null,
+    ...(filter === undefined ? {} : { filter }),
+  };
+  setStack(ui, [attireRoot(ui, fid.stone(index)), skills, cands]);
+}
+
 /** 紋の珠・系統の札から、その出どころの置き場へ跳ぶ（E-impl 1-3 の jump の表） */
 export function jumpToSource(state: Readonly<GameState>, ui: InventoryUi, source: Readonly<ResonanceOrigin>): void {
   setStack(ui, jumpStack(state, ui, source));

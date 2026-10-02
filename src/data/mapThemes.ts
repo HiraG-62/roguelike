@@ -167,6 +167,34 @@ export const STYLE_DEFS: Readonly<Record<MapStyle, StyleDef>> = {
     decals: [],
     flags: NO_FLAGS,
   },
+  // 拠点（門前町）。宵の土・塀と崖。置物は置かず、汚しは小石とひびだけ。灯の色は提灯の暖色、差し色は鳥居の朱
+  town: {
+    floor: "cobble",
+    top: "rock",
+    side: "rockside",
+    corner: "round",
+    sideH: 16,
+    edgeNoise: 2,
+    voidBeyond: false,
+    colors: { fD: "#2a2226", fB: "#3a3036", fL: "#4a3f43", top: "#4c4553", side: "#1f1a24", light: "#ffcf8a", accent: "#c0382e", moss1: "#3a4634", moss2: "#4c5c40", wood: "#5a4030" },
+    props: [],
+    decals: ["pebble", "crack", "pebble"],
+    flags: NO_FLAGS,
+  },
+};
+
+/** 拠点の参道・辻の石畳の配色（石は土より明るく青みがかる。宵の灯が当たる想定）。床の模様は切石（ashlar） */
+export const TOWN_ROAD_COLORS: StyleColors = {
+  fD: "#2c2a36",
+  fB: "#4c4a5c",
+  fL: "#625f74",
+  top: "#4c4553",
+  side: "#1f1a24",
+  light: "#ffcf8a",
+  accent: "#c0382e",
+  moss1: "#3a4634",
+  moss2: "#4c5c40",
+  wood: "#5a4030",
 };
 
 /** 深みの変異「血の月」の配色（見本の THEMES の blood）。様式の配色をまるごと置き換える */

@@ -4,7 +4,7 @@
  */
 import { ENEMIES } from "../data/enemies";
 import { HUB, HUB_DECOR } from "../data/tuning";
-import type { HubSpotKey } from "../map/hubMap";
+import type { HubLotKey, HubSpotKey } from "../map/hubMap";
 import { hallBossKeys } from "../system/bossHallKeys";
 import { type AchievementSave, currentTitleLabel } from "./achievements";
 import { type CodexSave, type CodexTab, codexTabCount } from "./codex";
@@ -15,17 +15,49 @@ import { steleLabel } from "./tierRewards";
 export const FACILITY_KEYS = ["well", "board", "forge", "archive", "rack", "library", "training", "altar", "garden", "hall"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
+/** 表示名は門前町の建物名（内部 key は据え置き。docs/GLOSSARY.md） */
 export const FACILITY_NAME: Readonly<Record<FacilityKey, string>> = {
   well: "井戸",
-  board: "掲示板",
-  forge: "鍛冶場",
-  archive: "記録室",
+  board: "高札",
+  forge: "鍛冶屋",
+  archive: "記録の蔵",
   rack: "武器掛け",
-  library: "図書館",
-  training: "訓練場",
-  altar: "祭壇",
+  library: "書庫",
+  training: "稽古場",
+  altar: "社",
   garden: "庭",
-  hall: "ボスの間",
+  hall: "御堂",
+};
+
+/** 門前町の敷地（HubLotKey）と設備の対応。社 = 祭壇・御堂 = ボスの間・武器小屋 = 武器掛け・稽古場の区画 = 訓練場 */
+export const FACILITY_OF_LOT: Readonly<Record<HubLotKey, FacilityKey>> = {
+  shrine: "altar",
+  hall: "hall",
+  forge: "forge",
+  library: "library",
+  well: "well",
+  board: "board",
+  archive: "archive",
+  garden: "garden",
+  rackShed: "rack",
+  yard: "training",
+};
+
+/**
+ * 未建設の設備に近づいたとき出す解放の手がかり（1 行）。builtFacilities の条件と揃える。
+ * 最初から建っている設備は出る場面が無いが、全設備に持たせて表の抜けを型で防ぐ
+ */
+export const FACILITY_HINT: Readonly<Record<FacilityKey, string>> = {
+  well: "はじめから建っている",
+  board: "はじめから建っている",
+  forge: "はじめから建っている",
+  archive: "はじめから建っている",
+  rack: "はじめから建っている",
+  library: "スキル石を手にすると建つ",
+  training: `試し場を見つけるか、${HUB.trainingRuns} 回探索すると建つ`,
+  altar: "祭壇の部屋を見つけると建つ",
+  garden: "芽の出た装備を持つと建つ",
+  hall: "章ボスか最深の主を倒すと建つ",
 };
 
 /** history・codex・achievements は archive */
@@ -120,7 +152,7 @@ export function shelfCount(codex: CodexSave): number {
 function shelfDecor(codex: CodexSave): HubDecor[] {
   const shelves = shelfCount(codex);
   if (shelves <= 0) return [];
-  return [{ key: "shelf", label: `記録室の書架 ${shelves} 段` }];
+  return [{ key: "shelf", label: `記録の蔵の書架 ${shelves} 段` }];
 }
 
 function titleDecor(src: HubProgressSource): HubDecor[] {

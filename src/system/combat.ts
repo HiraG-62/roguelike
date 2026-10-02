@@ -8,7 +8,7 @@ import { behaviorOf } from "./behaviors/registry";
 import { ACTION, BOON_LINEAGE, ENERGY, FEEL, HEAL, KEYSTONE, MANA, PLAYER, POISE, ROOM_KIND, STATUS } from "../data/tuning";
 import { recordRun, saveProfile } from "../loot/profile";
 import { recordProvenance } from "../loot/provenance";
-import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing } from "./effects";
+import { addFloatingText, hitstop, shake, spawnBurst, spawnDirectional, spawnRing, addHeadLabel } from "./effects";
 import { comboDamageText, damageTextKind, damageTextLook, justFx, noteDotDamage, onHitFx, spawnDeathFx } from "./effects";
 import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effects";
 import { cameraKick } from "./camera";
@@ -43,6 +43,7 @@ import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
 import { dropCoins, spillCoins } from "./economy";
 import { containerBroken } from "./containers";
+import { bossOnAnswer } from "./boss";
 import { noteBossFightHit } from "./bossRecord";
 
 export const COLOR_DAMAGE = "#ffffff";
@@ -90,6 +91,13 @@ export interface HitOptions {
   silent?: boolean;
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
+  /**
+   * 出端の命中（system/readTiming.ts の yellowAt）。怯み値は溜め、墨入れに入っていて溢れても墨入れの攻撃は止めず技の後へ先送りする
+   * （PoiseHitOptions.readStart）。重い得物の出端でも「下絵は打って止められる」を残しつつ、墨入れを止めるのは受け流しだけの約束を守る
+   */
+  readStart?: boolean;
+  /** 出端の止め（FEEL.hitstopCounter）を入れる。通常命中の上限の例外。多段の 2 発目以降には付けない */
+  counterStop?: boolean;
   /** 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-2）。showHit のヒットストップに反映 */
   finisher?: boolean;
   /**
@@ -103,6 +111,8 @@ export interface HitOptions {
   release?: boolean;
   /** 当てたレーン（双撃の判定。近接の振り・レーンの弾だけ。system/moments.ts） */
   lane?: ButtonKey;
+  /** 墨印を記す弾（書の左の字）の命中。記すだけで、この命中では墨印を読まない */
+  inscribes?: boolean;
 }
 
 /** rollOutgoing の追加指定。skill はスキル由来（スキルの増 increased.skill が足される） */
@@ -117,6 +127,8 @@ export interface OutgoingOptions {
   release?: boolean;
   /** 必ず会心にする（長銃の満ちた 1 発）。会心の乱数は従来どおり引く */
   forceCrit?: boolean;
+  /** 出端の一撃（与ダメのタグ counter が付く） */
+  counter?: boolean;
 }
 
 export interface OutgoingHit {
@@ -207,7 +219,7 @@ export function damageEnemy(
   stashFrozenDamage(state, enemy, amount);
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
-  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
+  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true, readStart: opts.readStart });
   if (heavy) onTraitStagger(state, enemy);
   // 反応ルール（間合い取り）。怯み値を入れた後に呼ぶので、この一撃で怯んだ敵は動かさない
   if (!opts.silent && kind !== "proc") behaviorOf(def).onStruck(state, enemy, def);
@@ -237,7 +249,7 @@ export function damageEnemy(
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
     applyLifeOnHit(state, amount);
-    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit });
+    applyOnHitStatus(state, enemy, { kind, skill: opts.skill, crit: opts.crit, inscribes: opts.inscribes });
     onTraitHit(state, enemy, kind, opts.skill === true);
   }
 
@@ -292,7 +304,7 @@ function holdsVaultRelease(state: GameState, kind: VaultKind): boolean {
 /** 砕き: 凍結を解き（冷気免疫が付く）、氷の破片を散らす */
 function shatterFreeze(state: GameState, enemy: Enemy): void {
   removeStatus(state, { kind: "enemy", enemy }, "freeze");
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6);
+  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 8 }, SHATTER_TEXT, STATUS.chillColor, 1.2, 0.6, "status");
   spawnBurst(state, enemy.body.pos, STATUS.chillColor, SHATTER_PARTICLES, 140, 0.4, 2);
   pushSfx(state, "freeze");
   pushShatterEvent(state, enemy);
@@ -314,6 +326,8 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   if (opts.finisher) steps = Math.max(steps, opts.finisherHitstop ?? FEEL.hitstopFinisher);
   // 通常命中は 1 か所で上限を掛ける（段の JSON の hitstop が 269 か所あるので個別には直さない）
   if (!heavy && !opts.finisher && !opts.crit) steps = Math.min(steps, FEEL.hitstopNormalMax);
+  // 出端は読みの報酬なので上限の例外（止めの表: 出端 5）
+  if (opts.counterStop === true) steps = Math.max(steps, FEEL.hitstopCounter);
   hitstop(state, steps);
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
@@ -345,6 +359,15 @@ export function gainEnergy(state: GameState, amount: number): void {
   p.energy = Math.min(p.maxEnergy, p.energy + amount * state.stats.energyGainMul);
 }
 
+/** 撃破の止めを長くする節目: 精鋭・ボス・陣の大将・陣の最後の 1 体（普通の撃破は短く切って手数のテンポを守る） */
+function killIsMark(state: GameState, enemy: Enemy, boss: boolean): boolean {
+  if (boss || enemy.elite !== undefined) return true;
+  if (enemy.jinId === undefined) return false;
+  const jin = state.jins.find((j) => j.id === enemy.jinId);
+  if (jin?.leaderId === enemy.id) return true;
+  return !state.enemies.some((o) => o !== enemy && o.hp > 0 && o.jinId === enemy.jinId);
+}
+
 function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   const def = enemyDef(enemy.defKey);
   // 壺・木箱は撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、銭と瓶だけ（system/containers.ts）
@@ -359,8 +382,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   spawnBurst(state, enemy.body.pos, "#ffffff", 6, 90, 0.25, 1.5);
   // 攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5）
   spawnDirectional(state, enemy.body.pos, dir, def.color, KILL_DIRECTIONAL_PARTICLES, KILL_DIRECTIONAL_SPEED);
-  addFloatingText(state, { x: enemy.body.pos.x, y: enemy.body.pos.y - 6 }, `+${gained}`, "#ffd75f", 1.1, 0.8);
-  hitstop(state, FEEL.hitstopKill);
+  hitstop(state, killIsMark(state, enemy, def.boss === true) ? FEEL.hitstopKillMark : FEEL.hitstopKill);
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, dir, FEEL.kickHeavy);
   pushSfx(state, "kill");
@@ -396,7 +418,7 @@ function lastKillFx(state: GameState, enemy: Enemy): void {
   state.slowmo = Math.max(state.slowmo, c.slowmo);
   state.flash = Math.max(state.flash, c.flash);
   const pos = { x: enemy.body.pos.x, y: enemy.body.pos.y - c.textOffsetY };
-  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife);
+  addFloatingText(state, pos, c.text, c.color, c.textScale, c.textLife, "notice");
   spawnRing(state, enemy.body.pos, c.ringRadius, c.color, c.ringLife);
   spawnBurst(state, enemy.body.pos, c.color, c.particles, 220, 0.6, 2.5);
   shake(state, FEEL.shakeSpecial);
@@ -539,6 +561,7 @@ export function damagePlayer(
     noteBraceBlockMana(state, amount);
     if (!opts.noJust && (p.dashTimer > 0 || boonJustEligible(state)) && !p.dodgedThisDash) {
       justDodge(state, attacker);
+      if (attacker) bossOnAnswer(state, attacker, "just");
       return "dodged";
     }
     return "ignored";
@@ -577,7 +600,7 @@ export function damagePlayer(
   state.combo.count = comboAfterHurt(state);
   if (state.combo.count === 0) state.combo.timer = 0;
 
-  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3);
+  addFloatingText(state, p.body.pos, `-${taken}`, COLOR_HURT, 1.3, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HURT, 12, 150, 0.4, 2);
   hitstop(state, FEEL.hitstopHeavy);
   shake(state, FEEL.shakeHurt);
@@ -648,7 +671,7 @@ function payDeferredDamage(state: GameState): void {
   const due = list.filter((d) => d.due <= state.time).reduce((sum, d) => sum + d.amount, 0);
   if (due <= 0) return;
   p.deferredDamage = list.filter((d) => d.due > state.time);
-  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE);
+  addFloatingText(state, p.body.pos, `-${due}`, COLOR_HURT, DEFERRED_TEXT_SCALE, undefined, "normal");
   damagePlayerDot(state, due, { kind: "deferred", key: "" });
 }
 
@@ -727,7 +750,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   gainEnergy(state, ENERGY.just);
   gainMana(state, MANA.onJust);
   registerComboHit(state);
-  addFloatingText(state, p.body.pos, "見切り！", COLOR_JUST, 1.5, 0.7);
+  addHeadLabel(state, p.body.pos, "見切り！", COLOR_JUST, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
   justFx(state);
   state.flash = Math.max(state.flash, 0.2);
@@ -763,7 +786,7 @@ export function healPlayer(state: GameState, amount: number, opts: HealOptions =
   const gained = p.hp - before;
   if (gained <= 0 || opts.silent) return gained;
   const shown = Math.round(gained);
-  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2);
+  if (shown > 0) addFloatingText(state, p.body.pos, `+${shown}`, COLOR_HEAL, 1.2, undefined, "normal");
   spawnBurst(state, p.body.pos, COLOR_HEAL, 10, 80, 0.5, 2);
   pushSfx(state, "heal");
   return gained;

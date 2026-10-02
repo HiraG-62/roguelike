@@ -18,7 +18,7 @@ const COLOR_TAB_BORDER = "#ffd75f";
 const COLOR_CURSOR_BG = "rgba(106,140,255,0.22)";
 const COLOR_DETAIL_BG = "#101018";
 const COLOR_MARK = "#80ff80";
-const MARK = "▶";
+const MARK = "◆";
 const OVERFLOW_MARK = "…";
 const ROW_PAD = 6;
 /** 一覧の名前の列に使う幅の割合（残りが右寄せの情報） */

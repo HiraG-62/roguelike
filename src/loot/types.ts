@@ -134,7 +134,7 @@ export interface Provenance {
   // ---- 2026-09 追加（docs/ideas/loot-expansion.md 7 章）。旧セーブは 0 で補う ----
   /** 敵を怯ませた回数（ボスのダウンを含む） */
   staggers: number;
-  /** カウンター（予備動作中の敵への近接）の成立回数 */
+  /** カウンター（出端 = 予告が下絵の間に振り始めた近接 / 放出の弾、と受け流し）の成立回数 */
   counters: number;
   /** スキルの発動回数 */
   skillCasts: number;
@@ -339,6 +339,16 @@ export interface Profile {
    * 欠けた武器種はその武器種の 1 本目（data/ultimates.ts の defaultUltimate）。sanitize は loot/profile.ts（Lane C）
    */
   ultimates?: Partial<Record<MovesetKey, string>>;
+  /**
+   * 拠点の装備画面で「持ち込み」の印を付けた部位（追加フィールド。version は変えない）。
+   * 無ければ既定（loot/runGear.ts の carriedSlots）。右手を枠の外にする設定（CARRY.weaponFree）では右手を書かない
+   */
+  carry?: Slot[];
+  /**
+   * ラン用のプロフィール（loot/runGear.ts の makeRunProfile）だけが持つ、拠点から持ち込んだ遺物の id。
+   * これがあるプロフィールは保存しない（saveProfile が何もしない）。保存データには現れない
+   */
+  carriedIds?: string[];
 }
 
 export function createEmptyEquipment(): Equipment {
@@ -743,7 +753,7 @@ export type TriggerKind =
   | "everyNthMeleeHit"
   /** 敵を怯ませた瞬間（ボスのダウンを含む） */
   | "onStagger"
-  /** カウンター（予備動作中の敵への近接）が成立した瞬間 */
+  /** カウンター（出端・受け流し）が成立した瞬間 */
   | "onCounter";
 
 export type TriggerCondition =

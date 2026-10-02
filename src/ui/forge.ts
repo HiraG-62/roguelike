@@ -18,6 +18,7 @@ import { saveCraft, type CraftSave } from "../loot/craftingStore";
 import { isKeystoneKey, formatAffix } from "../loot/affixes";
 import { describeTrait } from "../loot/describe";
 import { saveProfile } from "../loot/profile";
+import { isCarriedItem } from "../loot/runGear";
 import { LOOT_SLOTS, TRAIT_COLORS, type Item, type Profile } from "../loot/types";
 import { applyEquipmentChange } from "./menuActions";
 import type { ForgePick, ForgeSession } from "./menuState";
@@ -53,6 +54,7 @@ export const FORGE_STEP_PROMPT: Readonly<Record<ForgeStep, string>> = {
 const LOANED_TEXT = "借り物は鍛えられない";
 const EQUIPPED_SHATTER_TEXT = "装備中の遺物は砕けない（外してから）";
 const MISSING_TEXT = "遺物が見つからない";
+const CARRIED_TEXT = "持ち込んだ遺物は消せない";
 
 /** 相手を取る操作（注ぎ・移し） */
 export function forgeNeedsPartner(op: EchoOp): boolean {
@@ -116,12 +118,20 @@ export function isEquippedItem(profile: Readonly<Profile>, id: string): boolean 
   return LOOT_SLOTS.some((slot) => profile.equipment[slot]?.id === id);
 }
 
+/** その操作で subject が消えるか（砕く・倉庫の物を捧げる側にする注ぎ・移し） */
+function consumesSubject(profile: Readonly<Profile>, subjectId: string, op: EchoOp): boolean {
+  if (op === "shatter") return true;
+  return forgeNeedsPartner(op) && !isEquippedItem(profile, subjectId);
+}
+
 /** その操作を選べない理由（選べるなら null）。2-4 の役割表 */
 export function forgeOpBlock(profile: Readonly<Profile>, subjectId: string, op: EchoOp): string | null {
   const item = findItem(profile, subjectId);
   if (item === null) return MISSING_TEXT;
   if (item.loaned === true) return LOANED_TEXT;
   if (op === "shatter" && isEquippedItem(profile, subjectId)) return EQUIPPED_SHATTER_TEXT;
+  // ラン中は拠点から持ち込んだ遺物を消せない（拠点の装備に残っている物なので、消すと残響だけ増える）
+  if (isCarriedItem(profile, subjectId) && consumesSubject(profile, subjectId, op)) return CARRIED_TEXT;
   return null;
 }
 
@@ -144,7 +154,8 @@ export function forgePartners(profile: Readonly<Profile>, session: Readonly<Forg
   const subject = forgeItem(profile, session.subjectId);
   if (subject === null) return [];
   const sameSlot = profile.stash.filter((it) => it.slot === subject.slot && it.id !== subject.id && it.loaned !== true);
-  if (isEquippedItem(profile, subject.id)) return sameSlot;
+  // 装備中の subject の相手は捧げる側（消える）なので、拠点から持ち込んだ遺物は並べない
+  if (isEquippedItem(profile, subject.id)) return sameSlot.filter((it) => !isCarriedItem(profile, it.id));
   const worn = profile.equipment[subject.slot];
   return worn && worn.loaned !== true ? [worn, ...sameSlot] : sameSlot;
 }

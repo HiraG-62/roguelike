@@ -5,11 +5,13 @@
     "damagePerDepth": "深度 1 つごとに敵の攻撃へ足す倍率（深度 1 で 1 倍。旧 flat 加算 depthDamageBonus の置き換え）。目安 0.04〜0.06",
     "deepDepth": "ここから深み（指数の伸び）。最深の間の深度と同じにする（chapters.test.ts が縛る）。深みの敵数・変異は world/DEEP。目安 21",
     "deepHpGrowth": "深み 1 階ごとの生命・怯み耐性の倍率（深度 deepDepth の値 × これ^(深度 − deepDepth)）。目安 1.10〜1.15",
-    "deepDamageGrowth": "深み 1 階ごとの敵の攻撃の倍率。目安 1.03〜1.05"
+    "deepDamageGrowth": "深み 1 階ごとの敵の攻撃の倍率。目安 1.03〜1.05",
+    "damageMul": "敵の攻撃の全体の倍率（深度の曲線に掛ける。全深度・ボスも同じ）。2026-10-02: 通常の部屋すべてに陣を置いて敵が約 2 倍になり被弾が増えたので 0.85（ユーザーの決定 −15%）"
   },
   "hpPerDepth": 0.11,
   "damagePerDepth": 0.14,
   "deepDepth": 21,
   "deepHpGrowth": 1.12,
-  "deepDamageGrowth": 1.04
+  "deepDamageGrowth": 1.04,
+  "damageMul": 0.85
 }

@@ -17,12 +17,9 @@ const BURN_FLICKER_SPEED = 18;
 const BURN_FLICKER_AMOUNT = 0.25;
 const PLAYER_BURN_ALPHA = 0.35;
 const COLOR_ENEMY_BULLET = "#ff6060";
-/** 光の外から撃たれるレーザーと、壁抜けで迫る Reaper は暗闇でも見えるようにする（見えない即死級を作らない） */
-const LASER_WINDUP_ALPHA = 0.35;
-const LASER_WINDUP_WIDTH = 1;
+/** 壁抜けで迫る Reaper と照射中のレーザーは暗闇でも見えるようにする（見えない即死級を作らない。予備動作の線は予告の描き直しが持つ: telegraphLayer.drawDark） */
 const LASER_FIRE_ALPHA = 0.8;
 const REAPER_GLOW_PAD = 6;
-const LASER_EYE_KEY = "laserEye";
 
 function buildHole(r: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -102,10 +99,6 @@ export class DarknessLayer {
     const p = state.player;
     if (hasStatus(p.status, "burn")) {
       this.glow(target, p.body.pos.x, p.body.pos.y, BURN_GLOW_RADIUS, STATUS.burnColor, PLAYER_BURN_ALPHA * flicker);
-    }
-    for (const e of state.enemies) {
-      if (e.hp <= 0 || e.phase !== "windup" || e.defKey !== LASER_EYE_KEY || !e.ai) continue;
-      this.beam(target, e.body.pos, e.ai.target, LASER_WINDUP_WIDTH, LASER_WINDUP_ALPHA);
     }
     const r = state.reaper;
     if (r) {

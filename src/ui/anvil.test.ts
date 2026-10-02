@@ -47,7 +47,7 @@ function wallet(amount: number): EchoWallet {
   return { crimson: amount, azure: amount, jade: amount, gold: amount, umbra: amount };
 }
 
-/** 装備中 1（worn）・倉庫に右手 2（stash-a / stash-b）と指輪 1（ring-a）を置き、鍛冶場で開いた装備画面 */
+/** 装備中 1（worn）・倉庫に右手 2（stash-a / stash-b）と指輪 1（ring-a）を置き、鍛冶屋で開いた装備画面 */
 function setup(echoes = 50): { state: GameState; ui: InventoryUi; craft: CraftSave } {
   const state = createGame(1);
   state.sandbox = true;
@@ -98,7 +98,7 @@ function back(state: GameState, ui: InventoryUi): void {
 }
 
 describe("金床の構え", () => {
-  it("鍛冶場で開くと装束が金床の構えになる", () => {
+  it("鍛冶屋で開くと装束が金床の構えになる", () => {
     const { state, ui } = setup();
     expect(ui.stack.map((v) => v.kind), "装束の 1 段").toEqual(["attire"]);
     const anvil = anvilOf(ui);
@@ -112,7 +112,7 @@ describe("金床の構え", () => {
     const part = hitOf(state, ui, fid.part("ring"));
     const r = ATTIRE_PART_RECTS.ring;
     expect(part.rect.x, "部位の位置は装束と同じ").toBe(r.x - 1);
-    expect(ANVIL_VIEW.header(state, ui, rootOf(ui)).crumbs, "見出しは鍛冶場").toBe("鍛冶場");
+    expect(ANVIL_VIEW.header(state, ui, rootOf(ui)).crumbs, "見出しは鍛冶屋").toBe("鍛冶屋");
   });
 
   it("部位を選ぶと装備中の物とその部位の倉庫が並ぶ", () => {
@@ -194,7 +194,7 @@ describe("金床の構え", () => {
     expect(ui.stack[0]?.kind, "紋の面").toBe("crest");
     switchFace(state, ui, "attire");
     expect(anvilOf(ui).slot, "戻ると構えは最初の段から").toBeNull();
-    expect(ui.anvilSession, "鍛冶場の入口のまま").toBe(true);
+    expect(ui.anvilSession, "鍛冶屋の入口のまま").toBe(true);
     closeMenu(state, ui);
     openMenu(state, ui, "attire");
     expect(rootOf(ui).anvil, "持ち物キーで開くと金床の構えにならない").toBeNull();

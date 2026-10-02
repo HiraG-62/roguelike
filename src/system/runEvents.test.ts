@@ -3,7 +3,7 @@ import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState, RoomState } from "../core/state";
 import { ELEMENT_LABEL } from "../core/element";
-import { ARC, DEEP, ECONOMY, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
+import { ARC, DEEP, ECONOMY, ELITE, HEAL, LINGER, RUN_EVENT, RUN_MOD } from "../data/tuning";
 import { BOONS, BOON_KEYS, grantBoon } from "./boons";
 import { TILE_SIZE, rectCenterPx } from "../map/grid";
 import { buildFloor } from "./floor";
@@ -95,6 +95,8 @@ function lock(state: GameState, room: RoomState): void {
 
 /** 予告を出し、始まる（または一瞬で終わる）まで進める */
 const START_LIMIT = WARN_STEPS * 4;
+/** 着弾の円が出るまで待つ上限（ステップ。メテオの継続 8 秒ぶん） */
+const IMPACT_WAIT_STEPS = Math.ceil(RUN_EVENT.meteor.duration / FIXED_DT);
 function start(state: GameState, key: RunEventKey, index: number): void {
   scheduleRunEvent(state, key, index);
   const slot = RUN_EVENTS[key].scope === "floor" ? "floor" : "room";
@@ -224,7 +226,8 @@ describe("ランイベントの効果", () => {
       const { state, room, index } = setup();
       lock(state, room);
       start(state, key, index);
-      run(state, 3);
+      // 着弾点はプレイヤーの周りの乱数で、壁に当たると円が出ない回がある。円が出るまで進める（イベントの継続中に必ず出る）
+      for (let i = 0; i < IMPACT_WAIT_STEPS && state.runEvents.impacts.length === 0; i++) step(state, IDLE, FIXED_DT);
       const impact = state.runEvents.impacts[0];
       expect(impact, key).toBeDefined();
       if (!impact) continue;
@@ -289,10 +292,16 @@ describe("ランイベントの効果", () => {
     const before = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
     const count = before.length;
     const maxHp = before.map((e) => e.maxHp);
+    const eliteBefore = before.map((e) => e.elite);
     start(state, "shrink", index);
     const after = state.enemies.filter((e) => e.roomIndex === index && e.hp > 0);
     expect(after.length).toBeGreaterThan(count);
-    before.forEach((e, i) => expect(e.maxHp).toBeLessThanOrEqual(Math.ceil((maxHp[i] ?? 0) * RUN_EVENT.shrinkHpMul)));
+    // 増援を足すと連結の相方に既存の通常敵が選ばれて修飾子が付く（ELITE.hpMul 倍）ことがある。HP を半分にするのはその後
+    before.forEach((e, i) => {
+      const promoted = eliteBefore[i] === undefined && e.elite !== undefined;
+      const full = (maxHp[i] ?? 0) * (promoted ? ELITE.hpMul : 1);
+      expect(e.maxHp, `${e.defKey} の最大 HP`).toBeLessThanOrEqual(Math.ceil(full * RUN_EVENT.shrinkHpMul) + 1);
+    });
   });
 
   it("勢いの風: 次の部屋を封鎖すると足が速くなり、敵が 1 体減る", () => {

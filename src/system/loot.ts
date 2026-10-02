@@ -13,7 +13,7 @@ import { SKILL, stoneLabel } from "../skills/data";
 import { generateSkillStone } from "../skills/generator";
 import { addStone, saveSkillProfile } from "../skills/persistence";
 import type { SkillStone } from "../skills/types";
-import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity } from "../loot/types";
+import { RARITY_COLOR, TRAIT_COLOR_HEX, type AffixRoll, type Item, type Rarity, type Slot } from "../loot/types";
 import { addFloatingText, inscribeFx } from "./effects";
 import { overlapsWall } from "./physics";
 import { applyStats } from "./player";
@@ -247,7 +247,6 @@ function pickUpStone(state: GameState, stone: SkillStone, pos: Vec): boolean {
   }
   saveSkillProfile(profile);
   const label = stoneLabel(stone);
-  addFloatingText(state, pos, label, SKILL.drop.stoneColor, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `スキル石: ${label}`, SKILL.drop.stoneColor);
   pushSfx(state, "lootRare");
   return true;
@@ -262,7 +261,6 @@ function pickUp(state: GameState, item: Item, pos: Vec): boolean {
   }
   saveProfile(state.profile);
   const color = itemColor(item);
-  addFloatingText(state, pos, item.name, color, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `${item.name}を拾った。`, color);
   pushSfx(state, RARE_RARITIES.has(item.rarity) ? "lootRare" : "pickup");
   return true;
@@ -275,16 +273,17 @@ export function itemColor(item: Item): string {
 }
 
 /**
- * 提示中の芽（state.pendingBud）から index（0 / 1）を選ぶ。UI から呼ぶ。
- * 選んだ性質を装備に加えて stats を畳み込み直し、保存して、次の芽があれば pendingBud に出す。
+ * 部位 slot の装備に提示中の芽から index（0 / 1）を選ぶ。UI から呼ぶ。
+ * 芽の提示は部位ごとの item.budOffer にあり、pendingBud（SLOTS 順で先頭の 1 つ）には縛らない
+ * （複数の装備が芽を持つとき、上の装備から順にしか選べなくなるため）。
+ * 選んだ性質を装備に加えて stats を畳み込み直し、保存して、pendingBud を作り直す。
  * 選べたら選んだ性質、提示が無い / index 不正なら null
  */
-export function chooseBud(state: GameState, index: number): AffixRoll | null {
-  const pending = state.pendingBud;
-  if (pending === null) return null;
-  const item = state.profile.equipment[pending.slot];
-  if (item === null || item.id !== pending.itemId) {
-    state.pendingBud = findPendingBud(state.profile);
+export function chooseBud(state: GameState, slot: Slot, index: number): AffixRoll | null {
+  const item = state.profile.equipment[slot];
+  if (item === null || item === undefined || (item.budOffer ?? null) === null) {
+    // 古い pendingBud が残っていたら装備の実際の状態に合わせる
+    if (state.pendingBud?.slot === slot) state.pendingBud = findPendingBud(state.profile);
     return null;
   }
   const unnamed = item.inscription === undefined;
@@ -294,7 +293,6 @@ export function chooseBud(state: GameState, index: number): AffixRoll | null {
   applyStats(state, computeStats(state.profile.equipment, state.depth));
   saveProfile(state.profile);
   state.pendingBud = findPendingBud(state.profile);
-  addFloatingText(state, state.player.body.pos, "芽吹き", BUD_TEXT_COLOR, LABEL_TEXT_SCALE, LABEL_TEXT_LIFE);
   pushLog(state, `${item.name}が芽吹いた。`, BUD_TEXT_COLOR);
   return chosen;
 }

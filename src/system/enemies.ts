@@ -2,7 +2,7 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, JINZU, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -11,6 +11,7 @@ import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWa
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
 import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
+import { markWindupStart, NEVER_TIME, noteCommit } from "./readTiming";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import type { EnemyTelegraph } from "./behaviors/base";
@@ -18,6 +19,8 @@ import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
 import { jinBonusMul, stepRout } from "./jin";
+import { freshStrokeCount, jinzuHoldsAttack, surgeStrikerSlot, updateJinzu } from "./jinzu";
+import { stepJinzuMember } from "./jinzuRun";
 import { wakeByNoise } from "./noise";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
@@ -153,6 +156,8 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     phase: spawning ? "spawning" : "idle",
     phaseTimer: spawning ? SPAWN_TIME : 0,
     windupTotal: 0,
+    windupAt: NEVER_TIME,
+    committedAt: NEVER_TIME,
     strikeDir: { x: 1, y: 0 },
     attackCooldown: def.attackInterval * (0.5 + state.rng.next()),
     hitFlash: 0,
@@ -187,7 +192,7 @@ export function updateEnemies(state: GameState, dt: number): void {
     const edt = dt * chillFactor(e);
     applyKnock(state, e, def, dt);
     // 先送りされた怯みの安全網（個別 AI のボスなど endStrike を通らない技の後）。行動停止の判定より前に払う
-    if (e.phase !== "strike") settlePendingStagger(state, e);
+    if (e.phase !== "strike" && e.phase !== "windup") settlePendingStagger(state, e);
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
     e.animTime += edt;
@@ -208,6 +213,8 @@ export function updateEnemies(state: GameState, dt: number): void {
       stepRout(state, e, def, edt, enemySpeed(state, e, def));
       continue;
     }
+    // 本陣の陣図: 筆を持つ大将・持ち場の兵は止まり、墨の入った画の兵は走る（system/jinzu.ts・jinzuRun.ts）
+    if (e.jinzuRun && stepJinzuMember(state, e, def, edt, enemySpeed(state, e, def))) continue;
 
     if (isBossDriven(def)) {
       updateBossEnemy(state, e, def, edt);
@@ -247,6 +254,10 @@ export function updateEnemies(state: GameState, dt: number): void {
     }
     if (def.behavior === "wisp") touchWisp(state, e, def);
   }
+  // 本陣の陣図の段を進める（大将の怯み・恐怖の見張りは、このステップの怯みが入った後のここで取る）
+  updateJinzu(state, dt);
+  // 墨入れになった時刻を残す（出端の判定 yellowAt が「プレイヤーが押した時点で下絵だったか」を引く。system/readTiming.ts）
+  for (const e of state.enemies) noteCommit(state, e);
   separate(state, dt);
   handleDeaths(state);
   state.enemies = state.enemies.filter((e) => e.hp > 0);
@@ -451,9 +462,14 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
 
   if (!wantsEngage(state, e, def, d) || e.attackCooldown > 0) return;
   if (!canBeginAttack(state, e, def, d)) return;
-  // 予告の見やすさの上限: 同じ 0.3 秒に赤くなる予告を絞る（次の窓で再挑戦）
+  // 予告の見やすさの上限: 同じ 0.3 秒に墨入れになる予告を絞る（次の窓で再挑戦）
   if (telegraphCrowded(state, e)) {
     e.attackCooldown = ENEMY_TEMPO.telegraphWindow;
+    return;
+  }
+  // 本陣の構え・総掛かりの間は、周りの敵も新しい予備動作に入らず 1 拍待つ（陣図の主役を 1 つにする）
+  if (jinzuHoldsAttack(state, e)) {
+    e.attackCooldown = Math.max(e.attackCooldown, JINZU.surgeHoldOthers);
     return;
   }
   beginWindup(state, e, def, dir);
@@ -485,7 +501,8 @@ function telegraphCrowded(state: GameState, e: Enemy): boolean {
     if (dist(o.body.pos, p) > t.telegraphRange || isBossDriven(enemyDef(o.defKey))) continue;
     fresh++;
   }
-  return fresh >= t.telegraphCap;
+  // 本陣の画が出たばかり（telegraphWindow の間）は予告 1 つと数える
+  return fresh + freshStrokeCount(state) >= t.telegraphCap;
 }
 
 /** 攻撃に入る距離か。地雷はプレイヤーだけでなく敵が踏んでも爆ぜる */
@@ -604,6 +621,7 @@ function beamOffsetDeg(def: EnemyDef, index: number): number {
 /** 予備動作に入る（1 撃目・2 撃目以降の共通）。base は深度前の基準秒 */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
+  markWindupStart(state, e);
   e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e));
   e.windupTotal = e.phaseTimer;
   e.chainWindup = false;
@@ -739,9 +757,10 @@ export function strikerCap(state: GameState): number {
 function strikeSlotsFull(state: GameState, e: Enemy): boolean {
   let striking = 0;
   for (const o of state.enemies) {
-    if (o !== e && o.hp > 0 && o.phase === "strike" && !isBossDriven(enemyDef(o.defKey))) striking++;
+    if (o !== e && o.hp > 0 && o.phase === "strike" && !o.jinzuRun && !isBossDriven(enemyDef(o.defKey))) striking++;
   }
-  return striking >= strikerCap(state);
+  // 総掛かりの走る兵は 1 人ずつ数えず、総掛かり 1 つで 1 枠
+  return striking + surgeStrikerSlot(state) >= strikerCap(state);
 }
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
@@ -998,7 +1017,7 @@ function strikeSpeedMul(e: Enemy, def: EnemyDef): number {
 }
 
 /** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
-function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
+export function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
   // 霊体化（skills/forms.ts）は敵の体と近接をすり抜ける
   if (state.skills.shape?.key === "wraithForm") return null;
   const p = state.player.body;

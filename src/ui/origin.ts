@@ -13,6 +13,8 @@ import {
 import { QUESTS } from "../meta/quests";
 import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { jobDetailLines } from "../system/jobs";
+import type { Slot } from "../loot/types";
+import { SLOT_LABEL } from "./inventoryLayout";
 
 /**
  * 起点画面（タイトル → ジョブ → 起点・縛り → ラン開始）の状態と入力。DOM 非依存。
@@ -44,6 +46,18 @@ export interface OriginScreen {
   modifiers: RunModKey[];
   /** 依頼で未解放の起点（「？」で出し、選べない。src/meta/quests.ts の lockedOrigins） */
   locked: ReadonlySet<OriginKey>;
+  /** ランへ持ち込む部位（装備のある部位だけ。loot/runGear.ts の carriedSlots）。起点の段の上に 1 行で出す */
+  carry: readonly Slot[];
+}
+
+const CARRY_HEAD = "持ち込み: ";
+const CARRY_NONE = "なし";
+const CARRY_SEP = "・";
+
+/** 「持ち込み: 右手・指輪・首飾り」（変えるのは拠点の装備画面の装束。部位の長押し） */
+export function carryLine(ui: Readonly<Pick<OriginScreen, "carry">>): string {
+  const names = ui.carry.map((s) => SLOT_LABEL[s]);
+  return `${CARRY_HEAD}${names.length > 0 ? names.join(CARRY_SEP) : CARRY_NONE}`;
 }
 
 /**
@@ -54,6 +68,7 @@ export function createOriginScreen(
   prev: RunSetup = defaultRunSetup(),
   locked: ReadonlySet<OriginKey> = new Set(),
   lockedJobs: ReadonlySet<JobKey> = new Set(),
+  carry: readonly Slot[] = [],
 ): OriginScreen {
   // 前回のジョブが未解放扱い（保存データが消えた等）なら見習いへ戻す
   const job = prev.job === undefined || lockedJobs.has(prev.job) ? "none" : prev.job;
@@ -69,6 +84,7 @@ export function createOriginScreen(
     origin: locked.has(prev.origin) ? defaultRunSetup().origin : prev.origin,
     modifiers: [...prev.modifiers],
     locked,
+    carry: [...carry],
   };
 }
 

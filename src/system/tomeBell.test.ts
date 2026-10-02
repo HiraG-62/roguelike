@@ -8,7 +8,7 @@ import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
 import { FORM, STATUS, WEAPON } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
-import type { PlayerStats } from "../loot/types";
+import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { skillHit } from "../skills/hit";
 import { placeMine } from "../skills/placed";
 import { placeKeg, tollSummons } from "../skills/summons";
@@ -19,6 +19,8 @@ import { gainMorale } from "./morale";
 import { updatePlayer } from "./player";
 import { createSkillRunState, resolveSlot, updateSkills } from "./skills";
 import { applyStatus, findStatus, hasStatus, statusStacks, updateStatusEffects } from "./statusEffects";
+import { scaled } from "./attributes";
+import { attackHitManaMul } from "./manaSources";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { minionDamageMul } from "./tomeBell";
 
@@ -223,10 +225,10 @@ describe("鈴（打ち鳴らし）", () => {
 // 書の専用の印「墨印」（docs/ideas/tome-rework.md 7 章。system/inkMark.ts）
 // ---------------------------------------------------------------------------
 
-/** 書の左の段が記す墨印（movesets/book.json の applies と同じ） */
+/** 書の左の字（cast inkGlyph）が記す墨印（movesets/book.json の cast の applies と同じ） */
 function inkApply(): StatusApply {
-  const apply = MOVESETS.book.steps[0]?.applies?.find((a) => a.kind === "inkMark");
-  if (!apply) throw new Error("書の左 1 段目が墨印を記さない");
+  const apply = MOVESETS.book.steps[0]?.cast?.throw.applies?.find((a) => a.kind === "inkMark");
+  if (!apply) throw new Error("書の左 1 段目の字が墨印を記さない");
   return apply;
 }
 
@@ -234,7 +236,7 @@ function ink(state: GameState, e: Enemy, stacks: number): void {
   applyStatus(state, { kind: "enemy", enemy: e }, { ...inkApply(), stacks }, "player");
 }
 
-/** 近接の当たる位置の小さな敵（硬く、攻めてこない） */
+/** 小さな敵（硬く、攻めてこない）。左の字は約 10m（100px）まで飛ぶので、その内側に置く */
 function near(state: GameState, dx: number, dy = 0): Enemy {
   const e = placeEnemy(state, "slime", dx, dy);
   e.hp = TOUGH_HP;
@@ -244,10 +246,52 @@ function near(state: GameState, dx: number, dy = 0): Enemy {
   return e;
 }
 
-/** 左を 1 回押して振り終える */
+/** 自分の弾（左の字）が飛んでいる数 */
+function glyphsInFlight(state: GameState): number {
+  return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0).length;
+}
+
+/** 弾も動かす 1 ステップ（左の字は弾なので、updatePlayer だけでは飛ばない） */
+function tick(state: GameState, input: Partial<FrameInput> = {}): void {
+  step(state, withInput(input), FIXED_DT);
+}
+
+/** 振りが終わり、飛んだ字が当たるか消えるまで進める */
+function settleFull(state: GameState): void {
+  for (let i = 0; i < 180 && (state.player.attack.phase !== "none" || glyphsInFlight(state) > 0); i++) tick(state);
+}
+
+/** 左を 1 回押して振り終え、字が当たるか消えるまで進める */
 function swingLeft(state: GameState): void {
-  run(state, { attackPressed: true });
-  settle(state);
+  tick(state, { attackPressed: true });
+  settleFull(state);
+}
+
+/**
+ * 左を count 回、段を進めて続けて押す（振りの recover に次を押す）。字が消えるまで進め、
+ * target の墨印が増えたフレームの気力の増えを順に返す
+ */
+function chainLeft(state: GameState, count: number, target?: Enemy, onTick?: () => void): number[] {
+  const gains: number[] = [];
+  let pressed = 0;
+  let armed = false;
+  for (let i = 0; i < 600; i++) {
+    const phase = state.player.attack.phase;
+    if (phase === "active") armed = true;
+    const press = pressed === 0 || (pressed < count && phase === "recover" && armed);
+    if (press) {
+      pressed += 1;
+      armed = false;
+    } else if (pressed >= count && phase === "none" && glyphsInFlight(state) === 0) {
+      break;
+    }
+    const mana = state.player.mana;
+    const stacks = target ? statusStacks(target.status, "inkMark") : 0;
+    tick(state, press ? { attackPressed: true } : {});
+    onTick?.();
+    if (target && statusStacks(target.status, "inkMark") > stacks) gains.push(state.player.mana - mana);
+  }
+  return gains;
 }
 
 /** on-hit の最中に回した反応のダメージを流す */
@@ -260,15 +304,14 @@ function recited(events: readonly GameEvent[]): boolean {
 }
 
 describe("書（墨印）", () => {
-  it("左 3 段の命中で墨印が 3 重なり、上限で止まる", () => {
+  it("左 3 段の字の命中で墨印が 3 重なり、上限で止まる", () => {
     const state = arena(5, { moveset: "book" });
-    const e = near(state, 14);
-    for (let i = 0; i < 3; i++) {
-      swingLeft(state);
-      expect(statusStacks(e.status, "inkMark"), `${i + 1} 段目`).toBe(i + 1);
-    }
+    const e = near(state, 30);
+    const gains = chainLeft(state, 3, e);
+    expect(gains, "3 段が 1 回ずつ記す").toHaveLength(3);
+    expect(statusStacks(e.status, "inkMark"), "3 段で 3 重ね").toBe(3);
     expect(STATUS.inkMark.maxStacks, "左 3 段で満ちる").toBe(3);
-    swingLeft(state);
+    chainLeft(state, 1);
     expect(statusStacks(e.status, "inkMark"), "上限").toBe(STATUS.inkMark.maxStacks);
   });
 
@@ -344,23 +387,104 @@ describe("書（墨印）", () => {
     expect(between.hp, "1 重ねの円の外").toBe(TOUGH_HP);
   });
 
-  it("近接の命中では読まれない（記すだけ）", () => {
+  it("左の字（射撃）の命中では読まれない（記すだけ）", () => {
     const state = arena(5, { moveset: "book" });
-    const e = near(state, 14);
+    const e = near(state, 30);
     ink(state, e, 2);
-    swingLeft(state);
+    chainLeft(state, 1);
     expect(statusStacks(e.status, "inkMark"), "左の命中は重ねる").toBe(3);
+    expect(e.status.lastReaction?.key, "読誦が起きない").not.toBe("recite");
+  });
+
+  it("左の 3 段は当たり判定を持たず、cast「墨文字」の字だけが当たる（墨印は字が記す）", () => {
+    for (const s of MOVESETS.book.steps) {
+      expect(s.cast?.key, "左の段は字を撃つ").toBe("inkGlyph");
+      expect(s.cast?.name, "字の名前").toBe("墨文字");
+      expect(s.size, "近接の当たり判定は無い").toBe(0);
+      expect(s.applies ?? [], "墨印は字が記す").toHaveLength(0);
+      expect(s.cast?.throw.applies?.some((a) => a.kind === "inkMark"), "字が墨印を記す").toBe(true);
+      expect(s.cast?.throw.bullet.radius, "字の絵の基準の半径").toBe(3);
+      expect(s.cast?.throw.attack.element, "属性を付けない（朱墨の配色のまま）").toBe("none");
+    }
+    // 体に重なる距離の敵にも、近接の判定では当たらない（字が当たって初めて傷が付く）
+    const state = arena(5, { moveset: "book" });
+    near(state, 10);
+    tick(state, { attackPressed: true });
+    for (let i = 0; i < 60 && state.player.attack.phase !== "recover"; i++) tick(state);
+    expect(state.player.attack.hitIds.size, "振りの当たり判定には誰も入らない").toBe(0);
+  });
+
+  it("左の字の威力は、近接だった段の威力（係数 × meleeDamageScale）と同じ（火力は据え置き）", () => {
+    for (const s of MOVESETS.book.steps) {
+      const cast = s.cast;
+      if (!cast) throw new Error("左の段が字を撃たない");
+      const melee = scaled(DEFAULT_STATS, s.scaling);
+      expect(scaled(DEFAULT_STATS, cast.throw.scaling), "段の基礎威力と字の基礎威力").toBeCloseTo(melee, 5);
+    }
+  });
+
+  it("左 3 段目の字は貫通 +2 で、並ぶ敵に墨印を記す", () => {
+    const state = arena(5, { moveset: "book" });
+    // 発射時の貫通の数を、段ごとに弾から読む（1・2 段目は 0、3 段目は 2）
+    const pierce: number[] = [];
+    const seen = new Set<number>();
+    chainLeft(state, 3, undefined, () => {
+      for (const pr of state.projectiles) {
+        if (pr.owner !== "player" || seen.has(pr.id)) continue;
+        seen.add(pr.id);
+        pierce.push(pr.pierceLeft);
+      }
+    });
+    expect(pierce, "字は段ごとに 1 発").toEqual([0, 0, 2]);
+
+    // 3 段目の字は、前後に並ぶ 2 体の両方に墨印を記す
+    const duo = arena(5, { moveset: "book" });
+    const front = near(duo, 30);
+    const back = near(duo, 46);
+    duo.player.attack.step = 2;
+    duo.player.attack.inputTimer = WEAPON.chainWindow;
+    chainLeft(duo, 1);
+    expect([front, back].map((e) => statusStacks(e.status, "inkMark")), "3 段目は並ぶ敵を貫く").toEqual([1, 1]);
+  });
+
+  it("左の字の命中で近接だった段の気力（3・3・5）が戻る", () => {
+    const state = arena(5, { moveset: "book" });
+    const e = near(state, 30);
+    const unit = attackHitManaMul(state) * state.stats.manaGainMul;
+    expect(unit, "通常攻撃の気力の倍率が立っている").toBeGreaterThan(0);
+    state.player.mana = 0;
+    const gains = chainLeft(state, 3, e);
+    expect(gains, "3 段が 1 回ずつ命中").toHaveLength(3);
+    [3, 3, 5].forEach((mana, i) => {
+      expect(gains[i] ?? 0, `${i + 1} 段目の気力`).toBeGreaterThan(mana * unit - 0.01);
+      expect(gains[i] ?? 0, `${i + 1} 段目の気力（自然回復の 1 フレームぶんを超えない）`).toBeLessThan(mana * unit + 0.3);
+    });
+  });
+
+  it("左の字は約 10m（100px）で消える", () => {
+    const state = arena(5, { moveset: "book" });
+    tick(state, { attackPressed: true });
+    let far = 0;
+    const origin = { ...state.player.body.pos };
+    for (let i = 0; i < 180 && glyphsInFlight(state) + (state.player.attack.phase === "windup" ? 1 : 0) > 0; i++) {
+      for (const pr of state.projectiles) {
+        if (pr.owner === "player" && pr.life > 0) far = Math.max(far, Math.hypot(pr.pos.x - origin.x, pr.pos.y - origin.y));
+      }
+      tick(state);
+    }
+    expect(far, "100px の手前では消えない").toBeGreaterThan(90);
+    expect(far, "100px を大きく超えて飛ばない").toBeLessThan(115);
   });
 
   it("派生「頁飛ばし」（左右左）の頁の命中で読まれる", () => {
     const state = arena(5, { moveset: "book" });
     const e = near(state, 60);
     ink(state, e, STATUS.inkMark.maxStacks);
-    run(state, { attackPressed: true });
-    settle(state);
-    run(state, { shootHeld: true });
-    settle(state);
-    run(state, { attackPressed: true });
+    tick(state, { attackPressed: true });
+    settleFull(state);
+    tick(state, { shootHeld: true });
+    settleFull(state);
+    tick(state, { attackPressed: true });
     expect(MOVESETS.book.branches[state.player.attack.branch]?.key, "頁飛ばしの派生").toBe("pageVolley");
     const hpBefore = e.hp;
     // 出来事はステップの終わりに捨てられるので、反応は敵の袋の lastReaction で見る
@@ -373,8 +497,8 @@ describe("書（墨印）", () => {
   it("決定性: 同じ seed と同じ入力なら記して読んだ結果が同じ", () => {
     const play = (): { hp: number[]; mana: number; stacks: number[] } => {
       const state = skillArena({ moveset: "book" }, ["mines"]);
-      const a = near(state, 14);
-      const b = near(state, 14, 10);
+      const a = near(state, 30);
+      const b = near(state, 30, 10);
       for (let i = 0; i < 3; i++) swingLeft(state);
       hit(state, a, paramsOf(state), false);
       for (let i = 0; i < 10; i++) step(state, withInput({}), FIXED_DT);

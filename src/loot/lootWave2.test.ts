@@ -284,7 +284,7 @@ describe("注ぎ", () => {
   });
 
   it("同じ部位の別の遺物にだけ注げ、捧げた遺物は消える（費用なし）。届いた節目の芽が出る", () => {
-    const source = item("mainHand", [], { id: "src", provenance: { ...createEmptyProvenance(), kills: 120 } });
+    const source = item("mainHand", [], { id: "src", provenance: { ...createEmptyProvenance(), kills: 1200 } });
     const target = item("mainHand", [roll("damageVsStaggered", 10)], { id: "dst", provenance: createEmptyProvenance() });
     expect(pourGrowth(source, item("ring", [], { id: "ring" }))).toBeNull();
     const state = craftState(0);
@@ -292,8 +292,8 @@ describe("注ぎ", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.consumedIds).toEqual(["src"]);
-    expect(result.item?.provenance?.kills).toBe(60);
-    expect(result.item?.budOffer?.milestone, "撃破 50 の芽").toBe("kills:50");
+    expect(result.item?.provenance?.kills).toBe(600);
+    expect(result.item?.budOffer?.milestone, "撃破 500 に届いた芽（基準 50 の節目）").toBe("kills:50");
     expect(target.milestones, "元の遺物の節目の配列を書き換えない").toEqual([]);
   });
 });

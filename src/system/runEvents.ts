@@ -534,7 +534,7 @@ const TEXT_LIFT = 20;
 
 function announce(state: GameState, current: ActiveRunEvent): void {
   const p = state.player.body.pos;
-  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, eventTitle(current), RUN_EVENT.activeColor, 1.4, 1.4);
+  addFloatingText(state, { x: p.x, y: p.y - TEXT_LIFT }, eventTitle(current), RUN_EVENT.activeColor, 1.4, 1.4, "notice");
   pushSfx(state, "runEventStart");
 }
 
@@ -1084,7 +1084,7 @@ function tickReaperPass(state: GameState, current: ActiveRunEvent): void {
 /** 通り過ぎた後に冥の残響が残る */
 function finishReaperPass(state: GameState): void {
   state.runEvents.pendingEchoes.umbra += RUN_EVENT.reaperPass.echoes;
-  addFloatingText(state, { ...state.player.body.pos }, `冥の残響 +${RUN_EVENT.reaperPass.echoes}`, RUN_EVENT.activeColor, 1, 1.2);
+  addFloatingText(state, { ...state.player.body.pos }, `冥の残響 +${RUN_EVENT.reaperPass.echoes}`, RUN_EVENT.activeColor, 1, 1.2, "notice");
 }
 
 /**
@@ -1160,7 +1160,7 @@ function markThiefTarget(state: GameState, ev: ActiveRunEvent): void {
   if (!item) return;
   ev.targetId = item.id;
   ev.pos = { ...item.pos };
-  addFloatingText(state, { x: item.pos.x, y: item.pos.y - TEXT_LIFT }, THIEF_WARN_TEXT, RUN_EVENT.thief.color, 1, RUN_EVENT.warnTime);
+  addFloatingText(state, { x: item.pos.x, y: item.pos.y - TEXT_LIFT }, THIEF_WARN_TEXT, RUN_EVENT.thief.color, 1, RUN_EVENT.warnTime, "notice");
 }
 
 /** 始まり: 狙った遺物の向こう側に強欲のの盗賊が湧く（出現の魔法陣が予告）。遺物が拾われていれば来ない */

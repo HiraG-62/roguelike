@@ -24,7 +24,9 @@ import {
 } from "../ui/rackScreen";
 import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, textLineHeight, truncateText, wrapText } from "./pixelText";
+import { ACTOR_ART_SCALE, type ActorCell } from "./actorSprites";
 import type { Sprite } from "./sprites";
+import { ICON_BOX_H, weaponIconCell, weaponIconSize } from "./weaponIcons";
 
 export type RackSpriteLookup = (key: string) => Sprite | undefined;
 
@@ -105,20 +107,38 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
   }
 }
 
-/** 武器種の手持ちの絵を 2 倍で出す（斜めの向きが一番形が読める） */
+/** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（読めていない間は旧い 12px の絵） */
 function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card: RackCard, r: Rect): void {
   const moveset = card.moveset ?? view.equipped;
   if (moveset === null) return;
+  const prevAlpha = ctx.globalAlpha;
+  // 「装備のまま」は装備中の武器の絵を薄く出して、武器種のカードと見分ける
+  if (card.moveset === null) ctx.globalAlpha = 0.5;
+  const cell = weaponIconCell(moveset);
+  if (cell) drawHeldIcon(ctx, cell, r);
+  else drawLegacyIcon(ctx, view, moveset, r);
+  ctx.globalAlpha = prevAlpha;
+}
+
+function drawHeldIcon(ctx: CanvasRenderingContext2D, cell: ActorCell, r: Rect): void {
+  const { w, h } = weaponIconSize(cell);
+  // 半 px（背面バッファの 1 ドット = 2px）の刻みで中央に置く
+  const half = (v: number): number => Math.round(v * ACTOR_ART_SCALE) / ACTOR_ART_SCALE;
+  const x = half(r.x + (r.w - w) / 2);
+  const y = half(r.y + ICON_TOP + (ICON_BOX_H - h) / 2);
+  const prevSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cell.img, cell.sx, cell.sy, cell.w, cell.h, x, y, w, h);
+  ctx.imageSmoothingEnabled = prevSmoothing;
+}
+
+function drawLegacyIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, moveset: MovesetKey, r: Rect): void {
   const sprite = view.lookup(weaponSpriteKey(moveset));
   const img = sprite?.frames[WEAPON_FRAME.diagonal] ?? sprite?.frames[0];
   if (!img) return;
   const w = img.width * ICON_SCALE;
   const h = img.height * ICON_SCALE;
-  const prevAlpha = ctx.globalAlpha;
-  // 「装備のまま」は装備中の武器の絵を薄く出して、武器種のカードと見分ける
-  if (card.moveset === null) ctx.globalAlpha = 0.5;
   ctx.drawImage(img, Math.round(r.x + (r.w - w) / 2), r.y + ICON_TOP, w, h);
-  ctx.globalAlpha = prevAlpha;
 }
 
 /** 隠れている段があるときだけ、格子の右上・右下に ▲▼ を出す */

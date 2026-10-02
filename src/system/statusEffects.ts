@@ -584,6 +584,8 @@ export interface OnHitContext {
   /** スキル由来の命中 */
   skill?: boolean;
   crit?: boolean;
+  /** 墨印を記す弾の命中（記すだけで読まない。statusReactions.ts の recite） */
+  inscribes?: boolean;
 }
 
 function procMatches(on: "melee" | "ranged" | "skill" | "any", ctx: OnHitContext): boolean {

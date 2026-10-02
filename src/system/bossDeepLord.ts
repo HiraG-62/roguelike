@@ -92,6 +92,7 @@ const HOOKS: BossHooks = {
   beginWindup,
   beginStrike,
   tickStrike,
+  tickWindup,
   pickMove,
   followUp,
   recoverTime,
@@ -115,7 +116,7 @@ function color(): string {
 }
 
 function floatText(state: GameState, e: Enemy, text: string): void {
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, text, color(), TEXT_SCALE, TEXT_LIFE);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - TEXT_LIFT }, text, color(), TEXT_SCALE, TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------
@@ -530,6 +531,12 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
       e.phaseTimer = def.strikeTime;
       return;
   }
+}
+
+/** 借りた技の予備動作の毎ステップ（借りた跳躍が上昇で影の真上へ動く。これが無いと始点で滞空して着地点とずれる） */
+function tickWindup(state: GameState, e: Enemy, _def: EnemyDef, dt: number): void {
+  const sig = e.ai ? borrowedOf(e.ai.move) : null;
+  if (sig) borrow(e, (d) => sig.tickWindup?.(state, e, d, dt), sig);
 }
 
 function tickStrike(state: GameState, e: Enemy, def: EnemyDef, dt: number): boolean {

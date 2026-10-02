@@ -23,7 +23,6 @@ import {
 } from "./renderMath";
 import { SLASH_SPRITE, WEAPON_CANVAS, WEAPON_FRAME } from "../data/sprites/weapons";
 import { MOVESETS } from "../data/weapons";
-import { createMap, setTile, Tile } from "../map/grid";
 import { BOSS, ELITE, ENEMY_AI, PLAYER } from "../data/tuning";
 import { RARITIES } from "../loot/types";
 import { KEYWORD_DEFS, type Keyword, type ResonanceStep } from "../core/keywords";
@@ -41,62 +40,17 @@ import {
   crackPixels,
   damageTextStyle,
   fitTooltip,
-  floorVariant,
   floorWipeCover,
   pulse,
   spriteFeetY,
   tileHash,
-  wallMask,
-  wallStyle,
   computeViewScale,
 } from "./renderMath";
 import { TILE_SIZE } from "../map/grid";
 
-describe("floorVariant", () => {
-  it("決定的で範囲内", () => {
-    for (let y = 0; y < 20; y++) {
-      for (let x = 0; x < 20; x++) {
-        const v = floorVariant(x, y, 6);
-        expect(v).toBe(floorVariant(x, y, 6));
-        expect(v).toBeGreaterThanOrEqual(0);
-        expect(v).toBeLessThan(6);
-      }
-    }
-  });
-
-  it("全バリアントが出現する", () => {
-    const seen = new Set<number>();
-    for (let i = 0; i < 400; i++) seen.add(floorVariant(i % 20, Math.floor(i / 20), 6));
-    expect(seen.size).toBe(6);
-  });
-
+describe("tileHash", () => {
   it("負の座標でも符号なし", () => {
     expect(tileHash(-3, -7)).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("wallStyle", () => {
-  it("下が床なら face、横だけ床なら top、埋まっていれば none", () => {
-    const map = createMap(5, 5);
-    setTile(map, 2, 2, Tile.Floor);
-    expect(wallStyle(map, 2, 1)).toBe("face");
-    expect(wallStyle(map, 1, 2)).toBe("top");
-    expect(wallStyle(map, 2, 3)).toBe("top");
-    expect(wallStyle(map, 0, 0)).toBe("none");
-  });
-});
-
-describe("wallMask", () => {
-  it("隣接 4 方向の床をビットにする", () => {
-    const map = createMap(5, 5);
-    setTile(map, 2, 1, Tile.Floor); // N
-    setTile(map, 3, 2, Tile.Floor); // E
-    expect(wallMask(map, 2, 2)).toBe(1 | 2);
-  });
-
-  it("周囲が全部壁なら 0", () => {
-    const map = createMap(5, 5);
-    expect(wallMask(map, 2, 2)).toBe(0);
   });
 });
 

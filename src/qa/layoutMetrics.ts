@@ -143,7 +143,7 @@ function layoutRow(layout: FloorLayout, records: readonly LayoutFloorRecord[]): 
 /** report.md の節 */
 export function buildLayoutSection(records: readonly LayoutFloorRecord[]): string[] {
   const lines: string[] = [];
-  lines.push("## 階の型ごとの計測（map/layout。初めて着いた階。つまみ: MAP_LAYOUT・JIN.tilesPerJin）");
+  lines.push("## 階の型ごとの計測（map/layout。初めて着いた階。つまみ: MAP_LAYOUT・JIN.budgetBase / roomAreaExp）");
   lines.push("");
   lines.push(
     "- 歩数 = 着いた位置から階段（ボス階は主の間の中心）までのタイル数。敵 / 陣 = 生成直後（商人・壺を除く）/ 部屋の陣。降りた = 下りの階段で離れた割合",

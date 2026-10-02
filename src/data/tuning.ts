@@ -98,8 +98,14 @@ export const RESONANCE = BALANCE.loot.RESONANCE;
 /** 厳選の到達点の閾値（loot/reach.ts。docs/ideas/deep-impl.md 2-4） */
 export const REACH = BALANCE.loot.REACH;
 
+/** 装備の芽の育ちの遅さ: 節目の倍率と 1 ランの上限（loot/provenance.ts。docs/ideas/loot-expansion.md） */
+export const BUD = BALANCE.loot.BUD;
+
 /** 装備ドロップ */
 export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
+
+/** ランへの装備の持ち込みと、ランの終わりの持ち帰り（loot/runGear.ts。docs/ideas/run-arc.md 2 章） */
+export const CARRY = BALANCE.loot.CARRY;
 
 /**
  * 床の遺物・スキル石をカーソルで注目してインタラクトで拾う（memo 2026-09-24）。
@@ -117,6 +123,14 @@ export const FEEL = BALANCE.feel.FEEL;
 
 /** 敵の予告の線の色・長さ。見た目だけ（render/telegraphLineUi.ts が読む） */
 export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
+/** 予備動作の体の溜めと張り。見た目だけ（render/renderer.ts が読む） */
+export const TELEGRAPH_POSE = BALANCE.feel.TELEGRAPH_POSE;
+/** 符号表の検査の閾。検査専用（data/signs.test.ts） */
+export const SIGN_CHECK = BALANCE.feel.SIGN_CHECK;
+/** 自分に掛かる攻撃の判定の余裕と、殺気・被弾筋の見た目（system/threat.ts・render/threatCue.ts） */
+export const THREAT_CUE = BALANCE.feel.THREAT_CUE;
+/** 予告の音（鳴物帳）の規則の数（audio/cues.ts・audio/narimono.ts） */
+export const NARIMONO = BALANCE.feel.NARIMONO;
 
 export const ROOM = BALANCE.world.ROOM;
 
@@ -144,6 +158,10 @@ export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
 /** 陣の配り方（src/system/jinSpawn.ts）と陣形の人数・格（src/data/formations.ts が検査して読む） */
 export const JIN = BALANCE.enemies.JIN;
 export const FORMATION = BALANCE.enemies.FORMATION;
+/** 本陣の選び方・報酬（src/system/jinzu.ts の planHonjin） */
+export const HONJIN = BALANCE.enemies.HONJIN;
+/** 陣図（本陣の大将が書く突撃の道筋）の時計と規則・旗倒れ（src/system/jinzu.ts・render/jinzuUi.ts） */
+export const JINZU = BALANCE.enemies.JINZU;
 
 /** 深度による敵の生命・攻撃の伸び（src/data/enemies.ts の depthHpScale / depthDamageMul）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
@@ -215,6 +233,9 @@ export const MINIMAP = BALANCE.feel.MINIMAP;
 /** 地図の光と暗がり（src/render/mapLight.ts） */
 export const MAP_LIGHT = BALANCE.feel.MAP_LIGHT;
 
+/** 浮き文字の種類ごとの大きさ・寿命・重複の抑え方（src/render/floatText.ts・system/effects.ts） */
+export const FLOAT_TEXT = BALANCE.feel.FLOAT_TEXT;
+
 /** 持ち物メニューの情報の予算（src/ui/menuBudget.ts・tryOn.ts。docs/ideas/inventory-v2/E-merged.md 4 章） */
 export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
 
@@ -224,7 +245,7 @@ export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
  * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons/ の ACTION_DASH_ATTACK
  */
 export const ACTION = {
-  counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
+  counter: BALANCE.combat.ACTION.counter,
   lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
   regain: BALANCE.combat.ACTION.regain,
   wallSplat: BALANCE.combat.ACTION.wallSplat,

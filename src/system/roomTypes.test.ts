@@ -38,10 +38,35 @@ function floorWith(kind: RoomKind, depth: number): { state: GameState; index: nu
   throw new Error(`no ${kind} room found`);
 }
 
+/**
+ * 部屋の内側（入室とみなされる位置）で矩形の中心に一番近い点。洞窟の塊は矩形の中心が壁や塊の外のことがあり、
+ * そこに立っても入室にならないので、塊のタイルの中心から選ぶ
+ */
+function enterSpot(state: GameState, index: number): { x: number; y: number } {
+  const room = state.rooms[index];
+  if (!room) throw new Error("room missing");
+  const center = rectCenterPx(room.rect);
+  if (insideRoom(state, room, center.x, center.y, ROOM.enterMargin)) return center;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const t of room.tiles ?? []) {
+    const x = ((t % state.map.width) + 0.5) * TILE_SIZE;
+    const y = (Math.floor(t / state.map.width) + 0.5) * TILE_SIZE;
+    if (!insideRoom(state, room, x, y, ROOM.enterMargin)) continue;
+    const d = Math.hypot(x - center.x, y - center.y);
+    if (d < bestD) {
+      best = { x, y };
+      bestD = d;
+    }
+  }
+  if (!best) throw new Error("入室できる位置が無い");
+  return best;
+}
+
 function enterRoom(state: GameState, index: number): void {
   const room = state.rooms[index];
   if (!room) throw new Error("room missing");
-  state.player.body.pos = rectCenterPx(room.rect);
+  state.player.body.pos = enterSpot(state, index);
   state.player.invulnTimer = 999;
   step(state, IDLE, FIXED_DT);
 }
@@ -141,14 +166,16 @@ describe("フロア種別", () => {
     room.engaged = false;
     enterRoom(state, index);
     expect(room.locked).toBe(true);
-    // 部屋内の任意のタイルから、ロックされていない床だけを辿っても部屋の外に出られない
+    // 部屋内の任意のタイルから、ロックされていない床だけを辿っても他の塊へ出られない。
+    // どの塊にも通じない行き止まりの袋は扉にしない設計（dropPocketDoors）なので、袋へ入ること自体は漏れではない
     const map = state.map;
     const start = [...room.tiles][0] ?? 0;
     const seen = new Set([start]);
     const queue = [start];
     for (let head = 0; head < queue.length; head++) {
       const i = queue[head] ?? 0;
-      expect(room.tiles.has(i)).toBe(true);
+      const owner = state.rooms.findIndex((r) => r.tiles?.has(i));
+      expect(owner === -1 || owner === index, `塊 ${index} の外へ出る道が開いている（到達したタイル ${i} は塊 ${owner} のもの）`).toBe(true);
       const x = i % map.width;
       const y = Math.floor(i / map.width);
       for (const [dx, dy] of [

@@ -18,7 +18,7 @@ import { affinityOf, dominantElement, elementShares, enemyElementMul, resolveAtt
 import { engagedRoomIndex } from "./engagement";
 import { isFavoredWeapon, jobRules } from "./jobs";
 import { keystoneRules } from "./keystones";
-import { addFloatingText, spawnBurst, spawnLine, spawnRing } from "./effects";
+import { spawnBurst, spawnLine, spawnRing, addFloatingTextOnce } from "./effects";
 import { igniteTerrainAt, placeTerrain, terrainAt } from "./terrain";
 import { spawnBomb } from "./hazards";
 import { applyStatus, chainLightning, enemiesInRadius, explodeAt, findStatus, hasStatus, removeStatus } from "./statusEffects";
@@ -470,7 +470,7 @@ function reserveVault(state: GameState, effect: Readonly<RuleEffect>, pos: Vec):
   const run = state.boonRun;
   if (run.vaultNext) return;
   run.vaultNext = true;
-  if (effect.text !== undefined) addFloatingText(state, pos, effect.text, effect.color ?? BOON.ruleTextColor, BOON.ruleTextScale, VAULT_TEXT_LIFE);
+  if (effect.text !== undefined) addFloatingTextOnce(state, pos, effect.text, effect.color ?? BOON.ruleTextColor, BOON.ruleTextScale, VAULT_TEXT_LIFE, "label", { sameWord: true });
 }
 
 /** roomEnemies の相手: 徘徊の敵か、イベントの部屋（無ければ交戦中の部屋）の生きた敵 */
@@ -606,7 +606,7 @@ function afflict(state: GameState, effect: Readonly<RuleEffect>, ev: GameEvent, 
 
 /** 効果の浮き文字（旧フックの「湧水」「結界」など）。自分の頭上に出す */
 function ruleText(state: GameState, text: string, color: string | undefined): void {
-  addFloatingText(state, state.player.body.pos, text, color ?? BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+  addFloatingTextOnce(state, state.player.body.pos, text, color ?? BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife, "label", { sameWord: true });
 }
 
 /** 氷の破片: pos から全方位へ count 発（祝福の氷砕。素性なしの proc 弾） */
@@ -666,7 +666,7 @@ function applyPlayerSideEffect(state: GameState, effect: Readonly<RuleEffect>, e
     case "refillDash": {
       const max = state.stats.dashCharges;
       p.dashChargesLeft = effect.fill === true ? max : Math.min(max, p.dashChargesLeft + Math.max(1, effect.count ?? 1));
-      if (effect.quiet !== true) addFloatingText(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife);
+      if (effect.quiet !== true) addFloatingTextOnce(state, p.body.pos, BOON.ruleDashRefillText, BOON.ruleTextColor, BOON.ruleTextScale, BOON.ruleTextLife, "label", { sameWord: true });
       return;
     }
     default:

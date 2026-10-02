@@ -216,7 +216,7 @@ export function openTreasure(state: GameState, room: RoomState): void {
     else dropItem(state, at, ROOM_KIND.treasureRarityBoost);
   }
   spawnBurst(state, c, ROOM_KIND.treasureCoinColor, ROOM_KIND.treasureCoinParticles, COIN_SPEED, COIN_LIFE, COIN_SIZE);
-  addFloatingText(state, textPos(state), TREASURE_TEXT, ROOM_KIND.treasureCoinColor, TREASURE_TEXT_SCALE, TREASURE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), TREASURE_TEXT, ROOM_KIND.treasureCoinColor, TREASURE_TEXT_SCALE, TREASURE_TEXT_LIFE, "notice");
   pushLog(state, "宝物庫だ！", ROOM_KIND.treasureCoinColor);
   pushSfx(state, "lootRare");
   pushSfx(state, "treasureOpen");
@@ -256,7 +256,7 @@ export function startWave(state: GameState, room: RoomState, spawn: () => void):
   room.wave += 1;
   spawn();
   shake(state, WAVE_SHAKE);
-  addFloatingText(state, textPos(state), waveText(room.wave, waveCount(room.kind)), ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), waveText(room.wave, waveCount(room.kind)), ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE, "notice");
   pushSfx(state, "roomLock");
   pushSfx(state, "waveStart");
 }
@@ -329,12 +329,12 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
   if (!rest) state.cursed = true;
   spawnBurst(state, pos, ROOM_KIND.shrineColor, SHRINE_PARTICLES, SHRINE_PARTICLE_SPEED, SHRINE_PARTICLE_LIFE, 2);
   spawnBurst(state, p.body.pos, COLOR_HEAL, SHRINE_PARTICLES, SHRINE_PARTICLE_SPEED, SHRINE_PARTICLE_LIFE, 2);
-  addFloatingText(state, textPos(state), BLESS_TEXT, ROOM_KIND.shrineColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), BLESS_TEXT, ROOM_KIND.shrineColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE, "notice");
   const below = { x: p.body.pos.x, y: p.body.pos.y + CURSE_TEXT_DELAY_LIFT };
   if (rest) {
     restFountainBoon(state, below);
   } else {
-    addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE);
+    addFloatingText(state, below, CURSE_TEXT, ROOM_KIND.cursedColor, 1, WAVE_TEXT_LIFE, "notice");
     pushLog(state, "泉で生命が全回復した。代わりに次の部屋が呪われる。", ROOM_KIND.cursedColor);
   }
   pushSfx(state, "heal");
@@ -344,7 +344,7 @@ function useFountain(state: GameState, room: RoomState, pos: Vec): void {
 /** 休符の泉: 呪いの代わりに瓶を上限まで満たす（満たすものが無くても休符の恵みとして記録は出す） */
 function restFountainBoon(state: GameState, pos: Vec): void {
   const filled = refillFlasks(state);
-  if (filled > 0) addFloatingText(state, pos, FLASK_FILL_TEXT, ROOM_KIND.shrineColor, 1, WAVE_TEXT_LIFE);
+  if (filled > 0) addFloatingText(state, pos, FLASK_FILL_TEXT, ROOM_KIND.shrineColor, 1, WAVE_TEXT_LIFE, "notice");
   pushLog(state, filled > 0 ? "章の境の泉で生命が全回復し、瓶が満ちた。" : "章の境の泉で生命が全回復した。", ROOM_KIND.shrineColor);
 }
 
@@ -363,7 +363,7 @@ export function applyCurse(state: GameState, roomIndex: number): void {
     if (!wasElite && e.elite) e.hp = Math.max(1, Math.min(e.maxHp, Math.round(e.maxHp * hpRatio)));
   }
   finalizeLinks(state, roomIndex);
-  addFloatingText(state, textPos(state), CURSE_TEXT, ROOM_KIND.cursedColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), CURSE_TEXT, ROOM_KIND.cursedColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------
@@ -373,6 +373,6 @@ export function applyCurse(state: GameState, roomIndex: number): void {
 const AMBUSH_TEXT = "伏兵！";
 
 export function announceAmbush(state: GameState): void {
-  addFloatingText(state, textPos(state), AMBUSH_TEXT, ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE);
+  addFloatingText(state, textPos(state), AMBUSH_TEXT, ROOM_KIND.challengeColor, WAVE_TEXT_SCALE, WAVE_TEXT_LIFE, "notice");
   pushSfx(state, "ambush");
 }

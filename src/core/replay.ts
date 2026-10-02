@@ -78,8 +78,12 @@ import { clampHitstopScale } from "../ui/settings";
  * 32: 章ボス 4 体の生命と 1 発・封鎖中に届かない側の敵を寄せる・共鳴の数え直しを出どころが変わったときだけに
  * 33: 塊の部屋の袋の扉を作らない
  * 34: 階ごとの型 8 種・穴（面積の抽選の後に型の抽選。生成に失敗したら同じ乱数のまま旧生成器へ）・ボス階を専用の部屋（lordHall）に
+ * 35: 通常の部屋すべてに陣を置く（陣の数と予算の決め方を変更）・書の左を遠距離の墨文字に（墨印を記す弾は読まない・弾ごとの気力）
+ * 36: 装備の持ち込み（開始時の装備は右手と持ち込みの 2 部位だけ。loot/runGear.ts）・stashCount がラン内の袋の件数（開始時 0）になった・序盤のドロップの戻し・敵の火力を全体で 0.85 倍（ENEMY_SCALE.damageMul）
+ * 37: 読み合いの作り直し（出端・盾隙・予告の黄 / 赤の判定）・墨の予告・本陣と陣図（鶴翼・魚鱗・鋒矢）・スライム王の再設計（墜落・冠落ち・呑み損ね・引導、冠スライム）
+ * 38: 刻印符は拾うと手持ちへ入り、スキルへは自分で付ける（床の符を拾っても付かない・外した符は手持ちへ戻る。手持ちの符 handRunes を記録）
  */
-export const REPLAY_VERSION = 34;
+export const REPLAY_VERSION = 38;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -90,7 +94,7 @@ export interface ReplayLoadout {
   equipment: Equipment;
   /** スキルスロット i に装着していた石（無ければ null） */
   skillStones: (SkillStone | null)[];
-  /** stash の件数（満杯だと拾えない挙動を再現するため。中身は不要） */
+  /** stash の件数（満杯だと拾えない挙動を再現するため。中身は不要）。版 36 からはラン内の袋の件数（開始時 0） */
   stashCount: number;
   /** スキル石 stash の件数 */
   stoneCount: number;
@@ -99,6 +103,11 @@ export interface ReplayLoadout {
    * 全スロットが空なら欄ごと書かない。無ければ全スロット空として読む
    */
   slotRunes?: ModifierKey[][];
+  /**
+   * 手持ちの刻印符（SkillRunState.hand の写し。版 38 から）。拾った符・外した符がここに入り、付ける操作でスロットへ移る。
+   * 空なら欄ごと書かない
+   */
+  handRunes?: ModifierKey[];
   /**
    * 武器種ごとに選んだ奥義の key（Profile.ultimates の写し。REPLAY_VERSION 9 から）。
    * 無い武器種はその武器種の 1 本目。写し・適用は captureLoadout / applyLoadout
@@ -418,7 +427,12 @@ export function decodeInputs(text: string): FrameInput[] {
 // ロードアウト（装備スナップショット）
 // ---------------------------------------------------------------------------
 
-export function captureLoadout(profile: Profile, skillProfile: SkillProfile, slots: readonly RunModifierSlot[] = []): ReplayLoadout {
+export function captureLoadout(
+  profile: Profile,
+  skillProfile: SkillProfile,
+  slots: readonly RunModifierSlot[] = [],
+  hand: readonly ModifierKey[] = [],
+): ReplayLoadout {
   return {
     equipment: structuredClone(profile.equipment),
     skillStones: skillProfile.loadout.map((_, i) => {
@@ -428,6 +442,7 @@ export function captureLoadout(profile: Profile, skillProfile: SkillProfile, slo
     stashCount: profile.stash.length,
     stoneCount: skillProfile.stones.length,
     ...slotRunesField(slots.map((slot) => slot.runModifiers)),
+    ...handRunesField(hand),
     ...ultimatesField(profile.ultimates),
   };
 }
@@ -441,6 +456,11 @@ function slotRunesField(runes: readonly (readonly ModifierKey[])[]): Pick<Replay
   return { slotRunes: runes.map((r) => [...r]) };
 }
 
+/** 手持ちの符の写し（空なら欄ごと書かない = 持っていないランの記録の形を変えない） */
+function handRunesField(hand: readonly ModifierKey[]): Pick<ReplayLoadout, "handRunes"> {
+  return hand.length === 0 ? {} : { handRunes: [...hand] };
+}
+
 /** 奥義の選択の写し（選んでいなければ欄ごと書かない = 旧記録と同じ形） */
 function ultimatesField(ultimates: Profile["ultimates"]): Pick<ReplayLoadout, "ultimates"> {
   if (ultimates === undefined || Object.keys(ultimates).length === 0) return {};
@@ -452,7 +472,7 @@ function equipmentSignature(equipment: Equipment): string {
 }
 
 function loadoutSignature(l: ReplayLoadout): string {
-  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.slotRunes ?? [], l.ultimates ?? {}]);
+  return JSON.stringify([l.equipment, l.skillStones, l.stashCount, l.stoneCount, l.slotRunes ?? [], l.handRunes ?? [], l.ultimates ?? {}]);
 }
 
 const PLACEHOLDER_ID_PREFIX = "replay-placeholder-";
@@ -519,11 +539,12 @@ function syncLoadoutCounts(profile: Profile, skillProfile: SkillProfile, loadout
   resizeWith(skillProfile.stones, Math.max(loadout.stoneCount, equippedCount), placeholderStone);
 }
 
-/** ラン内の刻印符を記録どおりに置く（装備画面で移す / 外した結果。記録に無いスロットは空） */
+/** ラン内の刻印符を記録どおりに置く（装備画面で付ける / 移す / 外した結果。記録に無いスロットは空、手持ちも記録どおり） */
 function applyRunModifiers(state: GameState, loadout: ReplayLoadout): void {
   state.skills.slots.forEach((slot, i) => {
     slot.runModifiers = [...(loadout.slotRunes?.[i] ?? [])];
   });
+  state.skills.hand = [...(loadout.handRunes ?? [])];
 }
 
 export function createReplayProfiles(snapshot: ReplayLoadout): { profile: Profile; skillProfile: SkillProfile } {
@@ -566,8 +587,9 @@ export class ReplayRecorder {
     skillProfile: SkillProfile,
     private readonly snapshotAfterStart = false,
     slots: readonly RunModifierSlot[] = [],
+    hand: readonly ModifierKey[] = [],
   ) {
-    this.snapshot = captureLoadout(profile, skillProfile, slots);
+    this.snapshot = captureLoadout(profile, skillProfile, slots, hand);
     this.lastSignature = loadoutSignature(this.snapshot);
     this.lastEquipmentSignature = equipmentSignature(this.snapshot.equipment);
     this.lastHitstopScale = options.hitstopScale ?? 1;
@@ -578,7 +600,7 @@ export class ReplayRecorder {
    * スナップショットに残すので、倉庫が上限付近でも再生で拾得の成否がずれない
    */
   static fromStartedGame(options: RecorderOptions, state: GameState): ReplayRecorder {
-    return new ReplayRecorder(options, state.profile, state.skills.profile, true, state.skills.slots);
+    return new ReplayRecorder(options, state.profile, state.skills.profile, true, state.skills.slots, state.skills.hand);
   }
 
   /**
@@ -586,7 +608,7 @@ export class ReplayRecorder {
    * state.profile / state.skills.profile を見る
    */
   noteLoadout(state: GameState): void {
-    const loadout = captureLoadout(state.profile, state.skills.profile, state.skills.slots);
+    const loadout = captureLoadout(state.profile, state.skills.profile, state.skills.slots, state.skills.hand);
     const signature = loadoutSignature(loadout);
     if (signature === this.lastSignature) return;
     this.lastSignature = signature;
@@ -605,7 +627,7 @@ export class ReplayRecorder {
   noteHitstopScale(state: GameState, scale: number): void {
     if (scale === this.lastHitstopScale) return;
     this.lastHitstopScale = scale;
-    const loadout = captureLoadout(state.profile, state.skills.profile, state.skills.slots);
+    const loadout = captureLoadout(state.profile, state.skills.profile, state.skills.slots, state.skills.hand);
     this.events.push({ frame: this.encoder.frameCount, loadout, player: null, hitstopScale: scale });
   }
 
@@ -823,6 +845,13 @@ function slotRunesFieldFrom(v: unknown): Pick<ReplayLoadout, "slotRunes"> {
   return slotRunesField(v.map((list: unknown) => (Array.isArray(list) ? list.filter(known) : [])));
 }
 
+/** 手持ちの符: 知らない key は捨てる */
+function handRunesFieldFrom(v: unknown): Pick<ReplayLoadout, "handRunes"> {
+  if (!Array.isArray(v)) return {};
+  const known = (k: unknown): k is ModifierKey => typeof k === "string" && (MODIFIER_KEYS as readonly string[]).includes(k);
+  return handRunesField(v.filter(known));
+}
+
 function sanitizeLoadout(v: unknown): ReplayLoadout | null {
   if (!isRecord(v) || !isRecord(v.equipment) || !Array.isArray(v.skillStones)) return null;
   if (!isFiniteNumber(v.stashCount) || !isFiniteNumber(v.stoneCount)) return null;
@@ -845,6 +874,7 @@ function sanitizeLoadout(v: unknown): ReplayLoadout | null {
     stashCount: Math.max(0, Math.floor(v.stashCount)),
     stoneCount: Math.max(0, Math.floor(v.stoneCount)),
     ...slotRunesFieldFrom(v.slotRunes),
+    ...handRunesFieldFrom(v.handRunes),
     ...ultimatesField(sanitizeUltimateChoices(v.ultimates)),
   };
 }

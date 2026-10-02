@@ -223,6 +223,12 @@ export interface RigPose {
    * 手前に出る（腕が交差せず、両腕とも手前に見えない）
    */
   readonly gunHold?: boolean;
+  /**
+   * 術を放つ後ろの腕（castOff）の付け根。あれば後ろの腕をここから引き、主の武器（胸の前の本）の上・前の腕の下に描く。
+   * 後ろの肩は前の肩から腕 1 本ぶん奥にあり、そこからでは掌が前の肩までしか届かない。術を突き出すときは体を捻って
+   * 後ろの肩が前へ出るので、付け根を前の肩の側へ寄せる（CAST_TWIST）。腕を本の下に描くと掌ごと本に隠れる
+   */
+  readonly castShoulder?: Pt;
 }
 
 export interface RigInput {
@@ -258,6 +264,11 @@ export interface RigInput {
    * （回る武器は肩に担いで見えるが、回さない絵は後ろへ回すと本が体に隠れてほぼ見えなくなる）
    */
   readonly unrotated?: boolean;
+  /**
+   * 術を放つ振り（段が cast を持つ。書の左の文字の弾）。主の手は武器を待機の位置に持ったまま、空いた後ろの手を
+   * 照準へ突き出して術を放つ（本を構えたまま、もう一方の掌から撃つ）。省けば今までの振り
+   */
+  readonly castOff?: boolean;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -279,6 +290,12 @@ const AIM_REACH_MIN = -8;
 const AIM_REACH_STEP = 0.5;
 /** 腕を伸ばしきらずに届く距離（上腕 + 前腕より少し短く。肘がわずかに曲がって見える） */
 const ARM_SPAN = 10.5;
+/** 術を放つ後ろの手を上げる上限（度。組み立ての空間、負 = 上） */
+const CAST_UP_DEG = -15;
+/** 術を放つ後ろの手を下げる下限（度。正 = 下） */
+const CAST_DOWN_DEG = 50;
+/** 術を放つ後ろの腕の付け根を、後ろの肩から前の肩へ寄せる割合（体の捻り） */
+const CAST_TWIST = 0.8;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
 const FREE_HAND: Pt = { x: -1, y: 9 };
 
@@ -369,14 +386,30 @@ export function solveRig(i: RigInput): RigPose {
     const blended = blendPart(swingMain, restMain, k);
     // 待機で体の前に構える手は、構え直しの後半（待機の側）に入ったら、寄せた角が境目をまたいでも後ろへ戻さない
     const main = i.stance.restFront === true && k >= 0.5 ? { ...blended, behind: false } : blended;
-    const back = blendPart(backPart(i, swingMain), backPart(idle, restMain), k);
+    const restBack = backPart(idle, restMain);
+    const blendedBack = blendPart(backPart(i, swingMain), restBack, k);
+    if (i.castOff) {
+      // 術を放った手は、構え直しの後半（待機の側）に入ったら待機の前後（垂らした手は体の後ろ）へ移す
+      // （寄せた角で決めると、腕を下ろしきるまで体の前に残って胴の前に垂れて見える）
+      const back = { ...blendedBack, behind: k >= 0.5 ? restBack.behind : false };
+      if (back.behind) return { front: main, back };
+      // 付け根も捻った位置から後ろの肩へ戻す
+      const twisted = castShoulderOf(i);
+      return { front: main, back, castShoulder: { x: twisted.x + (i.shoulderB.x - twisted.x) * k, y: twisted.y + (i.shoulderB.y - twisted.y) * k } };
+    }
     // 両手持ちの添え手は寄せた主の手から引き直す（柄から離れない）
-    return { front: main, back: i.stance.grip === "two" && i.offGrip !== null ? backPart(i, main) : back };
+    return { front: main, back: i.stance.grip === "two" && i.offGrip !== null ? backPart(i, main) : blendedBack };
   }
   const main = mainPart(i);
   const back = backPart(i, main);
+  if (i.swing && i.castOff) return { front: main, back, castShoulder: castShoulderOf(i) };
   const gunHold = i.aimHeld && !i.swing && i.stance.grip === "two" && i.offGrip !== null;
   return gunHold ? { front: main, back, gunHold } : { front: main, back };
+}
+
+/** 術を放つ後ろの腕の付け根（後ろの肩を前の肩の側へ CAST_TWIST だけ寄せた所。体を捻って肩が前へ出る） */
+function castShoulderOf(i: RigInput): Pt {
+  return { x: i.shoulderB.x + (i.shoulderF.x - i.shoulderB.x) * CAST_TWIST, y: i.shoulderB.y + (i.shoulderF.y - i.shoulderB.y) * CAST_TWIST };
 }
 
 /** 肩から腕の長さ（ARM_SPAN）を越える手は、肩へ向けて届く所まで引き寄せる */
@@ -395,6 +428,8 @@ function restPart(i: RigInput): HeldPart {
 }
 
 function mainPart(i: RigInput): HeldPart {
+  // 術を放つ振りは武器を待機の位置に持ったまま（放つのは後ろの手。backPart の castHand）
+  if (i.swing && i.castOff) return restPart(i);
   const dualOffSwing = i.stance.grip === "dual" && i.swing !== undefined && swingSign(i.step) < 0;
   if (i.swing && !dualOffSwing) {
     // 構えたまま押す武器は向きを照準に保ち、振りの伸び縮みだけを手の距離に使う
@@ -515,6 +550,7 @@ function slideOffGrip(i: RigInput, main: HeldPart, offGrip: number): number {
 
 function backPart(i: RigInput, main: HeldPart): HeldPart {
   const s = i.stance;
+  if (i.swing && i.castOff) return castHand(i, i.swing);
   if (s.grip === "two" && i.offGrip !== null) {
     const hand = at(main.hand, main.angle, slideOffGrip(i, main, i.offGrip));
     // 柄を滑らせても届かなければ手を離し、体の脇へ下ろす（重い武器の振り抜きを片手で流す）。
@@ -541,6 +577,17 @@ function backPart(i: RigInput, main: HeldPart): HeldPart {
     return part(hand, angle, false, false, s.offFront !== true);
   }
   return freeHand(i);
+}
+
+/**
+ * 術を放つ後ろの手: 捻った付け根（castShoulderOf）から照準へ、振りの伸び縮み（予備動作で引き、振りで突き出す。腕の長さまで）の
+ * 距離に掌を出す。武器は持たず（bare）、体の前に描く（体の後ろだと突き出した手が胴に隠れる）。
+ * 上を狙っても掌は前上（CAST_UP_DEG）までしか上げない（真上へ上げると大きな頭の前を腕が横切る）。下も前下（CAST_DOWN_DEG）まで
+ * （真下へ下ろすと本を持つ拳と重なる）。弾は掌から照準へ飛ぶので、掌の向きを丸めても狙いは変わらない
+ */
+function castHand(i: RigInput, swing: WeaponPose): HeldPart {
+  const angle = Math.min(CAST_DOWN_DEG * DEG, Math.max(wrapAngle(toRigAngle(i.aim, i.facingRight)), CAST_UP_DEG * DEG));
+  return part(at(castShoulderOf(i), angle, swingHandReach(swing)), angle, false, true, false);
 }
 
 /** 空いた後ろの手（体の脇に垂らす。体の後ろに描く） */

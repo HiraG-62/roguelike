@@ -162,12 +162,28 @@ export function doorsOf(o: Oriented): Door[] {
   return [{ ix: cx, iy: cy, ox: cx, oy: cy }];
 }
 
+/**
+ * 向き・拡大を決めた格子と扉の控え。差し込みの試行で同じ組を何百回も作り直すのが生成の 3 割を占めていたので覚えておく。
+ * 格子と扉は作った後に書き換えないので共有してよい（組は 断片 10 × 回転 4 × 反転 2 × 拡大 2 で有限）
+ */
+const orientedCache = new Map<string, { o: Oriented; doors: Door[] }>();
+
+function orientedOf(key: PieceKey, rot: number, mirror: boolean, scale: number): { o: Oriented; doors: Door[] } {
+  const id = `${key}|${rot}|${mirror ? 1 : 0}|${scale}`;
+  const hit = orientedCache.get(id);
+  if (hit) return hit;
+  const o = orient(key, rot, mirror, scale);
+  const made = { o, doors: doorsOf(o) };
+  orientedCache.set(id, made);
+  return made;
+}
+
 function makePiece(rng: Rng, key: PieceKey, upChance: number): Piece {
   const rot = rng.int(0, 3);
   const mirror = rng.chance(0.5);
   const scale = rng.chance(upChance) ? MAX_PIECE_SCALE : 1;
-  const o = orient(key, rot, mirror, scale);
-  return { key, o, doors: doorsOf(o), cx: 0, cy: 0, x0: 0, y0: 0 };
+  const { o, doors } = orientedOf(key, rot, mirror, scale);
+  return { key, o, doors, cx: 0, cy: 0, x0: 0, y0: 0 };
 }
 
 /** 2 つの断片の外接矩形が gap マス以上離れているか（整数の置き場所） */

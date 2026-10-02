@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ACTION, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
+import { ACTION, CARRY, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
 import { FORMS, FORM_KEYS } from "../data/weaponForms";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
@@ -92,7 +92,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
   { key: "special", term: "奥義", category: "controls", body: (b) => `${k(b, "special")}。奥義ゲージが満ちると出せる。持続の奥義はもう一度 ${k(b, "special")} で終える。武器種ごとの 3 本から装備画面の装束の人影の書付、奥義の頁で選ぶ（拠点のみ）。` },
   { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
   { key: "skillKeys", term: "スキル石", category: "controls", body: (b) => `${skillKeys(b)}。パッドは ${padSkillKeysLabel()}（+ は押さえたまま次を押す）。` },
-  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物・スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
+  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物を袋へ、スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
   { key: "flask", term: "瓶", category: "controls", body: (b) => `${k(b, "flask")}（パッドは ${padActionLabel("flask")}）。1 本飲むと最大生命の ${Math.round(ECONOMY.flask.healRatio * PERCENT)}% が戻る。戦闘中の回復の上限は通さない。ダッシュ中と、攻撃を振っている最中は飲めない。本数は HUD の枡で、上限までしか持てない。市で買え、章の境の泉で満ちる。` },
   { key: "inventory", term: "装備画面", category: "controls", body: (b) => `${k(b, "inventory")} で開き、開いている間にもう一度押すと装束と紋を行き来する。Esc で 1 段ずつ戻って閉じる。開いている間は時間が止まる。` },
   {
@@ -167,10 +167,23 @@ const COMBAT_TIPS: readonly TipDef[] = [
     body: `怯みが解けた直後の状態（${POISE.guardedTime} 秒、ボスは ${POISE.bossGuardedTime} 秒）。受ける怯み値が ×${POISE.guardedMul}（ボスは ×${POISE.bossGuardedMul}）になる。背面の一撃は堅守を無視する。`,
   },
   {
+    key: "inkTelegraph",
+    term: "下絵と墨入れ",
+    category: "combat",
+    body: (b) =>
+      `敵の攻撃は、薄墨の淡く掠れた帯（下絵）から始まる。下絵の間は殴って崩せる。当てるほど帯が掠れ、崩すと擦れて消える。やがて帯が白く縁取られた真っ黒な一筆（墨入れ）に変わり、入りに朱の点が付く。頭の上の印も薄墨の輪（○）から朱の芯の黒い玉（●）になり、体が朱に明滅する。墨入れの後は必ず来る。止められるのは受け流し（${k(b, "parry")}）だけで、受け流すと筆先が逸れる。範囲の予告も下絵の間は崩せて、墨入れになれば避けるか受け流す。`,
+  },
+  {
+    key: "debana",
+    term: "出端",
+    category: "combat",
+    body: `敵の予告が下絵の間に振り始めた近接、または撃った放出の弾が当たると出端になる。命中の時に墨入れへ変わっていても取れる。ダメージ ×${ACTION.counter.damageMul}・怯み値 ×${ACTION.counter.poiseMul}・気力の回収 ×${MANA.onCounterMul}で、盾騎士の正面の守りも割り、命中が少し長く止まる。墨入れの間に振り始めた一撃は普通の命中で、鈍い音が鳴る。墨入れの攻撃は止まらず、技の後で怯む。`,
+  },
+  {
     key: "counter",
     term: "カウンター",
     category: "combat",
-    body: `敵の予備動作中に近接を当てる。ダメージ ×${ACTION.counter.damageMul}・気力の回収 ×${MANA.onCounterMul}で、盾騎士の正面の守りも割る。怯み値は増えない（怯ませるのは読みと受け流し）。`,
+    body: "出端と受け流しの総称。成立すると起点「カウンター時」・共鳴の語「カウンター」が働く。",
   },
   { key: "regain", term: "リゲイン", category: "combat", body: "被弾してしばらくの間、近接を当てると失った生命を取り戻せる。" },
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },
@@ -179,7 +192,7 @@ const COMBAT_TIPS: readonly TipDef[] = [
     key: "inkMark",
     term: "墨印",
     category: "combat",
-    body: `書の左の 3 段が記す印（最大 ${STATUS.inkMark.maxStacks}）。射撃かスキルが当たると読まれ（読誦）、その敵を中心に重ねの数だけ広い円の中の敵すべてに当たり、気力が戻る。倒した一撃でも読む。烙印と違い、1 体ではなく周りへ広がる。`,
+    body: `書の左の 3 段（飛ぶ字「墨文字」）が記す印（最大 ${STATUS.inkMark.maxStacks}）。墨文字は記すだけで読まない。ほかの射撃かスキルが当たると読まれ（読誦）、その敵を中心に重ねの数だけ広い円の中の敵すべてに当たり、気力が戻る。倒した一撃でも読む。烙印と違い、1 体ではなく周りへ広がる。`,
   },
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
   { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
@@ -266,7 +279,7 @@ const RELIC_TIPS: readonly TipDef[] = [
   { key: "margin", term: "余白", category: "relic", body: "その遺物があと何回芽吹けるか。無くなるとそれ以上育たない。" },
   { key: "inscription", term: "銘", category: "relic", body: "余白を使い切った遺物に、来歴から刻まれる名前。銘が付いたら成長は完了。" },
   { key: "named", term: "名のある遺物", category: "relic", body: `固有の効果を持つ遺物（${UNIQUES.length} 種）。効果は名前ごとに違い、性質のほかに固有の仕組みが付く。` },
-  { key: "keystone", term: "誓約", category: "relic", body: "遊び方を大きく変える性質。同じ組の誓約は同時に持てない。拠点の祭壇で試せる。" },
+  { key: "keystone", term: "誓約", category: "relic", body: "遊び方を大きく変える性質。同じ組の誓約は同時に持てない。拠点の社で試せる。" },
   { key: "echo", term: "残響", category: "relic", body: "遺物を砕くと、性質の色の残響を得る。残響を払って性質を作り替える。注ぎ・煽り・移し・呼び戻しは装備中の遺物にも使え、砕くのは倉庫の遺物だけ。" },
   { key: "stir", term: "煽り", category: "relic", body: "性質 1 つの揺らぎを大きく引き直す。反転することもある。" },
   { key: "transfer", term: "移し", category: "relic", body: "銘か芽吹いた性質 1 つを、同じ部位の別の遺物へ移す。元の遺物は失われ、受け手の余白を 1 使う。" },
@@ -294,7 +307,7 @@ const SKILL_TIPS: readonly TipDef[] = [
   { key: "artTransform", term: "変形", category: "skill", body: "共通技は今の武器の型で形が変わる。重打なら広く重く、短銃なら振りが弾に、鎖なら当てる前に引き寄せる。今の変わり方は石のツールチップの「今の型」の行。" },
   { key: "manaType", term: "気力型", category: "skill", body: "撃つたびに気力を払うスキル。" },
   { key: "cooldownType", term: "再使用型", category: "skill", body: "撃つと再使用時間が経つまで撃てないスキル。" },
-  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。拾うと付けられるスロットへ入り、装備画面のスキルの頁で持ち上げて別の石へ置ける。長押しで外す（外すと消える）。" },
+  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。拾うと自動では付かず「手持ち」に入る（探索が終わると消える）。装備画面のスキルの頁の下の「手持ち」から符を選ぶと、付けられるスキルが金の破線で光り、決定で付く。付いている符は持ち上げて別の石へ移せ、長押しで外すと手持ちへ戻る。手持ちは種類・系統・付けられる物だけで絞り込み、並びも替えられる。" },
   { key: "link", term: "リンク", category: "skill", body: "スロットごとに決まった、刻印符を付けられる本数（スロット 1 が最も多い）。型替え符は 2 本使い、1 スロットに 1 枚まで。" },
   { key: "combo", term: "連携", category: "skill", body: "スキルの直後に別のスキルを撃つと、後の方が変化する。HUD の枠の点滅する菱形が連携可の印。図鑑の連携の頁は、連携・反応・連鎖を初めて起こすと数える。" },
   { key: "form", term: "変身", category: "skill", body: "一定の間、姿が変わる強化スキル（狼化・霊体化・鉄塊化など）。変身中は左右の攻撃の動きが変わり、他のスキルは撃てない。" },
@@ -322,6 +335,12 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "thrall", term: "従魔", category: "run", body: "眷属の札で従えた敵。時間まで他の敵を殴り、こちらの攻撃は当たらない。部屋の制圧には数えない。" },
   { key: "clue", term: "手がかり", category: "run", body: "祝福の 3 択に出る、今のビルドで成立し得る未発見の連携。" },
   { key: "engaged", term: "交戦", category: "run", body: "部屋に入る、または部屋の敵に気付かれた状態。扉が閉じる部屋（封鎖）もある。" },
+  {
+    key: "jinzu",
+    term: "陣図",
+    category: "run",
+    body: "階に数個だけ立つ本陣は、地図に旗の印が出る。本陣の大将は、軍配を掲げると床に突撃の道を一筆ずつ書く。淡い線のうちに大将を怯ませれば筆が折れ、まだ書かれていない線の隊は来ない。濃く墨の入った線は、大将を怯ませても必ず来る。走ってくる隊の先頭を受け流せば、その隊は詰まる。線から外れた所は安全。大将を討つと旗が倒れ、近くで戦っている陣の群勢も大きく落ちる。群勢が減った本陣は陣図を書けない。",
+  },
   { key: "jin", term: "陣", category: "run", body: "敵は陣形（魚鱗・鶴翼・雁行・長蛇など）を組んだ一団で待ち構える。画面上の群勢は仲間を倒すほど減り、大将を倒すと大きく崩れる。尽きると残りは敗走する。起こした直後に後詰が遅れて加わることもある。" },
   {
     key: "coins",
@@ -346,7 +365,7 @@ const RUN_TIPS: readonly TipDef[] = [
   { key: "contractor", term: "契約者", category: "run", body: "階の入口に立つ人物。台座に触れて取引を選ぶ。" },
   { key: "pact", term: "契約", category: "run", body: "灰の公証人と結ぶ条件付きの約束。破るとその場で代償、次の階に着けば報酬。" },
   { key: "elementAltar", term: "属性の祭壇", category: "run", body: "選んだ属性の加護を得る部屋。その階の間、通常攻撃の一部がその属性になる。鍛冶の焼き付けは探索の間ずっと続く。" },
-  { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は装備画面のスキルの頁で石に付ける（探索ごとに拾い直す）。" },
+  { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は拾うと手持ちに入り、装備画面のスキルの頁で選んで石に付ける（探索ごとに拾い直す）。" },
   { key: "reaper", term: "死神", category: "run", body: "同じ階に長く居ると現れる、倒せない追跡者。" },
   { key: "fork", term: "分岐路", category: "run", body: "最後の部屋の複数の階段。階段ごとに次のバイオームが違う。" },
   { key: "cleared", term: "踏破", category: "run", body: "最深の間（地下 21 階）の主を倒すと、階段のほかに地上への道が現れる。乗り続けると踏破でランが終わる。階段を降りて深みへ進み続けることもできる。最深の主を倒したランは、深みで力尽きても踏破に数える。" },
@@ -363,7 +382,13 @@ const RUN_TIPS: readonly TipDef[] = [
     body: "分岐路の階段の上に、降りた先で手に入る報酬が出る。祝福は系譜の名前つきで、降りると選んだ系譜の札が 3 枚並ぶ（祝福の出口を選ばなかった階では並ばない）。遺物は到着報酬が確定し、銭は初めて着いた階の銭が 3 倍、鍵と瓶は足元の少し先に落ちる。危険は巣窟・闘技場・試練のどれかが 1 つ現れ、制圧の報酬が倍になる。錬磨は持っている札の格を 1 つ上げる。隠し部屋と案内人の階段には予告が出ない。",
   },
   { key: "floorLord", term: "階の主", category: "run", body: "毎階の最後の部屋に出る主。倒すまで階段は出ない。5 の倍数の階はボスが代わりに出る。" },
-  { key: "bossDown", term: "ボスの隙", category: "run", body: "ボスは怯み値のほかに、見える形で動きが止まる。壁に突っ込ませる・床の火に焼かせる・技の後の反動を突く・門柱や姿見を割る、など段階ごとに違う隙がある。ボス部屋の取り巻きを倒すとボスの怯み値が溜まる。段階が進む条件も生命だけでなく、分裂体の全滅・追い詰め・引火・壁への激突・門柱でも進み、段階ごとに危ない間合い（近い・遠い・動く・止まる）が違う。間合いは図鑑の予告の図解で見られる。" },
+  { key: "bossDown", term: "ボスの隙", category: "run", body: "ボスは怯み値のほかに、見える形で動きが止まる。壁に突っ込ませる・床の火に焼かせる・技の後の反動を突く・門柱や姿見を割る、など段階ごとに違う隙がある。ボス部屋の取り巻きを倒すとボスの怯み値が溜まる。段階が進む条件も生命だけでなく、冠の割れ・追い詰め・引火・壁への激突・門柱でも進み、段階ごとに危ない間合い（近い・遠い・動く・止まる）が違う。間合いは図鑑の予告の図解で見られる。" },
+  {
+    key: "bossAnswer",
+    term: "ボスの読み",
+    category: "run",
+    body: "章ボスの技のうち、下絵のうちに殴って止められるのは一部だけ。ほかは最初から墨入れで、避ける・受け流すしかない。スライム王は、跳んだ主を影の輪が下絵のうちに打てば落ちる（墜落）。分裂すると冠をかぶった 1 体がいて、割れば分裂は崩れる（冠落ち）。冠を呑まれると主が回復する。噛みは着地を受け流すと大きなダウンになる（呑み損ね）。読まずに避けるだけでも勝てるが、ダウンは取れず時間がかかる。",
+  },
   { key: "thirdFace", term: "第三の顔", category: "run", body: "最深の主の最後の段階。門柱を全部折って陥没を越え、生命が減ると入る。そのランで被弾が多かった章ボス 2 体の技を借り、足元へ落ちる影（奈落の手。止まっていると当たる）と交互に撃つ。借りた技の後は反動で動きが止まる。" },
   { key: "hiddenRoom", term: "隠し部屋", category: "run", body: "稀に生成される、壁の中に隠れた小部屋。ひび割れた壁に近づくと風の音がする。体を押し当て続けると開き、遺物と次の階への階段が出る。ボスの出る階には無い。" },
   {
@@ -398,17 +423,29 @@ const HUB_TIPS: readonly TipDef[] = [
     key: "anvilStance",
     term: "金床の構え",
     category: "hub",
-    body: "拠点の鍛冶場で開く装束。部位を選ぶと装備中の遺物とその部位の倉庫が並び、そこから鍛冶の操作を選ぶ。下の壺の水位が残響の量。砕くのは長押しで、倉庫の遺物だけ。",
+    body: "拠点の鍛冶屋で開く装束。部位を選ぶと装備中の遺物とその部位の倉庫が並び、そこから鍛冶の操作を選ぶ。下の壺の水位が残響の量。砕くのは長押しで、倉庫の遺物だけ。",
   },
   { key: "origin", term: "起点", category: "hub", body: "出撃の前に選ぶ出発の条件。依頼の報酬で増える。" },
   { key: "runMod", term: "縛り", category: "hub", body: "起点の画面で積む難しさ。点の合計が位階になる。" },
   { key: "quest", term: "依頼", category: "hub", body: "出撃の前に 3 択から 1 つ受けるお題。達成すると次の探索から選べるものが増える。未達成なら次へ引き継ぐ。" },
   { key: "codex", term: "図鑑", category: "hub", body: "見た・起きたものの記録。？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える。" },
   { key: "title", term: "称号", category: "hub", body: "実績と依頼の報酬で得る名前。実績の画面の称号タブで選ぶと名乗れる。効果は持たない。" },
-  { key: "altar", term: "祭壇", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
+  { key: "altar", term: "社", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
   { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。決定の長押しで性質なしの武器を借りて出撃できる。" },
+  {
+    key: "carry",
+    term: "持ち込み",
+    category: "hub",
+    body: `探索へ持ち込めるのは${CARRY.weaponFree ? "右手の武器と、ほかに " : " "}${CARRY.carrySlots} 部位まで。拠点の装備画面の装束で部位を長押しすると、持ち込みの印を付け外しできる（朱の判）。印の無い部位は空で始まり、探索で拾った遺物で埋める。`,
+  },
+  {
+    key: "carryBack",
+    term: "持ち帰り",
+    category: "hub",
+    body: `探索で拾った遺物は袋に入り、倉庫には入らない。探索の終わりに、袋と装備中の拾った遺物から持ち帰る物を選ぶ。力尽きたら ${CARRY.keepOnDeath} つ、踏破なら ${CARRY.keepOnClear} つまで。選ばなかった遺物は消える。持ち込んだ遺物は来歴と芽を積んだまま拠点の装備に戻る。探索の中で砕けるのは袋の遺物だけ。`,
+  },
   { key: "loaned", term: "借り物", category: "hub", body: "武器掛けで借りた素の器。保存されず、探索が終わると消える。残響で育てたり砕いたりできない。" },
-  { key: "bossHall", term: "ボスの間", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
+  { key: "bossHall", term: "御堂", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
 ];
 
 /**

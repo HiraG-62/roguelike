@@ -481,6 +481,34 @@ function drawLordPull(ctx: CanvasRenderingContext2D, m: FxMark, sprites: FxSprit
   sprites.glow(m.pos.x, m.pos.y, m.color, c.glow, fade * PULL_GLOW_ALPHA);
 }
 
+/** 墨の粒の大きさ（論理 px）。外へ飛ぶほど小さくなる */
+const SPLASH_DROP_BIG = 2;
+const SPLASH_DROP_SMALL = 1;
+/** 粒が飛ぶ距離の下限（半径に対する割合）。座標ハッシュで散らす（state.rng は使わない） */
+const SPLASH_REACH_MIN = 0.45;
+
+/**
+ * 出端の墨の飛沫。文字を出さない代わりに、命中点から墨の粒が散って縁が出端の色に光る。
+ * 散り方は命中点の座標ハッシュだけで決まる（描画で乱数を消費しない）
+ */
+function drawDebanaSplash(ctx: CanvasRenderingContext2D, m: FxMark): void {
+  const c = FX_WAVE3.debanaSplash;
+  const t = markT(m);
+  const reach = c.radius * easeOutCubic(t);
+  ctx.globalAlpha = 1 - t * t;
+  for (let i = 0; i < c.drops; i++) {
+    const a = hash01(m.pos.x + i * 7, m.pos.y - i) * Math.PI * 2;
+    const far = SPLASH_REACH_MIN + (1 - SPLASH_REACH_MIN) * hash01(m.pos.y + i * 13, m.pos.x + i);
+    const x = Math.round(m.pos.x + Math.cos(a) * reach * far);
+    const y = Math.round(m.pos.y + Math.sin(a) * reach * far);
+    const size = far < 0.7 ? SPLASH_DROP_BIG : SPLASH_DROP_SMALL;
+    ctx.fillStyle = c.edgeColor;
+    ctx.fillRect(x - 1, y - 1, size + 1, size + 1);
+    ctx.fillStyle = c.inkColor;
+    ctx.fillRect(x, y, size, size);
+  }
+}
+
 function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMark, sprites: FxSprites): void {
   const t = markT(m);
   switch (m.kind) {
@@ -522,6 +550,9 @@ function drawWorldMark(ctx: CanvasRenderingContext2D, state: GameState, m: FxMar
       return;
     case "lordPull":
       drawLordPull(ctx, m, sprites);
+      return;
+    case "debanaSplash":
+      drawDebanaSplash(ctx, m);
       return;
     case "bossLight":
     case "critFlash":

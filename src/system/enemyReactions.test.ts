@@ -404,6 +404,7 @@ describe("格「猛」の接触ダメージ（JIN.strong.damageMul）", () => {
     const strong = contactLoss(true);
     expect(normal, "前提: 並の接触は当たる").toBeGreaterThan(0);
     expect(strong, "猛は並より重い").toBeGreaterThan(normal);
-    expect(strong).toBe(Math.round(enemyDef("slime").contactDamage * JIN.strong.damageMul));
+    // 並の接触（深度の曲線と全体の倍率を掛けた後、丸める前）に猛の倍率を掛けて丸める。並も丸めた値なので 1 の差は丸めの違い
+    expect(Math.abs(strong - normal * JIN.strong.damageMul)).toBeLessThanOrEqual(1);
   });
 });

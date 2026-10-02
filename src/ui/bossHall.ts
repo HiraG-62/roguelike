@@ -10,7 +10,7 @@ import type { ListEntry, ListTab } from "../meta/listScreen";
 import type { HallOutcome } from "../system/bossHall";
 import { hallBossKeys, hallDepthOf } from "../system/bossHallKeys";
 
-export const HALL_TITLE = "ボスの間";
+export const HALL_TITLE = "御堂";
 export const HALL_LIST_HINT = "↑↓ / ホイール 選ぶ　Enter / クリック 挑む　Esc 拠点へ";
 /** 秒の表示の小数の桁 */
 const SECONDS_DIGITS = 1;

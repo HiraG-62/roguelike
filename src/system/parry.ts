@@ -1,10 +1,11 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
-import { enemyTarget, pushEvent } from "../core/events";
+import { type CounterTag, enemyTarget, pushEvent } from "../core/events";
 import { type Vec, angle, length, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { FX_ATTACK, PARRY, WEAPON } from "../data/tuning";
-import { addFloatingText, addMark, spawnBurst } from "./effects";
+import { bossOnAnswer } from "./boss";
+import { addMark, spawnBurst, addHeadLabel } from "./effects";
 import { gainMana } from "./mana";
 import { noteRiposte } from "./moments";
 import { addPoise, applyStagger } from "./poise";
@@ -23,7 +24,6 @@ const A = WEAPON.artDefaults;
 const DEG_TO_RAD = Math.PI / 180;
 const FULL_TURN = Math.PI * 2;
 const FULL_ARC_DEG = 360;
-const TEXT_SCALE = 1.4;
 const TEXT_LIFE = 0.6;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
@@ -135,7 +135,7 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   const p = state.player;
   p.parry.window = 0;
   p.invulnTimer = Math.max(p.invulnTimer, A.parryInvuln);
-  addFloatingText(state, p.body.pos, A.parryText, A.parryColor, TEXT_SCALE, TEXT_LIFE);
+  addHeadLabel(state, p.body.pos, A.parryText, A.parryColor, TEXT_LIFE);
   spawnBurst(state, p.body.pos, A.parryColor, A.parryParticles, FX_SPEED, FX_LIFE, FX_SIZE);
   addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
   pushSfx(state, "counter");
@@ -143,9 +143,11 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   noteRiposte(state, "parry", attacker);
   pushEvent(state, { kind: "onParry", actor: "player", source: { kind: "player", key: "parry" }, pos: { ...p.body.pos } });
   if (!attacker || attacker.hp <= 0) return;
+  // 先に答えのダウンを入れる（受け流しの怯み値で普通の怯みに化けさせない）
+  bossOnAnswer(state, attacker, "parry");
   stopAttacker(state, attacker, bossPoise);
   onTraitCounter(state, attacker);
-  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(attacker) });
+  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, tag: "parry" satisfies CounterTag, ...enemyTarget(attacker) });
 }
 
 /**

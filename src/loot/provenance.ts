@@ -1,6 +1,7 @@
 import type { GameState } from "../core/state";
 import { createRng, hashSeed, type Rng } from "../core/rng";
 import { ENEMIES } from "../data/enemies";
+import { BUD } from "../data/tuning";
 import { affixDef, slotAllows } from "./affixes";
 import { baseDef, baseFamily } from "./bases";
 import { OPPOSITE_COLOR } from "./colors";
@@ -73,8 +74,10 @@ type CounterKey =
   | "returns";
 
 export interface MilestoneDef {
+  /** 保存データの milestones / buds が参照する ID。倍率を掛ける前の基準の値で組む（変えると届いた節目に芽が出直す） */
   key: string;
   counter: CounterKey;
+  /** 判定に使う値（基準の値 × BUD.thresholdScale） */
   threshold: number;
   /** 芽の片方の色（もう片方は OPPOSITE_COLOR） */
   color: TraitColor;
@@ -85,8 +88,14 @@ export interface MilestoneDef {
   awakening?: string;
 }
 
-function milestone(counter: CounterKey, threshold: number, color: TraitColor, label: string, awakening?: string): MilestoneDef {
-  const def: MilestoneDef = { key: `${counter}:${threshold}`, counter, threshold, color, label: `${label} ${threshold}` };
+/** 基準の値に倍率を掛けた、判定と表示に使う値 */
+function scaledThreshold(base: number): number {
+  return base * BUD.thresholdScale;
+}
+
+function milestone(counter: CounterKey, base: number, color: TraitColor, label: string, awakening?: string): MilestoneDef {
+  const threshold = scaledThreshold(base);
+  const def: MilestoneDef = { key: `${counter}:${base}`, counter, threshold, color, label: `${label} ${threshold}` };
   if (awakening !== undefined) def.awakening = awakening;
   return def;
 }
@@ -96,9 +105,10 @@ function enemyName(key: string): string {
 }
 
 /** 敵種別の撃破数の節目（目覚めを出す）。key は "enemy:<敵種>:<数>" */
-function enemyMilestone(enemyKey: string, threshold: number, color: TraitColor, awakening: string): MilestoneDef {
+function enemyMilestone(enemyKey: string, base: number, color: TraitColor, awakening: string): MilestoneDef {
+  const threshold = scaledThreshold(base);
   return {
-    key: `enemy:${enemyKey}:${threshold}`,
+    key: `enemy:${enemyKey}:${base}`,
     counter: "kills",
     threshold,
     color,
@@ -108,7 +118,7 @@ function enemyMilestone(enemyKey: string, threshold: number, color: TraitColor, 
   };
 }
 
-/** 節目の表。表の順に判定し、1 度に提示する芽は 1 つ */
+/** 節目の表（基準の値は倍率を掛ける前）。表の順に判定し、1 度に提示する芽は 1 つ */
 export const MILESTONES: readonly MilestoneDef[] = [
   milestone("kills", 50, "crimson", "撃破"),
   milestone("justDodges", 20, "gold", "見切り"),
@@ -319,7 +329,8 @@ export function maybeInscribe(item: Item): boolean {
 
 /**
  * 提示中の芽から index（0 / 1）を選ぶ（その場で書き換える）。
- * 選んだ性質を加え、余白を 1 減らし、履歴に残す。余白が 0 になれば銘を刻み、次の節目があれば続けて提示する。
+ * 選んだ性質を加え、余白を 1 減らし、履歴に残す。余白が 0 になれば銘を刻む。
+ * 次の節目はここでは出さない（1 ランの上限を守るため。recordProvenance の次の出来事で出る）。
  * 選べたら選んだ性質、提示が無い / index 不正なら null
  */
 export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
@@ -334,7 +345,6 @@ export function chooseBudOnItem(item: Item, index: number): AffixRoll | null {
   item.budOffer = null;
   item.rarity = fluxClassOf(item.affixes);
   if (!maybeInscribe(item)) item.name = nameItem(item);
-  offerNextBud(item);
   return chosen;
 }
 
@@ -365,6 +375,13 @@ export function findPendingBud(profile: Profile): PendingBud | null {
   return null;
 }
 
+/** この遺物に、今のランでまだ芽を出してよいか（BUD.perRunPerItem。前のランから持ち越した芽は数えない） */
+function canOfferBudThisRun(state: GameState, item: Item): boolean {
+  let count = 0;
+  for (const id of state.budOfferedThisRun) if (id === item.id) count += 1;
+  return count < BUD.perRunPerItem;
+}
+
 /**
  * 出来事を装備中の全アイテムの来歴に積み、節目に達したら芽を提示する。
  * state.pendingBud を更新し、新しい芽が出たらプロフィールを保存する。
@@ -383,7 +400,11 @@ export function recordProvenance(state: GameState, event: ProvenanceEvent): void
       const times = progressFor(item.baseKey);
       for (let i = 0; i < times; i++) bumpProvenance(provenance, event, state.depth);
     }
-    if (offerNextBud(item)) offered = true;
+    // 上限で止めた節目は到達済みにしない。次のランで芽になる
+    if (!canOfferBudThisRun(state, item)) continue;
+    if (!offerNextBud(item)) continue;
+    state.budOfferedThisRun.push(item.id);
+    offered = true;
   }
   if (!offered) return;
   state.pendingBud = findPendingBud(state.profile);

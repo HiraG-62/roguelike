@@ -10,6 +10,7 @@ import { addFloatingText } from "./effects";
 import { onJinSettled } from "./economy";
 import { farFromPlayer, moveEnemy } from "./enemies";
 import { vanish } from "./enemyTraits";
+import { foldJinzu, onHonjinLeaderFell } from "./jinzu";
 import { roomHooks } from "./specialRooms";
 
 /**
@@ -98,7 +99,9 @@ function deathLoss(state: GameState, jin: Jin, e: Enemy): number {
 function breakLeader(state: GameState, jin: Jin, leader: Enemy, loss: number): void {
   jin.morale = Math.max(0, Math.min(jin.morale - loss, jin.moraleMax * JIN.morale.leaderBreakRatio));
   jin.leaderFell = true;
-  addFloatingText(state, lifted(leader.body.pos), JIN_TEXT.leaderDown, JIN.rout.leaderColor, LEADER_TEXT_SCALE, LEADER_TEXT_LIFE);
+  addFloatingText(state, lifted(leader.body.pos), JIN_TEXT.leaderDown, JIN.rout.leaderColor, LEADER_TEXT_SCALE, LEADER_TEXT_LIFE, "notice");
+  // 本陣の旗倒れ: 陣図を畳み、近くの交戦中の素の陣の群勢を落とす（system/jinzu.ts）
+  if (jin.honjin) onHonjinLeaderFell(state, jin, leader.body.pos);
 }
 
 /**
@@ -110,6 +113,8 @@ export function jinBonusMul(state: GameState, e: Enemy, kind: JinBonusKind): num
   const jin = jinById(state, e.jinId);
   if (!jin || jin.phase !== "engaged" || jin.moraleMax <= 0) return 1;
   if (jin.morale < jin.moraleMax * JIN.morale.highRatio) return 1;
+  // 筆を持つ大将は怯みやすさの強化が掛からない（陣図を止められる量をいつもの怯みゲージのままにする）
+  if (e.jinzuRun?.mode === "brush") return 1;
   return kind === "attackInterval" ? JIN.morale.highAttackIntervalMul : JIN.morale.highPoiseTakenMul;
 }
 
@@ -122,17 +127,20 @@ export function jinBonusMul(state: GameState, e: Enemy, kind: JinBonusKind): num
  * 塊に乗った陣は部屋の生存者が 0 になり、同じステップの updateRooms が clearRoom（文字は「敗走」）を出す
  */
 export function routJin(state: GameState, jin: Jin): void {
+  // 走りの途中で敗走の線を切れば走りも止める（陣図を畳む。兵が陣から外れる前に）
+  foldJinzu(state, jin);
   const members = jinMembers(state, jin);
   if (members.length === 0) return;
   const at = centroid(members);
-  // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）
-  const fleeing = members.filter((e) => !e.nemesis);
+  // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）。
+  // 階の主（ボス陣の大将）も残す: 逃がすと部屋が「敗走」で制圧され、主が倒れないので階段が出ず階が詰む
+  const fleeing = members.filter((e) => !e.nemesis && e.id !== state.boss?.enemyId);
   const target = nearestRefuge(state, at, jin.id);
   routTallyOf(state, jin.id).fled += fleeing.length;
   for (const e of fleeing) startRout(e, jin, target);
   settleJin(state, jin, "rout");
   // 塊に乗った陣の「敗走」は clearRoom が出す（二重に出さない）
-  if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE);
+  if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE, "notice");
 }
 
 function startRout(e: Enemy, from: Jin, target: Refuge | null): void {
@@ -338,7 +346,7 @@ function callSecondWave(state: GameState, jin: Jin): void {
   const woken = jinMembers(state, jin).filter((e) => e.phase === "idle");
   if (woken.length === 0) return;
   for (const e of woken) e.phase = "chase";
-  addFloatingText(state, lifted(centroid(woken)), JIN_TEXT.secondWave, JIN.wake.color, SECOND_WAVE_TEXT_SCALE, SECOND_WAVE_TEXT_LIFE);
+  addFloatingText(state, lifted(centroid(woken)), JIN_TEXT.secondWave, JIN.wake.color, SECOND_WAVE_TEXT_SCALE, SECOND_WAVE_TEXT_LIFE, "notice");
 }
 
 // -----------------------------------------------------------------------------
@@ -421,7 +429,8 @@ export function stirSleepingJin(state: GameState): boolean {
 
 /** 歩かせてよい陣: 眠っている・まだ歩かせていない・塊に乗り、その塊が交戦も制圧も封鎖もしていない */
 function stirrable(state: GameState, jin: Jin): boolean {
-  if (jin.phase !== "sleeping" || jin.stirred || jin.roomIndex === ROAMING_ROOM) return false;
+  // 本陣は山として動かない（歩き出して長蛇にならない）
+  if (jin.phase !== "sleeping" || jin.stirred || jin.honjin || jin.roomIndex === ROAMING_ROOM) return false;
   const room = state.rooms[jin.roomIndex];
   return room !== undefined && !room.engaged && !room.cleared && !room.locked;
 }

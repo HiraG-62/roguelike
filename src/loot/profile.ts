@@ -425,7 +425,26 @@ export function loadProfile(storage?: Storage): Profile {
   const profile: Profile = { version: CURRENT_VERSION, equipment, stash, meta: sanitizeMeta(parsed.meta) };
   const ultimates = sanitizeUltimateChoices(parsed.ultimates);
   if (ultimates !== undefined) profile.ultimates = ultimates;
+  const carry = sanitizeCarry(parsed.carry);
+  if (carry !== undefined) profile.carry = carry;
   return profile;
+}
+
+function isLootSlot(v: unknown): v is Slot {
+  return typeof v === "string" && (LOOT_SLOTS as readonly string[]).includes(v);
+}
+
+/** 持ち込みの印。装備できる部位の key だけを重ねずに通す（数の上限は loot/runGear.ts が読むときに切る）。配列でなければ無し */
+function sanitizeCarry(v: unknown): Slot[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: Slot[] = [];
+  for (const raw of v) if (isLootSlot(raw) && !out.includes(raw)) out.push(raw);
+  return out;
+}
+
+/** ラン用のプロフィール（loot/runGear.ts の makeRunProfile。拠点から持ち込んだ遺物の id を持つ）か */
+export function isRunProfile(profile: Readonly<Pick<Profile, "carriedIds">>): boolean {
+  return profile.carriedIds !== undefined;
 }
 
 function isLoaned(item: Item | null | undefined): boolean {
@@ -462,8 +481,13 @@ export function returnLoaned(profile: Profile): boolean {
   return true;
 }
 
-/** プロフィールを保存する。借り物は書かない。容量超過などの失敗は握りつぶす。保存先が無い環境では何もしない */
+/**
+ * プロフィールを保存する。借り物は書かない。容量超過などの失敗は握りつぶす。保存先が無い環境では何もしない。
+ * ラン用のプロフィール（isRunProfile）は何もしない: ラン中に拾った遺物（袋）は持ち帰りを選ぶまで拠点の物ではないので、
+ * step の中の拾得・芽・ラン記録の保存がラン用のプロフィールで保存先を上書きしないようにする（拠点の側は main.ts が終わりに保存する）
+ */
 export function saveProfile(profile: Profile, storage?: Storage): void {
+  if (isRunProfile(profile)) return;
   const target = storage ?? saveStorage();
   if (!target) return;
   try {

@@ -1,4 +1,5 @@
 {
+  "_note": "装備ドロップ（system/loot.ts）。2026-10-02: 装備の持ち込みが右手 + 2 部位になり（CARRY）、残りの部位は空で始まるので、部屋の制圧の報酬の深度 1 を 0.24 → 0.28 に戻した（docs/ideas/run-arc.md 2-3）。「浅いほど出にくい」「通常敵は深度 1 が最も絞られ精鋭より低い」の約束（loot.test.ts）の内側で上げられるのはここまで。階の到着は既に 0.8。足りなければ QA の後に約束ごと決め直す",
   "depthChanceBonus": 0.005,
   "mobDropMulByDepth": [
     0.2,
@@ -9,7 +10,7 @@
   "roamingDropMul": 0.5,
   "eliteDropMul": 0.35,
   "roomClearChanceByDepth": [
-    0.24,
+    0.28,
     0.28,
     0.24,
     0.29

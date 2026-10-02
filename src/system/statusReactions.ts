@@ -4,7 +4,7 @@ import { REACTION_LABEL, type ReactionKey, type StatusBag, type StatusEffect, ty
 import { STATUS } from "../data/tuning";
 import { TRAIT_COLORS, type TraitColor } from "../loot/types";
 import { healPlayer } from "./combat";
-import { addFloatingText, reactionSfxName, spawnBurst, spawnRing } from "./effects";
+import { addFloatingTextOnce, reactionSfxName, spawnBurst, spawnRing } from "./effects";
 import { gainMana } from "./mana";
 import { noteReactionMana } from "./manaSources";
 import {
@@ -104,7 +104,7 @@ function fire(state: GameState, target: StatusTarget, key: ReactionKey, showText
   // 錬金術師の流儀の気力の源（system/manaSources.ts）
   noteReactionMana(state, target);
   pushSfx(state, reactionSfxName(key));
-  if (showText) addFloatingText(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE);
+  if (showText) addFloatingTextOnce(state, targetPos(state, target), REACTION_LABEL[key], REACTION_TEXT_COLOR, REACTION_TEXT_SCALE, REACTION_TEXT_LIFE, "status");
   return true;
 }
 
@@ -607,7 +607,7 @@ export function onEnemyDeathStatus(state: GameState, e: Enemy): void {
 export function onPlayerHitReactions(state: GameState, enemy: Enemy, ctx: OnHitContext): void {
   siphon(state, enemy);
   // 墨印は倒した一撃でも読む（印の付いた敵の位置から広がる）ので、撃破の早期リターンより前
-  if (ctx.kind === "ranged" || ctx.skill === true) recite(state, enemy);
+  if ((ctx.kind === "ranged" && ctx.inscribes !== true) || ctx.skill === true) recite(state, enemy);
   if (enemy.hp <= 0) return;
   if (ctx.kind === "ranged" || ctx.skill === true) detonateBrand(state, enemy);
   if (ctx.kind === "melee" && ctx.skill !== true) discharge(state, enemy);

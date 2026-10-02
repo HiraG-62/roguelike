@@ -19,6 +19,7 @@ import {
   backOriginStage,
   jobCursorDetail,
   pointOriginRow,
+  carryLine,
   createOriginScreen,
   cursorDescription,
   moveOriginCursor,
@@ -35,6 +36,11 @@ function game(setup: RunSetup, seed = 21) {
 }
 
 describe("起点画面の操作", () => {
+  it("持ち込む部位を 1 行で出す（無ければ「なし」）", () => {
+    expect(carryLine(createOriginScreen(undefined, new Set(), new Set(), ["mainHand", "ring", "amulet"]))).toBe("持ち込み: 右手・指輪・首飾り");
+    expect(carryLine(createOriginScreen())).toBe("持ち込み: なし");
+  });
+
   it("ジョブの段から開き、決定で起点の段の「出発」へ進み、もう一度の決定で始められる", () => {
     const ui = createOriginScreen();
     expect(ui.stage, "ジョブの段から").toBe("job");
@@ -178,11 +184,11 @@ describe("起点の適用", () => {
     expect(s.stats.increased.vsStaggered, "封印が解けて装備の性質が乗る").toBeGreaterThan(bare.increased.vsStaggered);
   });
 
-  it("詠み手: 刻印符を差して始まり、最大 HP が 2 割減る", () => {
+  it("詠み手: 刻印符を手持ちに持って始まり（スキルへは付かない）、最大 HP が 2 割減る", () => {
     const base = game({ origin: "wanderer", modifiers: [] });
     const s = game({ origin: "chanter", modifiers: [] });
-    const runes = s.skills.slots.reduce((n, slot) => n + slot.modifiers.length, 0);
-    expect(runes).toBeGreaterThan(0);
+    expect(s.skills.hand, "手持ちに開始の符").toHaveLength(ORIGIN.chanterRunes);
+    expect(s.skills.slots.every((slot) => slot.modifiers.length === 0), "スキルには付いていない").toBe(true);
     expect(s.stats.maxHp).toBeCloseTo(base.stats.maxHp * ORIGIN.chanterHpMul);
   });
 

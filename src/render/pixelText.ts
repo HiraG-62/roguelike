@@ -4,6 +4,7 @@
  * fillText を transform 越しに直接使うと拡大時にアンチエイリアスで滑らかになり、ドット絵と馴染まないため。
  */
 import { PIXEL_FONT_FAMILY, uiFont, wrapByWidth } from "./font";
+import { GlyphSheet, type SheetSlot } from "./glyphSheets";
 
 /** DotGothic16 の設計サイズ。この px で描くと 1 ドット = 1px になる */
 export const PIXEL_FONT_DESIGN_PX = 16;
@@ -16,6 +17,10 @@ const FULL_ADVANCE = 16;
 const ALPHA_THRESHOLD = 128;
 /** 色付きグリフの総キャッシュ数の上限。超えたら色キャッシュ全体を捨てる（色を毎フレーム変える呼び出しへの保険） */
 const MAX_TINTED_GLYPHS = 4096;
+/** 白いグリフの台紙の一辺（px）。1 枚に 1000 字ほど入る */
+const GLYPH_SHEET_SIZE = 512;
+/** 色付きグリフの台紙の一辺（px）。色ごとに使う字は少ないので小さく（1 枚に 250 字ほど） */
+const TINT_SHEET_SIZE = 256;
 const FONT_SPEC = `${PIXEL_FONT_DESIGN_PX}px "${PIXEL_FONT_FAMILY}"`;
 const GLYPH_COLOR = "#fff";
 
@@ -34,9 +39,16 @@ export interface PixelTextDrawOptions {
 }
 
 interface Glyph {
-  canvas: HTMLCanvasElement;
+  /** 白い二値のグリフを置いた台紙の区画（幅は advance、最低 1） */
+  slot: SheetSlot;
   /** 設計サイズでの advance（px = ドット数） */
   advance: number;
+}
+
+/** 色ごとの色付きグリフの台紙と、字 → 区画 */
+interface TintSet {
+  sheet: GlyphSheet;
+  slots: Map<string, SheetSlot>;
 }
 
 /** テスト用に差し替え可能な環境依存部分 */
@@ -77,14 +89,21 @@ export function scaleOf(ctx: CanvasRenderingContext2D): number {
 
 export class PixelText {
   private readonly glyphs = new Map<string, Glyph>();
-  private readonly tinted = new Map<string, Map<string, HTMLCanvasElement>>();
+  private glyphSheet: GlyphSheet;
+  private readonly tinted = new Map<string, TintSet>();
+  /** 1 字を焼く作業面（二値化で画素を読む）と、色を付ける作業面 */
+  private glyphScratch: HTMLCanvasElement | null = null;
+  private tintScratch: HTMLCanvasElement | null = null;
   private tintedCount = 0;
   private ready: boolean;
   private measureCtx: CanvasRenderingContext2D | null = null;
+  /** フォントの読み込み前に warm で頼まれた字（読み込み後に焼く） */
+  private pendingWarm = "";
   /** width / wrap / sizeFor で scale 省略時に使う倍率。draw() のたびに ctx から更新される */
   private scale = 1;
 
   constructor(private readonly env: PixelTextEnv) {
+    this.glyphSheet = this.newGlyphSheet();
     this.ready = env.isFontReady();
     if (this.ready) return;
     env
@@ -171,7 +190,11 @@ export class PixelText {
       if (glyph.advance > 0 && ch !== " " && ch !== "　") {
         const img = this.tintedGlyph(ch, glyph, opts.color);
         ctx.drawImage(
-          img,
+          img.canvas,
+          img.x,
+          img.y,
+          img.w,
+          img.h,
           snapX + (penDots * m) / scale,
           snapY,
           (glyph.advance * m) / scale,
@@ -184,11 +207,29 @@ export class PixelText {
     ctx.globalAlpha = prevAlpha;
   }
 
+  /**
+   * chars のグリフを先に焼いておく（ゲーム中に初めて出る字で焼くと、その 1 フレームが重くなる）。
+   * フォントの読み込み前なら、読み込みが終わった時に焼く（読み込み前に焼いた字は代替の字形なので使えない）
+   */
+  warm(chars: string): void {
+    if (!this.ready) {
+      this.pendingWarm += chars;
+      return;
+    }
+    for (const ch of chars) this.glyph(ch);
+  }
+
   /** キャッシュを全破棄する（フォントロード完了時など） */
   clearCache(): void {
     this.glyphs.clear();
+    this.glyphSheet = this.newGlyphSheet();
     this.tinted.clear();
     this.tintedCount = 0;
+  }
+
+  /** テスト・デバッグ用: 焼いたグリフの数 */
+  glyphCacheSize(): number {
+    return this.glyphs.size;
   }
 
   /** テスト・デバッグ用: 色付きグリフのキャッシュ数 */
@@ -200,6 +241,9 @@ export class PixelText {
     this.clearCache();
     this.measureCtx = null;
     this.ready = true;
+    const pending = this.pendingWarm;
+    this.pendingWarm = "";
+    this.warm(pending);
   }
 
   private advanceOf(ch: string): number {
@@ -216,49 +260,76 @@ export class PixelText {
     return Math.round(this.measureCtx.measureText(ch).width);
   }
 
+  private newGlyphSheet(): GlyphSheet {
+    return new GlyphSheet((w, h) => this.env.createCanvas(w, h), GLYPH_SHEET_SIZE, PIXEL_FONT_DESIGN_PX);
+  }
+
+  /** 1 字ぶんの作業面（幅が足りなければ作り直す） */
+  private scratch(kind: "glyph" | "tint", w: number): HTMLCanvasElement {
+    const current = kind === "glyph" ? this.glyphScratch : this.tintScratch;
+    if (current && current.width >= w) return current;
+    const made = this.env.createCanvas(Math.max(w, PIXEL_FONT_DESIGN_PX * 2), PIXEL_FONT_DESIGN_PX);
+    if (kind === "glyph") this.glyphScratch = made;
+    else this.tintScratch = made;
+    return made;
+  }
+
   private glyph(ch: string): Glyph {
     const hit = this.glyphs.get(ch);
     if (hit) return hit;
     const advance = this.measure(ch);
-    const canvas = this.env.createCanvas(Math.max(1, advance), PIXEL_FONT_DESIGN_PX);
-    const g = canvas.getContext("2d");
+    const w = Math.max(1, advance);
+    const h = PIXEL_FONT_DESIGN_PX;
+    const work = this.scratch("glyph", w);
+    // 二値化で画素を読むので CPU 側に置く。GPU 側の canvas だと読み戻しで 1 字 3〜50ms 止まり、初めて出る字（浮き文字）で固まっていた
+    const g = work.getContext("2d", { willReadFrequently: true });
+    const slot = this.glyphSheet.alloc(w);
     if (g) {
+      g.clearRect(0, 0, work.width, h);
       g.font = FONT_SPEC;
       g.fillStyle = GLYPH_COLOR;
       g.textAlign = "left";
       g.textBaseline = "alphabetic";
       g.fillText(ch, 0, GLYPH_BASELINE_PX);
-      binarizeAlpha(g, canvas.width, canvas.height);
+      // advance の幅だけ写す（はみ出した画素は捨てる。1 字 1 枚だった頃の canvas の幅と同じ）
+      binarizeAlpha(g, w, h);
+      slot.canvas.getContext("2d")?.drawImage(work, 0, 0, w, h, slot.x, slot.y, w, h);
     }
-    const made: Glyph = { canvas, advance };
+    const made: Glyph = { slot, advance };
     this.glyphs.set(ch, made);
     return made;
   }
 
-  private tintedGlyph(ch: string, glyph: Glyph, color: string): HTMLCanvasElement {
-    let byChar = this.tinted.get(color);
-    const hit = byChar?.get(ch);
+  private tintedGlyph(ch: string, glyph: Glyph, color: string): SheetSlot {
+    let set = this.tinted.get(color);
+    const hit = set?.slots.get(ch);
     if (hit) return hit;
     if (this.tintedCount >= MAX_TINTED_GLYPHS) {
       this.tinted.clear();
       this.tintedCount = 0;
-      byChar = undefined;
+      set = undefined;
     }
-    if (!byChar) {
-      byChar = new Map();
-      this.tinted.set(color, byChar);
+    if (!set) {
+      set = { sheet: new GlyphSheet((w, h) => this.env.createCanvas(w, h), TINT_SHEET_SIZE, PIXEL_FONT_DESIGN_PX), slots: new Map() };
+      this.tinted.set(color, set);
     }
-    const canvas = this.env.createCanvas(glyph.canvas.width, glyph.canvas.height);
-    const g = canvas.getContext("2d");
+    const { w, h } = glyph.slot;
+    const work = this.scratch("tint", w);
+    const out = set.sheet.alloc(w);
+    const g = work.getContext("2d");
     if (g) {
-      g.drawImage(glyph.canvas, 0, 0);
+      // copy は描いた範囲の外を透明にするので、前の字の残りを消す手間が要らない
+      g.globalCompositeOperation = "copy";
+      g.drawImage(glyph.slot.canvas, glyph.slot.x, glyph.slot.y, w, h, 0, 0, w, h);
       g.globalCompositeOperation = "source-in";
       g.fillStyle = color;
-      g.fillRect(0, 0, canvas.width, canvas.height);
+      g.fillRect(0, 0, w, h);
+      g.globalCompositeOperation = "source-over";
+      out.canvas.getContext("2d")?.drawImage(work, 0, 0, w, h, out.x, out.y, w, h);
     }
-    byChar.set(ch, canvas);
+    set.slots.set(ch, out);
     this.tintedCount++;
-    return canvas;
+    return out;
   }
 
   /** フォント未ロード時: 同じ行ボックスに収まるよう uiFont で描く */

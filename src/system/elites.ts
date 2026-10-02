@@ -3,6 +3,7 @@ import type { StatusKind } from "../core/status";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
 import { type EnemyRole, GRADE_LABEL, ROLE_ELITE_EXCLUDE } from "../data/enemyRoles";
+import { COMMANDING_AURA_COLOR } from "../data/signs";
 import { ELITE, ELITE_GREEDY, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
@@ -13,6 +14,7 @@ import { applyOnHitStatus, applyStatus, findStatus } from "./statusEffects";
 import { createEnemy, moveEnemy } from "./enemies";
 import { consumeCorpse, nearestCorpse, spawnSpot } from "./enemyTraits";
 import { bossArmorBlocks, bossReflects, bossTakenMul } from "./boss";
+import { yellowAt } from "./readTiming";
 import { rallyTakenMul, seedTerrain } from "./enemyTerrain";
 import { placeTerrain } from "./terrain";
 import { manaRegenAllowed } from "./keystones";
@@ -51,24 +53,24 @@ export const ELITE_KINDS: readonly EliteKind[] = [
 ];
 
 export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
-  explosive: "#ff8030",
+  explosive: "#ffa850",
   reflective: "#e0e0ff",
   shielded: "#60a0ff",
-  hasted: "#ffe040",
+  hasted: "#60e8c8",
   linked: "#ff80ff",
   echoing: "#b090ff",
   contagious: "#80ff60",
   bulwark: "#c0a070",
-  retaliating: "#ff5050",
+  retaliating: "#b04a88",
   prismatic: "#ff90d0",
   timed: "#ffffff",
   parasitic: "#a0c040",
   anchored: "#8090a0",
   devouring: "#c04060",
   packed: "#f0a040",
-  searing: "#ff6020",
+  searing: "#ff9060",
   hexing: "#a060ff",
-  commanding: "#ffd040",
+  commanding: COMMANDING_AURA_COLOR,
   evasive: "#80ffe0",
   chaining: "#a0e0ff",
   greedy: ELITE_GREEDY.color,
@@ -471,7 +473,7 @@ function bulwarkBreak(state: GameState, e: Enemy): void {
   if (stagger) stagger.time *= ELITE.bulwarkStaggerMul;
   const vulnerable = { kind: "vulnerable" as const, stacks: 1, duration: ELITE.bulwarkVulnerableTime, potency: 0 };
   applyStatus(state, { kind: "enemy", enemy: e }, vulnerable, "env");
-  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ELITE_COLOR.bulwark, 1.2, 0.8);
+  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ELITE_COLOR.bulwark, 1.2, 0.8, "status");
 }
 
 /** 報復の: 怯んだ瞬間に輪の予告を出し、少し後に衝撃波を返す */
@@ -504,7 +506,7 @@ function tickTimed(state: GameState, e: Enemy, w: EliteWork, dt: number): void {
   w.timer -= dt;
   if (w.timer > 0) return;
   e.poise.max *= ELITE.timedPoiseMul;
-  addFloatingText(state, e.body.pos, TIMED_OUT_TEXT, ELITE_COLOR.timed, 1.3, 1);
+  addFloatingText(state, e.body.pos, TIMED_OUT_TEXT, ELITE_COLOR.timed, 1.3, 1, "status");
   spawnRing(state, e.body.pos, 30, ELITE_COLOR.timed, 0.4);
   pushSfx(state, "enemyWindup");
 }
@@ -532,14 +534,14 @@ function devourNearby(state: GameState, e: Enemy): void {
   consumeCorpse(state, corpse);
   e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * ELITE.devourHeal));
   e.lastHp = e.hp;
-  addFloatingText(state, e.body.pos, DEVOUR_TEXT, ELITE_COLOR.devouring, 1, 0.8);
+  addFloatingText(state, e.body.pos, DEVOUR_TEXT, ELITE_COLOR.devouring, 1, 0.8, "status");
 }
 
 function breakShield(state: GameState, e: Enemy): void {
   const max = e.shieldMax ?? 0;
   e.maxHp -= max;
   e.shieldMax = 0;
-  addFloatingText(state, e.body.pos, BREAK_TEXT, ELITE_COLOR.shielded, 1.3, 0.8);
+  addFloatingText(state, e.body.pos, BREAK_TEXT, ELITE_COLOR.shielded, 1.3, 0.8, "status");
   spawnBurst(state, e.body.pos, ELITE_COLOR.shielded, 14, 120, 0.4, 2);
   pushSfx(state, "hitHeavy");
   if (e.hp <= 0 || e.phase === "spawning") return;
@@ -597,12 +599,28 @@ export function isFrontal(e: Enemy, dir: Vec): boolean {
 }
 
 /** 盾持ち（EnemyDef.blocks）が構えているか */
-function canBlock(e: Enemy): boolean {
-  return enemyDef(e.defKey).blocks === true && !isStaggered(e) && e.phase !== "spawning";
+function canBlock(state: GameState, e: Enemy): boolean {
+  // 予告が下絵の間は盾を下げている（殴って / 撃って止められる。docs/ideas/reading-core-impl.md 2-5）
+  return enemyDef(e.defKey).blocks === true && !isStaggered(e) && e.phase !== "spawning" && !yellowAt(e, state.time);
+}
+
+/** 弾で受けた wallHit を 1 体につき間引く最終時刻（見た目と音だけ。シミュレーションには効かない） */
+const lastShotBlockSfx = new WeakMap<Enemy, number>();
+const SHOT_BLOCK_SFX_GAP = 0.15;
+const SHOT_BLOCK_PARTICLES = 2;
+
+/** 弾で受けた表示: 文字なし・粒は小さく・音は間引く・押し返さない（弾で押し返し続けられると下絵を読む理由が消える） */
+function showShotBlock(state: GameState, e: Enemy): void {
+  spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, SHOT_BLOCK_PARTICLES, 70, 0.15, 1);
+  const last = lastShotBlockSfx.get(e);
+  // state.time が巻き戻った（別のゲーム）ときも鳴らす
+  if (last !== undefined && last <= state.time && state.time - last < SHOT_BLOCK_SFX_GAP) return;
+  lastShotBlockSfx.set(e, state.time);
+  pushSfx(state, "wallHit");
 }
 
 function showBlock(state: GameState, e: Enemy, dir: Vec): void {
-  addFloatingText(state, e.body.pos, BLOCK_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.6);
+  addFloatingText(state, e.body.pos, BLOCK_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.6, "status");
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, BLOCK_PARTICLES, 90, 0.25, 1.5);
   // 盾で受けた反動で少しだけ下がる
   e.knock = scale(normalize(dir), ENEMY_AI.knight.blockPushback);
@@ -611,7 +629,7 @@ function showBlock(state: GameState, e: Enemy, dir: Vec): void {
 
 /** GUARD BREAK の表示（盾を抜いた / 盾の上から怯みが溢れた） */
 function showGuardBreak(state: GameState, e: Enemy): void {
-  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8);
+  addFloatingText(state, e.body.pos, GUARD_BREAK_TEXT, ENEMY_AI.knight.blockColor, 1.3, 0.8, "status");
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, GUARD_BREAK_PARTICLES, 130, 0.35, 2);
   pushSfx(state, "hitHeavy");
   pushSfx(state, "guardBreak");
@@ -624,7 +642,7 @@ function routIfBroken(state: GameState, e: Enemy): void {
   const target = { kind: "enemy" as const, enemy: e };
   applyStatus(state, target, { kind: "vulnerable", stacks: 1, duration: ROUT_TIME, potency: 0 }, "env");
   applyStatus(state, target, { kind: "fear", stacks: 1, duration: ROUT_TIME, potency: 0 }, "env");
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, ROUT_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.8);
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - 10 }, ROUT_TEXT, ENEMY_AI.knight.blockColor, 1.1, 0.8, "status");
 }
 
 /**
@@ -646,14 +664,14 @@ export function interceptEnemyDamage(
   // 潜行中（土潜り・天井吊り・影踏み）には当たらない
   if (e.hidden) return 0;
   if (bossArmorBlocks(state, e)) {
-    addFloatingText(state, e.body.pos, NULLIFY_TEXT, "#8fd0ff", 1, 0.5);
+    addFloatingText(state, e.body.pos, NULLIFY_TEXT, "#8fd0ff", 1, 0.5, "status");
     return 0;
   }
   // 旗の加護・鏡の騎士の写し身の守り（掛からないときは値を丸めない）
   const guardMul = rallyTakenMul(e) * bossTakenMul(state, e);
   if (guardMul !== 1) amount = Math.max(1, Math.round(amount * guardMul));
   if (kind !== "melee") return amount;
-  if (!canBlock(e) || !isFrontal(e, knockDir)) return amount;
+  if (!canBlock(state, e) || !isFrontal(e, knockDir)) return amount;
   if (guardBreak) {
     showGuardBreak(state, e);
     return amount;
@@ -666,17 +684,26 @@ export function interceptEnemyDamage(
   return 0;
 }
 
+/** 盾の正面に来た弾。出端の弾・零距離の短銃弾は盾を抜け、それ以外は怯み値を半分溜めて消える。true なら処理済み */
+function blockShot(state: GameState, pr: Projectile, e: Enemy): boolean {
+  const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
+  if (debana || pr.pointBlank === true) {
+    showGuardBreak(state, e);
+    return false;
+  }
+  if (addPoise(state, e, (pr.poise ?? 0) * POISE.shotBlockMul)) showGuardBreak(state, e);
+  else showShotBlock(state, e);
+  pr.life = 0;
+  return true;
+}
+
 /**
  * プレイヤー弾が敵に当たる直前に呼ぶ。true なら弾は処理済み（ダメージを与えない）。
  * 盾持ちの正面は弾かれて消え、Reflective は向きを反転して敵弾になる
  */
 export function deflectProjectile(state: GameState, pr: Projectile, e: Enemy): boolean {
   if (pr.owner !== "player") return false;
-  if (canBlock(e) && isFrontal(e, pr.vel)) {
-    showBlock(state, e, pr.vel);
-    pr.life = 0;
-    return true;
-  }
+  if (canBlock(state, e) && isFrontal(e, pr.vel)) return blockShot(state, pr, e);
   if (e.elite !== "reflective" && !bossReflects(state, e, pr)) return false;
   // 弾は返されても、弾が運ぶ状態異常（燃焼・感電など）の付与だけは敵に残る（docs/ideas/enemies.md H1）
   if (pr.kind === "ranged") applyOnHitStatus(state, e, { kind: "ranged" });
@@ -852,7 +879,7 @@ function snatch(state: GameState, e: Enemy, target: LootTarget): void {
     state.skills.floorStones = state.skills.floorStones.filter((fs) => fs !== target.entry);
     carried.stones.push(target.entry);
   }
-  addFloatingText(state, e.body.pos, SNATCH_TEXT, ELITE_GREEDY.color, FLOAT_TEXT_SCALE, FLOAT_TEXT_LIFE);
+  addFloatingText(state, e.body.pos, SNATCH_TEXT, ELITE_GREEDY.color, FLOAT_TEXT_SCALE, FLOAT_TEXT_LIFE, "status");
   spawnBurst(state, e.body.pos, ELITE_GREEDY.color, SNATCH_PARTICLES, 60, 0.3, 1.5);
   pushSfx(state, "greedySnatch");
 }

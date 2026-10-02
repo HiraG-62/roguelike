@@ -83,7 +83,7 @@ export function spawnReaper(state: GameState): void {
   // バリアント（鎖・取り立て屋・双子・影・静か）を決め、種類をログで告げる
   initReaperVariant(state, reaper);
   spawnBurst(state, pos, REAPER.color, SPAWN_PARTICLES, 120, 0.8, 2.5);
-  addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2);
+  addFloatingText(state, { x: state.player.body.pos.x, y: state.player.body.pos.y - 20 }, WARN_TEXT, REAPER.color, 1.5, 2, "notice");
   shake(state, 4);
   pushSfx(state, "enemyWindup");
   pushSfx(state, "reaperAppear");

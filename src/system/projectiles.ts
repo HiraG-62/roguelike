@@ -1,6 +1,6 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { FEEL, MANA } from "../data/tuning";
+import { ACTION, FEEL, MANA } from "../data/tuning";
 import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
@@ -10,9 +10,12 @@ import { isAllied } from "./rules";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { attackHitManaMul } from "./manaSources";
+import { bossOnAnswer } from "./boss";
+import { fireDebana } from "./debana";
 import { noteRiposte } from "./moments";
 import { currentForm } from "./morale";
 import { circlesOverlap, overlapsShotWall } from "./physics";
+import { yellowAt } from "./readTiming";
 import { blastMulAt } from "./blast";
 import { applyStatus, inflictOnPlayer } from "./statusEffects";
 import { placeTerrain, swallowedBySmoke } from "./terrain";
@@ -102,6 +105,11 @@ function leaveTerrain(state: GameState, pr: Projectile): void {
 function applyShotStatus(state: GameState, pr: Projectile, e: Enemy): void {
   if (!pr.applies || e.hp <= 0) return;
   for (const apply of pr.applies) applyStatus(state, { kind: "enemy", enemy: e }, apply, "player");
+}
+
+/** 墨印を記す弾（書の左の字）。記すだけで、同じ命中で墨印を読まない（statusReactions.ts の recite の条件） */
+function inscribesInk(pr: Projectile): boolean {
+  return pr.applies?.some((a) => a.kind === "inkMark") === true;
 }
 
 /** プレイヤー弾の弾の定義（src/loot/bullets.ts）。作業領域を持たない弾は undefined（まっすぐ飛ぶだけ） */
@@ -349,7 +357,7 @@ function groupNewVolley(state: GameState): void {
 }
 
 /** 射撃弾の命中 1 体ごとにマナを回収する。1 回の射撃で MANA.shotVolleyCap 回まで */
-function gainShotMana(state: GameState, pr: Projectile): void {
+function gainShotMana(state: GameState, pr: Projectile, debana = false): void {
   if (pr.kind !== "ranged") return;
   const volley = pr.volley ?? { manaHits: 0 };
   pr.volley = volley;
@@ -357,7 +365,7 @@ function gainShotMana(state: GameState, pr: Projectile): void {
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainAttackMana(state, MANA.onShot * attackHitManaMul(state), attackManaMul(state));
+  gainAttackMana(state, (pr.shotMana ?? MANA.onShot) * (debana ? MANA.onCounterMul : 1) * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
@@ -369,22 +377,34 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit });
-    gainShotMana(state, pr);
+    // 出端: 放出の弾を撃った時に、この敵の予告が下絵だった（弾の飛ぶ間に墨入れへ入っていても。system/readTiming.ts）
+    const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
+    const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
+    const amount = debana ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
+    gainShotMana(state, pr, debana);
     // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
     const heavy = shotDefOf(pr)?.charge !== undefined;
-    damageEnemy(state, e, out.amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
+    const pos = { ...e.body.pos };
+    damageEnemy(state, e, amount, normalize(pr.vel), BULLET_KNOCKBACK * state.stats.knockbackMul, {
       hitstopSteps: BULLET_HITSTOP,
       kind: pr.kind,
       crit: out.crit,
-      poise: pr.poise ?? 0,
+      poise: (pr.poise ?? 0) * (debana ? ACTION.counter.poiseMul : 1),
+      guardBreak: debana,
+      readStart: debana,
+      counterStop: debana,
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
       energy: pr.energy,
       // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
       finisher: pr.release?.finisher,
       release: pr.release !== undefined,
       lane: pr.lane,
+      inscribes: inscribesInk(pr),
     });
+    if (debana) {
+      fireDebana(state, e, pos);
+      bossOnAnswer(state, e, "debana");
+    }
     applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）
     if (pr.shot?.orbit) continue;

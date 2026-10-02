@@ -1,0 +1,15 @@
+{
+  "_note": "予告の音（鳴物帳）の規則の数（audio/narimono.ts・audio/cues.ts）。音色そのものは audio/sfxLayers.ts の定数。見た目・音だけでゲームの結果には効かない",
+  "_fields": {
+    "clackGapSec": "柝頭（自分に掛かる攻撃が赤に入った合図）を鳴らす最短の間隔（秒）。鳴り続ける合図は合図にならない",
+    "clackMaxDist": "柝頭を鳴らす敵の最長の距離（論理 px）。これより遠い敵の赤は鳴らさない",
+    "clackPanMax": "柝頭の左右の振りの最大(0..1)。敵の画面上の横位置で振る",
+    "clackVolume": "柝頭の音量の倍率(0..1)",
+    "tsukeGapSec": "附打（読みの成功の板を打つ音）を重ねない最短の間隔（秒）"
+  },
+  "clackGapSec": 0.25,
+  "clackMaxDist": 320,
+  "clackPanMax": 0.8,
+  "clackVolume": 0.5,
+  "tsukeGapSec": 0.4
+}

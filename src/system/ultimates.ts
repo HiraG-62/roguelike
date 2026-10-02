@@ -21,6 +21,7 @@ import {
 import { BULLETS } from "../loot/bullets";
 import { ultimateChoice } from "../loot/profile";
 import type { AttrRatio, PlayerStats, Scaling } from "../loot/types";
+import { yellowAt } from "./readTiming";
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
@@ -183,7 +184,7 @@ function castFx(state: GameState, def: UltimateDef): void {
     spawnBurst(state, pos, FLASH_WHITE, FLASH_PARTICLES, FLASH_SPEED, FLASH_LIFE, FLASH_SIZE);
   }, true);
   addUltFx(state, def.key, "cast", CAST_INDEX, pos, { angle: angle(state.player.facing) });
-  addFloatingText(state, pos, def.name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE);
+  addFloatingText(state, pos, def.name, color, CAST_TEXT_SCALE, CAST_TEXT_LIFE, "notice");
 }
 
 /** 行為の見た目の出来事の出どころ（一撃の行為の並び・持続の終わりの行為の並びの番号） */
@@ -798,7 +799,7 @@ export function ultimateOutgoingMul(state: GameState, enemy: Enemy | null): numb
   const s = activeSustain(state)?.sustain;
   if (!s) return 1;
   let mul = s.mul.damage ?? 1;
-  if (enemy && s.vsWindup !== undefined && enemy.phase === "windup") mul *= s.vsWindup;
+  if (enemy && s.vsWindup !== undefined && yellowAt(enemy, state.time)) mul *= s.vsWindup;
   if (enemy && s.vsStatus && hasStatus(enemy.status, s.vsStatus.status)) mul *= s.vsStatus.mul;
   if (enemy && s.pointBlank) mul *= pointBlankMul(state, enemy, s.pointBlank);
   return mul;

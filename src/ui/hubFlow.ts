@@ -9,9 +9,9 @@ import type { Item, Profile } from "../loot/types";
 import type { HubSpotKey } from "../map/hubMap";
 import type { AchievementSave } from "../meta/achievements";
 import type { CodexSave } from "../meta/codex";
-import type { HubProgressSource } from "../meta/hub";
 import type { ListEntry, ListTab } from "../meta/listScreen";
 import type { QuestSave } from "../meta/quests";
+import type { TownSource } from "../meta/townLook";
 import type { SkillProfile } from "../skills/types";
 import { RACK_CLEAR_DETAIL, RACK_CLEAR_NAME, rackMovesetDetail } from "./rackScreen";
 import { openMenu } from "./menuActions";
@@ -152,7 +152,7 @@ export function hubProgressSource(
   codex: CodexSave,
   achievements: AchievementSave,
   quests: QuestSave,
-): HubProgressSource {
+): TownSource {
   const equipped = Object.values(profile.equipment).filter((it): it is Item => it !== null && it !== undefined);
   return {
     runs: profile.meta.runs,
@@ -163,6 +163,7 @@ export function hubProgressSource(
     quests,
     clears: profile.meta.clears,
     bestClearTier: profile.meta.bestClearTier,
+    bestDepth: profile.meta.bestDepth,
   };
 }
 

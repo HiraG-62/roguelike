@@ -1,6 +1,21 @@
 {
+  "_note": "拠点（門前町）の景色の段（meta/hub.ts・meta/townLook.ts。docs/ideas/hub-town-impl.md 5 章）。強さには効かず、既存の保存データから見た目の段を導くだけ",
   "_fields": {
-    "shelfMax": "拠点の本棚の段の最大数。図鑑の埋まった割合でこの数まで増える"
+    "shelfMax": "記録の蔵の窓の灯（書架）の最大数。図鑑の埋まった割合でこの数まで増える",
+    "lanternBase": "参道の灯籠の基本の数（踏破 0 回でも立つ）",
+    "lanternPerClear": "踏破 1 回につき増える灯籠の数",
+    "lanternMax": "参道の灯籠の最大数（配置の lanternSlots の数以下にする）",
+    "wellDonationBounds": "井戸の段の境目（寄進の総額）。総額がこの配列の n 番目以上になると井戸が n + 1 段目になる（0 段 = 釣瓶。配列の長さ + 1 段まで）",
+    "steleClearBounds": "踏破の碑の位階の境目（最高位階）。踏破したことがあると碑は 1 段、最高位階がこの配列の n 番目以上ごとに 1 段ずつ育つ",
+    "trophyMax": "御堂の前の幟の最大数（倒したボス 1 体につき 1 本）",
+    "bustleRunBounds": "賑わいの段の境目（ランの回数）。回数がこの配列の n 番目以上になると賑わいが n + 1 段（樽・荷車・洗濯物・猫の順）"
   },
-  "shelfMax": 5
+  "shelfMax": 5,
+  "lanternBase": 2,
+  "lanternPerClear": 2,
+  "lanternMax": 8,
+  "wellDonationBounds": [100, 500, 2000],
+  "steleClearBounds": [1, 5, 10, 20],
+  "trophyMax": 6,
+  "bustleRunBounds": [1, 5, 15, 40]
 }
