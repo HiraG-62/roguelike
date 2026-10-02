@@ -82,8 +82,8 @@ describe("符号表: 予告の薄墨・濃墨・朱・胡粉", () => {
     expect(GOFUN_COLOR, "怯みの印の胡粉は予告の胡粉と同じ").toBe(TELEGRAPH.gofunColor);
   });
 
-  it("下絵の薄墨（滲み・筋）は色味の無い灰で、朱から離れ、濃墨より明るい", () => {
-    for (const hex of [TELEGRAPH.usuzumiColor, TELEGRAPH.usuzumiLightColor, TELEGRAPH.usuzumiDarkColor]) {
+  it("下絵の薄墨（帯・印）は色味の無い灰で、朱から離れ、濃墨より明るい", () => {
+    for (const hex of [TELEGRAPH.usuzumiColor, TELEGRAPH.usuzumiLightColor]) {
       expect(chroma(hex), `${hex} の彩度`).toBeLessThanOrEqual(SIGN_CHECK.usuzumiChromaMax);
       expect(distance(hex, TELEGRAPH.shuColor), `${hex} と朱`).toBeGreaterThanOrEqual(SIGN_CHECK.oklabMinDist);
       expect(luma(hex) - luma(TELEGRAPH.sumiColor), `${hex} と濃墨の明るさ`).toBeGreaterThanOrEqual(SIGN_CHECK.readyCommitLumaMin);

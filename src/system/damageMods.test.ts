@@ -28,8 +28,11 @@ function sturdy(state: ReturnType<typeof arena>, key: string): ReturnType<typeof
 /** 見本の倍（出所の文字列は内訳の並びを見るためだけの名前） */
 const GLASS_HEART_MUL = 1.5;
 const GLASS_HEART: MoreMul = { source: "boon:coreGlassHeart", label: "硝子の心", mul: GLASS_HEART_MUL, tags: ["melee", "ranged", "skill"] };
-/** 装備なし・会心なしの剣の 1 段目で深度 1 のスライムへ入る威力（段取り 4a の前の rollOutgoing で測った値。前後で同じ） */
-const SLIME_DEPTH1_SWORD_HIT = 5;
+/**
+ * 装備なし・会心なしの剣の 1 段目で深度 1 のスライムへ入る威力（段取り 4a の前の rollOutgoing で測った値。前後で同じ）。
+ * 2026-10-02 の振りの速さの見直し（docs/ideas/weapon-tempo.md）で剣の 1 段目を遅く重くしたので 5 → 7
+ */
+const SLIME_DEPTH1_SWORD_HIT = 7;
 
 describe("与ダメの増と倍（rollOutgoing の内訳）", () => {
   it("装備なし深度 1 のスライムへの威力は今と同じ（剣の 1 段目で 5）", () => {

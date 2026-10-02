@@ -3,6 +3,7 @@ import { type Vec, normalize, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
 import { TELEGRAPH, THREAT_CUE } from "../data/tuning";
 import { behaviorOf } from "./behaviors/registry";
+import { isBossDriven } from "./boss";
 import { enemyActiveArea, enemyTelegraph } from "./enemies";
 
 /**
@@ -55,11 +56,13 @@ export interface ThreatShapes {
 }
 
 /**
- * 線の向き。狙いを予備動作の終わりで更新する敵（beginStrike が player 方向へ向け直す）は、今のプレイヤー方向を向く。
- * 予備動作の始まりで狙いを固定する敵は strikeDir のまま
+ * 線の向き。普通の敵は常に e.strikeDir を読む。system/enemies.ts の windup が、残りが固まる秒（poise.ts の aimLockSec）を
+ * 切るまで（aimTracking の敵は攻撃の瞬間まで）strikeDir をプレイヤーへ向け直し、固まったらそのまま撃つので、
+ * 線は「追尾 → 止まる → その向きに撃つ」と一致する。狙いを予備動作の始まりで固定する敵は最初から動かない。
+ * ボス（自前の AI）は攻撃の瞬間にプレイヤーへ向け直すので、固定でなければ今のプレイヤー方向を向く（従来どおり）
  */
-export function telegraphAimDir(e: Enemy, aimFixed: boolean, playerPos: Vec): Vec {
-  if (aimFixed) return e.strikeDir;
+export function telegraphAimDir(e: Enemy, def: EnemyDef, playerPos: Vec): Vec {
+  if (!isBossDriven(def) || behaviorOf(def).aimFixedAtWindup(e, def)) return e.strikeDir;
   return normalize(sub(playerPos, e.body.pos), e.strikeDir);
 }
 
@@ -81,7 +84,7 @@ function windupShapes(state: GameState, e: Enemy, def: EnemyDef, out: ThreatShap
   const tele = enemyTelegraph(e, def);
   if (tele?.kind === "line") {
     const length = tele.length ?? TELEGRAPH.fallbackLength;
-    const dir = telegraphAimDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos);
+    const dir = telegraphAimDir(e, def, state.player.body.pos);
     out.strokes.push({ seg: { x0: x, y0: y, x1: x + dir.x * length, y1: y + dir.y * length }, stop: true, second: false });
     out.lead = { dir, length };
     return;

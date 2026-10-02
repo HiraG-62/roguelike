@@ -650,11 +650,15 @@ export function logButton(p: Player, button: ButtonKey): void {
   a.inputTimer = WEAPON.chainWindow;
 }
 
-/** 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ） */
+/**
+ * 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ）。
+ * 窓は振っていない間だけ減らす（振り終わりから数える）: 振りが窓より長い重い武器でも、振り終えてから押して連撃を続けられる
+ */
 function tickButtonChain(p: Player, dt: number): void {
   const a = p.attack;
+  if (a.phase !== "none" || a.charging) return;
   a.inputTimer = Math.max(0, a.inputTimer - dt);
-  if (a.inputTimer > 0 || a.phase !== "none" || a.charging) return;
+  if (a.inputTimer > 0) return;
   a.inputs.length = 0;
   if (!p.art.holding) a.step = 0;
 }

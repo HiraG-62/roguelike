@@ -238,7 +238,8 @@ function ink(state: GameState, e: Enemy, stacks: number): void {
 
 /** 小さな敵（硬く、攻めてこない）。左の字は約 10m（100px）まで飛ぶので、その内側に置く */
 function near(state: GameState, dx: number, dy = 0): Enemy {
-  const e = placeEnemy(state, "slime", dx, dy);
+  // 動かない的（訓練人形）: 振りが遅くなって連撃が長くなっても、的が寄ってきて距離が変わらない
+  const e = placeEnemy(state, "trainingDummy", dx, dy);
   e.hp = TOUGH_HP;
   e.maxHp = TOUGH_HP;
   e.attackCooldown = NO_ATTACK_COOLDOWN;
@@ -447,7 +448,7 @@ describe("書（墨印）", () => {
     expect([front, back].map((e) => statusStacks(e.status, "inkMark")), "3 段目は並ぶ敵を貫く").toEqual([1, 1]);
   });
 
-  it("左の字の命中で近接だった段の気力（3・3・5 に武器の回収の素の倍率を掛けた量）が戻る", () => {
+  it("左の字の命中で段の気力（movesets/book.json の字の mana に武器の回収の素の倍率を掛けた量）が戻る", () => {
     const state = arena(5, { moveset: "book" });
     const e = near(state, 30);
     const unit = attackHitManaMul(state) * state.stats.manaGainMul * MANA.attackGainScale;
@@ -455,7 +456,7 @@ describe("書（墨印）", () => {
     state.player.mana = 0;
     const gains = chainLeft(state, 3, e);
     expect(gains, "3 段が 1 回ずつ命中").toHaveLength(3);
-    [3, 3, 5].forEach((mana, i) => {
+    MOVESETS.book.steps.map((st) => st.cast?.throw.mana ?? st.mana).forEach((mana, i) => {
       expect(gains[i] ?? 0, `${i + 1} 段目の気力`).toBeGreaterThan(mana * unit - 0.01);
       expect(gains[i] ?? 0, `${i + 1} 段目の気力（自然回復の 1 フレームぶんを超えない）`).toBeLessThan(mana * unit + 0.3);
     });

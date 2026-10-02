@@ -700,6 +700,7 @@ describe("スライム王: 決定性", () => {
       boss.hp = Math.floor(boss.maxHp * KS.phase2Ratio);
       const moves: number[] = [];
       let last: EnemyPhase = phaseOf(boss);
+      // 分裂体の攻撃の向きが固まる仕様（aimLock）で呑み込みの進みが少し遅れるので、膨張へ届く余裕を持たせる
       for (let i = 0; i < 3600; i++) {
         // 円を描いて歩く（決まった入力）
         const a = (i / 120) * Math.PI * 2;

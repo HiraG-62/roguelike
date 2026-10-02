@@ -10,7 +10,7 @@ import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, hasElit
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
-import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
+import { aimLockSec, applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
 import { markWindupStart, NEVER_TIME, noteCommit } from "./readTiming";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
@@ -18,7 +18,7 @@ import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
-import { jinBonusMul, stepRout } from "./jin";
+import { alertJinNeighbors, jinBonusMul, markRoutTurn, routTurnReady, stepRout } from "./jin";
 import { freshStrokeCount, jinzuHoldsAttack, surgeStrikerSlot, updateJinzu } from "./jinzu";
 import { stepJinzuMember } from "./jinzuRun";
 import { wakeByNoise } from "./noise";
@@ -112,8 +112,8 @@ import {
   tryStartEating,
 } from "./enemyBehaviors";
 
-/** 通路からでも気付く距離 */
-export const NOTICE_RANGE = 110;
+/** 眠っている敵が自分で気付く距離（視線が通る間。JIN.wake.noticeRange） */
+export const NOTICE_RANGE = JIN.wake.noticeRange;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
@@ -208,10 +208,13 @@ export function updateEnemies(state: GameState, dt: number): void {
       flee(state, e, def, edt);
       continue;
     }
-    // 敗走中は攻撃せず行き先の陣へ逃げる（system/jin.ts）
-    if (e.rout) {
-      stepRout(state, e, def, edt, enemySpeed(state, e, def));
-      continue;
+    // 敗走中は行き先の陣へ逃げる（system/jin.ts）。追い詰められたら振り向いて 1 回反撃し（窮鼠）、
+    // その予備動作・攻撃・隙の間だけ普段の状態機械を回す。隙が明けて chase に戻れば、また逃げる
+    if (e.rout && !inAttackCycle(e)) {
+      if (!turnOnPursuer(state, e, def)) {
+        stepRout(state, e, def, edt, enemySpeed(state, e, def));
+        continue;
+      }
     }
     // 本陣の陣図: 筆を持つ大将・持ち場の兵は止まり、墨の入った画の兵は走る（system/jinzu.ts・jinzuRun.ts）
     if (e.jinzuRun && stepJinzuMember(state, e, def, edt, enemySpeed(state, e, def))) continue;
@@ -237,7 +240,11 @@ export function updateEnemies(state: GameState, dt: number): void {
         // 商人は殴られるまで気付かない（怒らせるのは behaviors/families.ts の Merchant.onStruck だけ）。壺・木箱は最後まで気付かない
         if (def.merchant === true || def.container !== undefined) break;
         // 開放型フロア: 壁越しには気付かない（気付いた敵が壁に張り付いたまま動けなくなるため）
-        if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
+        if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) {
+          e.phase = "chase";
+          // 自分で気付いた者は、すぐ近くの同じ陣の仲間だけ起こす（部屋じゅうは起こさない。system/jin.ts）
+          alertJinNeighbors(state, e);
+        }
         break;
       case "chase":
         chase(state, e, def, toPlayer, d, edt);
@@ -567,6 +574,21 @@ function keepAwayMove(dir: Vec, perp: Vec, side: number, d: number, keep: number
   return add(radial, scale(perp, side * Math.sin(animTime * 1.2) * 0.6));
 }
 
+/** 予備動作・攻撃・隙のどれか（敗走中の窮鼠の反撃が普段の状態機械を回す間） */
+function inAttackCycle(e: Enemy): boolean {
+  return e.phase === "windup" || e.phase === "strike" || e.phase === "recover";
+}
+
+/** 窮鼠: 詰められた逃げる敵が振り向いて予備動作に入る（予告は普段の攻撃と同じ）。入ったら true */
+function turnOnPursuer(state: GameState, e: Enemy, def: EnemyDef): boolean {
+  if (!routTurnReady(state, e)) return false;
+  const toPlayer = sub(state.player.body.pos, e.body.pos);
+  if (!behaviorOf(def).canBeginAttack(state, e, def, length(toPlayer))) return false;
+  markRoutTurn(e);
+  beginWindup(state, e, def, normalize(toPlayer, e.facing));
+  return true;
+}
+
 /** 1 撃目の予備動作。連続攻撃の残り回数を入れ直し、近くの敵の攻撃開始をずらす */
 function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void {
   const follow = followUpOf(def.key, state.depth);
@@ -713,6 +735,7 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
     return;
   }
   e.phaseTimer -= dt;
+  if (aimStillTracking(e, def)) aimAtPlayer(e, toPlayer);
   const mul = learnedWindupMoveMul(def.key, state.depth) ?? behaviorOf(def).windupMoveMul;
   // 負は後退射撃（プレイヤーから離れながら構える）
   if (mul !== 0) {
@@ -768,9 +791,33 @@ function aimFixedAtWindup(e: Enemy, def: EnemyDef): boolean {
   return behaviorOf(def).aimFixedAtWindup(e, def);
 }
 
+/**
+ * 予備動作の今、狙いをプレイヤーへ向け直してよいか。
+ * 普通の敵は残りが aimLockSec を切るまで（その後は固まった向きで撃つ）、aimTracking の敵は攻撃の瞬間まで。
+ * windupTotal の記録が無い経路（手で phase を置いた敵）は従来どおり追う。
+ * 同時攻撃の上限で待たされている間（phaseTimer が windupTotal を超える）は再び追わない
+ */
+export function aimStillTracking(e: Enemy, def: EnemyDef): boolean {
+  if (aimFixedAtWindup(e, def)) return false;
+  if (def.aimTracking === true || e.windupTotal <= 0) return true;
+  return e.phaseTimer > aimLockSec(e) && e.phaseTimer <= e.windupTotal;
+}
+
+/** 向きと顔をプレイヤーへ。予告の線（e.strikeDir を読む）もこの向きに揃う */
+function aimAtPlayer(e: Enemy, toPlayer: Vec): void {
+  e.strikeDir = normalize(toPlayer, e.strikeDir);
+  if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
+}
+
+/** 2 撃目以降・号令の予備動作の最初の向き。狙いを固定する敵は今の向きのまま、それ以外はプレイヤーへ */
+function chainAimDir(state: GameState, e: Enemy, def: EnemyDef): Vec {
+  if (aimFixedAtWindup(e, def)) return e.strikeDir;
+  return normalize(sub(state.player.body.pos, e.body.pos), e.strikeDir);
+}
+
 function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): void {
-  // 予備動作の終わりで狙いを更新する（完全追尾ではなく、避けた側が勝つ）。laser は固定
-  if (!aimFixedAtWindup(e, def)) e.strikeDir = normalize(toPlayer, e.strikeDir);
+  // 狙いは windup() の中で固まっている（固まった向きで撃つ）。追い続ける敵（aimTracking）と記録の無い経路だけ最後に向け直す
+  if (!aimFixedAtWindup(e, def) && (def.aimTracking === true || e.windupTotal <= 0)) aimAtPlayer(e, toPlayer);
   if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
   e.phase = "strike";
   e.phaseTimer = def.strikeTime;
@@ -1070,7 +1117,7 @@ function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): v
   if (tryFollowUp(state, e, def, byWall)) return;
   if (tryNextBeam(state, e, def)) return;
   if (e.hp > 0 && takeEliteEcho(e)) {
-    startWindup(state, e, def, e.strikeDir, ELITE.echoWindup);
+    startWindup(state, e, def, chainAimDir(state, e, def), ELITE.echoWindup);
     return;
   }
   e.phase = "recover";
@@ -1121,7 +1168,7 @@ function dropRocks(state: GameState, e: Enemy): void {
 
 /**
  * 連続攻撃の次の撃へ。2 撃目以降も予備動作を挟む（ダッシュ CD を跨がせつつ、読めば避けられる）。
- * 壁で止まったときは来た方向へ向き直す（狙いは予備動作の終わりにプレイヤーへ更新される）
+ * 壁で止まったときは来た方向へ向き直す（狙いは予備動作の途中までプレイヤーへ更新され、残りが aimLockSec を切ると固まる）
  */
 function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean): boolean {
   const f = followUpOf(def.key, state.depth);
@@ -1132,7 +1179,8 @@ function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean)
     return false;
   }
   ai.counter -= 1;
-  const dir = byWall ? scale(e.strikeDir, -1) : e.strikeDir;
+  // 連撃の続きは短く、固まる残りと重なりやすい。始まりの向きをプレイヤーへ向けておかないと前の撃の向きのまま出る
+  const dir = byWall ? scale(e.strikeDir, -1) : chainAimDir(state, e, def);
   startWindup(state, e, def, dir, f.windup);
   // 連撃の続きは 1 撃目と一続きの約束。前半で怯ませて潰せると連打が 2 撃目を必ず消してしまう
   e.chainWindup = true;

@@ -226,6 +226,8 @@ export interface EnemyDef {
   chargeTrail?: "boneWall" | "rockfall" | "ice";
   /** 突進が折れ線の 2 本になる（二度突きの猪。数値は tuning の DOUBLE_CHARGE、処理は src/system/enemyBehaviors.ts） */
   doubleCharge?: boolean;
+  /** 攻撃の瞬間までプレイヤーを狙い続ける（狙いの正確さが個性の敵。既定は攻撃の少し前に向きが固まる） */
+  aimTracking?: boolean;
   /** 攻撃せずに逃げ回り、lifetime 秒で消える（金色スライム） */
   timid?: { lifetime: number };
   /** プレイヤーがこの状態異常のとき足が速くなる（腐肉蝿） */

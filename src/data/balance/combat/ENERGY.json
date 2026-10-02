@@ -1,5 +1,5 @@
 {
-  "_note": "奥義ゲージの溜まり方（system/combat.ts の meleeHitEnergy / shotHitEnergy）。2026-09-25: 近接 1 命中 = 定数 12 だと攻撃速度の速い武器ほど簡単に溜まるので、「1 秒ぶんの振りで perSwingSec 溜まる」に揃えた。1 命中 = clamp(perSwingSec × 段の基礎秒 ÷ 多段数, minPerHit, maxPerHit)。段の基礎秒は攻撃速度の倍率を掛ける前（攻撃速度の性質は今までどおり得になる）。射撃は弾ごとに perSwingSec × rangedRatio × 射撃間隔の基礎秒 ÷ 1 回に出る弾数",
+  "_note": "奥義ゲージの溜まり方（system/combat.ts の meleeHitEnergy / shotHitEnergy）。2026-09-25: 近接 1 命中 = 定数 12 だと攻撃速度の速い武器ほど簡単に溜まるので、「1 秒ぶんの振りで perSwingSec 溜まる」に揃えた。1 命中 = clamp(perSwingSec × 段の基礎秒 ÷ 多段数, minPerHit, maxPerHit)。段の基礎秒は攻撃速度の倍率を掛ける前（攻撃速度の性質は今までどおり得になる）。射撃は弾ごとに perSwingSec × rangedRatio × 射撃間隔の基礎秒 ÷ 1 回に出る弾数。maxPerHit 30 → 50（2026-10-02 の振りの速さの見直し docs/ideas/weapon-tempo.md: 最重の終撃の 1 振りが約 1.3 秒になり、30 で頭打ちになると速い武器より溜まりが 3 割強遅かった）",
   "_fields": {
     "perSwingSec": "1 秒ぶんの振り（予備動作 + 攻撃判定 + 戻り の基礎秒の合計）で溜まる奥義ゲージ。目安 35〜55",
     "minPerHit": "1 命中で溜まる量の下限（速い多段の段でも 0 に近づけない）",
@@ -10,7 +10,7 @@
   },
   "perSwingSec": 45,
   "minPerHit": 3,
-  "maxPerHit": 30,
+  "maxPerHit": 50,
   "rangedRatio": 0.75,
   "just": 24,
   "skillMeleeHit": 12

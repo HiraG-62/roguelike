@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { EMPTY_INPUT } from "../core/input";
 import { FIXED_DT } from "../core/loop";
@@ -752,6 +752,8 @@ describe("構えと総掛かり", () => {
     const f = field();
     untilPhase(f, "charge");
     tick(f.state, 3);
+    // 崩れたとき全員が逃げる抽選に固定（一部が背水で残る形は jin.test.ts）
+    vi.spyOn(f.state.rng, "chance").mockReturnValue(true);
     f.leader.hp = 0;
     noteJinDeath(f.state, f.leader);
     expect(jz(f).phase, "畳む").toBe("spent");
@@ -767,6 +769,7 @@ describe("構えと総掛かり", () => {
     untilPhase(f, "charge");
     tick(f.state, 3);
     f.jin.morale = f.jin.moraleMax * JIN.morale.routRatio - 0.1;
+    vi.spyOn(f.state.rng, "chance").mockReturnValue(true);
     // 1 体倒して noteJinDeath で線を切らせる
     const victim = f.runners[0]!;
     victim.hp = 0;
@@ -827,6 +830,7 @@ describe("旗倒れ", () => {
     const lp = f.leader.body.pos;
     const shaky = otherJin(f, 2, { x: lp.x + 80, y: lp.y + 80 });
     shaky.morale = shaky.moraleMax * (JIN.morale.routRatio + JINZU.flagFall.moraleLoss * 0.5);
+    vi.spyOn(f.state.rng, "chance").mockReturnValue(true);
     f.leader.hp = 0;
     noteJinDeath(f.state, f.leader);
     expect(shaky.phase, "敗走で決着").toBe("settled");

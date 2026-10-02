@@ -230,6 +230,13 @@ export interface Jin {
 - **逃げる敵の挙動**（`stepRout` を `enemies.ts` の `isFeared` 分岐の直後に `if (e.rout) { stepRout(...); continue; }` の 2 行）: 目的地 = `toJin` の中心へ `nextWaypoint`（既存の距離場キャッシュ。目的地は陣の数だけ）、速さ `enemySpeed × JIN.rout.speedMul`(1.25)、攻撃しない、`JIN.rout.retargetSec`(1.0) ごとに目的地の陣が生きているか見直す。到着（`ROAM.reach` + 半径）で **合流**: `jinId = toJin`, `roomIndex = toJin.roomIndex`, `phase = "idle"`, 相手の `morale += 重さ`（上限 `moraleMax × mergeCapRatio` 1.25）。行き先が無ければプレイヤーの反対へ逃げ、`time` が尽きて `farFromPlayer` なら `vanish`（逃げ切り。報酬なし）。封鎖中の部屋の中では扉が開くまで壁沿いに逃げる（`nextWaypoint` が null → `flee`）。逃げている敵は phase `chase` のまま殴れる・倒せる。倒したときのドロップは `loot.ts:81` の確率に `× JIN.rout.dropMul`(1.5)（銭は段取り 6）
 - **集まっている間の強化**: `morale / moraleMax >= JIN.morale.highRatio`(0.75) の engaged な陣のメンバーは `toChase`（`enemies.ts:364`）の `attackInterval × highAttackIntervalMul`(0.85)、`poiseTakenMul`（`poise.ts:88`）に `× highPoiseTakenMul`(0.85)。どちらも `jinBonusMul(state, e)` を 1 行掛けるだけ
 - 決着の種類の記録: `jin.settledBy` を QA が数える（全滅 / 敗走。大将撃破は敗走の内訳）
+- **2026-10-02 の見直し（ユーザーの指摘「毎回全部逃げる・反撃もせずゆっくり逃げる敵を追っても面白くない・追う得も逃がす損も無い」）**:
+  - 崩れたら生き残りが 1 体ずつ逃げるか踏みとどまるかを決める（`morale.fleeChance` 並 0.6 / 猛 0.3 / 精鋭・大将 0.1、大将撃破で `leaderFleeBonus` +0.25。`state.rng` を逃げられる者だけ id 順に引く）。踏みとどまった者がいれば陣は決着せず `Jin.broken`（背水: 攻撃間隔 × `holdAttackIntervalMul` 0.75、もう崩れない。倒し切れば全滅で「制圧」）。全員が逃げたときだけ従来どおり敗走で決着
+  - 逃げる敵の手（ユーザーの追加の指摘「普通に追いかけて簡単に倒せる・反撃してほしい・攻撃するリスクが 0」）: **窮鼠** = 体の縁から `rout.turnRadius`（30px）まで詰めると振り向いて普段の攻撃を 1 回返す（`enemies.ts` の `turnOnPursuer` が `beginWindup` で予備動作に入れ、予備動作・攻撃・隙の間だけ普段の状態機械を回す。隙が明けて chase に戻ればまた逃げる。逃げ出して `turnFirstDelay` 0.4 秒は振り向かない・次は `turnCooldown` 2.5 秒後）。**置き土産** = `mudInterval` 1.4 秒ごとに足元へ泥（半径 9px・4 秒。足が 0.6 倍）を撒く
+  - 追う得: 撃破の銭 × `ECONOMY.income.routMul` 1.5 → 3。逃げ足 `rout.speedMul` 1.25 → 1.1（泥と窮鼠があるので、追いつけないほど速くはしない）
+  - 逃がす損: 眠っている陣に合流すると急報（`alarmJin`。`Jin.alarmed`、その陣はプレイヤーのいた点へ歩き出す。長居の歩き出し `stirSleepingJin` の数には数えない）
+
+- **2026-10-02 起床の見直し（ユーザーの指摘「気付かない所で敵対して、部屋の端まで寄ってくる。部屋の中心へ行かずに全部倒せてしまう」）**: 気付く距離 110 → 70px（`JIN.wake.noticeRange`。`enemies.ts` の `NOTICE_RANGE`）・起こす輪 160 → 80px・音 200 → ダッシュ 90 / 命中 110 / 爆発 140px。起こす輪の中心は「今気付いた者・今聞いた者」（`wakeJin` の seeds）で、誰も気付いていなければプレイヤー（以前は最寄りのメンバー）。自分で気付いた者は 1 輪だけ仲間を起こす（`alertJinNeighbors`。起きた者が次の輪を起こし続けない）。後詰は時間（2.5 秒）で全員を起こすのをやめ、群勢が `reserveMoraleRatio`（0.6）を切ったら `secondWaveDelay`（1 秒）後に出る（`armReserve`）
 
 ### 2-8. 同時攻撃の上限と予告の見やすさの上限（3a）
 

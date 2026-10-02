@@ -49,14 +49,23 @@ describe("予告の線の長さ", () => {
 });
 
 describe("予告の向きと色", () => {
-  it("狙いを固定しない敵の線は今のプレイヤー方向、固定する敵は strikeDir のまま", () => {
+  it("普通の敵・狙いを固定する敵の線は strikeDir のまま（向きを決めるのは system の windup）", () => {
     const state = arena();
     const e = placeEnemy(state, "slime", 100);
     e.strikeDir = { x: 0, y: 1 };
-    const toPlayer = telegraphLineDir(e, false, state.player.body.pos);
+    expect(telegraphLineDir(e, enemyDef("slime"), state.player.body.pos)).toEqual({ x: 0, y: 1 });
+    const laser = placeEnemy(state, "laserEye", 100);
+    laser.strikeDir = { x: 0, y: 1 };
+    expect(telegraphLineDir(laser, enemyDef("laserEye"), state.player.body.pos)).toEqual({ x: 0, y: 1 });
+  });
+
+  it("ボス（自前の AI で攻撃の瞬間に向け直す）の線は今のプレイヤー方向", () => {
+    const state = arena();
+    const e = placeEnemy(state, "oilKing", 100);
+    e.strikeDir = { x: 0, y: 1 };
+    const toPlayer = telegraphLineDir(e, enemyDef("oilKing"), state.player.body.pos);
     expect(toPlayer.x, "プレイヤーは左").toBeCloseTo(-1, 5);
     expect(toPlayer.y).toBeCloseTo(0, 5);
-    expect(telegraphLineDir(e, true, state.player.body.pos)).toEqual({ x: 0, y: 1 });
   });
 
   it("印の色は予備動作の前半（下絵）が薄墨、コミット窓と攻撃中（墨入れ）が朱", () => {

@@ -35,7 +35,8 @@
     "deathBomb.radius": "倒れた場所に残す時限爆発の範囲の半径。px",
     "deathBomb.damage": "時限爆発のダメージ。深度 2 つごとに +2",
     "deathBomb.fuse": "時限爆発が爆ぜるまでの秒（予告の長さ）",
-    "timid.lifetime": "攻撃せずに逃げ回り、見つかってからこの秒で消える（金色スライム）"
+    "timid.lifetime": "攻撃せずに逃げ回り、見つかってからこの秒で消える（金色スライム）",
+    "aimTracking": "true なら攻撃の瞬間までプレイヤーを狙い続ける（狙いの正確さが個性の敵。砲台）。省略時は予備動作の残りが ENEMY_TEMPO.aimLockSec / aimLockRatio を切ったところで向きが固まる。予備動作の始まりで固定する behavior（レーザーなど）は影響を受けない"
   },
   "_order": ["slime", "eye", "boar", "knight", "bomber", "laserEye", "golem", "bat", "wisp", "kingSlime", "boneLord", "poisonSlime", "iceSlime", "fireSlime", "goldSlime", "boneBoar", "boarDouble", "curseEye", "frostEye", "blackKnight", "lavaGolem", "frostGolem", "crystalGolem", "frostWisp", "purpleLaser", "flyingBook", "ashBat", "sproutSlime", "spikeRat", "twinEye", "triLaser", "shadowBat", "wolf", "multiBomber", "spearman", "hornBeetle", "netter", "carrionFly", "thunderWisp", "skeleton", "fuseRat", "crystalMite", "echoStriker", "packLeader", "manaLeech", "scavenger", "graveBell", "silencer", "frostCrusher", "twinShade", "mimic", "hollowArmor", "hollowWraith", "boneConductor", "twinBrother", "twinSister", "frostGiant", "icePillar", "trainingDummy", "mirrorSelf", "mudman", "toad", "oiler", "flameEater", "windSprite", "mineLayer", "enemyMine", "bellImp", "bannerBearer", "banner", "burrower", "dropper", "absorber", "homunculus", "scribeImp", "crossGolem", "chainWarden", "hollow", "lurker", "iceBoar", "sootBomber", "mossGolem", "swampWisp", "frostToad", "magmaToad", "oilSlime", "stormEye", "emberRat", "giantToad", "forgeMaster", "anvil", "turretMaster", "turret", "basilisk", "shadowStalker", "oilKing", "broodMother", "broodEgg", "librarian", "mirrorKnight", "mirrorImage", "thiefKing", "thief", "reaperShade", "merchant", "pot", "crate", "mirrorPane", "deepLord", "gatePillar", "crownSlime"]
 }

@@ -13,10 +13,10 @@ import { TELEGRAPH } from "./tuning";
  * 色味の無さと明暗の差を検査で縛る。独占するのは濃墨と朱（予告の芯）
  */
 export const RESERVED_SIGNS = [
-  { key: "usuzumi", meaning: "下絵: 敵のまだ止められる意図（明るく淡い掠れた帯・頭上の ○）", color: TELEGRAPH.usuzumiColor, exclusive: false },
-  { key: "sumi", meaning: "墨入れ: 必ず来る（真っ黒な一筆・頭上の ● の地）", color: TELEGRAPH.sumiColor, exclusive: true },
+  { key: "usuzumi", meaning: "下絵: 敵のまだ止められる意図（淡墨の市松の掠れた帯・頭上の ○）", color: TELEGRAPH.usuzumiColor, exclusive: false },
+  { key: "sumi", meaning: "墨入れ: 必ず来る（芯が真っ黒のドットの一筆・範囲の内側のむら・頭上の ● の地）", color: TELEGRAPH.sumiColor, exclusive: true },
   { key: "shu", meaning: "朱: 墨入れの入りの墨溜まり・線の先端・頭上の ● の芯・止まらない段の体の点滅", color: TELEGRAPH.shuColor, exclusive: true },
-  { key: "gofun", meaning: "胡粉: 濃墨の下に敷く白い滲み（暗い床で墨を浮かせる）", color: TELEGRAPH.gofunColor, exclusive: false },
+  { key: "gofun", meaning: "胡粉: 墨入れの外側 1 ドットの白い滲み（暗い床で墨を浮かせる）", color: TELEGRAPH.gofunColor, exclusive: false },
 ] as const;
 
 /**

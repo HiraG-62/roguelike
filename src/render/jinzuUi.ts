@@ -4,15 +4,16 @@ import { JINZU, TELEGRAPH } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { pointAtFraction } from "../map/jinzuShape";
 import { poiseRatio } from "../system/poise";
-import { BrushPen, placeBrushPoly } from "./inkBrush";
+import { type InkSurface, sharedInkSurface } from "./inkSurface";
 import { hash01 } from "./renderMath";
-import { drawHeadMark, sketchGap } from "./telegraphInk";
+import { drawHeadMark, placePoly, sketchGap } from "./telegraphInk";
 
 /**
  * 本陣の陣図の描画（docs/ideas/jinzu-impl.md 2-4）。state を読むだけで、乱数は使わない（擦れの散りは座標ハッシュ）。
  * 予告と同じ文法で描く: 書きかけの画 = 薄墨の下絵（明るく淡い掠れた帯。大将の怯み値が溜まるほど掠れる）、
- * 墨の入った画 = 濃墨の一筆（下に胡粉・入りに朱）、構え = 太く矢じり付き + 隊の頭上に ●（濃墨に朱）。
- * world 層の床の印の後・敵の下に描く（予告の線より下に他の床の絵を置かない）
+ * 墨の入った画 = 濃墨の一筆（外に胡粉・入りに朱）、構え = 太く矢じり付き + 隊の頭上に ●（濃墨に朱）。
+ * 画と頭上の印は予告と同じ作業面（inkSurface.ts）のドットの墨で、全部の本陣の分をまとめて 1 回だけ画面へ置く。
+ * 的はその下、筆先・矢じり・軍配はその上に ctx で描く。world 層の床の印の後・敵の下に描く
  */
 
 const FLAG_POLE_H = 14;
@@ -40,12 +41,9 @@ function leaderOf(state: GameState, jin: Jin): Enemy | undefined {
   return state.enemies.find((e) => e.id === jin.leaderId && e.hp > 0);
 }
 
-/** 墨の画: 画 1 本を折れ角でも途切れない濃墨の一筆で引く（入りに朱・下に胡粉）。widthMul は構えで太らせる倍率、id は筆の変種の鍵 */
-function strokeInkPolyline(ctx: CanvasRenderingContext2D, points: readonly Vec[], id: number, widthMul: number, alpha: number): void {
-  if (points.length < 2) return;
-  const pen = new BrushPen(ctx);
-  placeBrushPoly(pen, points, "ink", id, 0, alpha, widthMul);
-  pen.end();
+/** 墨の画: 画 1 本を折れ角でも途切れない濃墨の一筆で引く（入りに朱・外に胡粉）。widthMul は構えで太らせる倍率、id は筆の変種の鍵 */
+function strokeInkPolyline(surf: InkSurface, points: readonly Vec[], id: number, widthMul: number, alpha: number): void {
+  placePoly(surf, points, "ink", id, 0, alpha, widthMul);
 }
 
 /** 終点の矢じり（走る向きを見せる）。胡粉の縁 + 濃墨 */
@@ -100,46 +98,51 @@ function drawBrushTip(ctx: CanvasRenderingContext2D, points: readonly Vec[], f: 
 }
 
 /** 下絵の画（薄墨の掠れた帯。画 1 本を折れ角で途切れない 1 筆で引く）。alpha と drift は筆折れの擦れ（散って消える）で使う */
-function drawSketch(ctx: CanvasRenderingContext2D, jinId: number, index: number, stroke: JinzuStroke, gap: number, alpha: number, drift: number): void {
+function drawSketch(surf: InkSurface, jinId: number, index: number, stroke: JinzuStroke, gap: number, alpha: number, drift: number): void {
   const id = jinId * 1000 + index;
   const dx = (hash01(id * 7 + 1, 3) - 0.5) * 2 * DRIFT_PX * drift;
   const dy = (hash01(id * 7 + 2, 3) - 0.5) * 2 * DRIFT_PX * drift;
-  const pen = new BrushPen(ctx);
-  placeBrushPoly(pen, stroke.points, "sketch", id, gap, alpha, 1, dx, dy);
-  pen.end();
+  placePoly(surf, stroke.points, "sketch", id, gap, alpha, 1, dx, dy);
 }
 
-function drawStroke(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin, index: number, stroke: JinzuStroke, gap: number): void {
-  const jz = jin.jinzu;
-  if (!jz) return;
+function isHeld(jin: Jin): boolean {
+  const phase = jin.jinzu?.phase;
+  return phase === "hold" || phase === "charge";
+}
+
+/** 画 1 本の墨（作業面へ） */
+function placeStroke(surf: InkSurface, state: GameState, jin: Jin, index: number, stroke: JinzuStroke, gap: number): void {
   const now = state.time;
   switch (stroke.state) {
-    case "sketch": {
-      drawSketch(ctx, jin.id, index, stroke, gap, 1, 0);
-      drawBrushTip(ctx, stroke.points, (jz.t - stroke.appearAt) / jz.strokeSec);
+    case "sketch":
+      drawSketch(surf, jin.id, index, stroke, gap, 1, 0);
       return;
-    }
     case "erased": {
       const f = (now - (stroke.endedAt ?? now)) / JINZU.draw.breakFadeSec;
-      if (f < 1) drawSketch(ctx, jin.id, index, stroke, gap, 1 - f, f);
+      if (f < 1) drawSketch(surf, jin.id, index, stroke, gap, 1 - f, f);
       return;
     }
-    case "ink": {
-      const held = jz.phase === "hold" || jz.phase === "charge";
-      strokeInkPolyline(ctx, stroke.points, jin.id * 1000 + index, held ? JINZU.draw.holdWidthMul : 1, 1);
-      if (held) drawArrowhead(ctx, stroke.points, 1);
-      // 走り出した後は隊頭が走り抜けた所から後ろが掠れて消える
+    case "ink":
+      // 走り出した後は隊頭が走り抜けた所から後ろが掠れて消える（trimRun）
+      strokeInkPolyline(surf, stroke.points, jin.id * 1000 + index, isHeld(jin) ? JINZU.draw.holdWidthMul : 1, 1);
       return;
-    }
     case "done": {
       const f = (now - (stroke.endedAt ?? now)) / JINZU.draw.fadeSec;
       if (f >= 1 || stroke.kind === "volley") return;
-      strokeInkPolyline(ctx, stroke.points, jin.id * 1000 + index, 1, 1 - f);
+      strokeInkPolyline(surf, stroke.points, jin.id * 1000 + index, 1, 1 - f);
       return;
     }
     case "pending":
       return;
   }
+}
+
+/** 画 1 本の上に ctx で重ねる物: 下絵の筆先・構えの矢じり */
+function drawStrokeTop(ctx: CanvasRenderingContext2D, jin: Jin, stroke: JinzuStroke): void {
+  const jz = jin.jinzu;
+  if (!jz) return;
+  if (stroke.state === "sketch") drawBrushTip(ctx, stroke.points, (jz.t - stroke.appearAt) / jz.strokeSec);
+  if (stroke.state === "ink" && isHeld(jin)) drawArrowhead(ctx, stroke.points, 1);
 }
 
 /** 走っている画は、隊頭が走り抜けた点から先だけを濃く残す（走った後ろから画が掠れて消える） */
@@ -150,14 +153,14 @@ function trimRun(stroke: JinzuStroke): JinzuStroke {
 }
 
 /** 構えの間、墨の画の隊の頭上に ●（濃墨に朱。総掛かりへ入る合図）。隊の兵 1 人ずつに出す */
-function drawHoldMarks(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin): void {
+function drawHoldMarks(surf: InkSurface, state: GameState, jin: Jin): void {
   const jz = jin.jinzu;
   if (!jz || jz.phase !== "hold") return;
   const ids = new Set<number>();
   for (const s of jz.strokes) if (s.state === "ink") for (const id of s.squad) ids.add(id);
   for (const e of state.enemies) {
     if (e.hp <= 0 || !ids.has(e.id) || e.jinzuRun?.jin !== jin.id) continue;
-    drawHeadMark(ctx, e.body.pos.x, e.body.pos.y - e.body.radius - HEAD_MARK_RISE, "ink");
+    drawHeadMark(surf, e.body.pos.x, e.body.pos.y - e.body.radius - HEAD_MARK_RISE, "ink");
   }
 }
 
@@ -176,25 +179,45 @@ function drawGunbai(ctx: CanvasRenderingContext2D, leader: Enemy): void {
   ctx.fill();
 }
 
-/** 1 つの本陣の陣図 */
-function drawJin(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin): void {
-  const jz = jin.jinzu;
-  if (!jz || jz.strokes.length === 0) return;
-  const leader = leaderOf(state, jin);
-  const gap = sketchGap(leader ? poiseRatio(leader) : 0);
-  const active = jz.phase === "raise" || jz.phase === "brush" || jz.phase === "hold" || jz.phase === "charge";
-  if (active) drawTarget(ctx, jz.target, jz.phase === "hold" || jz.phase === "charge");
-  jz.strokes.forEach((s, i) => drawStroke(ctx, state, jin, i, trimRun(s), gap));
-  drawHoldMarks(ctx, state, jin);
-  if (leader?.jinzuRun && active) drawGunbai(ctx, leader);
+function jinzuActive(jin: Jin): boolean {
+  const phase = jin.jinzu?.phase;
+  return phase === "raise" || phase === "brush" || phase === "hold" || phase === "charge";
 }
 
-/** 本陣の陣図すべて（world 層。renderer.ts が drawGroundMarks の後に呼ぶ） */
+/** 描く陣図を持つ本陣 */
+function drawnJins(state: GameState): Jin[] {
+  return state.jins.filter((jin) => (jin.jinzu?.strokes.length ?? 0) > 0);
+}
+
+/** 1 つの本陣の画と頭上の印を作業面へ */
+function placeJin(surf: InkSurface, state: GameState, jin: Jin): void {
+  const jz = jin.jinzu;
+  if (!jz) return;
+  const leader = leaderOf(state, jin);
+  const gap = sketchGap(leader ? poiseRatio(leader) : 0);
+  jz.strokes.forEach((s, i) => placeStroke(surf, state, jin, i, trimRun(s), gap));
+  drawHoldMarks(surf, state, jin);
+}
+
+/** 本陣の陣図すべて（world 層。renderer.ts が drawGroundMarks の後に呼ぶ）。的 → 墨の画（作業面 1 回）→ 筆先・矢じり・軍配の順 */
 export function drawJinzu(ctx: CanvasRenderingContext2D, state: GameState): void {
-  for (const jin of state.jins) {
-    if (jin.jinzu) drawJin(ctx, state, jin);
-    if (jin.flagFall) drawFlagFall(ctx, state, jin);
+  const jins = drawnJins(state);
+  for (const jin of jins) {
+    const jz = jin.jinzu;
+    if (jz && jinzuActive(jin)) drawTarget(ctx, jz.target, isHeld(jin));
   }
+  if (jins.length > 0) {
+    const surf = sharedInkSurface();
+    surf.begin(ctx);
+    for (const jin of jins) placeJin(surf, state, jin);
+    surf.flush(ctx);
+  }
+  for (const jin of jins) {
+    for (const s of jin.jinzu?.strokes ?? []) drawStrokeTop(ctx, jin, trimRun(s));
+    const leader = leaderOf(state, jin);
+    if (leader?.jinzuRun && jinzuActive(jin)) drawGunbai(ctx, leader);
+  }
+  for (const jin of state.jins) if (jin.flagFall) drawFlagFall(ctx, state, jin);
 }
 
 // -----------------------------------------------------------------------------

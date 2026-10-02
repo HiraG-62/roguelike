@@ -143,7 +143,8 @@ describe("ダッシュの無敵（前半だけ）", () => {
 describe("弾斬り（性質 bulletCut）", () => {
   it("bulletCut があると近接の active で敵弾が消え、撃ち返しはしない", () => {
     const state = arena(5, { bulletCut: 1 });
-    const pr = enemyBullet(state, 22);
+    // 剣の 1 段目の予備動作（0.12 秒）が明けて active に入る頃に、弾が刃の届く所へ来る距離
+    const pr = enemyBullet(state, 34);
     swing(state);
     expect(pr.owner, "撃ち返さない").toBe("enemy");
     expect(state.projectiles.includes(pr) && pr.life > 0, "敵弾が消えている").toBe(false);
@@ -631,7 +632,8 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
 
   it("剣: 左・左・右で十字断ち（フィニッシュとして祝福に最終段を渡す）", () => {
     const state = arena(5);
-    play(state, [{ attackPressed: true }, ...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
+    // 先行入力は前の段の予備動作が終わってから（active / recover の間）
+    play(state, [{ attackPressed: true }, ...idle(9), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("crossCut");
     expect(state.player.attack.combo, "フィニッシュは combo 2").toBe(2);
@@ -670,7 +672,7 @@ describe("武器種: コンボ派生（左右の組み合わせ）", () => {
     play(state, [{ attackPressed: true, attackHeld: true }]);
     expect(state.player.attack.phase, "左で振った").toBe("windup");
     expect(state.projectiles.filter((pr) => pr.owner === "player").length, "振り始めではまだ撃たない").toBe(0);
-    play(state, [...idle(4), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
+    play(state, [...idle(9), { attackPressed: true }, ...idle(4), { shootHeld: true }]);
     untilBranch(state);
     expect(branchKey(state)).toBe("lightningBolt");
 

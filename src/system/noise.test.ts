@@ -97,7 +97,8 @@ describe("音源", () => {
     const state = arena();
     state.player.invulnTimer = 999;
     // 気付く距離（NOTICE_RANGE）の外、ダッシュの音の内側
-    const e = sleeper(state, NOTICE_RANGE + 30);
+    expect(JIN.noise.dash, "ダッシュの音は気付く距離より遠くまで届く").toBeGreaterThan(NOTICE_RANGE + 10);
+    const e = sleeper(state, NOTICE_RANGE + 10);
     step(state, withInput({ move: { x: 1, y: 0 } }), FIXED_DT);
     expect(e.phase, "歩き").toBe("idle");
     step(state, withInput({ dashPressed: true }), FIXED_DT);
@@ -185,7 +186,7 @@ describe("眠っている敵が聞きつける", () => {
 });
 
 describe("陣は wakeJin の流れで起きる", () => {
-  it("聞きつけた者の近くだけ起き、遠いメンバーは後詰になる", () => {
+  it("聞きつけた者の近くだけ起き、遠いメンバーは眠ったまま（後詰は時間では出ない）", () => {
     const state = arena();
     state.jins = [];
     const room = state.rooms[ROOM_A];
@@ -203,7 +204,7 @@ describe("陣は wakeJin の流れで起きる", () => {
     expect(heard.phase).toBe("chase");
     expect(jin.phase).toBe("engaged");
     expect(straggler.phase, "遠いメンバーはまだ眠る").toBe("idle");
-    expect(jin.secondWaveAt, "後詰の時刻が入る").toBeCloseTo(state.floorTime + JIN.wake.secondWaveDelay);
+    expect(jin.secondWaveAt, "後詰の時刻は入らない").toBeNull();
   });
 });
 

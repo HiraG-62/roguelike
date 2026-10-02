@@ -17,7 +17,7 @@ import { roomLocks } from "./roomTypes";
 import { onRunEnemySpawned } from "./runEvents";
 import { canRoam, corridorTileList, pickRoamTarget } from "./spawner";
 import { ringLookoutBell } from "./noise";
-import { initJinMorale, updateJins, wakeJin as wakeJinMembers } from "./jin";
+import { initJinMorale, nearestMemberSeed, updateJins, wakeJin as wakeJinMembers } from "./jin";
 import { isTrialDepth, planHonjin, trialRoomOf } from "./jinzu";
 
 /**
@@ -81,9 +81,9 @@ export function planJins(state: GameState, skip: ReadonlySet<number>): void {
   planHonjin(state);
 }
 
-/** 陣を起こす（気付いた者の近くだけ起こし、残りは後詰。本体は jin.ts） */
-export function wakeJin(state: GameState, jin: Jin): void {
-  wakeJinMembers(state, jin);
+/** 陣を起こす（seeds の近くだけ起こし、残りは自分で気付くか後詰。本体は jin.ts） */
+export function wakeJin(state: GameState, jin: Jin, seeds?: readonly Vec[]): void {
+  wakeJinMembers(state, jin, seeds);
 }
 
 /** 毎ステップ: 決着（全滅）・長蛇の起床・後詰・増援の代わり。本体は jin.ts の updateJins */
@@ -602,10 +602,10 @@ export function updateLookouts(state: GameState): void {
     if (jin.formation !== "lookout" || jin.phase !== "sleeping") continue;
     const watcher = state.enemies.find((e) => e.jinId === jin.id && e.hp > 0 && e.phase === "idle");
     if (!watcher || dist(watcher.body.pos, p) > range || !lineOfSight(state.map, watcher.body.pos, p)) continue;
-    wakeJin(state, jin);
+    wakeJin(state, jin, [watcher.body.pos]);
     ringLookoutBell(state);
     const target = nearestSleepingJin(state, jin);
-    if (target) wakeJin(state, target);
+    if (target) wakeJin(state, target, nearestMemberSeed(state, target));
   }
 }
 
