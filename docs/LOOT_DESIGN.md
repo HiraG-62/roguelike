@@ -21,7 +21,7 @@ docs/ideas/loot-identity.md の推奨案「揺らぎ・来歴」に置き換え�
 
 ## 原則
 
-- アイテムは **ランを跨いで永続**。拾った瞬間に stash（localStorage）へ保存される。死んでも失わない
+- アイテムは **持ち帰った分がランを跨いで永続**（2026-10-02 に「拾った瞬間に保存」から改めた。`loot/runGear.ts`）。ランへ持ち込むのは右手の武器 + 2 部位（`CARRY.carrySlots` / `weaponFree`）で、残りの部位は空で始まる。ラン中に拾った遺物は袋（ラン用のプロフィールの stash。保存しない）に入り、ランの終わりの持ち帰りの画面で枠（死亡 `CARRY.keepOnDeath`・踏破 `keepOnClear`）の数だけ倉庫へ入る。選ばなかった遺物は消える。持ち込んだ遺物は拠点と同じ物なので来歴・芽はそのまま拠点の側に積もり、ラン中に砕いたり捧げたりはできない
 - 装備は次のランの開始時に `computeStats(equipment)` で `PlayerStats` に畳み込まれ、ゲームロジックはその数値だけを見る
 - 生成は **純関数 + seedable RNG**。同じ seed / 深度なら同じアイテム。芽の候補も `item.seed + 節目` から決まり、`state.rng` を消費しない
 - データ駆動: 性質とベースは `src/loot/affixes.ts` / `src/loot/bases.ts` に列挙し、追加が容易であること

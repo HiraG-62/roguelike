@@ -29,7 +29,22 @@ import { hashSeed } from "./core/rng";
 import { type GameState, pushLog, runOver } from "./core/state";
 import { VIEW_H, VIEW_W } from "./core/view";
 import { loadProfile, pushRunHistory, recordClear, returnLoaned, saveProfile } from "./loot/profile";
+import { type RunEnd, carriedSlots, carryBackCandidates, carryBackLimit, makeRunProfile, settleRun } from "./loot/runGear";
 import type { Item, Profile } from "./loot/types";
+import {
+  type CarryBackScreen,
+  carryBackRowAt,
+  carryBackRowGap,
+  chosenCarryIds,
+  createCarryBack,
+  fitCarryBack,
+  moveCarryBack,
+  pointCarryBack,
+  pressCarryBack,
+  scrollCarryBack,
+  tickCarryBack,
+} from "./ui/carryBack";
+import { drawCarryBack } from "./render/carryBackUi";
 import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
 import { drawQuestHud } from "./render/questHud";
@@ -216,7 +231,8 @@ type Screen =
   | "altar"
   | "rack"
   | "hall"
-  | "hallFight";
+  | "hallFight"
+  | "carryBack";
 
 /** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
 type ListScreenKind = "codex" | "questBoard" | "achievements" | "tips";
@@ -242,7 +258,8 @@ function syncSeedUrl(seedText: string): void {
   history.replaceState(null, "", url);
 }
 
-// プロフィール（装備・stash・ラン履歴）はラン間で共有。拾った瞬間に保存される
+// 拠点のプロフィール（装備・倉庫・ラン履歴）。ランには持ち込む部位だけを写したラン用のプロフィール（loot/runGear.ts）を渡し、
+// ラン中に拾った遺物（袋）は終わりの持ち帰りで選んだ分だけここの倉庫へ入れる
 const profile: Profile = loadProfile();
 // スキル石も別キーで永続。刻印符（修飾子）はラン内だけの物で、セーブしない。
 // 旧セーブの刻印符は読み捨てられ、その件数は拠点に入ったときに 1 回だけ知らせる（legacyRunesDropped）
@@ -260,9 +277,11 @@ function hitstopScaleFor(seedText: string): number {
   return isDailySeedText(seedText) ? DEFAULT_HITSTOP_SCALE : settings.hitstopScale;
 }
 
+/** ランを作る。装備は持ち込む部位だけ（ラン用のプロフィール。保存されない）。記録器は createGame の後の state から写す */
 function startGame(seedText: string): GameState {
   syncSeedUrl(seedText);
-  return createGame(hashSeed(seedText), seedText, profile, skillProfile, runSetup, hitstopScaleFor(seedText));
+  const runProfile = makeRunProfile(profile, carriedSlots(profile));
+  return createGame(hashSeed(seedText), seedText, runProfile, skillProfile, runSetup, hitstopScaleFor(seedText));
 }
 
 /** ラン開始時に依頼の除外遺物を確定させる（記録器と createGame が同じ集合を見る） */
@@ -408,7 +427,9 @@ let pendingSeedText = "";
 
 function openOrigin(seedText: string, frameMoveX: number, frameMoveY: number): void {
   pendingSeedText = seedText;
-  originUi = createOriginScreen(runSetup, lockedOrigins(questSave), lockedJobs(questSave));
+  // 持ち込む部位は装備のある部位だけ出す（印は拠点の装束の長押しで変える）
+  const carry = carriedSlots(profile).filter((s) => profile.equipment[s] !== null);
+  originUi = createOriginScreen(runSetup, lockedOrigins(questSave), lockedJobs(questSave), carry);
   screen = "origin";
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
@@ -494,20 +515,125 @@ function endRun(current: GameState): void {
   // 履歴エントリの date とリプレイの endedAt を同じ値にして紐付ける
   const now = Date.now();
   const entry = { ...buildHistoryEntry(current, now), ...historyExtras(current) };
-  pushRunHistory(current.profile, entry);
-  if (current.status === "cleared" || conqueredBy(current.bossLog)) recordClear(current.profile, runTier(current.modifiers));
+  // 履歴・踏破は拠点のプロフィールへ（ラン用のプロフィールは meta を共有するが保存されない）
+  pushRunHistory(profile, entry);
+  if (runEndOf(current) === "cleared") recordClear(profile, runTier(current.modifiers));
   // 武器掛けの借り物はランが終わると消える（saveProfile も書かないが、手元の profile からも外す）
-  returnLoaned(current.profile);
-  saveProfile(current.profile);
+  returnLoaned(profile);
+  // 袋はまだ畳まない（持ち帰りの画面の後に settleRun）。ここでは履歴と持ち込んだ遺物の来歴を先に残す
+  saveProfile(profile);
   deathMetaLines = recordMeta(current, now);
   // 倒された回数（recordMeta の recordDefeat）と踏破の回数を数えた後に組む
-  deathReportLines = buildDeathReportLines(entry, previousComparable(current.profile.meta.history ?? [], entry), codexSave, current.profile.meta);
+  deathReportLines = buildDeathReportLines(entry, previousComparable(profile.meta.history ?? [], entry), codexSave, profile.meta);
   // 寄進は step の中では保存せず、ラン終了のここで拠点の保存データへ足す
   if (current.economy.donated > 0) saveHub(addDonation(loadHub(), current.economy.donated));
   if (recorder) {
     replays = pushReplay(recorder.finish({ depth: current.depth, kills: current.kills, score: current.score }, now));
     recorder = null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 持ち帰り（ランの終わり。loot/runGear.ts・ui/carryBack.ts。docs/ideas/run-arc.md 2-4）
+// ---------------------------------------------------------------------------
+
+/** ランを離れた後の行き先 */
+type AfterRun = { kind: "hub" } | { kind: "run"; seedText: string };
+/** 持ち帰りの画面の Esc で戻る画面（死亡画面は playing、ポーズのやめるは paused） */
+type CarryBackReturn = "playing" | "paused";
+
+interface CarryBackSession {
+  ui: CarryBackScreen;
+  /** 終えるラン（ラン用のプロフィールを持つ。Esc で戻る先） */
+  run: GameState;
+  next: AfterRun;
+  back: CarryBackReturn;
+  /** 画面を開いてからの秒（カーソルの明滅） */
+  time: number;
+}
+let carryBack: CarryBackSession | null = null;
+
+/** 終わり方。踏破（最深の主を倒した）は死亡や途中でやめても踏破に数える（recordClear と同じ判定） */
+function runEndOf(s: GameState): RunEnd {
+  return s.status === "cleared" || conqueredBy(s.bossLog) ? "cleared" : "fallen";
+}
+
+/**
+ * ランを離れる（死亡画面の拠点へ・やり直し、ポーズのやめる・やり直し、R の中断）。持ち帰れる遺物があれば持ち帰りの画面を挟み、
+ * 無ければすぐ畳んで次へ。途中でやめたランの endRun（履歴・図鑑・リプレイ）は決めたときに呼ぶ（Esc で戻ればランは続く）
+ */
+function leaveRun(cur: GameState, next: AfterRun, back: CarryBackReturn, frame: FrameInput): void {
+  const end = runEndOf(cur);
+  const items = carryBackCandidates(cur.profile);
+  const limit = carryBackLimit(end);
+  if (items.length === 0 || limit === 0) {
+    finishRun(cur, [], next);
+    return;
+  }
+  const worn = new Set(Object.values(cur.profile.equipment).map((it) => it?.id));
+  const equippedIds = items.filter((it) => worn.has(it.id)).map((it) => it.id);
+  carryBack = { ui: createCarryBack(items, limit, end, equippedIds), run: cur, next, back, time: 0 };
+  cur.paused = true;
+  state = null;
+  inventoryUi.open = false;
+  screen = "carryBack";
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  menuAimPrev = null;
+}
+
+/** ランを畳む: 記録し、選んだ遺物を拠点の倉庫へ入れて保存し、次へ進む */
+function finishRun(cur: GameState, keepIds: readonly string[], next: AfterRun): void {
+  endRun(cur);
+  settleRun(profile, cur.profile, keepIds);
+  saveProfile(profile);
+  carryBack = null;
+  cur.paused = false;
+  state = null;
+  if (next.kind === "hub") openHubAfterRun();
+  else beginRun(next.seedText);
+}
+
+/** 持ち帰りの画面の Esc: ランへ戻る（死亡画面かポーズ） */
+function cancelCarryBack(session: CarryBackSession): void {
+  carryBack = null;
+  state = session.run;
+  session.run.paused = session.back === "paused";
+  screen = session.back;
+}
+
+function updateCarryBackFrame(session: CarryBackSession, frame: FrameInput, escape: boolean, arrowY: number, dt: number): void {
+  session.time += dt;
+  const ui = session.ui;
+  tickCarryBack(ui, dt);
+  const rowGap = carryBackRowGap(textLineHeight(TEXT.SMALL));
+  fitCarryBack(ui, rowGap);
+  if (escape) {
+    sfx.play("uiClose");
+    cancelCarryBack(session);
+    return;
+  }
+  const aim = frame.aimScreen;
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  const hovered = aim ? carryBackRowAt(ui, aim.x, aim.y, rowGap) : null;
+  if (aimMoved && hovered !== null && pointCarryBack(ui, hovered)) sfx.play("menuMove");
+  menuAimPrev = aim;
+  const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  if (moveCarryBack(ui, navY)) sfx.play("menuMove");
+  if (frame.wheel !== 0) scrollCarryBack(ui, frame.wheel);
+  const clicked = frame.clickPressed && hovered !== null;
+  if (clicked && hovered !== null) pointCarryBack(ui, hovered);
+  if (!frame.confirmPressed && !clicked) return;
+  const result = pressCarryBack(ui);
+  if (result === null) return;
+  if (result === "done") {
+    sfx.play("uiClick");
+    finishRun(session.run, chosenCarryIds(ui), session.next);
+    return;
+  }
+  sfx.play(result === "full" ? "uiClose" : "uiClick");
 }
 
 // ---------------------------------------------------------------------------
@@ -1552,6 +1678,15 @@ startLoop(
         break;
       }
 
+      case "carryBack": {
+        if (!carryBack) {
+          screen = "title";
+          break;
+        }
+        updateCarryBackFrame(carryBack, frame, hotkeys.escape, hotkeys.arrowY, dt);
+        break;
+      }
+
       case "codex":
       case "questBoard":
       case "achievements":
@@ -1836,13 +1971,9 @@ startLoop(
             menuReturn = "paused";
             openListScreen("tips", frame.move.x, frame.move.y);
           } else if (item === "restart") {
-            endRun(cur);
-            beginRun(randomSeedText());
+            leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "paused", frame);
           } else {
-            endRun(cur);
-            cur.paused = false;
-            state = null;
-            openHubAfterRun();
+            leaveRun(cur, { kind: "hub" }, "paused", frame);
           }
         };
 
@@ -1911,18 +2042,16 @@ startLoop(
         }
 
         if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
+          // どの行き先も持ち帰りの画面を挟む（拾った遺物が無ければすぐ進む）
           if (hotkeys.t) {
-            endRun(cur);
-            state = null;
-            openHubAfterRun();
+            leaveRun(cur, { kind: "hub" }, "playing", frame);
             break;
           }
-          if (deathConfirmPressed(frame, cur.deathTimer)) beginRun(cur.seedText);
-          else if (frame.restartPressed) beginRun(randomSeedText());
+          if (deathConfirmPressed(frame, cur.deathTimer)) leaveRun(cur, { kind: "run", seedText: cur.seedText }, "playing", frame);
+          else if (frame.restartPressed) leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "playing", frame);
         } else if (frame.restartPressed) {
-          // 死んでいない状態で R を押した中断も、ラン結果として一度だけメタと履歴に記録する
-          endRun(cur);
-          beginRun(randomSeedText());
+          // 死んでいない状態で R を押した中断も、ラン結果として一度だけメタと履歴に記録する（持ち帰りを決めたとき）
+          leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "playing", frame);
         }
 
         if (cur.status === "playing" && frame.toggleDropInfoPressed) {
@@ -1979,6 +2108,11 @@ startLoop(
     }
     if (screen === "questChoice") {
       drawQuestChoice(ctx, questChoiceUi, questSave, titleTime);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "carryBack" && carryBack) {
+      drawCarryBack(ctx, carryBack.ui, carryBack.run, carryBack.time, carryBackRowGap(textLineHeight(TEXT.SMALL)));
       drawGamepadConnectedHint(ctx);
       return;
     }

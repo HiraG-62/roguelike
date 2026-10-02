@@ -79,8 +79,9 @@ import { clampHitstopScale } from "../ui/settings";
  * 33: 塊の部屋の袋の扉を作らない
  * 34: 階ごとの型 8 種・穴（面積の抽選の後に型の抽選。生成に失敗したら同じ乱数のまま旧生成器へ）・ボス階を専用の部屋（lordHall）に
  * 35: 通常の部屋すべてに陣を置く（陣の数と予算の決め方を変更）・書の左を遠距離の墨文字に（墨印を記す弾は読まない・弾ごとの気力）
+ * 36: 装備の持ち込み（開始時の装備は右手と持ち込みの 2 部位だけ。loot/runGear.ts）・stashCount がラン内の袋の件数（開始時 0）になった・序盤のドロップの戻し・敵の火力を全体で 0.85 倍（ENEMY_SCALE.damageMul）
  */
-export const REPLAY_VERSION = 35;
+export const REPLAY_VERSION = 36;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -91,7 +92,7 @@ export interface ReplayLoadout {
   equipment: Equipment;
   /** スキルスロット i に装着していた石（無ければ null） */
   skillStones: (SkillStone | null)[];
-  /** stash の件数（満杯だと拾えない挙動を再現するため。中身は不要） */
+  /** stash の件数（満杯だと拾えない挙動を再現するため。中身は不要）。版 36 からはラン内の袋の件数（開始時 0） */
   stashCount: number;
   /** スキル石 stash の件数 */
   stoneCount: number;

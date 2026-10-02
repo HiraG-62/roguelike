@@ -1,6 +1,6 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ACTION, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
+import { ACTION, CARRY, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
 import { FORMS, FORM_KEYS } from "../data/weaponForms";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
@@ -92,7 +92,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
   { key: "special", term: "奥義", category: "controls", body: (b) => `${k(b, "special")}。奥義ゲージが満ちると出せる。持続の奥義はもう一度 ${k(b, "special")} で終える。武器種ごとの 3 本から装備画面の装束の人影の書付、奥義の頁で選ぶ（拠点のみ）。` },
   { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
   { key: "skillKeys", term: "スキル石", category: "controls", body: (b) => `${skillKeys(b)}。パッドは ${padSkillKeysLabel()}（+ は押さえたまま次を押す）。` },
-  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物・スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
+  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物を袋へ、スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
   { key: "flask", term: "瓶", category: "controls", body: (b) => `${k(b, "flask")}（パッドは ${padActionLabel("flask")}）。1 本飲むと最大生命の ${Math.round(ECONOMY.flask.healRatio * PERCENT)}% が戻る。戦闘中の回復の上限は通さない。ダッシュ中と、攻撃を振っている最中は飲めない。本数は HUD の枡で、上限までしか持てない。市で買え、章の境の泉で満ちる。` },
   { key: "inventory", term: "装備画面", category: "controls", body: (b) => `${k(b, "inventory")} で開き、開いている間にもう一度押すと装束と紋を行き来する。Esc で 1 段ずつ戻って閉じる。開いている間は時間が止まる。` },
   {
@@ -407,6 +407,18 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "title", term: "称号", category: "hub", body: "実績と依頼の報酬で得る名前。実績の画面の称号タブで選ぶと名乗れる。効果は持たない。" },
   { key: "altar", term: "社", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
   { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。決定の長押しで性質なしの武器を借りて出撃できる。" },
+  {
+    key: "carry",
+    term: "持ち込み",
+    category: "hub",
+    body: `探索へ持ち込めるのは${CARRY.weaponFree ? "右手の武器と、ほかに " : " "}${CARRY.carrySlots} 部位まで。拠点の装備画面の装束で部位を長押しすると、持ち込みの印を付け外しできる（朱の判）。印の無い部位は空で始まり、探索で拾った遺物で埋める。`,
+  },
+  {
+    key: "carryBack",
+    term: "持ち帰り",
+    category: "hub",
+    body: `探索で拾った遺物は袋に入り、倉庫には入らない。探索の終わりに、袋と装備中の拾った遺物から持ち帰る物を選ぶ。力尽きたら ${CARRY.keepOnDeath} つ、踏破なら ${CARRY.keepOnClear} つまで。選ばなかった遺物は消える。持ち込んだ遺物は来歴と芽を積んだまま拠点の装備に戻る。探索の中で砕けるのは袋の遺物だけ。`,
+  },
   { key: "loaned", term: "借り物", category: "hub", body: "武器掛けで借りた素の器。保存されず、探索が終わると消える。残響で育てたり砕いたりできない。" },
   { key: "bossHall", term: "御堂", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
 ];

@@ -173,6 +173,8 @@ function drawPart(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, slo
     px(ctx, r.x + r.w - 4, r.y + 5, 1, 2, MENU_INK.budStem);
   }
   if (marks.unseen) px(ctx, r.x + 2, r.y + r.h - 4, 2, 2, MENU_INK.focus);
+  // 持ち込み: 右下の朱の判（拠点では次のランへ持ち込む部位、ラン中は拠点から持ち込んだ遺物）
+  if (marks.carry) px(ctx, r.x + r.w - 5, r.y + r.h - 5, 3, 3, MENU_INK.shu);
 }
 
 /** 焦点の物を外したら細る帯（部位か腰の石を指しているときだけ） */

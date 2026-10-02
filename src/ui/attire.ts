@@ -1,7 +1,9 @@
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
-import type { GameState } from "../core/state";
+import { type GameState, pushSfx } from "../core/state";
 import { JOBS } from "../data/jobs";
-import { ATTR, RESONANCE } from "../data/tuning";
+import { ATTR, CARRY, RESONANCE } from "../data/tuning";
+import { saveProfile } from "../loot/profile";
+import { type CarryToggle, canMarkCarry, isCarriedItem, isCarriedSlot, toggleCarry } from "../loot/runGear";
 import { ATTR_LABEL, COMBAT_ATTR_KEYS, type Item } from "../loot/types";
 import { SKILL, SKILL_DEFS } from "../skills/data";
 import { stoneInSlot } from "../skills/persistence";
@@ -11,13 +13,14 @@ import { ANVIL_VIEW } from "./anvil";
 import { type CrestRow, crestShape, miniCrestRows } from "./crestShape";
 import { slotHasUnseen } from "./seen";
 import { SLOT_LABEL } from "./inventoryLayout";
-import { candidatesFor } from "./menuActions";
+import { candidatesFor, showNote } from "./menuActions";
 import { fid, fidArgs } from "./menuFocus";
 import {
   EMPTY_TAG,
   type GuideVerb,
   type InventoryUi,
   type LootSlot,
+  type MenuAct,
   type MenuHeader,
   type MenuHit,
   type MenuTag,
@@ -76,12 +79,17 @@ function partHitRect(slot: LootSlot): Rect {
   return { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 };
 }
 
+/** 拠点でだけ、印を付け外しできる部位の長押しで持ち込みの印を切り替える（ラン中は持ち込みを変えられない） */
+function carryHold(state: Readonly<GameState>, slot: LootSlot): MenuAct | null {
+  return state.sandbox === true && canMarkCarry(slot) ? { kind: "toggleCarry", slot } : null;
+}
+
 function plainHits(state: Readonly<GameState>, ui: Readonly<InventoryUi>): MenuHit[] {
   const hits: MenuHit[] = ATTIRE_SLOTS.map((slot) => ({
     id: fid.part(slot),
     rect: partHitRect(slot),
     act: { kind: "push", view: candidatesFor(ui, slot) },
-    hold: null,
+    hold: carryHold(state, slot),
     nav: true,
   }));
   hits.push({ id: fid.body, rect: FIGURE_RECT, act: { kind: "push", view: sheetOf({ kind: "body" }) }, hold: null, nav: true });
@@ -117,11 +125,19 @@ export function focusedStone(focus: string | null): number | null {
   return Number.isInteger(n) && n >= 0 && n < SKILL.slots ? n : null;
 }
 
-/** 部位の角の印: 金 = 名のある遺物 / 緑 = 芽 / 白い点 = 倉庫に新着 */
+/** 部位の角の印: 金 = 名のある遺物 / 緑 = 芽 / 白い点 = 倉庫に新着 / 朱 = 持ち込み */
 export interface PartMarks {
   named: boolean;
   bud: boolean;
   unseen: boolean;
+  carry: boolean;
+}
+
+/** 持ち込みの印: 拠点では次のランへ持ち込む部位、ラン中は拠点から持ち込んだ遺物の部位 */
+function partCarried(state: Readonly<GameState>, slot: LootSlot): boolean {
+  if (state.sandbox === true) return isCarriedSlot(state.profile, slot);
+  const item = state.profile.equipment[slot];
+  return item !== null && isCarriedItem(state.profile, item.id);
 }
 
 export function partMarks(state: Readonly<GameState>, slot: LootSlot): PartMarks {
@@ -130,6 +146,7 @@ export function partMarks(state: Readonly<GameState>, slot: LootSlot): PartMarks
     named: item?.namedKey !== undefined,
     bud: (item?.budOffer ?? null) !== null,
     unseen: slotHasUnseen(state.profile, slot),
+    carry: partCarried(state, slot),
   };
 }
 
@@ -152,12 +169,15 @@ function relicFlowLine(item: Readonly<Item>): string {
 /** 芽を持つ遺物の荷札の印 */
 const BUD_TAG = "  芽";
 const EMPTY_PART = "空き";
+/** 持ち込みの部位の荷札の右寄せ */
+export const CARRY_TAG = "持ち込み";
 
 function partTag(state: Readonly<GameState>, slot: LootSlot): MenuTag {
   const item = state.profile.equipment[slot];
-  if (!item) return { title: `${SLOT_LABEL[slot]}  ${EMPTY_PART}`, sub: "", aside: null };
+  const aside = partCarried(state, slot) ? CARRY_TAG : null;
+  if (!item) return { title: `${SLOT_LABEL[slot]}  ${EMPTY_PART}`, sub: "", aside };
   const bud = item.budOffer ? BUD_TAG : "";
-  return { title: `${SLOT_LABEL[slot]}  ${item.name}${bud}`, sub: relicFlowLine(item), aside: null };
+  return { title: `${SLOT_LABEL[slot]}  ${item.name}${bud}`, sub: relicFlowLine(item), aside };
 }
 
 function stoneTag(state: Readonly<GameState>, i: number): MenuTag {
@@ -224,6 +244,37 @@ function plainHeader(state: Readonly<GameState>): MenuHeader {
 }
 
 const PLAIN_GUIDE: readonly GuideVerb[] = ["move", "open", "sheet", "face", "back"];
+/** 拠点で印を付け外しできる部位を指しているとき（長押しで持ち込み） */
+const CARRY_GUIDE: readonly GuideVerb[] = ["move", "open", "carry", "sheet", "back"];
+
+function plainGuide(state: Readonly<GameState>, view: Readonly<AttireView>): readonly GuideVerb[] {
+  const part = focusedPart(view.focus);
+  return part !== null && carryHold(state, part) !== null ? CARRY_GUIDE : PLAIN_GUIDE;
+}
+
+const CARRY_NOTE: Readonly<Record<CarryToggle, string>> = {
+  on: "持ち込みに追加",
+  off: "持ち込みを解除",
+  full: `持ち込みは ${CARRY.carrySlots} 部位まで`,
+  fixed: "右手は常に持ち込み",
+};
+
+/** 持ち込みの印を付け外しして保存する（拠点だけ。state.profile は main.ts の拠点のプロフィールと同じ物） */
+function actToggleCarry(state: GameState, ui: InventoryUi, slot: LootSlot): void {
+  if (state.sandbox !== true) return;
+  const result = toggleCarry(state.profile, slot);
+  showNote(ui, CARRY_NOTE[result]);
+  if (result !== "on" && result !== "off") {
+    pushSfx(state, "uiClose");
+    return;
+  }
+  saveProfile(state.profile);
+  pushSfx(state, "uiClick");
+}
+
+function plainAct(state: GameState, ui: InventoryUi, act: MenuAct): void {
+  if (act.kind === "toggleCarry" && isLootSlot(act.slot)) actToggleCarry(state, ui, act.slot);
+}
 
 function plainSheetFor(state: Readonly<GameState>, view: Readonly<AttireView>): SheetSubject | null {
   const part = focusedPart(view.focus);
@@ -243,10 +294,11 @@ export const ATTIRE_VIEW: ViewModule<AttireView> = {
   layout: (state, ui, view) => (view.anvil !== null ? ANVIL_VIEW.layout(state, ui, view) : plainHits(state, ui)),
   act: (state, ui, view, act) => {
     if (view.anvil !== null) ANVIL_VIEW.act(state, ui, view, act);
+    else plainAct(state, ui, act);
   },
   header: (state, ui, view) => (view.anvil !== null ? ANVIL_VIEW.header(state, ui, view) : plainHeader(state)),
   tag: (state, ui, view, focus) => (view.anvil !== null ? ANVIL_VIEW.tag(state, ui, view, focus) : plainTag(state, view)),
-  guide: (state, view) => (view.anvil !== null ? ANVIL_VIEW.guide(state, view) : PLAIN_GUIDE),
+  guide: (state, view) => (view.anvil !== null ? ANVIL_VIEW.guide(state, view) : plainGuide(state, view)),
   sheetFor: (state, view) => (view.anvil !== null ? ANVIL_VIEW.sheetFor(state, view) : plainSheetFor(state, view)),
   back: (state, ui, view) => (view.anvil !== null ? ANVIL_VIEW.back(state, ui, view) : false),
   edge: (state, ui, view, dx, dy) => (view.anvil !== null ? ANVIL_VIEW.edge(state, ui, view, dx, dy) : false),

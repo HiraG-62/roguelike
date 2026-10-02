@@ -104,6 +104,9 @@ export const BUD = BALANCE.loot.BUD;
 /** 装備ドロップ */
 export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
 
+/** ランへの装備の持ち込みと、ランの終わりの持ち帰り（loot/runGear.ts。docs/ideas/run-arc.md 2 章） */
+export const CARRY = BALANCE.loot.CARRY;
+
 /**
  * 床の遺物・スキル石をカーソルで注目してインタラクトで拾う（memo 2026-09-24）。
  * ハート・刻印符など消耗品系は従来どおり触れて拾う

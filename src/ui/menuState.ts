@@ -102,7 +102,9 @@ export type MenuAct =
   | { kind: "forgeOp"; op: EchoOp }
   | { kind: "forgePartner"; itemId: string }
   | { kind: "forgePick"; pick: ForgePick }
-  | { kind: "forgeExecute" };
+  | { kind: "forgeExecute" }
+  // 拠点の装束の部位の長押し: 持ち込みの印の付け外し（loot/runGear.ts）
+  | { kind: "toggleCarry"; slot: Slot };
 
 /**
  * act = 決定で起きること / hold = 長押し 0.6 秒で起きること / nav = 方向の移動で止まるか（面の札は false）/
@@ -126,7 +128,7 @@ export interface MenuHeader {
   crumbs: string;
   right: string | null;
 }
-export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "sheet" | "sort" | "face" | "back" | "close" | "cancel";
+export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "carry" | "sheet" | "sort" | "face" | "back" | "close" | "cancel";
 /** main.ts が FrameInput の外から渡す（記録しない入力） */
 export interface MenuSignals {
   back: boolean;

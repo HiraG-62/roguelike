@@ -186,7 +186,7 @@
 | 引火 | 浮き文字（`IGNITE_TEXT`） | 油壺の王が燃える床で自分に火が点き怯むこと。引火を数回起こさせると第 3 段階（油まみれ）へ進む。状態異常の反応「引火」（油膜 + 燃焼）と同じ語で、床の油に火が点く出来事を指す | `system/bossOilKing.ts` |
 | 柵 | `spawnBoneWall`（`sourceKey` thiefKing） | 盗賊王の第 2 段階の始まりに部屋へ立つ L 字の一時壁（耐久つき）。角が増えて追い詰めやすい。開き直り（第 3 段階）で崩れる | `system/bossThiefKing.ts`、`system/hazards.ts` |
 | 膨張 / 呑み込み / 吐き出し | 浮き文字 | スライム王。膨張 = 第 3 段階（分裂体が 0 体）の入り。部屋の中央で膨らみ、四隅だけ安全な衝撃波を重ねる。呑み込み = 第 2 段階で分裂体を呑んで回復を溜める。吐き出し = 消化中に怯むと回復を失う | `system/bossKingSlime.ts` |
-| 踏破 | `GameStatus "cleared"` / `RunHistoryEntry.cause "cleared"` | 最深の主を倒したラン（地上への道で終えても、深みへ降りて力尽きても・離脱しても踏破に数える）。終えた画面は死亡画面の見出しを「踏破」に替えたもの（袋・持ち帰りは無い）。階の到着報酬の「階層踏破」（来歴）とは別 | `system/finale.ts`、`core/state.ts` runOver |
+| 踏破 | `GameStatus "cleared"` / `RunHistoryEntry.cause "cleared"` | 最深の主を倒したラン（地上への道で終えても、深みへ降りて力尽きても・離脱しても踏破に数える）。終えた画面は死亡画面の見出しを「踏破」に替えたもの。持ち帰りの枠は 3（力尽きたときは 1）。階の到着報酬の「階層踏破」（来歴）とは別 | `system/finale.ts`、`core/state.ts` runOver |
 | 地上への道 | `PropKind "surface"` | 最深の主を倒すと階段の右に現れる台座。乗り続けて `ARC.surfaceHold` 秒で踏破。階段（深みへ）と両方が出るので、続けるか終えるかを選べる | `system/finale.ts`、`system/specialRooms.ts` |
 | 反転層 | invertedDepth / isInvertedDepth | 深度 20 以降。バイオームの重みが逆順になり、敵はエリートの抽選を 1 回多く引き、落ちた遺物はもう 1 回反転の抽選を受ける。画面に紫が重なる | `system/biomes.ts`、`system/runEvents.ts` |
 | 深み / 変異 | isDeepDepth / mutations | 深度 22（深み 1 層）から。敵の生命・攻撃が指数で伸び、部屋の敵数の上限が上がり、`DEEP.mutationEvery` 層ごとに「変異」（階のランイベントの常時化: 血の月 → 霧 → 属性の嵐）が 1 つ積まれる。「〜につき」の最大と研鑽の上限が外れる。右上は「深み n 層」、初めて入ったときの浮き文字は「深み」とログ「更なる深みへ……。深淵が汝の力を解放する」（この「解放」は上限が外れることで、契約者などの「解放」制とは別）、効果の頁の注記は「（深み: 最大なし）」。スキル石の「変異軸」とは別 | `system/chapters.ts`、`system/runEvents.ts` mutationsFor |
@@ -247,6 +247,9 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 装備 / 倉庫 | equipment / stash | 装着中と所持品 | `ui/inventory.ts` |
 | 右手 / 左手 / 頭 / 体 / 足 / 指輪 / 首飾り | Slot（mainHand / offHand / head / armor / boots / ring / amulet） | 7 スロット（2026-09-26 に頭を追加、鎧→体・靴→足に改名。内部 key は据え置き）。右手は近接武器・銃どちらも装備する 1 枠、左手は今はベースが無く常に空（倉庫・並べ替えの対象からは外す） | `ui/inventoryLayout.ts` SLOT_LABEL、`loot/types.ts` LOOT_SLOTS |
 | 遺物 | Item | 装備アイテム全般の呼称 | `loot/types.ts`、`loot/names.ts` |
+| 持ち込み | `Profile.carry` / `carriedSlots` | 探索へ持ち込む部位。右手の武器は常に、ほかに 2 部位（`CARRY.json`）。拠点の装備画面の装束で部位を長押しして印（朱の判）を付け外しする。起点画面に「持ち込み: 右手・指輪・首飾り」 | `loot/runGear.ts`、`ui/attire.ts`、`ui/origin.ts` |
+| 袋 | ラン用のプロフィールの stash | 探索で拾った遺物の入れ物。倉庫とは別で、保存されない。探索の終わりに持ち帰らなかった分は消える | `loot/runGear.ts` makeRunProfile |
+| 持ち帰り / 持ち帰る遺物を選ぶ | `settleRun` / `CarryBackScreen` | 探索の終わりに袋と装備中の拾った遺物から倉庫へ入れる物を選ぶこと・その画面。力尽きた（途中でやめた）とき 1 つ、踏破 3 つまで。行の「装備中」、最後の行「決める」、満杯の知らせ「持ち帰りの枠が満杯」 | `ui/carryBack.ts`、`render/carryBackUi.ts` |
 | 静 / 揺 / 荒 / 反転あり | normal / magic / rare / unique（`Rarity`。キーは旧レアリティのまま） | 揺らぎの見た目の分類。格付けではない | `loot/types.ts` RARITY_LABEL |
 | 性質 | AffixRoll（旧 affix） | 遺物に宿る 1 つの性質。表の性質 71（条件の族 25・行動 43・来歴 3）/ 転じ 12 / 属性の変換 6 / 誓約 20 / トリガー文法。無条件の数値だけの性質は地金へ移した（段取り 7d）。性質・転じは共鳴の数えに使う語（`AffixDef.keywords`）を必ず持つ | `loot/describe.ts`、装備画面 |
 | 響き | TraitColor | 遺物・性質が持つ 5 色の分類。紅 crimson / 蒼 azure / 翠 jade / 金 gold / 冥 umbra。遺物の色の帯・金床の色・残響の色に使う。効果は決めない（共鳴は色を見ない） | `loot/types.ts` TRAIT_COLOR_LABEL |

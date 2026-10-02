@@ -659,6 +659,7 @@ import j_loot_INNATE_armor from "./loot/INNATE/armor.json";
 import j_loot_INNATE_resistLines from "./loot/INNATE/resistLines.json";
 import j_loot_INNATE_slotLean from "./loot/INNATE/slotLean.json";
 import j_loot_BUD from "./loot/BUD.json";
+import j_loot_CARRY from "./loot/CARRY.json";
 import j_skills__index from "./skills/_index.json";
 import j_skills_SKILL__index from "./skills/SKILL/_index.json";
 import j_skills_SKILL_parry from "./skills/SKILL/parry.json";
@@ -1652,6 +1653,7 @@ export const loot = {
     "weaponLeanTop": j_loot_INNATE__index["weaponLeanTop"],
   },
   "BUD": j_loot_BUD,
+  "CARRY": j_loot_CARRY,
 };
 
 export const skills = {
@@ -2638,6 +2640,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "jobs/_index.json",
   "jobs/attributes.json",
   "loot/BUD.json",
+  "loot/CARRY.json",
   "loot/FLUX.json",
   "loot/INNATE/_index.json",
   "loot/INNATE/armor.json",

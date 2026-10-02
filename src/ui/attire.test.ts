@@ -11,7 +11,7 @@ import { ATTIRE_SLOTS, ATTIRE_VIEW, partMarks } from "./attire";
 import { crestShape } from "./crestShape";
 import { createInventoryUi, updateInventoryUi } from "./inventory";
 import { fid } from "./menuFocus";
-import { type InventoryUi, type MenuView, topView } from "./menuState";
+import { type InventoryUi, type LootSlot, type MenuView, topView } from "./menuState";
 
 function openAttire(state: GameState = createGame(1)): { state: GameState; ui: InventoryUi } {
   const ui = createInventoryUi(createCraftSave());
@@ -97,5 +97,33 @@ describe("装束", () => {
     }
     state.profile.meta.seenAt = { ring: 100 };
     expect(partMarks(state, "ring").unseen, "見た後は印が消える").toBe(false);
+  });
+});
+
+describe("装束の持ち込みの印（loot/runGear.ts）", () => {
+  function hubState(): GameState {
+    const state = createGame(1);
+    state.sandbox = true;
+    state.profile.equipment.head = generateItem(createRng(41), { slot: "head", itemLevel: 1, foundDepth: 1, now: 0 });
+    state.profile.equipment.ring = generateItem(createRng(42), { slot: "ring", itemLevel: 1, foundDepth: 1, now: 0 });
+    state.profile.carry = [];
+    return state;
+  }
+
+  it("拠点では部位の長押しで印を付け外しし、右手とラン中は長押しが無い", () => {
+    const { state, ui } = openAttire(hubState());
+    const view = top(ui);
+    if (view.kind !== "attire") throw new Error("装束で開いていない");
+    const hold = (slot: LootSlot): unknown => ATTIRE_VIEW.layout(state, ui, view).find((h) => h.id === fid.part(slot))?.hold ?? null;
+    expect(hold("head"), "頭").toEqual({ kind: "toggleCarry", slot: "head" });
+    expect(hold("mainHand"), "右手は常に持ち込み").toBeNull();
+    ATTIRE_VIEW.act(state, ui, view, { kind: "toggleCarry", slot: "head" });
+    expect(state.profile.carry).toEqual(["head"]);
+    expect(partMarks(state, "head").carry, "印").toBe(true);
+    expect(partMarks(state, "mainHand").carry, "右手は常に印").toBe(true);
+    view.focus = fid.part("head");
+    expect(ATTIRE_VIEW.guide(state, view), "案内に持ち込み").toContain("carry");
+    delete state.sandbox;
+    expect(hold("head"), "ラン中は変えられない").toBeNull();
   });
 });

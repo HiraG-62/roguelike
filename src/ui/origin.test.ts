@@ -19,6 +19,7 @@ import {
   backOriginStage,
   jobCursorDetail,
   pointOriginRow,
+  carryLine,
   createOriginScreen,
   cursorDescription,
   moveOriginCursor,
@@ -35,6 +36,11 @@ function game(setup: RunSetup, seed = 21) {
 }
 
 describe("起点画面の操作", () => {
+  it("持ち込む部位を 1 行で出す（無ければ「なし」）", () => {
+    expect(carryLine(createOriginScreen(undefined, new Set(), new Set(), ["mainHand", "ring", "amulet"]))).toBe("持ち込み: 右手・指輪・首飾り");
+    expect(carryLine(createOriginScreen())).toBe("持ち込み: なし");
+  });
+
   it("ジョブの段から開き、決定で起点の段の「出発」へ進み、もう一度の決定で始められる", () => {
     const ui = createOriginScreen();
     expect(ui.stage, "ジョブの段から").toBe("job");
