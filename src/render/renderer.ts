@@ -108,7 +108,7 @@ import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawP
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
@@ -2244,6 +2244,7 @@ export class Renderer {
     const holding = p.attack.charging || p.art.holding;
     const dashing = isDashing(p);
     const stance = stanceFromMeta(weaponStanceMeta(weapon));
+    const iai = this.iaiMotion(state, stance, swing);
     const clip = bodyClip({
       dashing,
       dashProgress: 1 - p.dashTimer / Math.max(1e-6, dashTime(state.stats)),
@@ -2261,6 +2262,7 @@ export class Renderer {
               screenSwingSign(swing.step, true, swing.pose, swing.heavy),
               swing.heavy,
               stance,
+              iai !== undefined,
             ),
             t: swing.t,
           }
@@ -2270,6 +2272,7 @@ export class Renderer {
     const bodyCell = this.actorBank.cell(bodyKey, 0, clip.frame);
     const shoulderF = actorAnchor(bodyKey, 0, clip.frame, "shoulderF");
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
+    const hip = actorAnchor(bodyKey, 0, clip.frame, "hip");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
     const look = this.playerLook(state);
     const facingRight = look.x >= 0;
@@ -2293,6 +2296,8 @@ export class Renderer {
       castOff: swing.cast,
       kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
+      ...(hip ? { hip } : {}),
+      ...(iai ? { iai } : {}),
     };
     const rig = solveRig(rigInput);
 
@@ -2303,7 +2308,8 @@ export class Renderer {
     if (swing.phase === "active" && stance.worn !== true) {
       const dualOff = stance.grip === "dual" && swingSign(swing.step) < 0;
       for (const [lag, alpha] of RIG_SWING_GHOSTS) {
-        const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: Math.max(0, swing.t - lag) }) });
+        const pastT = Math.max(0, swing.t - lag);
+        const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: pastT }), ...(iai ? { iai: { ...iai, t: pastT } } : {}) });
         g.globalAlpha = alpha;
         this.rigWeapon(weapon, dualOff ? past.back : past.front, true);
       }
@@ -2319,7 +2325,12 @@ export class Renderer {
     // 振りの間の絵（鞭は束を解いて、エフェクトのしなる線を鞭そのものに見せる）。構え直しの半ばで元の絵へ戻す
     const swingArt = (swing.phase === "active" || swing.phase === "recover") && (rigInput.restBlend ?? 0) < SWING_ART_UNTIL;
     const heldWeapon = (part: HeldPart): void => {
+      // 鞘に納めた刀は鞘と一緒に描く（rigSheath）
+      if (part === rig.front && rig.sheath?.sheathed === true) return;
       if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
+    };
+    const sheath = (): void => {
+      if (rig.sheath) this.rigSheath(weapon, rig.sheath, rig.front);
     };
     if (rig.gunHold) {
       // 両手で構えた銃: 体 → 握りを持つ後ろの腕 → 先台を支える前の腕 → 銃 → 先台を握る拳。
@@ -2330,7 +2341,7 @@ export class Renderer {
       heldWeapon(rig.front);
       this.rigHand(rig.back.hand, colors.hand);
     } else {
-      this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon, colors.hand);
+      this.rigLayers(rig, shoulderF, shoulderB, bodyCell, twoHanded, arm, heldWeapon, colors.hand, sheath);
     }
     // 鞭: 振り抜いた後、エフェクトの線が薄れてから縄が垂れて手元へ巻き戻る
     if (swing.phase === "recover") this.rigRope(weapon, rig.front, swing);
@@ -2358,7 +2369,10 @@ export class Renderer {
     return true;
   }
 
-  /** 銃以外の重ね順: 後ろの武器 → 後ろの腕 → 体 → 前の武器 → 前の腕（振りかぶった腕・二刀の前へ出た手は入れ替える） */
+  /**
+   * 銃以外の重ね順: 後ろの武器 → 後ろの腕 → 体 → 前の武器 → 前の腕（振りかぶった腕・二刀の前へ出た手は入れ替える）。
+   * 腰の鞘は、体の後ろなら最初（鞘に添えた後ろの手の下）、手前なら体のすぐ後（腕の下）に描く
+   */
   private rigLayers(
     rig: RigPose,
     shoulderF: Pt,
@@ -2368,7 +2382,9 @@ export class Renderer {
     arm: (shoulder: Pt, part: HeldPart, dim: boolean) => void,
     heldWeapon: (part: HeldPart) => void,
     handColors: readonly string[],
+    sheath: () => void,
   ): void {
+    if (rig.sheath?.behind === true) sheath();
     // 後ろの手は体の後ろが既定。二刀の後ろの手が体の前へ出ていれば（両拳の構え）体の後に描く。
     // 両手持ちの添え手が体の前にあれば、腕は武器の下に描いて柄を握る拳だけを武器の上に重ね直す（後ろの腕が武器より手前に浮かない）
     // 術を放つ後ろの腕（castShoulder）は捻った付け根から引き、前の武器（胸の前の本）の上・前の腕の下に描く
@@ -2381,6 +2397,7 @@ export class Renderer {
     if (rig.front.behind) heldWeapon(rig.front);
     if (frontArmBehind) arm(shoulderF, rig.front, false);
     this.rigCell(bodyCell, 0, 0);
+    if (rig.sheath?.behind === false) sheath();
     if (!rig.back.bare && !rig.back.behind) heldWeapon(rig.back);
     if (backFront) arm(shoulderB, rig.back, true);
     if (backUnderWeapon) arm(shoulderB, rig.back, true);
@@ -2420,6 +2437,28 @@ export class Renderer {
     if (!sheet) return;
     const cell = this.actorBank.cell(key, actorDir(part.angle, sheet.dirs), 0);
     if (cell) this.rigCell(cell, part.hand.x, part.hand.y);
+  }
+
+  /** 腰の鞘（`<武器>.sheath`）を鯉口に原点を合わせて置く。納めている間は先に刀（刃を上にした写し）を描き、刀身を鞘で覆う */
+  private rigSheath(weapon: string, sheath: SheathPart, main: HeldPart): void {
+    if (sheath.sheathed) this.rigWeapon(weapon, main);
+    const key = `${weapon}.sheath`;
+    const sheet = actorSheet(key);
+    if (!sheet) return;
+    const cell = this.actorBank.cell(key, actorDir(sheath.angle, sheet.dirs), 0);
+    if (cell) this.rigCell(cell, sheath.mouth.x, sheath.mouth.y);
+  }
+
+  /**
+   * 居合の段階（構えが iai の武器だけ）。右の溜めを押している間は納刀の構え、溜めの段に届いて離した振り（溜め攻撃）は抜き付け。
+   * 段に届かずに離した振り（左の段）・ダッシュ攻撃・派生は今までの振り
+   */
+  private iaiMotion(state: GameState, stance: Stance, swing: PlayerSwing): IaiMotion | undefined {
+    if (stance.iai !== true || !stance.sheath) return undefined;
+    const a = state.player.attack;
+    if (a.charging) return { phase: "hold", t: 0 };
+    if (swing.phase === "none" || a.chargeLevel <= 0 || a.branch >= 0 || state.player.dashStrike) return undefined;
+    return { phase: swing.phase, t: swing.t };
   }
 
   /** 鞭の縄（whipRope.ts）を作業面に描く。縄を持たない武器・描かない間は何もしない */

@@ -66,6 +66,7 @@ describe("playerRig: 攻撃の体のコマ", () => {
     expect(attackClip("thrust", 1, false, ready)).toBe("atkThrust");
     expect(attackClip("arc", 1, false, { body: "ready", braced: true }), "構えて押す盾は突き").toBe("atkThrust");
     expect(attackClip("circle", 1, false, ready)).toBe("atkSpin");
+    expect(attackClip("thrust", 1, true, ready, true), "居合は専用のコマ").toBe("atkIai");
   });
 
   it("攻撃中は選んだコマ、被弾とダッシュはそれより優先", () => {
