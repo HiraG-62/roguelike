@@ -644,7 +644,7 @@ const SFX_DEFINITIONS: Record<SfxName, SfxDefinition> = {
     return Math.max(noise, stab);
   },
 
-  // 台座に触れた: 上がる 3 音
+  // 台座を使った: 上がる 3 音
   pedestalUse: (ctx, dest, opts) =>
     arpeggio(ctx, dest, opts, {
       type: "triangle",

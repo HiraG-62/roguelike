@@ -8,12 +8,11 @@ import { setSaveStorage } from "../save/backend";
 import { type RoomProp, updateRoomProps } from "./specialRooms";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { donate, donationAmount } from "./donation";
-import { withInput } from "./testHelpers";
+import { interactAt, screenOfWorld, withInput } from "./testHelpers";
 
 /** 寄進の祠（system/donation.ts。docs/ideas/economy-impl.md 2-9） */
 
 const SEEDS = 8;
-const FAR = { x: -9999, y: -9999 };
 /** 章の休符（章の 1 階目。深度 1 は含まない） */
 const REST_DEPTH = ARC.floorsPerChapter + 1;
 
@@ -94,22 +93,19 @@ describe("祠の配置", () => {
   });
 });
 
-describe("祠に触れる", () => {
-  it("触れるたびに 1 回寄進し、離れてから触れ直すとまた寄進する（使用済みにならない）", () => {
+describe("祠を使う", () => {
+  it("インタラクトを押すたびに 1 回寄進し、触れているだけでは寄進しない（使用済みにならない）", () => {
     const state = floorAt(3, REST_DEPTH);
     const shrine = requireShrine(state);
     state.economy.coins = 200;
     state.player.body.pos = { ...shrine.pos };
     updateRoomProps(state);
+    expect(state.economy.donated, "触れているだけ").toBe(0);
+    interactAt(state, shrine.pos);
     const first = state.economy.donated;
     expect(first, "1 回目").toBe(donationAmount(200));
-    updateRoomProps(state);
-    expect(state.economy.donated, "触れ続けても増えない").toBe(first);
-    state.player.body.pos = { ...FAR };
-    updateRoomProps(state);
-    state.player.body.pos = { ...shrine.pos };
-    updateRoomProps(state);
-    expect(state.economy.donated, "触れ直すと 2 回目").toBe(first + donationAmount(200 - first));
+    interactAt(state, shrine.pos);
+    expect(state.economy.donated, "押し直すと 2 回目").toBe(first + donationAmount(200 - first));
     expect(shrine.used, "使用済みにならない").toBe(false);
   });
 
@@ -121,8 +117,8 @@ describe("祠に触れる", () => {
       const shrine = requireShrine(state);
       state.economy.coins = 100;
       state.player.body.pos = { ...shrine.pos };
-      step(state, withInput({}), FIXED_DT);
-      expect(state.economy.donated, "step で祠に触れて寄進した").toBeGreaterThan(0);
+      step(state, withInput({ interactPressed: true, aimScreen: screenOfWorld(state, shrine.pos) }), FIXED_DT);
+      expect(state.economy.donated, "step でインタラクトして寄進した").toBeGreaterThan(0);
       expect(storage.length, "保存先には何も書かない").toBe(0);
     } finally {
       setSaveStorage(null);

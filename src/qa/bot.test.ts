@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
+import { PICKUP } from "../data/tuning";
 import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
@@ -16,6 +17,7 @@ import {
   pickBoonIndex,
   shouldDrinkFlask,
   shouldPressUltimate,
+  worldToScreen,
 } from "./bot";
 import { TILE_SIZE, Tile, toIndex } from "../map/grid";
 import { invalidatePathing } from "../map/pathing";
@@ -218,7 +220,7 @@ describe("bot の市", () => {
 
   function ware(state: GameState, kind: WareKind, price: number, dx = WARE_OFFSET): Ware {
     const p = state.player.body.pos;
-    return { kind, key: kind, price, base: price, pos: { x: p.x + dx, y: p.y }, used: false, armed: false };
+    return { kind, key: kind, price, base: price, pos: { x: p.x + dx, y: p.y }, used: false };
   }
 
   function stand(state: GameState, wares: Ware[], provoked = false): void {
@@ -226,19 +228,34 @@ describe("bot の市", () => {
     state.economy.merchants = [merchant];
   }
 
-  it("瓶が上限未満で払えるなら瓶の台座へ寄り、触れたらその台座は済ませたことにして探索へ戻る", () => {
+  it("瓶が上限未満で払えるなら瓶の台座へ寄り、手が届けば照準を合わせてインタラクトし、その台座は済ませたことにして探索へ戻る", () => {
     const state = arena(4);
     state.player.flasks = 0;
     state.economy.coins = 100;
     const target = ware(state, "flask", 40, 0);
     stand(state, [target]);
     const bot = createBotState(1);
-    botInput(state, bot, DT);
+    const press = botInput(state, bot, DT);
     expect(bot.marketTime, "台座を追った").toBeGreaterThan(0);
-    expect(bot.triedWares.has(target), "台座の真上にいれば触れたとみなす").toBe(true);
+    expect(press.interactPressed, "手の届く台座でインタラクトを押す").toBe(true);
+    expect(press.aimScreen, "照準は台座").toEqual(worldToScreen(state, target.pos));
+    expect(bot.triedWares.has(target), "押した台座は済ませた").toBe(true);
     const before = bot.marketTime;
     botInput(state, bot, DT);
     expect(bot.marketTime, "済んだ台座には寄り続けない").toBe(before);
+  });
+
+  it("手の届かない台座ではインタラクトを押さず、歩いて寄る", () => {
+    const state = arena(4);
+    state.player.flasks = 0;
+    state.economy.coins = 100;
+    const target = ware(state, "flask", 40, PICKUP.reach * 2);
+    stand(state, [target]);
+    const bot = createBotState(1);
+    const input = botInput(state, bot, DT);
+    expect(input.interactPressed, "遠い台座では押さない").toBe(false);
+    expect(bot.triedWares.has(target), "まだ済ませていない").toBe(false);
+    expect(bot.marketTime, "台座を追っている").toBeGreaterThan(0);
   });
 
   it("払えない・瓶が上限・瓶以外の台座には寄らない（他は買わない）", () => {

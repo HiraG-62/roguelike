@@ -108,7 +108,7 @@ import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawP
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
@@ -2245,6 +2245,8 @@ export class Renderer {
     const dashing = isDashing(p);
     const stance = stanceFromMeta(weaponStanceMeta(weapon));
     const iai = this.iaiMotion(state, stance, swing);
+    const look = this.playerLook(state);
+    const facingRight = look.x >= 0;
     const clip = bodyClip({
       dashing,
       dashProgress: 1 - p.dashTimer / Math.max(1e-6, dashTime(state.stats)),
@@ -2253,6 +2255,7 @@ export class Renderer {
       holding,
       moving: p.body.vel.x !== 0 || p.body.vel.y !== 0,
       walkTime: p.walkTime,
+      backpedal: isBackpedal(p.body.vel, facingRight),
       time: state.time,
       idle: stance.body,
       ...(swing.phase !== "none"
@@ -2274,8 +2277,6 @@ export class Renderer {
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
     const hip = actorAnchor(bodyKey, 0, clip.frame, "hip");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
-    const look = this.playerLook(state);
-    const facingRight = look.x >= 0;
     const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
     const posed = swing.phase !== "none" || hold !== undefined;
     const rigInput = {

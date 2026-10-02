@@ -25,6 +25,7 @@ import {
 } from "./bets";
 import { type ContractOffer, pactHudLines, standContractor, updateContractors } from "./contractors";
 import { buildFloor } from "./floor";
+import { interactAt } from "./testHelpers";
 import { updateJins, wakeJin } from "./jin";
 
 const B = ECONOMY.bet;
@@ -95,13 +96,13 @@ function withBookie(coins = 100): GameState {
   throw new Error("賭場の主を立てられる seed が無い");
 }
 
+/** 離れた所で 1 ステップ進めて（賭けの台座の額を更新して）から、台座に照準を合わせてインタラクトで使う */
 function touch(state: GameState, target: ContractOffer): void {
   const who = state.contracts.contractor;
   if (!who) throw new Error("契約者がいない");
   state.player.body.pos = { x: who.pos.x, y: who.pos.y - CONTRACT.standOffset * 16 };
   updateContractors(state, DT);
-  state.player.body.pos = { ...target.pos };
-  updateContractors(state, DT);
+  interactAt(state, target.pos);
 }
 
 function betOffers(state: GameState): ContractOffer[] {

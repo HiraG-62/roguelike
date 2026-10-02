@@ -16,7 +16,11 @@
     "goldCageSpillRatio": "黄金の檻: 被弾でこぼれる持ち金の割合（ECONOMY.spill.ratio の代わり）。割合（0..1）",
     "almsHealPerCoin": "喜捨: 払った銭 1 につき回復する生命。生命",
     "almsBuffSec": "喜捨: 銭を払った後の与ダメージの強化の秒。秒",
-    "almsBuffPct": "喜捨: 銭を払った後の与ダメージの強化。%"
+    "almsBuffPct": "喜捨: 銭を払った後の与ダメージの強化。%",
+    "breathOathEvadeMul": "呼気の誓い: 見切り・受け流しで戻る気力に掛ける倍率（通常攻撃の命中・撃破では戻らない）。倍率",
+    "breathOathMaxManaPct": "呼気の誓い: 最大気力の上乗せ。割合（0.5 = +50%）",
+    "brimOathPerTenth": "満願の誓い: 今の気力が最大の 1 割あるごとに、全ての与ダメージの倍に足す量（満タンで 10 段）。倍率の 1 を超える分",
+    "brimOathCostMul": "満願の誓い: スキルの気力の消費に掛ける倍率。倍率"
   },
   "blinkRadius": 40,
   "blinkDamage": 20,
@@ -56,5 +60,9 @@
   "goldCageSpillRatio": 0.5,
   "almsHealPerCoin": 0.5,
   "almsBuffSec": 4,
-  "almsBuffPct": 20
+  "almsBuffPct": 20,
+  "breathOathEvadeMul": 3,
+  "breathOathMaxManaPct": 0.5,
+  "brimOathPerTenth": 0.05,
+  "brimOathCostMul": 1.5
 }

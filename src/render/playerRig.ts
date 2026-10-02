@@ -53,6 +53,8 @@ export interface BodyClipInput {
   readonly holding: boolean;
   readonly moving: boolean;
   readonly walkTime: number;
+  /** 体の向きと逆へ歩いている（isBackpedal）。歩きのコマを逆に送る */
+  readonly backpedal?: boolean;
   readonly time: number;
   /** 待機の構え（武器種の Stance.body） */
   readonly idle: IdleStance;
@@ -104,8 +106,32 @@ export function bodyClip(i: BodyClipInput): BodyFrame {
   if (i.attack && i.phase !== "none") return { clip: i.attack, frame: attackFrame(i.phase, i.t ?? 0) };
   if (i.phase === "windup" || (i.phase === "none" && i.holding)) return { clip: "windup", frame: 0 };
   if (i.phase === "active" || i.phase === "recover") return { clip: "strike", frame: 0 };
-  if (i.moving) return { clip: "walk", frame: cycleFrame(i.walkTime, WALK_FRAME_TIME * BODY_CLIP_FRAMES.walk, BODY_CLIP_FRAMES.walk) };
+  if (i.moving) return { clip: "walk", frame: walkFrame(i.walkTime, i.backpedal === true) };
   return { clip: IDLE_CLIP[i.idle], frame: cycleFrame(i.time, IDLE_PERIOD, IDLE_FRAMES) };
+}
+
+/**
+ * 歩きのコマ。シート（scripts/actor/rig.mjs の walkPose）は前へ歩く足運びの順に並ぶので、後ずさりは逆に送る
+ * （逆再生 = 着いた足が前へ流れ、浮いた足を後ろへ運ぶ）
+ */
+export function walkFrame(walkTime: number, backpedal: boolean): number {
+  const n = BODY_CLIP_FRAMES.walk;
+  const k = cycleFrame(walkTime, WALK_FRAME_TIME * n, n);
+  return backpedal ? (n - k) % n : k;
+}
+
+/**
+ * 体の向きと逆へ動く速さの割合（横の成分 / 速さ）がこれを越えたら後ずさり。
+ * 体のシートは横向きだけなので横の成分で決め、ほぼ真上・真下の移動は前進の足のまま（境目で足が行き来しない）
+ */
+const BACKPEDAL_MIN = 0.2;
+
+/** 移動の向き（画面の速度）が体の向き（右 / 左）と逆か */
+export function isBackpedal(vel: Pt, facingRight: boolean): boolean {
+  const speed = Math.hypot(vel.x, vel.y);
+  if (speed <= 0) return false;
+  const forward = (facingRight ? vel.x : -vel.x) / speed;
+  return forward < -BACKPEDAL_MIN;
 }
 
 // ---------------------------------------------------------------------------

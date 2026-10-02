@@ -8,7 +8,8 @@ import { withFixedLayout } from "../map/layout/select";
 import { MemoryStorage } from "../meta/testStorage";
 import { setSaveStorage } from "../save/backend";
 import { withBaseAreaMul } from "../system/floor";
-import { dropItem, updateDropInteract } from "../system/loot";
+import { updateInteract } from "../system/interact";
+import { dropItem } from "../system/loot";
 import { withInput } from "../system/testHelpers";
 import { forgeOpBlock, forgePartners } from "../ui/forge";
 import { generateItem } from "./generator";
@@ -48,7 +49,7 @@ function pickOne(state: GameState): Item {
   const item = dropItem(state, state.player.body.pos);
   const fi = state.floorItems[state.floorItems.length - 1];
   if (fi) fi.pos = { ...state.player.body.pos };
-  updateDropInteract(state, withInput({ interactPressed: true, aimScreen: null }));
+  updateInteract(state, withInput({ interactPressed: true, aimScreen: null }));
   return item;
 }
 

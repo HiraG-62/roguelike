@@ -1,5 +1,5 @@
 {
-  "_note": "壺・木箱（system/containers.ts。docs/ideas/economy-impl.md 2-7）。塊の隅と通路の行き止まりに置き、割ると少しの銭と、まれに瓶が出る。撃破数・得点・コンボ・来歴には数えない",
+  "_note": "壺・木箱（system/containers.ts。docs/ideas/economy-impl.md 2-7）。塊の隅と通路の行き止まりに置き、割ると少しの銭と、ときどきハート、まれに瓶が出る。2026-10-02 プレイ所見「序盤の回復が少なすぎる」で瓶 0.05 → 0.08、ハートを足した（敵はそのまま）。撃破数・得点・コンボ・来歴には数えない",
   "_fields": {
     "perFloorMin": "1 階に置く壺・木箱の数の下限（面積倍率を掛ける前）。個",
     "perFloorMax": "1 階に置く壺・木箱の数の上限（面積倍率を掛ける前）。個。実際の数は 乱数(min..max) × その階の面積倍率",
@@ -11,6 +11,7 @@
     "coinsMin": "割ったときに出る銭の下限（章の倍率を掛ける前）。銭",
     "coinsMax": "割ったときに出る銭の上限（章の倍率を掛ける前）。銭",
     "flaskChance": "割ったときに瓶が出る確率。割合（0..1）",
+    "heartChanceByChapter": "割ったときにハートが出る確率を章ごとに（1 章から順。章より深い階は最後の値）。割合（0..1）。壺・木箱は階ごとに数が決まっているので、割り尽くせば回復はそれ以上増えない",
     "burstColor": "割れたときの破片の色（壺）",
     "crateBurstColor": "割れたときの破片の色（木箱）",
     "burstParticles": "割れたときの破片の数。個",
@@ -30,7 +31,8 @@
   "keepClear": 24,
   "coinsMin": 0,
   "coinsMax": 3,
-  "flaskChance": 0.05,
+  "flaskChance": 0.08,
+  "heartChanceByChapter": [0.15, 0.12, 0.1, 0.08],
   "burstColor": "#c07840",
   "crateBurstColor": "#a07050",
   "burstParticles": 10,

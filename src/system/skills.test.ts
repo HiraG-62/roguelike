@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { grantBoon } from "./boons";
-import { updateDropInteract } from "./loot";
+import { updateInteract } from "./interact";
 import { createGame, step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { codesForAction, mouseButtonCode, skillKeyLabel } from "../core/input";
@@ -458,7 +458,7 @@ describe("刻印符（ラン内だけの物）", () => {
     dropRune(state, state.player.body.pos, "echo");
     run(state, SETTLE_TIME);
     expect(state.skills.runes, "触れただけでは拾わない").toHaveLength(1);
-    updateDropInteract(state, withInput({ interactPressed: true }));
+    updateInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.runes, "床から消える").toHaveLength(0);
     expect(state.skills.hand, "手持ちへ入る").toEqual(["echo"]);
     expect(state.skills.slots.every((s) => s.runModifiers.length === 0), "どのスキルにも付かない").toBe(true);
@@ -469,7 +469,7 @@ describe("刻印符（ラン内だけの物）", () => {
   it("付けられるスキルが無い符でも拾えて手持ちに残る（付ける先は後から選ぶ）", () => {
     const state = skillArena([{ key: "parry" }]);
     dropRune(state, state.player.body.pos, "echo");
-    updateDropInteract(state, withInput({ interactPressed: true }));
+    updateInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.runes, "床には残らない").toHaveLength(0);
     expect(state.skills.hand).toEqual(["echo"]);
   });
@@ -638,7 +638,7 @@ describe("ドロップ", () => {
     run(state, SETTLE_TIME);
     expect(state.skills.floorStones, "触れただけでは拾わない（注目 + 拾うキー）").toHaveLength(1);
     // 照準なし（パッドの右スティック中立）なら手の届く最寄りを拾う
-    updateDropInteract(state, withInput({ interactPressed: true }));
+    updateInteract(state, withInput({ interactPressed: true }));
     expect(state.skills.profile.stones.length).toBe(before + 1);
     expect(state.skills.floorStones).toHaveLength(0);
   });

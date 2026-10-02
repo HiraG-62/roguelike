@@ -15,8 +15,8 @@ import { chapterScale, updateCoinPickups } from "./economy";
 import { emitNoise } from "./noise";
 import { overlapsWall } from "./physics";
 import { openTreasure } from "./roomTypes";
-import { setupSpecialRoom, updateRoomProps } from "./specialRooms";
-import { arena, withInput } from "./testHelpers";
+import { setupSpecialRoom } from "./specialRooms";
+import { arena, interactAt, withInput } from "./testHelpers";
 
 /** 壺・木箱と鍵の使い道（system/containers.ts、specialRooms.ts の鍵付きの宝箱・封印庫。docs/ideas/economy-impl.md 2-4・2-7） */
 
@@ -102,6 +102,24 @@ describe("割る", () => {
     breakOne(state, CRATE_KEY);
     expect(state.pickups.filter((pk) => pk.kind === "coin"), "額 0 は落とさない").toHaveLength(0);
     expect(state.pickups.filter((pk) => pk.kind === "flask"), "瓶").toHaveLength(1);
+  });
+
+  it("当たればハートが床に出て、外れれば出ない（序盤の回復の足し）", () => {
+    const hit = arena(3);
+    hit.rng = rigged({ max: false, hit: true });
+    breakOne(hit, POT_KEY);
+    expect(hit.pickups.filter((pk) => pk.kind === "heart"), "ハート").toHaveLength(1);
+    const miss = arena(3);
+    miss.rng = rigged({ max: false, hit: false });
+    breakOne(miss, POT_KEY);
+    expect(miss.pickups.filter((pk) => pk.kind === "heart"), "外れ").toHaveLength(0);
+  });
+
+  it("ハートの確率は章が進むほど絞る（瓶より高い）", () => {
+    const table = ECONOMY.container.heartChanceByChapter;
+    expect(table.length, "章ごと").toBeGreaterThanOrEqual(4);
+    for (let i = 1; i < table.length; i++) expect(table[i] ?? 0, `章 ${i + 1}`).toBeLessThanOrEqual(table[i - 1] ?? 0);
+    expect(table[0] ?? 0, "1 章は瓶より出やすい").toBeGreaterThan(ECONOMY.container.flaskChance);
   });
 
   it("銭が 0 でも瓶が外れても乱数は同じ回数だけ引く（後の抽選を揺らさない）", () => {
@@ -248,14 +266,10 @@ describe("鍵付きの宝箱（宝物庫）", () => {
   it("鍵が無ければ開かず、鍵 1 本で遺物 1 つと銭 15〜25 が出る", () => {
     const { state, chest } = treasure();
     const items = state.floorItems.length;
-    state.player.body.pos = { ...chest.pos };
-    updateRoomProps(state);
+    interactAt(state, chest.pos);
     expect(chest.used, "鍵なしでは開かない").toBe(false);
-    state.player.body.pos = { x: chest.pos.x + 200, y: chest.pos.y };
-    updateRoomProps(state);
     state.economy.keys = 1;
-    state.player.body.pos = { ...chest.pos };
-    updateRoomProps(state);
+    interactAt(state, chest.pos);
     expect(chest.used, "開いた").toBe(true);
     expect(state.economy.keys, "鍵を 1 本払う").toBe(0);
     expect(state.floorItems.length, "遺物").toBe(items + 1);
@@ -277,11 +291,9 @@ describe("封印庫は鍵 2 か銭 80", () => {
     return { state, seal };
   }
 
+  /** 封印に照準を合わせてインタラクトで使う */
   function touch(state: GameState, pos: Vec): void {
-    state.player.body.pos = { x: pos.x + 300, y: pos.y };
-    updateRoomProps(state);
-    state.player.body.pos = { ...pos };
-    updateRoomProps(state);
+    interactAt(state, pos);
   }
 
   it("鍵 2 本で開き、銭は減らない", () => {

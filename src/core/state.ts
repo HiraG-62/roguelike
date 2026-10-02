@@ -893,7 +893,7 @@ export interface BetRecord {
  */
 export type WareKind = "flask" | "item" | "rune" | "key" | "reroll" | "skill" | "cursedItem" | "keystone";
 
-/** 商人の台座の品（触れて買う。contractors.ts の ContractOffer と同じ作法） */
+/** 商人の台座の品（照準を合わせてインタラクトで買う。system/interact.ts） */
 export interface Ware {
   kind: WareKind;
   /** 品の細目（闇市のスキル石は SkillKey、誓約は keystone の key。それ以外は空） */
@@ -904,8 +904,6 @@ export interface Ware {
   base: number;
   pos: Vec;
   used: boolean;
-  /** false の間は触れても反応しない（離れると true。連打と出現直後の誤爆を防ぐ） */
-  armed: boolean;
 }
 
 /** 商人（台座を並べる人。体は state.enemies の Enemy で、殴られると怒る） */
@@ -919,6 +917,8 @@ export interface Merchant {
   greeted: boolean;
   /** 殴られて怒った（以後は品を投げてくる。売らない） */
   provoked: boolean;
+  /** 平時に殴られて警告した state.time（次の一撃で怒る。system/merchantAi.ts の shieldsMerchant）。省略 = まだ警告していない */
+  warnedAt?: number;
   /** 仕入れ直しをした回数（その値段が rerollStep ずつ上がる） */
   rerolls: number;
   /** false = 旅商人がまだ店を広げていない（台座を出さず、売らない）。省略 = 広げている（市・章の市・闇市） */

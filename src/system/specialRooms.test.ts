@@ -34,7 +34,7 @@ import {
   stairsTilesValid,
   startsEmptySpecial,
 } from "./specialRooms";
-import { withInput } from "./testHelpers";
+import { screenOfWorld, withInput } from "./testHelpers";
 import { withFixedLayout } from "../map/layout/select";
 
 const IDLE = withInput({});
@@ -74,6 +74,13 @@ function quietEvents(state: GameState): void {
   state.floorTime = 0;
 }
 
+/** pos に立ち、照準を pos に合わせてインタラクトを押して 1 ステップ進める（台座を使う） */
+function useAt(state: GameState, pos: Vec): void {
+  state.player.body.pos = { ...pos };
+  step(state, withInput({ interactPressed: true, aimScreen: screenOfWorld(state, pos) }), FIXED_DT);
+}
+
+/** pos に立って 1 ステップ進めるだけ（インタラクトは押さない） */
 function standAt(state: GameState, pos: Vec): void {
   state.player.body.pos = { ...pos };
   step(state, IDLE, FIXED_DT);
@@ -81,21 +88,6 @@ function standAt(state: GameState, pos: Vec): void {
 
 function stepOff(state: GameState, room: RoomState): void {
   state.player.body.pos = { x: (room.rect.x + 1.5) * TILE_SIZE, y: (room.rect.y + 1.5) * TILE_SIZE };
-  step(state, IDLE, FIXED_DT);
-}
-
-/** 台座から離れる（台座が部屋の隅に置かれた seed でも触れ続けないよう、4 隅のうち最も遠い隅へ） */
-function stepAwayFrom(state: GameState, room: RoomState, pos: Vec): void {
-  const inset = 1.5;
-  const corners: Vec[] = [
-    { x: (room.rect.x + inset) * TILE_SIZE, y: (room.rect.y + inset) * TILE_SIZE },
-    { x: (room.rect.x + room.rect.w - inset) * TILE_SIZE, y: (room.rect.y + inset) * TILE_SIZE },
-    { x: (room.rect.x + inset) * TILE_SIZE, y: (room.rect.y + room.rect.h - inset) * TILE_SIZE },
-    { x: (room.rect.x + room.rect.w - inset) * TILE_SIZE, y: (room.rect.y + room.rect.h - inset) * TILE_SIZE },
-  ];
-  const dist2 = (c: Vec): number => (c.x - pos.x) ** 2 + (c.y - pos.y) ** 2;
-  const far = corners.reduce((best, c) => (dist2(c) > dist2(best) ? c : best));
-  state.player.body.pos = { ...far };
   step(state, IDLE, FIXED_DT);
 }
 
@@ -181,7 +173,7 @@ describe("追加の部屋種類の割り当て", () => {
 });
 
 describe("台座の部屋", () => {
-  it("祭壇: 排他グループの重ならない誓約が 3 つ並び、触れるとこのランだけ誓約が付く（他の台座は消える）", () => {
+  it("祭壇: 排他グループの重ならない誓約が 3 つ並び、インタラクトで選ぶとこのランだけ誓約が付く（他の台座は消える）", () => {
     const { state, room } = roomOf("altar");
     const props = room.special?.props ?? [];
     expect(props.length).toBe(3);
@@ -191,6 +183,8 @@ describe("台座の部屋", () => {
     const pick = props[0];
     if (!pick) throw new Error("prop missing");
     standAt(state, pick.pos);
+    expect(state.runKeystones, "触れているだけでは選ばない").not.toContain(pick.key);
+    useAt(state, pick.pos);
     expect(state.runKeystones).toContain(pick.key);
     expect(state.stats.keystones, "stats に誓約が畳み込まれる").toContain(pick.key);
     expect(props.every((p) => p.used)).toBe(true);
@@ -204,7 +198,7 @@ describe("台座の部屋", () => {
     expect(new Set(props.map((p) => p.key)).size).toBe(props.length);
     const pick = props[0];
     if (!pick) throw new Error("prop missing");
-    standAt(state, pick.pos);
+    useAt(state, pick.pos);
     expect(state.skills.runes.map((r) => r.modifier), "台座の足元に符が落ちる（拾う前）").toEqual([pick.key]);
     expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
     step(state, IDLE, FIXED_DT);
@@ -216,22 +210,21 @@ describe("台座の部屋", () => {
     expect("runes" in state.skills.profile, "セーブ対象のプロフィールには持たない").toBe(false);
   });
 
-  it("賭博: 銭を払って回し、一度離れるまで再び回らない。回数を使い切ると消える", () => {
+  it("賭博: 銭を払って回し、インタラクトを押すたびに 1 回だけ回る。回数を使い切ると消える", () => {
     const { state, room } = roomOf("gamble");
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
     state.player.hp = state.player.maxHp;
     state.economy.coins = ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleUses;
-    standAt(state, lever.pos);
+    useAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses - 1);
     expect(state.economy.spent.bet, "賭けの支出").toBe(ROOM_KIND.gambleCoinCost);
     standAt(state, lever.pos);
-    expect(room.special.uses, "離れるまでは回らない").toBe(ROOM_KIND.gambleUses - 1);
+    expect(room.special.uses, "押さなければ回らない").toBe(ROOM_KIND.gambleUses - 1);
     for (let i = 1; i < ROOM_KIND.gambleUses; i++) {
-      stepOff(state, room);
       state.player.hp = state.player.maxHp;
       state.economy.coins = Math.max(state.economy.coins, ROOM_KIND.gambleCoinCost);
-      standAt(state, lever.pos);
+      useAt(state, lever.pos);
     }
     expect(room.special.uses).toBe(0);
     expect(lever.used).toBe(true);
@@ -242,7 +235,7 @@ describe("台座の部屋", () => {
     const lever = room.special?.props[0];
     if (!lever || !room.special) throw new Error("lever missing");
     state.economy.coins = ROOM_KIND.gambleCoinCost - 1;
-    standAt(state, lever.pos);
+    useAt(state, lever.pos);
     expect(room.special.uses).toBe(ROOM_KIND.gambleUses);
     expect(state.economy.coins, "持ち金は減らない").toBe(ROOM_KIND.gambleCoinCost - 1);
   });
@@ -255,7 +248,7 @@ describe("台座の部屋", () => {
       if (!lever || !room.special) throw new Error("lever missing");
       state.player.hp = state.player.maxHp;
       state.economy.coins = ROOM_KIND.gambleCoinCost;
-      standAt(state, lever.pos);
+      useAt(state, lever.pos);
       if (state.economy.earned.bet === 0) continue;
       expect(state.economy.earned.bet, "銭の当たり").toBe(ROOM_KIND.gambleCoinCost * ROOM_KIND.gambleCoinWinMul);
       return;
@@ -267,7 +260,7 @@ describe("台座の部屋", () => {
     const { state, room } = roomOf("forge");
     const anvil = room.special?.props[0];
     if (!anvil) throw new Error("anvil missing");
-    standAt(state, anvil.pos);
+    useAt(state, anvil.pos);
     expect(pendingEchoTotal(state)).toBe(ROOM_KIND.forgeEchoes);
     expect(hasStatus(state.player.status, "burn")).toBe(true);
     expect(anvil.used).toBe(true);
@@ -278,10 +271,9 @@ describe("台座の部屋", () => {
     expect(state.floorItems.length).toBe(ROOM_KIND.exchangeItems);
     const altar = room.special?.props.find((p) => p.kind === "exchange");
     if (!altar) throw new Error("altar missing");
-    // 置かれた遺物を拾ってしまわないよう、台座の位置だけに立つ（遺物は横に並んでいる）
-    state.player.body.pos = { ...altar.pos };
+    // 照準は台座の位置（置かれた遺物は横に並んでいるので注目は台座）
     const before = state.floorItems.length;
-    step(state, IDLE, FIXED_DT);
+    useAt(state, altar.pos);
     expect(state.floorItems.length).toBeLessThan(before);
     expect(pendingEchoTotal(state)).toBeGreaterThan(0);
   });
@@ -290,7 +282,7 @@ describe("台座の部屋", () => {
     const { state, room } = roomOf("curseShrine");
     const shrine = room.special?.props[0];
     if (!shrine) throw new Error("shrine missing");
-    standAt(state, shrine.pos);
+    useAt(state, shrine.pos);
     expect(state.boons.some((k) => BOONS[k].cursed)).toBe(true);
     expect(state.boonChoice).not.toBeNull();
   });
@@ -299,8 +291,7 @@ describe("台座の部屋", () => {
     const { state, room } = roomOf("watchtower");
     const bell = room.special?.props[0];
     if (!bell) throw new Error("bell missing");
-    state.player.body.pos = { ...bell.pos };
-    step(state, IDLE, FIXED_DT);
+    useAt(state, bell.pos);
     expect(state.floorTime).toBeGreaterThanOrEqual(ROOM_KIND.watchtowerReaperCost);
     const map = state.map;
     let unexplored = 0;
@@ -314,7 +305,7 @@ describe("台座の部屋", () => {
     const { state, room } = roomOf("reaperNest");
     const chest = room.special?.props[0];
     if (!chest) throw new Error("chest missing");
-    standAt(state, chest.pos);
+    useAt(state, chest.pos);
     expect(state.reaper).not.toBeNull();
     expect(state.floorItems.some((f) => f.item.itemLevel >= DEPTH + ROOM_KIND.reaperNestDepthBonus)).toBe(true);
   });
@@ -402,7 +393,7 @@ describe("戦う特別な部屋", () => {
     for (let i = 0; i < steps; i++) step(state, IDLE, FIXED_DT);
     expect(terrainAt(state, origin.x, origin.y)).toBe("lava");
     state.player.invulnTimer = 999;
-    standAt(state, chest.pos);
+    useAt(state, chest.pos);
     expect(chest.used).toBe(true);
   });
 
@@ -455,12 +446,12 @@ describe("第 2 弾の部屋", () => {
     expect(room.cleared, "台座の部屋は制圧済み").toBe(true);
     const seal = propOf(room, "seal");
     state.economy.coins = ROOM_KIND.vaultCoinCost - 1;
-    standAt(state, seal.pos);
+    useAt(state, seal.pos);
     expect(seal.used, "足りない").toBe(false);
     expect(state.floorItems.length).toBe(0);
     stepOff(state, room);
     state.economy.coins = ROOM_KIND.vaultCoinCost;
-    standAt(state, seal.pos);
+    useAt(state, seal.pos);
     expect(seal.used, "開いた").toBe(true);
     expect(state.economy.coins, "銭").toBe(0);
     expect(state.floorItems.length, "遺物").toBe(ROOM_KIND.vaultDrops);
@@ -474,7 +465,7 @@ describe("第 2 弾の部屋", () => {
     if (!first) throw new Error("属性");
     const element = first.key as keyof typeof state.stats.infuse;
     const before = state.stats.infuse[element];
-    standAt(state, first.pos);
+    useAt(state, first.pos);
     expect(state.contracts.altar?.element, "祭壇の属性").toBe(element);
     expect(state.stats.infuse[element], "通常攻撃の属性").toBeCloseTo(before + ROOM_KIND.elementAltarShare, 5);
     expect(props.every((p) => p.used), "他は消える").toBe(true);
@@ -520,12 +511,12 @@ describe("第 2 弾の部屋", () => {
     expect(state.player.mana, "気力").toBe(state.stats.maxMana);
   });
 
-  it("反転の間: 台に触れると置かれた遺物の性質が反転する", () => {
+  it("反転の間: 台を使うと置かれた遺物の性質が反転する", () => {
     let inverted = 0;
     for (const seed of [3, 5, 7]) {
       const { state, room } = roomOf("invertHall", seed);
       const inverter = propOf(room, "inverter");
-      standAt(state, inverter.pos);
+      useAt(state, inverter.pos);
       expect(inverter.used, "使った").toBe(true);
       inverted += state.floorItems.filter((f) => f.item.affixes.some((a) => a.inverted === true)).length;
     }
@@ -539,14 +530,13 @@ describe("第 2 弾の部屋", () => {
     expect(invertTrait(state, { ...item, affixes: [] })).toBeNull();
   });
 
-  it("残響の鉱脈: 触れるたびに残響が溜まり、回数で尽きる。敵が寄ってくる", () => {
+  it("残響の鉱脈: 使うたびに残響が溜まり、回数で尽きる。敵が寄ってくる", () => {
     const { state, room, index } = roomOf("normal");
     expect(addVein(state, index), "置けた").toBe(true);
     const vein = propOf(room, "vein");
     const total = (): number => Object.values(state.runEvents.pendingEchoes).reduce((s, v) => s + v, 0);
     for (let i = 0; i < RUN_EVENT.vein.uses; i++) {
-      stepAwayFrom(state, room, vein.pos);
-      standAt(state, vein.pos);
+      useAt(state, vein.pos);
     }
     expect(total(), "残響").toBe(RUN_EVENT.vein.uses * RUN_EVENT.vein.echoes);
     expect(vein.used, "尽きた").toBe(true);

@@ -7,7 +7,7 @@ import { BOON_ACTIONS, BOON_KEYS, BOONS, type BoonCard, type BoonDef, LINEAGE_KE
 
 /**
  * 系譜と札の種類（docs/ideas/boon-impl.md 2-1・3-3）。9 系譜 × 11 枚（加護 5 / 摂理 3 / 研鑽 2 / 真髄 1）、
- * 融合 12、呪い付き 6、芯 4。札ごとの効き目は src/system/boonDefs/<系譜>.test.ts
+ * 融合 12、呪い付き 6、芯 8。札ごとの効き目は src/system/boonDefs/<系譜>.test.ts
  */
 
 const ALL: readonly BoonDef[] = BOON_KEYS.map((k) => BOONS[k]);
@@ -20,7 +20,7 @@ const FUSIONS = ALL.filter((d) => d.fusion !== undefined);
 const CARDS_PER_LINEAGE: Readonly<Record<BoonCard, number>> = { grace: 5, law: 3, temper: 2, apex: 1 };
 const FUSION_COUNT = 12;
 const CURSED_COUNT = 6;
-const CORE_COUNT = 4;
+const CORE_COUNT = 8;
 
 /** 祝福の名前と重なってはいけない表示名（奥義 / 状態異常 / スキル / 改鋳。docs/GLOSSARY.md の衝突表） */
 function reservedNames(): Map<string, string> {
@@ -33,7 +33,7 @@ function reservedNames(): Map<string, string> {
 }
 
 describe("祝福の構成", () => {
-  it("系譜の札・融合・呪い付き・芯だけで 121 種", () => {
+  it("系譜の札・融合・呪い付き・芯だけで 125 種", () => {
     expect(NORMAL, "系譜の札").toHaveLength(LINEAGE_KEYS.length * 11);
     expect(FUSIONS, "融合").toHaveLength(FUSION_COUNT);
     expect(ALL.filter((d) => d.cursed), "呪い付き").toHaveLength(CURSED_COUNT);

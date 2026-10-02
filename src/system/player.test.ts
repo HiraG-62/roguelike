@@ -159,7 +159,7 @@ describe("近接命中のマナ回収", () => {
     e.maxHp = 1000;
     swing(state);
     expect(e.hp, "当たっている").toBeLessThan(1000);
-    expect(state.player.mana, "1 段目の回収量").toBeCloseTo(MANA.onMelee[0] ?? 0);
+    expect(state.player.mana, "1 段目の回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.attackGainScale);
   });
 
   it("カウンターヒットなら倍", () => {
@@ -168,7 +168,7 @@ describe("近接命中のマナ回収", () => {
     e.phase = "windup";
     e.phaseTimer = LONG_WINDUP;
     swing(state);
-    expect(state.player.mana, "カウンターの回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.onCounterMul);
+    expect(state.player.mana, "カウンターの回収量").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.onCounterMul * MANA.attackGainScale);
   });
 
   it("静寂の誓い（ks_silentVow）があると近接命中でマナが戻らない", () => {
@@ -193,7 +193,7 @@ describe("近接命中のマナ回収", () => {
     }
     swing(state);
     expect(crowd.every((e) => e.hp < 1000), "全員に当たっている").toBe(true);
-    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.meleeTargetCap);
+    expect(state.player.mana, "上限ぶんだけ回収").toBeCloseTo((MANA.onMelee[0] ?? 0) * MANA.meleeTargetCap * MANA.attackGainScale);
   });
 });
 

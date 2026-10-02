@@ -56,7 +56,7 @@ const MIN_ALONG = 2;
 
 /**
  * 闇市の立ち位置と台座（最大 n 個）。台座は扉 → 階段の通り道（横ずれ 0）と入口の 1 列を避け、扉に近い順に
- * offerSpacing タイル以上離して選ぶ（触れて 2 つ同時に買わないように）。商人は残りのうち扉から最も遠いタイル。
+ * offerSpacing タイル以上離して選ぶ（隣の品と注目が紛れないように）。商人は残りのうち扉から最も遠いタイル。
  * 置けなければ null
  */
 export function pocketStall(width: number, hr: Readonly<HiddenRoom>, n: number): { stand: Vec; offers: Vec[] } | null {

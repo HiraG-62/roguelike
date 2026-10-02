@@ -1690,7 +1690,7 @@ export function removeRunModifier(rs: SkillRunState, slot: number, modifier: Mod
   return true;
 }
 
-/** 床の刻印符の揺れ。拾得は遺物・スキル石と同じく注目 + インタラクト（system/loot.ts の updateDropInteract） */
+/** 床の刻印符の揺れ。拾得は遺物・スキル石と同じく注目 + インタラクト（system/interact.ts の updateInteract） */
 function updateRunes(state: GameState, dt: number): void {
   for (const rune of state.skills.runes) rune.bobTime += dt;
 }
@@ -1709,7 +1709,7 @@ export function pickUpRune(state: GameState, id: number): boolean {
 }
 
 function updateFloorStones(state: GameState, dt: number): void {
-  // 拾得は注目 + インタラクト（system/loot.ts の updateDropInteract）。ここは揺れの時間だけ進める
+  // 拾得は注目 + インタラクト（system/interact.ts の updateInteract）。ここは揺れの時間だけ進める
   for (const fs of state.skills.floorStones) fs.bobTime += dt;
 }
 

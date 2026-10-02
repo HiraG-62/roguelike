@@ -1,4 +1,3 @@
-import type { FrameInput } from "../core/input";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
 import { type Vec, dist, fromAngle } from "../core/vec";
 import { screenToWorld } from "../core/view";
@@ -131,7 +130,7 @@ export function dropDepthReward(state: GameState): void {
 }
 
 /**
- * 床の遺物の揺れの時間だけ進める。拾得は触れてではなく注目 + インタラクト（updateDropInteract）。
+ * 床の遺物の揺れの時間だけ進める。拾得は触れてではなく注目 + インタラクト（system/interact.ts の updateInteract）。
  * スキル石の揺れは system/skills.ts が進める
  */
 export function updateFloorItems(state: GameState, dt: number): void {
@@ -139,24 +138,25 @@ export function updateFloorItems(state: GameState, dt: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// 注目とインタラクト（memo 2026-09-24）。注目は state に持たず、描画と拾得が同じ純関数で求める
+// 注目とインタラクト（memo 2026-09-24）。注目は state に持たず、描画と拾得が同じ純関数で求める。
+// 台座も含めた注目と step の入口は system/interact.ts（ここは床の遺物・スキル石と、注目の選び方の共通部分）
 // ---------------------------------------------------------------------------
 
-/** インタラクトで拾うドロップ品の種類。ハート・刻印符などの消耗品系は触れて拾うのでここに無い */
-export type DropKind = "item" | "stone";
+/** インタラクトで拾うドロップ品の種類。ハートなどの消耗品系は触れて拾うのでここに無い */
+export type DropKind = "item" | "stone" | "rune";
 
 export type FocusedDrop =
   | { kind: "item"; id: number; pos: Vec; inReach: boolean; item: Item }
   | { kind: "stone"; id: number; pos: Vec; inReach: boolean; stone: SkillStone }
   | { kind: "rune"; id: number; pos: Vec; inReach: boolean; modifier: ModifierKey };
 
-type DropCandidate =
+export type DropCandidate =
   | { kind: "item"; id: number; pos: Vec; item: Item }
   | { kind: "stone"; id: number; pos: Vec; stone: SkillStone }
   | { kind: "rune"; id: number; pos: Vec; modifier: ModifierKey };
 
-/** 注目できる床の物（遺物 → スキル石 → 刻印符の順。同距離はこの順で先の物） */
-function dropCandidates(state: GameState): DropCandidate[] {
+/** 床の遺物 → スキル石 → 刻印符の順（各配列は落ちた順）。注目の候補の並び */
+export function dropCandidates(state: GameState): DropCandidate[] {
   const items: DropCandidate[] = state.floorItems.map((fi) => ({ kind: "item", id: fi.id, pos: fi.pos, item: fi.item }));
   const stones: DropCandidate[] = state.skills.floorStones.map((fs) => ({ kind: "stone", id: fs.id, pos: fs.pos, stone: fs.stone }));
   const runes: DropCandidate[] = state.skills.runes.map((r) => ({ kind: "rune", id: r.id, pos: r.pos, modifier: r.modifier }));
@@ -173,12 +173,15 @@ export function isInPickupReach(state: GameState, pos: Vec): boolean {
   return dist(state.player.body.pos, pos) <= PICKUP.reach;
 }
 
-function nearestTo(candidates: readonly DropCandidate[], origin: Vec, radius: number): DropCandidate | null {
-  let best: DropCandidate | null = null;
+/** 注目の候補の共通の形（位置だけ読む） */
+type Focusable = { readonly pos: Vec };
+
+function nearestTo<T extends Focusable>(candidates: readonly T[], origin: Vec, radius: number): T | null {
+  let best: T | null = null;
   let bestDist = radius;
   for (const c of candidates) {
     const d = dist(c.pos, origin);
-    // 同距離なら先の候補（遺物が先、各配列は落ちた順）。順序が決まっているので決定的
+    // 同距離なら先の候補（呼び手が並び順を決める）。順序が決まっているので決定的
     if (d > bestDist || (best !== null && d === bestDist)) continue;
     best = c;
     bestDist = d;
@@ -200,10 +203,10 @@ function distToSegment(q: Vec, a: Vec, b: Vec): number {
  * 手の届くものを、プレイヤーに近い順に注目する。パッドの照準点は画面中心から AIM_STICK_DISTANCE（reach より遠い）
  * 先にあり、スティックを倒したまま R3 を押すと手の届く範囲を注目できなかったため
  */
-function alongAim(state: GameState, candidates: readonly DropCandidate[], aimWorld: Vec): DropCandidate | null {
+function alongAim<T extends Focusable>(state: GameState, candidates: readonly T[], aimWorld: Vec): T | null {
   const p = state.player.body.pos;
   if (dist(p, aimWorld) <= PICKUP.reach) return null;
-  let best: DropCandidate | null = null;
+  let best: T | null = null;
   let bestDist = Infinity;
   for (const c of candidates) {
     if (!isInPickupReach(state, c.pos) || distToSegment(c.pos, p, aimWorld) > PICKUP.focusRadius) continue;
@@ -217,25 +220,25 @@ function alongAim(state: GameState, candidates: readonly DropCandidate[], aimWor
 }
 
 /**
- * 注目中のドロップ品。照準から PICKUP.focusRadius 以内で最も近いもの（遠くても注目はする。拾えるかは inReach）。
+ * 候補から注目するものを選ぶ。照準から PICKUP.focusRadius 以内で最も近いもの（遠くても注目はする。使えるかは呼び手が reach で見る）。
  * 照準の先に何も無く、照準が手の届く距離より遠ければ、照準への線の近くで手の届くもの（alongAim）。
- * 照準が無いとき（パッドで右スティック中立）はプレイヤーの手の届く範囲で最も近いものを注目する
+ * 照準が無いとき（パッドで右スティック中立）はプレイヤーの手の届く範囲で最も近いものを注目する。
+ * 同距離は candidates の先のもの（並び順は呼び手が決めて決定的にする）
  */
+export function pickFocus<T extends Focusable>(state: GameState, candidates: readonly T[], aimWorld: Vec | null): T | null {
+  if (aimWorld === null) return nearestTo(candidates, state.player.body.pos, PICKUP.reach);
+  return nearestTo(candidates, aimWorld, PICKUP.focusRadius) ?? alongAim(state, candidates, aimWorld);
+}
+
+/** 注目中のドロップ品（床の遺物 → スキル石 → 刻印符の順の候補から pickFocus） */
 export function focusedDrop(state: GameState, aimWorld: Vec | null): FocusedDrop | null {
-  const candidates = dropCandidates(state);
-  const hit =
-    aimWorld === null
-      ? nearestTo(candidates, state.player.body.pos, PICKUP.reach)
-      : (nearestTo(candidates, aimWorld, PICKUP.focusRadius) ?? alongAim(state, candidates, aimWorld));
+  const hit = pickFocus(state, dropCandidates(state), aimWorld);
   if (hit === null) return null;
   return { ...hit, inReach: isInPickupReach(state, hit.pos) };
 }
 
-/** step から呼ぶ: インタラクトが押されていれば注目中のドロップ品を拾う */
-export function updateDropInteract(state: GameState, input: FrameInput): void {
-  if (!input.interactPressed) return;
-  const focus = focusedDrop(state, aimWorldOf(state, input.aimScreen));
-  if (focus === null || !focus.inReach) return;
+/** 注目中のドロップ品を拾う（system/interact.ts の updateInteract から。手が届くかは呼び手が確かめる） */
+export function pickUpDrop(state: GameState, focus: FocusedDrop): void {
   if (focus.kind === "item") {
     if (pickUp(state, focus.item, focus.pos)) state.floorItems = state.floorItems.filter((fi) => fi.id !== focus.id);
     return;

@@ -13,7 +13,7 @@ import { type GameMap, TILE_SIZE, Tile, getTile, inBounds, rectCenterPx, toIndex
 import { UNREACHABLE, distanceField, lineOfSight, tileOf } from "../map/pathing";
 import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
-import { circlesOverlap, isSolidTile, overlapsWall } from "../system/physics";
+import { isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
@@ -109,11 +109,6 @@ const LOW_HP_RATIO = 0.3;
  * 飲めない間（振りの最中・ダッシュ中・クールダウン）は tryDrink が無視するので毎フレーム押してよい
  */
 const FLASK_HP_RATIO = 0.4;
-/**
- * 市の台座に触れたとみなす半径（px）。system/merchants.ts の台座の判定（契約者の台座と同じ 9）と揃える。
- * 触れた時点で買い物は済んでいる（払えず断られても台座は残るので、bot は 1 度触れたら諦めて先へ進む）
- */
-const WARE_TOUCH_RADIUS = 9;
 /** 1 つの階で市へ寄り道に使う秒の上限（届かない台座を追い続けて探索を止めない） */
 const MARKET_GIVE_UP = 30;
 /** 詰まり判定のチェック間隔（秒） */
@@ -192,7 +187,7 @@ export interface BotState {
   parryTimer: number;
   /** この階で隠し部屋の扉を追った累計秒（HIDDEN_DOOR_GIVE_UP で諦める。階が変わると 0） */
   hiddenDoorTime: number;
-  /** 触れに行った（買えた・買えなかったを問わず済ませた）市の台座。階ごとに台座は作り直されるので WeakSet で捨てられる */
+  /** インタラクトを押した（買えた・買えなかったを問わず済ませた）市の台座。払えず断られても台座は残るので 1 度で諦める。階ごとに台座は作り直されるので WeakSet で捨てられる */
   triedWares: WeakSet<Ware>;
   /** この階で市の台座を追った累計秒（MARKET_GIVE_UP で諦める。階が変わると 0） */
   marketTime: number;
@@ -1078,7 +1073,7 @@ export function shouldDrinkFlask(state: GameState): boolean {
 }
 
 /**
- * 寄って買う瓶の台座。瓶が上限未満・払える・まだ触れていない台座のうち最も近いもの。
+ * 寄って買う瓶の台座。瓶が上限未満・払える・まだ買おうとしていない台座のうち最も近いもの。
  * 死神が迫って階段を急ぐときと、寄り道の秒を使い切ったときは寄らない
  */
 function pickFlaskWare(state: GameState, bot: BotState): Ware | null {
@@ -1101,12 +1096,15 @@ function pickFlaskWare(state: GameState, bot: BotState): Ware | null {
   return best;
 }
 
-/** 台座へ経路で歩く。触れたら（買い物は step の中で済む）その台座は済ませたことにして探索へ戻る */
+/**
+ * 台座へ経路で歩く。手の届く距離に入ったら照準を台座に合わせてインタラクトを 1 回押し（買い物は step の中で済む）、
+ * その台座は済ませたことにして探索へ戻る
+ */
 function marketInput(state: GameState, bot: BotState, ware: Ware, dt: number): FrameInput {
   const body = state.player.body;
-  if (circlesOverlap(ware.pos.x, ware.pos.y, WARE_TOUCH_RADIUS, body.pos.x, body.pos.y, body.radius)) {
+  if (isInPickupReach(state, ware.pos)) {
     bot.triedWares.add(ware);
-    return freshInput();
+    return { ...freshInput(), aimScreen: worldToScreen(state, ware.pos), interactPressed: true };
   }
   ensurePath(state, bot, ware.pos);
   const waypoint = currentWaypoint(bot, body.pos) ?? ware.pos;
@@ -1133,6 +1131,8 @@ function reachableDrop(state: GameState, bot: BotState): { id: number; pos: Vec 
  * 寄り道はせず通り道で拾う）。1 つにつき 1 回だけ押す
  */
 function withDropPickup(state: GameState, bot: BotState, input: FrameInput): FrameInput {
+  // 台座を買うインタラクトを押すフレームは照準を奪わない
+  if (input.interactPressed) return input;
   const target = reachableDrop(state, bot);
   if (target === null) return input;
   bot.triedDropIds.add(target.id);

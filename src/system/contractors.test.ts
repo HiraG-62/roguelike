@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGame } from "../core/game";
+import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
 import { BOSS, CONTRACT, ECONOMY, ROOM_KIND } from "../data/tuning";
@@ -22,6 +22,7 @@ import {
   updateContractors,
 } from "./contractors";
 import { buildFloor, descend } from "./floor";
+import { interactAt, screenOfWorld, withInput } from "./testHelpers";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isBossDepth } from "./boss";
 import { applyBoonsToStats } from "./boons";
@@ -59,14 +60,13 @@ function offerOf(state: GameState, kind: ContractOffer["kind"], key?: string): C
   return offer;
 }
 
-/** 台座から離れて（台座が再び使えるようになってから）触れる */
+/** 台座から離れた所で 1 ステップ進めて（賭けの台座の額を更新して）から、台座に照準を合わせてインタラクトで使う */
 function touch(state: GameState, offer: ContractOffer): void {
   const who = state.contracts.contractor;
   if (!who) throw new Error("契約者がいない");
   state.player.body.pos = { x: who.pos.x, y: who.pos.y - CONTRACT.standOffset * 16 };
   updateContractors(state, DT);
-  state.player.body.pos = { ...offer.pos };
-  updateContractors(state, DT);
+  interactAt(state, offer.pos);
 }
 
 describe("契約者: 定義", () => {
@@ -126,13 +126,14 @@ describe("契約者: 出現", () => {
     expect(JSON.stringify(a.contracts.contractor), "同じ契約者").toBe(JSON.stringify(b.contracts.contractor));
   });
 
-  it("立った直後は触れていても台座が動かない（出現直後の誤爆を防ぐ）", () => {
+  it("台座に触れているだけでは使わない（照準を合わせてインタラクトで使う）", () => {
     const state = withContractor("peddler");
     state.economy.coins = 99;
     const offer = offerOf(state, "buyItem");
     state.player.body.pos = { ...offer.pos };
     updateContractors(state, DT);
-    expect(offer.used, "出現直後").toBe(false);
+    step(state, withInput({ aimScreen: screenOfWorld(state, offer.pos) }), DT);
+    expect(offer.used, "触れているだけ").toBe(false);
     expect(state.economy.coins, "銭は減らない").toBe(99);
   });
 

@@ -4,7 +4,7 @@ import type { GameState } from "../core/state";
 import { MANA } from "../data/tuning";
 import { SKILL_DEFS } from "../skills/data";
 import { descend } from "./floor";
-import { canAfford, descendMana, gainAttackMana, gainMana, refillMana, spendMana, tickMana } from "./mana";
+import { canAfford, descendMana, gainAttackMana, gainMana, gainWeaponMana, refillMana, spendMana, tickMana } from "./mana";
 import { placeEnemy } from "./testHelpers";
 
 const FLOAT_DIGITS = 9;
@@ -183,5 +183,13 @@ describe("通常攻撃の回収上限", () => {
     expect(gainAttackMana(state, 1, 24), "24 倍でも上限の倍率").toBeCloseTo(MANA.attackGainMulMax, FLOAT_DIGITS);
     state.player.mana = 0;
     expect(gainAttackMana(state, 1, 2), "上限未満はそのまま").toBeCloseTo(2, FLOAT_DIGITS);
+  });
+  it("武器そのものの回収は素の倍率 MANA.attackGainScale で絞る（1 未満。流儀の源は絞らない）", () => {
+    const state = freshState();
+    expect(MANA.attackGainScale, "序盤の連発を抑える").toBeLessThan(1);
+    state.player.mana = 0;
+    expect(gainWeaponMana(state, 4, 1)).toBeCloseTo(4 * MANA.attackGainScale, FLOAT_DIGITS);
+    state.player.mana = 0;
+    expect(gainAttackMana(state, 4, 1), "源の口は絞らない").toBeCloseTo(4, FLOAT_DIGITS);
   });
 });

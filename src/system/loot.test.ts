@@ -22,9 +22,9 @@ import {
   enemyDropChance,
   focusedDrop,
   roomClearDropChance,
-  updateDropInteract,
   updateFloorItems,
 } from "./loot";
+import { updateInteract } from "./interact";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { enemyDef } from "../data/enemies";
 import { ROAMING_ROOM } from "./spawner";
@@ -63,7 +63,7 @@ function placeItem(state: GameState, dx: number, dy = 0): { id: number; item: It
 }
 
 function interactAt(state: GameState, world: Vec | null): void {
-  updateDropInteract(state, withInput({ interactPressed: true, aimScreen: world === null ? null : screenOf(state, world) }));
+  updateInteract(state, withInput({ interactPressed: true, aimScreen: world === null ? null : screenOf(state, world) }));
 }
 
 describe("装備ドロップと拾得", () => {
@@ -96,7 +96,7 @@ describe("装備ドロップと拾得", () => {
   it("インタラクトを押していなければ注目していても拾わない", () => {
     const state = arena();
     const { pos } = placeItem(state, 20);
-    updateDropInteract(state, withInput({ aimScreen: screenOf(state, pos) }));
+    updateInteract(state, withInput({ aimScreen: screenOf(state, pos) }));
     expect(state.floorItems).toHaveLength(1);
   });
 

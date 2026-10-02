@@ -32,9 +32,9 @@ const art = { real: false };
 vi.mock("./townArt", () => ({
   townObjectPixels: (_kind: TownObjectKind) =>
     art.real ? { w: 4, h: 6, anchor: { x: 2, y: 6 }, pixels: new Uint32Array(24).fill(0xff0000ff) } : { w: 1, h: 1, anchor: { x: 0, y: 0 }, pixels: new Uint32Array(1) },
-  // 灯の点の差し替え: 鳥居は石段の奥 1、建った鍛冶屋は提灯 2、建った蔵は窓 5、灯籠は火袋 1、ほかは無し
+  // 灯の点の差し替え: 鳥居の石段は奥 1、建った鍛冶屋は提灯 2、建った蔵は窓 5、灯籠は火袋 1、ほかは無し
   townObjectGlows: (kind: TownObjectKind) => {
-    if (kind.type === "torii") return [{ x: 2, y: 3, kind: "gate" }];
+    if (kind.type === "toriiSteps") return [{ x: 2, y: 3, kind: "gate" }];
     if (kind.type === "lantern") return [{ x: 2, y: 2, kind: "lantern" }];
     if (kind.type !== "lot" || !kind.built) return [];
     if (kind.lot === "forge") return [{ x: 1, y: 2, kind: "lantern" }, { x: 3, y: 2, kind: "lantern" }];
@@ -140,6 +140,19 @@ describe("buildTownPlacements（描く物の配置）", () => {
     }
     expect(list.find((p) => p.id === "lot:well")?.kind.type, "井戸は well の絵").toBe("well");
     expect(list.filter((p) => p.kind.type === "torii").length, "鳥居").toBe(1);
+  });
+
+  it("鳥居の石段は地面の物で、石段の上に立つプレイヤーより常に奥に描き、柱より先に描く", () => {
+    const list = buildTownPlacements(layout, look());
+    const steps = list.find((p) => p.kind.type === "toriiSteps");
+    const torii = list.find((p) => p.kind.type === "torii");
+    if (!steps || !torii) throw new Error("鳥居の配置が無い");
+    expect(steps.flat, "石段は地面の物").toBe(true);
+    expect(torii.flat, "柱は立つ物").toBe(false);
+    const onStairsFeetY = steps.footY - T;
+    expect(isBehindPlayer(steps, onStairsFeetY), "石段の上でも体は隠れない").toBe(true);
+    expect(isBehindPlayer(torii, onStairsFeetY), "柱と笠木は手前").toBe(false);
+    expect(list.indexOf(steps), "石段が先").toBeLessThan(list.indexOf(torii));
   });
 
   it("建っているかは設備の対応（FACILITY_OF_LOT）で決まり、絵の鍵が分かれる", () => {
@@ -284,7 +297,7 @@ describe("buildTownGlows（発光）", () => {
 
   it("灯は絵が返す灯の点から。建っていない建物・井戸は光らず、何も無ければ石段の奥の灯だけ", () => {
     const base = buildTownGlows(layout, look());
-    expect(base.length, "鳥居の灯の点の数").toBe(glowsOf({ type: "torii" }));
+    expect(base.length, "鳥居の石段の灯の点の数").toBe(glowsOf({ type: "toriiSteps" }));
     const forge = buildTownGlows(layout, look({ built: new Set<FacilityKey>(["forge"]) }));
     expect(forge.length - base.length, "鍛冶屋の絵の灯の点の数").toBe(glowsOf({ type: "lot", lot: "forge", built: true }));
     expect(glowsOf({ type: "lot", lot: "forge", built: true }), "鍛冶屋には灯がある").toBeGreaterThan(0);

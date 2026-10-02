@@ -116,7 +116,6 @@ function tryOpen(state: GameState, m: Merchant, e: Enemy): boolean {
   if (!spots) return false;
   m.wares.forEach((w, i) => {
     w.pos = spots[i] ?? { ...e.body.pos };
-    w.armed = false;
   });
   m.pos = { ...e.body.pos };
   m.open = true;
