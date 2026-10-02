@@ -99,9 +99,10 @@ export function handKeywordChoices(state: Readonly<GameState>): (Keyword | null)
   return [null, ...KEYWORDS.filter((k) => present.has(k))];
 }
 
+/** 次の値。null（絞らない）も値の 1 つなので、`??` で current へ逃がさず添字の範囲で判定する */
 function nextOf<T>(list: readonly T[], current: T): T {
-  const at = list.indexOf(current);
-  return list[(at + 1) % list.length] ?? current;
+  const next = (list.indexOf(current) + 1) % list.length;
+  return next < list.length ? (list[next] as T) : current;
 }
 
 /** 札を 1 つ送った次の設定 */
