@@ -11,3 +11,6 @@ docs/example/
 # ドット絵の作業ファイル（.aseprite / 確認用 PNG）。真実は src/data/sprites*.ts で、npm run sprite で作り直せる
 art/
 .claude/worktrees/
+
+# 装備パターンの行列の全ランの記録（npm run qa:gear。集計は src/qa/gear.md / gear.json）
+src/qa/gear.runs.json
