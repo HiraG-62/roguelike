@@ -3,15 +3,17 @@ import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { ECONOMY } from "../data/tuning";
 import { TILE_SIZE, Tile, getTile, isWalkable, toIndex } from "../map/grid";
+import { byChapter } from "./chapters";
 import { chapterScale, dropFlask, placeCoin } from "./economy";
 import { spawnBurst } from "./effects";
 import { createEnemy } from "./enemies";
 import { overlapsWall } from "./physics";
+import { roomHooks } from "./specialRooms";
 
 /**
  * 壺・木箱（docs/ideas/economy-impl.md 2-7）。
  * - 体は Enemy（data/enemies.ts の pot / crate。生命 1、動かず、気付かず、攻撃しない。roomIndex = ROAMING_ROOM なので部屋の制圧・陣に数えない）
- * - 割れると少しの銭と、まれに床の瓶が出る。撃破数・得点・コンボ・来歴・ドロップ抽選には数えない（combat.ts の killEnemy が containerBroken へ渡す）
+ * - 割れると少しの銭と、ときどきハート（章が進むほど絞る）、まれに床の瓶が出る。撃破数・得点・コンボ・来歴・ドロップ抽選には数えない（combat.ts の killEnemy が containerBroken へ渡す）
  * - 置くのは buildFloor の最後（塊の隅と通路の行き止まり。それより前の乱数消費を動かさない）
  */
 
@@ -40,8 +42,9 @@ const DEAD_END_WALLS = 3;
 // -----------------------------------------------------------------------------
 
 /**
- * 割れた壺・木箱の後始末（killEnemy の頭から）。破片と、銭（乱数 1 回）・瓶（乱数 1 回）。
- * 出る乱数は額が 0 でも瓶が出なくても引く（消費数を一定にして、後の抽選を揺らさない）
+ * 割れた壺・木箱の後始末（killEnemy の頭から）。破片と、銭（乱数 1 回）・瓶（乱数 1 回）・ハート（乱数 1 回）。
+ * 出る乱数は額が 0 でも瓶・ハートが出なくても引く（消費数を一定にして、後の抽選を揺らさない）。
+ * 壺・木箱は階ごとに数が決まっているので、割り尽くせばそれ以上は回復が増えない（序盤の回復の足し）
  */
 export function containerBroken(state: GameState, enemy: Enemy): void {
   const def = enemyDef(enemy.defKey);
@@ -51,12 +54,15 @@ export function containerBroken(state: GameState, enemy: Enemy): void {
   if (state.sandbox === true) return;
   const base = state.rng.int(c.coinsMin, c.coinsMax);
   const flask = state.rng.chance(c.flaskChance);
+  const heart = state.rng.chance(byChapter(c.heartChanceByChapter, state.depth));
   const value = Math.round(base * chapterScale(state.depth));
   if (value > 0) {
     state.economy.dropped += value;
     placeCoin(state, enemy.body.pos, value, ECONOMY.coin.scatterSpeed, "container");
   }
   if (flask) dropFlask(state, enemy.body.pos);
+  // ハートの可否（祝福の禁止・涸れた泉）は roomHooks.dropHeart（floor.ts）が見る
+  if (heart) roomHooks.dropHeart(state, enemy.body.pos);
 }
 
 // -----------------------------------------------------------------------------
