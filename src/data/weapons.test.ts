@@ -634,13 +634,9 @@ describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
     fan: "1.0 → 軽の上限 0.8（暫定で軽。段取り 5 で見直す）",
     chainSickle: "0.6 → 中の上限 0.5",
     trapper: "0.7 → 中の上限 0.5",
-    greatsword: "0.2 → 重は止まる（0）",
-    hammer: "0.2 → 重は止まる（0）",
-    cleaver: "0.25 → 重は止まる（0）",
-    axe: "0.3 → 重は止まる（0）",
-    shield: "0.45 → 重は止まる（0）",
-    longarm: "0.5 → 重は止まる（0）",
-    cannon: "0.4 → 重は止まる（0）",
+    shield: "0.45 → 重の上限 0.3",
+    longarm: "0.5 → 重の上限 0.3",
+    cannon: "0.4 → 重の上限 0.3",
   };
 
   it("全武器種が WEAPON_WEIGHTS のどれかの weight を持つ", () => {
@@ -663,8 +659,16 @@ describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
     expect(light.lockActive, "軽は持続中も切れる").toBe(false);
     expect(medium.lockActive && heavy.lockActive, "中・重は持続中は切れない").toBe(true);
     expect(heavy.lockRecoverRatio, "重は硬直の前半も切れない").toBeGreaterThan(medium.lockRecoverRatio);
-    expect(heavy.moveMulMax, "重は止まる").toBeLessThanOrEqual(medium.moveMulMin);
+    expect(heavy.moveMulMax, "重がいちばん遅い").toBeLessThanOrEqual(medium.moveMulMin);
     expect(medium.moveMulMax).toBeLessThanOrEqual(light.moveMulMax);
+  });
+
+  it("攻撃中・終撃でも足は完全には止まらない（遅くはしても 0 にしない）", () => {
+    for (const w of WEAPON_WEIGHTS) {
+      const c = WEAPON.weightClass[w];
+      expect(c.moveMulMin, `${w} の帯の下限`).toBeGreaterThan(0);
+      expect(c.finisherMoveMul === -1 || c.finisherMoveMul > 0, `${w} の終撃の足`).toBe(true);
+    }
   });
 
   it("attackMoveMul が重さの帯の外の武器種は EXPECTED_CLAMP に理由付きで載っている（帯の中なら載せない）", () => {

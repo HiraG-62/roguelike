@@ -1,9 +1,9 @@
 {
-  "_note": "武器の重さ別の係数（data/weapons.ts の MovesetDef.weight。docs/ideas/combat-core-impl.md 2-5）。重い武器は振りの間止まり、ダッシュで取り消せない。軽い武器は動きながら振れ、いつでもダッシュで切れる。damageMul / poiseMul は重さの補償の口で、初期は 1（balance-tuner が動かす）。finisherKnockbackMul / finisherGuardBreak / hitstopFinisher は重さの補償の副次の効果（docs/ideas/weapon-forms-impl.md 3-5 の初期値。hitstopFinisher は今の FEEL.hitstopFinisher と同じ 9 から）。重の damageMul 1 → 1.1・poiseMul 1 → 1.5（5b-H、2026-09-30）: 重は振りの間止まりダッシュで切れないぶん、当てた一撃で敵の手を止める（怯み）方へ寄せ、威力は小さく足す。qa:probe --weapons（bot 連打+ダッシュ、slime / knight、深度 1 / 5、seed 9 本、比は変更前の中央値に対して）で撃破秒 / 被弾の比: 戦鎚 1.13 / 1.33 → 0.85 / 1.02、大剣 0.90 / 0.95 → 0.80 / 0.78、大鉈 1.09 / 1.02 → 1.05 / 1.06、大盾 1.75 / 1.20 → 1.65 / 1.18。poiseMul を 1 に戻すと戦鎚の被弾の比が 1.35 に戻る（安全は怯みが担う）。damageMul を 1.2 以上にすると大剣が 0.75 まで速くなるので 1.1 に留める。大盾の遅さは bot が構えを使わないためで、段の威力を上げれば直る（左の scaling.base 3 → 4.8・4 段目 6 → 9 で 1.19）が data/scalingVariety.test.ts の PINNED が段の基礎値を固定しているので未適用。斧（0.49）は終撃の出血が騎士の盾を抜ける相性で、重さの係数では直さない",
+  "_note": "武器の重さ別の係数（data/weapons.ts の MovesetDef.weight。docs/ideas/combat-core-impl.md 2-5）。重い武器は振りの間の足がとても遅く、ダッシュで取り消せない。軽い武器は動きながら振れ、いつでもダッシュで切れる。damageMul / poiseMul は重さの補償の口で、初期は 1（balance-tuner が動かす）。finisherKnockbackMul / finisherGuardBreak / hitstopFinisher は重さの補償の副次の効果（docs/ideas/weapon-forms-impl.md 3-5 の初期値。hitstopFinisher は今の FEEL.hitstopFinisher と同じ 9 から）。重の damageMul 1 → 1.1・poiseMul 1 → 1.5（5b-H、2026-09-30）: 重は振りの間の足が遅くダッシュで切れないぶん、当てた一撃で敵の手を止める（怯み）方へ寄せ、威力は小さく足す。qa:probe --weapons（bot 連打+ダッシュ、slime / knight、深度 1 / 5、seed 9 本、比は変更前の中央値に対して）で撃破秒 / 被弾の比: 戦鎚 1.13 / 1.33 → 0.85 / 1.02、大剣 0.90 / 0.95 → 0.80 / 0.78、大鉈 1.09 / 1.02 → 1.05 / 1.06、大盾 1.75 / 1.20 → 1.65 / 1.18。poiseMul を 1 に戻すと戦鎚の被弾の比が 1.35 に戻る（安全は怯みが担う）。damageMul を 1.2 以上にすると大剣が 0.75 まで速くなるので 1.1 に留める。大盾の遅さは bot が構えを使わないためで、段の威力を上げれば直る（左の scaling.base 3 → 4.8・4 段目 6 → 9 で 1.19）が data/scalingVariety.test.ts の PINNED が段の基礎値を固定しているので未適用。斧（0.49）は終撃の出血が騎士の盾を抜ける相性で、重さの係数では直さない。攻撃中に足が完全に止まるのはやめた（2026-10-02 ユーザーの指示「難易度よりストレスが大きい」）: 重の帯 0〜0 → 0.2〜0.3・終撃の足 中 0 → 0.2 / 重 0 → 0.15。遅くはしても 0 にはしない（data/weapons.test.ts が検査）",
   "_fields": {
-    "moveMulMin": "攻撃中の移動倍率の下限。武器種の attackMoveMul をこの帯 [Min, Max] に丸める（1 = 等倍）",
+    "moveMulMin": "攻撃中の移動倍率の下限。武器種の attackMoveMul をこの帯 [Min, Max] に丸める（1 = 等倍。0 にはしない）",
     "moveMulMax": "攻撃中の移動倍率の上限（1 = 等倍）",
-    "finisherMoveMul": "終撃（最終段・フィニッシュ派生）の移動倍率。-1 は段と同じ（足を止めない）。0 で止まる",
+    "finisherMoveMul": "終撃（最終段・フィニッシュ派生）の移動倍率。-1 は段と同じ。遅くはしても 0（足が止まる）にはしない",
     "lockActive": "持続（active）中もダッシュで取り消せない（真偽）。発生（windup）は全重さで取り消せない",
     "lockRecoverRatio": "硬直（recover）の最初のこの割合はダッシュで取り消せない。割合（0..1）。0 で硬直は最初から切れる",
     "recoverMul": "硬直の倍率（1 = 等倍）",
@@ -15,6 +15,6 @@
     "hitstopFinisher": "終撃の命中のヒットストップの底上げ（ステップ。60Hz）。FEEL.hitstopFinisher を重さで上書きする"
   },
   "light": { "moveMulMin": 0.6, "moveMulMax": 0.8, "finisherMoveMul": -1, "lockActive": false, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 0, "finisherKnockbackMul": 1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
-  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1, "finisherKnockbackMul": 1.1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
-  "heavy": { "moveMulMin": 0, "moveMulMax": 0, "finisherMoveMul": 0, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1.1, "poiseMul": 1.5, "hitstop": 2, "finisherKnockbackMul": 1.4, "finisherGuardBreak": true, "hitstopFinisher": 9 }
+  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0.2, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1, "finisherKnockbackMul": 1.1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
+  "heavy": { "moveMulMin": 0.2, "moveMulMax": 0.3, "finisherMoveMul": 0.15, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1.1, "poiseMul": 1.5, "hitstop": 2, "finisherKnockbackMul": 1.4, "finisherGuardBreak": true, "hitstopFinisher": 9 }
 }
