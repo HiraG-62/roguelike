@@ -5,6 +5,7 @@ import { JIN } from "../data/tuning";
 import { eliteDisplayName, gradedName } from "../system/elites";
 import { engagedRoomIndex } from "../system/engagement";
 import { TEXT, drawTextShadow, textLineHeight, textWidth, truncateText } from "./pixelText";
+import { drawHonjinBanner } from "./jinzuUi";
 import { type HudRect, clamp01 } from "./renderMath";
 
 /**
@@ -37,10 +38,13 @@ export function jinMoraleRatio(jin: Pick<Jin, "morale" | "moraleMax">): number {
   return clamp01(jin.morale / jin.moraleMax);
 }
 
-/** 陣の名札の見出し（「魚鱗の陣」） */
-export function jinHudTitle(jin: Pick<Jin, "formation">): string {
-  return `${FORMATION_LABEL[jin.formation]}の陣`;
+/** 陣の名札の見出し（「魚鱗の陣」。本陣は「鶴翼の本陣」。素の陣と山を遠目で分ける唯一の文字） */
+export function jinHudTitle(jin: Pick<Jin, "formation" | "honjin">): string {
+  return `${FORMATION_LABEL[jin.formation]}の${jin.honjin ? HONJIN_LABEL : "陣"}`;
 }
+
+/** 本陣の呼び名（docs/GLOSSARY.md） */
+const HONJIN_LABEL = "本陣";
 
 /** ボスバーが出ている（ボスがいて部屋が封鎖中）か。renderer.ts の drawBossHud と同じ条件 */
 function bossBarShown(state: GameState): boolean {
@@ -148,6 +152,11 @@ export function drawJinHud(ctx: CanvasRenderingContext2D, state: GameState): voi
  */
 export function drawLeaderMark(ctx: CanvasRenderingContext2D, state: GameState, e: Enemy, cx: number, top: number): void {
   if (!isJinLeader(state, e)) return;
+  // 本陣の大将は、素の陣の三角より大きな馬印（竿 + 旗。仮の絵）を頭の上に立てる
+  if (state.jins.some((j) => j.leaderId === e.id && j.honjin === true)) {
+    drawHonjinBanner(ctx, Math.round(cx), Math.round(top - LEADER_MARK_BARE_RISE));
+    return;
+  }
   const named = e.elite !== undefined || e.grade === "strong";
   const nameW = named ? textWidth(eliteDisplayName(e), TEXT.SMALL) : 0;
   const x = Math.round(named ? cx - nameW / 2 - LEADER_MARK_GAP - LEADER_MARK_H / 2 : cx - LEADER_MARK_H / 2);

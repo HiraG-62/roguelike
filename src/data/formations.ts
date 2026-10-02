@@ -50,6 +50,50 @@ export interface FormationLeader {
   lairChance: number;
 }
 
+/** 陣図の画の形（map/jinzuShape.ts）。hook = 的を回り込んで背後で閉じる鉤 / flank = 的の脇を真っすぐ抜ける / thrust = 的を貫く突き / volley = 射手の射線（走らず撃つ） */
+export const JINZU_PATH_KINDS = ["hook", "flank", "thrust", "volley"] as const;
+export type JinzuPathKind = (typeof JINZU_PATH_KINDS)[number];
+
+/** 画の隊の選び方（system/jinzuSquads.ts。大将から的への向きで左右・前後を決める） */
+export const JINZU_SQUAD_KEYS = [
+  "outerLeft",
+  "outerRight",
+  "innerLeft",
+  "innerRight",
+  "center",
+  "front",
+  "midLeft",
+  "midRight",
+  "backLeft",
+  "backRight",
+  "head",
+  "tail",
+] as const;
+export type JinzuSquadKey = (typeof JINZU_SQUAD_KEYS)[number];
+
+/** 本陣の大将の座（陣の向きに対する位置に最も近いメンバー 1 人を格上げする） */
+export const JINZU_LEADER_SEATS = ["rear", "front", "center"] as const;
+export type JinzuLeaderSeat = (typeof JINZU_LEADER_SEATS)[number];
+
+/** 陣図の画 1 本の定義 */
+export interface FormationJinzuStroke {
+  squad: JinzuSquadKey;
+  path: JinzuPathKind;
+  /** 的の脇を通る間合い。px。左の隊は左へ、右の隊は右へ（隊の名に左右が無ければ符号つきでそのまま） */
+  pass: number;
+  /** 的を越えて走る長さ。px */
+  beyond: number;
+}
+
+/** 陣形の陣図（本陣になったときだけ使う。省略した陣形は本陣になれない） */
+export interface FormationJinzu {
+  leaderSeat: JinzuLeaderSeat;
+  /** 1 画の下絵の秒。省略は JINZU.strokeSec */
+  strokeSec?: number;
+  /** 筆順（最大 JINZU.maxStrokes） */
+  strokes: readonly FormationJinzuStroke[];
+}
+
 /** 列の入れ替え（衡軛）。system/jinFormations.ts が読む */
 export interface FormationRotate {
   /** 入れ替わって下がる側の次の攻撃までの間（攻撃間隔に掛ける） */
@@ -71,6 +115,8 @@ export interface FormationDef {
   cooldownStagger?: number;
   /** 前列と後列の入れ替え（衡軛）。省略は入れ替えない */
   rotate?: FormationRotate;
+  /** 本陣になったときの陣図。無ければこの陣形は本陣にならない */
+  jinzu?: FormationJinzu;
   /** 正面から置く順（大将がいれば大将の次から） */
   slots: readonly FormationSlot[];
 }
@@ -124,6 +170,29 @@ function rotateOf(v: unknown, where: string): FormationRotate {
   return { restMul: num(v, "restMul", where), stepInCooldown: num(v, "stepInCooldown", where) };
 }
 
+function jinzuStrokeOf(v: unknown, where: string): FormationJinzuStroke {
+  if (!isRaw(v)) fail(where, "stroke は { squad, path, pass, beyond } の形");
+  return {
+    squad: oneOf(JINZU_SQUAD_KEYS, v.squad, "squad", where),
+    path: oneOf(JINZU_PATH_KINDS, v.path, "path", where),
+    pass: num(v, "pass", where),
+    beyond: num(v, "beyond", where),
+  };
+}
+
+function jinzuOf(v: unknown, where: string): FormationJinzu {
+  if (!isRaw(v)) fail(where, "jinzu は { leaderSeat, strokes } の形");
+  const strokes = v.strokes;
+  if (!Array.isArray(strokes) || strokes.length === 0) fail(where, "strokes は空でない配列");
+  const strokeSec = v.strokeSec;
+  if (strokeSec !== undefined && typeof strokeSec !== "number") fail(where, "strokeSec は数値");
+  const jinzu: FormationJinzu = {
+    leaderSeat: oneOf(JINZU_LEADER_SEATS, v.leaderSeat, "leaderSeat", where),
+    strokes: strokes.map((st, i) => jinzuStrokeOf(st, `${where}.strokes[${i}]`)),
+  };
+  return strokeSec === undefined ? jinzu : { ...jinzu, strokeSec };
+}
+
 function defOf(key: string, v: unknown): FormationDef {
   const where = key;
   const formationKey = oneOf(FORMATION_KEYS, key, "key", where);
@@ -143,6 +212,7 @@ function defOf(key: string, v: unknown): FormationDef {
     ...(v.leader === undefined ? {} : { leader: leaderOf(v.leader, `${where}.leader`) }),
     ...(v.cooldownStagger === undefined ? {} : { cooldownStagger: num(v, "cooldownStagger", where) }),
     ...(v.rotate === undefined ? {} : { rotate: rotateOf(v.rotate, `${where}.rotate`) }),
+    ...(v.jinzu === undefined ? {} : { jinzu: jinzuOf(v.jinzu, `${where}.jinzu`) }),
   };
 }
 

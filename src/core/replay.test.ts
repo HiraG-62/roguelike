@@ -33,6 +33,7 @@ import { attachRune, moveRunModifier, removeRunModifier } from "../system/skills
 import { computeStats } from "../loot/stats";
 import { applyStats } from "../system/player";
 import { descend } from "../system/floor";
+import { HONJIN } from "../data/tuning";
 import type { GameState } from "./state";
 import type { RunSetup } from "../system/runSetup";
 import { type RunMetaSetup, emptyRunMeta, isEmptyRunMeta } from "../system/runMeta";
@@ -444,6 +445,22 @@ describe("記録 → 再生", () => {
     const replayed = playBack(data);
     expect(fingerprint(replayed)).toBe(fingerprint(state));
     expect(replayed.nemesis?.enemyId, "同じ仇").toBe(state.nemesis?.enemyId);
+  });
+
+  it("本陣のある階（試し陣）の記録が再生で一致する（陣図は乱数を引かず、状態は入力と seed だけで決まる）", () => {
+    const backup = HONJIN.trial.depth;
+    (HONJIN.trial as { depth: number }).depth = 4;
+    try {
+      const setup: RunSetup = { origin: "wanderer", modifiers: [], startDepth: 4 };
+      const { data, state } = recordRun("honjin-replay", createEmptyProfile(), randomInputs(31, 2400), undefined, setup);
+      expect(createReplaySession(data).state.jins.some((j) => j.honjin), "再生側にも本陣が立つ").toBe(true);
+      const replayed = playBack(data);
+      expect(fingerprint(replayed), "本陣のある階でも再生が一致する").toBe(fingerprint(state));
+      const phases = (g: GameState): string => g.jins.map((j) => `${j.id}:${j.jinzu?.phase ?? "-"}:${j.jinzu?.surges ?? 0}:${Math.round(j.morale * 100)}`).join(",");
+      expect(phases(replayed), "陣図の段・回数・群勢も一致する").toBe(phases(state));
+    } finally {
+      (HONJIN.trial as { depth: number }).depth = backup;
+    }
   });
 
   it("runMeta の無い旧記録は空として再生でき、空の runMeta は書かない", () => {

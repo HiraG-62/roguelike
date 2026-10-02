@@ -18,6 +18,7 @@ import { onRunEnemySpawned } from "./runEvents";
 import { canRoam, corridorTileList, pickRoamTarget } from "./spawner";
 import { ringLookoutBell } from "./noise";
 import { initJinMorale, updateJins, wakeJin as wakeJinMembers } from "./jin";
+import { isTrialDepth, planHonjin, trialRoomOf } from "./jinzu";
 
 /**
  * 陣の配り（docs/ideas/jin-impl.md 2-5・2-6・2-9）。部屋を置き換えず、封鎖しない通常の塊の上に陣を乗せる。
@@ -60,11 +61,14 @@ type AreaTest = (tile: number) => boolean;
 export function planJins(state: GameState, skip: ReadonlySet<number>): void {
   const rooms = jinCandidateRooms(state, skip);
   const means = roomBudgetMeans(state, rooms);
+  // 試し陣（HONJIN.trial。本番は無効）: 抽選の乱数は引いたまま、この塊の陣形だけを鶴翼にする
+  const trialRoom = isTrialDepth(state.depth) ? trialRoomOf(rooms) : undefined;
   rooms.forEach((index, k) => {
     const room = state.rooms[index];
     if (!room) return;
     const budget = jinBudget(state, index, means[k]);
-    const formation = pickFormation(state);
+    const picked = pickFormation(state);
+    const formation = index === trialRoom ? (formationDef("craneWing") ?? picked) : picked;
     if (!formation) return;
     const center = rectCenterPx(room.rect);
     spawnJin(state, index, formation, budget, center, roomFacing(state, index), roomArea(state, room), () => true);
@@ -73,6 +77,8 @@ export function planJins(state: GameState, skip: ReadonlySet<number>): void {
   const corridor = corridorTileList(state);
   placeColumns(state, corridor);
   placeLookouts(state, corridor);
+  // 本陣は置き終えた陣から乱数を引かずに選ぶ（後ろの乱数の順を変えない。system/jinzu.ts）
+  planHonjin(state);
 }
 
 /** 陣を起こす（気付いた者の近くだけ起こし、残りは後詰。本体は jin.ts） */

@@ -2,7 +2,7 @@ import { type Enemy, type EnemyAi, type GameState, allocId, pushSfx } from "../c
 import { enemyTarget, pushEvent } from "../core/events";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage, depthHpScale, enemyDef } from "../data/enemies";
-import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, BOSS, ELITE, ENEMY_AI, ENEMY_TEMPO, FEEL, JIN, JINZU, POISE, REACTION, ROAM, TELEGRAPH } from "../data/tuning";
 import { type PlayerHitResult, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { shake, spawnBurst } from "./effects";
 import { cameraKick } from "./camera";
@@ -19,6 +19,8 @@ import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
 import { jinBonusMul, stepRout } from "./jin";
+import { freshStrokeCount, jinzuHoldsAttack, surgeStrikerSlot, updateJinzu } from "./jinzu";
+import { stepJinzuMember } from "./jinzuRun";
 import { wakeByNoise } from "./noise";
 import { TILE_SIZE } from "../map/grid";
 import { chaseHeading, lineOfSight } from "../map/pathing";
@@ -211,6 +213,8 @@ export function updateEnemies(state: GameState, dt: number): void {
       stepRout(state, e, def, edt, enemySpeed(state, e, def));
       continue;
     }
+    // 本陣の陣図: 筆を持つ大将・持ち場の兵は止まり、墨の入った画の兵は走る（system/jinzu.ts・jinzuRun.ts）
+    if (e.jinzuRun && stepJinzuMember(state, e, def, edt, enemySpeed(state, e, def))) continue;
 
     if (isBossDriven(def)) {
       updateBossEnemy(state, e, def, edt);
@@ -250,6 +254,8 @@ export function updateEnemies(state: GameState, dt: number): void {
     }
     if (def.behavior === "wisp") touchWisp(state, e, def);
   }
+  // 本陣の陣図の段を進める（大将の怯み・恐怖の見張りは、このステップの怯みが入った後のここで取る）
+  updateJinzu(state, dt);
   // 赤になった時刻を残す（出端の判定 yellowAt が「プレイヤーが押した時点で黄だったか」を引く。system/readTiming.ts）
   for (const e of state.enemies) noteCommit(state, e);
   separate(state, dt);
@@ -461,6 +467,11 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
     e.attackCooldown = ENEMY_TEMPO.telegraphWindow;
     return;
   }
+  // 本陣の構え・総掛かりの間は、周りの敵も新しい予備動作に入らず 1 拍待つ（陣図の主役を 1 つにする）
+  if (jinzuHoldsAttack(state, e)) {
+    e.attackCooldown = Math.max(e.attackCooldown, JINZU.surgeHoldOthers);
+    return;
+  }
   beginWindup(state, e, def, dir);
 }
 
@@ -490,7 +501,8 @@ function telegraphCrowded(state: GameState, e: Enemy): boolean {
     if (dist(o.body.pos, p) > t.telegraphRange || isBossDriven(enemyDef(o.defKey))) continue;
     fresh++;
   }
-  return fresh >= t.telegraphCap;
+  // 本陣の画が出たばかり（telegraphWindow の間）は予告 1 つと数える
+  return fresh + freshStrokeCount(state) >= t.telegraphCap;
 }
 
 /** 攻撃に入る距離か。地雷はプレイヤーだけでなく敵が踏んでも爆ぜる */
@@ -745,9 +757,10 @@ export function strikerCap(state: GameState): number {
 function strikeSlotsFull(state: GameState, e: Enemy): boolean {
   let striking = 0;
   for (const o of state.enemies) {
-    if (o !== e && o.hp > 0 && o.phase === "strike" && !isBossDriven(enemyDef(o.defKey))) striking++;
+    if (o !== e && o.hp > 0 && o.phase === "strike" && !o.jinzuRun && !isBossDriven(enemyDef(o.defKey))) striking++;
   }
-  return striking >= strikerCap(state);
+  // 総掛かりの走る兵は 1 人ずつ数えず、総掛かり 1 つで 1 枠
+  return striking + surgeStrikerSlot(state) >= strikerCap(state);
 }
 
 /** 狙いを予備動作の始まりで固定する（避けた側が勝つ）behavior */
@@ -1004,7 +1017,7 @@ function strikeSpeedMul(e: Enemy, def: EnemyDef): number {
 }
 
 /** 接触していればダメージ（当たれば ENEMY_COMBAT の接触の状態異常も付く）。接触していなければ null */
-function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
+export function touchPlayer(state: GameState, e: Enemy, damage: number): PlayerHitResult | null {
   // 霊体化（skills/forms.ts）は敵の体と近接をすり抜ける
   if (state.skills.shape?.key === "wraithForm") return null;
   const p = state.player.body;

@@ -30,6 +30,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawMapLight",
     "drawTileOverlays",
     "drawGroundMarks",
+    "drawJinzu",
     "drawPickups",
     "drawFloorItems",
     "drawGroundHazards",

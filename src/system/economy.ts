@@ -19,7 +19,7 @@ import type { Rng } from "../core/rng";
 import { type Vec, dist, fromAngle, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
 import { gradeOf } from "../data/enemyRoles";
-import { ECONOMY } from "../data/tuning";
+import { ECONOMY, HONJIN } from "../data/tuning";
 import { chapterOf } from "./chapters";
 import { addFloatingText } from "./effects";
 import { povertyMana } from "./keystones";
@@ -256,7 +256,7 @@ export function onJinSettled(state: GameState, jin: Jin): void {
   const unscathed = !hurtSince(state, jin.engagedAt ?? 0);
   const mean = ECONOMY.income.jin * chapterScale(state.depth) * (unscathed ? ECONOMY.income.jinUnscathedMul : 1);
   gainCoins(state, rollAmount(state.rng, mean), "jin");
-  const keyChance = jin.leaderId !== null ? ECONOMY.key.leaderJinChance : ECONOMY.key.jinChance;
+  const keyChance = jin.honjin ? HONJIN.keyChance : jin.leaderId !== null ? ECONOMY.key.leaderJinChance : ECONOMY.key.jinChance;
   if (state.rng.chance(keyChance)) dropKey(state, state.player.body.pos);
 }
 
