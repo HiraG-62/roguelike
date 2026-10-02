@@ -487,7 +487,7 @@ describe("マナの回収（B-1）", () => {
       });
     }
     updateProjectiles(state, FIXED_DT);
-    expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap, 5);
+    expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap * MANA.attackGainScale, 5);
   });
 
   it("静寂の誓いでは射撃の命中でマナが戻らない", () => {
