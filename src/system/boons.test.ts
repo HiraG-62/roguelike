@@ -35,6 +35,7 @@ import {
   isSiblingBoon,
   offerBoons,
   rollBoonOptions,
+  rollCoreOptions,
   skillStoneTags,
   takeCurse,
   updateBoonChoice,
@@ -152,12 +153,12 @@ describe("祝福の提示タイミング", () => {
 });
 
 describe("抽選", () => {
-  it("祝福は 9 系譜 × 11 + 融合 12 + 呪い付き 6 + 芯 4 = 121 種", () => {
-    expect(BOON_KEYS).toHaveLength(121);
+  it("祝福は 9 系譜 × 11 + 融合 12 + 呪い付き 6 + 芯 8 = 125 種", () => {
+    expect(BOON_KEYS).toHaveLength(125);
     expect(new Set(BOON_KEYS).size, "key は重複しない").toBe(BOON_KEYS.length);
     expect(BOON_KEYS.filter((k) => BOONS[k].fusion !== undefined)).toHaveLength(12);
     expect(BOON_KEYS.filter((k) => BOONS[k].cursed)).toHaveLength(6);
-    expect(BOON_KEYS.filter((k) => BOONS[k].core === true)).toHaveLength(4);
+    expect(BOON_KEYS.filter((k) => BOONS[k].core === true)).toHaveLength(8);
   });
 
   it("3 枚は重複せず、取得済みは出ず、呪いは最大 1 枚。呪い枠はおよそ cursedChance で混ざる", () => {
@@ -681,6 +682,28 @@ describe("祝福の格と芯（docs/ideas/boon-power-up.md）", () => {
       offerBoons(state);
       expect(state.boonChoice?.core, "芯を持てば同じ深度でも通常の 3 択").toBe(false);
     });
+  });
+
+  it("芯の 3 択は 8 種から重ならずに選ばれ、seed によって顔ぶれが変わる", () => {
+    const coreKeys = BOON_KEYS.filter((k) => BOONS[k].core === true);
+    const sets = new Set<string>();
+    const seen = new Set<BoonKey>();
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const options = rollCoreOptions(arena(seed));
+      expect(options, `seed ${seed} の枚数`).toHaveLength(BOON.coreChoiceCount);
+      expect(new Set(options).size, `seed ${seed} は重複しない`).toBe(options.length);
+      for (const k of options) {
+        expect(coreKeys, `${k} は芯`).toContain(k);
+        seen.add(k);
+      }
+      sets.add([...options].sort().join(","));
+    }
+    expect(sets.size, "3 枚の組が複数通り出る").toBeGreaterThanOrEqual(2);
+    expect(seen.size, "芯の大半が顔を出す").toBeGreaterThan(BOON.coreChoiceCount + 1);
+  });
+
+  it("同じ seed なら芯の 3 択も同じ（決定性）", () => {
+    expect(rollCoreOptions(arena(11))).toEqual(rollCoreOptions(arena(11)));
   });
 
   it("芯を持つと同じタグの祝福の重みが coreTagBonus 倍になる", () => {

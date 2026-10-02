@@ -72,10 +72,14 @@ export function hasRestFountain(depth: number): boolean {
   return ARC.restFountain && isChapterRest(depth);
 }
 
+/** 章ごとの表から今の階の値（章より深い階は最後の値。空の表は 0） */
+export function byChapter(table: readonly number[], depth: number): number {
+  return table[chapterOf(depth) - FIRST_CHAPTER] ?? table[table.length - 1] ?? 0;
+}
+
 /** 部屋制圧のハートの確率（章ごと。章より深い階は最後の値） */
 export function heartChanceOf(depth: number): number {
-  const table = HEAL.heartChanceByChapter;
-  return table[chapterOf(depth) - FIRST_CHAPTER] ?? table[table.length - 1] ?? 0;
+  return byChapter(HEAL.heartChanceByChapter, depth);
 }
 
 /**

@@ -34,7 +34,7 @@ import { diffKeySets, undocumentedLeaves, validateBalanceShape, validateFieldDoc
 
 describe("BALANCE", () => {
   it("_note を剥がして readonly の値を返す", () => {
-    expect(BALANCE.combat.MANA.baseMax).toBe(80);
+    expect(BALANCE.combat.MANA.baseMax).toBe(60);
     expect(Object.keys(BALANCE.combat.MANA)).not.toContain("_note");
   });
 

@@ -4,12 +4,14 @@ import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { type DamageModDiff, computeStats, damageModDiffs, statsSummary } from "../loot/stats";
 import { DEFAULT_STATS, type Item, type PlayerStats } from "../loot/types";
-import { SKILL_DEFS, formatVariant, stoneLabel, transformLabel } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, formatVariant, modifierVerb, stoneLabel, transformLabel } from "../skills/data";
+import { STONE_TUNING } from "../skills/tuning2";
 import { currentForm } from "../system/morale";
 import type { FormKey } from "../data/weaponForms";
-import type { SkillStone } from "../skills/types";
+import type { ModifierKey, SkillDef, SkillStone } from "../skills/types";
 import { weaponArtLabel } from "../skills/arts";
-import { type FocusedDrop, aimWorldOf, focusedDrop } from "../system/loot";
+import { type InteractFocus, type PedestalVerb, focusedInteract, pedestalVerb } from "../system/interact";
+import { type FocusedDrop, aimWorldOf } from "../system/loot";
 import { type Rect, SLOT_LABEL } from "../ui/inventoryLayout";
 import { itemTipLines } from "./itemTips";
 import {
@@ -29,8 +31,9 @@ import {
 import { TEXT, drawTextShadow } from "./pixelText";
 
 /**
- * 床の遺物・スキル石にカーソルを合わせたときの注目表示（環とキー案内）と性能のポップアップ。
- * 注目は system/loot.ts の focusedDrop（拾得判定と同じ純関数）で毎フレーム求め、state には書かない
+ * 床の遺物・スキル石・台座（商人の品・契約者・部屋の台座）にカーソルを合わせたときの注目表示（環とキー案内）と、
+ * 遺物・スキル石の性能のポップアップ。台座は世界側に品札（merchantUi.ts / runUi.ts / 部屋の台座の名札）があるのでポップアップを出さない。
+ * 注目は system/interact.ts の focusedInteract（拾得・使用の判定と同じ純関数）で毎フレーム求め、state には書かない
  */
 
 /** ポップアップの幅（論理 px）。装備画面のツールチップと同じくらいの読み幅 */
@@ -48,9 +51,18 @@ const FOCUS_RING_ALPHA = 0.85;
 /** キー案内を環の下に置く距離 */
 const HINT_OFFSET_Y = FOCUS_RING_RADIUS + 3;
 const COLOR_HINT_SHADOW = "#000000";
+/** キー案内の動詞（拾う / 台座の種類ごと）。GLOSSARY「拾う」「台座の操作」 */
+const PICK_UP_VERB = "拾う";
+const PEDESTAL_VERB_LABEL: Readonly<Record<PedestalVerb, string>> = {
+  buy: "買う",
+  choose: "選ぶ",
+  use: "使う",
+  open: "開ける",
+};
 const COLOR_BETTER = "#7fe07f";
 const COLOR_WORSE = COLOR_WARN;
 const COLOR_STONE = "#b080ff";
+const COLOR_RUNE = SKILL.drop.runeColor;
 /** 武器技の「〇〇専用」 */
 const COLOR_WEAPON_ART = "#ffd080";
 export const MARK_UP = "▲";
@@ -119,7 +131,12 @@ export function compareLines(state: GameState, item: Item): TipLine[] {
   return [head, ...shown];
 }
 
-/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸（装備画面のツールチップの要約）。form は今の武器の型 */
+/** 宿り符の 1 行「宿り符 連鎖: 〜」（リンクを使わずに効く。docs/ideas/skill-stone-hunt.md） */
+export function dwellLine(key: ModifierKey, def: Readonly<SkillDef>): string {
+  return `宿り符 ${MODIFIERS[key].name}: ${modifierVerb(key, def)}`;
+}
+
+/** スキル石: 名前・今の型での形の変わり方・動詞・タグ・変異軸・宿り符（装備画面のツールチップの要約）。form は今の武器の型 */
 export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   const def = SKILL_DEFS[stone.skillKey];
   const transform = form === undefined ? null : transformLabel(form, stone.skillKey);
@@ -132,6 +149,7 @@ export function stoneLines(stone: SkillStone, form?: FormKey): TipLine[] {
   ];
   if (stone.variants.length === 0) lines.push({ text: "変異なし", color: COLOR_DIM });
   for (const v of stone.variants) lines.push({ text: formatVariant(v, def), color: COLOR_TEXT });
+  if (stone.dwell !== undefined) lines.push({ text: dwellLine(stone.dwell, def), color: STONE_TUNING.dwellColor });
   return lines;
 }
 
@@ -141,8 +159,18 @@ export interface DropTipContent {
   tail: TipLine[];
 }
 
+/** 刻印符: 名前・何をするか（付けるスキルが決まっていないので気力型の読み替えはしない） */
+export function runeLines(key: ModifierKey): TipLine[] {
+  const def = MODIFIERS[key];
+  return [
+    { text: `刻印符: ${def.name}`, color: COLOR_RUNE },
+    { text: def.verb, color: COLOR_TEXT },
+  ];
+}
+
 export function dropTipContent(state: GameState, drop: FocusedDrop): DropTipContent {
   if (drop.kind === "stone") return { body: stoneLines(drop.stone, currentForm(state).key), tail: [] };
+  if (drop.kind === "rune") return { body: runeLines(drop.modifier), tail: [] };
   return { body: itemTipLines(state, drop.item), tail: compareLines(state, drop.item) };
 }
 
@@ -184,8 +212,19 @@ export function maxTipLines(lineH: number): number {
 // 描画
 // ---------------------------------------------------------------------------
 
+/** キー案内の動詞（注目中の物の種類から） */
+export function focusVerb(focus: Readonly<InteractFocus>): string {
+  return focus.kind === "pedestal" ? PEDESTAL_VERB_LABEL[pedestalVerb(focus.target)] : PICK_UP_VERB;
+}
+
+/** キー案内「G: 買う」。手が届かなければ「近づいて買う」 */
+export function focusHint(focus: Readonly<InteractFocus>): string {
+  const verb = focusVerb(focus);
+  return focus.inReach ? `${actionKeyLabel("interact")}: ${verb}` : `近づいて${verb}`;
+}
+
 /**
- * 注目中のドロップ品に環とキー案内を描き、カーソル横に性能を出す。
+ * 注目中の物に環とキー案内を描き、遺物・スキル石ならカーソル横に性能を出す。
  * ox / oy は renderer のワールド → 画面の平行移動（ここは translate の外で呼ぶ）。
  * showTooltip: false（設定 dropTooltip オフ）のときは性能ポップアップだけ省く。環とキー案内は残す
  */
@@ -198,14 +237,14 @@ export function drawDropFocus(
   showTooltip = true,
 ): void {
   if (state.status !== "playing" || state.boonChoice) return;
-  const drop = focusedDrop(state, aimWorldOf(state, aimScreen));
-  if (drop === null) return;
-  const screen = { x: Math.round(drop.pos.x + ox), y: Math.round(drop.pos.y + oy) };
-  drawFocusRing(ctx, screen, drop.inReach);
-  if (showTooltip) drawTooltip(ctx, dropTipContent(state, drop), aimScreen ?? screen);
+  const focus = focusedInteract(state, aimWorldOf(state, aimScreen));
+  if (focus === null) return;
+  const screen = { x: Math.round(focus.pos.x + ox), y: Math.round(focus.pos.y + oy) };
+  drawFocusRing(ctx, screen, focus.inReach, focusHint(focus));
+  if (showTooltip && focus.kind !== "pedestal") drawTooltip(ctx, dropTipContent(state, focus), aimScreen ?? screen);
 }
 
-function drawFocusRing(ctx: CanvasRenderingContext2D, at: Vec, inReach: boolean): void {
+function drawFocusRing(ctx: CanvasRenderingContext2D, at: Vec, inReach: boolean, hint: string): void {
   ctx.globalAlpha = FOCUS_RING_ALPHA;
   ctx.strokeStyle = inReach ? FOCUS_RING_COLOR : COLOR_DIM;
   ctx.lineWidth = 1;
@@ -213,7 +252,6 @@ function drawFocusRing(ctx: CanvasRenderingContext2D, at: Vec, inReach: boolean)
   ctx.arc(at.x + 0.5, at.y + 0.5, FOCUS_RING_RADIUS, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
-  const hint = inReach ? `${actionKeyLabel("interact")}: 拾う` : "近づいて拾う";
   drawTextShadow(ctx, hint, at.x, at.y + HINT_OFFSET_Y, TEXT.SMALL, inReach ? COLOR_TEXT : COLOR_DIM, COLOR_HINT_SHADOW, "center");
 }
 

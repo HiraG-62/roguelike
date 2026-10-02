@@ -425,6 +425,8 @@ export type PerCounter =
   | { kind: "chainVisits" }
   /** 失った生命の 10% ごと */
   | { kind: "missingHpTenths" }
+  /** 今の気力が最大気力の 10% あるごと（満タンで 10。満願の誓い） */
+  | { kind: "manaTenths" }
   /** 転じ（会心率 1% につき など。倍率系は (値 − 1) × 100、率は × 100） */
   | { kind: "stat"; stat: PerStat }
   /** このランの撃破数 */

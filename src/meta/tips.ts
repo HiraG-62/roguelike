@@ -5,6 +5,7 @@ import { FORMS, FORM_KEYS } from "../data/weaponForms";
 import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
+import { WEAR_TUNING } from "../skills/tuning2";
 import type { ListEntry, ListTab } from "./listScreen";
 import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
@@ -92,7 +93,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
   { key: "special", term: "奥義", category: "controls", body: (b) => `${k(b, "special")}。奥義ゲージが満ちると出せる。持続の奥義はもう一度 ${k(b, "special")} で終える。武器種ごとの 3 本から装備画面の装束の人影の書付、奥義の頁で選ぶ（拠点のみ）。` },
   { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
   { key: "skillKeys", term: "スキル石", category: "controls", body: (b) => `${skillKeys(b)}。パッドは ${padSkillKeysLabel()}（+ は押さえたまま次を押す）。` },
-  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物を袋へ、スキル石を倉庫へ入れる。手の届く距離のものだけ。ハート・刻印符は触れれば拾う。` },
+  { key: "interact", term: "拾う", category: "controls", body: (b) => `${k(b, "interact")}。注目している床の遺物を袋へ、スキル石を倉庫へ入れる。商人の品・契約者の台座・部屋の台座も、照準を合わせてこのキーで買う・選ぶ・使う。手の届く距離のものだけ。ハート・刻印符は触れれば拾い、上り階段は乗り続けると使う。` },
   { key: "flask", term: "瓶", category: "controls", body: (b) => `${k(b, "flask")}（パッドは ${padActionLabel("flask")}）。1 本飲むと最大生命の ${Math.round(ECONOMY.flask.healRatio * PERCENT)}% が戻る。戦闘中の回復の上限は通さない。ダッシュ中と、攻撃を振っている最中は飲めない。本数は HUD の枡で、上限までしか持てない。市で買え、章の境の泉で満ちる。` },
   { key: "inventory", term: "装備画面", category: "controls", body: (b) => `${k(b, "inventory")} で開き、開いている間にもう一度押すと装束と紋を行き来する。Esc で 1 段ずつ戻って閉じる。開いている間は時間が止まる。` },
   {
@@ -124,7 +125,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
 
 const COMBAT_TIPS: readonly TipDef[] = [
   { key: "hp", term: "生命", category: "combat", body: "尽きると探索が終わる。戦闘中の回復には 1 秒あたりの上限がある。" },
-  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。通常攻撃の命中・見切り・撃破で溜まり、スキルで減る。ジョブごとの気力の源（剣士は応手と終撃など）でも湧く。" },
+  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。見切り・受け流しで多く戻り、通常攻撃の命中・撃破でも少し溜まり、スキルで減る。自然にはゆっくりしか戻らないので、減ったら攻めるか読んで取り戻す。ジョブごとの気力の源（剣士は応手と終撃など）・輪廻の祝福・芯「気の泉」・気力の性質で伸ばせる。" },
   {
     key: "morale",
     term: "戦意",
@@ -308,12 +309,15 @@ const RELIC_TIPS: readonly TipDef[] = [
 ];
 
 const SKILL_TIPS: readonly TipDef[] = [
-  { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。" },
+  { key: "stone", term: "スキル石", category: "skill", body: "スロット 1〜4 に装着して撃つスキル。拾った石は倉庫に入り、探索を越えて持ち越す。同じスキルでも石ごとに変異（範囲と威力などの釣り合い）が違い、候補の頁の札の下の段に出る。同じスキルの石は束にまとまり、決定で 1 個ずつ見比べられる。" },
+  { key: "dwell", term: "宿り符", category: "skill", body: "まれに刻印符が宿って生まれる石。宿った符はリンクを使わずに効く。深い階ほど出やすい。金の光で落ちる。" },
+  { key: "stoneDispose", term: "処分", category: "skill", body: "候補の頁で石を長押しすると処分して冥響を得る（宿り符のある石は多い）。そのスキルを付けているときは、処分する石の使い込みの半分が付けている石へ注がれる。束を長押しすると、宿り符の無い石をまとめて注ぐ。" },
+  { key: "stoneWear", term: "使い込み", category: "skill", body: `石を手で撃った回数が ${WEAR_TUNING.milestones.join(" 回・")} 回に届くと、その石に威力の芽が出る。同じ石に出る芽は 1 回の探索で ${WEAR_TUNING.perRunPerStone} つまで。` },
   { key: "commonArt", term: "共通技", category: "skill", body: "どの武器種でも撃てるスキル石。旋風斬り・火球・瞬身のような剣技・魔法・体術。" },
   { key: "artTransform", term: "変形", category: "skill", body: "共通技は今の武器の型で形が変わる。重打なら広く重く、短銃なら振りが弾に、鎖なら当てる前に引き寄せる。今の変わり方は石のツールチップの「今の型」の行。" },
   { key: "manaType", term: "気力型", category: "skill", body: "撃つたびに気力を払うスキル。" },
   { key: "cooldownType", term: "再使用型", category: "skill", body: "撃つと再使用時間が経つまで撃てないスキル。" },
-  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。拾うと自動では付かず「手持ち」に入る（探索が終わると消える）。装備画面のスキルの頁の下の「手持ち」から符を選ぶと、付けられるスキルが金の破線で光り、決定で付く。付いている符は持ち上げて別の石へ移せ、長押しで外すと手持ちへ戻る。手持ちは種類・系統・付けられる物だけで絞り込み、並びも替えられる。" },
+  { key: "rune", term: "刻印符", category: "skill", body: "スキルのスロットに付ける修飾。探索ごとに拾い直す。形を変える変形と、気力・再使用の回し方を変える循環がある。分裂・旋回・重ね打ち・戻り刃・軌跡は共通技にだけ付く。終撃連動・応手連動は武器の終撃・応手と同時にそのスキルを撃つ（気力は払う）。床の符はカーソルを合わせて拾うキーで拾う。拾うと自動では付かず「手持ち」に入る（探索が終わると消える）。装備画面のスキルの頁の下の「手持ち」から符を選ぶと、付けられるスキルが金の破線で光り、決定で付く。付いている符は持ち上げて別の石へ移せ、長押しで外すと手持ちへ戻る。手持ちは種類・系統・付けられる物だけで絞り込み、並びも替えられる。" },
   { key: "link", term: "リンク", category: "skill", body: "スロットごとに決まった、刻印符を付けられる本数（スロット 1 が最も多い）。型替え符は 2 本使い、1 スロットに 1 枚まで。" },
   { key: "combo", term: "連携", category: "skill", body: "スキルの直後に別のスキルを撃つと、後の方が変化する。HUD の枠の点滅する菱形が連携可の印。図鑑の連携の頁は、連携・反応・連鎖を初めて起こすと数える。" },
   { key: "form", term: "変身", category: "skill", body: "一定の間、姿が変わる強化スキル（狼化・霊体化・鉄塊化など）。変身中は左右の攻撃の動きが変わり、他のスキルは撃てない。" },
@@ -364,11 +368,11 @@ const RUN_TIPS: readonly TipDef[] = [
     key: "market",
     term: "商人 / 市",
     category: "run",
-    body: `毎階の前室に立つ商人の店（瓶・遺物・刻印符・鍵・仕入れ直し）。章の主の階には章の市が立つ。商人を殴ると怒って品を投げ、倒すと品が床に落ちるが、その探索の値段は ${ECONOMY.market.outlawPriceMul} 倍になる。旅商人は階を歩き、近くの敵を倒して助けると値引きしてくれる。隠し部屋を開くと奥に闇市が立つ。`,
+    body: `毎階の前室に立つ商人の店（瓶・遺物・刻印符・鍵・仕入れ直し）。章の主の階には章の市が立つ。品は照準を合わせてインタラクトで買う。商人は近くに敵がいる間は攻撃を受け流し、巻き添えでも傷つかない。敵のいないところで殴ると 1 発目は警告で、続けて殴ると怒って品を投げる。倒すと品が床に落ちるが、その探索の値段は ${ECONOMY.market.outlawPriceMul} 倍になる。旅商人は階を歩き、近くの敵を倒して助けると値引きしてくれる。隠し部屋を開くと奥に闇市が立つ。`,
   },
-  { key: "bets", term: "賭け", category: "run", body: "賭場の主に銭を張る。運の賭けは触れた瞬間に決まり、腕の賭け（無傷・速攻・凌ぎ）は次の陣や階の出来で決まる。張れるのは 1 つだけで、張ったら取り消せない。" },
-  { key: "donation", term: "寄進", category: "run", body: "章の境（章の 1 階目）の開始部屋にある祠へ、触れるたび持ち金の一部を納める。全額まで繰り返せる。探索の中での効果は無く、総額は拠点の井戸に記録される。" },
-  { key: "contractor", term: "契約者", category: "run", body: "階の入口に立つ人物。台座に触れて取引を選ぶ。" },
+  { key: "bets", term: "賭け", category: "run", body: "賭場の主に銭を張る。運の賭けは張った瞬間に決まり、腕の賭け（無傷・速攻・凌ぎ）は次の陣や階の出来で決まる。張れるのは 1 つだけで、張ったら取り消せない。" },
+  { key: "donation", term: "寄進", category: "run", body: "章の境（章の 1 階目）の開始部屋にある祠を使うたび、持ち金の一部を納める。全額まで繰り返せる。探索の中での効果は無く、総額は拠点の井戸に記録される。" },
+  { key: "contractor", term: "契約者", category: "run", body: (b) => `階の入口に立つ人物。台座に照準を合わせ、${k(b, "interact")} で取引を選ぶ。` },
   { key: "pact", term: "契約", category: "run", body: "灰の公証人と結ぶ条件付きの約束。破るとその場で代償、次の階に着けば報酬。" },
   { key: "elementAltar", term: "属性の祭壇", category: "run", body: "選んだ属性の加護を得る部屋。その階の間、通常攻撃の一部がその属性になる。鍛冶の焼き付けは探索の間ずっと続く。" },
   { key: "library", term: "図書館", category: "run", body: "刻印符を得られる部屋。刻印符は拾うと手持ちに入り、装備画面のスキルの頁で選んで石に付ける（探索ごとに拾い直す）。" },

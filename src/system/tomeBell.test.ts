@@ -6,7 +6,7 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
-import { FORM, STATUS, WEAPON } from "../data/tuning";
+import { FORM, MANA, STATUS, WEAPON } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { skillHit } from "../skills/hit";
@@ -448,10 +448,10 @@ describe("書（墨印）", () => {
     expect([front, back].map((e) => statusStacks(e.status, "inkMark")), "3 段目は並ぶ敵を貫く").toEqual([1, 1]);
   });
 
-  it("左の字の命中で段の気力（movesets/book.json の字の mana）が戻る", () => {
+  it("左の字の命中で段の気力（movesets/book.json の字の mana に武器の回収の素の倍率を掛けた量）が戻る", () => {
     const state = arena(5, { moveset: "book" });
     const e = near(state, 30);
-    const unit = attackHitManaMul(state) * state.stats.manaGainMul;
+    const unit = attackHitManaMul(state) * state.stats.manaGainMul * MANA.attackGainScale;
     expect(unit, "通常攻撃の気力の倍率が立っている").toBeGreaterThan(0);
     state.player.mana = 0;
     const gains = chainLeft(state, 3, e);

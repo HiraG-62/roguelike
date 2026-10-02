@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createIncreased } from "../core/damage";
 import { playerSource, pushEvent } from "../core/events";
-import { ECONOMY, KEYSTONE, PLAYER } from "../data/tuning";
+import { ECONOMY, KEYSTONE, PARRY, PLAYER } from "../data/tuning";
 import { KEYSTONES, keystoneDef } from "../loot/affixes";
 import { computeStats } from "../loot/stats";
 import { DEFAULT_STATS, createEmptyEquipment, type Item } from "../loot/types";
-import { registerComboHit } from "./combat";
+import { damageEnemy, registerComboHit } from "./combat";
 import { gainCoins, spendCoins } from "./economy";
 import { applyModifiers } from "./modifiers";
+import { parrySucceed } from "./parry";
 import { collectRules, resolveRules } from "./rules";
 import { hasStatus } from "./statusEffects";
 import { arena, placeEnemy } from "./testHelpers";
@@ -16,8 +17,10 @@ import {
   KS,
   attackManaMul,
   canAffordSkill,
+  evadeManaMul,
   keystoneModifiers,
   keystoneRules,
+  killManaMul,
   manaRegenAllowed,
   mushinMul,
   overdrawHpCost,
@@ -116,9 +119,9 @@ describe("誓約の判定ヘルパー（2026-09 追加）", () => {
   });
 });
 
-describe("誓約 20（段取り 7d）", () => {
-  it("20 種あり、系統は 7（body / tempo / style / mana / status / poise / coin）", () => {
-    expect(KEYSTONES.length).toBe(20);
+describe("誓約 22（段取り 7d + 気力の軸 2）", () => {
+  it("22 種あり、系統は 7（body / tempo / style / mana / status / poise / coin）", () => {
+    expect(KEYSTONES.length).toBe(22);
     expect(new Set(KEYSTONES.map((k) => k.exclusiveGroup))).toEqual(new Set(["body", "tempo", "style", "mana", "status", "poise", "coin"]));
   });
 
@@ -184,6 +187,44 @@ describe("誓約 20（段取り 7d）", () => {
     const stats = { ...DEFAULT_STATS, keystones: [], increased: createIncreased(), more: [] };
     def?.apply(stats);
     expect(stats.coinSpillMul * ECONOMY.spill.ratio).toBeCloseTo(KEYSTONE.goldCageSpillRatio);
+  });
+
+  it("呼気の誓い: 通常攻撃の命中・撃破では気力が戻らず、見切り・受け流しで breathOathEvadeMul 倍戻る", () => {
+    expect(attackManaMul({ stats: { keystones: [KS.breathOath] } }), "通常攻撃").toBe(0);
+    expect(killManaMul({ stats: { keystones: [KS.breathOath] } }), "撃破").toBe(0);
+    expect(evadeManaMul({ stats: { keystones: [KS.breathOath] } }), "見切り・受け流し").toBe(KEYSTONE.breathOathEvadeMul);
+    expect(killManaMul({ stats: { keystones: [] } }), "誓約なしの撃破").toBe(1);
+    expect(evadeManaMul({ stats: { keystones: [] } }), "誓約なしの見切り").toBe(1);
+    const state = arena(5, { keystones: [KS.breathOath], maxMana: 1000 });
+    state.player.mana = 0;
+    parrySucceed(state, undefined, 0);
+    expect(state.player.mana, "受け流し").toBeCloseTo(PARRY.mana * KEYSTONE.breathOathEvadeMul);
+    state.player.mana = 0;
+    const e = placeEnemy(state, "slime", 30);
+    damageEnemy(state, e, 1e6, { x: 1, y: 0 }, 0, { kind: "proc" });
+    expect(state.player.mana, "撃破では戻らない").toBe(0);
+  });
+
+  it("呼気の誓い: 最大気力が breathOathMaxManaPct ぶん増える", () => {
+    const def = keystoneDef(KS.breathOath);
+    const stats = { ...DEFAULT_STATS, keystones: [], increased: createIncreased(), more: [] };
+    def?.apply(stats);
+    expect(stats.maxMana).toBeCloseTo(DEFAULT_STATS.maxMana * (1 + KEYSTONE.breathOathMaxManaPct));
+  });
+
+  it("満願の誓い: 今の気力 1 割ごとに全ての与ダメの倍が上がり、スキルの消費が増える", () => {
+    const state = arena(5, { keystones: [KS.brimOath], maxMana: 100 });
+    const mulAt = (mana: number): number => {
+      state.player.mana = mana;
+      return applyModifiers(state, { tags: new Set(["skill"]) }, null).more.reduce((m, x) => m * x.mul, 1);
+    };
+    expect(mulAt(0), "空").toBeCloseTo(1);
+    expect(mulAt(39), "3 割").toBeCloseTo(1 + KEYSTONE.brimOathPerTenth * 3);
+    expect(mulAt(100), "満タン").toBeCloseTo(1 + KEYSTONE.brimOathPerTenth * 10);
+    const def = keystoneDef(KS.brimOath);
+    const stats = { ...DEFAULT_STATS, keystones: [], increased: createIncreased(), more: [] };
+    def?.apply(stats);
+    expect(stats.manaCostMul).toBeCloseTo(KEYSTONE.brimOathCostMul);
   });
 
   it("黄金の檻: 段の合計は goldCageCap で頭打ちになる", () => {

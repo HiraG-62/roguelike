@@ -132,6 +132,7 @@ describe("待機の腕と武器の重ね順", () => {
       weapon: () => void log.push("weapon"),
       arm: (_s: Pt, _p, dim: boolean) => void log.push(dim ? "armBack" : "armFront"),
       hand: () => void log.push("hand"),
+      sheath: () => void log.push("sheath"),
     };
     return { painter, log };
   }
@@ -165,6 +166,20 @@ describe("待機の腕と武器の重ね順", () => {
       expect(log.filter((l) => l === "body").length, `${key} の体は 1 回`).toBe(1);
       expect(log.some((l) => l === "weapon" || l === "armFront"), `${key} は武器か前の腕を描く`).toBe(true);
     }
+  });
+
+  it("刀は腰の鞘を体より先（奥）に描く", () => {
+    const shoulderF = actorAnchor("bodyNone.idleReady", 0, 0, "shoulderF");
+    const shoulderB = actorAnchor("bodyNone.idleReady", 0, 0, "shoulderB");
+    const hip = actorAnchor("bodyNone.idleReady", 0, 0, "hip");
+    const weapon = weaponAtlas("katana");
+    if (!shoulderF || !shoulderB || !hip || !weapon) throw new Error("刀か体の印が無い");
+    const stance = stanceFromMeta(weaponStanceMeta(weapon));
+    const rig = solveRig({ stance, swing: undefined, step: 0, aim: 0, aimHeld: false, facingRight: true, shoulderF, shoulderB, hip, time: 0, offGrip: weaponOffGrip(weapon), aimOrigin: { x: 0, y: -26 }, barrelY: 0 });
+    const { painter, log } = record();
+    composeIdle(painter, { rig, shoulderF, shoulderB, stance }, cell);
+    expect(log.indexOf("sheath"), "鞘を描く").toBeGreaterThanOrEqual(0);
+    expect(log.indexOf("sheath"), "鞘は体の奥").toBeLessThan(log.indexOf("body"));
   });
 
   it("手にはめる武器（爪など）は腕の上に武器を重ね、持つ武器は腕の下に敷く", () => {

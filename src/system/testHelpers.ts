@@ -3,11 +3,14 @@ import { createGame, step } from "../core/game";
 import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
+import type { Vec } from "../core/vec";
+import { VIEW_H, VIEW_W } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { withFixedLayout } from "../map/layout/select";
 import { createEnemy } from "./enemies";
 import { withBaseAreaMul } from "./floor";
+import { updateInteract } from "./interact";
 
 /** テスト専用ヘルパー（本体からは import しない） */
 
@@ -71,4 +74,23 @@ export function engageStartRoom(state: GameState, enemyDx = 200): Enemy {
   const e = placeEnemy(state, "slime", enemyDx);
   e.roomIndex = 0;
   return e;
+}
+
+/** 世界座標 → 画面座標（core/view.ts の screenToWorld の逆。照準 aimScreen を組むため） */
+export function screenOfWorld(state: GameState, world: Vec): Vec {
+  const cam = state.camera;
+  const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
+  const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
+  return { x: world.x + ox, y: world.y + oy };
+}
+
+/** 照準を aim に合わせてインタラクトを 1 回押す（プレイヤーは動かさない。system/interact.ts の入口だけ回す） */
+export function pressInteract(state: GameState, aim: Vec): void {
+  updateInteract(state, withInput({ interactPressed: true, aimScreen: screenOfWorld(state, aim) }));
+}
+
+/** pos に立ち、照準を pos に合わせてインタラクトを 1 回押す（台座を使う・床の物を拾う） */
+export function interactAt(state: GameState, pos: Vec): void {
+  state.player.body.pos = { ...pos };
+  pressInteract(state, pos);
 }

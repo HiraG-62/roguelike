@@ -11,7 +11,7 @@ import { hasStatus } from "../statusEffects";
 import { arena, placeEnemy } from "../testHelpers";
 import { BOONS_CURSED, BOON_KEYS_CURSED } from "./cursed";
 
-/** 呪い付き 6 と芯 4（docs/ideas/boon-impl.md 2-6）の件数と、各札の効果が 1 本ずつ起きることの検査 */
+/** 呪い付き 6 と芯 8（docs/ideas/boon-impl.md 2-6）の件数と、各札の効果が 1 本ずつ起きることの検査 */
 
 const K = BOON_LINEAGE.cursed;
 const CARDS: readonly BoonDef[] = BOON_KEYS_CURSED.map((k) => BOONS_CURSED[k]);
@@ -55,9 +55,9 @@ function fireCard(state: GameState, def: BoonDef, ev: GameEvent): void {
 }
 
 describe("呪い付きと芯の構成", () => {
-  it("呪い付き 6・芯 4。どちらも系譜・札の種類・行動を持たない", () => {
+  it("呪い付き 6・芯 8。どちらも系譜・札の種類・行動を持たない", () => {
     expect(CURSED.length, "呪い付き").toBe(6);
-    expect(CORES.length, "芯").toBe(4);
+    expect(CORES.length, "芯").toBe(8);
     expect(CURSED.length + CORES.length, "他の札を混ぜない").toBe(CARDS.length);
     for (const d of CARDS) {
       expect(d.lineage, d.key).toBeUndefined();
@@ -159,6 +159,49 @@ describe("芯の効果", () => {
     const e = sturdy(state, NEAR / 2);
     fireCard(state, BOONS_CURSED.coreMirage, eventOf(state, "onDashEnd"));
     expect(e.hp).toBeLessThan(BIG_HP);
+  });
+
+  it("硝子の刃: 与ダメージの倍が付き、代わりに被ダメージが増える", () => {
+    const state = cleanArena();
+    state.boons = ["coreGlass"];
+    const more = applyModifiers(state, { tags: MELEE }, null, BOONS_CURSED.coreGlass.modifiers).more.reduce((m, x) => m * x.mul, 1);
+    expect(more, "与ダメの倍").toBeCloseTo(BOON.glassDamageMore);
+    const out = foldCoreStats(state.stats, ["coreGlass"]);
+    expect(out.damageTakenMul, "被ダメ").toBeCloseTo(state.stats.damageTakenMul * BOON.glassDamageTakenMul);
+    expect(out.maxHp, "最大生命は変わらない").toBe(state.stats.maxHp);
+  });
+
+  it("重心: 怯み値とノックバックが増え、代わりに攻撃速度が落ちる", () => {
+    const state = cleanArena();
+    const out = foldCoreStats(state.stats, ["coreHeavy"]);
+    expect(out.poiseDamageMul).toBeCloseTo(state.stats.poiseDamageMul * BOON.heavyPoiseMul);
+    expect(out.knockbackMul).toBeCloseTo(state.stats.knockbackMul * BOON.heavyKnockbackMul);
+    expect(out.attackSpeedMul, "攻撃速度").toBeCloseTo(state.stats.attackSpeedMul * BOON.heavyAttackSpeedMul);
+    expect(out.attackSpeedMul, "遅くなる").toBeLessThan(state.stats.attackSpeedMul);
+  });
+
+  it("気の泉: 最大気力と気力の獲得が増え、代わりに最大生命が減る", () => {
+    const state = cleanArena();
+    const out = foldCoreStats(state.stats, ["coreWellspring"]);
+    expect(out.maxMana, "最大気力").toBe(state.stats.maxMana + BOON.wellspringMana);
+    expect(out.manaGainMul, "気力の獲得").toBeCloseTo(state.stats.manaGainMul * BOON.wellspringManaGainMul);
+    expect(out.maxHp, "最大生命").toBe(Math.round(state.stats.maxHp * BOON.wellspringHpMul));
+    expect(out.maxHp, "減る").toBeLessThan(state.stats.maxHp);
+  });
+
+  it("銭の亡者: 銭の獲得と引き寄せが増え、代わりに被弾でこぼれる銭が増える", () => {
+    const state = cleanArena();
+    const out = foldCoreStats(state.stats, ["coreGreed"]);
+    expect(out.coinGainMul, "銭の獲得").toBeCloseTo(state.stats.coinGainMul * BOON.greedCoinGainMul);
+    expect(out.coinMagnetMul, "引き寄せ").toBeCloseTo(state.stats.coinMagnetMul * BOON.greedMagnetMul);
+    expect(out.coinSpillMul, "こぼれる銭").toBeCloseTo(state.stats.coinSpillMul * BOON.greedSpillMul);
+  });
+
+  it("芯の畳み込みは元の stats を書き換えない", () => {
+    const state = cleanArena();
+    const before = { ...state.stats };
+    foldCoreStats(state.stats, ["coreGlass", "coreHeavy", "coreWellspring", "coreGreed"]);
+    expect(state.stats, "元の stats").toEqual(before);
   });
 });
 

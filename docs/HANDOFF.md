@@ -2,7 +2,19 @@
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
-## 0. 現在地（2026-10-02 朝。ローカルセッション）
+## 0-夜. スキル石の厳選（2026-10-02 夜。クラウドセッション、ブランチ `claude/busy-cori-fvxzkl`）
+
+- ユーザーと相談して決めた（`docs/ideas/skill-stone-hunt.md` の表）: 同じスキルの石を集めて良い個体を求める。変異は必ず 1 本以上、まれに**宿り符**（リンクを使わない符。深度 1 で 1% → 20 階で 5%）。候補の頁で同じスキルを**束**にまとめ、札には宿り符だけ、差の欄に変異の値と付けている石との差を出す。長押しで**処分**（冥響。同じスキルを付けていれば使い込みの半分を注ぐ）、束の長押しでまとめて注ぐ。倉庫 400。使い込みの芽は 400 / 1600 回・1 ランで 1 つまで。刻印符も拾うキーで拾う。`REPLAY_VERSION` 40（master の 39 の上）
+- 確認の撮影: `npm run menu:shot -- --only "cand-group+focus=first"`（束の頁）/ `"cand-stone+focus=first"`（束の札）
+- 未確認: 実機で差の欄の変異の行と札の宿り符が読めるか・宿り符の確率の手触り・倉庫が束でどれだけ片付くか
+
+## 0. 現在地（2026-10-02 夕。クラウドセッション）
+
+- ブランチ `claude/bold-hopper-0ou94g`（master の PR #39 の後から。push 済み・PR は未作成）。`REPLAY_VERSION` 39
+- プレイの指摘 7 件に対応（詳細は `CHANGELOG.md` の [Unreleased]）: 壺・木箱からハート（章ごとに絞る）と瓶 5 → 8% / 商人を誤って怒らせない（交戦中は当たらない・平時は警告から。`system/merchantAi.ts` の `shieldsMerchant`）/ 商人の品・契約者・部屋の台座を照準 + インタラクトで使う（`system/interact.ts`）/ 芯 4 → 8 / 拠点の石段で体が隠れる不具合 / 前進の足が後ずさりに見える不具合（体のアトラスを作り直し・後ずさりは逆再生）/ 序盤の気力を絞る（`MANA.json`。武器の命中の回収は `attackGainScale` で一括）
+- **未確認**: 気力と回復の量は実プレイの感触で詰める方針（数値は JSON）。フル QA はまだ回していない（bot は台座を市の瓶しか使わなくなった）
+
+## 0-旧. 現在地（2026-10-02 朝。ローカルセッション）
 
 - ブランチは `master` → `perf/floor-gen-time` → `perf/hitch-warmup` → `feat/room-jin-and-hub` の積み重ね（最新は `feat/room-jin-and-hub`。**push していない**。ユーザーの承認後に `git push -u origin feat/room-jin-and-hub` で master へ PR を 1 本）。`npm run check` 通過（テスト 7,464 件）。`REPLAY_VERSION` 35
 - 2026-10-01 夜〜10-02 にやったこと（詳細は `CHANGELOG.md` の [Unreleased]）

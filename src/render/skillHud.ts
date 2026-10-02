@@ -1,5 +1,6 @@
 import type { GameState } from "../core/state";
-import { MODIFIERS, SKILL, SKILL_DEFS } from "../skills/data";
+import { MODIFIERS, SKILL, SKILL_DEFS, dwellLabel } from "../skills/data";
+import { STONE_TUNING } from "../skills/tuning2";
 import { stoneInSlot } from "../skills/persistence";
 import { COLOR_FROST, COLOR_MINE, COLOR_WELL, fieldRadius, mineRadius, wellRadius } from "../skills/placed";
 import { shiftElement, stakeSegments } from "../skills/actions2";
@@ -199,14 +200,15 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   drawTextShadow(ctx, text, x, y, TEXT.SMALL, color, COLOR_BLACK, "center");
 }
 
-/** 装備と同じ見せ方: 紫の光柱 + 菱形 + 名前 */
+/** 装備と同じ見せ方: 紫の光柱 + 菱形 + 名前。宿り符のある石は光柱・菱形・名前を金にして遠くから分かるようにする */
 function drawFloorStones(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const fs of state.skills.floorStones) {
     const x = Math.round(fs.pos.x);
     const y = Math.round(fs.pos.y);
-    drawPillar(ctx, x, y, COLOR_STONE);
+    const color = fs.stone.dwell === undefined ? COLOR_STONE : STONE_TUNING.dwellColor;
+    drawPillar(ctx, x, y, color);
     const by = y + bob(fs.bobTime);
-    ctx.fillStyle = COLOR_STONE;
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.moveTo(x, by - GEM_SIZE);
     ctx.lineTo(x + GEM_SIZE, by);
@@ -214,7 +216,9 @@ function drawFloorStones(ctx: CanvasRenderingContext2D, state: GameState): void 
     ctx.lineTo(x - GEM_SIZE, by);
     ctx.closePath();
     ctx.fill();
-    drawLabel(ctx, SKILL_DEFS[fs.stone.skillKey].name, x, y - PILLAR_H - LABEL_OFFSET, COLOR_STONE);
+    const dwell = dwellLabel(fs.stone);
+    const name = SKILL_DEFS[fs.stone.skillKey].name;
+    drawLabel(ctx, dwell === null ? name : `${name}（${dwell}）`, x, y - PILLAR_H - LABEL_OFFSET, color);
   }
 }
 

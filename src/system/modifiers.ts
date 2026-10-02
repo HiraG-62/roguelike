@@ -141,6 +141,8 @@ export function countPer(state: GameState, counter: PerCounter, enemy: Enemy | n
       return chainVisitCount(state);
     case "missingHpTenths":
       return p.maxHp > 0 ? Math.floor(((p.maxHp - p.hp) / p.maxHp) * TENTHS) : 0;
+    case "manaTenths":
+      return state.stats.maxMana > 0 ? Math.floor((p.mana / state.stats.maxMana) * TENTHS) : 0;
     case "stat":
       return statCount(state, counter.stat);
     case "runKills":

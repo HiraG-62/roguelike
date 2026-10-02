@@ -100,6 +100,8 @@ function guidePart(verb: GuideVerb, face: MenuFace): string {
       return `${ok} 決める`;
     case "hold":
       return `${ok} 長押し`;
+    case "dispose":
+      return `${ok} 長押し 処分`;
     case "carry":
       return `${ok} 長押し 持ち込み`;
     case "sheet":

@@ -739,6 +739,7 @@ import j_skills_ART_TRANSFORM_pistol from "./skills/ART/TRANSFORM/pistol.json";
 import j_skills_ART_TRANSFORM_rifle from "./skills/ART/TRANSFORM/rifle.json";
 import j_skills_ART_TRANSFORM_artillery from "./skills/ART/TRANSFORM/artillery.json";
 import j_skills_ART_TRANSFORM_bell from "./skills/ART/TRANSFORM/bell.json";
+import j_skills_STONE_TUNING from "./skills/STONE_TUNING.json";
 import j_ultimates__index from "./ultimates/_index.json";
 import j_ultimates_ULTIMATE__index from "./ultimates/ULTIMATE/_index.json";
 import j_ultimates_ULTIMATE_common from "./ultimates/ULTIMATE/common.json";
@@ -1770,6 +1771,7 @@ export const skills = {
       "bell": j_skills_ART_TRANSFORM_bell,
     },
   },
+  "STONE_TUNING": j_skills_STONE_TUNING,
 };
 
 export const ultimates = {
@@ -2841,6 +2843,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/SKILL/mines.json",
   "skills/SKILL/modifier.json",
   "skills/SKILL/parry.json",
+  "skills/STONE_TUNING.json",
   "skills/WAVE2_COMBO_TUNING.json",
   "skills/WAVE2_MODIFIER_TUNING.json",
   "skills/WAVE2_SKILL_TUNING/_index.json",

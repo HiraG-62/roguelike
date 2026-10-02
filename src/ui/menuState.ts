@@ -5,7 +5,7 @@ import type { Vec } from "../core/vec";
 import type { EchoOp } from "../loot/crafting";
 import type { CraftSave } from "../loot/craftingStore";
 import type { Slot } from "../loot/types";
-import type { ModifierKey, SkillResource } from "../skills/types";
+import type { ModifierKey, SkillKey, SkillResource } from "../skills/types";
 import type { BoonKey, LineageKey } from "../system/boonDefs";
 import type { ResonanceOrigin } from "../system/resonance";
 import type { Rect } from "./inventoryLayout";
@@ -48,7 +48,8 @@ export interface HandOptions {
 export type HandOptionAxis = "sort" | "kind" | "keyword" | "fit";
 export type CandidateTarget =
   | { kind: "slot"; slot: Slot }
-  | { kind: "stone"; index: number }
+  /** group = 同じスキルの石の束を開いた頁（docs/ideas/skill-stone-hunt.md。省略は束ねた一覧） */
+  | { kind: "stone"; index: number; group?: SkillKey }
   | { kind: "flow"; keyword: Keyword; verb: "produces" | "consumes" };
 export type ForgePick = { kind: "trait"; index: number } | { kind: "inscription" } | { kind: "bud"; index: number };
 /** 鍛冶の手続き。subject = 選んだ物、partner = 捧げる側か受け手（E-impl 2-4 の役割表） */
@@ -121,6 +122,8 @@ export type MenuAct =
   | { kind: "equipStone"; stoneId: string; index: number }
   | { kind: "clearSlot" }
   | { kind: "salvageStone"; stoneId: string }
+  /** 束の長押し: 宿り符の無い石をまとめて装着中の同じスキルの石へ注ぐ */
+  | { kind: "pourGroup"; skillKey: SkillKey }
   | { kind: "chooseBud"; option: number }
   | { kind: "liftRune"; slot: number; key: ModifierKey }
   | { kind: "placeRune"; slot: number }
@@ -161,7 +164,7 @@ export interface MenuHeader {
   crumbs: string;
   right: string | null;
 }
-export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "carry" | "sheet" | "sort" | "face" | "back" | "close" | "cancel";
+export type GuideVerb = "move" | "open" | "jump" | "equip" | "place" | "decide" | "hold" | "dispose" | "carry" | "sheet" | "sort" | "face" | "back" | "close" | "cancel";
 /** main.ts が FrameInput の外から渡す（記録しない入力） */
 export interface MenuSignals {
   back: boolean;

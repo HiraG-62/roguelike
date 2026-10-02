@@ -7,7 +7,7 @@ import type { PlayerStats } from "../loot/types";
 import { KEYSTONE, PLAYER, STATUS } from "../data/tuning";
 
 /**
- * 誓約の判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える（誓約 20。docs/ideas/relics-7d-plan.md 2-2）。
+ * 誓約の判定ヘルパー。key は src/loot/affixes.ts の KEYSTONES と揃える（誓約 22。docs/ideas/relics-7d-plan.md 2-2。呼気・満願は 2026-10-02 に気力の軸として追加）。
  * 数値だけの誓約（硝子の砲・吸血など）は computeStats 側で適用済み。
  */
 export const KS = {
@@ -31,6 +31,8 @@ export const KS = {
   poverty: "ks_poverty",
   goldCage: "ks_goldCage",
   alms: "ks_alms",
+  breathOath: "ks_breathOath",
+  brimOath: "ks_brimOath",
 } as const;
 
 export type KeystoneKey = (typeof KS)[keyof typeof KS];
@@ -60,6 +62,8 @@ export const KEYSTONE_NAME: Readonly<Record<string, string>> = {
   ks_poverty: "清貧",
   ks_goldCage: "黄金の檻",
   ks_alms: "喜捨",
+  ks_breathOath: "呼気の誓い",
+  ks_brimOath: "満願の誓い",
 };
 
 // -----------------------------------------------------------------------------
@@ -100,6 +104,19 @@ const KEYSTONE_MODIFIERS: Readonly<Partial<Record<string, readonly Modifier[]>>>
   // 清貧: 銭を持てない代わりの与ダメの増
   [KS.poverty]: [
     { id: ruleId(keystoneOwner(KS.poverty), 0), kind: "increased", tag: "all", amount: KEYSTONE.povertyIncreased, if: [], owner: keystoneOwner(KS.poverty), label: keystoneName(KS.poverty) },
+  ],
+  // 満願の誓い: 今の気力 1 割につき倍が 1 段（気力を溜めたまま戦うほど強い。撃てば下がる）
+  [KS.brimOath]: [
+    {
+      id: ruleId(keystoneOwner(KS.brimOath), 0),
+      kind: "more",
+      tag: "all",
+      amount: KEYSTONE.brimOathPerTenth,
+      per: { count: { kind: "manaTenths" } },
+      if: [],
+      owner: keystoneOwner(KS.brimOath),
+      label: keystoneName(KS.brimOath),
+    },
   ],
   // 黄金の檻: 持ち金 N につき倍が 1 段（段は足し合わせ）
   [KS.goldCage]: [
@@ -252,14 +269,24 @@ export function payOverclockShoot(state: GameState): void {
 
 /**
  * 通常攻撃（近接・ダッシュ攻撃・射撃）の命中で戻るマナに掛ける倍率。
- * ks_silentVow は 0、ks_chant は KEYSTONE.chantManaMul。
+ * ks_silentVow・ks_breathOath は 0、ks_chant は KEYSTONE.chantManaMul。
  * ジャスト回避と撃破の回収は通常攻撃ではないので対象外
  */
 export function attackManaMul(state: KeystoneHolder): number {
-  if (hasKeystone(state, KS.silentVow)) return 0;
+  if (hasKeystone(state, KS.silentVow) || hasKeystone(state, KS.breathOath)) return 0;
   // 詠唱の誓い: 通常攻撃はほとんど傷を付けない代わりにマナの蛇口になる
   if (hasKeystone(state, KS.chant)) return KEYSTONE.chantManaMul;
   return 1;
+}
+
+/** 撃破で戻る気力に掛ける倍率。呼気の誓いは 0（気力は読みで取り戻す） */
+export function killManaMul(state: KeystoneHolder): number {
+  return hasKeystone(state, KS.breathOath) ? 0 : 1;
+}
+
+/** 見切り・受け流しで戻る気力に掛ける倍率。呼気の誓いは KEYSTONE.breathOathEvadeMul */
+export function evadeManaMul(state: KeystoneHolder): number {
+  return hasKeystone(state, KS.breathOath) ? KEYSTONE.breathOathEvadeMul : 1;
 }
 
 /**

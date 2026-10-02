@@ -11,6 +11,7 @@ import { noteRiposte } from "./moments";
 import { addPoise, applyStagger } from "./poise";
 import { skillLocksAttack } from "./skills";
 import { hasStatus } from "./statusEffects";
+import { evadeManaMul } from "./keystones";
 import { onTraitCounter } from "./traitHooks";
 
 /**
@@ -139,7 +140,7 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   spawnBurst(state, p.body.pos, A.parryColor, A.parryParticles, FX_SPEED, FX_LIFE, FX_SIZE);
   addMark(state, "parry", p.body.pos, FX_ATTACK.sprite.parryLife, A.parryColor);
   pushSfx(state, "counter");
-  gainMana(state, PARRY.mana);
+  gainMana(state, PARRY.mana * evadeManaMul(state));
   noteRiposte(state, "parry", attacker);
   pushEvent(state, { kind: "onParry", actor: "player", source: { kind: "player", key: "parry" }, pos: { ...p.body.pos } });
   if (!attacker || attacker.hp <= 0) return;

@@ -14,7 +14,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
    ├─ update(dt): core/game.ts step(state, input, dt)
    │     ├─ 一時停止は早期 return。ランが終わった（`runOver` = 死亡 `dead` か踏破 `cleared`）あとは演出・カメラだけ更新
    │     ├─ 祝福 3 択中は選択の入力だけ処理して return
-   │     ├─ loot.updateDropInteract（拾得。ヒットストップ中も効く）→ ヒットストップ中はここで早期 return
+   │     ├─ interact.updateInteract（拾得・台座の使用。ヒットストップ中も効く）→ ヒットストップ中はここで早期 return
    │     └─ mana.tickMana → player → boons → statusEffects → terrain → enemies → projectiles → hazards
    │        → floor.updateRooms → runEvents.updateRunEvents → reaper → combo → rules.resolveRules → limits.enforceLimits → effects → camera
    │            │  書く: GameState（全部ここ）

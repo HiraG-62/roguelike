@@ -6,13 +6,13 @@ import { enemyDef } from "../data/enemies";
 import { ARC, ECONOMY } from "../data/tuning";
 import { TILE_SIZE, toIndex } from "../map/grid";
 import { chapterScale, dropFlask, updateCoinPickups } from "./economy";
-import { damageEnemy } from "./combat";
 import { isEngaged } from "./engagement";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { flaskCapacity } from "./flask";
 import { MERCHANT_KEY, buyWare, frontRoomOrder, merchantKindFor, stockPlan, updateMerchants, wareLabel, warePrice } from "./merchants";
+import { provokeMerchant } from "./merchantAi";
 import { emitNoise } from "./noise";
-import { withInput } from "./testHelpers";
+import { interactAt, withInput } from "./testHelpers";
 
 /** 商人と市（system/merchants.ts。docs/ideas/economy-impl.md 2-5） */
 
@@ -44,15 +44,9 @@ function wareOf(m: Merchant, kind: WareKind): Ware {
   return w;
 }
 
-/** 台座の真上に立って 1 ステップ（触れて買う経路） */
+/** 台座の真上に立ち、照準を合わせてインタラクトを 1 回押す（買う経路） */
 function touch(state: GameState, w: Ware): void {
-  state.player.body.pos = { ...w.pos };
-  updateMerchants(state);
-}
-
-function leave(state: GameState): void {
-  state.player.body.pos = { ...FAR };
-  updateMerchants(state);
+  interactAt(state, w.pos);
 }
 
 function inRoom(state: GameState, index: number, pos: { x: number; y: number }): boolean {
@@ -135,15 +129,17 @@ describe("市を立てる", () => {
   });
 });
 
-describe("台座に触れて買う", () => {
-  it("瓶の台座に触れると銭を払って瓶が 1 本増え、台座は消える。触れっぱなしで 2 回は買わない", () => {
+describe("台座に照準を合わせてインタラクトで買う", () => {
+  it("瓶の台座に触れているだけでは買わず、インタラクトで銭を払って瓶が 1 本増え、台座は消える。押し直しても 2 回は買わない", () => {
     const state = game();
     const m = merchantIn(state);
     const w = wareOf(m, "flask");
     state.player.flasks = 0;
     state.economy.coins = RICH;
     const price = w.price;
-    leave(state);
+    state.player.body.pos = { ...w.pos };
+    updateMerchants(state);
+    expect(w.used, "触れているだけ").toBe(false);
     touch(state, w);
     touch(state, w);
     expect(w.used, "買った").toBe(true);
@@ -158,7 +154,6 @@ describe("台座に触れて買う", () => {
     const m = merchantIn(state);
     const w = wareOf(m, "key");
     state.economy.coins = w.price - 1;
-    leave(state);
     touch(state, w);
     expect(w.used).toBe(false);
     expect(state.economy.coins).toBe(w.price - 1);
@@ -225,13 +220,13 @@ describe("商人を襲う", () => {
     expect(isEngaged(state), "商人のそばは交戦ではない").toBe(false);
   });
 
-  it("殴ると怒って品を投げ、売らなくなる", () => {
+  it("怒らせると品を投げ、売らなくなる（殴って怒らせる道は merchantAi.test.ts）", () => {
     const state = game();
     const m = merchantIn(state);
     const body = bodyOf(state, m);
     state.player.body.pos = { x: body.body.pos.x + 60, y: body.body.pos.y };
     state.player.invulnTimer = 1e9;
-    damageEnemy(state, body, 1, { x: -1, y: 0 }, 0, { kind: "melee" });
+    provokeMerchant(state, body);
     expect(m.provoked, "怒る").toBe(true);
     expect(body.phase).not.toBe("idle");
     let thrown = 0;
@@ -248,7 +243,7 @@ describe("商人を襲う", () => {
     const state = game();
     const m = merchantIn(state);
     const body = bodyOf(state, m);
-    damageEnemy(state, body, 1, { x: -1, y: 0 }, 0, { kind: "melee" });
+    provokeMerchant(state, body);
     const items = state.floorItems.length;
     const runes = state.skills.runes.length;
     body.hp = 0;
