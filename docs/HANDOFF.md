@@ -1,6 +1,21 @@
-# 引き継ぎ（2026-10-01 時点、0.0.15α + [Unreleased]）
+# 引き継ぎ（2026-10-02 時点、0.0.15α + [Unreleased]）
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
+
+## 0. 現在地（2026-10-02 朝。ローカルセッション）
+
+- ブランチは `master` → `perf/floor-gen-time` → `perf/hitch-warmup` → `feat/room-jin-and-hub` の積み重ね（最新は `feat/room-jin-and-hub`。**push していない**。ユーザーの承認後に `git push -u origin feat/room-jin-and-hub` で master へ PR を 1 本）。`npm run check` 通過（テスト 7,464 件）。`REPLAY_VERSION` 35
+- 2026-10-01 夜〜10-02 にやったこと（詳細は `CHANGELOG.md` の [Unreleased]）
+  - 階の生成時間の測り直し（全型で目標内）・prefab の高速化
+  - **一瞬の固まりの解消**（字の台紙と先読み・FX アトラスの展開・効果音の温め・チャンクの canvas の使い回し）と計測 `npm run hitch:probe`
+  - **通常の部屋すべてに陣**（敵の総量は約 2 倍。ユーザーの決定「総量ごと増やしてよい」）
+  - **拠点を門前町に**（`docs/ideas/hub-town-impl.md`。石段で出撃・建物名・進行で景色が増える・旧来の描画は削除）
+  - **書**: 左を遠距離の「墨文字」（記すだけで読まない）・本を顔へ向けて持ち左の詠唱で手を突き出す
+  - 武器掛けのアイコンを手に持つ絵から切り出す・**浮き文字を減らして小さく**（`feel/FLOAT_TEXT.json`）・階段を章ごとの絵に・縁の汚しの切れと封鎖の扉の色
+- フル QA（`src/qa/report.md`、2026-10-02）: 敵が倍になって平均到達深度が 1 割強下がった（rare 8.07 → 7.00・empty 3.03 → 2.33）、撃破数 +4 割、1 step は横ばい（0.58ms）、踏破率 3% → 2%。壁めり込み 2 run（前回 1）。**難易度は実プレイの感触で決める方針なので数値は据え置き**。連打計測（`src/qa/probe.md`）で書は射撃の武器と同じく盾の騎士に遅い（正面を盾で受ける設計どおり）
+- 同じ作業ツリーで別の対話セッション（roguelike-e5）がブレストを書いている（`docs/ideas/brainstorm-20261002/`）。コミットはファイルを指定して行い、`git add -A` と `git reset` を使わない（インデックスが外から書き換わることがあった）
+- 積み残し: `meta/hub.ts` の `hubDecorations` / `HubDecor` は使われていない（碑と記念品を近づいた時の名札に回す段で整理）・書の 12px の代わりの絵（`data/sprites/weapons.ts` の `BOOK_SIDE` / `BOOK_DIAG`）が古い形のまま・実機での門前町と浮き文字の見え方の確認
+- 作業用の worktree が残っている: `.claude/worktrees/agent-*`（レーン）と scratchpad の `wt-qa`（node_modules は本体へのジャンクション。**消すときは先にジャンクションを外す**。中身を消すと本体の node_modules が消える）
 
 ## 1. 現在地（2026-10-01 夜。ローカルセッションへの引き継ぎ）
 
