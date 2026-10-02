@@ -293,6 +293,14 @@ describe("トレードオフ付きアフィックス", () => {
     expect(stats.triggers.map((t) => t.magnitude)).toEqual([20]);
     expect(stats.increased.melee).toBeCloseTo(-0.06);
   });
+
+  it("見切りの息吹は見切りとカウンター（受け流し・出端）の両方で気力を戻す", () => {
+    const stats = freshStats();
+    applyRoll(stats, { key: "justBreath", kind: "prefix", tier: 1, value: 6, value2: 10 });
+    const restores = stats.triggers.filter((t) => t.effect === "restoreMana");
+    expect(restores.map((t) => t.trigger).sort()).toEqual(["onCounter", "onJustDodge"]);
+    for (const t of restores) expect(t.magnitude).toBe(6);
+  });
 });
 
 describe("キーストーン", () => {

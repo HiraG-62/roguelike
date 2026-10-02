@@ -833,13 +833,15 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "justBreath",
     color: "azure",
-    label: "見切りの息吹: 見切りで気力 +{v}、ダッシュ再使用時間 +{v2}%",
+    label: "見切りの息吹: 見切り・カウンター（受け流し・出端）で気力 +{v}、ダッシュ再使用時間 +{v2}%",
     tags: ["mana", "mobility", "tradeoff"],
     slots: ["boots", "ring"],
     curve: curveFor("justBreath"),
     keywords: kw(["mana"], ["just"]),
     apply: (s, v, v2) => {
+      // 気力は攻撃・回避・受け流しの行動で取り戻す方針（2026-10-02）なので、読みの成功の全部で湧かせる
       pushFixedTrigger(s, { trigger: "onJustDodge", condition: "always", effect: "restoreMana", magnitude: v });
+      pushFixedTrigger(s, { trigger: "onCounter", condition: "always", effect: "restoreMana", magnitude: v });
       s.dashCooldownMul += pct(v2);
     },
   }),

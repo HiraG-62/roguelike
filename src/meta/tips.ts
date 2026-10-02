@@ -124,7 +124,7 @@ const CONTROL_TIPS: readonly TipDef[] = [
 
 const COMBAT_TIPS: readonly TipDef[] = [
   { key: "hp", term: "生命", category: "combat", body: "尽きると探索が終わる。戦闘中の回復には 1 秒あたりの上限がある。" },
-  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。通常攻撃の命中・見切り・撃破で溜まり、スキルで減る。ジョブごとの気力の源（剣士は応手と終撃など）でも湧く。" },
+  { key: "mana", term: "気力", category: "combat", body: "スキルの資源。見切り・受け流しで多く戻り、通常攻撃の命中・撃破でも少し溜まり、スキルで減る。自然にはゆっくりしか戻らないので、減ったら攻めるか読んで取り戻す。ジョブごとの気力の源（剣士は応手と終撃など）・輪廻の祝福・芯「気の泉」・気力の性質で伸ばせる。" },
   {
     key: "morale",
     term: "戦意",
