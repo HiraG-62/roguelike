@@ -248,8 +248,8 @@ const CHIP_COLOR: Readonly<Record<StoneCardChip["tone"], string>> = {
 };
 
 /**
- * 札の名前と系統の丸印。chips があれば 2 段にし、下の段に宿り符と変異を色分けで並べる
- * （書付を開かずに個体の違いが読めるように。docs/ideas/skill-stone-hunt.md）。入らない区切りは描かない
+ * 札の名前と系統の丸印。chips（宿り符）があれば 2 段にし、下の段に金で出す。変異の値は札に出さず差の欄に出す
+ * （docs/ideas/skill-stone-hunt.md）
  */
 function drawCardText(ctx: CanvasRenderingContext2D, name: string, chips: readonly StoneCardChip[], keywords: readonly Keyword[], x: number, y: number, focused: boolean): void {
   const twoLine = chips.length > 0;
@@ -260,12 +260,16 @@ function drawCardText(ctx: CanvasRenderingContext2D, name: string, chips: readon
     const cx = x + CAND_CARD.w - CARD_RIGHT - (keywords.length - j) * CARD_MARK_STEP + CARD_MARK_D / 2;
     drawGlyphDisc(ctx, k, cx, y + markY, CARD_MARK_D, KEYWORD_DEFS[k].color);
   });
-  let cx = x + CARD_NAME.x;
-  const right = x + CAND_CARD.w - CARD_RIGHT;
+  drawChips(ctx, chips, x + CARD_NAME.x, y + CARD_TWO_LINE.chipY, x + CAND_CARD.w - CARD_RIGHT, "ornament");
+}
+
+/** 色分けの区切りを左から並べる（right を越える区切りは描かない）。role は情報の予算での数え方（差の欄の行は文、札は飾り） */
+function drawChips(ctx: CanvasRenderingContext2D, chips: readonly StoneCardChip[], x: number, y: number, right: number, role: "sentence" | "ornament"): void {
+  let cx = x;
   for (const chip of chips) {
     const w = textWidth(chip.text, TEXT.SMALL);
     if (cx + w > right) break;
-    menuText(ctx, chip.text, cx, y + CARD_TWO_LINE.chipY, { size: "SMALL", color: CHIP_COLOR[chip.tone], role: "ornament" });
+    menuText(ctx, chip.text, cx, y, { size: "SMALL", color: CHIP_COLOR[chip.tone], role });
     cx += w + CHIP_GAP;
   }
 }
@@ -357,6 +361,8 @@ interface DiffLine {
   text: string;
   /** 得る・失うのどちらでもない行の頭（「変異」「束」）。あれば得る・失うの代わりに薄い色で出す */
   label?: string;
+  /** 色分けして並べる区切り（変異の行）。あれば text の代わりに描く */
+  chips?: readonly StoneCardChip[];
 }
 
 interface DiffView {
@@ -386,7 +392,7 @@ function itemDiff(state: Readonly<GameState>, candidate: Readonly<Item>, current
 
 /** 石の比べ（ui/stoneDiff.ts の行を差の欄の形へ） */
 function stoneDiffView(v: Readonly<StoneDiffView>): DiffView {
-  const lines = v.rows.map((r): DiffLine => ({ gain: r.tone !== "loss", text: r.text, ...(r.tone === "info" ? { label: r.label ?? "" } : {}) }));
+  const lines = v.rows.map((r): DiffLine => ({ gain: r.tone !== "loss", text: r.text, ...(r.tone === "info" ? { label: r.label ?? "" } : {}), ...(r.chips === undefined ? {} : { chips: r.chips }) }));
   return { title: v.title, stats: NO_STATS, lines, more: v.more, empty: "" };
 }
 
@@ -446,6 +452,10 @@ function drawDiff(ctx: CanvasRenderingContext2D, diff: Readonly<DiffView>): void
     const headColor = line.label !== undefined ? MENU_INK.sub : line.gain ? MENU_INK.up : MENU_INK.down;
     menuText(ctx, head, TEXT_X, y, { size: "SMALL", color: headColor, role: "ornament" });
     const more = i === diff.lines.length - 1 && diff.more > 0 ? `　ほか ${diff.more}` : "";
+    if (line.chips !== undefined && more === "") {
+      drawChips(ctx, line.chips, DIFF.textX, y, DIFF.textX + textW, "sentence");
+      return;
+    }
     menuText(ctx, `${line.text}${more}`, DIFF.textX, y, { size: "SMALL", color: MENU_INK.text, role: "sentence", maxW: textW });
   });
   stats.forEach((row, i) => {

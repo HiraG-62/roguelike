@@ -4,20 +4,22 @@ import type { SkillStone } from "../skills/types";
 
 /**
  * 候補の頁でスキル石を見比べる文（docs/ideas/skill-stone-hunt.md）。DOM・Canvas に依存しない純関数。
- * 書付を開かなくても、札の 2 段目で変異と宿り符が、下の差の欄で付けている石との違いが読めるようにする
+ * 書付を開かなくても、下の差の欄で変異と宿り符・付けている石との違いが読めるようにする。
+ * 2026-10-02 のユーザーの指摘で、変異の値は札（一覧）に出さず差の欄に出す。札には宿り符だけ（まれな当たりを一覧で見つけられるように）
  */
 
-/** 札の 2 段目の 1 区切り。tone で色を分ける（宿り符 = 金・伸びる = 上・縮む = 下） */
+/** 色分けした文の 1 区切り（札の 2 段目・差の欄の変異の行）。tone で色を分ける（宿り符 = 金・伸びる = 上・縮む = 下） */
 export interface StoneCardChip {
   text: string;
   tone: "dwell" | "good" | "bad";
 }
 
-/** 差の欄の 1 行。info は得る・失うのどちらでもない行（label をそのまま頭に出す） */
+/** 差の欄の 1 行。info は得る・失うのどちらでもない行（label をそのまま頭に出す）。chips があれば text の代わりに色分けで出す */
 export interface StoneDiffRow {
   tone: "gain" | "loss" | "info";
   label?: string;
   text: string;
+  chips?: StoneCardChip[];
 }
 
 export interface StoneDiffView {
@@ -34,10 +36,15 @@ const GROUP_LABEL = "束";
 const CHIP_SEP = "　";
 const NO_DIFF = "変異も宿り符も同じ";
 
-/** 札の 2 段目: 宿り符（あれば先頭）→ 変異の増減（伸びる側から） */
+/** 札の 2 段目: 宿り符だけ（変異の値は差の欄に出す） */
 export function stoneCardChips(stone: Readonly<SkillStone>): StoneCardChip[] {
   const dwell = dwellLabel(stone);
-  const chips: StoneCardChip[] = dwell === null ? [] : [{ text: dwell, tone: "dwell" }];
+  return dwell === null ? [] : [{ text: dwell, tone: "dwell" }];
+}
+
+/** 差の欄の変異の行: 宿り符（あれば先頭）→ 変異の増減（伸びる側から） */
+export function stoneVariantChips(stone: Readonly<SkillStone>): StoneCardChip[] {
+  const chips = stoneCardChips(stone);
   for (const e of variantEffects(stone)) chips.push({ text: variantEffectText(e), tone: e.good ? "good" : "bad" });
   return chips;
 }
@@ -51,9 +58,9 @@ export function groupCardChips(stones: readonly Readonly<SkillStone>[]): StoneCa
 
 /** 変異の 1 行（「範囲+24%　威力-18%　宿 連鎖」）。無ければ null */
 function variantRow(stone: Readonly<SkillStone>): StoneDiffRow | null {
-  const chips = stoneCardChips(stone);
+  const chips = stoneVariantChips(stone);
   if (chips.length === 0) return null;
-  return { tone: "info", label: VARIANT_LABEL, text: chips.map((c) => c.text).join(CHIP_SEP) };
+  return { tone: "info", label: VARIANT_LABEL, text: chips.map((c) => c.text).join(CHIP_SEP), chips };
 }
 
 /** 量 1 つの「上がると良いか」（+1 = 大きいほど良い・-1 = 小さいほど良い） */
@@ -113,7 +120,7 @@ function capped(title: string, rows: readonly StoneDiffRow[]): StoneDiffView {
 
 /**
  * 候補の石と付けている石の差。同じスキルなら宿り符 → 変異の量 → 芽の差、
- * 違うスキル（か空き）なら得る動詞 → 候補の変異 → 失う動詞
+ * 違うスキル（か空き）なら得る動詞 → 失う動詞 → 候補の変異
  */
 export function stoneSwapDiff(candidate: Readonly<SkillStone>, current: Readonly<SkillStone> | null): StoneDiffView {
   const next = SKILL_DEFS[candidate.skillKey];
@@ -123,9 +130,9 @@ export function stoneSwapDiff(candidate: Readonly<SkillStone>, current: Readonly
   }
   const now = current === null ? null : SKILL_DEFS[current.skillKey];
   const rows: StoneDiffRow[] = [{ tone: "gain", text: next.verb }];
+  if (now !== null && now.verb !== next.verb) rows.push({ tone: "loss", text: now.verb });
   const variants = variantRow(candidate);
   if (variants !== null) rows.push(variants);
-  if (now !== null && now.verb !== next.verb) rows.push({ tone: "loss", text: now.verb });
   return capped(now === null ? next.name : `${next.name}${NAME_JOINT}${now.name}`, rows);
 }
 

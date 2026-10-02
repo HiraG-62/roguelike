@@ -98,9 +98,12 @@ async function main(): Promise<void> {
     view.lift = { slot: HAND_SLOT, key: "echo" };
     view.focus = fid.col(1);
   }
-  if (view?.kind === "candidates" && q.get("focus") === "first") {
-    const first = candidateEntries(state, view)[0];
-    if (first !== undefined) view.focus = entryFocusId(first);
+  const focusAt = q.get("focus");
+  if (view?.kind === "candidates" && focusAt !== null) {
+    // first = 先頭の札、数字 = その番目（0 始まり）の札
+    const at = focusAt === "first" ? 0 : Number(focusAt);
+    const entry = Number.isInteger(at) ? candidateEntries(state, view)[at] : undefined;
+    if (entry !== undefined) view.focus = entryFocusId(entry);
   }
   renderer.beginFrame();
   drawInventoryUi(renderer.context, state, ui);

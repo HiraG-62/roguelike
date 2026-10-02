@@ -3,7 +3,7 @@ import { MENU_BUDGET } from "../data/tuning";
 import { SKILL_DEFS } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import type { SkillKey, SkillStone } from "../skills/types";
-import { groupCardChips, groupSwapDiff, stoneCardChips, stoneSwapDiff } from "./stoneDiff";
+import { groupCardChips, groupSwapDiff, stoneCardChips, stoneSwapDiff, stoneVariantChips } from "./stoneDiff";
 
 /** 候補の頁のスキル石の見比べ（docs/ideas/skill-stone-hunt.md） */
 
@@ -13,9 +13,15 @@ function stone(extra: Partial<SkillStone> = {}, skillKey: SkillKey = WHIRL, seed
   return { ...stoneFromSeed(seed, { foundDepth: 1, now: seed, skillKey }), variants: [], ...extra };
 }
 
-describe("札の 2 段目", () => {
-  it("宿り符を先頭に金で、続けて変異を伸びる側から出す", () => {
+describe("札の 2 段目と変異の行", () => {
+  it("札には宿り符だけを出し、変異の値は出さない", () => {
     const chips = stoneCardChips(stone({ dwell: "echo", variants: [{ axis: "areaVsDamage", value: 0.5 }] }));
+    expect(chips.map((c) => c.tone)).toEqual(["dwell"]);
+    expect(stoneCardChips(stone({ variants: [{ axis: "areaVsDamage", value: 0.5 }] })), "宿り符の無い石は 1 段").toEqual([]);
+  });
+
+  it("差の欄の変異の行は宿り符を先頭に金で、続けて変異を伸びる側から出す", () => {
+    const chips = stoneVariantChips(stone({ dwell: "echo", variants: [{ axis: "areaVsDamage", value: 0.5 }] }));
     expect(chips.map((c) => c.tone)).toEqual(["dwell", "good", "bad"]);
     expect(chips[0]?.text).toContain("宿");
     expect(chips[1]?.text).toBe("範囲+20%");
@@ -56,12 +62,18 @@ describe("差の欄", () => {
     expect(stoneSwapDiff({ ...s }, s).rows).toEqual([{ tone: "info", text: "変異も宿り符も同じ" }]);
   });
 
-  it("違うスキルなら得る動詞 → 候補の変異 → 失う動詞", () => {
+  it("違うスキルなら得る動詞 → 失う動詞 → 候補の変異（色分けの区切りつき）", () => {
     const now = stone({}, "haste", 2);
     const next = stone({ variants: [{ axis: "areaVsDamage", value: 0.5 }] });
     const diff = stoneSwapDiff(next, now);
-    expect(diff.rows.map((r) => r.tone)).toEqual(["gain", "info", "loss"]);
-    expect(diff.rows[1]?.label).toBe("変異");
+    expect(diff.rows.map((r) => r.tone)).toEqual(["gain", "loss", "info"]);
+    expect(diff.rows[2]?.label).toBe("変異");
+    expect(diff.rows[2]?.chips?.map((c) => c.text)).toEqual(["範囲+20%", "威力-15%"]);
+  });
+
+  it("空きの枠へ付けるときも変異の行を出す", () => {
+    const diff = stoneSwapDiff(stone({ variants: [{ axis: "areaVsDamage", value: 0.5 }] }), null);
+    expect(diff.rows.map((r) => r.label ?? r.tone)).toEqual(["gain", "変異"]);
   });
 
   it("束の札は数と開き方を言う", () => {
