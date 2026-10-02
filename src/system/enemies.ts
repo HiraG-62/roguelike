@@ -10,7 +10,7 @@ import { commandNearby, eliteKnockImmune, eliteSpeedMul, eliteWindupMul, hasElit
 import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWall, spawnLaser, spawnShockwave } from "./hazards";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
-import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
+import { aimLockSec, applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
 import { markWindupStart, NEVER_TIME, noteCommit } from "./readTiming";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
@@ -713,6 +713,7 @@ function windup(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, dt: nu
     return;
   }
   e.phaseTimer -= dt;
+  if (aimStillTracking(e, def)) aimAtPlayer(e, toPlayer);
   const mul = learnedWindupMoveMul(def.key, state.depth) ?? behaviorOf(def).windupMoveMul;
   // 負は後退射撃（プレイヤーから離れながら構える）
   if (mul !== 0) {
@@ -768,9 +769,33 @@ function aimFixedAtWindup(e: Enemy, def: EnemyDef): boolean {
   return behaviorOf(def).aimFixedAtWindup(e, def);
 }
 
+/**
+ * 予備動作の今、狙いをプレイヤーへ向け直してよいか。
+ * 普通の敵は残りが aimLockSec を切るまで（その後は固まった向きで撃つ）、aimTracking の敵は攻撃の瞬間まで。
+ * windupTotal の記録が無い経路（手で phase を置いた敵）は従来どおり追う。
+ * 同時攻撃の上限で待たされている間（phaseTimer が windupTotal を超える）は再び追わない
+ */
+export function aimStillTracking(e: Enemy, def: EnemyDef): boolean {
+  if (aimFixedAtWindup(e, def)) return false;
+  if (def.aimTracking === true || e.windupTotal <= 0) return true;
+  return e.phaseTimer > aimLockSec(e) && e.phaseTimer <= e.windupTotal;
+}
+
+/** 向きと顔をプレイヤーへ。予告の線（e.strikeDir を読む）もこの向きに揃う */
+function aimAtPlayer(e: Enemy, toPlayer: Vec): void {
+  e.strikeDir = normalize(toPlayer, e.strikeDir);
+  if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
+}
+
+/** 2 撃目以降・号令の予備動作の最初の向き。狙いを固定する敵は今の向きのまま、それ以外はプレイヤーへ */
+function chainAimDir(state: GameState, e: Enemy, def: EnemyDef): Vec {
+  if (aimFixedAtWindup(e, def)) return e.strikeDir;
+  return normalize(sub(state.player.body.pos, e.body.pos), e.strikeDir);
+}
+
 function beginStrike(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec): void {
-  // 予備動作の終わりで狙いを更新する（完全追尾ではなく、避けた側が勝つ）。laser は固定
-  if (!aimFixedAtWindup(e, def)) e.strikeDir = normalize(toPlayer, e.strikeDir);
+  // 狙いは windup() の中で固まっている（固まった向きで撃つ）。追い続ける敵（aimTracking）と記録の無い経路だけ最後に向け直す
+  if (!aimFixedAtWindup(e, def) && (def.aimTracking === true || e.windupTotal <= 0)) aimAtPlayer(e, toPlayer);
   if (e.strikeDir.x !== 0) e.facing = e.strikeDir;
   e.phase = "strike";
   e.phaseTimer = def.strikeTime;
@@ -1070,7 +1095,7 @@ function endStrike(state: GameState, e: Enemy, def: EnemyDef, byWall = false): v
   if (tryFollowUp(state, e, def, byWall)) return;
   if (tryNextBeam(state, e, def)) return;
   if (e.hp > 0 && takeEliteEcho(e)) {
-    startWindup(state, e, def, e.strikeDir, ELITE.echoWindup);
+    startWindup(state, e, def, chainAimDir(state, e, def), ELITE.echoWindup);
     return;
   }
   e.phase = "recover";
@@ -1121,7 +1146,7 @@ function dropRocks(state: GameState, e: Enemy): void {
 
 /**
  * 連続攻撃の次の撃へ。2 撃目以降も予備動作を挟む（ダッシュ CD を跨がせつつ、読めば避けられる）。
- * 壁で止まったときは来た方向へ向き直す（狙いは予備動作の終わりにプレイヤーへ更新される）
+ * 壁で止まったときは来た方向へ向き直す（狙いは予備動作の途中までプレイヤーへ更新され、残りが aimLockSec を切ると固まる）
  */
 function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean): boolean {
   const f = followUpOf(def.key, state.depth);
@@ -1132,7 +1157,8 @@ function tryFollowUp(state: GameState, e: Enemy, def: EnemyDef, byWall: boolean)
     return false;
   }
   ai.counter -= 1;
-  const dir = byWall ? scale(e.strikeDir, -1) : e.strikeDir;
+  // 連撃の続きは短く、固まる残りと重なりやすい。始まりの向きをプレイヤーへ向けておかないと前の撃の向きのまま出る
+  const dir = byWall ? scale(e.strikeDir, -1) : chainAimDir(state, e, def);
   startWindup(state, e, def, dir, f.windup);
   // 連撃の続きは 1 撃目と一続きの約束。前半で怯ませて潰せると連打が 2 撃目を必ず消してしまう
   e.chainWindup = true;

@@ -2,6 +2,8 @@
   "_note": "敵の攻撃テンポ(docs/COMBAT_DESIGN.md C-2): 深度による予備動作短縮・連携ずらし・連続攻撃。windupDepthStep は 0.02→0.015(QA 2026-09-23: 1 対 1 被弾 9.33 回/60 秒 > 目標 1〜3。深度による予備動作短縮を緩め、下限 windupFloor は維持)",
   "_fields": {
     "commitRatio": "予備動作の残りがこの割合を切ったら怯み値が溜まらず、攻撃は必ず出る（コミット。受け流しだけが止める）。割合(0..1)。0 で従来どおり、1 で予備動作中は一切怯まない。目安 0.5〜0.7",
+    "aimLockSec": "狙いが固まる残り秒の下限: 予備動作の残りがこの秒（と aimLockRatio 側の長い方）を切ったら、以後は向きを変えず、固まった向きに撃つ。予告の線もそこで止まる。秒。目安 0.15〜0.3",
+    "aimLockRatio": "狙いが固まる残りの割合: 予備動作の全体 × この割合も固まる残りになる（長い予備動作ほど早めに固まる）。割合(0..1)。固まる残り秒 = min(予備動作の全体, max(aimLockSec, 全体 × aimLockRatio))。0 で aimLockSec だけ。目安 0.25〜0.45",
     "coordDelay": "連携ずらし: 近くで攻撃しかけている敵の攻撃開始をこの秒だけ待たせる。秒",
     "strikerBase": "同時に攻撃（strike）してよい非ボスの敵の数の下限。周りの敵が少ないときはこの数",
     "strikerPerAwake": "プレイヤーの近くで起きている敵がこの数増えるごとに、同時攻撃の上限が 1 増える。上限 = strikerBase + 切り捨て(起きている敵 ÷ この数)",
@@ -24,6 +26,8 @@
   "coordRadius": 90,
   "coordCooldownMax": 0.4,
   "commitRatio": 0.6,
+  "aimLockSec": 0.22,
+  "aimLockRatio": 0.35,
   "coordDelay": 0.35,
   "strikerBase": 2,
   "strikerPerAwake": 3,

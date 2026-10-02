@@ -8,7 +8,6 @@ import { ARC, BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM,
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
-import { behaviorOf } from "../system/behaviors/registry";
 import { GOFUN_COLOR } from "../data/signs";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
@@ -1527,7 +1526,7 @@ export class Renderer {
     let bottom = feetY - this.jumpLift(e, state.depth);
     if (floating) bottom += Math.sin(e.animTime * FLOAT_BOB_SPEED + e.id) * FLOAT_BOB_AMOUNT;
     // 予備動作の体: 下絵の間は攻撃の逆へのけぞって縦に縮む（溜め）、墨入れに入った瞬間に攻撃の向きへ伸びる（張り）
-    const pose = telegraphPose(e, state.time, telegraphLineDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos));
+    const pose = telegraphPose(e, state.time, telegraphLineDir(e, def, state.player.body.pos));
     x += pose.dx;
     bottom += pose.dy;
     const flip = e.facing.x < 0;

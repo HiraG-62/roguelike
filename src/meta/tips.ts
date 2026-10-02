@@ -197,6 +197,12 @@ const COMBAT_TIPS: readonly TipDef[] = [
   { key: "terrain", term: "地形", category: "combat", body: "床に重なる層（水たまり・油・溶岩・氷床など）。自分にも敵にも効く。" },
   { key: "warding", term: "魔防", category: "combat", body: "魔法の攻撃の軽減。属性耐性とは別の軸で、両方掛かる（混成は防御力と魔防の平均）。" },
   {
+    key: "aimLock",
+    term: "狙いの固まり",
+    category: "combat",
+    body: "敵の予告の線は、下絵の間はこちらを追い、墨入れの途中で向きが決まる。向きが決まった後に横へ動けば外れる。砲台のように、攻撃の瞬間まで狙い続ける敵もいる。",
+  },
+  {
     key: "telegraphDiagram",
     term: "予告の図解",
     category: "combat",

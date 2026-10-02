@@ -44,8 +44,8 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `attributes.ts` ステータスの実効値（`effectiveAttr`）・威力計算（`scaled`）・実効値の畳み込み（`deriveAttributes`）
 - `mana.ts` 気力の増減（`refillMana` / `tickMana` / `canAfford` / `spendMana`）。`core/game.ts` の `step` から直接呼ぶ
 - `readTiming.ts` 読み合いの時刻（出端の判定。`markWindupStart` を `e.phase = "windup"` を書く全ての所で呼ぶ・`noteCommit` が赤になった時刻を `updateEnemies` の後に書く・`yellowAt(e, t)` 時刻 t に予告が黄だったか。`poise.ts` から再 export。設計は `docs/ideas/reading-core-impl.md`）/ `debana.ts` 出端の出来事（`fireDebana` 音・粒・墨の飛沫・`onCounter`〈tag debana〉・起点、`noteCommittedHit` 赤の命中の鈍い音、`pushSfxSpaced` 同じ音を間を空けて積む）
-- `poise.ts` 怯みの蓄積・減衰・堅守・ダウン・処刑・背面の一撃（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。敵の攻撃のコミット（`windupCommitted` 予備動作の後半は溜まらない / `attackCommitted` / strike 中に満ちた怯みは `settlePendingStagger` で攻撃の後へ先送り。予備動作の総秒は `Enemy.windupTotal`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
-- `threat.ts` 敵の攻撃の形（`threatShapes`: 線・光線・十字・輪・扇・折れ線。予告の描画が読む）と自分に掛かるか（`threatensPlayer`: 線は体の大きさも足した距離・輪と扇は縁の内側・形の無い敵は狙いの角）。殺気・暗闇の描き直し・柝頭が同じ形と判定を読む。state を書かない
+- `poise.ts` 怯みの蓄積・減衰・堅守・ダウン・処刑・背面の一撃（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。敵の攻撃のコミット（`windupCommitted` 予備動作の後半は溜まらない / `attackCommitted` / 狙いが固まる残り秒 `aimLockSec`〔`ENEMY_TEMPO.aimLockSec` / `aimLockRatio`。`enemies.ts` の `aimStillTracking` が使う。`EnemyDef.aimTracking` の敵は攻撃の瞬間まで追う〕 / strike 中に満ちた怯みは `settlePendingStagger` で攻撃の後へ先送り。予備動作の総秒は `Enemy.windupTotal`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
+- `threat.ts` 敵の攻撃の形（`threatShapes`: 線・光線・十字・輪・扇・折れ線。予告の描画が読む）と自分に掛かるか（`threatensPlayer`: 線は体の大きさも足した距離・輪と扇は縁の内側・形の無い敵は狙いの角）。線の向き `telegraphAimDir` は普通の敵は `e.strikeDir`〔予備動作中に固まるまで追う〕。殺気・暗闇の描き直し・柝頭が同じ形と判定を読む。state を書かない
 - `damageMods.ts` 与ダメの増・倍の集約（`buildContext` / `traitIncreased` / `collectMore`。`combat.ts` の `rollOutgoing` はこれだけを呼ぶ）
 - `reforge.ts` 改鋳の 3 択（5 の倍数の階のボスの後。`offerReforges` / `updateReforgeChoice`。祝福の 3 択と同じ入力経路）と flags の挙動（`tickReforges` ほか）
 - `bets.ts` 賭場の主の賭け（運: 丁半・大穴・一か八か・倍々勝負 / 腕: 無傷・速攻・凌ぎ。腕は次に起きた陣に束縛して決着で判定、凌ぎは階を離れるときに判定。章に 1 回の大穴の陣）

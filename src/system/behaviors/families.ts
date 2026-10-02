@@ -60,7 +60,7 @@ export class Keeper extends EnemyBehaviorBase {
   }
 }
 
-/** 撃ちながら下がる射手（後退射撃）。狙いは予備動作の終わりまで更新されるので、下がっても外れない */
+/** 撃ちながら下がる射手（後退射撃）。狙いは予備動作の途中（固まる残り秒まで）更新されるので、下がっても外れない */
 export class Backstepper extends Keeper {
   constructor(key: EnemyBehavior, keepAway: number | undefined = undefined) {
     super(key, keepAway, true, SHOOTER_BACKSTEP_MUL);

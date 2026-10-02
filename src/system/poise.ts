@@ -66,6 +66,15 @@ export function windupCommitted(e: Enemy): boolean {
 
 export { markWindupStart, noteCommit, yellowAt } from "./readTiming";
 
+/**
+ * 狙いが固まる残り秒: 予備動作の残りがこれを切ったら、敵は向きを変えない（避けた側が勝つ）。
+ * 短い予備動作でも読めるよう aimLockSec を下限にし、長い予備動作は割合で早めに固める。windupTotal が 0 なら 0
+ */
+export function aimLockSec(e: Enemy): number {
+  const total = e.windupTotal;
+  return Math.min(total, Math.max(ENEMY_TEMPO.aimLockSec, total * ENEMY_TEMPO.aimLockRatio));
+}
+
 /** 攻撃が出ることが確定している（予告の色が「必ず出る」になる）: コミット窓に入った予備動作か攻撃中。render も読む */
 export function attackCommitted(e: Enemy): boolean {
   return e.phase === "strike" || windupCommitted(e);
