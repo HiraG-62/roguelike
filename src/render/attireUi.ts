@@ -16,6 +16,7 @@ import { focusedHit } from "../ui/menuFocus";
 import type { InventoryUi, LootSlot, MenuHit, ViewOf } from "../ui/menuState";
 import { type BandDelta, thinnedKeywords, tryOn, tryOnBase } from "../ui/tryOn";
 import { drawAnvil } from "./anvilUi";
+import { FIGURE_ANCHOR_DOTS, FIGURE_ZOOM, drawAttireFigure, drawPedestal, figurePoint } from "./attireFigure";
 import { MENU_INK, box, dashBox, diamond, drawFocusBrackets, drawMiniCrest, line, mixHex, noteMarks, px } from "./crestDraw";
 
 /**
@@ -119,14 +120,17 @@ function hookColorsOf(state: Readonly<GameState>, i: number): string[] {
   return out;
 }
 
+/** 人影の足元（FIGURE_POS の枠 50 × 70 の下の中央）。体は ×3 で枠に収まる */
+export const FIGURE_FEET = { x: FIGURE_POS.x + 25, y: FIGURE_POS.y + 69 } as const;
+
 /** 部位から人影へ伸ばす糸の先（人影の体の上の点） */
-const PART_ANCHORS: Readonly<Record<LootSlot, { x: number; y: number }>> = {
-  head: { x: 130, y: 51 },
-  amulet: { x: 134, y: 70 },
-  mainHand: { x: 111, y: 92 },
-  ring: { x: 149, y: 93 },
-  armor: { x: 122, y: 84 },
-  boots: { x: 130, y: 119 },
+export const PART_ANCHORS: Readonly<Record<LootSlot, { x: number; y: number }>> = {
+  head: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.head),
+  amulet: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.amulet),
+  mainHand: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.mainHand),
+  ring: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.ring),
+  armor: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.armor),
+  boots: figurePoint(FIGURE_FEET, FIGURE_ZOOM, FIGURE_ANCHOR_DOTS.boots),
 };
 
 /** 部位の下の系統の点（その遺物の系統。段の立った系統だけ色）。印の予算（部位 6 × 2 = 12）に収める */
@@ -196,7 +200,9 @@ export function drawAttire(ctx: CanvasRenderingContext2D, state: Readonly<GameSt
     const anchor = PART_ANCHORS[slot];
     line(ctx, r.x + r.w / 2, r.y + r.h / 2, anchor.x, anchor.y, focused ? MENU_INK.gold : MENU_INK.rule, !focused);
   }
-  drawFigure(ctx, FIGURE_POS.x, FIGURE_POS.y, FIGURE_POS.scale);
+  drawPedestal(ctx, FIGURE_FEET, FIGURE_ZOOM);
+  // 体の絵が読めるまでは今までのドット絵の人形で代わりに描く
+  if (!drawAttireFigure(ctx, state, FIGURE_FEET, FIGURE_ZOOM, ui.time)) drawFigure(ctx, FIGURE_POS.x, FIGURE_POS.y, FIGURE_POS.scale);
   for (const slot of ATTIRE_SLOTS) drawPart(ctx, state, slot, focusedPart(view.focus) === slot, shape);
   px(ctx, WAIST_LINE.x, WAIST_LINE.y, WAIST_LINE.w, 1, MENU_INK.rule);
   const focusStone = focusedStone(view.focus);

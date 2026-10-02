@@ -32,6 +32,7 @@ import { isUnseen } from "../ui/seen";
 import { swapDiff } from "../ui/swapDiff";
 import { type BandDelta, type TryOnResult, tryOnBase } from "../ui/tryOn";
 import { drawFigure, drawRelicGlyph, drawStoneGem, glyphSize } from "./attireUi";
+import { MINI_ZOOM, drawAttireFigure, drawPedestal } from "./attireFigure";
 import {
   MENU_INK,
   blinkOn,
@@ -59,6 +60,8 @@ type CandidatesView = ViewOf<"candidates">;
 
 /** 小さな体（人影を 3 倍・部位 18px の枠）の置き場 */
 const MINI_FIGURE = { x: 40, y: 52, scale: 3 } as const;
+/** 小さな体の足元（枠 30 × 42 の下の中央）。高精細の体を ×2 で描く */
+const MINI_FEET = { x: MINI_FIGURE.x + 15, y: MINI_FIGURE.y + 41 } as const;
 /** あてがいの入れ替えの周期（秒） */
 const TRY_PERIOD = 0.5;
 /** 石の候補で並べる腰の石 */
@@ -111,7 +114,9 @@ function wornForMini(state: Readonly<GameState>, slot: LootSlot, trying: Readonl
 }
 
 function drawMiniParts(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry> | null): void {
-  drawFigure(ctx, MINI_FIGURE.x, MINI_FIGURE.y, MINI_FIGURE.scale, true);
+  drawPedestal(ctx, MINI_FEET, MINI_ZOOM);
+  // 体の絵が読めるまでは今までのドット絵の人形で代わりに描く
+  if (!drawAttireFigure(ctx, state, MINI_FEET, MINI_ZOOM, ui.time, true)) drawFigure(ctx, MINI_FIGURE.x, MINI_FIGURE.y, MINI_FIGURE.scale, true);
   const tryNow = blinkOn(ui.time, TRY_PERIOD);
   const changing = changingSlot(view, entry);
   for (const slot of Object.keys(MINI_PARTS) as LootSlot[]) {
