@@ -10,3 +10,4 @@
 | `tele-C-glacier.png` | 予告 C: 滲み無し（氷窟の床） |
 | `area-mura.png` / `area-hake.png` / `area-nijimi.png` | 範囲（輪・扇）の内側を墨で塗る 3 案: むら / 掃き目 / 滲み（ユーザーの要望「範囲内はすべて塗りつぶしたい」） |
 | `lib.mjs` / `tele.mjs` / `area.mjs` | 撮影の台（作業用。撮影の PNG のパスは作業時のまま） |
+| `game-solo.png` / `game-crowd.png` | 実装後の実機の撮影（`npm run map:shot` の tele-solo / tele-crowd。2026-10-02） |

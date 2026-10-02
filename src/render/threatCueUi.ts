@@ -3,7 +3,8 @@ import { VIEW_H, VIEW_W } from "../core/view";
 import { THREAT_CUE } from "../data/tuning";
 import { attackCommitted } from "../system/poise";
 import { threatensPlayer } from "../system/threat";
-import { BrushPen, placeBrushLine } from "./inkBrush";
+import type { InkSurface } from "./inkSurface";
+import { placeInk } from "./telegraphInk";
 
 /**
  * 殺気と被弾筋（docs/ideas/ink-telegraph-impl.md 段 2）。見た目だけで、ゲームの結果には効かない。state を読み、前のフレームの様子は
@@ -182,30 +183,26 @@ export class ThreatCues {
     return best;
   }
 
-  /** 被弾筋（予告より下の層に描くので、予告の描き込みの前に呼ぶ） */
-  drawTraces(ctx: CanvasRenderingContext2D, state: GameState): void {
+  /** 被弾筋（予告の描き込みの作業面へ置く。朱を持たない墨の一筆が乾いて消える） */
+  drawTraces(surf: InkSurface, state: GameState): void {
     if (this.traces.length === 0) return;
-    const pen = new BrushPen(ctx);
     for (const f of this.traces) {
       const fade = 1 - (state.time - f.start) / f.sec;
       // 出どころが自分に重なって短すぎるときは、自分から出どころの向きへ最短の長さを確保する
       const len = Math.hypot(f.x1 - f.x0, f.y1 - f.y0);
       const x0 = len >= TRACE_MIN_LEN || len <= 0 ? f.x0 : f.x1 + ((f.x0 - f.x1) / len) * TRACE_MIN_LEN;
       const y0 = len >= TRACE_MIN_LEN || len <= 0 ? f.y0 : f.y1 + ((f.y0 - f.y1) / len) * TRACE_MIN_LEN;
-      placeBrushLine(pen, x0, y0, f.x1, f.y1, "trace", f.id, 0, null, THREAT_CUE.traceAlpha * Math.max(0, fade));
+      placeInk(surf, { x0, y0, x1: f.x1, y1: f.y1 }, f.id, THREAT_CUE.traceAlpha * Math.max(0, fade), 1, "trace");
     }
-    pen.end();
   }
 
-  /** 殺気（画面の縁の墨の払い）。予告の描き込みの後に呼ぶ */
-  drawEdges(ctx: CanvasRenderingContext2D, state: GameState): void {
+  /** 殺気（画面の縁の墨の払い）。予告の線と印の後に、同じ作業面へ置く */
+  drawEdges(surf: InkSurface, state: GameState): void {
     if (this.edges.length === 0) return;
-    const pen = new BrushPen(ctx);
     for (const f of this.edges) {
       const fade = 1 - (state.time - f.start) / THREAT_CUE.edgeSec;
       const len = THREAT_CUE.edgeLength;
-      placeBrushLine(pen, f.x, f.y, f.x + f.dirX * len, f.y + f.dirY * len, "ink", f.id, 0, null, Math.max(0, fade));
+      placeInk(surf, { x0: f.x, y0: f.y, x1: f.x + f.dirX * len, y1: f.y + f.dirY * len }, f.id, Math.max(0, fade));
     }
-    pen.end();
   }
 }

@@ -1,18 +1,18 @@
 import type { Enemy } from "../core/state";
 import { TELEGRAPH } from "../data/tuning";
 import { attackCommitted } from "../system/poise";
-import { RENDER_SCALE } from "../core/view";
-import { BrushPen, RING_SWEEP, placeBrushArc, placeBrushLine, ringStartAngle, stampShu } from "./inkBrush";
-import { type Span, sketchSpans } from "./sketchCells";
-
-export { sketchSpans };
-export type { Span };
+import type { ThreatArea } from "../system/threat";
+import { fillCone, fillRing } from "./inkFill";
+import { cornerMark, headMark, shuDot } from "./inkMarks";
+import { type BrushStage, type InkPath, arcPath, drawBrush, fanPath, linePath, polyPath } from "./inkStroke";
+import { INK_DOTS, type InkSurface, sharedInkSurface } from "./inkSurface";
+import { hash01 } from "./renderMath";
 
 /**
- * 墨の予告の筆致（docs/ideas/ink-telegraph-impl.md。案 B）。
- * 敵の攻撃は、薄墨の下絵（明るく淡い掠れた帯 = まだ怯ませて潰せる）→ 濃墨の墨入れ（真っ黒な一筆 + 入りの朱 + 下に敷いた胡粉 = もう止まらない）で描く。
- * 明暗・形・動きの 3 本の通り道で言うので、色が見えなくても（灰色でも）線の質で分かれる。
- * 純関数（段の判定・欠けの並び・切り抜き）と canvas に線を引く関数だけ。state を書かず、rng も使わない（掠れは敵の id と形の座標ハッシュ）
+ * 墨の予告の筆致の入口（docs/ideas/ink-telegraph-impl.md 5 章。攻撃エフェクトと同じドット絵の墨）。
+ * 敵の攻撃は、淡墨の下絵（市松に間引いた淡い帯 = まだ怯ませて潰せる）→ 濃墨の墨入れ（芯が真っ黒の一筆 + 入りの朱 + 外側の胡粉 = もう止まらない）で描く。
+ * 範囲（輪・扇・着地・爆弾）は内側を墨のむらで塗り、縁を筆で引く。明暗・形・動きで言うので、灰色でも線の質で分かれる。
+ * ワールド座標の形を作業面（inkSurface.ts）のドットへ写して置くだけ。state を書かず、rng も使わない（ばらつきは敵の id と座標ハッシュ）
  */
 
 export type InkStage = "sketch" | "ink";
@@ -22,14 +22,14 @@ export function telegraphStage(e: Enemy): InkStage {
   return attackCommitted(e) ? "ink" : "sketch";
 }
 
-/** 自分の体の円。線はこの上だけ切る */
+/** 自分の体の円。予告の描き込みはこの上だけ抜く */
 export interface CutCircle {
   x: number;
   y: number;
   r: number;
 }
 
-/** 線の 1 本 */
+/** 線の 1 本（ワールド座標） */
 export interface Seg {
   x0: number;
   y0: number;
@@ -47,157 +47,112 @@ export function sketchGap(poiseRatio: number): number {
   return Math.min(TELEGRAPH.sketchGapMax, gap);
 }
 
-/** 線の区間を円で切る（根元からの距離）。重ならなければ null */
-export function circleCut(s: Seg, c: CutCircle): Span | null {
+/** 筆の変種の種（id の座標ハッシュ。同じ敵は同じ筆でちらつかない） */
+export function brushSeed(id: number): number {
+  return Math.floor(hash01(id, 17) * 0x7fffffff);
+}
+
+/** 輪の筆の始点の角度（敵ごとに固定のハッシュ） */
+export function ringStartAngle(id: number): number {
+  return hash01(id, 31) * Math.PI * 2;
+}
+
+/** 輪は 1 周して始まりに少し重ねる（筆を引き切って始点の墨溜まりに被せる） */
+export const RING_SWEEP = Math.PI * 2 * 1.03;
+
+/** 筆の全幅（ドット）。widthMul は陣図の構えで太らせる倍率 */
+function brushDots(widthMul = 1): number {
+  return TELEGRAPH.brushWidth * INK_DOTS * widthMul;
+}
+
+/** 小さな輪・扇は筆を細くする（太い帯が範囲の中を埋めて、中の物を隠さないように） */
+function areaBrushDots(radius: number): number {
+  return Math.min(TELEGRAPH.brushWidth, radius * TELEGRAPH.areaWidthRatio) * INK_DOTS;
+}
+
+function segPath(surf: InkSurface, s: Seg): InkPath {
+  return linePath(surf.dotX(s.x0), surf.dotY(s.y0), surf.dotX(s.x1), surf.dotY(s.y1));
+}
+
+/** 下絵の 1 本（淡墨の掠れた帯）を置く。id は筆の変種の鍵、lateral は線の横へのずれ（擦れて散る動き） */
+export function placeSketch(surf: InkSurface, s: Seg, id: number, gap: number, alphaMul = 1, lateral = 0): void {
   const len = segLength(s);
-  if (len <= 0) return null;
-  const dx = (s.x1 - s.x0) / len;
-  const dy = (s.y1 - s.y0) / len;
-  const fx = c.x - s.x0;
-  const fy = c.y - s.y0;
-  const along = fx * dx + fy * dy;
-  const across2 = fx * fx + fy * fy - along * along;
-  const h2 = c.r * c.r - across2;
-  if (h2 <= 0) return null;
-  const h = Math.sqrt(h2);
-  const from = along - h;
-  const to = along + h;
-  if (to <= 0 || from >= len) return null;
-  return { from: Math.max(0, from), to: Math.min(len, to) };
+  if (len <= 0) return;
+  const nx = (-(s.y1 - s.y0) / len) * lateral;
+  const ny = ((s.x1 - s.x0) / len) * lateral;
+  const path = segPath(surf, { x0: s.x0 + nx, y0: s.y0 + ny, x1: s.x1 + nx, y1: s.y1 + ny });
+  drawBrush(surf, path, { stage: "sketch", seed: brushSeed(id), width: brushDots(), side: 0, gap, alpha: alphaMul, haloMul: 1, entry: true });
 }
 
-/** 区間の列から [a, b] を取り除く（自分の体の上を切る） */
-export function cutSpans(spans: readonly Span[], a: number, b: number): Span[] {
-  const out: Span[] = [];
-  for (const sp of spans) {
-    if (sp.to <= a || sp.from >= b) {
-      out.push(sp);
-      continue;
-    }
-    if (sp.from < a) out.push({ from: sp.from, to: a });
-    if (sp.to > b) out.push({ from: b, to: sp.to });
+/** 墨入れの 1 本（濃墨の一筆。入りに朱の墨溜まり・抜きで払い・外側に胡粉）を置く。haloMul は胡粉の濃さの倍率。trace = 朱を持たない被弾筋 */
+export function placeInk(surf: InkSurface, s: Seg, id: number, alphaMul = 1, haloMul = 1, stage: "ink" | "trace" = "ink"): void {
+  drawBrush(surf, segPath(surf, s), { stage, seed: brushSeed(id), width: brushDots(), side: 0, gap: 0, alpha: alphaMul, haloMul, entry: true });
+}
+
+/** 折れ線の筆（陣図の画）。点はワールド座標、dx, dy は全体のずれ（擦れて散る動き）、widthMul は太さの倍率 */
+export function placePoly(
+  surf: InkSurface,
+  points: readonly { x: number; y: number }[],
+  stage: BrushStage,
+  id: number,
+  gap: number,
+  alphaMul = 1,
+  widthMul = 1,
+  dx = 0,
+  dy = 0,
+): void {
+  if (points.length < 2) return;
+  const path = polyPath(points.map((p) => ({ x: surf.dotX(p.x + dx), y: surf.dotY(p.y + dy) })));
+  drawBrush(surf, path, { stage, seed: brushSeed(id), width: brushDots(widthMul), side: 0, gap, alpha: alphaMul, haloMul: 1, entry: true });
+}
+
+/**
+ * 範囲（輪・扇）: 内側を墨のむらで塗り、縁を筆で引く。帯は判定の内側に広がる（外へ太らせると嘘になる）。
+ * 扇は要（敵の体の縁 bodyR）→ 左の辺 → 弧 → 右の辺の 1 筆
+ */
+export function placeArea(surf: InkSurface, a: ThreatArea, stage: InkStage, id: number, gap: number, haloMul = 1, bodyR = 0): void {
+  const seed = brushSeed(id);
+  const cx = surf.dotX(a.x);
+  const cy = surf.dotY(a.y);
+  if (a.kind === "ring") {
+    if (!(a.r > 0)) return;
+    fillRing(surf, cx, cy, a.r * INK_DOTS, stage);
+    const path = arcPath(cx, cy, a.r * INK_DOTS, ringStartAngle(id), RING_SWEEP);
+    drawBrush(surf, path, { stage, seed, width: areaBrushDots(a.r), side: 1, gap, alpha: 1, haloMul, entry: true });
+    return;
   }
-  return out;
+  if (!(a.range > 0)) return;
+  fillCone(surf, cx, cy, a.range * INK_DOTS, a.base, a.half, stage);
+  const path = fanPath(cx, cy, a.range * INK_DOTS, a.base, a.half, bodyR * INK_DOTS);
+  drawBrush(surf, path, { stage, seed, width: areaBrushDots(a.range), side: 1, gap, alpha: 1, haloMul, entry: true });
 }
 
-/** 線が自分の体の円に切られて残る区間。切られなければ null（全長を描く） */
-function visiblePieces(s: Seg, cut: CutCircle | null): readonly Span[] | null {
-  if (!cut) return null;
-  const c = circleCut(s, cut);
-  return c ? cutSpans([{ from: 0, to: segLength(s) }], c.from, c.to) : null;
-}
-
-/** 下絵の 1 本（薄墨の掠れ）を置く。id は筆の変種の鍵、lateral は線の横へのずれ（擦れて散る動き）、side は帯の寄せ */
-export function placeSketch(pen: BrushPen, s: Seg, id: number, gap: number, cut: CutCircle | null, alphaMul = 1, lateral = 0, side = 0): void {
-  placeBrushLine(pen, s.x0, s.y0, s.x1, s.y1, "sketch", id, gap, visiblePieces(s, cut), alphaMul, lateral, side);
-}
-
-/** 墨入れの 1 本（濃墨の一筆。入りに朱の墨溜まり・抜きで払い・下に胡粉）を置く。haloMul は胡粉の濃さの倍率（攻撃の直前で濃く） */
-export function placeInk(pen: BrushPen, s: Seg, id: number, cut: CutCircle | null, alphaMul = 1, side = 0, haloMul = 1): void {
-  placeBrushLine(pen, s.x0, s.y0, s.x1, s.y1, "ink", id, 0, visiblePieces(s, cut), alphaMul, 0, side, haloMul);
-}
-
-/** 地面の物（着地・爆弾・死に際の爆発）の輪を墨入れで描く（出た時から必ず来るので下絵を持たない。中の色は呼び側が先に塗る） */
+/**
+ * 地面の物（着地・爆弾・死に際の爆発）の範囲を墨で描いてすぐ画面へ置く（内側のむら + 縁の輪。出た時から必ず来るので既定は墨入れ）。
+ * 中の色（爆弾の種類）は呼び側が先に塗る
+ */
 export function strokeInkRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, stage: InkStage = "ink"): void {
-  const pen = new BrushPen(ctx);
+  const surf = sharedInkSurface();
+  surf.begin(ctx);
   // 筆の変種と始点は位置の座標ハッシュ（同じ場所の物は同じ筆。rng は使わない）
   const id = Math.round(x * 7 + y * 13);
   // 下絵の輪は欠けを怯み値なしの基準で引く（出した敵の怯み値は輪の持ち主が知らない）
   const gap = stage === "sketch" ? sketchGap(0) : 0;
-  placeBrushArc(pen, x, y, r, ringStartAngle(id), RING_SWEEP, stage, id, gap, 1, 1);
-  pen.end();
+  placeArea(surf, { kind: "ring", x, y, r }, stage, id, gap);
+  surf.flush(ctx);
 }
 
-// -----------------------------------------------------------------------------
-// 印（頭上の ○ / ●・先端の朱の点）。小さな絵なので、1 度だけ焼いた画像を置く（円弧の塗りを何度も引くより軽い）
-// -----------------------------------------------------------------------------
-
-type MarkKind = "ready" | "commit";
-
-/** 印の絵の余白 px（縁の外側） */
-const MARK_PAD = 1;
-/** ○ の輪の太さ・暗い縁の濃さ（明るい床で薄墨の輪が沈まないように） */
-const READY_RING_W = 1;
-const READY_EDGE_ALPHA = 0.55;
-/** ● の胡粉の縁の太さと、朱の芯の半径（外径の半分に対する割合） */
-const COMMIT_RIM = 0.75;
-const COMMIT_SHU = 0.34;
-
-function markSize(): number {
-  return TELEGRAPH.headMarkSize + MARK_PAD * 2;
-}
-
-function disc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number): void {
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-/** 印を ctx に直接描く（中心 x, y）。画像に焼くときと、画像が作れない環境（単体テスト）で使う */
-function paintMark(ctx: CanvasRenderingContext2D, kind: MarkKind, x: number, y: number, alphaMul: number): void {
-  const r = TELEGRAPH.headMarkSize / 2;
-  if (kind === "commit") {
-    // ● = 胡粉の縁 → 濃墨の玉 → 朱の芯（暗い床でも明るい床でも玉の形が残る）
-    disc(ctx, x, y, r, TELEGRAPH.gofunColor, alphaMul);
-    disc(ctx, x, y, r - COMMIT_RIM, TELEGRAPH.sumiColor, alphaMul);
-    disc(ctx, x, y, r * COMMIT_SHU, TELEGRAPH.shuColor, alphaMul);
-    ctx.globalAlpha = 1;
-    return;
-  }
-  // ○ = 薄墨の輪（中は抜く）。外へ薄い墨の縁を添えて、明るい床でも輪が読める
-  ctx.lineWidth = READY_RING_W;
-  ctx.globalAlpha = READY_EDGE_ALPHA * alphaMul;
-  ctx.strokeStyle = TELEGRAPH.sumiColor;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = alphaMul;
-  ctx.strokeStyle = TELEGRAPH.usuzumiLightColor;
-  ctx.beginPath();
-  ctx.arc(x, y, r - READY_RING_W, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-}
-
-const markCache = new Map<MarkKind, HTMLCanvasElement>();
-
-function markImage(kind: MarkKind): HTMLCanvasElement | null {
-  const hit = markCache.get(kind);
-  if (hit) return hit;
-  if (typeof document === "undefined") return null;
-  const size = markSize();
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(size * RENDER_SCALE);
-  canvas.height = Math.ceil(size * RENDER_SCALE);
-  const c = canvas.getContext("2d");
-  if (!c) return null;
-  c.scale(RENDER_SCALE, RENDER_SCALE);
-  paintMark(c, kind, size / 2, size / 2, 1);
-  markCache.set(kind, canvas);
-  return canvas;
-}
-
-/** 印を置く（中心 x, y） */
-function stampMark(ctx: CanvasRenderingContext2D, kind: MarkKind, x: number, y: number, alphaMul: number): void {
-  const img = markImage(kind);
-  if (!img) {
-    paintMark(ctx, kind, x, y, alphaMul);
-    return;
-  }
-  const size = markSize();
-  ctx.globalAlpha = alphaMul;
-  ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
-  ctx.globalAlpha = 1;
-}
-
-/** 先端の朱の点（墨入れの線の届く先）。焼いた朱の玉を置く（変種は位置の座標ハッシュ） */
-export function drawStop(ctx: CanvasRenderingContext2D, x: number, y: number, alphaMul = 1): void {
-  stampShu(ctx, "tip", x, y, Math.abs(Math.round(x * 3 + y * 5)) % 3, alphaMul);
+/** 先端の朱の点（墨入れの線の届く先） */
+export function drawStop(surf: InkSurface, x: number, y: number, alphaMul = 1): void {
+  shuDot(surf, surf.dotX(x), surf.dotY(y), TELEGRAPH.shuTipRadius * INK_DOTS, alphaMul);
 }
 
 /** 頭上の印: 下絵 = 薄墨の輪（○）、墨入れ = 濃墨の玉に朱の芯（●）。文字ではなく形と明暗で言う（灰色・縮小でも残る） */
-export function drawHeadMark(ctx: CanvasRenderingContext2D, x: number, y: number, stage: InkStage): void {
-  stampMark(ctx, stage === "ink" ? "commit" : "ready", x, y, 1);
+export function drawHeadMark(surf: InkSurface, x: number, y: number, stage: InkStage): void {
+  headMark(surf, x, y, stage);
+}
+
+/** 折れ線の曲がり角の点 */
+export function drawCorner(surf: InkSurface, x: number, y: number, stage: InkStage): void {
+  cornerMark(surf, x, y, stage);
 }

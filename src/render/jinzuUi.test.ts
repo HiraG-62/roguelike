@@ -2,10 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { GameState, Jin, JinzuStroke } from "../core/state";
 import { JINZU } from "../data/tuning";
 import { arena, placeEnemy } from "../system/testHelpers";
+import { sharedInkSurface } from "./inkSurface";
 import { jinHudTitle } from "./jinUi";
 import { drawHonjinBanner, drawJinzu, drawMinimapHonjin } from "./jinzuUi";
 
-/** 本陣の陣図の描画（render/jinzuUi.ts）。Canvas を使わず、描画命令の呼び出しを数えて「描いたか」を見る */
+/**
+ * 本陣の陣図の描画（render/jinzuUi.ts）。Canvas を使わず、描画命令の呼び出しを数えて「描いたか」を見る。
+ * 墨の画は予告と同じ作業面（inkSurface.ts）のドットで置くので、作業面へ置いた色の数で見る
+ */
+function inkColors(draw: () => void): number {
+  const surf = sharedInkSurface();
+  surf.recordColors = new Set();
+  draw();
+  const n = surf.recordColors.size;
+  surf.recordColors = null;
+  return n;
+}
 
 interface Counts {
   strokes: number;
@@ -71,37 +83,31 @@ describe("陣図の描画", () => {
   it("筆の間: 下絵の画・墨の画・的・軍配を描く", () => {
     const state = honjinState("brush", [stroke("ink"), stroke("sketch"), stroke("pending")]);
     const { ctx, counts } = countingCtx();
-    drawJinzu(ctx, state);
-    expect(counts.strokes, "線を引く").toBeGreaterThan(0);
+    expect(inkColors(() => drawJinzu(ctx, state)), "画の墨").toBeGreaterThan(0);
     expect(counts.arcs, "的の円と軍配").toBeGreaterThan(0);
   });
 
   it("構え・総掛かり: 太い墨の画と矢じりを描き、走り終えた画は掠れて消える", () => {
     const hold = honjinState("hold", [stroke("ink"), stroke("ink")]);
     const a = countingCtx();
-    drawJinzu(a.ctx, hold);
-    expect(a.counts.strokes, "墨の画").toBeGreaterThan(0);
+    expect(inkColors(() => drawJinzu(a.ctx, hold)), "墨の画").toBeGreaterThan(0);
     expect(a.counts.fills, "矢じり").toBeGreaterThan(0);
     const done = honjinState("regroup", [stroke("done", { endedAt: hold.time })]);
     const fresh = countingCtx();
-    drawJinzu(fresh.ctx, done);
-    expect(fresh.counts.strokes, "走り終えた直後はまだ薄く残る").toBeGreaterThan(0);
+    expect(inkColors(() => drawJinzu(fresh.ctx, done)), "走り終えた直後はまだ薄く残る").toBeGreaterThan(0);
     done.time += JINZU.draw.fadeSec + 1;
     const gone = countingCtx();
-    drawJinzu(gone.ctx, done);
-    expect(gone.counts.strokes, "掠れて消えたら描かない").toBe(0);
+    expect(inkColors(() => drawJinzu(gone.ctx, done)), "掠れて消えたら描かない").toBe(0);
   });
 
   it("筆折れ: 消えた画は breakFadeSec の間だけ擦れて残り、過ぎたら描かない", () => {
     const state = honjinState("regroup", [stroke("erased", { endedAt: 0 })]);
     state.time = JINZU.draw.breakFadeSec / 2;
     const during = countingCtx();
-    drawJinzu(during.ctx, state);
-    expect(during.counts.strokes, "擦れの途中").toBeGreaterThan(0);
+    expect(inkColors(() => drawJinzu(during.ctx, state)), "擦れの途中").toBeGreaterThan(0);
     state.time = JINZU.draw.breakFadeSec + 1;
     const after = countingCtx();
-    drawJinzu(after.ctx, state);
-    expect(after.counts.strokes, "消えた後").toBe(0);
+    expect(inkColors(() => drawJinzu(after.ctx, state)), "消えた後").toBe(0);
   });
 
   it("陣図の無い陣・画の無い待ちでは何も描かない", () => {
