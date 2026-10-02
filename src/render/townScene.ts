@@ -212,6 +212,7 @@ export function townArtKey(kind: TownObjectKind): string {
     case "clutter":
       return `clutter:${kind.index}`;
     case "torii":
+    case "toriiSteps":
     case "lantern":
       return kind.type;
   }
@@ -259,7 +260,7 @@ export function stelePosition(gate: Rect): Vec {
   return { x: px.x - STELE_SHIFT_TILES * TILE_SIZE + TILE_SIZE / 2, y: px.y + px.h };
 }
 
-/** 景色の材料から、描く物を足元の y の昇順に並べる。同じ入力なら同じ並び */
+/** 景色の材料から、描く物を足元の y の昇順（同じ y は地面の物が先）に並べる。同じ入力なら同じ並び */
 export function buildTownPlacements(layout: HubLayout, look: TownLook): TownPlacement[] {
   const out: TownPlacement[] = [];
   for (const lot of HUB_LOT_KEYS) {
@@ -268,8 +269,13 @@ export function buildTownPlacements(layout: HubLayout, look: TownLook): TownPlac
   }
   if (hasArea(layout.gate)) {
     const px = rectPx(layout.gate);
+    const footX = px.x + px.w / 2;
+    const footY = px.y + px.h;
+    // 石段は地面の物（flat）として常に体より奥。柱と笠木だけが足元の y で前後する
+    const steps: TownObjectKind = { type: "toriiSteps" };
+    out.push({ id: "toriiSteps", art: townArtKey(steps), kind: steps, footX, footY, flat: true, box: px, boxColor: PLACEHOLDER_COLORS.torii });
     const kind: TownObjectKind = { type: "torii" };
-    out.push({ id: "torii", art: townArtKey(kind), kind, footX: px.x + px.w / 2, footY: px.y + px.h, flat: false, box: px, boxColor: PLACEHOLDER_COLORS.torii });
+    out.push({ id: "torii", art: townArtKey(kind), kind, footX, footY, flat: false, box: px, boxColor: PLACEHOLDER_COLORS.torii });
     if (look.stele > 0) {
       const at = stelePosition(layout.gate);
       const steleKind: TownObjectKind = { type: "stele", tier: look.stele };
@@ -295,7 +301,8 @@ export function buildTownPlacements(layout: HubLayout, look: TownLook): TownPlac
     const at = layout.clutterSlots[i];
     if (at) out.push(smallPlacement(`clutter:${i}`, { type: "clutter", index: i }, at, PLACEHOLDER_SIZE.clutter, PLACEHOLDER_COLORS.clutter));
   }
-  return out.sort((a, b) => a.footY - b.footY || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // 足元の y が同じなら地面の物（flat）を先に描く（鳥居の石段の上に柱を重ねる）
+  return out.sort((a, b) => a.footY - b.footY || Number(b.flat) - Number(a.flat) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /**
@@ -345,7 +352,7 @@ function glowAt(x: number, y: number, size: { r: number; strength: number }, col
 /** 灯を出す物か。建っていない敷地・幟・碑・小物は光らない（絵が灯の点を返さない物も含めて弾く） */
 function glowsFor(p: TownPlacement): boolean {
   if (p.kind.type === "lot") return p.kind.built;
-  return p.kind.type === "torii" || p.kind.type === "lantern";
+  return p.kind.type === "toriiSteps" || p.kind.type === "lantern";
 }
 
 /**

@@ -26,8 +26,10 @@ export type TownObjectKind =
   | { type: "lot"; lot: HubLotKey; built: boolean }
   /** 井戸（段 0〜3） */
   | { type: "well"; tier: number }
-  /** 鳥居と石段（HubLayout.gate の矩形に掛ける） */
+  /** 鳥居の柱と笠木（HubLayout.gate の矩形に掛ける。足元の y でプレイヤーと前後する） */
   | { type: "torii" }
+  /** 鳥居の下の石段・袖の石垣・奥の灯（地面の物。プレイヤーが上を歩くので常に体より奥に描く） */
+  | { type: "toriiSteps" }
   /** 参道の石灯籠 */
   | { type: "lantern" }
   /** 御堂の前の幟（章 1〜4 の色） */
@@ -1449,7 +1451,11 @@ const TORII_H = 4 * TILE_DOTS;
 const STAIR_STEPS = 8;
 const STAIR_STEP_DOTS = 8;
 
-function drawTorii(): Drawn {
+/**
+ * 石段・袖の石垣・奥の灯（鳥居と同じ大きさの画布。足元の点も同じ）。
+ * 石段はプレイヤーが上を歩く地面なので、鳥居の柱と別の絵にして常に体より奥に描く（一枚の絵だと石段の上で体が隠れた）
+ */
+function drawToriiSteps(): Drawn {
   const r = new Raster(TORII_W, TORII_H);
   const seed = hashString("torii");
   // 石段（手前ほど明るく、奥は宵の闇へ沈む）
@@ -1479,6 +1485,12 @@ function drawTorii(): Drawn {
   for (const cx of [sx0 - 6, sx1 + 1]) {
     r.paint(cx, topY + 1, 6, stairBottom - topY, (x, y) => rc(STONE, (y + (x > cx + 2 ? 4 : 0)) % 9 === 0 ? 3 : (x === cx ? 1 : 2) + (y < topY + 24 ? 1 : 0)));
   }
+  return finish(r);
+}
+
+/** 鳥居の柱・貫・額・島木・笠木（石段は drawToriiSteps） */
+function drawTorii(): Drawn {
+  const r = new Raster(TORII_W, TORII_H);
   // 柱（根巻は黒）
   const pw = 10;
   const p0 = 11;
@@ -1737,6 +1749,8 @@ function drawObject(kind: TownObjectKind): Drawn {
       return drawWellTier(kind.tier);
     case "torii":
       return drawTorii();
+    case "toriiSteps":
+      return drawToriiSteps();
     case "lantern":
       return drawStoneLantern();
     case "trophy":
