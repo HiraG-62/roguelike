@@ -69,7 +69,10 @@ export interface HubSession {
 export type HubAction =
   | { kind: "none" }
   | { kind: "open"; spot: HubSpotKey }
-  | { kind: "depart" };
+  /** 出撃。gate = 石段に踏み込んだ（起点画面で支度を選んでから出る）、hold = 決定の長押し（前回の支度のまま即出撃） */
+  | { kind: "depart"; via: DepartVia };
+
+export type DepartVia = "gate" | "hold";
 
 const NONE: HubAction = { kind: "none" };
 /** 拠点の部屋は 1 つだけ */
@@ -229,7 +232,7 @@ export function stepHub(session: HubSession, input: FrameInput, dt: number, conf
   }
   if (updateGate(session)) {
     hub.departHold = 0;
-    return { kind: "depart" };
+    return { kind: "depart", via: "gate" };
   }
   return updateDepartHold(hub, confirmHeld, dt);
 }
@@ -294,7 +297,7 @@ function updateDepartHold(hub: HubRun, confirmHeld: boolean, dt: number): HubAct
   hub.departHold += dt;
   if (hub.departHold < HUB.departHold) return NONE;
   hub.departHold = 0;
-  return { kind: "depart" };
+  return { kind: "depart", via: "hold" };
 }
 
 /** 倒れた木人（updateEnemies が一覧から外す）を HUB.dummyRespawn 秒後に同じ位置へ置き直す */
