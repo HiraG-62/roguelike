@@ -4,7 +4,7 @@ import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, l
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
 import { emitNoise } from "./noise";
-import { ACTION, BOON_LINEAGE, ECONOMY, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, ECONOMY, FEEL, FORM, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
   type ButtonKey,
   type HitShape,
@@ -28,6 +28,7 @@ import {
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
+import { enemyDef } from "../data/enemies";
 import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
@@ -57,8 +58,10 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
-import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
-import { onTraitCounter } from "./traitHooks";
+import { pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
+import { bossOnAnswer } from "./boss";
+import { fireDebana, noteCommittedHit } from "./debana";
+import { NEVER_TIME, yellowAt } from "./readTiming";
 import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
 import { isDeepDepth } from "./chapters";
 import { isAllied } from "./rules";
@@ -80,7 +83,7 @@ import {
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
-import { formCutsBullets, formReleaseCast } from "../data/weaponForms";
+import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
 import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
@@ -142,6 +145,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       hitTick: 0,
       lane: "primary",
       bufferedLane: "primary",
+      startedAt: NEVER_TIME,
+      readIds: new Set(),
     },
     shootCooldown: 0,
     energy: 0,
@@ -458,11 +463,52 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
 /** ダッシュ・近接・奥義の入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
+  releaseFrozenInput(state);
   if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
   if (input.parryPressed) startParry(state);
   if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
+}
+
+/**
+ * ヒットストップ中の押下を覚える（core/game.ts の止めの分岐から毎ステップ）。止まっている間は updatePlayer が通らず、
+ * 押した瞬間の入力が 1 ステップで消えるので、受け流し・ダッシュは守りの席へ、攻撃はボタンだけ覚える。
+ * 後から押した方だけ残す。外した受け流しの硬直中・怯み中の押下は今どおり捨てる（連打の罰を消さない）
+ */
+export function latchFrozenInput(state: GameState, input: FrameInput): void {
+  const p = state.player;
+  // 右は押しっぱなししか来ないので、止めの間も前のステップとの差で押した瞬間を取る（押しっぱなしで毎ステップ覚え直し、
+  // 後から押した受け流し・ダッシュを消さないように）
+  const secondaryPressed = input.shootHeld && !p.secondaryWasHeld;
+  p.secondaryWasHeld = input.shootHeld;
+  if (isPlayerStaggered(p)) return;
+  if (input.dashPressed) {
+    p.guardBuffer = { kind: "dash", input: { ...input } };
+    p.frozenAttack = undefined;
+  } else if (input.parryPressed && p.parry.recover <= 0) {
+    p.guardBuffer = { kind: "parry", input: { ...input } };
+    p.frozenAttack = undefined;
+  }
+  const attack: ButtonKey | undefined = input.attackPressed ? "primary" : secondaryPressed ? "secondary" : undefined;
+  if (attack === undefined) return;
+  p.frozenAttack = attack;
+  p.guardBuffer = undefined;
+}
+
+/** 止めが明けた最初のステップで、覚えていた押下を出す（readActions の頭。守りが先、攻撃が後で、後から押した方だけが残っている） */
+function releaseFrozenInput(state: GameState): void {
+  const p = state.player;
+  const guard = p.guardBuffer;
+  const attack = p.frozenAttack;
+  p.guardBuffer = undefined;
+  p.frozenAttack = undefined;
+  if (guard?.kind === "dash" && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, guard.input);
+  if (guard?.kind === "parry") startParry(state);
+  if (attack === undefined || skillLocksAttack(state) || artLocksActions(state) || dashLocksActions(state)) return;
+  onButtonPress(state, attack);
+  // 右は「前フレームとの差」で押した瞬間を取るので、続く readAttackButtons が同じ押下をもう一度拾わないようにする
+  if (attack === "secondary") p.secondaryWasHeld = true;
 }
 
 /**
@@ -913,6 +959,9 @@ function spinWhileCharging(state: GameState, charge: MeleeChargeDef, before: num
   const step = scaleStep(actionStats(state), spin.step, playerMoveset(state));
   p.attack.dir = { ...p.facing };
   p.attack.hitIds.clear();
+  // 回しは区切りごとが 1 つの突き。その時点の予告の色で出端を判定する
+  p.attack.startedAt = state.time;
+  p.attack.readIds.clear();
   resolveMeleeHits(state, step);
   spawnTrail(state, step);
   pushSfx(state, SPIN_SFX);
@@ -1027,6 +1076,8 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
   if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
   a.hitIds.clear();
+  a.readIds.clear();
+  a.startedAt = state.time;
   a.hitTick = 0;
   a.dir = { ...p.facing };
   if (step.invuln > 0) p.invulnTimer = Math.max(p.invulnTimer, step.invuln);
@@ -1311,14 +1362,19 @@ function stepHitEnergy(state: GameState, step: Readonly<MeleeStep>): number {
   return meleeHitEnergy(baseSec, step.hits);
 }
 
-/** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は先端に当たった */
+/**
+ * 近接 1 ヒット。予告が下絵の間に振り始めた一撃なら出端（命中の瞬間に墨入れへ入っていても。system/readTiming.ts）。tip は先端に当たった。
+ * 威力・怯み値は多段の命中ごとに掛かるが、出来事（音・イベント・応手）は 1 振り × 1 体に 1 回
+ */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
   const p = state.player;
-  const counter = isCounterable(e);
+  const counter = yellowAt(e, p.attack.startedAt);
+  const firstOnEnemy = !p.attack.readIds.has(e.id);
+  p.attack.readIds.add(e.id);
   const tipMul = tipMultipliers(step, tip);
   // 型の印（穂先の戦意・鎖の繋ぎ・裂きが開く傷。system/formMarks.ts）
   const formMul = onFormMeleeHit(state, e, step, tip, counter);
-  const out = rollOutgoing(state, e, step.damage * tipMul.damage * formMul.damage, "melee", { release: step.release });
+  const out = rollOutgoing(state, e, step.damage * tipMul.damage * formMul.damage, "melee", { release: step.release, counter });
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
   const weight = WEAPON.weightClass[playerMoveset(state).weight];
   const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : weight.hitstop);
@@ -1333,7 +1389,9 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
   damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
     poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
-    hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
+    hitstopSteps: baseHitstop,
+    readStart: counter,
+    counterStop: counter && firstOnEnemy,
     energy: stepHitEnergy(state, step),
     kind: "melee",
     crit: out.crit,
@@ -1344,11 +1402,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
     lane: p.attack.lane,
     impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo), weapon: playerMoveset(state).key },
   });
-  if (counter) showCounter(state, pos);
-  if (counter) onTraitCounter(state, e);
-  if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
-  // 右の溜め（居合）を離した振りのカウンターは居合の応手、それ以外はカウンターの応手
-  if (counter) noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
+  if (firstOnEnemy) noteReadOutcome(state, e, pos, counter);
   // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
   if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
   gainMeleeMana(state, step.mana * tipMul.mana, counter);
@@ -1407,16 +1461,21 @@ export function counterPoise(step: Readonly<MeleeStep>, counter: boolean): numbe
   return counter ? step.poise * ACTION.counter.poiseMul : step.poise;
 }
 
-/** カウンターヒットになる敵の状態（予備動作中） */
-export function isCounterable(e: Enemy): boolean {
-  return e.phase === "windup";
-}
-
-function showCounter(state: GameState, pos: Vec): void {
-  const c = ACTION.counter;
-  addHeadLabel(state, pos, c.text, c.color, c.textLife);
-  spawnBurst(state, pos, c.color, c.particles, 150, 0.35, 2);
-  pushSfx(state, "counter");
+/**
+ * 命中の読みの結果の出来事（1 振り × 1 体に 1 回）。出端なら音・粒・白黒・墨の飛沫と起点・応手、
+ * 墨入れの間の普通の命中なら鈍い打音だけ（倍も盾抜けも無いと音で伝える）
+ */
+function noteReadOutcome(state: GameState, e: Enemy, pos: Vec, counter: boolean): void {
+  const p = state.player;
+  if (!counter) {
+    noteCommittedHit(state, e);
+    return;
+  }
+  fireDebana(state, e, pos);
+  // ボスには答えとして届ける（damageEnemy の後。怯み値で先に怯んでいても答えは数える）
+  bossOnAnswer(state, e, "debana");
+  // 右の溜め（居合）を離した振りの出端は居合の応手、それ以外はカウンターの応手
+  noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
 }
 
 /** 性質「弾斬り」: 敵弾を斬って消す（撃ち返しはしない） */
@@ -1668,6 +1727,12 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
+/** 短銃（型 pistol）が、盾持ちの零距離（FORM.pistol.zeroDistance）で撃ったか。盾を抜ける弾の印（docs/ideas/reading-core-impl.md 2-5） */
+function shotIsPointBlank(state: GameState, muzzle: Vec): boolean {
+  if (formOf(playerMoveset(state)).key !== "pistol") return false;
+  return state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).blocks === true && dist(e.body.pos, muzzle) <= FORM.pistol.zeroDistance);
+}
+
 /** 弾を出す（再使用時間は触らない。三点の続きの弾・右レーンと派生の弾もここを通る）。出したら true */
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
@@ -1676,6 +1741,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   const baseAngle = angle(dir) + swayOffset(state, shot);
   const spec = volleySpec(state, shot, level, aim, override);
   const firstShot = state.projectiles.length;
+  const pointBlank = shotIsPointBlank(state, muzzle);
   let orbitIndex = shot.orbit ? orbitingCount(state) : 0;
   for (const offset of spreadOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg)) {
     const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
@@ -1701,8 +1767,10 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
       ...(override.lane ? { lane: override.lane } : {}),
-      ...(override.release ? { release: { ...override.release } } : {}),
+      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
+      ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
       ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
+      ...(pointBlank ? { pointBlank: true } : {}),
     });
   }
   const fired = state.projectiles.slice(firstShot);

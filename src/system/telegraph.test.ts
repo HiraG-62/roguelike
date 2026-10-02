@@ -59,16 +59,16 @@ describe("予告の向きと色", () => {
     expect(telegraphLineDir(e, true, state.player.body.pos)).toEqual({ x: 0, y: 1 });
   });
 
-  it("色は予備動作の前半が readyColor、コミット窓と攻撃中が commitColor", () => {
+  it("印の色は予備動作の前半（下絵）が薄墨、コミット窓と攻撃中（墨入れ）が朱", () => {
     const state = arena();
     const e = placeEnemy(state, "slime", 100);
     e.phase = "windup";
     e.windupTotal = 1;
     e.phaseTimer = 1;
-    expect(telegraphColor(e)).toBe(TELEGRAPH.readyColor);
+    expect(telegraphColor(e)).toBe(TELEGRAPH.usuzumiLightColor);
     e.phaseTimer = ENEMY_TEMPO.commitRatio - 0.05;
-    expect(telegraphColor(e)).toBe(TELEGRAPH.commitColor);
+    expect(telegraphColor(e)).toBe(TELEGRAPH.shuColor);
     e.phase = "strike";
-    expect(telegraphColor(e)).toBe(TELEGRAPH.commitColor);
+    expect(telegraphColor(e)).toBe(TELEGRAPH.shuColor);
   });
 });

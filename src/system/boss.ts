@@ -6,6 +6,7 @@ import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { boonHeartsAllowed } from "./boons";
+import { markWindupStart } from "./readTiming";
 import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall } from "./hazards";
@@ -19,7 +20,9 @@ import { broodMotherTelegraph, updateBroodMother } from "./bossBroodMother";
 import { librarianTelegraph, updateLibrarian } from "./bossLibrarian";
 import { mirrorKnightReflects, mirrorKnightTakenMul, mirrorKnightTelegraph, settleMirrorKnightRoom, updateMirrorKnight } from "./bossMirrorKnight";
 import { settleThiefKingRoom, setupThiefKingRoom, thiefKingTelegraph, updateThiefKing } from "./bossThiefKing";
-import { kingSlimeTelegraph, updateKingSlime } from "./bossKingSlime";
+import { kingSlimeAnswer, kingSlimeTelegraph, settleKingSlimeRoom, updateKingSlime } from "./bossKingSlime";
+import type { BossAnswerHit, BossAnswerKind } from "./bossKit";
+import { yellowAt } from "./readTiming";
 import { deepLordGuarded, deepLordTelegraph, settleDeepLordRoom, setupDeepLordRoom, updateDeepLord } from "./bossDeepLord";
 import { pushBossRecord } from "./bossRecord";
 import { grantBossReward } from "./bossRewards";
@@ -167,6 +170,20 @@ export function bossReflects(state: GameState, e: Enemy, pr: Projectile): boolea
   return e.defKey === "mirrorKnight" && mirrorKnightReflects(state, e, pr);
 }
 
+/** プレイヤーの答え（出端・受け流し・見切り）をボスへ渡す。ボスでなければ何もしない */
+export function bossOnAnswer(state: GameState, e: Enemy, kind: BossAnswerKind): void {
+  const def = enemyDef(e.defKey);
+  if (!isBossDriven(def) || e.hp <= 0) return;
+  const hit: BossAnswerHit = { kind, landedYellow: yellowAt(e, state.time) };
+  switch (def.behavior) {
+    case "kingSlime":
+      kingSlimeAnswer(state, e, def, hit);
+      return;
+    default:
+      return;
+  }
+}
+
 /** Wave 3 のボスの予告の形（enemies.ts の enemyTelegraph が読む） */
 export function bossTelegraph(e: Enemy, def: EnemyDef): EnemyTelegraph {
   switch (def.behavior) {
@@ -285,6 +302,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
       }
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
+      markWindupStart(state, e);
       e.phaseTimer = scaledWindup(def.windup, state.depth);
       e.windupTotal = e.phaseTimer;
       ai.counter = 0;
@@ -433,6 +451,7 @@ export function onBossDeath(state: GameState, e: Enemy): void {
   pushSfx(state, "lootRare");
   pushSfx(state, "bossDefeat");
   bossKillFx(state, e.body.pos);
+  if (e.defKey === "kingSlime") settleKingSlimeRoom(state, e);
   if (e.defKey === "deepLord") settleDeepLordRoom(state, e);
   if (e.defKey === "mirrorKnight") settleMirrorKnightRoom(state, e);
   if (e.defKey === "thiefKing") settleThiefKingRoom(state, e);

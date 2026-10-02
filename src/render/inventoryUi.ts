@@ -35,7 +35,8 @@ const TEXT_W = TEXT_RIGHT - TEXT_X;
 const HEADER_RIGHT_W = 100;
 /** 荷札の 1 行目の右寄せ（地金 ▲▼・費用）の幅 */
 const TAG_ASIDE_W = 132;
-const TAG_MARK = "▶ ";
+/** 荷札の頭の印。▶ は DotGothic16 に無く、環境によって豆腐になるので ◆ にする */
+const TAG_MARK = "◆ ";
 
 // -----------------------------------------------------------------------------
 // 帳と縁

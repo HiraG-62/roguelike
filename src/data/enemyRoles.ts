@@ -71,6 +71,7 @@ export const ROLE_BY_BEHAVIOR: Readonly<Record<EnemyBehavior, EnemyRole>> = {
   oiler: "blast",
   bat: "swarm",
   kingSlime: "vanguard",
+  crownBearer: "vanguard",
   boneLord: "vanguard",
   twinBlade: "vanguard",
   twinBow: "vanguard",

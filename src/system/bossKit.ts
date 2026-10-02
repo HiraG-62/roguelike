@@ -1,13 +1,15 @@
-import { type BossReadMemory, type Enemy, type GameState, pushSfx } from "../core/state";
+import { type BossDownTag, type BossReadMemory, type Enemy, type GameState, type OwedBossDown, pushSfx } from "../core/state";
 import type { TerrainKind } from "../core/terrain";
 import { type Vec, add, dist, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, depthDamage } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
-import { noteBossDown } from "./bossRecord";
+import { noteBossAnswer, noteBossDown, noteBossStage } from "./bossRecord";
 import { damagePlayer } from "./combat";
 import { addFloatingText, shake } from "./effects";
+import { phaseShift } from "./boss";
 import { type EnemyTelegraph, moveEnemy } from "./enemies";
-import { applyStagger, settlePendingStagger } from "./poise";
+import { applyStagger, isStaggered, settlePendingStagger } from "./poise";
+import { markWindupStart } from "./readTiming";
 import { circlesOverlap } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -18,6 +20,14 @@ import { terrainAt } from "./terrain";
  * ai.stage = 段階（1 始まり）/ ai.counter = 段階ごとの技の並びの添字 / ai.move = 今の技 / ai.chain = 連撃の何段目 /
  * ai.read = プレイヤーの読み（毎ステップ更新。技の枝の材料）
  */
+
+/** プレイヤーの答えの種類（出端・受け流し・見切り）。ボスの技が答えとして受け取る */
+export type BossAnswerKind = "debana" | "parry" | "just";
+export interface BossAnswerHit {
+  readonly kind: BossAnswerKind;
+  /** 答えの瞬間にまだ下絵だったか（yellowAt(e, state.time)）。出端は振り始めの色で決まるので、墨入れに入ってから当たった遅れた出端は false */
+  readonly landedYellow: boolean;
+}
 
 /** 段階ごとの「危ない間合い」（3-10。隣り合う段階は違う） */
 export type ThreatBand = "near" | "far" | "moving" | "still";
@@ -65,6 +75,10 @@ export interface BossHooks {
   onRecoverEnd?(state: GameState, e: Enemy): void;
   /** 攻撃間隔の倍率（激昂など） */
   intervalMul?(e: Enemy): number;
+  /** 予備動作のうち下絵の秒（0 = 最初から墨入れ、予備動作の秒以上 = 全部下絵）。null / 省略は commitRatio の規則 */
+  openTime?(state: GameState, e: Enemy, def: EnemyDef): number | null;
+  /** 予備動作中の毎ステップ（スライム王の上昇の移動など） */
+  tickWindup?(state: GameState, e: Enemy, def: EnemyDef, dt: number): void;
 }
 
 /** 章ボスの署名の技（最深の主の第三の顔が借りる）。各章ボスのファイルが export する */
@@ -74,6 +88,8 @@ export interface BossSignature {
   beginWindup(state: GameState, e: Enemy, def: EnemyDef): void;
   beginStrike(state: GameState, e: Enemy, def: EnemyDef): void;
   tickStrike?(state: GameState, e: Enemy, def: EnemyDef, dt: number): boolean;
+  /** 予備動作中の毎ステップ（借りた跳躍が影の真上へ動くのに要る） */
+  tickWindup?(state: GameState, e: Enemy, def: EnemyDef, dt: number): void;
   telegraph?(e: Enemy): EnemyTelegraph;
 }
 
@@ -104,6 +120,8 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
       startWindup(state, e, def, h);
       return;
     case "windup":
+      if (e.openFor !== undefined) e.openFor = Math.max(0, e.openFor - dt);
+      h.tickWindup?.(state, e, def, dt);
       e.phaseTimer -= dt;
       if (e.phaseTimer > 0) return;
       e.phase = "strike";
@@ -114,9 +132,12 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
       e.phaseTimer -= dt;
       if (h.tickStrike?.(state, e, def, dt)) e.phaseTimer = 0;
       if (e.phaseTimer > 0 || e.phase !== "strike") return;
+      // 答えのダウンは怯み値の怯みより先に払う（答えの印と秒が普通の怯みに化けない）
+      if (settleOwedDown(state, e)) return;
       // 攻撃中に先送りされた怯み（ダウン）は技を出し切ったここで払う
       if (settlePendingStagger(state, e)) return;
       if (chainFollowUp(state, e, def, h)) return;
+      e.openFor = undefined;
       e.phase = "recover";
       e.phaseTimer = h.recoverTime?.(state, e, def) ?? def.recover;
       return;
@@ -137,11 +158,18 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
 /** 追跡から予備動作へ（連撃の始まり） */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, h: BossHooks): void {
   e.phase = "windup";
+  markWindupStart(state, e);
   e.chainWindup = false;
-  if (e.ai) e.ai.chain = 0;
+  if (e.ai) {
+    e.ai.chain = 0;
+    // 前の技で払い損ねた予約を持ち越さない（予約した技が怯みで途切れたとき）
+    e.ai.owedDown = undefined;
+  }
   pushSfx(state, "enemyWindup");
   h.beginWindup(state, e, def);
   e.windupTotal = e.phaseTimer;
+  // 毎回代入する（前の技の下絵を残さない）
+  e.openFor = h.openTime?.(state, e, def) ?? undefined;
 }
 
 /**
@@ -156,11 +184,13 @@ function chainFollowUp(state: GameState, e: Enemy, def: EnemyDef, h: BossHooks):
   ai.chain = (ai.chain ?? 0) + 1;
   ai.move = next;
   e.phase = "windup";
+  markWindupStart(state, e);
   pushSfx(state, "enemyWindup");
   h.beginWindup(state, e, def);
   e.phaseTimer *= h.chainWindupMul?.(e, next) ?? BOSS.rules.chainWindupMul;
   e.windupTotal = e.phaseTimer;
   e.chainWindup = true;
+  e.openFor = undefined;
   return true;
 }
 
@@ -244,16 +274,55 @@ export function readPlayer(state: GameState, e: Enemy): PlayerRead {
 // -----------------------------------------------------------------------------
 
 /**
- * 自傷のダウン（壁激突・引火・追い詰め・消化の吐き出しなど）: 怯み（自傷の印つき。解除後に堅守を付けない）+
- * 浮き文字（体言止め）+ 揺れ + 音。記録のダウン回数にも数える。入らなければ false
+ * 自傷のダウン（壁激突・引火・追い詰め・墜落など）: 怯み（自傷の印つき。解除後に堅守を付けない）+
+ * 浮き文字（体言止め）+ 揺れ + 音。記録のダウン回数にも数える。入らなければ false。
+ * tag を渡すと答えのダウン: 怯めなくても（既に怯み中・拘束上限）浮き文字と答えの記録は出す。final は引導の窓を開く
  */
-export function bossDown(state: GameState, e: Enemy, time: number, text: string, color: string): boolean {
-  if (!applyStagger(state, e, time, { selfInflicted: true })) return false;
-  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - DOWN_TEXT_LIFT }, text, color, DOWN_TEXT_SCALE, DOWN_TEXT_LIFE, "status");
+export function bossDown(state: GameState, e: Enemy, time: number, text: string, color: string, tag?: BossDownTag): boolean {
+  const staggered = applyStagger(state, e, time, { selfInflicted: true });
+  if (!staggered && tag === undefined) return false;
+  showBossDown(state, e, text, color);
+  if (tag !== undefined) {
+    noteBossAnswer(state, e, text);
+    // 引導の窓は怯み（ダウン）の間だけ。怯めなかった（免疫など）ときに開くと、後の普通の怯みで引導が出てしまう
+    if (tag === "final" && e.ai && isStaggered(e)) e.ai.finale = true;
+  }
+  if (!staggered) return false;
   shake(state, FEEL.shakeHeavy);
   pushSfx(state, "wallHit");
   noteBossDown(state, e);
   return true;
+}
+
+function showBossDown(state: GameState, e: Enemy, text: string, color: string): void {
+  addFloatingText(state, { x: e.body.pos.x, y: e.body.pos.y - DOWN_TEXT_LIFT }, text, color, DOWN_TEXT_SCALE, DOWN_TEXT_LIFE, "status");
+}
+
+/** 技を止めずに、攻撃の終わりにダウンを払う（遅れた出端など）。既に予約があれば上書きしない */
+export function oweBossDown(e: Enemy, down: OwedBossDown): void {
+  if (!e.ai || e.ai.owedDown) return;
+  e.ai.owedDown = down;
+}
+
+/** 予約したダウンを払う。払って怯ませたら true（phase は chase に戻っている） */
+function settleOwedDown(state: GameState, e: Enemy): boolean {
+  const owed = e.ai?.owedDown;
+  if (!e.ai || !owed) return false;
+  e.ai.owedDown = undefined;
+  if (e.hp <= 0) return false;
+  return bossDown(state, e, owed.time, owed.text, owed.color, owed.tag);
+}
+
+/** 段階を進める（phaseShift + 行為で進んだかの記録）。byAct = 答え・行為で進んだ（false は保険・失敗） */
+export function advanceBossStage(state: GameState, e: Enemy, text: string, color: string, stage: number, byAct: boolean): void {
+  phaseShift(state, e, text, color, stage);
+  noteBossStage(state, e, byAct);
+}
+
+/** ダウンの総数（怯み + 自傷）。スライム王の消化の吐き出しが読む */
+export function bossDownCount(state: GameState, e: Enemy): number {
+  const own = state.boss?.enemyId === e.id ? (state.boss.selfDowns ?? 0) : 0;
+  return e.poise.downs + own;
 }
 
 /**
@@ -266,6 +335,7 @@ export function signatureOf(key: string, move: number, h: BossHooks, telegraph?:
     beginWindup: (state, e, def) => asMove(e, move, () => h.beginWindup(state, e, def)),
     beginStrike: (state, e, def) => asMove(e, move, () => h.beginStrike(state, e, def)),
     tickStrike: (state, e, def, dt) => asMove(e, move, () => h.tickStrike?.(state, e, def, dt) ?? false),
+    tickWindup: (state, e, def, dt) => asMove(e, move, () => h.tickWindup?.(state, e, def, dt)),
   };
   if (!telegraph) return sig;
   // 予告は描画（render/）が毎フレーム読むので、ai を書き換えず技と段階を差し替えた写しで引く（不変条件 1）

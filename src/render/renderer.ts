@@ -1,14 +1,15 @@
-import { kingSlimeAirTime } from "../system/bossKingSlime";
+import { kingSlimeLift, kingSlimePose } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import { type BossState, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
+import { type BossState, type EliteKind, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
-import { type EnemyTelegraph, enemyActiveArea, enemyTelegraph } from "../system/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
 import { ARC, BOSS, ELITE, ENEMY_AI, FLOOR_KIND, HIDDEN_ROOM, JIN, REAPER, ROOM, ROOM_KIND, STATUS, WEAPON } from "../data/tuning";
 import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
+import { behaviorOf } from "../system/behaviors/registry";
+import { GOFUN_COLOR } from "../data/signs";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
 import { resonanceSummary } from "../system/resonance";
@@ -56,7 +57,7 @@ import { drawBoonChoice, drawBoonHud } from "./boonUi";
 import { drawReforgeChoice } from "./reforgeUi";
 import { drawChainHud } from "./chainUi";
 import { drawDropFocus } from "./dropTooltip";
-import { isStaggered } from "../system/poise";
+import { attackCommitted, isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
@@ -92,16 +93,19 @@ import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawJinHud, drawLeaderMark } from "./jinUi";
+import { drawJinzu } from "./jinzuUi";
 import { drawMoraleHud } from "./moraleHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
-import { drawDoubleChargeLine } from "./chargeLineUi";
-import { drawStrikeLine, telegraphColor } from "./telegraphLineUi";
+import { TelegraphLayer } from "./telegraphLayer";
+import { strokeInkRing, telegraphStage } from "./telegraphInk";
+import { telegraphColor, telegraphLineDir } from "./telegraphLineUi";
+import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
-import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
+import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
@@ -194,23 +198,34 @@ const SHIELD_FRAME_TIME = 0.2;
 const LINK_ALPHA_MIN = 0.25;
 const LINK_ALPHA_MAX = 0.7;
 const LINK_SPEED = 5;
-const LASER_THICK_W = 3;
 const LASER_FRAME_TIME = 0.05;
 const BOMB_FRAME_TIME_SLOW = 0.3;
 const BOMB_FRAME_TIME_FAST = 0.08;
 const BOMB_CIRCLE_ALPHA = 0.25;
+/** 精鋭の爆ぜるの橙の輪を、墨入れの輪の内側へ置く距離（論理 px） */
+const INK_RING_INSET = 5;
 const BOMB_FILL_ALPHA = 0.18;
 const SHOCKWAVE_ALPHA = 0.85;
-const GOLEM_TELEGRAPH_ALPHA = 0.3;
-/** Wave 3 の予告: 扇（風・睨み）の塗りの濃さ（予備動作中 / 攻撃中）と、十字の線・鎖縛のの鎖の濃さ */
-const CONE_WINDUP_ALPHA = 0.18;
-const CONE_ACTIVE_ALPHA = 0.28;
+/** 鎖縛のの鎖・鎖の死神の予告線の濃さ */
 const CROSS_LINE_ALPHA = 0.5;
+
+/** 精鋭の気・名札の色（号令の気は予告の色から外した色。system/elites.ts の ELITE_COLOR） */
+function eliteDrawColor(kind: EliteKind): string {
+  return ELITE_COLOR[kind];
+}
 const ELITE_CHAIN_ALPHA = 0.55;
 const LANDING_ALPHA = 0.45;
 const LANDING_MIN_SCALE = 0.35;
 const LANDING_MAX_SCALE = 1.6;
 const KING_JUMP_HEIGHT = 40;
+// 冠スライムの頭上の冠（正式な絵までの仮の小さな印）: 台座 + 3 つの尖り
+const CROWN_COLOR = "#f0c040";
+const CROWN_EDGE = "#6a4a10";
+const CROWN_W = 7;
+const CROWN_BASE_H = 2;
+const CROWN_POINT_H = 2;
+const CROWN_GAP = 1;
+const LANDING_EDGE_ALPHA = 0.8;
 const BONE_WALL_COLOR = "#e8e0c8";
 const BONE_WALL_EDGE = "#8a8068";
 /** 盗賊王の柵（木の色。骨の壁と見分ける） */
@@ -250,7 +265,6 @@ const SHIELD_BAR_H = 2;
 const SHOCKWAVE_SPENT_ALPHA = 0.4;
 const LANDING_RX = 0.5;
 const LANDING_RY = 0.3;
-const LANDING_RING_FADE = 0.6;
 
 /** 第 2 弾: ボス演出 */
 const BOSS_BAR_SEGMENTS = 10;
@@ -290,10 +304,6 @@ const WISP_GLOW_FLICKER = 0.3;
 const KNIGHT_BLOCK_KNOCK_MIN = 15;
 const KNIGHT_BLOCK_GLOW_R = 10;
 const KNIGHT_BLOCK_SCALE = 1.3;
-const LASER_TELEGRAPH_MIN_ALPHA = 0.35;
-const LASER_DOT_R = 3;
-const LASER_DOT_GLOW_R = 8;
-const LASER_DOT_SPEED = 25;
 const LASER_END_GLOW_R = 12;
 const LASER_END_CORE_R = 4;
 const LASER_OUTER_W = 4;
@@ -390,9 +400,6 @@ const DASH_STRETCH_Y = 0.85;
 const DASH_GHOSTS = 2;
 const DASH_GHOST_SPACING = 6;
 const DASH_GHOST_ALPHA = 0.35;
-/** windup の震え（決定性のためゲーム rng は使わない） */
-const WINDUP_JITTER_SPEED = 60;
-const WINDUP_JITTER_Y_RATIO = 1.3;
 const WINDUP_BLINK_SPEED = 30;
 const WINDUP_RED_ALPHA = 0.55;
 const STAGGER_TILT = 0.25;
@@ -657,6 +664,11 @@ export class Renderer {
   /** PNG 取り込み（setAtlas）で差し替わるので readonly にしない */
   private atlas: SpriteAtlas;
   private readonly tints = new TintCache();
+  private readonly telegraphs = new TelegraphLayer();
+  private readonly telegraphHelpers = {
+    headTop: (e: Enemy): number => this.enemyHeadTop(e),
+    glow: (x: number, y: number, color: string, r: number, alpha: number): void => this.drawGlow(x, y, color, r, alpha),
+  };
   private readonly vignette: HTMLCanvasElement;
   private readonly lowHpVignette: HTMLCanvasElement;
   private readonly edgeBlue: HTMLCanvasElement;
@@ -843,6 +855,7 @@ export class Renderer {
     this.drawMapLight(state, -ox, -oy);
     this.drawTileOverlays(state, -ox, -oy);
     drawGroundMarks(ctx, state, this.fxSprites);
+    drawJinzu(ctx, state);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
@@ -870,6 +883,7 @@ export class Renderer {
     this.drawShapes(state);
     drawAirMarks(ctx, state, this.fxSprites);
     this.drawParticles(state);
+    this.telegraphs.draw(ctx, state, this.telegraphHelpers);
     this.drawTexts(state);
     ctx.restore();
   }
@@ -877,7 +891,10 @@ export class Renderer {
   /** worldOverlay 層: ワールドにだけ掛ける画面効果（HUD は覆わない） */
   private drawWorldOverlayLayer(state: GameState, ox: number, oy: number): void {
     const { ctx } = this;
-    if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
+    if (isDark(state)) {
+      this.darkness.draw(ctx, state, ox, oy);
+      this.telegraphs.drawDark(ctx, state, ox, oy);
+    }
     drawRunOverlay(ctx, state, ox, oy);
     this.drawOverlays(state);
     drawScreenMarks(ctx, state, ox, oy);
@@ -941,7 +958,7 @@ export class Renderer {
       const sprite = this.sprite(enemyDef(e.defKey).sprite);
       const img = pick(sprite.white, this.enemyFrame(e, sprite));
       if (img) {
-        const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e);
+        const bottom = e.body.pos.y + sprite.h / 2 - this.jumpLift(e, state.depth);
         this.bossSnap = { img, w: sprite.w, h: sprite.h, x: e.body.pos.x, bottom, flip: e.facing.x < 0 };
       }
     }
@@ -1507,16 +1524,16 @@ export class Renderer {
 
     const frame = this.enemyFrame(e, sprite);
     let x = cx;
-    let bottom = feetY - this.jumpLift(e);
+    let bottom = feetY - this.jumpLift(e, state.depth);
     if (floating) bottom += Math.sin(e.animTime * FLOAT_BOB_SPEED + e.id) * FLOAT_BOB_AMOUNT;
-    if (e.phase === "windup") {
-      x += Math.sin(state.time * WINDUP_JITTER_SPEED + e.id);
-      bottom += Math.cos(state.time * WINDUP_JITTER_SPEED * WINDUP_JITTER_Y_RATIO + e.id);
-    }
+    // 予備動作の体: 下絵の間は攻撃の逆へのけぞって縦に縮む（溜め）、墨入れに入った瞬間に攻撃の向きへ伸びる（張り）
+    const pose = telegraphPose(e, state.time, telegraphLineDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos));
+    x += pose.dx;
+    bottom += pose.dy;
     const flip = e.facing.x < 0;
     const hit = e.hitFlash > 0;
-    let sx = hit ? SQUASH_X : 1;
-    let sy = hit ? SQUASH_Y : 1;
+    let sx = (hit ? SQUASH_X : 1) * pose.sx;
+    let sy = (hit ? SQUASH_Y : 1) * pose.sy;
     if (isWisp) {
       // 炎の揺らぎ: 横と縦を別周期で伸縮 + 背後の発光
       sx *= 1 + Math.sin(e.animTime * WISP_FLICKER_SPEED_X + e.id) * WISP_FLICKER_X;
@@ -1533,10 +1550,10 @@ export class Renderer {
     const base = hit ? sprite.white : sprite.frames;
     this.drawAnchored(sprite, pick(base, frame), x, bottom, sx, sy, rot, flip);
 
-    // 状態の重ね描き（同じ変形のシルエットを半透明で）
-    if (e.phase === "windup" && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
+    // 状態の重ね描き（同じ変形のシルエットを半透明で）。朱の点滅は予告の墨入れと同じく攻撃が確定してから（下絵の間は殴って止められる）
+    if (e.phase === "windup" && attackCommitted(e) && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
       ctx.globalAlpha = WINDUP_RED_ALPHA;
-      this.drawAnchored(sprite, pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(this.tinted(key, TELEGRAPH.shuColor), frame), x, bottom, sx, sy, rot, flip);
     }
     if (hasStatus(e.status, "chill") || hasStatus(e.status, "freeze")) {
       ctx.globalAlpha = CHILL_TINT_ALPHA;
@@ -1557,22 +1574,13 @@ export class Renderer {
     ctx.globalAlpha = 1;
     drawEnemyStatusFx(ctx, e, x, bottom, sprite.w, sprite.h, state.time);
     if (isWisp) this.drawSparkles(x, bottom - 2, e.animTime, ENEMY_AI.wisp.color);
+    if (e.defKey === "crownSlime") this.drawCrownMark(x, bottom - e.body.radius * 2 * sy);
     if (def.blocks) this.drawKnightShield(state, e, cx, cy);
 
+    // 予告（頭上の印・線・範囲）は全部の敵の後の 1 回の描き込み（telegraphLayer.ts）で描く
     const top = cy - sprite.h / 2 - 2;
-    if (e.phase === "windup") {
-      drawText(ctx, "!", cx, top, TEXT.SMALL, telegraphColor(e), "center");
-      // 予告の種類は system 側（enemyTelegraph）が決める。影で見せるものは hazards の landing が描く
-      const tele = enemyTelegraph(e, def);
-      if (tele?.kind === "line") drawStrikeLine(ctx, state, e, tele.length ?? TELEGRAPH.fallbackLength);
-      if (tele?.kind === "laser") this.drawLaserTelegraph(state, e, def.windup);
-      if (tele?.kind === "ring") this.drawRingTelegraph(cx, cy, tele.radius);
-      this.drawWave3Telegraph(e, tele, CONE_WINDUP_ALPHA);
-    }
-    this.drawWave3Telegraph(e, enemyActiveArea(e, def), CONE_ACTIVE_ALPHA);
-    drawDoubleChargeLine(ctx, e);
     if (staggered) {
-      drawText(ctx, "*", cx, top, TEXT.SMALL, COLOR_ENERGY, "center");
+      drawText(ctx, "*", cx, top, TEXT.SMALL, GOFUN_COLOR, "center");
     }
     drawEnemyStatus(ctx, e, cx, e.elite || e.grade === "strong" ? top - ELITE_NAME_OFFSET : top);
     // 属性の弱点の印（docs/COMBAT_DESIGN.md A-8）
@@ -1591,6 +1599,13 @@ export class Renderer {
     drawPoiseGauge(ctx, e, cx, barY + 2, 16);
     // 精鋭でない猛（強）は名前だけ出す
     this.drawEliteName(e, cx, top - ELITE_NAME_OFFSET);
+  }
+
+  /** 敵の頭の上の y（体の 2px 上）。頭上の印の席 */
+  private enemyHeadTop(e: Enemy): number {
+    const def = enemyDef(e.defKey);
+    const sprite = this.sprite(enemySpriteKey(def.sprite, e.phase, (k) => k in this.atlas));
+    return e.body.pos.y - sprite.h / 2 - 2;
   }
 
   /** 冷気・凍結・燃焼（drawEnemy が個別に重ねる色）以外の状態異常の色調（毒の緑・濡れの青・宣告の紫 …） */
@@ -1617,9 +1632,17 @@ export class Renderer {
   private enemyFrame(e: Enemy, sprite: Sprite): number {
     const def = enemyDef(e.defKey);
     if (def.behavior === "kingSlime") {
-      if (e.phase === "windup") return KING_FRAME.crouch;
-      if (e.phase === "strike") return KING_FRAME.stretch;
-      if (e.phase === "recover") return KING_FRAME.squash;
+      switch (kingSlimePose(e)) {
+        case "crouch":
+          return KING_FRAME.crouch;
+        case "air":
+        case "fall":
+          return KING_FRAME.stretch;
+        case "land":
+          return KING_FRAME.squash;
+        default:
+          break;
+      }
       return Math.floor(e.animTime / (ENEMY_FRAME_TIME * 2)) % 2 === 0 ? KING_FRAME.idle : KING_FRAME.squash;
     }
     if (def.behavior === "boneLord") {
@@ -1630,19 +1653,29 @@ export class Renderer {
     return spriteFrame(sprite, e.animTime, ENEMY_FRAME_TIME);
   }
 
-  /** スライム王の跳躍中の高さ（空中の秒は技ごとに system/bossKingSlime.ts が決める。跳ばない技では null） */
-  private jumpLift(e: Enemy): number {
-    if (e.defKey !== "kingSlime" || e.phase !== "strike") return 0;
-    const total = kingSlimeAirTime(e);
-    if (total === null) return 0;
-    const t = Math.min(1, Math.max(0, 1 - e.phaseTimer / total));
-    return Math.sin(t * Math.PI) * KING_JUMP_HEIGHT;
+  /** スライム王の高さ（跳躍の上昇・滞空・落下と低い跳びは system/bossKingSlime.ts の kingSlimeLift が決める。王以外は 0） */
+  private jumpLift(e: Enemy, depth: number): number {
+    if (e.defKey !== "kingSlime") return 0;
+    return kingSlimeLift(e, depth) * KING_JUMP_HEIGHT;
+  }
+
+  /** 冠スライムの頭上の冠。王の陰で守られている大将だと一目で分かる印（座標は整数に丸めて滲ませない） */
+  private drawCrownMark(cx: number, headY: number): void {
+    const { ctx } = this;
+    const left = Math.round(cx - CROWN_W / 2);
+    const baseY = Math.round(headY) - CROWN_GAP - CROWN_BASE_H;
+    ctx.fillStyle = CROWN_EDGE;
+    ctx.fillRect(left - 1, baseY - CROWN_POINT_H - 1, CROWN_W + 2, CROWN_BASE_H + CROWN_POINT_H + 2);
+    ctx.fillStyle = CROWN_COLOR;
+    ctx.fillRect(left, baseY, CROWN_W, CROWN_BASE_H);
+    // 尖りは左・中・右の 3 つ
+    for (const dx of [0, Math.floor(CROWN_W / 2), CROWN_W - 1]) ctx.fillRect(left + dx, baseY - CROWN_POINT_H, 1, CROWN_POINT_H);
   }
 
   private drawEliteAura(state: GameState, e: Enemy, cx: number, feetY: number): void {
     if (!e.elite) return;
     const aura = this.sprite(SPR.eliteAura);
-    const frames = this.tinted(SPR.eliteAura, ELITE_COLOR[e.elite]);
+    const frames = this.tinted(SPR.eliteAura, eliteDrawColor(e.elite));
     const frame = spriteFrame(aura, state.time + e.id, ELITE_AURA_FRAME_TIME);
     this.ctx.globalAlpha = ELITE.auraAlpha * pulse(state.time + e.id, ELITE_AURA_PULSE_SPEED, ELITE_AURA_PULSE_MIN, 1);
     this.drawAnchored(aura, pick(frames, frame), cx, feetY + ELITE_AURA_DROP);
@@ -1672,7 +1705,7 @@ export class Renderer {
 
   private drawEliteName(e: Enemy, cx: number, y: number): void {
     // 精鋭は修飾子の色、精鋭でない猛（強）は陣の色。並は名前を出さない
-    const color = e.elite ? ELITE_COLOR[e.elite] : e.grade === "strong" ? JIN.hud.strongColor : undefined;
+    const color = e.elite ? eliteDrawColor(e.elite) : e.grade === "strong" ? JIN.hud.strongColor : undefined;
     if (color === undefined) return;
     this.shadowText(eliteDisplayName(e), Math.round(cx), Math.round(y), color, TEXT.SMALL);
   }
@@ -1699,61 +1732,6 @@ export class Renderer {
     this.ctx.globalAlpha = 1;
   }
 
-  /** レーザーのチャージ: 細い線が徐々に太く濃くなり、終点に光点。後半は脈打つ */
-  private drawLaserTelegraph(state: GameState, e: Enemy, windup: number): void {
-    const target = e.ai?.target;
-    if (!target) return;
-    const { ctx } = this;
-    const t = windup > 0 ? clamp01(1 - e.phaseTimer / windup) : 1;
-    const thick = t >= ENEMY_AI.laser.thinRatio;
-    const color = ENEMY_AI.laser.color;
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = lerp(LASER_TELEGRAPH_MIN_ALPHA, 1, t);
-    ctx.lineWidth = Math.max(1, Math.round(lerp(1, LASER_THICK_W, t)));
-    ctx.beginPath();
-    ctx.moveTo(e.body.pos.x, e.body.pos.y);
-    ctx.lineTo(target.x, target.y);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 1;
-    const blink = thick ? pulse(state.time, LASER_DOT_SPEED, 0.5, 1) : t;
-    this.drawGlow(target.x, target.y, color, LASER_DOT_GLOW_R, blink);
-    this.drawGlow(e.body.pos.x, e.body.pos.y, color, LASER_DOT_GLOW_R, t);
-    ctx.fillStyle = COLOR_WHITE;
-    ctx.globalAlpha = blink;
-    const r = Math.max(1, Math.round(LASER_DOT_R * t));
-    ctx.fillRect(Math.round(target.x - r / 2), Math.round(target.y - r / 2), r, r);
-    ctx.globalAlpha = 1;
-  }
-
-  /** Wave 3 の予告の形: 十字（ai.points の各点へ）と扇（strikeDir を中心に） */
-  private drawWave3Telegraph(e: Enemy, tele: EnemyTelegraph, coneAlpha: number): void {
-    const { ctx } = this;
-    if (tele?.kind === "cross") {
-      ctx.strokeStyle = COLOR_TELEGRAPH;
-      ctx.globalAlpha = CROSS_LINE_ALPHA;
-      for (const p of e.ai?.points ?? []) {
-        ctx.beginPath();
-        ctx.moveTo(e.body.pos.x, e.body.pos.y);
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      return;
-    }
-    if (tele?.kind !== "cone") return;
-    const base = Math.atan2(e.strikeDir.y, e.strikeDir.x);
-    const half = (tele.halfDeg * Math.PI) / 180;
-    ctx.fillStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = coneAlpha;
-    ctx.beginPath();
-    ctx.moveTo(e.body.pos.x, e.body.pos.y);
-    ctx.arc(e.body.pos.x, e.body.pos.y, tele.range, base - half, base + half);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-
   /** 鎖縛の: 鎖でつながった敵を細い線で結ぶ（触れると冷える） */
   private drawEliteChains(state: GameState): void {
     const { ctx } = this;
@@ -1768,16 +1746,6 @@ export class Renderer {
         ctx.stroke();
       }
     }
-    ctx.globalAlpha = 1;
-  }
-
-  private drawRingTelegraph(cx: number, cy: number, radius: number): void {
-    const { ctx } = this;
-    ctx.strokeStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = GOLEM_TELEGRAPH_ALPHA;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -1830,7 +1798,7 @@ export class Renderer {
           this.drawShockwave(h);
           break;
         case "landing":
-          this.drawLanding(h);
+          this.drawLanding(state, h);
           break;
         case "boneWall":
           this.drawBoneWall(h);
@@ -1843,7 +1811,7 @@ export class Renderer {
 
   /**
    * 爆弾ハザード。出どころで見た目を変える:
-   * bomber = 赤い予告円 + 導火線が短くなるほど速く点滅する爆弾、
+   * bomber = 墨入れの輪 + 導火線が短くなるほど速く点滅する爆弾、
    * wisp の死亡爆発 = 白い縮む円、Explosive エリートの死亡爆発 = 橙の脈動円 + 縮む白輪
    */
   private drawBomb(state: GameState, h: Hazard): void {
@@ -1860,17 +1828,19 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, h.radius * t, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = BOMB_CIRCLE_ALPHA + t * (1 - BOMB_CIRCLE_ALPHA);
-    if (style === "eliteDeath") {
-      ctx.globalAlpha *= pulse(state.time, ELITE_BOMB_SPEED, 0.5, 1);
-      ctx.lineWidth = ELITE_BOMB_RING_W;
-    }
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1;
+    // 縁は墨入れの輪（中の色 = 爆弾の種類は塗りに残す）。精鋭の爆ぜるは脈打つ橙の輪も内側に重ねる
     ctx.globalAlpha = 1;
+    if (style !== "eliteDeath") strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
+    if (style === "eliteDeath") {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = (BOMB_CIRCLE_ALPHA + t * (1 - BOMB_CIRCLE_ALPHA)) * pulse(state.time, ELITE_BOMB_SPEED, 0.5, 1);
+      ctx.lineWidth = ELITE_BOMB_RING_W;
+      ctx.beginPath();
+      ctx.arc(h.pos.x, h.pos.y, Math.max(1, h.radius - INK_RING_INSET), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 1;
+    }
     if (style === "eliteDeath") {
       this.drawShrinkingBlast(h, COLOR_WHITE, 1);
       return;
@@ -1898,11 +1868,9 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, Math.max(1, h.radius * left), 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = alpha * (1 - left);
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
+    // 爆発の範囲の縁は墨入れの輪（出た時から必ず来る）
     ctx.globalAlpha = 1;
+    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
   }
 
   /** 広がる衝撃波。判定のある縁は太く明るく、内側はごく薄く */
@@ -1933,8 +1901,8 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** 着地予告: 最終半径の赤い輪 + 縮んでいく影 */
-  private drawLanding(h: Hazard): void {
+  /** 着地予告: 最終半径の墨の輪 + 縮んでいく影 */
+  private drawLanding(state: GameState, h: Hazard): void {
     const { ctx } = this;
     const t = h.maxTime > 0 ? h.time / h.maxTime : 0;
     const scale = LANDING_MIN_SCALE + (LANDING_MAX_SCALE - LANDING_MIN_SCALE) * t;
@@ -1943,12 +1911,16 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(h.pos.x, h.pos.y, h.radius * scale * LANDING_RX, h.radius * scale * LANDING_RY, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = 1 - t * LANDING_RING_FADE;
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
+    // 縁は出した敵の予告と同じ段（下絵 = 打てば止められる薄墨、墨入れ = 朱の縁と濃墨の輪）。出した敵がいなければ墨入れ
+    const source = h.sourceId === undefined ? undefined : state.enemies.find((en) => en.id === h.sourceId);
+    if (source) {
+      ctx.strokeStyle = telegraphColor(source);
+      ctx.globalAlpha = LANDING_EDGE_ALPHA;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
+    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius, source ? telegraphStage(source) : "ink");
   }
 
   private drawBoneWall(h: Hazard): void {
@@ -2677,7 +2649,7 @@ export class Renderer {
     // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
     if (plan.active) {
       const glow = plan.motion.pivot === "muzzle" ? plan.origin : plan.anchor;
-      this.drawGlow(glow.x, glow.y, rampColors(plan.opts.ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
+      this.drawGlow(glow.x, glow.y, rampGlow(plan.opts.ramp), step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
     }
     return true;
   }

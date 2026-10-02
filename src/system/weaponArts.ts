@@ -391,7 +391,10 @@ export function recallShots(state: GameState, recall: RecallArtDef, release?: Sh
     pr.vel = scale(normalize(toHand), speed);
     // 放出（投具の戻す段）なら戻りの弾は飛んでいた数だけ強く、放出の弾（終撃）になる
     pr.damage *= recall.returnDamageMul * (release?.mul.damageMul ?? 1);
-    if (release) pr.release = { finisher: release.finisher, crit: release.crit };
+    if (release) {
+      pr.release = { finisher: release.finisher, crit: release.crit };
+      pr.firedAt = state.time;
+    }
     pr.hitIds.clear();
     // 手元に届くまでは消えない。回転刃は戻りの扱いにして手元で収める
     pr.life = Math.max(pr.life, d / speed);

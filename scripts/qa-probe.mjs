@@ -9,7 +9,8 @@
  *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（27 武器種 × 敵 3 × 深度 2 × seed 3。約 2 分）だけ測り、probe.md のその節だけ差し替える
  *   npm run qa:probe -- --bosses    # 章ボス 4 と最深の主を 1 体ずつ測り（5 体 × seed 5。約 1 分）、probe.md の「## ボス」の節だけ差し替える
  *   npm run qa:probe -- --deep      # 深み（深度 21〜40 の曲線・到達の届き方・壊れたビルドの重さ。src/qa/deepProbe.ts）だけ測り、probe.md の「## 深み」の節だけ差し替える
- *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons / --bosses / --deep と併用できる
+ *   npm run qa:probe -- --jinzu     # 試し陣（深度 4 の鶴翼の本陣。方針 3 つ × seed 16。src/qa/jinzuProbe.ts）だけ測り、probe.md の「## 本陣と陣図」の節だけ差し替える
+ *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons / --bosses / --deep / --jinzu と併用できる
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -34,6 +35,11 @@ const noWrite = process.argv.includes("--no-write");
 const weaponsOnly = process.argv.includes("--weapons");
 const bossesOnly = process.argv.includes("--bosses");
 const deepOnly = process.argv.includes("--deep");
+const jinzuOnly = process.argv.includes("--jinzu");
+const JINZU_START = "<<<QA_PROBE_JINZU_START>>>";
+const JINZU_END = "<<<QA_PROBE_JINZU_END>>>";
+/** 本陣と陣図の節の見出し。無ければ末尾に足す（他の節は触らない） */
+const JINZU_HEADING = "## 本陣と陣図";
 const DEEP_START = "<<<QA_PROBE_DEEP_START>>>";
 const DEEP_END = "<<<QA_PROBE_DEEP_END>>>";
 /** 深みの節の見出し。無ければ末尾に足す（他の節は触らない） */
@@ -77,12 +83,23 @@ function replaceDeepSection(md, section) {
   return replaceSection(md, DEEP_HEADING, section);
 }
 
+/** 本陣と陣図の節を差し替える（無ければ末尾） */
+function replaceJinzuSection(md, section) {
+  return replaceSection(md, JINZU_HEADING, section);
+}
+
 // AI エージェント配下では vitest が agent reporter を選び、成功したテストの console 出力を隠すため明示する
-const PROBE_TEST = bossesOnly ? "src/qa/bossProbe.test.ts" : deepOnly ? "src/qa/deepProbe.test.ts" : "src/qa/combatProbe.test.ts";
+const PROBE_TEST = bossesOnly
+  ? "src/qa/bossProbe.test.ts"
+  : deepOnly
+    ? "src/qa/deepProbe.test.ts"
+    : jinzuOnly
+      ? "src/qa/jinzuProbe.test.ts"
+      : "src/qa/combatProbe.test.ts";
 const VITEST_ARGS = ["run", PROBE_TEST, "--reporter=default", "--silent=false"];
 const child = spawn(process.execPath, [VITEST, ...VITEST_ARGS], {
   cwd: ROOT,
-  env: { ...process.env, SIM_PROBE: bossesOnly ? "bosses" : deepOnly ? "deep" : weaponsOnly ? "weapons" : "1" },
+  env: { ...process.env, SIM_PROBE: bossesOnly ? "bosses" : deepOnly ? "deep" : jinzuOnly ? "jinzu" : weaponsOnly ? "weapons" : "1" },
   stdio: ["inherit", "pipe", "inherit"],
 });
 
@@ -98,7 +115,7 @@ child.on("error", (err) => {
 });
 
 child.on("close", (code) => {
-  const report = bossesOnly ? bossesReport() : deepOnly ? deepReport() : weaponsOnly ? weaponsReport() : fullReport();
+  const report = bossesOnly ? bossesReport() : deepOnly ? deepReport() : jinzuOnly ? jinzuReport() : weaponsOnly ? weaponsReport() : fullReport();
   if (report === null) {
     console.error("[qa:probe] 表のマーカーが出力に見つからない。probe.md は更新しない");
     process.exit(code === 0 ? 1 : (code ?? 1));
@@ -123,7 +140,7 @@ function currentProbe() {
   return existsSync(PROBE_PATH) ? readFileSync(PROBE_PATH, "utf8") : "";
 }
 
-/** 通常の実行: 新しい報告に、今の probe.md にある武器種・ボス・深みの節をそのまま残す（重い計測を毎回回さないため） */
+/** 通常の実行: 新しい報告に、今の probe.md にある武器種・ボス・深み・本陣と陣図の節をそのまま残す（重い計測を毎回回さないため） */
 function fullReport() {
   const report = between(PROBE_START, PROBE_END);
   if (report === null) return null;
@@ -133,7 +150,9 @@ function fullReport() {
   const bosses = findSection(old, BOSSES_HEADING);
   const withBosses = bosses ? replaceBossesSection(withWeapons, old.slice(bosses[0], bosses[1])) : withWeapons;
   const deep = findSection(old, DEEP_HEADING);
-  return deep ? replaceDeepSection(withBosses, old.slice(deep[0], deep[1])) : withBosses;
+  const withDeep = deep ? replaceDeepSection(withBosses, old.slice(deep[0], deep[1])) : withBosses;
+  const jinzu = findSection(old, JINZU_HEADING);
+  return jinzu ? replaceJinzuSection(withDeep, old.slice(jinzu[0], jinzu[1])) : withDeep;
 }
 
 /** --weapons: 今の probe.md の武器種の節だけを差し替える（probe.md が無ければ節だけの報告になる） */
@@ -155,4 +174,11 @@ function deepReport() {
   const section = between(DEEP_START, DEEP_END);
   if (section === null) return null;
   return replaceDeepSection(currentProbe(), section);
+}
+
+/** --jinzu: 今の probe.md の「## 本陣と陣図」の節だけを差し替える（probe.md が無ければ節だけの報告になる） */
+function jinzuReport() {
+  const section = between(JINZU_START, JINZU_END);
+  if (section === null) return null;
+  return replaceJinzuSection(currentProbe(), section);
 }

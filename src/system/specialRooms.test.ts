@@ -198,7 +198,7 @@ describe("台座の部屋", () => {
     expect(state.sfx).toContain("pedestalUse");
   });
 
-  it("図書館: 刻印符 3 冊から 1 つを床へ落とし、拾うと付けられるスロットへ入る。残りは消える", () => {
+  it("図書館: 刻印符 3 冊から 1 つを床へ落とし、拾うと手持ちへ入る。残りは消える", () => {
     const { state, room } = roomOf("library");
     const props = room.special?.props ?? [];
     expect(props.length).toBeGreaterThan(0);
@@ -210,10 +210,8 @@ describe("台座の部屋", () => {
     expect(props.every((p) => p.used), "残りの台座も消える").toBe(true);
     for (let i = 0; i < Math.ceil((SKILL.drop.pickupDelay + FIXED_DT) / FIXED_DT); i++) step(state, IDLE, FIXED_DT);
     expect(state.skills.runes, "拾って床から消える").toHaveLength(0);
-    expect(
-      state.skills.slots.some((slot) => slot.runModifiers.includes(pick.key as ModifierKey)),
-      "付けられるスロットの符になる",
-    ).toBe(true);
+    expect(state.skills.hand, "手持ちの符になる").toContain(pick.key as ModifierKey);
+    expect(state.skills.slots.some((slot) => slot.runModifiers.includes(pick.key as ModifierKey)), "スキルには付かない").toBe(false);
     expect("runes" in state.skills.profile, "セーブ対象のプロフィールには持たない").toBe(false);
   });
 

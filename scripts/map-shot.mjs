@@ -16,7 +16,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ensureVite, findPlaywright } from "./browser-tools.mjs";
 
-const PORT = 5199;
+/** 別の作業ツリーの vite が 5199 を使っているときは MAP_SHOT_PORT で逃がす（使い回すと別の作業ツリーの絵を撮る） */
+const PORT = Number(process.env.MAP_SHOT_PORT ?? 5199);
+/** headless でも GPU で描かせる起動オプション（Windows。scripts/hitch-probe.mjs と同じ） */
+const GPU_ARGS = process.platform === "win32" ? ["--enable-gpu", "--use-angle=d3d11", "--ignore-gpu-blocklist"] : [];
 const BASE = `http://localhost:${PORT}`;
 const VIEWPORT = { width: 1920, height: 1080 };
 const READY_TIMEOUT_MS = 120_000;
@@ -38,6 +41,16 @@ const SHOTS = [
   ["d23", "depth=23"],
   ["river", "depth=3&kind=cave&layout=river"],
   ["court", "depth=7&kind=rooms&layout=court"],
+  // 予告の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）: 乱戦 30 体 / 7 形の並べ撮り / 明るい章様式 / 暗闇の階
+  ["tele-crowd", "depth=3&kind=cave&scene=tele&tele=crowd"],
+  ["tele-shapes", "depth=3&kind=cave&scene=tele&tele=shapes"],
+  // 筆致の確認: 7 形 + 着地・爆弾を 1 つずつ離して置く（黄 = 上、赤 = 下）
+  ["tele-solo", "depth=3&kind=cave&scene=tele&tele=solo"],
+  // 陣図の書きかけ（下絵 → 墨入れ）とスライム王の跳躍の滞空（王が浮き、影の縁と冠スライムの冠）
+  ["tele-jinzu", "depth=4&kind=cave&scene=tele&tele=jinzu"],
+  ["tele-slime", "depth=5&scene=tele&tele=slime"],
+  ["tele-bright", "depth=13&kind=glacier&scene=tele&tele=crowd"],
+  ["tele-dark", "depth=18&kind=dark&scene=tele&tele=crowd"],
 ];
 
 function parseArgs(argv) {
@@ -84,7 +97,8 @@ async function main() {
   let browser = null;
   let failed = false;
   try {
-    browser = await chromium.launch({ args: ["--no-sandbox"] });
+    // 描画の ms は実機に近い GPU で測る（既定の headless は SwiftShader の CPU 描画になる。hitch-probe.mjs と同じ）
+    browser = await chromium.launch({ args: ["--no-sandbox", ...GPU_ARGS] });
     for (const [name, query] of shots) {
       // 1 枚ごとに新しいページ（同じページで読み直すとブラウザの資源が尽きることがある）
       const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });

@@ -65,6 +65,7 @@ const ENEMY_ATTACK: Readonly<Record<string, AttackProfile>> = {
   purpleLaser: bolt("dark"),
   flyingBook: CONTACT,
   ashBat: contact("fire"),
+  crownSlime: CONTACT,
   sproutSlime: CONTACT,
   spikeRat: CONTACT,
   twinEye: bolt("none"),

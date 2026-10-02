@@ -127,6 +127,9 @@ export interface GameEvent {
   amount?: number;
 }
 
+/** onCounter の tag: 出端（下絵の間に振り始めた一撃 / 撃った放出の弾）か、受け流しか。出端だけに効かせたい物はこれで見る */
+export type CounterTag = "debana" | "parry";
+
 /** pushEvent に渡す形。depth / visits / coef は照合中かどうかで pushEvent が決める */
 export type EventInput = Omit<GameEvent, "depth" | "visits" | "coef">;
 

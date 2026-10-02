@@ -36,7 +36,7 @@ const DESC_PAD = 6;
 const DESC_LINES = 2;
 const MARK_ON = "■";
 const MARK_OFF = "□";
-const MARK_PICK = "▶";
+const MARK_PICK = "◆";
 const WEAK_PREFIX = "弱点";
 
 export function drawOriginScreen(ctx: CanvasRenderingContext2D, ui: Readonly<OriginScreen>, time: number, rowGap: number): void {

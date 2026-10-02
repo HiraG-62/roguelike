@@ -276,11 +276,16 @@ export function drawGlyphDisc(
   noteMarks();
 }
 
-/** 段の点（上限 RESONANCE.maxSteps 個。立った段は色、残りは墨の枠） */
+/**
+ * 段の点（上限 RESONANCE.maxSteps 個。立った段は色の四角、残りは墨の小さな点）。
+ * 残りを四角の枠にすると、字が描けていない豆腐「□□□」に見えるので、中心の 1 ドットだけにする
+ */
 export function drawStepDots(ctx: CanvasRenderingContext2D, x: number, y: number, step: number, color: string, s = 3, gap = 3): void {
+  const mid = s >> 1;
   for (let i = 0; i < RESONANCE.maxSteps; i++) {
-    if (i < step) px(ctx, x + i * (s + gap), y, s, s, color);
-    else box(ctx, x + i * (s + gap), y, s, s, MENU_INK.dim);
+    const dx = x + i * (s + gap);
+    if (i < step) px(ctx, dx, y, s, s, color);
+    else px(ctx, dx + mid, y + mid, 1, 1, MENU_INK.dim);
   }
 }
 

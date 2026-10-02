@@ -268,6 +268,7 @@ import j_enemies_stats_crate from "./enemies/stats/crate.json";
 import j_enemies_stats_mirrorPane from "./enemies/stats/mirrorPane.json";
 import j_enemies_stats_deepLord from "./enemies/stats/deepLord.json";
 import j_enemies_stats_gatePillar from "./enemies/stats/gatePillar.json";
+import j_enemies_stats_crownSlime from "./enemies/stats/crownSlime.json";
 import j_enemies_combat__index from "./enemies/combat/_index.json";
 import j_enemies_combat_slime from "./enemies/combat/slime.json";
 import j_enemies_combat_eye from "./enemies/combat/eye.json";
@@ -379,6 +380,7 @@ import j_enemies_combat_crate from "./enemies/combat/crate.json";
 import j_enemies_combat_mirrorPane from "./enemies/combat/mirrorPane.json";
 import j_enemies_combat_deepLord from "./enemies/combat/deepLord.json";
 import j_enemies_combat_gatePillar from "./enemies/combat/gatePillar.json";
+import j_enemies_combat_crownSlime from "./enemies/combat/crownSlime.json";
 import j_enemies_defense__index from "./enemies/defense/_index.json";
 import j_enemies_defense_bodies from "./enemies/defense/bodies.json";
 import j_enemies_defense_biomes from "./enemies/defense/biomes.json";
@@ -492,8 +494,11 @@ import j_enemies_defense_enemies_crate from "./enemies/defense/enemies/crate.jso
 import j_enemies_defense_enemies_mirrorPane from "./enemies/defense/enemies/mirrorPane.json";
 import j_enemies_defense_enemies_deepLord from "./enemies/defense/enemies/deepLord.json";
 import j_enemies_defense_enemies_gatePillar from "./enemies/defense/enemies/gatePillar.json";
+import j_enemies_defense_enemies_crownSlime from "./enemies/defense/enemies/crownSlime.json";
 import j_enemies_ENEMY_SCALE from "./enemies/ENEMY_SCALE.json";
 import j_enemies_REACTION from "./enemies/REACTION.json";
+import j_enemies_HONJIN from "./enemies/HONJIN.json";
+import j_enemies_JINZU from "./enemies/JINZU.json";
 import j_feel__index from "./feel/_index.json";
 import j_feel_FEEL from "./feel/FEEL.json";
 import j_feel_EFFECTS__index from "./feel/EFFECTS/_index.json";
@@ -529,6 +534,10 @@ import j_feel_MUSIC from "./feel/MUSIC.json";
 import j_feel_FX_WAVE3 from "./feel/FX_WAVE3.json";
 import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
 import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
+import j_feel_TELEGRAPH_POSE from "./feel/TELEGRAPH_POSE.json";
+import j_feel_SIGN_CHECK from "./feel/SIGN_CHECK.json";
+import j_feel_THREAT_CUE from "./feel/THREAT_CUE.json";
+import j_feel_NARIMONO from "./feel/NARIMONO.json";
 import j_feel_MENU_BUDGET from "./feel/MENU_BUDGET.json";
 import j_feel_MAP_LIGHT from "./feel/MAP_LIGHT.json";
 import j_feel_FLOAT_TEXT from "./feel/FLOAT_TEXT.json";
@@ -1220,6 +1229,7 @@ export const enemies = {
     "mirrorPane": j_enemies_stats_mirrorPane,
     "deepLord": j_enemies_stats_deepLord,
     "gatePillar": j_enemies_stats_gatePillar,
+    "crownSlime": j_enemies_stats_crownSlime,
   },
   "combat": {
     "_fields": j_enemies_combat__index["_fields"],
@@ -1333,6 +1343,7 @@ export const enemies = {
     "mirrorPane": j_enemies_combat_mirrorPane,
     "deepLord": j_enemies_combat_deepLord,
     "gatePillar": j_enemies_combat_gatePillar,
+    "crownSlime": j_enemies_combat_crownSlime,
   },
   "defense": {
     "_fields": j_enemies_defense__index["_fields"],
@@ -1449,10 +1460,13 @@ export const enemies = {
       "mirrorPane": j_enemies_defense_enemies_mirrorPane,
       "deepLord": j_enemies_defense_enemies_deepLord,
       "gatePillar": j_enemies_defense_enemies_gatePillar,
+      "crownSlime": j_enemies_defense_enemies_crownSlime,
     },
   },
   "ENEMY_SCALE": j_enemies_ENEMY_SCALE,
   "REACTION": j_enemies_REACTION,
+  "HONJIN": j_enemies_HONJIN,
+  "JINZU": j_enemies_JINZU,
 };
 
 export const feel = {
@@ -1503,6 +1517,10 @@ export const feel = {
   "FX_WAVE3": j_feel_FX_WAVE3,
   "SFX_WAVE3": j_feel_SFX_WAVE3,
   "TELEGRAPH": j_feel_TELEGRAPH,
+  "TELEGRAPH_POSE": j_feel_TELEGRAPH_POSE,
+  "SIGN_CHECK": j_feel_SIGN_CHECK,
+  "THREAT_CUE": j_feel_THREAT_CUE,
+  "NARIMONO": j_feel_NARIMONO,
   "MENU_BUDGET": j_feel_MENU_BUDGET,
   "MAP_LIGHT": j_feel_MAP_LIGHT,
   "FLOAT_TEXT": j_feel_FLOAT_TEXT,
@@ -2255,7 +2273,9 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/FORMATION/geese.json",
   "enemies/FORMATION/lookout.json",
   "enemies/FORMATION/yoke.json",
+  "enemies/HONJIN.json",
   "enemies/JIN.json",
+  "enemies/JINZU.json",
   "enemies/NEMESIS.json",
   "enemies/REACTION.json",
   "enemies/REAPER.json",
@@ -2283,6 +2303,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/combat/chainWarden.json",
   "enemies/combat/crate.json",
   "enemies/combat/crossGolem.json",
+  "enemies/combat/crownSlime.json",
   "enemies/combat/crystalGolem.json",
   "enemies/combat/crystalMite.json",
   "enemies/combat/curseEye.json",
@@ -2397,6 +2418,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/defense/enemies/chainWarden.json",
   "enemies/defense/enemies/crate.json",
   "enemies/defense/enemies/crossGolem.json",
+  "enemies/defense/enemies/crownSlime.json",
   "enemies/defense/enemies/crystalGolem.json",
   "enemies/defense/enemies/crystalMite.json",
   "enemies/defense/enemies/curseEye.json",
@@ -2508,6 +2530,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "enemies/stats/chainWarden.json",
   "enemies/stats/crate.json",
   "enemies/stats/crossGolem.json",
+  "enemies/stats/crownSlime.json",
   "enemies/stats/crystalGolem.json",
   "enemies/stats/crystalMite.json",
   "enemies/stats/curseEye.json",
@@ -2631,8 +2654,12 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/MENU_BUDGET.json",
   "feel/MINIMAP.json",
   "feel/MUSIC.json",
+  "feel/NARIMONO.json",
   "feel/SFX_WAVE3.json",
+  "feel/SIGN_CHECK.json",
   "feel/TELEGRAPH.json",
+  "feel/TELEGRAPH_POSE.json",
+  "feel/THREAT_CUE.json",
   "feel/_index.json",
   "jobs/DASH_FORM.json",
   "jobs/JOB.json",

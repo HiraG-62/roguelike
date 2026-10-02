@@ -123,6 +123,14 @@ export const FEEL = BALANCE.feel.FEEL;
 
 /** 敵の予告の線の色・長さ。見た目だけ（render/telegraphLineUi.ts が読む） */
 export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
+/** 予備動作の体の溜めと張り。見た目だけ（render/renderer.ts が読む） */
+export const TELEGRAPH_POSE = BALANCE.feel.TELEGRAPH_POSE;
+/** 符号表の検査の閾。検査専用（data/signs.test.ts） */
+export const SIGN_CHECK = BALANCE.feel.SIGN_CHECK;
+/** 自分に掛かる攻撃の判定の余裕と、殺気・被弾筋の見た目（system/threat.ts・render/threatCue.ts） */
+export const THREAT_CUE = BALANCE.feel.THREAT_CUE;
+/** 予告の音（鳴物帳）の規則の数（audio/cues.ts・audio/narimono.ts） */
+export const NARIMONO = BALANCE.feel.NARIMONO;
 
 export const ROOM = BALANCE.world.ROOM;
 
@@ -150,6 +158,10 @@ export const FLOOR_LORD = BALANCE.enemies.FLOOR_LORD;
 /** 陣の配り方（src/system/jinSpawn.ts）と陣形の人数・格（src/data/formations.ts が検査して読む） */
 export const JIN = BALANCE.enemies.JIN;
 export const FORMATION = BALANCE.enemies.FORMATION;
+/** 本陣の選び方・報酬（src/system/jinzu.ts の planHonjin） */
+export const HONJIN = BALANCE.enemies.HONJIN;
+/** 陣図（本陣の大将が書く突撃の道筋）の時計と規則・旗倒れ（src/system/jinzu.ts・render/jinzuUi.ts） */
+export const JINZU = BALANCE.enemies.JINZU;
 
 /** 深度による敵の生命・攻撃の伸び（src/data/enemies.ts の depthHpScale / depthDamageMul）。数値は src/data/balance/enemies/ENEMY_SCALE.json */
 export const ENEMY_SCALE = BALANCE.enemies.ENEMY_SCALE;
@@ -233,7 +245,7 @@ export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
  * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons/ の ACTION_DASH_ATTACK
  */
 export const ACTION = {
-  counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
+  counter: BALANCE.combat.ACTION.counter,
   lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
   regain: BALANCE.combat.ACTION.regain,
   wallSplat: BALANCE.combat.ACTION.wallSplat,

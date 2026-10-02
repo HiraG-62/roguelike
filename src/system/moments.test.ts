@@ -190,14 +190,20 @@ describe("応手", () => {
     expect(count(events, "onCounter"), "従来のカウンター扱い").toBe(1);
   });
 
-  it("応手の一覧に無い出来事は onRiposte を出さない（連刃の受け流し）", () => {
+  it("応手の一覧に無い出来事は onRiposte を出さない（連刃の構えの受け止め）", () => {
+    const state = arena(5, { moveset: "twinBlades" });
+    noteRiposte(state, "guardBlock");
+    expect(count(drain(state), "onRiposte")).toBe(0);
+  });
+
+  it("受け流しは連刃でも応手になり、既存の onCounter も出る（総浚: 全ての型の応手）", () => {
     const state = arena(5, { moveset: "twinBlades" });
     const e = tough(placeEnemy(state, "boar", 14));
     e.phase = "windup";
     state.player.parry.window = PARRY.windowSec;
     damagePlayer(state, HIT, e.body.pos, e);
     const events = drain(state);
-    expect(count(events, "onRiposte")).toBe(0);
+    expect(events.filter((ev) => ev.kind === "onRiposte").map((ev) => ev.tag)).toEqual(["parry"]);
     expect(count(events, "onCounter"), "既存の onCounter は型によらず出る").toBe(1);
   });
 
@@ -226,11 +232,12 @@ describe("応手", () => {
     expect(state.player.morale.value, "返しも 1").toBe(1);
   });
 
-  it("盾の型は受けの応手だけを持つ（剣の応手の出来事では出ない）", () => {
+  it("盾の型は受け流しと構えの受け止めだけを持つ（剣の応手の出来事では出ない）", () => {
     const state = arena(5, { moveset: "shield" });
+    noteRiposte(state, "counter");
     noteRiposte(state, "parry");
     noteRiposte(state, "guardBlock");
-    expect(drain(state).filter((ev) => ev.kind === "onRiposte").map((ev) => ev.tag)).toEqual(["guardBlock"]);
+    expect(drain(state).filter((ev) => ev.kind === "onRiposte").map((ev) => ev.tag)).toEqual(["parry", "guardBlock"]);
   });
 });
 

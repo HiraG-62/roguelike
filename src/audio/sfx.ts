@@ -31,6 +31,8 @@ export interface SfxPlayOptions {
   volume?: number;
   /** 周波数の倍率（デフォルト 1 = 元のピッチ） */
   pitch?: number;
+  /** 左右の振り -1（左）..1（右）。省略は中央。StereoPannerNode が無い環境では無視する（柝頭が敵の方向を耳で言う） */
+  pan?: number;
 }
 
 /** 効果音定義に渡す内部オプション（ピッチ倍率にランダムな揺らぎが乗った後の値ではなく元の倍率） */
@@ -1021,7 +1023,12 @@ export class SfxPlayer {
 
     this.lastPlayedAt.set(name, now);
 
-    const voiceGain = createGainNode(ctx, this.masterGain);
+    const panner = opts.pan !== undefined && typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
+    if (panner) {
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, opts.pan ?? 0)), now);
+      panner.connect(this.masterGain);
+    }
+    const voiceGain = createGainNode(ctx, panner ?? this.masterGain);
     voiceGain.gain.setValueAtTime(clamp01(opts.volume ?? 1), now);
 
     const definition = SFX_DEFINITIONS[name];

@@ -5,7 +5,7 @@ import type { EchoOp } from "../loot/crafting";
 import type { Slot } from "../loot/types";
 import type { ModifierKey } from "../skills/types";
 import type { BoonKey, LineageKey } from "../system/boonDefs";
-import type { CandidateSort, FocusId, MenuFace, MenuHit } from "./menuState";
+import type { CandidateFilterAxis, CandidateSort, FocusId, HandOptionAxis, MenuFace, MenuHit } from "./menuState";
 import { pointInRect } from "./inventoryLayout";
 
 /**
@@ -41,11 +41,14 @@ export const fid = {
   kw: (kw: Keyword): FocusId => join("kw", kw),
   sort: (s: CandidateSort): FocusId => join("sort", s),
   cand: (id: string): FocusId => join("c", id),
+  filter: (axis: CandidateFilterAxis): FocusId => join("filter", axis),
+  gem: (i: number): FocusId => join("gem", i),
+  handOpt: (axis: HandOptionAxis): FocusId => join("handopt", axis),
+  hand: (key: ModifierKey): FocusId => join("hand", key),
   bud: (n: number): FocusId => join("bud", n),
   clear: "clear" as FocusId,
   rune: (i: number, key: ModifierKey): FocusId => join("rune", i, key),
   col: (i: number): FocusId => join("col", i),
-  loose: (i: number, key: ModifierKey): FocusId => join("loose", i, key),
   action: (a: BoonAction): FocusId => join("action", a),
   grace: (key: BoonKey): FocusId => join("grace", key),
   relic: (slot: Slot): FocusId => join("relic", slot),

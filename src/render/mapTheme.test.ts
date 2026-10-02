@@ -28,8 +28,13 @@ import type { MapPalette, MapTheme } from "./mapTypes";
 
 const DEPTHS = Array.from({ length: 25 }, (_, i) => i + 1);
 
-/** 予告の色（黄 / 赤）と、描画側の定数の赤 */
-const TELEGRAPH_COLORS = [TELEGRAPH.readyColor, TELEGRAPH.commitColor, "#ff4040"];
+/** 予告の朱（色を持つ唯一の予告の色。薄墨・濃墨・胡粉は明暗と形で床から分ける）と、描画側の定数の赤 */
+const TELEGRAPH_COLORS = [TELEGRAPH.shuColor, "#ff4040"];
+/**
+ * 溶岩の穴の本体は朱そのものの色で、朱から離せない（既知の例外。増やさない）。朱の点は必ず濃墨の一筆の中に置き、
+ * 胡粉の滲みで囲むので、溶岩の上でも形と明暗で分かれる
+ */
+const PIT_SHU_EXCEPTIONS = new Set([`lava.a~${TELEGRAPH.shuColor}`, `lava.deep~${TELEGRAPH.shuColor}`]);
 /** 地図の面として広く出る色（床・天面・側面・奈落）。差し色（accent）や光源の色は点・線にしか出ないので含めない */
 const SURFACE_KEYS: readonly (keyof MapPalette)[] = ["fD", "fB", "fL", "fH", "fO", "tB", "tD", "tL", "sB", "sL", "sD", "v1", "v2", "vD"];
 const RGB_DISTANCE_MIN = 60;
@@ -211,7 +216,7 @@ describe("mapTheme: 深みの変異", () => {
 describe("mapTheme: 予告の色との距離", () => {
   const targets = TELEGRAPH_COLORS.map(hexColor);
 
-  it("すべてのテーマの地図の面の色が、予告の色（黄 / 赤 / #ff4040）と RGB 距離 60 以上離れている", () => {
+  it("すべてのテーマの地図の面の色が、予告の朱と #ff4040 から RGB 距離 60 以上離れている", () => {
     const shown = new Set<string>();
     for (const depth of DEPTHS.concat([22, 27, 32, 33, 40])) {
       for (const kind of FLOOR_KINDS) {
@@ -236,6 +241,7 @@ describe("mapTheme: 予告の色との距離", () => {
       if (!colors) continue;
       for (const key of ["a", "deep", "foam", "bank", "mid"] as const) {
         for (const [i, target] of targets.entries()) {
+          if (PIT_SHU_EXCEPTIONS.has(`${pit}.${key}~${TELEGRAPH_COLORS[i]}`)) continue;
           expect(distance(colors[key], target), `${pit} の ${key} と ${TELEGRAPH_COLORS[i]}`).toBeGreaterThanOrEqual(RGB_DISTANCE_MIN);
         }
       }

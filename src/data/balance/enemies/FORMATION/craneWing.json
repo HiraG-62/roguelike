@@ -3,6 +3,17 @@
   "minDepth": 1,
   "weight": 2,
   "spacing": 20,
+  "jinzu": {
+    "leaderSeat": "rear",
+    "strokeSec": 0.7,
+    "strokes": [
+      { "squad": "outerLeft", "path": "hook", "pass": 30, "beyond": 40 },
+      { "squad": "outerRight", "path": "hook", "pass": 30, "beyond": 40 },
+      { "squad": "innerLeft", "path": "flank", "pass": 34, "beyond": 20 },
+      { "squad": "innerRight", "path": "flank", "pass": 34, "beyond": 20 },
+      { "squad": "center", "path": "volley", "pass": 0, "beyond": 30 }
+    ]
+  },
   "slots": [
     { "role": "swarm", "grade": "normal", "share": 0.45, "min": 2 },
     { "role": "blast", "grade": "normal", "share": 0.15, "min": 0, "max": 1 },

@@ -1,6 +1,7 @@
 {
   "_note": "怯み（docs/COMBAT_DESIGN.md D-1）。秒・倍率・px の数値",
   "_fields": {
+    "shotBlockMul": "盾持ちが正面で受けた弾の怯み値の倍率（近接の blockMul と同じ値から始める。撃ち続ければ盾が崩れる）",
     "executeHpRatioMax": "処刑の閾値の上限。ビルドで executeHpRatio を伸ばしてもこれを超えない（core-synthesis 3-7）"
   },
   "decayDelay": 1,
@@ -15,6 +16,7 @@
   "eliteMul": 1.5,
   "knockbackUnstaggered": 0.7,
   "blockMul": 0.5,
+  "shotBlockMul": 0.5,
   "chargerWallStagger": 0.9,
   "executeHpRatio": 0.25,
   "executeHpRatioMax": 0.25,

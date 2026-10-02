@@ -8,6 +8,7 @@ import { ROOM_KIND_COLOR } from "../system/specialRooms";
 import { colorB, colorG, colorR, darken, mapThemeFor, mixColor } from "./mapTheme";
 import { pack } from "./mapNoise";
 import { pitLookAt } from "./pitLook";
+import { drawMinimapHonjin } from "./jinzuUi";
 
 /**
  * 部屋のタイル所属表。描画側（床マーク・伏兵の暗い床・泉・ミニマップ）で共有する。
@@ -257,6 +258,8 @@ export class Minimap {
       target.fillRect(x0 + sx - STAIRS_HALF, y0 + sy - STAIRS_HALF, STAIRS_DOT, STAIRS_DOT);
     }
     this.drawRoomMarks(target, state, x0, y0, size.scale);
+    // 本陣の旗は探索の前から出す（どの山とどこから戦うかを地図で選ぶ）
+    drawMinimapHonjin(target, state, x0, y0, size.scale);
     this.dot(target, x0, y0, size.scale, state.player.body.pos, COLOR_PLAYER);
     if (state.reaper) this.dot(target, x0, y0, size.scale, state.reaper.pos, REAPER.color);
     const bounty = state.enemies.find((e) => e.id === bountyTargetId(state));

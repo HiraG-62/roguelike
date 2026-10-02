@@ -5,9 +5,10 @@
     "compareTextLines": "比べる場面（候補）だけの文の行の上限（荷札 1 + 差 3 + 見出し・操作案内）。行",
     "bodyLines": "BODY（10px 以上）の行の上限。荷札の 1 行目だけで、他は SMALL。行",
     "numbers": "UI が出す数の上限（階・件数「2/4」・段の数・残響の量）。性質の文に含まれる値は文の行で縛るので数えない。個",
+    "compareNumbers": "比べる場面（候補）だけの数の上限。替わる地金のステータスを「防御力 12 → 15」と今の値と付けた後の値で出すので、numbers に innateDiffs 項目 × 2 を足した数。個",
     "candidates": "候補の 1 頁の枚数。送りで次の頁。枚",
     "diffRows": "候補の差の行（得る・失う）の上限。残りは「ほか n」。行",
-    "innateDiffs": "候補の地金の差（▲▼）の上限。個",
+    "innateDiffs": "候補の地金の差（変わるステータスの「今 → 後」の行）の上限。溢れは最後の行を「ほか n」にする。個",
     "morphRows": "比べるときの動く紋の行の上限。動く帯を必ず残す。行",
     "bands": "紋の帯の本数。stepped = 段の立った系統、undercurrent = 伏流（源か糧を 1 つ以上持つが段の立っていない系統）。本",
     "beads": "1 本の帯の珠の上限。source = 源、sink = 糧、amplifier = 強め。超えたら畳んだ珠。個"
@@ -16,9 +17,10 @@
   "compareTextLines": 6,
   "bodyLines": 1,
   "numbers": 4,
+  "compareNumbers": 10,
   "candidates": 5,
   "diffRows": 3,
-  "innateDiffs": 2,
+  "innateDiffs": 3,
   "morphRows": 6,
   "bands": { "stepped": 4, "undercurrent": 2 },
   "beads": { "source": 4, "sink": 4, "amplifier": 2 }

@@ -193,7 +193,8 @@ describe("トリガー文法の拡張（2026-09）", () => {
   it("対象を見る条件は対象の無い起点と組まない。常に真 / 偽の組も外す", () => {
     expect(isCompatible("onShoot", "targetInWindup", "shockwave")).toBe(false);
     expect(isCompatible("onDash", "targetElite", "heal")).toBe(false);
-    expect(isCompatible("onCounter", "targetInWindup", "shockwave")).toBe(false);
+    // 出端の命中は赤に入ることもあるので、カウンター × 予告が黄は常に真ではなく組める
+    expect(isCompatible("onCounter", "targetInWindup", "shockwave")).toBe(true);
     expect(isCompatible("onStagger", "targetInWindup", "shockwave")).toBe(false);
     expect(isCompatible("onMeleeHit", "targetInWindup", "addPoise")).toBe(true);
     expect(isCompatible("onKill", "targetElite", "damageBuff")).toBe(true);

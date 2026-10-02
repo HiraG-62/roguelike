@@ -1,3 +1,4 @@
+import type { FrameInput } from "./input";
 import type { AttackProfile } from "./element";
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
@@ -19,7 +20,7 @@ import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
 import type { ButtonKey, ShotRuntime } from "../data/weapons";
 import type { JobKey } from "../data/jobs";
-import type { FormationKey } from "../data/formations";
+import type { FormationKey, JinzuPathKind } from "../data/formations";
 import type { CodexRun } from "../meta/codex";
 import type { QuestRun } from "../meta/quests";
 import type { HurtLog } from "./hurt";
@@ -79,6 +80,10 @@ export interface AttackState {
   lane: ButtonKey;
   /** 先行入力（buffered）がどちらのボタンか */
   bufferedLane: ButtonKey;
+  /** 今の振りを始めた state.time（出端の判定: 振り始めに敵が下絵だったか。system/readTiming.ts） */
+  startedAt: number;
+  /** この振りで「出端か普通の命中か」の出来事（音・イベント・応手）を出し済みの敵。多段でも 1 振り × 1 体に 1 回にする */
+  readIds: Set<number>;
 }
 
 /**
@@ -153,6 +158,13 @@ export interface Player {
   shotChargeTime: number;
   /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
+  /**
+   * ヒットストップ中に押した受け流し / ダッシュの席（1 つ。止めが明けた最初のステップで出す。system/player.ts の latchFrozenInput）。
+   * input はダッシュの向きを押した時の移動入力で決めるための写し。未指定 = 空
+   */
+  guardBuffer?: { kind: "parry" | "dash"; input: FrameInput };
+  /** ヒットストップ中に押した攻撃のボタン（止めが明けた最初のステップで押したことにする）。guardBuffer とは後から押した方だけ残る */
+  frozenAttack?: ButtonKey;
   /** 照準（カーソル）までの距離 px。曲射の落下点に使う。マウス照準が無ければ undefined（射程いっぱい）。applyAim が毎ステップ更新 */
   aimDistance?: number;
   /**
@@ -239,6 +251,12 @@ export interface Enemy {
   phaseTimer: number;
   /** 今の予備動作の総秒（コミット窓の判定用。0 = 未記録で、窓なし = 従来どおり怯む） */
   windupTotal: number;
+  /** 今の予備動作が始まった state.time（system/readTiming.ts の markWindupStart）。省略は未記録 */
+  windupAt?: number;
+  /** その予備動作が墨入れになった state.time（noteCommit）。windupAt 未満は「まだ墨入れでない」 */
+  committedAt?: number;
+  /** 予備動作のうち下絵（まだ止められる）の残り秒。ボスの技が BossHooks.openTime で決める。undefined は commitRatio の規則 */
+  openFor?: number;
   /** 連撃の 2 撃目以降の予備動作。最初からコミット（怯み値が溜まらず必ず出る）。startWindup が毎回戻す */
   chainWindup?: boolean;
   strikeDir: Vec;
@@ -301,6 +319,8 @@ export interface Enemy {
   allyUntil?: number;
   /** 仇（前のランで倒された相手。system/nemesis.ts）。名札に「仇・」、倒すと仇討ち */
   nemesis?: true;
+  /** 本陣の陣図に動かされている（system/jinzu.ts）。大将は筆を持つ / 隊の兵は持ち場で止まる・走る */
+  jinzuRun?: JinzuRun;
 }
 
 /** 敵に溜める傷の種類（氷獄 = ice / 月蝕 = doom） */
@@ -364,6 +384,16 @@ export interface Corpse {
   depth: number;
 }
 
+/** 答えのダウンの印。answer = 段階の答え、final = 最終段階の答え（引導の窓） */
+export type BossDownTag = "answer" | "final";
+/** 技の後に払うダウン（答えの一撃が墨入れに入ったとき） */
+export interface OwedBossDown {
+  time: number;
+  text: string;
+  color: string;
+  tag: BossDownTag;
+}
+
 export interface EnemyAi {
   /** 狙う地点（レーザーの向き先、ジャンプの着地点など） */
   target: Vec;
@@ -395,6 +425,12 @@ export interface EnemyAi {
   progress?: number;
   /** スライム王: 呑んだ分裂体の数（消化し終えると回復。src/system/bossKingSlime.ts） */
   digest?: number;
+  /** 技の後に払うダウン（bossKit の oweBossDown。runBossCycle が攻撃の終わりに払う） */
+  owedDown?: OwedBossDown;
+  /** 最終段階の答えのダウンの間（引導の窓）。bossDown の "final" が立て、怯みの終わりで消す */
+  finale?: boolean;
+  /** スライム王: 呑んだ時点のダウンの総数（これより増えたら吐き出す） */
+  digestMark?: number;
   /** ボス: 今の連撃の何段目か（0 = 連撃でない。BossHooks.followUp が読む） */
   chain?: number;
 }
@@ -471,6 +507,10 @@ export interface BossState {
   lockedAt?: number;
   /** 自傷のダウン（bossDown）の回数。怯みのダウン（poise.downs）と合わせて記録する */
   selfDowns?: number;
+  /** 答えのダウンの回数（浮き文字ごと。QA と戦跡が読む） */
+  answers?: Record<string, number>;
+  /** 段階の変わり目ごとに行為で進んだか（index 0 = 1 → 2） */
+  actStages?: boolean[];
 }
 
 /** 撃破したボスの記録（最深の主の「第三の顔」と QA が読む。system/bossRecord.ts） */
@@ -565,6 +605,10 @@ export interface Projectile {
   lane?: ButtonKey;
   /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
   release?: { finisher: boolean; crit: boolean };
+  /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が下絵だったか）。放出の弾だけが持つ */
+  firedAt?: number;
+  /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */
+  pointBlank?: boolean;
   /** 命中ごとに戻る気力（ThrowArtDef.mana。左の詠唱が近接の段の気力を引き継ぐ）。未指定は MANA.onShot */
   shotMana?: number;
 }
@@ -672,6 +716,8 @@ export type FxMarkKind =
   /** 受け流しの成功（描画は render/fxAttack.ts のスプライト） */
   | "parry"
   | "inscribe"
+  /** 出端の墨の飛沫（描画は render/effectsUi.ts。座標ハッシュで散らす） */
+  | "debanaSplash"
   /** ボス階の主の間への引き込み（value 0 = 元の位置で消える墨の渦、1 = 先で現れる渦） */
   | "lordPull";
 
@@ -720,6 +766,8 @@ export interface EffectsState {
   heartbeatTimer: number;
   /** 同じ語を続けて出さないための、語ごとに最後に出した state.time（addFloatingTextOnce の sameWordSec。使うまで作らない: 階の構築の指紋 floorIdentity.test.ts が state 全体を JSON にするため） */
   wordAt?: Record<string, number>;
+  /** 音ごとに最後に積んだ state.time（system/debana.ts の pushSfxSpaced。同じ音を短い間に重ねない。使うまで作らない） */
+  sfxAt?: Record<string, number>;
 }
 
 /** 継続ダメージの浮き文字の束（敵 1 体ぶん） */
@@ -972,6 +1020,75 @@ export interface Jin {
   leaderFell?: boolean;
   /** この陣から敗走した敵の行く末（QA が数える） */
   routTally?: JinRoutTally;
+  /** 本陣（階に数個だけ立つ山。system/jinzu.ts の planHonjin が決める）。大将が床に陣図を書く */
+  honjin?: true;
+  /** 陣図の状態（本陣だけ。system/jinzu.ts） */
+  jinzu?: JinzuState;
+  /** 大将が討たれて旗が倒れた（馬印の倒れる絵と QA の数え） */
+  flagFall?: { pos: Vec; at: number };
+}
+
+/** 陣図の段（docs/ideas/jinzu-impl.md。待ち → 掲げ → 筆 → 構え → 総掛かり → 立て直し。回数が尽きたら spent） */
+export type JinzuPhase = "ready" | "raise" | "brush" | "hold" | "charge" | "regroup" | "spent";
+
+/** 画の状態: pending まだ出ていない / sketch 下絵（怯みで消せる）/ ink 墨（必ず来る）/ erased 筆折れで消えた / done 走り終えた・止まった */
+export type JinzuStrokeState = "pending" | "sketch" | "ink" | "erased" | "done";
+
+/** 陣図の 1 画 */
+export interface JinzuStroke {
+  kind: JinzuPathKind;
+  /** 走る道の点列（壁で切れていれば 12 点より短い） */
+  points: Vec[];
+  /** 隊の敵 id（先頭が隊頭。決まった順 = 走り出す順） */
+  squad: number[];
+  state: JinzuStrokeState;
+  /** 画が出た段の経過秒（brush の間の下絵の進み） */
+  appearAt: number;
+  /** 墨が入った / 下絵が消えた・走り終えた state.time（描画の濃さ・擦れ・掠れの時間） */
+  inkedAt?: number;
+  endedAt?: number;
+  /** 隊頭が走り抜けた点列の位置（0..1。描画が走った後ろを掠れさせる） */
+  progress: number;
+  /** 隊の誰かがプレイヤーに当たった */
+  hit: boolean;
+  /** 隊頭が怯んで詰まった（空を切った数えから外す） */
+  jammed: boolean;
+  /** 走り終えた（当たった・走り切った・打ち切り）兵の id。怯み・撃破で止まった兵は入らない（隊頭が入っていなければ「詰まった」） */
+  finished: number[];
+}
+
+/** 陣図 1 枚ぶんの状態 */
+export interface JinzuState {
+  phase: JinzuPhase;
+  /** 段に入ってからの秒（chill で遅れ、凍結・麻痺で止まる筆の時計） */
+  t: number;
+  /** 1 画の下絵の秒（陣形の jinzu.strokeSec か JINZU.strokeSec） */
+  strokeSec: number;
+  /** 的 P（掲げた瞬間のプレイヤーの位置） */
+  target: Vec;
+  /** 大将の位置（掲げた瞬間。描画の起点） */
+  origin: Vec;
+  strokes: JinzuStroke[];
+  /** 掲げた回数 */
+  surges: number;
+  /** 次に掲げてよい state.time（前の立て直しの終わり + surgeCooldown） */
+  readyAt: number;
+  /** 総掛かりが始まった state.time（描画・計測） */
+  chargedAt?: number;
+}
+
+/** 陣図に動かされている敵（Enemy.jinzuRun）: brush = 大将が筆を持つ / stand = 隊の持ち場・構え中の大将 / run = 走っている */
+export interface JinzuRun {
+  /** 属する本陣の陣の id（敗走で陣から外れた敵も畳める） */
+  jin: number;
+  mode: "brush" | "stand" | "run";
+  /** 属する画の index（run / stand。大将は -1） */
+  stroke: number;
+  /** run: 次に向かう点の index と、走り出すまでの待ち（秒）・走った秒・壁で止まっている秒 */
+  next: number;
+  delay: number;
+  time: number;
+  stuck: number;
 }
 
 /** 敗走した敵の行く末の数（逃げ出した数 = 合流 + 討伐 + 逃げ切り + まだ逃げている） */

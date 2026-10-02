@@ -21,7 +21,7 @@ import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGu
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
-import { resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
+import { attachRune, resolveSlot, slotBodyBlocked, slotTogglesForm, type ResolvedSlot } from "../system/skills";
 import { isInPickupReach } from "../system/loot";
 import { SKILL } from "../skills/data";
 import { ART_DEFS, isArtKey } from "../skills/arts";
@@ -44,7 +44,7 @@ import { statsBulletHas } from "../loot/bullets";
  */
 
 /** この距離未満なら近接コンボに専念する（遠ければ近づく。射撃は銃の家系だけ） */
-const MELEE_RANGE = 30;
+export const MELEE_RANGE = 30;
 /** 敵の windup / strike をこの距離以内で検知したら回避を検討する */
 const DANGER_RANGE = 55;
 /** 「人間らしさ」: 危険を検知しても回避に失敗する確率 */
@@ -281,7 +281,7 @@ function reforgeChoiceInput(state: GameState): FrameInput {
 }
 
 /** screenToWorld (src/core/view.ts) の逆変換 */
-function worldToScreen(state: GameState, world: Vec): Vec {
+export function worldToScreen(state: GameState, world: Vec): Vec {
   const cam = state.camera;
   const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
   const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);
@@ -986,11 +986,28 @@ function nearestRoomEnemy(state: GameState, roomIndex: number): Vec | null {
 }
 
 /**
+ * 手持ちの刻印符を付けられる所へ付けていく。ゲーム本体は符を自動で付けず（遊ぶ人が装備画面で選ぶ）、
+ * bot は画面を操作できないので、拾った符をここで付ける。付け先の優先は attachRune と同じで、付けられなかった符は手持ちに残る。
+ * 付けた数を返す
+ */
+export function autoAttachHand(state: GameState): number {
+  const hand = state.skills.hand;
+  let attached = 0;
+  for (const key of [...hand]) {
+    if (attachRune(state, key) < 0) continue;
+    hand.splice(hand.indexOf(key), 1);
+    attached++;
+  }
+  return attached;
+}
+
+/**
  * 1 ステップぶんの FrameInput を作る。
  * 優先順位: 低 HP でハートが見えていれば回収 > 交戦中の最寄りの敵 > 隠し部屋の扉 > 市の瓶 > 探索（未クリア部屋 → 階段）。
  * 瓶は上の優先順位とは別に、低 HP なら flaskPressed を重ねる（botInput）
  */
 export function botInput(state: GameState, bot: BotState, dt: number): FrameInput {
+  autoAttachHand(state);
   const input = decideInput(state, bot, dt);
   // 瓶は行動の種類に関わらず低 HP で飲む（戦闘中・回収中でも命綱として押す）
   if (state.status === "playing" && !state.boonChoice && !state.reforgeChoice && shouldDrinkFlask(state)) input.flaskPressed = true;

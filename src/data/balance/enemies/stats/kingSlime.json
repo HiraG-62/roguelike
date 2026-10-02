@@ -1,6 +1,6 @@
 {
   "radius": 14,
-  "hp": 1250,
+  "hp": 2300,
   "speed": 45,
   "contactDamage": 12,
   "windup": 0.9,

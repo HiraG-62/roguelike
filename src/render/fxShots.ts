@@ -7,7 +7,7 @@ import type { GameState, Projectile, ShapeFx } from "../core/state";
 import { blastShotOf, hitElement, shotBulletOf, ultimateShotOf } from "../system/effects";
 import { ultimateDef } from "../data/ultimates";
 import { FX_ATTACK } from "../data/tuning";
-import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, rampColors, sheetDef } from "./fxSprites";
+import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, rampGlow, sheetDef } from "./fxSprites";
 import { BULLET_FX, type BulletFx, ULTIMATE_FX, rampOfElement } from "./fxMotions";
 import type { GlowFn } from "./fxAttack";
 
@@ -27,19 +27,19 @@ export function shotFx(pr: Projectile): BulletFx | undefined {
 }
 
 /**
- * 弾の配色: 弾そのものの属性（魔法の弾・奥義の素性）→ 射撃の属性（装備）→ 表の既定（物理の弾は真鍮）。
- * 奥義の弾は奥義の素性の属性、無ければ奥義の絵の配色
+ * 弾の配色: 弾そのものの属性（魔法の弾・奥義の素性）→ 射撃の属性（装備）。どれも無ければ無属性の墨（steel）。
+ * 表の既定の配色（真鍮・炎など）は使わない（墨の主題: 無属性は墨の濃淡で描く。docs/ideas/fx-sprites.md 3.6）
  */
-export function shotRamp(state: GameState, pr: Projectile, fx: BulletFx): FxRampKey {
+export function shotRamp(state: GameState, pr: Projectile): FxRampKey {
   const ult = ultimateShotOf(pr);
   if (ult) {
     const element = ultimateDef(ult.key)?.attack.element ?? "none";
-    return element === "none" ? (ULTIMATE_FX[ult.key]?.ramp ?? fx.ramp) : rampOfElement(element);
+    return rampOfElement(element);
   }
   const own = pr.attack?.element ?? "none";
   if (own !== "none") return rampOfElement(own);
   const gear = hitElement(state, "ranged", false);
-  return gear === "none" ? fx.ramp : rampOfElement(gear);
+  return rampOfElement(gear);
 }
 
 /** 飛んでいる弾を描く（x, y は描く位置。曲射は持ち上げた位置）。描けたら true */
@@ -50,16 +50,14 @@ export function drawShotSprite(ctx: CanvasRenderingContext2D, state: GameState, 
   const frame = loopFrame(sheet.frames, state.time + pr.id * PHASE_PER_ID, fx.period);
   const angle = Math.atan2(pr.vel.y, pr.vel.x);
   const c = FX_ATTACK.sprite;
-  const ramp = shotRamp(state, pr, fx);
+  const ramp = shotRamp(state, pr);
   if (c.bulletGlow > 0) glow(x, y, rampColor(ramp), Math.round(c.bulletGlowR + pr.radius), c.bulletGlow);
   return bank.draw(ctx, fx.fly, frame, x, y, angle, { ramp, scale: fitScale(pr.radius, fx.base, c.scaleTolerance) });
 }
 
-/** 光の色（配色の明部の段。加算の光は絵より淡く、弾の色の見当だけを付ける） */
-const GLOW_LEVEL = 4;
-
+/** 光の色（配色の滲みの色。加算の光は絵より淡く、弾の色の見当だけを付ける。墨の配色は明部が暗いので段からは取らない） */
 function rampColor(ramp: FxRampKey): string {
-  return rampColors(ramp)[GLOW_LEVEL] ?? "#ffffff";
+  return rampGlow(ramp);
 }
 
 /**
@@ -73,5 +71,5 @@ export function drawBlastSprite(ctx: CanvasRenderingContext2D, state: GameState,
   const frame = lifeFrame(sheetDef(fx.blast).frames, s.maxLife - s.life, s.maxLife);
   if (frame === null) return true;
   const scale = fitScale(s.radius, fx.blastBase, FX_ATTACK.sprite.scaleTolerance);
-  return bank.draw(ctx, fx.blast, frame, s.pos.x, s.pos.y, 0, { ramp: shotRamp(state, pr, fx), scale });
+  return bank.draw(ctx, fx.blast, frame, s.pos.x, s.pos.y, 0, { ramp: shotRamp(state, pr), scale });
 }

@@ -16,7 +16,7 @@ import { BOONS, BOON_KEYS, type BoonKey, grantBoon, hasBoon } from "./boons";
 import { gainCoins } from "./economy";
 import { applyStats } from "./player";
 import { applyJobStats, jobChangesStats } from "./jobs";
-import { attachRune } from "./skills";
+import { addToHand } from "./skills";
 
 /**
  * 起点（ラン開始時の出発条件）とラン修飾子（自分で積む縛り。点の合計が位階）。
@@ -277,7 +277,7 @@ export function startOrigin(state: GameState): void {
       gainCoins(state, ORIGIN.unarmedCoins, "event");
       return;
     case "chanter":
-      for (let i = 0; i < ORIGIN.chanterRunes; i++) attachRune(state, rollRuneModifier(state.rng, equippedSkillKeys(state)));
+      for (let i = 0; i < ORIGIN.chanterRunes; i++) addToHand(state, rollRuneModifier(state.rng, equippedSkillKeys(state)));
       return;
     default:
       return;

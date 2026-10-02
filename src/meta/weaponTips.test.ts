@@ -65,9 +65,9 @@ describe("武器種 Tips の型の文", () => {
     expect(formText(MOVESETS.axe), "斧は裂き").toContain("右の裂きで放つ");
   });
 
-  it("居合を持たない剣には「居合のカウンター」を応手に書かない", () => {
-    expect(formText(MOVESETS.sword)).not.toContain("居合のカウンター");
-    expect(formText(MOVESETS.katana)).toContain("居合のカウンター");
+  it("居合を持たない剣には「居合の出端」を応手に書かない", () => {
+    expect(formText(MOVESETS.sword)).not.toContain("居合の出端");
+    expect(formText(MOVESETS.katana)).toContain("居合の出端");
   });
 
   it("Tips の戦意の項目は戦意を持つ全ての型の名を挙げる", () => {

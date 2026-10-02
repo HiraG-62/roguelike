@@ -8,7 +8,7 @@ import { CANDIDATES_VIEW } from "./candidates";
 import { CREST_VIEW } from "./crest";
 import { FLOW_BOARD_VIEW, FLOW_VIEW } from "./flow";
 import { pointInRect } from "./inventoryLayout";
-import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, switchCandidatePart, switchFace } from "./menuActions";
+import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, switchCandidatePart, switchCandidateStone, switchFace } from "./menuActions";
 import { fid, focusedHit, hitAt, nearestInDirection } from "./menuFocus";
 import { MENU_HOLD_SECONDS, primeMenuNav, readMenuNav, stepHold } from "./menuInput";
 import {
@@ -24,6 +24,7 @@ import {
   type SheetSubject,
   type ViewModule,
   NO_SIGNALS,
+  defaultHandOptions,
   rootFace,
   topView,
 } from "./menuState";
@@ -46,6 +47,7 @@ export function createInventoryUi(craft: CraftSave = loadCraft()): InventoryUi {
     anvilSession: false,
     craft,
     sortPref: "fit",
+    handPref: defaultHandOptions(),
     nav: { x: 0, y: 0, held: 0 },
     aimPrev: null,
     clickHeldPrev: false,
@@ -156,6 +158,10 @@ function applyAct(state: GameState, ui: InventoryUi, act: MenuAct): void {
       return;
     case "switchPart":
       switchCandidatePart(ui, act.slot);
+      menuClick(state);
+      return;
+    case "switchStone":
+      switchCandidateStone(ui, act.index);
       menuClick(state);
       return;
     default: {
@@ -319,6 +325,11 @@ function updateOpen(state: GameState, ui: InventoryUi, input: Readonly<FrameInpu
     const sort = nextSort(view.sort);
     ui.sortPref = sort;
     dispatchMenuAct(state, ui, { kind: "setSort", sort });
+    return;
+  }
+  // スキルの頁では同じキーで手持ちの並びを送る（持ち上げ中は当たりが列だけなので送らない）
+  if (input.parryPressed && view.kind === "skills" && view.lift === null) {
+    dispatchMenuAct(state, ui, { kind: "cycleHand", axis: "sort" });
   }
 }
 

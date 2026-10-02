@@ -4,6 +4,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
+import { BLOOD_COLOR } from "../data/signs";
 import { BOON_LINEAGE, ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
@@ -106,11 +107,9 @@ import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } fro
  */
 
 const COLOR_NOT_READY = "#808080";
-const COLOR_BLOOD = "#ff4040";
+const COLOR_BLOOD = BLOOD_COLOR;
 const TEXT_SCALE = 0.9;
 const TEXT_LIFE = 0.4;
-const LABEL_SCALE = 1;
-const LABEL_LIFE = 1.4;
 const RING_LIFE = 0.15;
 const PARRY_TEXT_LIFE = 0.7;
 /** パリィ成功直後、同じ攻撃の続きで被弾しないための無敵 */
@@ -188,6 +187,7 @@ export function createSkillRunState(profile: SkillProfile): SkillRunState {
     mines: [],
     fields: [],
     runes: [],
+    hand: [],
     floorStones: [],
     frenzy: { time: 0, mul: 1 },
     lifesteal: { time: 0, mul: 0 },
@@ -1533,8 +1533,39 @@ export function dropRune(state: GameState, pos: Vec, modifier?: ModifierKey): vo
   pushSfx(state, "lootDrop");
 }
 
+/** 刻印符を手持ちへ入れる（床の符を拾ったとき・起点「詠み手」。スキルへ付けるのは自分の操作。刻印符はラン内だけの物） */
+export function addToHand(state: GameState, modifier: ModifierKey): void {
+  state.skills.hand.push(modifier);
+}
+
+/** 手持ちの符をスキルへ付ける結果。missing = 手持ちにその符が無い / 空きの無い・付けられない理由は RuneMoveBlock */
+export type HandAttachResult = "ok" | "missing" | RuneMoveBlock;
+
 /**
- * 刻印符を装着中スキルのリンク枠へ自動で差す（床の符を拾ったとき・起点「詠み手」・図書館など。刻印符はラン内だけの物）。
+ * 手持ちの符 modifier をスロット slot へ付ける。付けられなければ動かさず理由を返す（相性表・型替え符 1 枚・リンクの空きは runeMoveBlock と同じ）。
+ * slot.modifiers への反映は次のステップの syncSlotModifiers（装備画面の操作をリプレイの装備変更イベントと同じ時点に揃える）
+ */
+export function attachFromHand(state: GameState, slot: number, modifier: ModifierKey): HandAttachResult {
+  const rs = state.skills;
+  const idx = rs.hand.indexOf(modifier);
+  const dst = rs.slots[slot];
+  if (idx < 0 || !dst) return "missing";
+  const block = runeMoveBlock(rs, slot, modifier);
+  if (block) return block;
+  rs.hand.splice(idx, 1);
+  dst.runModifiers.push(modifier);
+  return "ok";
+}
+
+/** スロットのラン内の符を外して手持ちへ戻す。無ければ false。反映は moveRunModifier と同じく次のステップ */
+export function detachToHand(state: GameState, slot: number, modifier: ModifierKey): boolean {
+  if (!removeRunModifier(state.skills, slot, modifier)) return false;
+  state.skills.hand.push(modifier);
+  return true;
+}
+
+/**
+ * 刻印符を装着中スキルのリンク枠へ自動で差す（QA の bot の autoAttachHand が使う。手持ちは触らない。押し出された古い符は消える。ゲーム本体は使わない）。
  * 優先: 同じ符を持たず空きのあるスロット → 古い符を押し出して入れる → 同じ符を最新扱いに。
  * 差したスロット番号を返す（付けられる枠が無ければ -1）
  */
@@ -1579,6 +1610,23 @@ export function attachRune(state: GameState, modifier: ModifierKey): number {
   slot.runModifiers.splice(slot.runModifiers.indexOf(modifier), 1);
   slot.runModifiers.push(modifier);
   return commit(first);
+}
+
+/**
+ * 石を替えた・外したあとに、付かなくなった符（今の石に付けられない・リンクに入りきらない・同時に効かない）を手持ちへ戻す。
+ * 効かない符をスロットに残さない（手持ちの欄で見えて付け直せるように）。戻した枚数を返す。祝福の符は触らない
+ */
+export function returnInactiveRunes(state: GameState): number {
+  let returned = 0;
+  state.skills.slots.forEach((_, i) => {
+    for (const m of slotModifierView(state, i)) {
+      if (!m.run || m.active) continue;
+      if (!removeRunModifier(state.skills, i, m.key)) continue;
+      state.skills.hand.push(m.key);
+      returned++;
+    }
+  });
+  return returned;
 }
 
 /** スロットの符が使っているリンク（石に付けられない符は効かないので数えない） */
@@ -1638,7 +1686,7 @@ export function removeRunModifier(rs: SkillRunState, slot: number, modifier: Mod
   return true;
 }
 
-/** 床の刻印符を拾って、付けられるスロットへ入れる。付けられるスキルが無ければ床に残す */
+/** 床の刻印符を拾って手持ちへ入れる（付ける先は自分で選ぶ） */
 function updateRunes(state: GameState, dt: number): void {
   const rs = state.skills;
   const body = state.player.body;
@@ -1648,14 +1696,9 @@ function updateRunes(state: GameState, dt: number): void {
     if (rune.bobTime < SKILL.drop.pickupDelay) continue;
     if (!circlesOverlap(rune.pos.x, rune.pos.y, SKILL.drop.pickupRadius, body.pos.x, body.pos.y, body.radius)) continue;
     const def = MODIFIERS[rune.modifier];
-    const slot = attachRune(state, rune.modifier);
-    if (slot < 0) {
-      if (!rune.warned) addFloatingText(state, rune.pos, "付ける先なし", COLOR_BLOOD, LABEL_SCALE, LABEL_LIFE);
-      rune.warned = true;
-      continue;
-    }
+    addToHand(state, rune.modifier);
     picked.add(rune.id);
-    pushLog(state, `刻印符「${def.name}」をスキル ${slot + 1} に付けた。`, def.color);
+    pushLog(state, `刻印符「${def.name}」を手持ちに入れた。`, def.color);
     pushSfx(state, "runeAttach");
   }
   if (picked.size > 0) rs.runes = rs.runes.filter((r) => !picked.has(r.id));

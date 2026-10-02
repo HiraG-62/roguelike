@@ -134,7 +134,7 @@ export interface Provenance {
   // ---- 2026-09 追加（docs/ideas/loot-expansion.md 7 章）。旧セーブは 0 で補う ----
   /** 敵を怯ませた回数（ボスのダウンを含む） */
   staggers: number;
-  /** カウンター（予備動作中の敵への近接）の成立回数 */
+  /** カウンター（出端 = 予告が下絵の間に振り始めた近接 / 放出の弾、と受け流し）の成立回数 */
   counters: number;
   /** スキルの発動回数 */
   skillCasts: number;
@@ -753,7 +753,7 @@ export type TriggerKind =
   | "everyNthMeleeHit"
   /** 敵を怯ませた瞬間（ボスのダウンを含む） */
   | "onStagger"
-  /** カウンター（予備動作中の敵への近接）が成立した瞬間 */
+  /** カウンター（出端・受け流し）が成立した瞬間 */
   | "onCounter";
 
 export type TriggerCondition =

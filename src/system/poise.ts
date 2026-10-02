@@ -3,7 +3,7 @@ import { enemyTarget, pushEvent } from "../core/events";
 import { normalize, sub } from "../core/vec";
 import { depthHpScale, enemyDef, isBossClass, isExecuteImmune } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
-import { ENEMY_TEMPO, POISE, STATUS } from "../data/tuning";
+import { ENEMY_TEMPO, JINZU, POISE, STATUS } from "../data/tuning";
 import { addFloatingText, markExecuted, spawnBurst } from "./effects";
 import { shieldLeft } from "./elites";
 import { gainMana } from "./mana";
@@ -18,6 +18,8 @@ import { applyStatus, enemiesInRadius, hasStatus, playerPoiseDealtMul, removeSta
 /** 自傷の怯み（猪の壁激突など）の印。stagger の potency に入れる。解除後に堅守を付けない */
 export const SELF_INFLICTED_POTENCY = 1;
 const EXECUTE_TEXT = "処刑";
+/** ボスの引導（最終段階の答えのダウンの間に、生命が少ないボスを討ち取る）。処刑の出来事は出さない */
+const FINISHER_TEXT = "引導";
 const EXECUTE_COLOR = "#ff4060";
 const EXECUTE_TEXT_SCALE = 1.4;
 const EXECUTE_PARTICLES = 20;
@@ -57,8 +59,12 @@ export function isStaggered(e: Enemy): boolean {
 export function windupCommitted(e: Enemy): boolean {
   if (e.phase !== "windup") return false;
   if (e.chainWindup) return true;
+  // ボスの技が下絵の長さを決めている（bossKit の openTime）
+  if (e.openFor !== undefined) return e.openFor <= 0;
   return e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
 }
+
+export { markWindupStart, noteCommit, yellowAt } from "./readTiming";
 
 /** 攻撃が出ることが確定している（予告の色が「必ず出る」になる）: コミット窓に入った予備動作か攻撃中。render も読む */
 export function attackCommitted(e: Enemy): boolean {
@@ -78,6 +84,11 @@ export interface PoiseHitOptions {
    * addPoise から処刑すると撃破の報酬・トリガーが抜けたまま消える
    */
   canExecute?: boolean;
+  /**
+   * 出端の命中: コミット窓（墨入れ）の中でも怯み値を溜める。溢れても墨入れの攻撃は止めず、攻撃中と同じく先送りにして技の後で怯ませる。
+   * 墨入れを今すぐ止められるのは受け流しだけ、という約束は崩さない
+   */
+  readStart?: boolean;
   /** 受け流し: コミット窓と攻撃中の先送りを破る（窓の中でも溜め、攻撃中でも即怯ませる） */
   ignoreCommit?: boolean;
 }
@@ -92,6 +103,8 @@ export function poiseTakenMul(e: Enemy, opts: PoiseHitOptions = {}): number {
   const wither = hasStatus(e.status, "weaken") && hasStatus(e.status, "vulnerable");
   const ignoreArmor = opts.ignoreSuperArmor === true || wither;
   let mul = 1;
+  // 掲げ・筆の間の大将は、筆を折りやすいよう怯み値を多く受ける（system/jinzu.ts）
+  if (e.jinzuRun?.mode === "brush") mul *= JINZU.brushPoiseTakenMul;
   if (!ignoreArmor && e.phase === "windup") mul *= combat.superArmorMul;
   if (!ignoreArmor && e.phase === "strike") mul *= combat.strikeSuperArmorMul ?? combat.superArmorMul;
   if (!opts.fromBehind && hasStatus(e.status, "guarded")) mul *= isBossClass(enemyDef(e.defKey)) ? POISE.bossGuardedMul : POISE.guardedMul;
@@ -129,14 +142,15 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
   if (cannotAccumulate(e)) return false;
   const hitOpts = opts.fromBehind === undefined ? { ...opts, fromBehind: isBehind(state, e) } : opts;
   // コミット窓の中は溜まらない（読んで潰せるのは窓の前だけ）
-  if (opts.ignoreCommit !== true && windupCommitted(e)) return false;
+  const inCommitWindow = windupCommitted(e);
+  if (opts.ignoreCommit !== true && inCommitWindow && opts.readStart !== true) return false;
   const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts) * jinBonusMul(state, e, "poiseTaken");
   if (gained <= 0) return false;
   e.poise.damage += gained;
   e.poise.sinceHit = 0;
   if (e.poise.damage < e.poise.max) return false;
   // 攻撃中は満杯で止めて先送り（1 撃は出し切らせる）。怯むのは技の終わり
-  if (opts.ignoreCommit !== true && e.phase === "strike") {
+  if (opts.ignoreCommit !== true && (e.phase === "strike" || inCommitWindow)) {
     e.poise.damage = e.poise.max;
     e.poise.pending = true;
     return false;
@@ -178,6 +192,7 @@ function executeBonus(_state: GameState): number {
  * damageEnemy が HP を減らした後に呼ぶので、ここでは HP を 0 にするだけ（撃破の処理は damageEnemy が 1 回だけ行う）
  */
 function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
+  if (tryFinisher(state, e, amount)) return true;
   if (amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
   if (isExecuteImmune(enemyDef(e.defKey)) || e.hp > e.maxHp * executeHpRatio(state)) return false;
   e.hp = 0;
@@ -192,6 +207,20 @@ function tryExecute(state: GameState, e: Enemy, amount: number): boolean {
   for (const other of enemiesInRadius(state, e.body.pos, POISE.executeFearRadius)) {
     if (other.id !== e.id) applyStatus(state, { kind: "enemy", enemy: other }, fear, "player");
   }
+  return true;
+}
+
+/**
+ * 引導: 最終段階の答えのダウン（ai.finale。呑み損ねなど）の間に、生命が処刑の上限以下のボスへ怯み値 executeMinPoise 以上の一撃で討ち取る。
+ * 処刑の出来事・恐怖の波及は出さない（処刑を起点にする祝福・依頼・実績をボスに効かせない）。ボスの「怯んだら誰でも処刑」は無いまま
+ */
+function tryFinisher(state: GameState, e: Enemy, amount: number): boolean {
+  if (e.ai?.finale !== true || amount < POISE.executeMinPoise || e.hp <= 0 || !isStaggered(e)) return false;
+  if (e.hp > e.maxHp * POISE.executeHpRatioMax) return false;
+  e.hp = 0;
+  addFloatingText(state, e.body.pos, FINISHER_TEXT, EXECUTE_COLOR, EXECUTE_TEXT_SCALE, 0.7, "status");
+  spawnBurst(state, e.body.pos, EXECUTE_COLOR, EXECUTE_PARTICLES, 180, 0.45, 2.5);
+  pushSfx(state, "hitHeavy");
   return true;
 }
 
@@ -227,16 +256,22 @@ export interface StaggerOptions {
 export function applyStagger(state: GameState, e: Enemy, time: number, opts: StaggerOptions = {}): boolean {
   if (time <= 0) return false;
   const self = opts.selfInflicted === true;
-  return applyStatus(
+  // 下絵の間に崩した: 線が擦れて散る絵に合わせて紙を擦る音（見た目と音だけ。結果に効かない）
+  const sketchBroken = e.phase === "windup" && !attackCommitted(e);
+  const applied = applyStatus(
     state,
     { kind: "enemy", enemy: e },
     { kind: "stagger", stacks: 1, duration: time, potency: self ? SELF_INFLICTED_POTENCY : 0 },
     self ? "self" : "player",
   );
+  if (applied && sketchBroken) pushSfx(state, "sketchErase");
+  return applied;
 }
 
 /** 怯みが解けた瞬間: 堅守を付ける（自傷の怯みの後は付けない。崩勢が付いていれば崩勢を消費して付けない = 崩落） */
 export function onStaggerEnd(state: GameState, e: Enemy, potency: number): void {
+  // 引導の窓は怯み（ダウン）の間だけ
+  if (e.ai?.finale) e.ai.finale = undefined;
   if (potency === SELF_INFLICTED_POTENCY || e.hp <= 0) return;
   if (hasStatus(e.status, "broken")) {
     removeStatus(state, { kind: "enemy", enemy: e }, "broken", "consume");

@@ -22,6 +22,7 @@ import { defaultRunSetup } from "../system/runSetup";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { Renderer } from "../render/renderer";
 import { type TownHubView, TownLayer, canvasFromTownPixels } from "../render/townScene";
+import { placeTeleScene } from "./teleScene";
 
 interface MapBench {
   frames: number;
@@ -35,6 +36,8 @@ interface MapBench {
   bakedRows: number;
   /** render() 全体の平均 ms */
   renderMsAvg: number;
+  /** 予告の描き込み（telegraphLayer）だけの平均 ms（予告の場面のみ。それ以外は 0） */
+  teleMsAvg: number;
 }
 
 interface TownOpenCost {
@@ -109,6 +112,8 @@ function buildRun(q: URLSearchParams): GameState {
   else buildFloor(state, kind);
   state.flash = 0;
   placeCamera(state, q);
+  // 予告の撮影: 自分の周りに予備動作中の敵を並べる（scene=tele&tele=crowd|shapes。docs/ideas/ink-telegraph-impl.md 段 0-c）
+  if (q.get("scene") === "tele") placeTeleScene(state, q.get("tele") ?? "crowd");
   return state;
 }
 
@@ -187,7 +192,36 @@ function bakedRowsOf(renderer: Renderer): number {
   return chunks?.lastBakedRows ?? 0;
 }
 
-function runBench(renderer: Renderer, state: GameState): MapBench {
+/**
+ * 予告の描き込みだけを繰り返し描いて平均 ms を出す（Renderer の private を添字で呼ぶ。計測専用）。
+ * canvas の描画は遅延するので、毎回 1 画素を読み戻して描き終わりを待ち、読み戻しだけの空の回との差を取る。
+ * 負荷の揺れに強いよう、平均ではなく最短の回を取る
+ */
+function measureTelegraphs(renderer: Renderer, state: GameState): number {
+  const layer = renderer["telegraphs"];
+  const helpers = renderer["telegraphHelpers"];
+  const cam = state.camera;
+  const ctx = renderer.context;
+  const runs = 60;
+  const pass = (draw: boolean): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < runs; i++) {
+      const t0 = performance.now();
+      ctx.save();
+      ctx.translate(Math.round(VIEW_W / 2 - cam.pos.x), Math.round(VIEW_H / 2 - cam.pos.y));
+      if (draw) layer.draw(ctx, state, helpers);
+      ctx.restore();
+      ctx.getImageData(0, 0, 1, 1);
+      best = Math.min(best, performance.now() - t0);
+    }
+    return best;
+  };
+  pass(false);
+  const empty = pass(false);
+  return pass(true) - empty;
+}
+
+function runBench(renderer: Renderer, state: GameState, still: boolean): MapBench {
   const maxX = state.map.width * TILE - VIEW_W / 2;
   const minX = VIEW_W / 2;
   let dir = 1;
@@ -199,9 +233,11 @@ function runBench(renderer: Renderer, state: GameState): MapBench {
   let rows = 0;
   let renderSum = 0;
   for (let f = 0; f < BENCH_FRAMES; f++) {
-    const next = state.camera.pos.x + dir * BENCH_SPEED;
+    // 予告の場面は敵を置いた所から動かさない（流すと予告が画面から出る）
+    const speed = still ? 0 : BENCH_SPEED;
+    const next = state.camera.pos.x + dir * speed;
     if (next > maxX || next < minX) dir = -dir;
-    state.camera.pos.x += dir * BENCH_SPEED;
+    state.camera.pos.x += dir * speed;
     renderer.beginFrame();
     const t0 = performance.now();
     drawMapOnly(renderer, state);
@@ -228,6 +264,7 @@ function runBench(renderer: Renderer, state: GameState): MapBench {
     bakeFrames: nBake,
     bakedRows: rows,
     renderMsAvg: renderSum / BENCH_FRAMES,
+    teleMsAvg: still ? measureTelegraphs(renderer, state) : 0,
   };
 }
 
@@ -260,7 +297,7 @@ async function main(): Promise<void> {
   if (typeof renderer.settleMap === "function") renderer.settleMap(state);
   renderer.render(state, null, false);
 
-  if (q.get("bench") === "1") window.__mapBench = runBench(renderer, state);
+  if (q.get("bench") === "1") window.__mapBench = runBench(renderer, state, q.get("scene") === "tele");
   window.__mapShotReady = true;
 }
 

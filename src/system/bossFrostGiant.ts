@@ -9,6 +9,7 @@ import { followersOf } from "./enemyTraits";
 import { explodeHostile, spawnLanding, spawnShockwave } from "./hazards";
 import { circlesOverlap, overlapsWall } from "./physics";
 import { applyStagger } from "./poise";
+import { markWindupStart } from "./readTiming";
 import { inflictOnPlayer } from "./statusEffects";
 import { phaseShift } from "./boss";
 
@@ -95,6 +96,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
   const ai = e.ai;
   if (!ai) return;
   e.phase = "windup";
+  markWindupStart(state, e);
   pushSfx(state, "enemyWindup");
   if (ai.move === GIANT_MOVE_SLAM) {
     e.phaseTimer = scaledWindup(def.windup, state.depth);

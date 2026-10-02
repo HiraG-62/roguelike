@@ -71,8 +71,8 @@ function enemyBullet(state: GameState, dx: number, speed: number, damage: number
   return pr;
 }
 
-describe("カウンターヒット", () => {
-  it("windup 中の敵に近接を当てると 1.5 倍 + カウンター！", () => {
+describe("出端（カウンターヒット）", () => {
+  it("黄の予備動作中の敵に近接を当てると 1.5 倍 + 出端の音（文字は出さない）", () => {
     const state = arena();
     const e = passive(placeEnemy(state, "boar", 14));
     e.phase = "windup";
@@ -81,8 +81,8 @@ describe("カウンターヒット", () => {
     const heard = runCollectSfx(state, SWING_STEPS, true);
     // rollOutgoing が先に丸め、カウンターの倍率を掛けてからもう一度丸める（player.ts の meleeHitEnemy）
     expect(before - e.hp, "カウンターの威力").toBe(Math.round(Math.round(slashDamage(state, 0)) * ACTION.counter.damageMul));
-    expect(hasText(state, ACTION.counter.text)).toBe(true);
-    expect(heard.has("counter")).toBe(true);
+    expect(heard.has("counter"), "出端の音").toBe(true);
+    expect(heard.has("hitCommitted"), "黄の間の命中に鈍い打音は鳴らない").toBe(false);
   });
 
   it("windup 以外（chase）ではカウンターにならない", () => {
@@ -94,14 +94,13 @@ describe("カウンターヒット", () => {
     // 実ダメージは rollOutgoing で Math.round 済み（combat.ts）。QA 2026-09-23 の近接基礎値調整で
     // scaled 値が端数（7.8）になったため、生の値ではなく丸め後の値と比較する
     expect(before - e.hp, "通常の 1 段目の威力").toBe(Math.round(slashDamage(state, 0)));
-    expect(hasText(state, ACTION.counter.text)).toBe(false);
   });
 
-  it("カウンターは確定の怯みではなく、怯み値は等倍（威力の倍率は残る）", () => {
+  it("出端は確定の怯みではなく、怯み値の倍率（威力の倍率も残る）", () => {
     const state = arena();
     const first = meleeStep(state.stats, 0);
     if (!first) throw new Error("1 段目が無い");
-    expect(ACTION.counter.poiseMul, "怯み値は等倍（怯ませる手段は読みと受け流し）").toBe(1);
+    expect(ACTION.counter.poiseMul, "出端の怯み値は 1.5 倍（黄に絞った報酬）").toBe(1.5);
     expect(ACTION.counter.damageMul, "威力の倍率は残る").toBeGreaterThan(1);
     expect(counterPoise(first, true), "カウンターの怯み値").toBe(first.poise * ACTION.counter.poiseMul);
     expect(counterPoise(first, false), "通常の怯み値").toBe(first.poise);

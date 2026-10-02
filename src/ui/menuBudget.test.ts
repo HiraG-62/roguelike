@@ -19,6 +19,7 @@ describe("予算の上限（MENU_BUDGET）", () => {
     expect(MENU_BUDGET.textLines).toBe(4);
     expect(MENU_BUDGET.compareTextLines).toBe(6);
     expect(MENU_BUDGET.numbers).toBe(4);
+    expect(MENU_BUDGET.compareNumbers, "比べる場面は替わる地金の「今 → 後」の数を足した上限").toBe(MENU_BUDGET.numbers + MENU_BUDGET.innateDiffs * 2);
     expect(MENU_BUDGET.candidates).toBe(5);
     expect(MENU_BUDGET.bands).toEqual({ stepped: 4, undercurrent: 2 });
     expect(MENU_BUDGET.beads).toEqual({ source: 4, sink: 4, amplifier: 2 });
@@ -74,6 +75,12 @@ describe("予算との比較（budgetViolations）", () => {
     const v = budgetViolations({ ...within, lines: 5, candidates: 6, beads: { source: 5, sink: 4, amplifier: 3 } });
     expect(v.map((x) => x.item)).toEqual(["文の行", "候補", "源の珠", "強めの珠"]);
     expect(v[0]).toEqual({ item: "文の行", actual: 5, limit: MENU_BUDGET.textLines });
+  });
+
+  it("比べる場面だけ数が compareNumbers まで許される", () => {
+    expect(budgetViolations({ ...within, numbers: MENU_BUDGET.compareNumbers }, "compare")).toEqual([]);
+    expect(budgetViolations({ ...within, numbers: MENU_BUDGET.compareNumbers }, "plain").map((x) => x.item)).toEqual(["UI が出す数"]);
+    expect(budgetViolations({ ...within, numbers: MENU_BUDGET.compareNumbers + 1 }, "compare").map((x) => x.item)).toEqual(["UI が出す数"]);
   });
 
   it("比べる場面だけ文の行が 6 まで許される", () => {

@@ -21,6 +21,7 @@ import {
 import { BULLETS } from "../loot/bullets";
 import { ultimateChoice } from "../loot/profile";
 import type { AttrRatio, PlayerStats, Scaling } from "../loot/types";
+import { yellowAt } from "./readTiming";
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
@@ -798,7 +799,7 @@ export function ultimateOutgoingMul(state: GameState, enemy: Enemy | null): numb
   const s = activeSustain(state)?.sustain;
   if (!s) return 1;
   let mul = s.mul.damage ?? 1;
-  if (enemy && s.vsWindup !== undefined && enemy.phase === "windup") mul *= s.vsWindup;
+  if (enemy && s.vsWindup !== undefined && yellowAt(enemy, state.time)) mul *= s.vsWindup;
   if (enemy && s.vsStatus && hasStatus(enemy.status, s.vsStatus.status)) mul *= s.vsStatus.mul;
   if (enemy && s.pointBlank) mul *= pointBlankMul(state, enemy, s.pointBlank);
   return mul;

@@ -260,3 +260,47 @@ describe("演出と音の第 3 弾の効果音（8-4 / 8-7〜8-10 / 8-14）", ()
     expect(first.k === "arp" ? first.freqs.length : 0, "3 音").toBe(3);
   });
 });
+
+describe("左右の振り（柝頭）", () => {
+  function playerWithPanner() {
+    const pans: number[] = [];
+    const Ctor = function () {
+      const ctx = createMockAudioContext();
+      return Object.assign(ctx, {
+        createStereoPanner() {
+          const pan = createAudioParamMock(0);
+          const original = pan.setValueAtTime.bind(pan);
+          pan.setValueAtTime = (value: number, time: number) => {
+            pans.push(value);
+            return original(value, time);
+          };
+          return { ...createNodeMock(), pan };
+        },
+      });
+    } as unknown as new () => AudioContext;
+    (globalThis as unknown as { AudioContext: new () => AudioContext }).AudioContext = Ctor;
+    const player = new SfxPlayer();
+    player.unlock();
+    return { player, pans };
+  }
+
+  it("pan を渡すと StereoPannerNode を通し、-1..1 に丸める", () => {
+    const { player, pans } = playerWithPanner();
+    player.play("commitClack", { pan: 0.5 });
+    expect(pans).toEqual([0.5]);
+    const second = playerWithPanner();
+    second.player.play("commitClack", { pan: -3 });
+    expect(second.pans).toEqual([-1]);
+  });
+
+  it("pan を渡さなければ StereoPannerNode を作らず、無い環境でも pan を無視して鳴らせる", () => {
+    const { player, pans } = playerWithPanner();
+    player.play("commitClack");
+    expect(pans).toEqual([]);
+    const plain = new SfxPlayer();
+    expect(() => {
+      plain.unlock();
+      plain.play("commitClack", { pan: 0.7 });
+    }).not.toThrow();
+  });
+});
