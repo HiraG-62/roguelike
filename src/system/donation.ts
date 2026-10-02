@@ -8,10 +8,10 @@ import { spendCoins } from "./economy";
 import { overlapsWall } from "./physics";
 
 /**
- * 寄進の祠（docs/ideas/economy-impl.md 2-9）。章の境の休符（章の 1 階目）の開始部屋に立ち、触れるたびに
+ * 寄進の祠（docs/ideas/economy-impl.md 2-9）。章の境の休符（章の 1 階目）の開始部屋に立ち、インタラクトで使うたびに
  * 持ち金の ECONOMY.donation.step（最低 min）を納める。全額まで繰り返せる。ラン内の効果は無く、
  * 総額は economy.donated に積む。永続（HubSave.donated）へ足すのは main.ts の endRun だけ（step の中では保存しない）。
- * 台座そのものの置き方・触れ方は specialRooms.ts（PropKind "donation"）。ここは額の計算と納める処理と置き場所の選び方
+ * 台座そのものの置き方は specialRooms.ts（PropKind "donation"）、使い方は system/interact.ts。ここは額の計算と納める処理と置き場所の選び方
  */
 
 const TEXT_LIFT = 12;
@@ -31,7 +31,7 @@ export function donationAmount(coins: number): number {
   return Math.min(coins, Math.max(ECONOMY.donation.min, step));
 }
 
-/** 祠に触れた: 寄進して総額に積む。納めた額を返す（持ち金が無ければ 0 で何も起きない） */
+/** 祠を使った: 寄進して総額に積む。納めた額を返す（持ち金が無ければ 0 で何も起きない） */
 export function donate(state: GameState, shrinePos: Vec): number {
   const p = state.player.body.pos;
   const at = { x: p.x, y: p.y - TEXT_LIFT };

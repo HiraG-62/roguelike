@@ -17,7 +17,7 @@ import { gainCoins, spendCoins } from "./economy";
 import { addFloatingText, spawnBurst } from "./effects";
 import { dropItem } from "./loot";
 import { refillMana } from "./mana";
-import { circlesOverlap, overlapsWall } from "./physics";
+import { overlapsWall } from "./physics";
 import { dropRareItem } from "./roomTypes";
 import { RUN_EVENTS, type RunEventKey, activeElementStorm, rollFloorEventKey } from "./runEvents";
 import { dropRune } from "./skills";
@@ -26,7 +26,7 @@ import { removeStatus } from "./statusEffects";
 
 /**
  * 契約者（docs/ideas/run-expansion.md 6 章）。銭の出入りは system/economy.ts（gainCoins / spendCoins）。
- * 契約者は階の入口（開始部屋）に立つ人物で、台座と同じく「触れて選ぶ」（モーダルなし。触れなければ何も起きないので QA bot も止まらない）。
+ * 契約者は階の入口（開始部屋）に立つ人物で、台座に照準を合わせてインタラクトで選ぶ（system/interact.ts。モーダルなし。押さなければ何も起きないので QA bot も止まらない）。
  * 取引の代価は銭（ラン内だけの資源）か生命。契約（灰の公証人）は state.contracts.pacts に積み、
  * 失敗は起きた瞬間に、達成は次の階に着いたとき（onContractsFloorReached）に判定する。
  * 鍛冶・属性の祭壇・属性の嵐の「通常攻撃に乗る属性」は、装備から畳んだ stats に後から足す（ensureContractStats）
@@ -74,8 +74,6 @@ export interface ContractOffer {
   cost: number;
   pos: Vec;
   used: boolean;
-  /** false の間は触れても反応しない（離れると true に戻る。連打と出現直後の誤爆を防ぐ） */
-  armed: boolean;
   /** 賭場の主の賭けの中身（bet / betGo / betStop。system/bets.ts） */
   bet?: BetOffer;
 }
@@ -249,7 +247,7 @@ export function standContractor(state: GameState, key: ContractorKey): boolean {
   const spacing = key === "bookie" ? ECONOMY.bet.offerSpacing : CONTRACT.offerSpacing;
   const spots = layout(state, room, plan.length, -1, spacing) ?? layout(state, room, plan.length, 1, spacing);
   if (!spots) return false;
-  const offers = plan.map((o, i) => ({ ...o, pos: spots.offers[i] ?? spots.stand, used: false, armed: false }));
+  const offers = plan.map((o, i) => ({ ...o, pos: spots.offers[i] ?? spots.stand, used: false }));
   state.contracts.contractor = { key, pos: spots.stand, offers, greeted: false };
   return true;
 }
@@ -392,7 +390,7 @@ function pactProgress(state: GameState, pact: ActivePact): string {
 // 毎ステップ
 // -----------------------------------------------------------------------------
 
-/** floor.ts の updateRooms から毎ステップ。契約の失敗・目撃の時間・属性の上乗せ・台座 */
+/** floor.ts の updateRooms から毎ステップ。契約の失敗・目撃の時間・属性の上乗せ・賭けの台座の更新（台座を使うのは system/interact.ts） */
 export function updateContractors(state: GameState, dt: number): void {
   const c = state.contracts;
   c.witness = Math.max(0, c.witness - dt);
@@ -404,18 +402,6 @@ export function updateContractors(state: GameState, dt: number): void {
   if (!who) return;
   greet(state, who);
   if (who.key === "bookie") refreshBookie(state, who);
-  const body = state.player.body;
-  for (const offer of who.offers) {
-    if (offer.used) continue;
-    const touching = circlesOverlap(offer.pos.x, offer.pos.y, CONTRACT_TOUCH_RADIUS, body.pos.x, body.pos.y, body.radius);
-    if (!touching) {
-      offer.armed = true;
-      continue;
-    }
-    if (!offer.armed) continue;
-    offer.armed = false;
-    useOffer(state, who, offer);
-  }
 }
 
 /** 契約の報酬の 3 択を、ほかの 3 択が開いていないときに 1 つ開く（開けなくても 1 つ減らす） */
@@ -425,9 +411,6 @@ function payOwedBoons(state: GameState): void {
   c.boonsOwed -= 1;
   offerBoons(state);
 }
-
-/** 台座に触れたと判定する半径（px）。部屋の台座と同じ */
-const CONTRACT_TOUCH_RADIUS = 9;
 
 function greet(state: GameState, who: Contractor): void {
   if (who.greeted) return;
@@ -451,8 +434,8 @@ function loseCoins(state: GameState, amount: number): void {
   spendCoins(state, lost, "contract");
 }
 
-/** 条件を満たさない・払えないときは何も起きない（台座は残る） */
-function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void {
+/** 台座を使う（system/interact.ts から）。条件を満たさない・払えないときは何も起きない（台座は残る） */
+export function useOffer(state: GameState, who: Contractor, offer: ContractOffer): void {
   const color = CONTRACTORS[who.key].color;
   if (state.economy.coins < offer.cost) {
     sayAt(state, `銭が足りない（${offer.cost}）`, color);
@@ -499,7 +482,7 @@ function offerBlocked(state: GameState, offer: ContractOffer): string | null {
   }
 }
 
-/** 最大生命の ratio を払っても CONTRACT.lifeFloor 以上が残るか（取引で死なせない。QA bot の通りすがりでも） */
+/** 最大生命の ratio を払っても CONTRACT.lifeFloor 以上が残るか（取引で死なせない） */
 function canPayLife(state: GameState, ratio: number): boolean {
   const p = state.player;
   return p.hp - p.maxHp * ratio >= CONTRACT.lifeFloor;
@@ -667,7 +650,7 @@ function applyBet(state: GameState, offer: ContractOffer): void {
   const bet = offer.bet;
   if (!bet) return;
   if (offer.kind === "betGo") {
-    // 勝てば同じ台座で続けられる（一度離れてから）
+    // 勝てば同じ台座で続けられる
     if (doubleUpGo(state)) offer.used = false;
     return;
   }
@@ -690,8 +673,8 @@ function openDoubleUp(state: GameState, from: ContractOffer): void {
   const others = who.offers.filter((o) => o !== from && o.kind === "bet");
   others.sort((a, b) => Math.abs(a.pos.x - from.pos.x) - Math.abs(b.pos.x - from.pos.x));
   const stopPos = others[0]?.pos ?? { x: from.pos.x, y: from.pos.y + TILE_SIZE * 2 };
-  who.offers.push({ kind: "betGo", key: bet.kind, cost: 0, pos: { ...from.pos }, used: false, armed: false, bet: { ...bet } });
-  who.offers.push({ kind: "betStop", key: bet.kind, cost: 0, pos: { ...stopPos }, used: false, armed: false, bet: { ...bet } });
+  who.offers.push({ kind: "betGo", key: bet.kind, cost: 0, pos: { ...from.pos }, used: false, bet: { ...bet } });
+  who.offers.push({ kind: "betStop", key: bet.kind, cost: 0, pos: { ...stopPos }, used: false, bet: { ...bet } });
 }
 
 function betLife(state: GameState, below: Vec, color: string): void {

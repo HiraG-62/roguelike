@@ -893,7 +893,7 @@ export interface BetRecord {
  */
 export type WareKind = "flask" | "item" | "rune" | "key" | "reroll" | "skill" | "cursedItem" | "keystone";
 
-/** 商人の台座の品（触れて買う。contractors.ts の ContractOffer と同じ作法） */
+/** 商人の台座の品（照準を合わせてインタラクトで買う。system/interact.ts） */
 export interface Ware {
   kind: WareKind;
   /** 品の細目（闇市のスキル石は SkillKey、誓約は keystone の key。それ以外は空） */
@@ -904,8 +904,6 @@ export interface Ware {
   base: number;
   pos: Vec;
   used: boolean;
-  /** false の間は触れても反応しない（離れると true。連打と出現直後の誤爆を防ぐ） */
-  armed: boolean;
 }
 
 /** 商人（台座を並べる人。体は state.enemies の Enemy で、殴られると怒る） */

@@ -1705,7 +1705,7 @@ function updateRunes(state: GameState, dt: number): void {
 }
 
 function updateFloorStones(state: GameState, dt: number): void {
-  // 拾得は注目 + インタラクト（system/loot.ts の updateDropInteract）。ここは揺れの時間だけ進める
+  // 拾得は注目 + インタラクト（system/interact.ts の updateInteract）。ここは揺れの時間だけ進める
   for (const fs of state.skills.floorStones) fs.bobTime += dt;
 }
 

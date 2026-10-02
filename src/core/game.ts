@@ -12,7 +12,7 @@ import { applyStats, createPlayer } from "../system/player";
 import { refillMana, tickMana } from "../system/mana";
 import { latchFrozenInput, updatePlayer } from "../system/player";
 import { updateProjectiles } from "../system/projectiles";
-import { updateDropInteract } from "../system/loot";
+import { updateInteract } from "../system/interact";
 import { VIEW_H, VIEW_W } from "./view";
 import { type Profile, createEmptyProfile } from "../loot/types";
 import { computeStats } from "../loot/stats";
@@ -172,8 +172,8 @@ export function step(state: GameState, input: FrameInput, dt: number): void {
     return;
   }
 
-  // ヒットストップ中に押しても取りこぼさないよう、止まる前に拾う
-  updateDropInteract(state, input);
+  // ヒットストップ中に押しても取りこぼさないよう、止まる前に拾う / 台座を使う
+  updateInteract(state, input);
 
   if (state.hitstop > 0) {
     state.hitstop -= 1;
