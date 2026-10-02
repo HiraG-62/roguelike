@@ -3,6 +3,7 @@ import type { StatusKind } from "../core/status";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { type EnemyDef, enemyDef } from "../data/enemies";
 import { type EnemyRole, GRADE_LABEL, ROLE_ELITE_EXCLUDE } from "../data/enemyRoles";
+import { COMMANDING_AURA_COLOR } from "../data/signs";
 import { ELITE, ELITE_GREEDY, ENEMY_AI, POISE } from "../data/tuning";
 import { comboMultiplier, damageEnemy } from "./combat";
 import { addPoise, applyStagger, elitePoiseMul, isStaggered } from "./poise";
@@ -52,24 +53,24 @@ export const ELITE_KINDS: readonly EliteKind[] = [
 ];
 
 export const ELITE_COLOR: Readonly<Record<EliteKind, string>> = {
-  explosive: "#ff8030",
+  explosive: "#ffa850",
   reflective: "#e0e0ff",
   shielded: "#60a0ff",
-  hasted: "#ffe040",
+  hasted: "#60e8c8",
   linked: "#ff80ff",
   echoing: "#b090ff",
   contagious: "#80ff60",
   bulwark: "#c0a070",
-  retaliating: "#ff5050",
+  retaliating: "#b04a88",
   prismatic: "#ff90d0",
   timed: "#ffffff",
   parasitic: "#a0c040",
   anchored: "#8090a0",
   devouring: "#c04060",
   packed: "#f0a040",
-  searing: "#ff6020",
+  searing: "#ff9060",
   hexing: "#a060ff",
-  commanding: "#ffd040",
+  commanding: COMMANDING_AURA_COLOR,
   evasive: "#80ffe0",
   chaining: "#a0e0ff",
   greedy: ELITE_GREEDY.color,

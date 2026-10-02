@@ -208,6 +208,23 @@ export const SFX_NAMES = [
   "hitCommitted",
   /** 下絵（黄の予告）を怯みで崩した: 紙を擦る短い音（線が擦れて散る絵と同時） */
   "sketchErase",
+  /** 柝頭: 自分に掛かる攻撃が赤（墨入れ）に入った合図。高く乾いた木の小さな 1 打（左右に振る。audio/narimono.ts） */
+  "commitClack",
+  /** 附打: 受け流しの成功。板を打つ低く強い 1 打（読みが当たった合図。音の家は柝頭と別） */
+  "tsukeHeavy",
+  // ---- 本陣の陣図（docs/ideas/jinzu-impl.md。system/jinzu.ts）----
+  /** 軍配を掲げた: 太鼓 1 打と低い法螺 */
+  "jinzuRaise",
+  /** 陣図の画が 1 本出た: 筆の擦れ */
+  "jinzuStroke",
+  /** 画に墨が入った: 柝のような短い打音 */
+  "jinzuInk",
+  /** 筆が折れた: 竹が割れる音 */
+  "jinzuBreak",
+  /** 総掛かり: 鬨の声 */
+  "jinzuCharge",
+  /** 旗倒れ: 布の倒れる音と太鼓の乱れ打ち */
+  "flagFall",
   // ---- 命中音の系統（刃・打撃・刺突・鞭打）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
   "hitSlashLight",
   "hitSlashMid",

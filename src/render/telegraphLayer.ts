@@ -1,19 +1,19 @@
 import type { Enemy, GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { enemyDef } from "../data/enemies";
-import { TELEGRAPH } from "../data/tuning";
-import { behaviorOf } from "../system/behaviors/registry";
-import { enemyActiveArea, enemyTelegraph } from "../system/enemies";
+import { FLOOR_KIND, TELEGRAPH } from "../data/tuning";
 import { isStaggered, poiseRatio } from "../system/poise";
+import { type ThreatArea, threatShapes, threatensPlayer } from "../system/threat";
 import { hash01, pulse } from "./renderMath";
-import { doubleChargeLegs } from "./chargeLineUi";
-import { type CutCircle, type InkStage, type Seg, drawHeadMark, drawStop, sketchGap, sketchSpans, strokeInk, strokeSketch, strokeStaged, telegraphStage } from "./telegraphInk";
-import { drawLeadMark, telegraphLineDir } from "./telegraphLineUi";
+import { BrushPen, RING_SWEEP, placeBrushArc, ringStartAngle } from "./inkBrush";
+import { ThreatCues } from "./threatCueUi";
+import { type CutCircle, type InkStage, type Seg, drawHeadMark, drawStop, placeInk, placeSketch, sketchGap, telegraphStage } from "./telegraphInk";
+import { drawLeadMark } from "./telegraphLineUi";
 
 /**
  * 予告を描く 1 回の描き込み（docs/ideas/ink-telegraph-impl.md 段 1）。全部の敵・自分・弾・粒の後、浮き文字の前に呼ぶ。
- * 敵の体の中で描くと、後に描かれた敵の体が前の敵の線を隠すので、ここへ集めた。線は自分の体の上だけ切る。
- * 下絵 → 墨入れの順に重ね、墨入れ同士は早く当たる物が上。state を読むだけで書かない（欠けの並びは座標ハッシュ）。
+ * 敵の体の中で描くと、後に描かれた敵の体が前の敵の線を隠すので、ここへ集めた。線は自分の体の上だけ切る（切った残りの区間で筆を作る）。
+ * 線は筆の形をキャッシュして回して置く（inkBrush.ts の BrushPen。1 本 2〜3 回の塗り）。下絵 → 墨入れの順。
+ * state を読むだけで書かない（欠けの並びは座標ハッシュ）。
  * 下絵を怯みで潰した（擦れて散る）・墨入れを受け流した（筆先が逸れる）演出は、前のフレームの線をここで覚えておいて、
  * 敵が怯みに入ったのを見たときに足す（結果に効かない見た目だけの記憶）
  */
@@ -25,9 +25,10 @@ const CORNER_DOT = 2;
 /** 光線の目標点の光の半径と脈の速さ */
 const LASER_GLOW_R = 8;
 const LASER_PULSE_SPEED = 25;
-/** 弧の欠けのセルを大きくし始める弧長（px）と、大きくする倍率の上限 */
-const ARC_CELL_BASE_LEN = 90;
-const ARC_CELL_MAX_SCALE = 4;
+/** 擦れて散る 2 枚の筆跡それぞれの濃さ（合わせて元と同じ濃さに近づく） */
+const ERASE_HALF = 0.7;
+/** 光の円の縁より内側（この割合の半径）にいる敵は、幕の上へ描き直さない */
+const DARK_LIGHT_EDGE = 0.9;
 /** 前の状態が長く残らないよう、演出の最大数 */
 const MAX_EFFECTS = 24;
 
@@ -39,25 +40,7 @@ interface StrokeSeg {
   stop: boolean;
 }
 
-interface RingShape {
-  kind: "ring";
-  x: number;
-  y: number;
-  r: number;
-}
-
-interface ConeShape {
-  kind: "cone";
-  x: number;
-  y: number;
-  range: number;
-  base: number;
-  half: number;
-  /** 攻撃中（扇が残る間）の面の濃さ */
-  active: boolean;
-}
-
-type Area = RingShape | ConeShape;
+type Area = ThreatArea;
 
 interface Item {
   e: Enemy;
@@ -103,102 +86,38 @@ function seg(x0: number, y0: number, x1: number, y1: number): Seg {
   return { x0, y0, x1, y1 };
 }
 
-/** 敵 1 体の予告の材料。描くものが無ければ null */
+/** 敵 1 体の予告の材料（形は system/threat.ts。ここで段と欠けを足す）。描くものが無ければ null */
 function collect(state: GameState, e: Enemy): Item | null {
-  if (e.hidden || e.hp <= 0) return null;
-  if (e.phase !== "windup" && e.phase !== "strike") return null;
-  const def = enemyDef(e.defKey);
+  const shapes = threatShapes(state, e);
+  if (!shapes) return null;
   const stage = e.phase === "strike" ? "ink" : telegraphStage(e);
-  const item: Item = { e, stage, gap: sketchGap(poiseRatio(e)), strokes: [], areas: [], laserTarget: null, lead: null };
-  const { x, y } = e.body.pos;
-
-  if (e.phase === "windup") {
-    const tele = enemyTelegraph(e, def);
-    if (tele?.kind === "line") {
-      const length = tele.length ?? TELEGRAPH.fallbackLength;
-      const dir = telegraphLineDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos);
-      item.strokes.push({ seg: seg(x, y, x + dir.x * length, y + dir.y * length), alpha: 1, stop: true });
-      item.lead = { dir, length };
-    } else if (tele?.kind === "laser" && e.ai?.target) {
-      const t = e.ai.target;
-      item.strokes.push({ seg: seg(x, y, t.x, t.y), alpha: 1, stop: false });
-      item.laserTarget = { x: t.x, y: t.y };
-    } else if (tele?.kind === "cross") {
-      for (const p of e.ai?.points ?? []) item.strokes.push({ seg: seg(x, y, p.x, p.y), alpha: 1, stop: true });
-    } else if (tele?.kind === "ring") {
-      item.areas.push({ kind: "ring", x, y, r: tele.radius });
-    } else if (tele?.kind === "cone") {
-      item.areas.push({ kind: "cone", x, y, range: tele.range, base: Math.atan2(e.strikeDir.y, e.strikeDir.x), half: (tele.halfDeg * Math.PI) / 180, active: false });
-    }
-  }
-  const active = enemyActiveArea(e, def);
-  if (active?.kind === "cone") {
-    item.areas.push({ kind: "cone", x, y, range: active.range, base: Math.atan2(e.strikeDir.y, e.strikeDir.x), half: (active.halfDeg * Math.PI) / 180, active: true });
-  }
-  for (const leg of doubleChargeLegs(e)) item.strokes.push(leg);
-  if (item.strokes.length === 0 && item.areas.length === 0 && e.phase !== "windup") return null;
-  return item;
+  const strokes: StrokeSeg[] = shapes.strokes.map((s) => ({ seg: s.seg, alpha: s.second ? TELEGRAPH.sketchSecondAlpha : 1, stop: s.stop }));
+  return { e, stage, gap: sketchGap(poiseRatio(e)), strokes, areas: shapes.areas, laserTarget: shapes.laserTarget, lead: shapes.lead };
 }
 
-function stageColor(stage: InkStage): string {
-  return stage === "ink" ? TELEGRAPH.commitColor : TELEGRAPH.readyColor;
-}
-
-function drawArea(ctx: CanvasRenderingContext2D, a: Area, stage: InkStage, id: number, gap: number): void {
-  const fill = a.kind === "cone" && a.active ? TELEGRAPH.rangeActiveFillAlpha : stage === "ink" ? TELEGRAPH.rangeInkFillAlpha : TELEGRAPH.rangeSketchFillAlpha;
-  // 面は縁を助ける程度。大きな面を半透明で塗るのは重いので、濃さが 0 なら塗らない（下絵の間は面を持たない）
-  if (fill > 0) {
-    ctx.fillStyle = stageColor(stage);
-    ctx.globalAlpha = fill;
-    ctx.beginPath();
-    if (a.kind === "ring") ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
-    else {
-      ctx.moveTo(a.x, a.y);
-      ctx.arc(a.x, a.y, a.range, a.base - a.half, a.base + a.half);
-      ctx.closePath();
-    }
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  // 縁は線と同じ筆。判定の内側に描く（外へ太らせると嘘になる）。面だけで読ませない（面は縮小で消える）
-  const inset = TELEGRAPH.rangeBandWidth / 2;
+function placeArea(pen: BrushPen, a: Area, stage: InkStage, id: number, gap: number): void {
+  // 範囲は中を塗らず、縁を筆で引く（墨入れは縁の内側へ薄く滲む）。帯は判定の内側に広がる（外へ太らせると嘘になる）
+  const bleedMul = a.kind === "cone" && a.active ? TELEGRAPH.rangeActiveFillAlpha / TELEGRAPH.rangeInkFillAlpha : 1;
   if (a.kind === "ring") {
-    strokeArc(ctx, a.x, a.y, Math.max(1, a.r - inset), 0, Math.PI * 2, stage, id, gap);
+    placeBrushArc(pen, a.x, a.y, a.r, ringStartAngle(id), RING_SWEEP, stage, id, gap, 1, bleedMul);
     return;
   }
-  const r = Math.max(1, a.range - inset);
-  strokeArc(ctx, a.x, a.y, r, a.base - a.half, a.base + a.half, stage, id, gap);
+  placeBrushArc(pen, a.x, a.y, a.range, a.base - a.half, a.half * 2, stage, id, gap, 1, bleedMul);
   for (const sign of [-1, 1]) {
     const ang = a.base + sign * a.half;
-    const edge = seg(a.x, a.y, a.x + Math.cos(ang) * r, a.y + Math.sin(ang) * r);
-    if (stage === "ink") strokeInk(ctx, edge, null);
-    else strokeSketch(ctx, edge, id * 2 + (sign > 0 ? 1 : 0), gap, null);
+    const edge = seg(a.x, a.y, a.x + Math.cos(ang) * a.range, a.y + Math.sin(ang) * a.range);
+    // 左の辺（base - half）の内側は +n、右の辺は -n
+    const side = -sign;
+    const edgeId = id * 2 + (sign > 0 ? 1 : 0);
+    if (stage === "ink") placeInk(pen, edge, edgeId, null, 1, side);
+    else placeSketch(pen, edge, edgeId, gap, null, 1, 0, side);
   }
-}
-
-/** 弧の縁。下絵は欠けのセルを円周に沿って描き、墨入れは途切れない 1 本 */
-function strokeArc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, a0: number, a1: number, stage: InkStage, id: number, gap: number): void {
-  ctx.beginPath();
-  if (stage === "ink") {
-    ctx.arc(x, y, r, a0, a1);
-    strokeStaged(ctx, "ink");
-    return;
-  }
-  const len = Math.abs(a1 - a0) * r;
-  // 大きな輪は欠けのセルも大きくする（弧の部分ごとに path を足すと、大きな円で数が増えて重い）
-  const k = Math.max(1, Math.min(ARC_CELL_MAX_SCALE, len / ARC_CELL_BASE_LEN));
-  for (const sp of sketchSpans(id, len / k, gap)) {
-    const from = a0 + ((sp.from * k) / len) * (a1 - a0);
-    const to = a0 + ((sp.to * k) / len) * (a1 - a0);
-    ctx.moveTo(x + Math.cos(from) * r, y + Math.sin(from) * r);
-    ctx.arc(x, y, r, from, to);
-  }
-  strokeStaged(ctx, "sketch");
 }
 
 export class TelegraphLayer {
   private remembered = new Map<number, Remembered>();
   private effects: Effect[] = [];
+  private readonly cues = new ThreatCues();
 
   draw(ctx: CanvasRenderingContext2D, state: GameState, helpers: TelegraphHelpers): void {
     const items: Item[] = [];
@@ -208,21 +127,57 @@ export class TelegraphLayer {
       if (it) items.push(it);
     }
     this.track(state, items);
+    this.cues.update(state);
+    // 被弾筋は予告より下の層
+    this.cues.drawTraces(ctx, state);
+
     const p = state.player.body;
     const cut: CutCircle = { x: p.pos.x, y: p.pos.y, r: p.radius + TELEGRAPH.playerGapPad };
-
-    for (const it of items) for (const a of it.areas) drawArea(ctx, a, it.stage, it.e.id, it.gap);
+    const pen = new BrushPen(ctx);
+    for (const it of items) for (const a of it.areas) placeArea(pen, a, it.stage, it.e.id, it.gap);
     for (const it of items) {
       if (it.stage === "ink") continue;
-      it.strokes.forEach((s, i) => strokeSketch(ctx, s.seg, it.e.id * 4 + i, it.gap, cut, s.alpha));
+      it.strokes.forEach((s, i) => placeSketch(pen, s.seg, it.e.id * 4 + i, it.gap, cut, s.alpha));
     }
     // 墨入れ同士は早く当たる物（残りの短い物）が上
     const inks = items.filter((it) => it.stage === "ink").sort((a, b) => b.e.phaseTimer - a.e.phaseTimer);
-    for (const it of inks) for (const s of it.strokes) strokeInk(ctx, s.seg, cut, s.alpha);
+    for (const it of inks) it.strokes.forEach((s, i) => placeInk(pen, s.seg, it.e.id * 4 + i, cut, s.alpha));
+    this.placeEffects(pen, state, cut);
+    pen.end();
+
     for (const it of items) this.drawMarks(ctx, state, it, helpers);
-    this.drawEffects(ctx, state, cut);
+    this.cues.drawEdges(ctx, state);
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
+  }
+
+  /**
+   * 暗闇の階: 光の外にいる敵の「自分に掛かる墨入れ」だけを幕の上に描き直す（下絵は描かない。暗闇の怖さは残し、避けられない攻撃を作らない）。
+   * ox, oy はワールド → 画面の平行移動量（幕と同じ座標）
+   */
+  drawDark(ctx: CanvasRenderingContext2D, state: GameState, ox: number, oy: number): void {
+    const p = state.player.body;
+    const lightSq = (FLOOR_KIND.darkLightRadius * DARK_LIGHT_EDGE) ** 2;
+    const items: Item[] = [];
+    for (const e of state.enemies) {
+      if (!onScreen(state, e)) continue;
+      const dx = e.body.pos.x - p.pos.x;
+      const dy = e.body.pos.y - p.pos.y;
+      if (dx * dx + dy * dy <= lightSq) continue;
+      const it = collect(state, e);
+      if (!it || it.stage !== "ink" || !threatensPlayer(state, e)) continue;
+      items.push(it);
+    }
+    if (items.length === 0) return;
+    const cut: CutCircle = { x: p.pos.x, y: p.pos.y, r: p.radius + TELEGRAPH.playerGapPad };
+    ctx.save();
+    ctx.translate(ox, oy);
+    const pen = new BrushPen(ctx);
+    for (const it of items) for (const a of it.areas) placeArea(pen, a, it.stage, it.e.id, it.gap);
+    for (const it of items) it.strokes.forEach((s, i) => placeInk(pen, s.seg, it.e.id * 4 + i, cut, s.alpha));
+    pen.end();
+    for (const it of items) for (const s of it.strokes) if (s.stop) drawStop(ctx, s.seg.x1, s.seg.y1, s.alpha);
+    ctx.restore();
   }
 
   /** 止め・目盛り・光線の目標・頭上の印（線の上に重ねる小さな物） */
@@ -231,7 +186,7 @@ export class TelegraphLayer {
     if (stage === "ink") for (const s of it.strokes) if (s.stop) drawStop(ctx, s.seg.x1, s.seg.y1, s.alpha);
     if (it.strokes.length > 1 && e.doubleCharge) {
       const t = e.doubleCharge.turn;
-      ctx.fillStyle = stageColor(stage);
+      ctx.fillStyle = stage === "ink" ? TELEGRAPH.commitColor : TELEGRAPH.readyColor;
       ctx.fillRect(t.x - CORNER_DOT / 2, t.y - CORNER_DOT / 2, CORNER_DOT, CORNER_DOT);
     }
     if (it.lead) drawLeadMark(ctx, state, e, it.lead.dir, it.lead.length);
@@ -263,18 +218,21 @@ export class TelegraphLayer {
     this.remembered = next;
   }
 
-  private drawEffects(ctx: CanvasRenderingContext2D, state: GameState, cut: CutCircle): void {
+  private placeEffects(pen: BrushPen, state: GameState, cut: CutCircle): void {
     for (const f of this.effects) {
       const p = Math.min(1, (state.time - f.start) / effectSec(f.kind));
       const fade = 1 - p;
       if (f.kind === "erase") {
-        // 横へずれて散る。ずれの向きはセルごとの座標ハッシュ（rng は使わない）
-        const drift = (i: number): number => (hash01(f.id, i + 11) < 0.5 ? -1 : 1) * TELEGRAPH.eraseDriftPx * p;
-        f.segs.forEach((s, i) => strokeSketch(ctx, s, f.id * 4 + i, f.gap, cut, fade, drift));
+        // 左右へ割れて散る（筆の筋がばらける）
+        const drift = TELEGRAPH.eraseDriftPx * p;
+        f.segs.forEach((s, i) => {
+          placeSketch(pen, s, f.id * 4 + i, f.gap, cut, fade * ERASE_HALF, -drift);
+          placeSketch(pen, s, f.id * 4 + i, f.gap, cut, fade * ERASE_HALF, drift);
+        });
         continue;
       }
       const sign = hash01(f.id, 5) < 0.5 ? -1 : 1;
-      for (const s of f.segs) strokeInk(ctx, veered(s, sign * ((TELEGRAPH.veerAngleDeg * Math.PI) / 180) * p), cut, fade);
+      f.segs.forEach((s, i) => placeInk(pen, veered(s, sign * ((TELEGRAPH.veerAngleDeg * Math.PI) / 180) * p), f.id * 4 + i, cut, fade));
     }
   }
 }

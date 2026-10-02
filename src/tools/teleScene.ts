@@ -1,10 +1,11 @@
 // 予告の撮影の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）。ゲーム本体からは import しない。
-// ?scene=tele&tele=crowd|shapes|idle で、プレイヤーの周りに予備動作・攻撃中の敵を並べる（時間は進めず、描画だけ）。
+// ?scene=tele&tele=crowd|shapes|solo|idle で、プレイヤーの周りに予備動作・攻撃中の敵を並べる（時間は進めず、描画だけ）。
 // 乱戦で黄と赤が線の質で読めるか・7 形の見え方を、章様式の明るさ違い（明るい氷河・暗闇の階）で確かめる
 import type { Enemy, GameState } from "../core/state";
 import { ENEMY_TEMPO } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
 import { createEnemy } from "../system/enemies";
+import { spawnBomb, spawnLanding } from "../system/hazards";
 
 /** 乱戦で使う敵（予告の 7 形 + 無形をひと通り含める） */
 const CROWD_KEYS = ["slime", "wolf", "boar", "golem", "windSprite", "crossGolem", "laserEye", "boarDouble", "eye", "shadowBat", "bellImp", "basilisk"] as const;
@@ -96,9 +97,34 @@ function placeShapes(state: GameState): void {
   });
 }
 
+/** 筆致の確認用: 7 形を 1 つずつ離して置き、黄（上）と赤（下）で並べる。重なりがなく、線の質だけを見られる */
+function placeSolo(state: GameState): void {
+  const p = state.player.body.pos;
+  const right = { x: 1, y: 0 };
+  const left = { x: -1, y: 0 };
+  const at = (key: string, dx: number, dy: number, look: Look, aim: { x: number; y: number }, poise = 0): void => addEnemy(state, key, p.x + dx, p.y + dy, look, poise, aim);
+  at("boar", -225, -105, "yellowEarly", right);
+  at("boar", -225, -85, "yellowEarly", right, 0.6);
+  at("boar", -225, -55, "red", right);
+  at("laserEye", -225, -20, "yellowEarly", right);
+  at("laserEye", -225, 10, "red", right);
+  at("boarDouble", -225, 60, "yellowEarly", { x: 0, y: -1 });
+  at("boarDouble", -165, 110, "red", { x: 0, y: -1 });
+  at("golem", -10, -75, "yellowEarly", right);
+  at("golem", -10, 85, "red", right);
+  at("windSprite", 210, -80, "yellowEarly", left);
+  at("windSprite", 210, 80, "red", left);
+  at("crossGolem", 80, -10, "yellowLate", right);
+  // 地面の物（出た時から墨入れの輪）: 着地の影と爆弾
+  spawnLanding(state, { x: p.x + 130, y: p.y + 100 }, 22, 1, undefined, false);
+  spawnBomb(state, { x: p.x - 120, y: p.y + 100 }, 5, undefined, 1.2, 28);
+}
+
 export function placeTeleScene(state: GameState, kind: string): void {
   state.enemies = [];
+  state.hazards = [];
   if (kind === "shapes") placeShapes(state);
+  else if (kind === "solo") placeSolo(state);
   else placeCrowd(state, kind === "idle");
   state.camera.pos = { ...state.player.body.pos };
   state.camera.offset = { x: 0, y: 0 };

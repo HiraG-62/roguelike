@@ -4,10 +4,12 @@
     "oklabMinDist": "予約色（黄・赤）と世界の層の他の色の OKLab の距離の下限",
     "lumaMinDelta": "距離が足りなくても通す相対輝度の差の下限(0..1)。形や動きが違えば明るさで分かれる",
     "readyCommitLumaMin": "黄と赤の相対輝度の差の下限(0..1)。色が見えにくい人でも明るさで分かれる",
-    "sketchMaxRepeat": "下絵の欠けの並びで、同じ長さの塊が続いてよい数。周期を持たせない（規則的な破線と分けるため）"
+    "sketchMaxRepeat": "下絵の欠けの並びで、同じ長さの塊が続いてよい数。周期を持たせない（規則的な破線と分けるため）",
+    "sketchHueMaxDeg": "下絵の淡墨の筋の色が、黄の予約色から離れてよい色相の差（度。OKLab）"
   },
   "oklabMinDist": 0.12,
   "lumaMinDelta": 0.15,
   "readyCommitLumaMin": 0.2,
-  "sketchMaxRepeat": 3
+  "sketchMaxRepeat": 3,
+  "sketchHueMaxDeg": 25
 }

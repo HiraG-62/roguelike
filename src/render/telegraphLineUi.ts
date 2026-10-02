@@ -1,9 +1,10 @@
 import type { Enemy, GameState } from "../core/state";
-import { type Vec, normalize, sub } from "../core/vec";
 import { GOFUN_COLOR } from "../data/signs";
 import { TELEGRAPH } from "../data/tuning";
 import { relicTelegraphLeadSec } from "../system/namedRelics";
+import type { Vec } from "../core/vec";
 import { attackCommitted } from "../system/poise";
+import { telegraphAimDir } from "../system/threat";
 
 /**
  * 敵の予告の線の向きと色（docs/ideas/combat-core-impl.md 2-3）。state を読むだけで、rng も書き込みも使わない。
@@ -15,14 +16,8 @@ export function telegraphColor(e: Enemy): string {
   return attackCommitted(e) ? TELEGRAPH.commitColor : TELEGRAPH.readyColor;
 }
 
-/**
- * 線の向き。狙いを予備動作の終わりで更新する敵（beginStrike が player 方向へ向け直す）は、
- * 今のプレイヤー方向を向く。予備動作の始まりで狙いを固定する敵は strikeDir のまま
- */
-export function telegraphLineDir(e: Enemy, aimFixed: boolean, playerPos: Vec): Vec {
-  if (aimFixed) return e.strikeDir;
-  return normalize(sub(playerPos, e.body.pos), e.strikeDir);
-}
+/** 線の向き（system/threat.ts の telegraphAimDir。描画も判定も同じ向きを読む） */
+export const telegraphLineDir = telegraphAimDir;
 
 /**
  * 星読みの眼: 予備動作の残りが leadSec を切ると、線の先から敵へ寄る目盛りを描く（着けていなければ何もしない）。

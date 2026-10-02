@@ -42,6 +42,8 @@ const SHOTS = [
   // 予告の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）: 乱戦 30 体 / 7 形の並べ撮り / 明るい章様式 / 暗闇の階
   ["tele-crowd", "depth=3&kind=cave&scene=tele&tele=crowd"],
   ["tele-shapes", "depth=3&kind=cave&scene=tele&tele=shapes"],
+  // 筆致の確認: 7 形 + 着地・爆弾を 1 つずつ離して置く（黄 = 上、赤 = 下）
+  ["tele-solo", "depth=3&kind=cave&scene=tele&tele=solo"],
   ["tele-bright", "depth=13&kind=glacier&scene=tele&tele=crowd"],
   ["tele-dark", "depth=18&kind=dark&scene=tele&tele=crowd"],
 ];

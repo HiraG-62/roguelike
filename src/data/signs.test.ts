@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES } from "./enemies";
-import { BLOOD_COLOR, COMMANDING_AURA_COLOR, ELITE_COLOR_OVERRIDE, GOFUN_COLOR, KNOWN_EXCEPTIONS, RESERVED_SIGNS } from "./signs";
+import { BLOOD_COLOR, COMMANDING_AURA_COLOR, GOFUN_COLOR, KNOWN_EXCEPTIONS, RESERVED_SIGNS } from "./signs";
 import { SIGN_CHECK, TELEGRAPH } from "./tuning";
 import { STATUS_COLOR } from "../render/statusUi";
 import { ELITE_COLOR } from "../system/elites";
@@ -47,7 +47,6 @@ function collectWorldColors(): Map<string, string> {
   const out = new Map<string, string>();
   for (const [kind, hex] of Object.entries(STATUS_COLOR)) out.set(`status.${kind}`, hex);
   for (const [kind, hex] of Object.entries(ELITE_COLOR)) out.set(`elite.${kind}`, hex);
-  for (const [kind, hex] of Object.entries(ELITE_COLOR_OVERRIDE)) if (hex) out.set(`elite.${kind}.aura`, hex);
   for (const def of ENEMIES) if (def.color) out.set(`enemy.${def.key}`, def.color);
   out.set("blood", BLOOD_COLOR);
   out.set("gofun", GOFUN_COLOR);
@@ -58,8 +57,6 @@ function collectWorldColors(): Map<string, string> {
 function clashing(): string[] {
   const names: string[] = [];
   for (const [name, hex] of collectWorldColors()) {
-    // 気（オーラ）の描画は上書きした色を使うので、元の表の色は上書きされた精鋭の分を数えない
-    if (name.startsWith("elite.") && !name.endsWith(".aura") && name.split(".")[1] && ELITE_COLOR_OVERRIDE[name.split(".")[1] ?? ""]) continue;
     for (const sign of RESERVED_SIGNS) {
       const near = distance(hex, sign.color) < SIGN_CHECK.oklabMinDist;
       const sameLight = Math.abs(luma(hex) - luma(sign.color)) < SIGN_CHECK.lumaMinDelta;
@@ -77,6 +74,16 @@ describe("符号表: 予告の黄と赤", () => {
 
   it("予約色は予告の色そのもの（表と TELEGRAPH がずれない）", () => {
     expect(RESERVED_SIGNS.map((s) => s.color)).toEqual([TELEGRAPH.readyColor, TELEGRAPH.commitColor]);
+  });
+
+  it("下絵の淡墨の筋の色は黄の帯の中（色相が黄から離れず、赤とは別）", () => {
+    const hue = (hex: string): number => {
+      const [, a, b] = oklab(hex);
+      return (Math.atan2(b, a) * 180) / Math.PI;
+    };
+    const diff = Math.abs(hue(TELEGRAPH.sketchDullColor) - hue(TELEGRAPH.readyColor));
+    expect(diff, "黄との色相差").toBeLessThanOrEqual(SIGN_CHECK.sketchHueMaxDeg);
+    expect(distance(TELEGRAPH.sketchDullColor, TELEGRAPH.commitColor), "赤から離れている").toBeGreaterThanOrEqual(SIGN_CHECK.oklabMinDist);
   });
 
   it("世界の層で予約色に紛れる色は既知の例外だけ（増やさない。直したら例外から消す）", () => {

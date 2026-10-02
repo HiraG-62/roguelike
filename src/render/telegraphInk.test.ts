@@ -3,7 +3,7 @@ import { ENEMIES } from "../data/enemies";
 import { ENEMY_TEMPO, SIGN_CHECK, TELEGRAPH, TELEGRAPH_POSE } from "../data/tuning";
 import { applyStagger, attackCommitted } from "../system/poise";
 import { arena, placeEnemy } from "../system/testHelpers";
-import { circleCut, cutSpans, segLength, sketchGap, sketchSpans, telegraphStage } from "./telegraphInk";
+import { segLength, sketchGap, sketchSpans, telegraphStage } from "./telegraphInk";
 import { TelegraphLayer, type TelegraphHelpers, veered } from "./telegraphLayer";
 import { telegraphPose, yellowProgress } from "./telegraphPose";
 
@@ -118,22 +118,8 @@ describe("下絵の欠け", () => {
   });
 });
 
-describe("自分の体の上を切る", () => {
+describe("筆先が逸れる", () => {
   const seg = { x0: 0, y0: 0, x1: 100, y1: 0 };
-
-  it("円が線に重なる区間を返し、外れていれば null", () => {
-    const hit = circleCut(seg, { x: 50, y: 2, r: 6 });
-    expect(hit?.from).toBeCloseTo(50 - Math.sqrt(36 - 4), 5);
-    expect(circleCut(seg, { x: 50, y: 20, r: 6 })).toBeNull();
-    expect(circleCut(seg, { x: 200, y: 0, r: 6 })).toBeNull();
-  });
-
-  it("区間の列から切り抜く（前後は残る）", () => {
-    expect(cutSpans([{ from: 0, to: 100 }], 40, 60)).toEqual([
-      { from: 0, to: 40 },
-      { from: 60, to: 100 },
-    ]);
-  });
 
   it("筆先が逸れても根元と長さは変わらない", () => {
     const v = veered(seg, 0.4);

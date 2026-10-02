@@ -21,5 +21,6 @@
 - **固有の報酬**: `system/bossRewards.ts` の `BOSS_REWARD_KIND[key]`（`flask` / `purse` / `rune` / `stone` / `named`）に 1 行、量は `BOSS.rules.rewards`。持たないボス（深みの回転の 5 体）はレア 2 だけ
 - **撃破の後始末**: `boss.ts` の `onBossDeath` が記録（`pushBossRecord` → `state.bossLog`）と報酬を出す。ボスが部屋に残した柵・地雷・写し身と姿見・門柱・崩れる床の予約は、残ると封鎖が解けず階段へ歩けないので、`onBossDeath` から呼ぶ後始末（`settleThiefKingRoom` / `settleMirrorKnightRoom` / `settleDeepLordRoom`）で消す。借りた技が置いた物（盗賊王の地雷）も対象
 - **予告の図解**: 新しい敵でも `system/telegraphDiagram.ts` が敵データ（予告の形・`windup` / `strikeTime` / `recover`）から自動で導く。手書きの表は持たない。ボスは `BOSS_THREATS` の段階ごとの間合いも出る
+- **予告の形と色**: 新しい敵の予告は `system/threat.ts` の `threatShapes` が持つ形（線・光線・十字・輪・扇・折れ線）から選ぶ。新しい形を足すなら `threat.ts`（形と `threatensPlayer`）と `render/telegraphLayer.ts`（筆）の両方。色は「黄 = 下絵（まだ止められる）/ 赤 = 墨入れ（必ず来る）」の 2 つだけで、敵の色・粒・印が横取りしない（`data/signs.ts` の符号表と `signs.test.ts`）。予備動作の唸り `enemyWindup` は精鋭とボスだけ（並の敵は `audio/narimono.ts` が止める）
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

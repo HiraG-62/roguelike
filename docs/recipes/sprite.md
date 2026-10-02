@@ -56,5 +56,6 @@ Aseprite の場所は環境変数 `ASEPRITE_PATH`（無ければ PATH と Steam 
 - ジョブの体: `scripts/actor/sheets/` の `body<ジョブ>.mjs`（`bodySheets(key, draw)` で骨組み `rig.mjs` の全クリップを作る。`meta.arm` に袖・手の 3 段の色）。手本は `bodyNone.mjs`。顔はほぼ一色、眼は 1x2 の点を 2 つ
 - 武器種の手に持つ絵: `scripts/actor/sheets/` の `wpn<武器種>.mjs`（`weaponSheets(key, draw, { size, edge })` で 32 方向。原点 = 握り、+x = 切っ先）。`meta.stance` に待機の構え（持ち方・体の構え・手の位置・向き・手にはめるか）、`meta.offGrip` に両手持ちの添え手、弾を撃つなら `frame.anchor("muzzle", …)`。手本は `wpnSword.mjs` / `wpnSpear.mjs` / `wpnSidearm.mjs`
 - 確認: `node scripts/actor/gen.mjs --only <シート> --preview <dir> --scale 8`、書き出しは `npm run actor:gen`（`-- --atlas <key>` で 1 つ）。網羅（全ジョブの体・全武器種の絵と構え・銃口の印）は `render/actorSprites.test.ts` が検査する
+- **色の割り当て**: 敵・弾・粒・地面の物・状態の印の色を足すときは、先に `data/signs.ts` の符号表を読む。予告の黄（下絵）と赤（墨入れ）に近い色を世界の層で使わない（`data/signs.test.ts` が検査。例外を増やさない）。血は臙脂、怯みの印は胡粉
 
 最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

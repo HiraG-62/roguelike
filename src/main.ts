@@ -3,6 +3,7 @@ import "./save/bootstrap";
 import { SfxPlayer } from "./audio/sfx";
 import { MusicPlayer, musicCue } from "./audio/music";
 import { RisingEdge } from "./audio/cues";
+import { Narimono } from "./audio/narimono";
 import { questProgress, questSnapshot } from "./meta/quests";
 import { isEngaged } from "./system/engagement";
 import { bossEnemy } from "./system/boss";
@@ -1541,10 +1542,15 @@ function updateMusic(): void {
   if (questCheer.update(s, questDoneInRun(s))) sfx.play("questComplete");
 }
 
+/** 予告まわりの音（柝頭・附打・並の敵の予備動作の唸りの整理）。sim は触らず、drain のときに通す（audio/narimono.ts） */
+const narimono = new Narimono();
+
 function drainSfx(s: GameState | null = state): void {
   if (!s) return;
-  const names = s.sfx.splice(0);
+  const names = narimono.arrange(s, s.sfx.splice(0));
   for (const name of names) sfx.play(name);
+  const clack = narimono.clack(s);
+  if (clack) sfx.play("commitClack", clack);
 }
 
 /** 死亡時サマリの「ボス撃破数」。5 の倍数の階の階層ボス（major）だけ数える（毎階の階の主は数えない） */

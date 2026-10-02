@@ -9,7 +9,7 @@ import { bossEnemy, showsBossBar } from "../system/boss";
 import { ELITE_COLOR, chainPartners, eliteDisplayName, shieldLeft } from "../system/elites";
 import { shockwaveRadius } from "../system/hazards";
 import { behaviorOf } from "../system/behaviors/registry";
-import { ELITE_COLOR_OVERRIDE, GOFUN_COLOR } from "../data/signs";
+import { GOFUN_COLOR } from "../data/signs";
 import { reaperTimeLeft, reaperWarning } from "../system/reaper";
 import { isKeystoneKey, keystoneConflicts, keystoneDef } from "../loot/affixes";
 import { resonanceSummary } from "../system/resonance";
@@ -93,10 +93,12 @@ import { drawManaBar } from "./manaHud";
 import { drawComboHud } from "./comboUi";
 import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawJinHud, drawLeaderMark } from "./jinUi";
+import { drawJinzu } from "./jinzuUi";
 import { drawMoraleHud } from "./moraleHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { TelegraphLayer } from "./telegraphLayer";
+import { strokeInkRing } from "./telegraphInk";
 import { telegraphLineDir } from "./telegraphLineUi";
 import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
@@ -200,14 +202,16 @@ const LASER_FRAME_TIME = 0.05;
 const BOMB_FRAME_TIME_SLOW = 0.3;
 const BOMB_FRAME_TIME_FAST = 0.08;
 const BOMB_CIRCLE_ALPHA = 0.25;
+/** 精鋭の爆ぜるの橙の輪を、墨入れの輪の内側へ置く距離（論理 px） */
+const INK_RING_INSET = 5;
 const BOMB_FILL_ALPHA = 0.18;
 const SHOCKWAVE_ALPHA = 0.85;
 /** 鎖縛のの鎖・鎖の死神の予告線の濃さ */
 const CROSS_LINE_ALPHA = 0.5;
 
-/** 精鋭の気・名札の色。号令の気は予告の黄から外した色（data/signs.ts） */
+/** 精鋭の気・名札の色（号令の気は予告の黄から外した色。system/elites.ts の ELITE_COLOR） */
 function eliteDrawColor(kind: EliteKind): string {
-  return ELITE_COLOR_OVERRIDE[kind] ?? ELITE_COLOR[kind];
+  return ELITE_COLOR[kind];
 }
 const ELITE_CHAIN_ALPHA = 0.55;
 const LANDING_ALPHA = 0.45;
@@ -253,7 +257,6 @@ const SHIELD_BAR_H = 2;
 const SHOCKWAVE_SPENT_ALPHA = 0.4;
 const LANDING_RX = 0.5;
 const LANDING_RY = 0.3;
-const LANDING_RING_FADE = 0.6;
 
 /** 第 2 弾: ボス演出 */
 const BOSS_BAR_SEGMENTS = 10;
@@ -844,6 +847,7 @@ export class Renderer {
     this.drawMapLight(state, -ox, -oy);
     this.drawTileOverlays(state, -ox, -oy);
     drawGroundMarks(ctx, state, this.fxSprites);
+    drawJinzu(ctx, state);
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
@@ -879,7 +883,10 @@ export class Renderer {
   /** worldOverlay 層: ワールドにだけ掛ける画面効果（HUD は覆わない） */
   private drawWorldOverlayLayer(state: GameState, ox: number, oy: number): void {
     const { ctx } = this;
-    if (isDark(state)) this.darkness.draw(ctx, state, ox, oy);
+    if (isDark(state)) {
+      this.darkness.draw(ctx, state, ox, oy);
+      this.telegraphs.drawDark(ctx, state, ox, oy);
+    }
     drawRunOverlay(ctx, state, ox, oy);
     this.drawOverlays(state);
     drawScreenMarks(ctx, state, ox, oy);
@@ -1794,17 +1801,19 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, h.radius * t, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = BOMB_CIRCLE_ALPHA + t * (1 - BOMB_CIRCLE_ALPHA);
-    if (style === "eliteDeath") {
-      ctx.globalAlpha *= pulse(state.time, ELITE_BOMB_SPEED, 0.5, 1);
-      ctx.lineWidth = ELITE_BOMB_RING_W;
-    }
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1;
+    // 縁は墨入れの輪（中の色 = 爆弾の種類は塗りに残す）。精鋭の爆ぜるは脈打つ橙の輪も内側に重ねる
     ctx.globalAlpha = 1;
+    if (style !== "eliteDeath") strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
+    if (style === "eliteDeath") {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = (BOMB_CIRCLE_ALPHA + t * (1 - BOMB_CIRCLE_ALPHA)) * pulse(state.time, ELITE_BOMB_SPEED, 0.5, 1);
+      ctx.lineWidth = ELITE_BOMB_RING_W;
+      ctx.beginPath();
+      ctx.arc(h.pos.x, h.pos.y, Math.max(1, h.radius - INK_RING_INSET), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 1;
+    }
     if (style === "eliteDeath") {
       this.drawShrinkingBlast(h, COLOR_WHITE, 1);
       return;
@@ -1832,11 +1841,9 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(h.pos.x, h.pos.y, Math.max(1, h.radius * left), 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = alpha * (1 - left);
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
+    // 爆発の範囲の縁は墨入れの輪（出た時から必ず来る）
     ctx.globalAlpha = 1;
+    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
   }
 
   /** 広がる衝撃波。判定のある縁は太く明るく、内側はごく薄く */
@@ -1877,12 +1884,9 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(h.pos.x, h.pos.y, h.radius * scale * LANDING_RX, h.radius * scale * LANDING_RY, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = COLOR_TELEGRAPH;
-    ctx.globalAlpha = 1 - t * LANDING_RING_FADE;
-    ctx.beginPath();
-    ctx.arc(h.pos.x, h.pos.y, h.radius, 0, Math.PI * 2);
-    ctx.stroke();
+    // 出た時から必ず来る物なので墨入れの輪。薄れさせず、残り時間は影の縮みが持つ
     ctx.globalAlpha = 1;
+    strokeInkRing(ctx, h.pos.x, h.pos.y, h.radius);
   }
 
   private drawBoneWall(h: Hazard): void {

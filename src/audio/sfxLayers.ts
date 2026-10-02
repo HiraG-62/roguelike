@@ -26,6 +26,8 @@ const SLASH_RING = [1, 1.5, 1.62, 1.82, 2.03, 2.33] as const;
 const CLANG = [1, 1.34, 2.19, 2.83] as const;
 const CRYSTAL = [1, 1.53, 2.37, 3.1] as const;
 const CHAIN = [1, 1.37, 1.93, 2.61] as const;
+/** 拍子木・板の木の鳴り（非整数倍で、金属より短く乾く） */
+const WOOD = [1, 1.38, 2.11] as const;
 /** 鐘（FM）の変調比。整数でない比が鐘らしい濁った倍音を作る */
 const BELL_FM_RATIO = 1.4;
 
@@ -187,6 +189,53 @@ export const LAYERED_SFX = {
   ],
   /** 下絵を崩した: 紙を擦る、短く小さな下降の帯域ノイズ（高域だけ。命中音と重ならない） */
   sketchErase: [{ k: "noise", filter: "bandpass", from: 7000, to: 3200, dur: 0.1, q: 0.9, peak: 0.2 }],
+  /** 柝頭: 拍子木の高く乾いた小さな 1 打（帯域ノイズ 25ms + 2.4kHz 付近の非整数倍の木の鳴り）。小さく、鳴り続けても耳が痛くならない */
+  commitClack: [
+    { k: "click", freq: 3400, peak: 0.45 },
+    { k: "noise", filter: "bandpass", from: 4500, to: 2500, dur: 0.025, q: 2, peak: 0.5 },
+    { k: "metal", freq: 2400, ratios: WOOD, dur: 0.04, peak: 0.12 },
+  ],
+  /** 附打: 板を打つ低く強い 1 打（0.8〜2kHz の板の鳴り + 150 → 80Hz の胴）。柝頭より低く重い。受け流しの成功だけに鳴らす */
+  tsukeHeavy: [
+    { k: "click", freq: 1800, peak: 0.7 },
+    { k: "kick", from: 150, to: 80, drop: 0.05, dur: 0.14, peak: 0.8, drive: 2 },
+    { k: "noise", filter: "bandpass", from: 2000, to: 800, dur: 0.07, q: 1.2, peak: 0.6 },
+    { k: "metal", freq: 1100, ratios: WOOD, dur: 0.12, peak: 0.1 },
+  ],
+  // ---- 本陣の陣図（docs/ideas/jinzu-impl.md。仮の合成。正式な音は後）----
+  /** 軍配を掲げた: 太鼓 1 打（低い kick）+ 低い法螺（鋸歯の長い和音） */
+  jinzuRaise: [
+    { k: "kick", from: 150, to: 52, drop: 0.1, dur: 0.3, peak: 0.55, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 900, to: 160, dur: 0.18, attack: 0.004, peak: 0.2 },
+    { k: "chord", type: "sawtooth", freqs: [98, 147], dur: 0.55, peak: 0.12, at: 0.06 },
+  ],
+  /** 画が出た: 筆の擦れ（短い帯域ノイズの掃引） */
+  jinzuStroke: [{ k: "noise", filter: "bandpass", from: 1800, to: 4200, dur: 0.16, q: 1.1, attack: 0.05, peak: 0.16 }],
+  /** 墨が入った: 柝（木の打音）。高めの短い金属の部分音 */
+  jinzuInk: [
+    { k: "click", freq: 3200, peak: 0.3 },
+    { k: "metal", freq: 1250, ratios: [1, 2.3, 3.4], dur: 0.09, peak: 0.28 },
+  ],
+  /** 筆が折れた: 竹の割れる乾いた破裂 + 低い裂け */
+  jinzuBreak: [
+    { k: "click", freq: 4200, peak: 0.45 },
+    { k: "noise", filter: "bandpass", from: 3600, to: 900, dur: 0.14, q: 1.4, peak: 0.4 },
+    { k: "metal", freq: 820, ratios: [1, 1.9, 3.1], dur: 0.12, peak: 0.2, at: 0.02 },
+  ],
+  /** 総掛かり: 鬨の声（上ずる群声を重ねた長めの音）+ 太鼓 */
+  jinzuCharge: [
+    { k: "kick", from: 120, to: 48, drop: 0.09, dur: 0.28, peak: 0.5, drive: 2 },
+    { k: "sweep", type: "sawtooth", from: 150, to: 230, dur: 0.5, peak: 0.1, at: 0.04 },
+    { k: "sweep", type: "sawtooth", from: 190, to: 280, dur: 0.46, peak: 0.08, at: 0.08 },
+    { k: "noise", filter: "bandpass", from: 500, to: 1100, dur: 0.5, q: 0.8, attack: 0.12, peak: 0.16, at: 0.04 },
+  ],
+  /** 旗倒れ: 布の倒れる風切り（下降の帯域ノイズ）+ 太鼓の乱れ打ち */
+  flagFall: [
+    { k: "noise", filter: "bandpass", from: 1600, to: 300, dur: 0.4, q: 0.9, attack: 0.08, peak: 0.28 },
+    { k: "kick", from: 130, to: 50, drop: 0.08, dur: 0.22, peak: 0.5, drive: 2, at: 0.1 },
+    { k: "kick", from: 118, to: 46, drop: 0.08, dur: 0.22, peak: 0.45, drive: 2, at: 0.2 },
+    { k: "kick", from: 140, to: 54, drop: 0.08, dur: 0.26, peak: 0.55, drive: 2, at: 0.3 },
+  ],
   hitHeavy: [
     { k: "click", freq: 2000, peak: 0.6 },
     { k: "kick", from: 120, to: 38, drop: 0.09, dur: 0.26, peak: 0.7, drive: 2.5 },

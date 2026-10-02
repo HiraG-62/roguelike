@@ -19,28 +19,19 @@ export const GOFUN_COLOR = "#f0ece0";
 /** 血の粒。予告の赤（#ff4040）と別の、暗い臙脂 */
 export const BLOOD_COLOR = "#8a1c24";
 
-/** 精鋭「号令の」の気。黄の帯から外した藍寄りの白 */
+/** 精鋭「号令の」の気（system/elites.ts の ELITE_COLOR）。黄の帯から外した藍寄りの白 */
 export const COMMANDING_AURA_COLOR = "#c8d4ff";
-
-/** 描画側で精鋭の気・名札の色を上書きする（elites.ts の色表は別のレーンが編集中のため、描画で差し替えた） */
-export const ELITE_COLOR_OVERRIDE: Readonly<Partial<Record<string, string>>> = { commanding: COMMANDING_AURA_COLOR };
 
 /**
  * 予約色に近いまま残っている世界の層の色（既知の例外）。1 つ直すごとにここから消す。増やすとテストが落ちる。
  * key は検査が集める色の名前（signs.test.ts の collectWorldColors）
  */
 const REASON = {
-  elite: "精鋭の気・名札の色（種類の識別）。死の粒の色も同じ表。段 2 の棚卸しで色相をずらす",
   enemy: "敵の種類の色（破片・命中の粒の色）。体の重ね色ではないので黄赤の予告とは別の層だが、乱戦で紛れうる。段 2 の棚卸し",
   status: "状態異常の色（頭上の字・体の色調・粒）。形が違う（字・粒）ので当面は残す。段 2 の棚卸し",
 } as const;
 
 export const KNOWN_EXCEPTIONS: readonly { key: string; reason: string }[] = [
-  { key: "elite.explosive~commit", reason: REASON.elite },
-  { key: "elite.greedy~ready", reason: REASON.elite },
-  { key: "elite.hasted~ready", reason: REASON.elite },
-  { key: "elite.retaliating~commit", reason: REASON.elite },
-  { key: "elite.searing~commit", reason: REASON.elite },
   { key: "enemy.bannerBearer~ready", reason: REASON.enemy },
   { key: "enemy.banner~ready", reason: REASON.enemy },
   { key: "enemy.bellImp~ready", reason: REASON.enemy },
