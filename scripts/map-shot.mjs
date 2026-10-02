@@ -18,6 +18,8 @@ import { ensureVite, findPlaywright } from "./browser-tools.mjs";
 
 /** 別の作業ツリーの vite が 5199 を使っているときは MAP_SHOT_PORT で逃がす（使い回すと別の作業ツリーの絵を撮る） */
 const PORT = Number(process.env.MAP_SHOT_PORT ?? 5199);
+/** headless でも GPU で描かせる起動オプション（Windows。scripts/hitch-probe.mjs と同じ） */
+const GPU_ARGS = process.platform === "win32" ? ["--enable-gpu", "--use-angle=d3d11", "--ignore-gpu-blocklist"] : [];
 const BASE = `http://localhost:${PORT}`;
 const VIEWPORT = { width: 1920, height: 1080 };
 const READY_TIMEOUT_MS = 120_000;
@@ -95,7 +97,8 @@ async function main() {
   let browser = null;
   let failed = false;
   try {
-    browser = await chromium.launch({ args: ["--no-sandbox"] });
+    // 描画の ms は実機に近い GPU で測る（既定の headless は SwiftShader の CPU 描画になる。hitch-probe.mjs と同じ）
+    browser = await chromium.launch({ args: ["--no-sandbox", ...GPU_ARGS] });
     for (const [name, query] of shots) {
       // 1 枚ごとに新しいページ（同じページで読み直すとブラウザの資源が尽きることがある）
       const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
