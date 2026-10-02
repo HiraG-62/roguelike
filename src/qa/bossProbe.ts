@@ -8,6 +8,7 @@ import { bossEnemy, bossKeyForDepth } from "../system/boss";
 import { findFreeSpot } from "../system/enemyTraits";
 import { buildFloor } from "../system/floor";
 import { applyStats } from "../system/player";
+import { type AnswerMode, answerInput } from "./bossAnswers";
 import { botInput, createBotState } from "./bot";
 import {
   BOSS_STAGE_COUNT,
@@ -142,7 +143,8 @@ function observeStep(state: GameState, fight: BossFight, prev: StepMemory): void
     for (let n = prev.hits; n < hits; n++) noteStageHit(tally, dist, read?.stillSec ?? 0, isIndirectHurt(state.hurt.last?.kind));
   }
   for (let from = prev.stage; from < stage; from++) {
-    const byAct = stageAdvancedByAct(fight.key, from, e.hp / e.maxHp);
+    // 答えで段階が進むボスは、ボスが記録した行為かどうか（actStages）を優先する。無いボスは生命の閾値で見る
+    const byAct = b.actStages?.[from - FIRST_STAGE] ?? stageAdvancedByAct(fight.key, from, e.hp / e.maxHp);
     if (byAct !== null) fight.transitions.push({ from, byAct });
   }
   prev.hits = hits;
@@ -153,6 +155,7 @@ function observeStep(state: GameState, fight: BossFight, prev: StepMemory): void
 function settle(state: GameState, fight: BossFight, outcome: BossOutcome): void {
   fight.outcome = outcome;
   const b = state.boss;
+  if (b?.answers) fight.answers = { ...b.answers };
   const record = state.bossLog[state.bossLog.length - 1];
   if (outcome === "defeated" && record) {
     fight.seconds = record.seconds;
@@ -168,7 +171,7 @@ function settle(state: GameState, fight: BossFight, outcome: BossOutcome): void 
 }
 
 /** ボス 1 体との 1 戦。封鎖から maxSeconds 秒で打ち切る */
-export function runBossFight(key: string, depth: number, seed: number, maxSeconds: number): BossFight {
+export function runBossFight(key: string, depth: number, seed: number, maxSeconds: number, mode: AnswerMode = "mash"): BossFight {
   const { state } = makeBossArena(seed, depth, key);
   const bot = createBotState((seed * BOT_SEED_MUL + BOT_SEED_ADD) >>> 0);
   const fight = emptyFight(key, depth, seed);
@@ -178,7 +181,7 @@ export function runBossFight(key: string, depth: number, seed: number, maxSecond
   let waited = 0;
 
   for (let i = 0; i < maxSteps; i++) {
-    step(state, botInput(state, bot, FIXED_DT), FIXED_DT);
+    step(state, answerInput(state, mode, botInput(state, bot, FIXED_DT)), FIXED_DT);
     // 撃破の step で bot がすぐ階段へ降りると state.boss は消える。記録を先に見る
     if (killsAtLock.value >= 0 && state.bossLog.length > 0) {
       fight.minionKills = Math.max(0, state.kills - killsAtLock.value - BOSS_OWN_KILLS);

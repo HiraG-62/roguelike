@@ -10,6 +10,7 @@ import { isAllied } from "./rules";
 import { attackManaMul } from "./keystones";
 import { gainAttackMana } from "./mana";
 import { attackHitManaMul } from "./manaSources";
+import { bossOnAnswer } from "./boss";
 import { fireDebana } from "./debana";
 import { noteRiposte } from "./moments";
 import { currentForm } from "./morale";
@@ -400,7 +401,10 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       lane: pr.lane,
       inscribes: inscribesInk(pr),
     });
-    if (debana) fireDebana(state, e, pos);
+    if (debana) {
+      fireDebana(state, e, pos);
+      bossOnAnswer(state, e, "debana");
+    }
     applyShotStatus(state, pr, e);
     // 周回の弾は当てても消えない（1 周に 1 回ずつ当て直す。消えるのは laps 周を回り切ったとき）
     if (pr.shot?.orbit) continue;

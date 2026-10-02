@@ -43,6 +43,7 @@ import { noteBraceBlockMana, noteHitMana } from "./manaSources";
 import { shareLinkedDamage } from "./formMarks";
 import { dropCoins, spillCoins } from "./economy";
 import { containerBroken } from "./containers";
+import { bossOnAnswer } from "./boss";
 import { noteBossFightHit } from "./bossRecord";
 
 export const COLOR_DAMAGE = "#ffffff";
@@ -560,6 +561,7 @@ export function damagePlayer(
     noteBraceBlockMana(state, amount);
     if (!opts.noJust && (p.dashTimer > 0 || boonJustEligible(state)) && !p.dodgedThisDash) {
       justDodge(state, attacker);
+      if (attacker) bossOnAnswer(state, attacker, "just");
       return "dodged";
     }
     return "ignored";

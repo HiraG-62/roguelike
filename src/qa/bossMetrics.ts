@@ -119,6 +119,8 @@ export interface BossFight {
   transitions: StageTransition[];
   /** 戦いの間に倒した取り巻きの数（ボス本人を除く） */
   minionKills: number;
+  /** 答えのダウンの回数（浮き文字ごと。BossState.answers の写し。墜落・冠落ち・呑み損ねなど） */
+  answers?: Record<string, number>;
 }
 
 export function median(xs: readonly number[]): number | null {
@@ -414,6 +416,20 @@ export function deepLordStageOff(s: BossFightSummary): boolean {
 }
 
 /** probe.md の「## ボス」節の全文（末尾は改行）。fights は runBossProbe の結果 */
+/** 答えのダウン（墜落・冠落ち・呑み損ねなど）の 1 戦あたりの回数。答えのあるボスだけ 1 行ずつ */
+function answerLines(fights: readonly BossFight[]): string[] {
+  const lines: string[] = [];
+  for (const key of orderedKeys(fights.filter((f) => f.outcome !== "unlocked").map((f) => f.key))) {
+    const own = fights.filter((f) => f.key === key && f.outcome !== "unlocked");
+    const total = new Map<string, number>();
+    for (const f of own) for (const [text, n] of Object.entries(f.answers ?? {})) total.set(text, (total.get(text) ?? 0) + n);
+    if (total.size === 0) continue;
+    const parts = [...total].map(([text, n]) => `${text} ${(n / own.length).toFixed(1)}`);
+    lines.push(`- 答えのダウン（${key}。1 戦あたり）: ${parts.join(" / ")}`);
+  }
+  return lines;
+}
+
 export function buildBossProbeLines(fights: readonly BossFight[], caption: string): string[] {
   const summary = summarizeFights(fights);
   const lines = ["## ボス（章ボス 4 と最深の主。深度相応の装備の bot で 1 体ずつ）", "", caption, ""];
@@ -427,6 +443,7 @@ export function buildBossProbeLines(fights: readonly BossFight[], caption: strin
   if (deep && deepLordStageOff(deep)) {
     lines.push(`- 最深の主の段階の長さが 3:4:3 から外れている（四門で詰まる・陥没が長いなど。${deep.stageSeconds.map((v) => v.toFixed(0)).join(" : ")} 秒の合計）`);
   }
+  lines.push(...answerLines(fights));
   lines.push(
     "- `*` は目標の外。撃破の秒は撃破できた戦いの中央値、被弾とダウンは全戦の中央値。打切 = 制限時間までに決着しなかった戦い",
     "- 行為で進んだ段階 = 段階が進んだ瞬間の生命が閾値より上（分裂体・追い詰め・引火・壁激突・門柱で進んだ）。目標 3〜6 割",

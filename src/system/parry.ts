@@ -4,6 +4,7 @@ import { type Vec, angle, length, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { FX_ATTACK, PARRY, WEAPON } from "../data/tuning";
+import { bossOnAnswer } from "./boss";
 import { addMark, spawnBurst, addHeadLabel } from "./effects";
 import { gainMana } from "./mana";
 import { noteRiposte } from "./moments";
@@ -142,6 +143,8 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   noteRiposte(state, "parry", attacker);
   pushEvent(state, { kind: "onParry", actor: "player", source: { kind: "player", key: "parry" }, pos: { ...p.body.pos } });
   if (!attacker || attacker.hp <= 0) return;
+  // 先に答えのダウンを入れる（受け流しの怯み値で普通の怯みに化けさせない）
+  bossOnAnswer(state, attacker, "parry");
   stopAttacker(state, attacker, bossPoise);
   onTraitCounter(state, attacker);
   pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, tag: "parry" satisfies CounterTag, ...enemyTarget(attacker) });

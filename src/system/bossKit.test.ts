@@ -4,10 +4,22 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { dist } from "../core/vec";
 import { enemyDef } from "../data/enemies";
-import { BOSS } from "../data/tuning";
+import { ARC, BOSS } from "../data/tuning";
 import { announceBoss, bossEnemy } from "./boss";
+import { DL_BORROW_BASE } from "./bossDeepLord";
 import { KING_SLIME_SIGNATURE } from "./bossKingSlime";
-import { type BossHooks, type BossSignature, BOSS_THREATS, distBand, readPlayer, runBossCycle, updateBossRead } from "./bossKit";
+import {
+  type BossHooks,
+  type BossSignature,
+  BOSS_THREATS,
+  advanceBossStage,
+  bossDown,
+  distBand,
+  oweBossDown,
+  readPlayer,
+  runBossCycle,
+  updateBossRead,
+} from "./bossKit";
 import { MIRROR_KNIGHT_SIGNATURE } from "./bossMirrorKnight";
 import { OIL_KING_SIGNATURE } from "./bossOilKing";
 import { THIEF_KING_SIGNATURE } from "./bossThiefKing";
@@ -15,13 +27,16 @@ import { damageEnemy, damagePlayer } from "./combat";
 import { createEnemy, updateEnemies } from "./enemies";
 import { findFreeSpot, onEnemyDeath } from "./enemyTraits";
 import { buildFloor } from "./floor";
-import { addPoise, windupCommitted } from "./poise";
+import { addPoise, applyStagger, attackCommitted, isStaggered, windupCommitted } from "./poise";
+import { noteCommit, yellowAt } from "./readTiming";
+import { removeStatus } from "./statusEffects";
 import { slayFloorLord } from "./testHelpers";
 
 const HUGE_HP = 1_000_000;
 /** 深みの回転の最初のボス（骸骨卿）の深度。署名の技を借りる側に使う */
 const BORROWER_DEPTH = BOSS.interval * 5;
 const MAX_STEPS = 600;
+const FINAL_DEPTH = ARC.floorsPerChapter * ARC.maxChapter + 1;
 
 /** ボス階を作り、部屋を封鎖してプレイヤーをボスの横（dx）に置く */
 function bossFloor(depth: number, dx = -70, seed = 21): { state: GameState; boss: Enemy } {
@@ -236,6 +251,12 @@ describe("章ボスの署名の技", () => {
     sig.beginWindup(state, host, def);
     const warned = landings() > before || (sig.telegraph?.(host) ?? null) !== null;
     expect(host.phaseTimer, "予備動作の長さ").toBeGreaterThan(0);
+    // 予備動作を進める（跳躍は上昇で影の真上へ着く）
+    host.windupTotal = host.phaseTimer;
+    for (let i = 0; i < MAX_STEPS && host.phaseTimer > 0; i++) {
+      sig.tickWindup?.(state, host, def, FIXED_DT);
+      host.phaseTimer -= FIXED_DT;
+    }
 
     const hp = state.player.hp;
     const shots = state.projectiles.filter((p) => p.owner === "enemy").length;
@@ -267,5 +288,122 @@ describe("章ボスの署名の技", () => {
     expect(MIRROR_KNIGHT_SIGNATURE.telegraph?.(host), "剣の波の扇").toMatchObject({ kind: "cone" });
     expect(host.ai.move).toBe(5);
     expect(host.ai.stage).toBe(3);
+  });
+});
+
+describe("ボスの器: 読み合いの口（黄の長さ・答えのダウン）", () => {
+  /** 1 ステップ進める（時刻も進める。yellowAt は時刻で比べる） */
+  function cycle(state: GameState, boss: Enemy, hooks: BossHooks): void {
+    state.time += FIXED_DT;
+    runBossCycle(state, boss, enemyDef(boss.defKey), FIXED_DT, hooks);
+    noteCommit(state, boss);
+  }
+
+  function start(hooks: BossHooks): { state: GameState; boss: Enemy } {
+    const { state, boss } = bossFloor(BOSS.interval);
+    boss.phase = "chase";
+    boss.attackCooldown = 0;
+    cycle(state, boss, hooks);
+    return { state, boss };
+  }
+
+  it("openTime が 0 なら予備動作の最初から赤", () => {
+    const { boss } = start(testHooks({ openTime: () => 0 }));
+    expect(boss.phase).toBe("windup");
+    expect(attackCommitted(boss), "最初から赤").toBe(true);
+  });
+
+  it("openTime が予備動作の秒なら予備動作の間ずっと黄で、攻撃に入った瞬間に赤。yellowAt は赤になったステップを境に切り替わる", () => {
+    const hooks = testHooks({ openTime: (_s, e) => e.phaseTimer });
+    const { state, boss } = start(hooks);
+    expect(boss.openFor, "黄の秒が入る").toBeCloseTo(0.5, 5);
+    let steps = 0;
+    while (boss.phase === "windup" && steps < MAX_STEPS) {
+      expect(attackCommitted(boss), "予備動作の間は黄").toBe(false);
+      expect(yellowAt(boss, state.time + FIXED_DT), "黄のうちに押した入力は黄").toBe(true);
+      cycle(state, boss, hooks);
+      steps++;
+    }
+    expect(boss.phase).toBe("strike");
+    expect(attackCommitted(boss), "攻撃に入ったら赤").toBe(true);
+    expect(yellowAt(boss, state.time + FIXED_DT), "赤になった後の時刻は黄でない").toBe(false);
+    expect(yellowAt(boss, state.time), "赤になったそのステップの入力は黄").toBe(true);
+  });
+
+  it("連撃の予備動作は openTime に関わらず最初から赤", () => {
+    const hooks = testHooks({ openTime: (_s, e) => e.phaseTimer, followUp: (_s, e) => ((e.ai?.chain ?? 0) === 0 ? 1 : null) });
+    const { state, boss } = start(hooks);
+    while (boss.phase !== "strike") cycle(state, boss, hooks);
+    while (boss.phase === "strike") cycle(state, boss, hooks);
+    expect(boss.phase, "連撃の続き").toBe("windup");
+    expect(boss.ai?.chain).toBe(1);
+    expect(boss.openFor, "黄の秒は持ち越さない").toBeUndefined();
+    expect(attackCommitted(boss), "最初から赤").toBe(true);
+  });
+
+  it("tickWindup は予備動作の毎ステップ呼ばれる", () => {
+    const calls: number[] = [];
+    const hooks = testHooks({ tickWindup: (_s, e) => calls.push(e.phaseTimer) });
+    const { state, boss } = start(hooks);
+    let windupSteps = 0;
+    while (boss.phase === "windup") {
+      cycle(state, boss, hooks);
+      windupSteps++;
+    }
+    expect(calls.length, "予備動作のステップ数だけ").toBe(windupSteps);
+  });
+
+  it("oweBossDown は攻撃を止めず、攻撃の終わりに先送りの怯み値より先にダウンを払う。既に予約があれば上書きしない", () => {
+    const hooks = testHooks({});
+    const { state, boss } = start(hooks);
+    while (boss.phase !== "strike") cycle(state, boss, hooks);
+    oweBossDown(boss, { time: 1.2, text: "墜落", color: "#fff", tag: "answer" });
+    oweBossDown(boss, { time: 9, text: "別", color: "#fff", tag: "final" });
+    boss.poise.pending = true;
+    expect(boss.ai?.owedDown?.text, "先の予約が残る").toBe("墜落");
+    expect(isStaggered(boss), "攻撃中は止めない").toBe(false);
+    while (boss.phase === "strike") cycle(state, boss, hooks);
+    expect(isStaggered(boss), "攻撃の終わりに怯む").toBe(true);
+    expect(boss.poise.pending, "怯み値の先送りは払っていない（ダウンが先）").toBe(true);
+    expect(boss.ai?.owedDown, "予約は消える").toBeUndefined();
+    expect(state.boss?.answers?.["墜落"], "答えとして数える").toBe(1);
+  });
+
+  it("bossDown に tag を渡すと、既に怯み中でも答えが数えられる。final だけが引導の窓を開き、怯みの終わりで閉じる。tag なしは今と同じ", () => {
+    const { state, boss } = bossFloor(BOSS.interval);
+    applyStagger(state, boss, 5);
+    expect(bossDown(state, boss, 1, "墜落", "#fff"), "tag なしは入らなければ何も出さない").toBe(false);
+    expect(state.boss?.answers, "tag なしは数えない").toBeUndefined();
+    expect(bossDown(state, boss, 1, "墜落", "#fff", "answer"), "怯めない").toBe(false);
+    expect(state.boss?.answers?.["墜落"], "それでも答えは数える").toBe(1);
+    expect(boss.ai?.finale, "answer は窓を開けない").toBeFalsy();
+    bossDown(state, boss, 1, "呑み損ね", "#fff", "final");
+    expect(boss.ai?.finale, "final は引導の窓").toBe(true);
+    removeStatus(state, { kind: "enemy", enemy: boss }, "stagger");
+    expect(boss.ai?.finale, "怯みの終わりで閉じる").toBeFalsy();
+  });
+
+  it("advanceBossStage は段階を進め、行為で進んだかを actStages に積む", () => {
+    const { state, boss } = bossFloor(BOSS.interval);
+    advanceBossStage(state, boss, "分裂", "#fff", 2, true);
+    advanceBossStage(state, boss, "膨張", "#fff", 3, false);
+    expect(boss.ai?.stage).toBe(3);
+    expect(state.boss?.actStages).toEqual([true, false]);
+  });
+
+  it("借りた跳躍（KING_SLIME_SIGNATURE）でも上昇の後に影の真上へ着く（tickWindup の転送）", () => {
+    const { state, boss: host } = bossFloor(FINAL_DEPTH, -80);
+    expect(host.defKey, "最深の主").toBe("deepLord");
+    const ai = host.ai;
+    if (!ai) throw new Error("no ai");
+    ai.stage = 3;
+    ai.move = DL_BORROW_BASE + ARC.chapters.findIndex((c) => c.boss === "kingSlime");
+    host.phase = "chase";
+    host.attackCooldown = 0;
+    let steps = 0;
+    const phaseOf = (e: Enemy): string => e.phase;
+    while (phaseOf(host) !== "strike" && steps++ < MAX_STEPS) updateEnemies(state, FIXED_DT);
+    expect(phaseOf(host), "借りた跳躍の攻撃に入る").toBe("strike");
+    expect(dist(host.body.pos, ai.target), "影の真上").toBeLessThan(2);
   });
 });

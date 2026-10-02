@@ -59,6 +59,7 @@ import {
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 import { pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
+import { bossOnAnswer } from "./boss";
 import { fireDebana, noteCommittedHit } from "./debana";
 import { NEVER_TIME, yellowAt } from "./readTiming";
 import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
@@ -1467,6 +1468,8 @@ function noteReadOutcome(state: GameState, e: Enemy, pos: Vec, counter: boolean)
     return;
   }
   fireDebana(state, e, pos);
+  // ボスには答えとして届ける（damageEnemy の後。怯み値で先に怯んでいても答えは数える）
+  bossOnAnswer(state, e, "debana");
   // 右の溜め（居合）を離した振りの出端は居合の応手、それ以外はカウンターの応手
   noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
 }

@@ -9,6 +9,7 @@ import { WAVE3_ENEMIES } from "./enemiesWave3";
 
 export type EnemyBehavior =
   | "chaser"
+  | "crownBearer"
   | "shooter"
   | "charger"
   | "knight"
@@ -355,6 +356,8 @@ export const ENEMIES: readonly EnemyDef[] = [
   { key: "golem", name: "ゴーレム", sprite: "golem", behavior: "golem", color: "#a8a290", ...N.golem },
   { key: "bat", name: "蝙蝠", sprite: "bat", behavior: "bat", color: "#8060a0", ...N.bat },
   { key: "wisp", name: "鬼火", sprite: "wisp", behavior: "wisp", color: "#60c0ff", phasing: true, ...N.wisp },
+  // スライム王の分裂体のうち 1 体が被る冠（段階 2 の「大将」。割ると王が大きなダウン）。王が置くだけなので出現の重みは無い。絵は毒スライムの再配色の仮（冠の絵は後の段。色は予告の黄に紛れない色）
+  { key: "crownSlime", name: "冠スライム", sprite: "crownSlime", recolor: { base: "slime", swap: { g: "p", G: "P", h: "e" } }, behavior: "crownBearer", color: "#a080d8", noCorpse: true, ...N.crownSlime },
   { key: "kingSlime", name: "スライム王", sprite: "kingSlime", behavior: "kingSlime", color: "#40c040", boss: true, ...N.kingSlime },
   { key: "boneLord", name: "骸骨卿", sprite: "boneLord", behavior: "boneLord", color: "#d0c8a8", boss: true, ...N.boneLord },
   ...WAVE2_ENEMIES,

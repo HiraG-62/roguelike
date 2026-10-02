@@ -44,7 +44,7 @@ import { statsBulletHas } from "../loot/bullets";
  */
 
 /** この距離未満なら近接コンボに専念する（遠ければ近づく。射撃は銃の家系だけ） */
-const MELEE_RANGE = 30;
+export const MELEE_RANGE = 30;
 /** 敵の windup / strike をこの距離以内で検知したら回避を検討する */
 const DANGER_RANGE = 55;
 /** 「人間らしさ」: 危険を検知しても回避に失敗する確率 */
@@ -281,7 +281,7 @@ function reforgeChoiceInput(state: GameState): FrameInput {
 }
 
 /** screenToWorld (src/core/view.ts) の逆変換 */
-function worldToScreen(state: GameState, world: Vec): Vec {
+export function worldToScreen(state: GameState, world: Vec): Vec {
   const cam = state.camera;
   const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
   const oy = Math.round(VIEW_H / 2 - cam.pos.y + cam.offset.y);

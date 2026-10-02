@@ -92,6 +92,7 @@ const WAVE2_COMBAT: Readonly<Record<string, EnemyCombatDef>> = {
   flyingBook: { ...C.flyingBook, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   ashBat: { ...C.ashBat, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   // ---- 既存 behavior の流用 ----
+  crownSlime: { ...C.crownSlime, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   sproutSlime: { ...C.sproutSlime, inflicts: [], keywords: kw(["hurt"], ["area"]) },
   spikeRat: { ...C.spikeRat, keywords: kw(["hurt"], ["area"]), inflicts: [{ on: "contact", kind: "bleed", stacks: 1, duration: 4, potency: BLEED_POTENCY }] },
   twinEye: { ...C.twinEye, keywords: kw(["bullet"], ["counter"]), inflicts: [{ on: "bullet", minDepth: 5, kind: "silence", stacks: 1, duration: 1.2, potency: 0 }] },
