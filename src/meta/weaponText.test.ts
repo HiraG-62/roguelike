@@ -10,6 +10,11 @@ describe("武器の特色の本文", () => {
     for (const key of MOVESET_KEYS) expect(featureText(MOVESETS[key]).trim().length, key).toBeGreaterThan(0);
   });
 
+  it("特色に押し方（左右の列・長押し・右の何段目）を書かない", () => {
+    const inputs = /[左右]{2}|[左右](の|で|は|と|を)|長押し/;
+    for (const key of MOVESET_KEYS) expect(featureText(MOVESETS[key]), key).not.toMatch(inputs);
+  });
+
   it("近接の武器種は間合いを書き、銃の家系は書かない", () => {
     expect(featureText(MOVESETS.sword)).toContain("間合いはおよそ");
     expect(featureText(MOVESETS.longarm)).not.toContain("間合いはおよそ");

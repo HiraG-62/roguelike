@@ -1,4 +1,5 @@
 import { formatMeters } from "../core/units";
+import { MOVESET_FEATURE } from "../data/weaponFeatures";
 import {
   type BulletDef,
   type MeleeStepDef,
@@ -191,9 +192,12 @@ function referencedAttrs(step: Readonly<MeleeStepDef>): AttrKey[] {
   return ATTR_KEYS.filter((a) => Math.abs(step.scaling[a] ?? 0) > 0);
 }
 
-/** 特徴（間合い・参照ステータス・固有の仕組み）。desc は data/weapons.ts の手書きの一言 */
+/**
+ * 特色（持ち味の一文・間合い・参照ステータス・固有の仕組み）。一文は data/weaponFeatures.ts の手書き（押し方を書かない）。
+ * MovesetDef.desc は押し方を含む武器掛けの一言なので使わない
+ */
 export function featureText(m: Readonly<MovesetDef>): string {
-  const desc = withPeriod(m.desc);
+  const desc = withPeriod(MOVESET_FEATURE[m.key]);
   const mechanics = weaponMechanics(m)
     .map(withPeriod)
     .join("");

@@ -24,11 +24,12 @@ describe("武器指南書の頁", () => {
     }
   });
 
-  it("技の一覧は右の段・コンボ派生（構えを離す振りを除く）・奥義をすべて載せる", () => {
+  it("技の一覧はコンボ派生の見出しに右の段と派生（構えを離す振りを除く）を並べ、奥義をすべて載せる", () => {
     for (const key of MANUAL_KEYS) {
       const m = MOVESETS[key];
-      expect(movesOf(key, "lane").length, `${key} の右の段`).toBe(m.steps2.length);
-      expect(movesOf(key, "branch").length, `${key} の派生`).toBe(m.branches.filter((b) => b.art !== "release").length);
+      const combos = movesOf(key, "branch");
+      expect(combos.filter((c) => c.key.startsWith("lane.")).length, `${key} の右の段`).toBe(m.steps2.length);
+      expect(combos.filter((c) => c.key.startsWith("branch.")).length, `${key} の派生`).toBe(m.branches.filter((b) => b.art !== "release").length);
       expect(movesOf(key, "ultimate").map((u) => u.name), `${key} の奥義`).toEqual(ULTIMATES[key].map((u) => u.name));
       expect(movesOf(key, "dash").length, `${key} のダッシュ攻撃`).toBe(1);
     }
@@ -36,7 +37,7 @@ describe("武器指南書の頁", () => {
 
   it("コンボ派生の入力の札は派生の入力列そのもの", () => {
     for (const b of MOVESETS.sword.branches) {
-      const move = movesOf("sword", "branch").find((x) => x.name === b.name);
+      const move = movesOf("sword", "branch").find((x) => x.key === `branch.${b.key}`);
       const labels = move?.script.cues.map(cueToken).filter((t) => t !== null).map((t) => t.label);
       expect(labels, b.name).toEqual(b.sequence.map((s) => (s === "primary" ? "左" : "右")));
     }
