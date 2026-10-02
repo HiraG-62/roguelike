@@ -138,25 +138,26 @@ describe("敵の生命・攻撃の深度倍率", () => {
     expect(depthHpScale(deep + 5)).toBeCloseTo(atDeep * ENEMY_SCALE.deepHpGrowth ** 5);
   });
 
-  it("攻撃は深度 1 で等倍、章は damagePerDepth ずつ、深みは deepDamageGrowth で伸びる", () => {
-    expect(depthDamageMul(1)).toBe(1);
-    expect(depthDamageMul(10)).toBeCloseTo(1 + 9 * ENEMY_SCALE.damagePerDepth);
+  it("攻撃は深度 1 で全体の倍率 damageMul、章は damagePerDepth ずつ、深みは deepDamageGrowth で伸びる", () => {
+    const k = ENEMY_SCALE.damageMul;
+    expect(depthDamageMul(1)).toBeCloseTo(k);
+    expect(depthDamageMul(10)).toBeCloseTo(k * (1 + 9 * ENEMY_SCALE.damagePerDepth));
     const deep = ENEMY_SCALE.deepDepth;
     const atDeep = 1 + ENEMY_SCALE.damagePerDepth * (deep - 1);
-    expect(depthDamageMul(deep + 3)).toBeCloseTo(atDeep * ENEMY_SCALE.deepDamageGrowth ** 3);
+    expect(depthDamageMul(deep + 3)).toBeCloseTo(k * atDeep * ENEMY_SCALE.deepDamageGrowth ** 3);
   });
 
-  it("depthDamage は基礎に倍率を掛けて丸める（深度 1 は基礎のまま、深度 10 の接触 10 は 倍率 × 10 を丸めた値）", () => {
+  it("depthDamage は基礎に倍率を掛けて丸める（深度 1 は基礎 × damageMul を丸めた値、深度 10 の接触 10 は 倍率 × 10 を丸めた値）", () => {
     for (const base of [1, 6, 9, 10, 25]) {
-      expect(depthDamage(base, 1), `深度 1 の ${base}`).toBe(base);
+      expect(depthDamage(base, 1), `深度 1 の ${base}`).toBe(Math.round(base * ENEMY_SCALE.damageMul));
     }
-    expect(depthDamage(10, 10)).toBe(Math.round(10 * (1 + 9 * ENEMY_SCALE.damagePerDepth)));
+    expect(depthDamage(10, 10)).toBe(Math.round(10 * ENEMY_SCALE.damageMul * (1 + 9 * ENEMY_SCALE.damagePerDepth)));
     expect(depthDamage(4, 10), "個性が潰れず、弱い攻撃は弱いまま").toBeLessThan(depthDamage(10, 10));
   });
 
-  it("深度 1 の敵の生命と攻撃は外部化前のまま（曲線を変えても浅い階は動かない）", () => {
+  it("深度 1 の敵の生命は外部化前のまま、攻撃は全体の倍率 damageMul だけ掛かる（曲線を変えても浅い階は動かない）", () => {
     const slime = enemyDef("slime");
     expect(Math.round(slime.hp * depthHpScale(1))).toBe(slime.hp);
-    expect(depthDamage(slime.contactDamage, 1)).toBe(slime.contactDamage);
+    expect(depthDamage(slime.contactDamage, 1)).toBe(Math.round(slime.contactDamage * ENEMY_SCALE.damageMul));
   });
 });

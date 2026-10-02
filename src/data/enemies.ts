@@ -401,7 +401,7 @@ export function depthHpScale(depth: number): number {
 
 /** 深さによる敵の攻撃倍率（深度 1 で 1 倍） */
 export function depthDamageMul(depth: number): number {
-  return enemyCurve(ENEMY_SCALE.damagePerDepth, ENEMY_SCALE.deepDamageGrowth, depth);
+  return ENEMY_SCALE.damageMul * enemyCurve(ENEMY_SCALE.damagePerDepth, ENEMY_SCALE.deepDamageGrowth, depth);
 }
 
 /** 敵の攻撃の深度補正。基礎の攻撃に倍率を掛けて丸める（敵ごとの個性を保つため flat 加算はしない） */
