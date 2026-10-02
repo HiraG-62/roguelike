@@ -143,7 +143,7 @@ describe("撃破の銭", () => {
     expect(killCoinMean(state, placeEnemy(state, "kingSlime", FAR)), "ボス").toBeCloseTo(k.boss);
     expect(killCoinMean(state, placeEnemy(state, "bat", FAR)), "群れ").toBeCloseTo(k.normal * ECONOMY.income.swarmMul);
     const fleeing = placeEnemy(state, "slime", FAR);
-    fleeing.rout = { fromJin: jin.id, toJin: null, dest: null, time: 1, recheck: 1 };
+    fleeing.rout = { fromJin: jin.id, toJin: null, dest: null, time: 1, recheck: 1, turnCd: 1, dropCd: 1 };
     expect(killCoinMean(state, fleeing), "敗走中").toBeCloseTo(k.normal * ECONOMY.income.routMul);
     state.depth = 6;
     expect(killCoinMean(state, placeEnemy(state, "slime", FAR)), "章 2").toBeCloseTo(k.normal * ECONOMY.chapterMul);

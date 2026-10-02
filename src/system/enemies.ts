@@ -18,7 +18,7 @@ import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
-import { jinBonusMul, stepRout } from "./jin";
+import { jinBonusMul, markRoutTurn, routTurnReady, stepRout } from "./jin";
 import { freshStrokeCount, jinzuHoldsAttack, surgeStrikerSlot, updateJinzu } from "./jinzu";
 import { stepJinzuMember } from "./jinzuRun";
 import { wakeByNoise } from "./noise";
@@ -208,10 +208,13 @@ export function updateEnemies(state: GameState, dt: number): void {
       flee(state, e, def, edt);
       continue;
     }
-    // 敗走中は攻撃せず行き先の陣へ逃げる（system/jin.ts）
-    if (e.rout) {
-      stepRout(state, e, def, edt, enemySpeed(state, e, def));
-      continue;
+    // 敗走中は行き先の陣へ逃げる（system/jin.ts）。追い詰められたら振り向いて 1 回反撃し（窮鼠）、
+    // その予備動作・攻撃・隙の間だけ普段の状態機械を回す。隙が明けて chase に戻れば、また逃げる
+    if (e.rout && !inAttackCycle(e)) {
+      if (!turnOnPursuer(state, e, def)) {
+        stepRout(state, e, def, edt, enemySpeed(state, e, def));
+        continue;
+      }
     }
     // 本陣の陣図: 筆を持つ大将・持ち場の兵は止まり、墨の入った画の兵は走る（system/jinzu.ts・jinzuRun.ts）
     if (e.jinzuRun && stepJinzuMember(state, e, def, edt, enemySpeed(state, e, def))) continue;
@@ -565,6 +568,21 @@ function chaseMove(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: numbe
 function keepAwayMove(dir: Vec, perp: Vec, side: number, d: number, keep: number, animTime: number): Vec {
   const radial = d < keep * 0.8 ? scale(dir, -1) : d > keep * 1.3 ? dir : { x: 0, y: 0 };
   return add(radial, scale(perp, side * Math.sin(animTime * 1.2) * 0.6));
+}
+
+/** 予備動作・攻撃・隙のどれか（敗走中の窮鼠の反撃が普段の状態機械を回す間） */
+function inAttackCycle(e: Enemy): boolean {
+  return e.phase === "windup" || e.phase === "strike" || e.phase === "recover";
+}
+
+/** 窮鼠: 詰められた逃げる敵が振り向いて予備動作に入る（予告は普段の攻撃と同じ）。入ったら true */
+function turnOnPursuer(state: GameState, e: Enemy, def: EnemyDef): boolean {
+  if (!routTurnReady(state, e)) return false;
+  const toPlayer = sub(state.player.body.pos, e.body.pos);
+  if (!behaviorOf(def).canBeginAttack(state, e, def, length(toPlayer))) return false;
+  markRoutTurn(e);
+  beginWindup(state, e, def, normalize(toPlayer, e.facing));
+  return true;
 }
 
 /** 1 撃目の予備動作。連続攻撃の残り回数を入れ直し、近くの敵の攻撃開始をずらす */

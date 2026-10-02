@@ -12,10 +12,14 @@ import { farFromPlayer, moveEnemy } from "./enemies";
 import { vanish } from "./enemyTraits";
 import { foldJinzu, onHonjinLeaderFell } from "./jinzu";
 import { roomHooks } from "./specialRooms";
+import { placeTerrain } from "./terrain";
 
 /**
  * 陣の群勢と敗走（docs/ideas/jin-impl.md 2-7）と、起床の後詰・増援の代わり（2-5）。
- * - 群勢: 生成時のメンバーの格の重さの合計で満ち、仲間が倒れるたびに減る。routRatio を切ると生き残りが敗走する
+ * - 群勢: 生成時のメンバーの格の重さの合計で満ち、仲間が倒れるたびに減る。routRatio を切ると生き残りが 1 体ずつ
+ *   逃げるか踏みとどまるかを決める（格ごとの fleeChance。並は逃げやすく精鋭は踏みとどまる）。踏みとどまった者は背水で攻めが速くなる
+ * - 逃げる敵は追い詰められると振り向いて自分の攻撃を 1 回返し（窮鼠）、逃げながら足元に泥を撒く（置き土産）。
+ *   倒すと銭を多く落とす（追う得）。眠っている陣に合流するとその陣を起こしてこちらへ向かわせる（急報。逃がす損）
  * - 敗走した敵は陣から外れ roomIndex を ROAMING_ROOM にする。部屋の生存者が 0 になるので、決着の報酬は
  *   部屋の制圧（floor.ts の clearRoom）がそのまま出す（全滅・大将撃破・敗走が同じ 1 本の判定に落ちる）
  * - 起床: 気付いた者の近くだけ起こし、残りは後詰として少し遅れて動く
@@ -30,6 +34,10 @@ const LEADER_TEXT_SCALE = 1.4;
 const LEADER_TEXT_LIFE = 1.2;
 const SECOND_WAVE_TEXT_SCALE = 1.2;
 const SECOND_WAVE_TEXT_LIFE = 1;
+const HOLD_TEXT_SCALE = 1.2;
+const HOLD_TEXT_LIFE = 1;
+const ALARM_TEXT_SCALE = 1.2;
+const ALARM_TEXT_LIFE = 1.2;
 /** 行き先の無い敗走で、壁に沿って逃げ続けられるよう横へ逸らす割合（enemyTraits.ts の臆病と同じ考え方） */
 const FLEE_SIDE = 0.6;
 
@@ -78,7 +86,8 @@ export function noteJinDeath(state: GameState, e: Enemy): void {
   const loss = deathLoss(state, jin, e);
   if (e.id === jin.leaderId) breakLeader(state, jin, e, loss);
   else jin.morale = Math.max(0, jin.morale - loss);
-  if (jin.morale <= jin.moraleMax * JIN.morale.routRatio) routJin(state, jin);
+  // 一度崩れた陣（背水で踏みとどまった者だけ）はもう崩れない
+  if (!jin.broken && jin.morale <= jin.moraleMax * JIN.morale.routRatio) routJin(state, jin);
 }
 
 /** 減る量: 重さ + 処刑 + 同じ tick の 2 体目以降（一網打尽） */
@@ -112,6 +121,8 @@ export function jinBonusMul(state: GameState, e: Enemy, kind: JinBonusKind): num
   if (e.jinId === undefined) return 1;
   const jin = jinById(state, e.jinId);
   if (!jin || jin.phase !== "engaged" || jin.moraleMax <= 0) return 1;
+  // 背水: 群勢が崩れても踏みとどまった者は攻めが速い（怯みやすさはそのまま）
+  if (jin.broken) return kind === "attackInterval" ? JIN.morale.holdAttackIntervalMul : 1;
   if (jin.morale < jin.moraleMax * JIN.morale.highRatio) return 1;
   // 筆を持つ大将は怯みやすさの強化が掛からない（陣図を止められる量をいつもの怯みゲージのままにする）
   if (e.jinzuRun?.mode === "brush") return 1;
@@ -123,24 +134,47 @@ export function jinBonusMul(state: GameState, e: Enemy, kind: JinBonusKind): num
 // -----------------------------------------------------------------------------
 
 /**
- * 陣を敗走で決着させる: 生き残りを陣から外して ROAMING_ROOM にし、最も近い他の陣へ逃がす。
- * 塊に乗った陣は部屋の生存者が 0 になり、同じステップの updateRooms が clearRoom（文字は「敗走」）を出す
+ * 群勢が崩れた: 生き残りが 1 体ずつ逃げるか踏みとどまるかを決める（格ごとの fleeChance。大将を倒して崩れたら逃げやすい）。
+ * 逃げる者は陣から外して ROAMING_ROOM にし、最も近い他の陣へ逃がす。全員が逃げれば敗走で決着し、塊に乗った陣は
+ * 部屋の生存者が 0 になって同じステップの updateRooms が clearRoom（文字は「敗走」）を出す。
+ * 踏みとどまる者がいれば陣は決着せず「背水」になり（broken。もう崩れない）、倒し切れば全滅（制圧）で決着する
  */
 export function routJin(state: GameState, jin: Jin): void {
+  if (jin.broken || jin.phase === "settled") return;
   // 走りの途中で敗走の線を切れば走りも止める（陣図を畳む。兵が陣から外れる前に）
   foldJinzu(state, jin);
   const members = jinMembers(state, jin);
   if (members.length === 0) return;
   const at = centroid(members);
   // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）。
-  // 階の主（ボス陣の大将）も残す: 逃がすと部屋が「敗走」で制圧され、主が倒れないので階段が出ず階が詰む
-  const fleeing = members.filter((e) => !e.nemesis && e.id !== state.boss?.enemyId);
-  const target = nearestRefuge(state, at, jin.id);
+  // 階の主（ボス陣の大将）も残す: 逃がすと部屋が「敗走」で制圧され、主が倒れないので階段が出ず階が詰む。
+  // 乱数は逃げられる者だけが id 順に 1 回ずつ引く（決定的）
+  const fleeing = members.filter((e) => canFlee(state, e) && state.rng.chance(fleeChance(jin, e)));
+  const holding = members.filter((e) => !fleeing.includes(e));
+  const target = fleeing.length > 0 ? nearestRefuge(state, at, jin.id) : null;
   routTallyOf(state, jin.id).fled += fleeing.length;
   for (const e of fleeing) startRout(e, jin, target);
+  if (holding.length > 0) {
+    jin.broken = true;
+    if (fleeing.length > 0) addFloatingText(state, lifted(centroid(fleeing)), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE, "notice");
+    addFloatingText(state, lifted(centroid(holding)), JIN_TEXT.hold, JIN.morale.holdColor, HOLD_TEXT_SCALE, HOLD_TEXT_LIFE, "notice");
+    return;
+  }
   settleJin(state, jin, "rout");
   // 塊に乗った陣の「敗走」は clearRoom が出す（二重に出さない）
   if (jin.roomIndex === ROAMING_ROOM) addFloatingText(state, lifted(at), JIN_TEXT.rout, JIN.rout.color, ROUT_TEXT_SCALE, ROUT_TEXT_LIFE, "notice");
+}
+
+/** 逃げてよい者: 仇と階の主は逃がさない */
+function canFlee(state: GameState, e: Enemy): boolean {
+  return !e.nemesis && e.id !== state.boss?.enemyId;
+}
+
+/** 1 体が逃げ出す確率: 格ごとの fleeChance（大将は精鋭と同じ）+ 大将を倒して崩れたなら leaderFleeBonus */
+function fleeChance(jin: Jin, e: Enemy): number {
+  const grade = e.id === jin.leaderId ? "elite" : gradeOf(e);
+  const base = JIN.morale.fleeChance[grade];
+  return Math.min(1, base + (jin.leaderFell ? JIN.morale.leaderFleeBonus : 0));
 }
 
 function startRout(e: Enemy, from: Jin, target: Refuge | null): void {
@@ -150,6 +184,8 @@ function startRout(e: Enemy, from: Jin, target: Refuge | null): void {
     dest: target ? { ...target.at } : null,
     time: JIN.rout.maxTime,
     recheck: JIN.rout.retargetSec,
+    turnCd: JIN.rout.turnFirstDelay,
+    dropCd: JIN.rout.mudInterval,
   };
   e.jinId = undefined;
   e.roomIndex = ROAMING_ROOM;
@@ -220,6 +256,8 @@ export function stepRout(state: GameState, e: Enemy, def: EnemyDef, dt: number, 
   if (!rout) return;
   rout.time -= dt;
   rout.recheck -= dt;
+  rout.turnCd = Math.max(0, rout.turnCd - dt);
+  dropMud(state, e, dt);
   if (rout.recheck <= 0) refreshRout(state, e);
   if (rout.toJin !== null && rout.time <= 0) {
     // 合流が間に合わなかった: 行き先を捨てて逃げ切りを狙う
@@ -239,6 +277,31 @@ export function stepRout(state: GameState, e: Enemy, def: EnemyDef, dt: number, 
   const step = speed * JIN.rout.speedMul * dt;
   moveEnemy(state, e, def, dir.x * step, dir.y * step);
   if (dir.x !== 0) e.facing = dir;
+}
+
+/** 置き土産: mudInterval ごとに足元へ泥を撒く（追う側の足を取る。泥は敵の足も取るが、撒いた者はもう先へ進んでいる） */
+function dropMud(state: GameState, e: Enemy, dt: number): void {
+  const rout = e.rout;
+  if (!rout) return;
+  rout.dropCd -= dt;
+  if (rout.dropCd > 0) return;
+  rout.dropCd = JIN.rout.mudInterval;
+  placeTerrain(state, e.body.pos.x, e.body.pos.y, "mud", JIN.rout.mudRadius, JIN.rout.mudSec);
+}
+
+/**
+ * 窮鼠: 逃げている敵にプレイヤーが turnRadius まで詰めたら、振り向いて反撃してよいか（enemies.ts が予備動作に入れる）。
+ * 振り向いたら turnCooldown を入れ直す（markRoutTurn）。反撃の予備動作・攻撃・隙の間は stepRout を回さない
+ */
+export function routTurnReady(state: GameState, e: Enemy): boolean {
+  const rout = e.rout;
+  if (!rout || rout.turnCd > 0) return false;
+  const p = state.player.body;
+  return dist(e.body.pos, p.pos) <= e.body.radius + p.radius + JIN.rout.turnRadius;
+}
+
+export function markRoutTurn(e: Enemy): void {
+  if (e.rout) e.rout.turnCd = JIN.rout.turnCooldown;
 }
 
 /** retargetSec ごと: 行き先の陣がまだ受け入れるなら合流する点を取り直し、だめなら最も近い別の陣へ（時計が残っている間） */
@@ -277,6 +340,23 @@ function mergeInto(state: GameState, e: Enemy, jinId: number): void {
   // 眠っている陣に混ざれば一緒に眠り、交戦中の陣ならそのまま加わる
   e.phase = jin.phase === "engaged" ? "chase" : "idle";
   jin.morale = Math.min(jin.morale + memberWeight(jin, e), jin.moraleMax * JIN.morale.mergeCapRatio);
+  if (jin.phase === "sleeping") alarmJin(state, jin, e.body.pos);
+}
+
+/**
+ * 急報: 逃げた敵が眠っている陣に合流すると、その陣はプレイヤーの今いる点へ歩き出す（歩きは spawner.ts の updateRoamers。
+ * 気付けば部屋ごと起きる）。逃がした損。本陣は山として動かない。長居の歩き出し（stirSleepingJin）の数には数えない
+ */
+function alarmJin(state: GameState, jin: Jin, at: Vec): void {
+  if (jin.alarmed || jin.honjin) return;
+  jin.alarmed = true;
+  const goal = { ...state.player.body.pos };
+  for (const m of jinMembers(state, jin)) {
+    if (!m.ai || m.phase !== "idle") continue;
+    m.ai.roam = { ...goal };
+    m.ai.roamStuck = 0;
+  }
+  addFloatingText(state, lifted(at), JIN_TEXT.alarm, JIN.rout.alarmColor, ALARM_TEXT_SCALE, ALARM_TEXT_LIFE, "notice");
 }
 
 /** 陣の敗走の内訳（無ければ作る）。陣が見つからなければ捨てる入れ物 */
@@ -430,7 +510,7 @@ export function stirSleepingJin(state: GameState): boolean {
 /** 歩かせてよい陣: 眠っている・まだ歩かせていない・塊に乗り、その塊が交戦も制圧も封鎖もしていない */
 function stirrable(state: GameState, jin: Jin): boolean {
   // 本陣は山として動かない（歩き出して長蛇にならない）
-  if (jin.phase !== "sleeping" || jin.stirred || jin.honjin || jin.roomIndex === ROAMING_ROOM) return false;
+  if (jin.phase !== "sleeping" || jin.stirred || jin.alarmed || jin.honjin || jin.roomIndex === ROAMING_ROOM) return false;
   const room = state.rooms[jin.roomIndex];
   return room !== undefined && !room.engaged && !room.cleared && !room.locked;
 }

@@ -1018,6 +1018,10 @@ export interface Jin {
   stirred?: boolean;
   /** 大将の撃破で崩れた（決着の内訳。QA が数える） */
   leaderFell?: boolean;
+  /** 群勢が崩れ、逃げなかった者が背水で踏みとどまっている（もう一度は崩れない。system/jin.ts の routJin） */
+  broken?: boolean;
+  /** 逃げた敵の合流で起こされ、こちらへ歩き出した（急報。system/jin.ts の alarmJin。1 陣 1 回） */
+  alarmed?: boolean;
   /** この陣から敗走した敵の行く末（QA が数える） */
   routTally?: JinRoutTally;
   /** 本陣（階に数個だけ立つ山。system/jinzu.ts の planHonjin が決める）。大将が床に陣図を書く */
@@ -1111,6 +1115,10 @@ export interface EnemyRout {
   time: number;
   /** 行き先を見直すまでの残り秒 */
   recheck: number;
+  /** 窮鼠: 次に振り向いて反撃できるまでの残り秒（JIN.rout.turnCooldown） */
+  turnCd: number;
+  /** 置き土産: 次に足元へ泥を撒くまでの残り秒（JIN.rout.mudInterval） */
+  dropCd: number;
 }
 
 export interface RoomState {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createGame, step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { type Enemy, type GameState, type Jin, ROAMING_ROOM } from "../core/state";
@@ -24,6 +24,7 @@ import {
   wakeJin,
 } from "./jin";
 import { enemyDropChance } from "./loot";
+import { terrainAt } from "./terrain";
 import { addPoise } from "./poise";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 
@@ -44,7 +45,13 @@ function jinArena(): GameState {
     room.cleared = false;
   }
   state.player.invulnTimer = 999;
+  allFlee(state);
   return state;
+}
+
+/** 崩れたときに逃げるかの抽選を「全員逃げる」に固定する（逃げた後の仕組みを見るテスト用。一部が踏みとどまる形は「背水と急報」で見る） */
+function allFlee(state: GameState): void {
+  vi.spyOn(state.rng, "chance").mockReturnValue(true);
 }
 
 function addJin(state: GameState, id: number, roomIndex: number, center: Vec, phase: Jin["phase"] = "engaged"): Jin {
@@ -149,7 +156,8 @@ describe("群勢の減り", () => {
     nemesis.nemesis = true;
     initJinMorale(state, jin);
     routJin(state, jin);
-    expect(jin.settledBy).toBe("rout");
+    expect(jin.broken, "仇が踏みとどまるので陣は決着せず背水").toBe(true);
+    expect(jin.phase).toBe("engaged");
     expect(other.rout, "ほかの生き残りは敗走").toBeDefined();
     expect(nemesis.rout, "仇は敗走しない").toBeUndefined();
     expect(nemesis.jinId, "陣に残る").toBe(jin.id);
@@ -267,10 +275,10 @@ describe("敗走した敵", () => {
     expect(from.routTally?.escaped).toBe(1);
   });
 
-  it("逃げる敵は攻撃を始めず、プレイヤーから離れる", () => {
+  it("詰め寄られなければ逃げる敵は攻撃を始めず、プレイヤーから離れる", () => {
     const state = jinArena();
     const from = addJin(state, 1, ROOM_A, state.player.body.pos);
-    const list = [20, 24, 28].map((dx) => member(state, from, dx));
+    const list = [60, 64, 68].map((dx) => member(state, from, dx));
     initJinMorale(state, from);
     kill(state, list[0]!);
     kill(state, list[1]!);
@@ -294,6 +302,129 @@ describe("敗走した敵", () => {
     expect(routed).toBeCloseTo(plain * JIN.rout.dropMul);
     kill(state, router);
     expect(from.routTally?.killed).toBe(1);
+  });
+});
+
+describe("背水・窮鼠・置き土産・急報（崩れても全員は逃げない・逃げる敵の反撃・逃がす損）", () => {
+  it("逃げる確率は格が上がるほど低く、大将を倒して崩れると上がる", () => {
+    const f = JIN.morale.fleeChance;
+    expect(f.normal).toBeGreaterThan(f.strong);
+    expect(f.strong).toBeGreaterThan(f.elite);
+    expect(f.normal, "並でも全員は逃げない").toBeLessThan(1);
+    expect(JIN.morale.leaderFleeBonus).toBeGreaterThan(0);
+  });
+
+  it("抽選で逃げなかった者は背水で踏みとどまり、陣は決着しない。攻めが速くなり、もう崩れない", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const list = [20, 40, 60, 80].map((dx) => member(state, jin, dx));
+    initJinMorale(state, jin);
+    // 1 体目だけ逃げ、残りは踏みとどまる
+    vi.spyOn(state.rng, "chance").mockReturnValueOnce(true).mockReturnValue(false);
+    routJin(state, jin);
+    const [runner, ...stayers] = list;
+    expect(runner!.rout, "逃げた者").toBeDefined();
+    for (const e of stayers) {
+      expect(e.rout, "踏みとどまった者").toBeUndefined();
+      expect(e.jinId).toBe(jin.id);
+      expect(e.roomIndex).toBe(ROOM_A);
+      expect(jinBonusMul(state, e, "attackInterval"), "背水は攻めが速い").toBe(JIN.morale.holdAttackIntervalMul);
+      expect(jinBonusMul(state, e, "poiseTaken"), "怯みやすさはそのまま").toBe(1);
+    }
+    expect(jin.broken).toBe(true);
+    expect(jin.phase, "決着しない").toBe("engaged");
+    expect(jin.routTally?.fled).toBe(1);
+    expect(state.texts.some((t) => t.text === JIN_TEXT.hold), "「背水」の文字").toBe(true);
+    // もう崩れない: 残りを倒しても敗走は起きず、最後は全滅で決着
+    kill(state, stayers[0]!);
+    kill(state, stayers[1]!);
+    expect(stayers[2]!.rout, "崩れ直さない").toBeUndefined();
+    kill(state, stayers[2]!);
+    state.enemies = state.enemies.filter((e) => e.hp > 0);
+    updateJins(state);
+    expect(jin.settledBy, "倒し切れば制圧").toBe("wipe");
+  });
+
+  it("全員が踏みとどまれば誰も逃げない", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const list = [20, 40].map((dx) => member(state, jin, dx));
+    initJinMorale(state, jin);
+    vi.spyOn(state.rng, "chance").mockReturnValue(false);
+    routJin(state, jin);
+    expect(list.every((e) => e.rout === undefined)).toBe(true);
+    expect(jin.broken).toBe(true);
+  });
+
+  it("窮鼠: 逃げる敵に詰め寄ると振り向いて普段の攻撃を 1 回返し、隙が明けるとまた逃げる。すぐには振り向き直さない", () => {
+    const state = jinArena();
+    const from = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const list = [60, 70, 80].map((dx) => member(state, from, dx));
+    initJinMorale(state, from);
+    kill(state, list[0]!);
+    kill(state, list[1]!);
+    state.enemies = state.enemies.filter((e) => e.hp > 0);
+    const router = list[2]!;
+    expect(router.rout).toBeDefined();
+    // 逃げ出した直後は振り向かない（turnFirstDelay）
+    router.body.pos = { x: state.player.body.pos.x + 12, y: state.player.body.pos.y };
+    updateEnemies(state, FIXED_DT);
+    expect(router.phase, "逃げ出した直後は逃げる").toBe("chase");
+    router.rout!.turnCd = 0;
+    router.body.pos = { x: state.player.body.pos.x + 12, y: state.player.body.pos.y };
+    updateEnemies(state, FIXED_DT);
+    expect(router.phase, "振り向いて予備動作").toBe("windup");
+    expect(router.rout, "敗走は続いている").toBeDefined();
+    expect(router.rout!.turnCd, "次の振り向きまでの間").toBeCloseTo(JIN.rout.turnCooldown, 5);
+    let struck = false;
+    for (let i = 0; i < 240 && !(struck && router.phase === "chase"); i++) {
+      updateEnemies(state, FIXED_DT);
+      struck ||= router.phase === "strike";
+    }
+    expect(struck, "攻撃した").toBe(true);
+    expect(router.phase, "隙が明けて逃げに戻る").toBe("chase");
+    router.body.pos = { x: state.player.body.pos.x + 12, y: state.player.body.pos.y };
+    updateEnemies(state, FIXED_DT);
+    expect(router.phase, "turnCooldown の間は振り向かない").toBe("chase");
+  });
+
+  it("置き土産: 逃げながら mudInterval ごとに足元へ泥を撒く", () => {
+    const state = jinArena();
+    const from = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const list = [60, 70, 80].map((dx) => member(state, from, dx));
+    initJinMorale(state, from);
+    kill(state, list[0]!);
+    kill(state, list[1]!);
+    const router = list[2]!;
+    const def = enemyDef(router.defKey);
+    router.rout!.dropCd = FIXED_DT / 2;
+    const at = { ...router.body.pos };
+    stepRout(state, router, def, FIXED_DT, def.speed);
+    expect(terrainAt(state, at.x, at.y), "足元に泥").toBe("mud");
+    expect(router.rout!.dropCd).toBeCloseTo(JIN.rout.mudInterval, 5);
+  });
+
+  it("眠っている陣に合流すると急報: その陣はプレイヤーの方へ歩き出し、長居の歩き出しには数えない", () => {
+    const state = jinArena();
+    const p = state.player.body.pos;
+    const from = addJin(state, 1, ROOM_A, p);
+    const list = [20, 30, 40].map((dx) => member(state, from, dx));
+    const to = addJin(state, 2, ROOM_B, { x: p.x + 60, y: p.y }, "sleeping");
+    const sleepers = [60, 70].map((dx) => member(state, to, dx));
+    initJinMorale(state, from);
+    initJinMorale(state, to);
+    kill(state, list[0]!);
+    kill(state, list[1]!);
+    const router = list[2]!;
+    expect(router.rout?.toJin, "眠っている陣へ逃げる").toBe(to.id);
+    const def = enemyDef(router.defKey);
+    for (let i = 0; i < 200 && router.rout; i++) stepRout(state, router, def, FIXED_DT, def.speed);
+    expect(router.rout, "合流した").toBeUndefined();
+    expect(to.alarmed, "急報").toBe(true);
+    for (const e of sleepers) expect(e.ai?.roam, "プレイヤーのいた点へ歩く").toEqual(p);
+    expect(state.texts.some((t) => t.text === JIN_TEXT.alarm), "「急報」の文字").toBe(true);
+    state.floorTime = JIN.stir.delay + 0.1;
+    expect(stirSleepingJin(state), "急報で歩き出した陣は長居の歩き出しに選ばない").toBe(false);
   });
 });
 
@@ -414,6 +545,7 @@ describe("実際の階での敗走（step を通す）", () => {
     state.player.invulnTimer = 9999;
     step(state, withInput({}), FIXED_DT);
     expect(jin.phase).toBe("engaged");
+    allFlee(state);
     for (let i = 0; i < 40 && jin.phase !== "settled"; i++) {
       const target = state.enemies.filter((e) => e.jinId === jin.id && e.hp > 0).sort((x, y) => x.id - y.id)[0];
       if (!target) break;
