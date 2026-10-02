@@ -90,6 +90,13 @@ export interface HitOptions {
   silent?: boolean;
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
+  /**
+   * 出端の命中（system/readTiming.ts の yellowAt）。怯み値は溜め、赤に入っていて溢れても赤の攻撃は止めず技の後へ先送りする
+   * （PoiseHitOptions.readStart）。重い得物の出端でも「黄は打って止められる」を残しつつ、赤を止めるのは受け流しだけの約束を守る
+   */
+  readStart?: boolean;
+  /** 出端の止め（FEEL.hitstopCounter）を入れる。通常命中の上限の例外。多段の 2 発目以降には付けない */
+  counterStop?: boolean;
   /** 武器種の最終段・フィニッシュ派生の命中（docs/ideas/combat-feel-design.md D-2）。showHit のヒットストップに反映 */
   finisher?: boolean;
   /**
@@ -119,6 +126,8 @@ export interface OutgoingOptions {
   release?: boolean;
   /** 必ず会心にする（長銃の満ちた 1 発）。会心の乱数は従来どおり引く */
   forceCrit?: boolean;
+  /** 出端の一撃（与ダメのタグ counter が付く） */
+  counter?: boolean;
 }
 
 export interface OutgoingHit {
@@ -209,7 +218,7 @@ export function damageEnemy(
   stashFrozenDamage(state, enemy, amount);
   if (shatter) shatterFreeze(state, enemy);
   const shatterPoise = shatter ? STATUS.freeze.shatterPoise : 0;
-  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true });
+  const heavy = addPoise(state, enemy, poise + shatterPoise, { ignoreSuperArmor: opts.ignoreSuperArmor, canExecute: true, readStart: opts.readStart });
   if (heavy) onTraitStagger(state, enemy);
   // 反応ルール（間合い取り）。怯み値を入れた後に呼ぶので、この一撃で怯んだ敵は動かさない
   if (!opts.silent && kind !== "proc") behaviorOf(def).onStruck(state, enemy, def);
@@ -316,6 +325,8 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   if (opts.finisher) steps = Math.max(steps, opts.finisherHitstop ?? FEEL.hitstopFinisher);
   // 通常命中は 1 か所で上限を掛ける（段の JSON の hitstop が 269 か所あるので個別には直さない）
   if (!heavy && !opts.finisher && !opts.crit) steps = Math.min(steps, FEEL.hitstopNormalMax);
+  // 出端は読みの報酬なので上限の例外（止めの表: 出端 5）
+  if (opts.counterStop === true) steps = Math.max(steps, FEEL.hitstopCounter);
   hitstop(state, steps);
   shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）

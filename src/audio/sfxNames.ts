@@ -204,6 +204,8 @@ export const SFX_NAMES = [
   "finisherHit",
   /** 近接命中の低域のドン（hit と一緒に積む） */
   "hitThump",
+  /** 赤の間に振り始めた近接の命中（出端でない普通の命中。低く鈍い木の打音。1 振りに 1 回） */
+  "hitCommitted",
   // ---- 命中音の系統（刃・打撃・刺突・鞭打）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
   "hitSlashLight",
   "hitSlashMid",

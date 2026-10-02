@@ -56,7 +56,7 @@ import { drawBoonChoice, drawBoonHud } from "./boonUi";
 import { drawReforgeChoice } from "./reforgeUi";
 import { drawChainHud } from "./chainUi";
 import { drawDropFocus } from "./dropTooltip";
-import { isStaggered } from "../system/poise";
+import { attackCommitted, isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
@@ -1533,8 +1533,8 @@ export class Renderer {
     const base = hit ? sprite.white : sprite.frames;
     this.drawAnchored(sprite, pick(base, frame), x, bottom, sx, sy, rot, flip);
 
-    // 状態の重ね描き（同じ変形のシルエットを半透明で）
-    if (e.phase === "windup" && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
+    // 状態の重ね描き（同じ変形のシルエットを半透明で）。赤は予告の色と同じく攻撃が確定してから（黄の間は殴って止められる）
+    if (e.phase === "windup" && attackCommitted(e) && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
       ctx.globalAlpha = WINDUP_RED_ALPHA;
       this.drawAnchored(sprite, pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
     }

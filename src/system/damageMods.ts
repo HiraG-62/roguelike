@@ -43,6 +43,8 @@ export interface DamageContextOptions {
   skill?: boolean;
   /** 放出の一撃（タグ release） */
   release?: boolean;
+  /** 出端の一撃（タグ counter。共鳴の語「カウンター」と性質の「カウンターのダメージ」が読む） */
+  counter?: boolean;
 }
 
 /** 1 撃のタグ。近接 / 射撃 / proc・スキル由来・怯み中（proc 以外）・ボス・精鋭 */
@@ -50,6 +52,7 @@ export function buildContext(enemy: Enemy | null, kind: DamageKind, opts: Damage
   const tags = new Set<DamageTag>([kind]);
   if (opts.skill === true) tags.add("skill");
   if (opts.release === true) tags.add("release");
+  if (opts.counter === true) tags.add("counter");
   if (enemy !== null) addEnemyTags(tags, enemy, kind);
   return { kind, tags, elementShares: [], enemyId: enemy?.id ?? null, crit: false };
 }

@@ -79,6 +79,10 @@ export interface AttackState {
   lane: ButtonKey;
   /** 先行入力（buffered）がどちらのボタンか */
   bufferedLane: ButtonKey;
+  /** 今の振りを始めた state.time（出端の判定: 振り始めに敵が黄だったか。system/readTiming.ts） */
+  startedAt: number;
+  /** この振りで「出端か普通の命中か」の出来事（音・イベント・応手）を出し済みの敵。多段でも 1 振り × 1 体に 1 回にする */
+  readIds: Set<number>;
 }
 
 /**
@@ -239,6 +243,10 @@ export interface Enemy {
   phaseTimer: number;
   /** 今の予備動作の総秒（コミット窓の判定用。0 = 未記録で、窓なし = 従来どおり怯む） */
   windupTotal: number;
+  /** 今の予備動作が始まった state.time（system/readTiming.ts の markWindupStart）。省略は未記録 */
+  windupAt?: number;
+  /** その予備動作が赤になった state.time（noteCommit）。windupAt 未満は「まだ赤でない」 */
+  committedAt?: number;
   /** 連撃の 2 撃目以降の予備動作。最初からコミット（怯み値が溜まらず必ず出る）。startWindup が毎回戻す */
   chainWindup?: boolean;
   strikeDir: Vec;
@@ -565,6 +573,8 @@ export interface Projectile {
   lane?: ButtonKey;
   /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
   release?: { finisher: boolean; crit: boolean };
+  /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が黄だったか）。放出の弾だけが持つ */
+  firedAt?: number;
   /** 命中ごとに戻る気力（ThrowArtDef.mana。左の詠唱が近接の段の気力を引き継ぐ）。未指定は MANA.onShot */
   shotMana?: number;
 }
@@ -672,6 +682,8 @@ export type FxMarkKind =
   /** 受け流しの成功（描画は render/fxAttack.ts のスプライト） */
   | "parry"
   | "inscribe"
+  /** 出端の墨の飛沫（描画は render/effectsUi.ts。座標ハッシュで散らす） */
+  | "debanaSplash"
   /** ボス階の主の間への引き込み（value 0 = 元の位置で消える墨の渦、1 = 先で現れる渦） */
   | "lordPull";
 
@@ -720,6 +732,8 @@ export interface EffectsState {
   heartbeatTimer: number;
   /** 同じ語を続けて出さないための、語ごとに最後に出した state.time（addFloatingTextOnce の sameWordSec。使うまで作らない: 階の構築の指紋 floorIdentity.test.ts が state 全体を JSON にするため） */
   wordAt?: Record<string, number>;
+  /** 音ごとに最後に積んだ state.time（system/debana.ts の pushSfxSpaced。同じ音を短い間に重ねない。使うまで作らない） */
+  sfxAt?: Record<string, number>;
 }
 
 /** 継続ダメージの浮き文字の束（敵 1 体ぶん） */

@@ -12,6 +12,7 @@ import { spawnBurst, spawnRing, addFloatingTextOnce } from "./effects";
 import { isEngaged } from "./engagement";
 import { gainMana } from "./mana";
 import { addPoise } from "./poise";
+import { yellowAt } from "./readTiming";
 import { applyBurn, applyChill, applyStatus, chainLightning, enemiesInRadius, explodeAt, hasStatus, removeStatus } from "./statusEffects";
 import { afflictionKinds, afflictionList, tickTraitClocks, traitTriggerIcdMul } from "./traitHooks";
 
@@ -104,16 +105,17 @@ export function conditionMet(state: GameState, condition: TriggerCondition, ctx?
     case "selfAfflicted":
       return afflictionKinds(p.status) > 0;
     default:
-      return targetConditionMet(targetOf(state, ctx), condition);
+      return targetConditionMet(state, targetOf(state, ctx), condition);
   }
 }
 
 /** 対象（敵）を見る条件。対象を探すのはこの種類の条件のときだけ（毎ヒットの判定を重くしない） */
-function targetConditionMet(target: Enemy | undefined, condition: TriggerCondition): boolean {
+function targetConditionMet(state: GameState, target: Enemy | undefined, condition: TriggerCondition): boolean {
   if (target === undefined) return false;
   switch (condition) {
     case "targetInWindup":
-      return target.phase === "windup";
+      // 予告が黄の間だけ（赤は攻撃が確定していて、殴って止められない。system/readTiming.ts）
+      return yellowAt(target, state.time);
     case "targetGuarded":
       return hasStatus(target.status, "guarded");
     case "targetMultiStatus":

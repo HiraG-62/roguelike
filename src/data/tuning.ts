@@ -233,7 +233,7 @@ export const MENU_BUDGET = BALANCE.feel.MENU_BUDGET;
  * dashAttack（ダッシュ中に攻撃 → ダッシュ終了と同時に前方へ長い一閃）は balance/weapons/ の ACTION_DASH_ATTACK
  */
 export const ACTION = {
-  counter: { ...BALANCE.combat.ACTION.counter, text: ACTION_TEXT.counter },
+  counter: BALANCE.combat.ACTION.counter,
   lastKill: { ...BALANCE.combat.ACTION.lastKill, text: ACTION_TEXT.lastKill },
   regain: BALANCE.combat.ACTION.regain,
   wallSplat: BALANCE.combat.ACTION.wallSplat,

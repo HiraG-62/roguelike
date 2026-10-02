@@ -167,10 +167,16 @@ const COMBAT_TIPS: readonly TipDef[] = [
     body: `怯みが解けた直後の状態（${POISE.guardedTime} 秒、ボスは ${POISE.bossGuardedTime} 秒）。受ける怯み値が ×${POISE.guardedMul}（ボスは ×${POISE.bossGuardedMul}）になる。背面の一撃は堅守を無視する。`,
   },
   {
+    key: "debana",
+    term: "出端",
+    category: "combat",
+    body: `敵の予告が黄の間に振り始めた近接、または撃った放出の弾が当たると出端になる。命中の時に赤へ変わっていても取れる。ダメージ ×${ACTION.counter.damageMul}・怯み値 ×${ACTION.counter.poiseMul}・気力の回収 ×${MANA.onCounterMul}で、盾騎士の正面の守りも割り、命中が少し長く止まる。赤の間に振り始めた一撃は普通の命中で、鈍い音が鳴る。赤の攻撃は止まらず、技の後で怯む。`,
+  },
+  {
     key: "counter",
     term: "カウンター",
     category: "combat",
-    body: `敵の予備動作中に近接を当てる。ダメージ ×${ACTION.counter.damageMul}・気力の回収 ×${MANA.onCounterMul}で、盾騎士の正面の守りも割る。怯み値は増えない（怯ませるのは読みと受け流し）。`,
+    body: "出端と受け流しの総称。成立すると起点「カウンター時」・共鳴の語「カウンター」が働く。",
   },
   { key: "regain", term: "リゲイン", category: "combat", body: "被弾してしばらくの間、近接を当てると失った生命を取り戻せる。" },
   { key: "status", term: "状態異常", category: "combat", body: "敵にも自分にも付く。同じものを積み切ると上位の状態へ昇華する。体力が高いほど自分に付いたものが早く切れる。" },

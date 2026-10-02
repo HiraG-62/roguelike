@@ -165,7 +165,7 @@ export interface SustainDef {
   };
   /** 会心率の上乗せ（0..1） */
   readonly critAdd?: number;
-  /** 予備動作中の敵への与ダメ倍率 */
+  /** 予告が黄の（予備動作中で、まだ攻撃が確定していない）敵への与ダメ倍率 */
   readonly vsWindup?: number;
   /** その状態異常を持つ敵への与ダメ倍率 */
   readonly vsStatus?: { readonly status: StatusKind; readonly mul: number };
@@ -597,7 +597,7 @@ function spearSet(): UltimateSet {
   return [
     instantDef(m, "dragonPierce", "龍穿", "前方へ長い突きを放ち、並んだ敵をまとめて貫く", melee(m), (n) => [swing(sub(n, "swing"), THRUST)]),
     instantDef(m, "meteorThrust", "流星突き", "照準の方向へ突進し、通り道の敵を 3 度突く", melee(m), (n) => [lunge(sub(n, "lunge"))]),
-    sustainDef(m, "formation", "陣の構え", "持続。突きが長くなり、どこに当てても穂先の威力。予備動作中の敵へ強い", (n) => ({
+    sustainDef(m, "formation", "陣の構え", "持続。突きが長くなり、どこに当てても穂先の威力。予告が黄の敵へ強い", (n) => ({
       ...sustainCore(n),
       patch: patchOf(n, { tipAll: true }),
     })),
@@ -695,7 +695,7 @@ function katanaSet(): UltimateSet {
   return [
     instantDef(m, "ittou", "一刀両断", "照準の方向へ踏み込み、通り道を重い一太刀で断つ。踏み込む間は無敵", melee(m), (n) => [lunge(sub(n, "lunge"))]),
     instantDef(m, "swallowDance", "燕舞", "身を翻して周囲を 3 度斬る", melee(m), (n) => [swing(sub(n, "swing"), CIRCLE)]),
-    sustainDef(m, "mushin", "無想", "持続。居合の溜めが速くなり、予備動作中の敵へ大きく強い", (n) => ({ ...sustainCore(n), patch: patchOf(n) })),
+    sustainDef(m, "mushin", "無想", "持続。居合の溜めが速くなり、予告が黄の敵へ大きく強い", (n) => ({ ...sustainCore(n), patch: patchOf(n) })),
   ];
 }
 
@@ -775,7 +775,7 @@ function longarmSet(): UltimateSet {
   return [
     instantDef(m, "armorPiercer", "徹甲弾", "並んだ敵をすべて貫く重い 1 発を撃つ", RANGED, (n) => [volley(sub(n, "volley"), RANGED)]),
     instantDef(m, "sweepFire", "掃射", "前方の扇へ 8 発を撃ち広げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED)]),
-    sustainDef(m, "sniperBreath", "狙撃手の息", "持続。弾が速くなり、予備動作中の敵へ強く、立ち止まると速く撃てる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
+    sustainDef(m, "sniperBreath", "狙撃手の息", "持続。弾が速くなり、予告が黄の敵へ強く、立ち止まると速く撃てる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 

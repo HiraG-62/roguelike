@@ -57,8 +57,9 @@ import {
   updateSkills,
 } from "./skills";
 import { fireTrigger, tickTriggerCooldowns } from "./triggers";
-import { enemyTarget, pushEvent, pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
-import { onTraitCounter } from "./traitHooks";
+import { pushPlayerEvent, pushSwingEvent, pushSwingHitEvent } from "../core/events";
+import { fireDebana, noteCommittedHit } from "./debana";
+import { NEVER_TIME, yellowAt } from "./readTiming";
 import { boonMoveMul, boonSwingCombo, foldBoonStats, hasBoon, onBoonDash } from "./boons";
 import { isDeepDepth } from "./chapters";
 import { isAllied } from "./rules";
@@ -142,6 +143,8 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
       hitTick: 0,
       lane: "primary",
       bufferedLane: "primary",
+      startedAt: NEVER_TIME,
+      readIds: new Set(),
     },
     shootCooldown: 0,
     energy: 0,
@@ -913,6 +916,9 @@ function spinWhileCharging(state: GameState, charge: MeleeChargeDef, before: num
   const step = scaleStep(actionStats(state), spin.step, playerMoveset(state));
   p.attack.dir = { ...p.facing };
   p.attack.hitIds.clear();
+  // 回しは区切りごとが 1 つの突き。その時点の予告の色で出端を判定する
+  p.attack.startedAt = state.time;
+  p.attack.readIds.clear();
   resolveMeleeHits(state, step);
   spawnTrail(state, step);
   pushSfx(state, SPIN_SFX);
@@ -1027,6 +1033,8 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
   if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
   a.hitIds.clear();
+  a.readIds.clear();
+  a.startedAt = state.time;
   a.hitTick = 0;
   a.dir = { ...p.facing };
   if (step.invuln > 0) p.invulnTimer = Math.max(p.invulnTimer, step.invuln);
@@ -1311,14 +1319,19 @@ function stepHitEnergy(state: GameState, step: Readonly<MeleeStep>): number {
   return meleeHitEnergy(baseSec, step.hits);
 }
 
-/** 近接 1 ヒット。敵の windup 中ならカウンターヒット。tip は先端に当たった */
+/**
+ * 近接 1 ヒット。予告が黄の間に振り始めた一撃なら出端（命中の瞬間に赤へ入っていても。system/readTiming.ts）。tip は先端に当たった。
+ * 威力・怯み値は多段の命中ごとに掛かるが、出来事（音・イベント・応手）は 1 振り × 1 体に 1 回
+ */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
   const p = state.player;
-  const counter = isCounterable(e);
+  const counter = yellowAt(e, p.attack.startedAt);
+  const firstOnEnemy = !p.attack.readIds.has(e.id);
+  p.attack.readIds.add(e.id);
   const tipMul = tipMultipliers(step, tip);
   // 型の印（穂先の戦意・鎖の繋ぎ・裂きが開く傷。system/formMarks.ts）
   const formMul = onFormMeleeHit(state, e, step, tip, counter);
-  const out = rollOutgoing(state, e, step.damage * tipMul.damage * formMul.damage, "melee", { release: step.release });
+  const out = rollOutgoing(state, e, step.damage * tipMul.damage * formMul.damage, "melee", { release: step.release, counter });
   const amount = counter ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
   const weight = WEAPON.weightClass[playerMoveset(state).weight];
   const baseHitstop = step.hitstop ?? (step.heavy ? FEEL.hitstopHeavy : weight.hitstop);
@@ -1333,7 +1346,9 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
   damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
     poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
-    hitstopSteps: baseHitstop + (counter ? ACTION.counter.hitstopBonus : 0),
+    hitstopSteps: baseHitstop,
+    readStart: counter,
+    counterStop: counter && firstOnEnemy,
     energy: stepHitEnergy(state, step),
     kind: "melee",
     crit: out.crit,
@@ -1344,11 +1359,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
     lane: p.attack.lane,
     impact: { family: hitFamily(playerMoveset(state).key), weight: meleeHitWeight(step, p.attack.combo), weapon: playerMoveset(state).key },
   });
-  if (counter) showCounter(state, pos);
-  if (counter) onTraitCounter(state, e);
-  if (counter) pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(e) });
-  // 右の溜め（居合）を離した振りのカウンターは居合の応手、それ以外はカウンターの応手
-  if (counter) noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
+  if (firstOnEnemy) noteReadOutcome(state, e, pos, counter);
   // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
   if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
   gainMeleeMana(state, step.mana * tipMul.mana, counter);
@@ -1407,16 +1418,19 @@ export function counterPoise(step: Readonly<MeleeStep>, counter: boolean): numbe
   return counter ? step.poise * ACTION.counter.poiseMul : step.poise;
 }
 
-/** カウンターヒットになる敵の状態（予備動作中） */
-export function isCounterable(e: Enemy): boolean {
-  return e.phase === "windup";
-}
-
-function showCounter(state: GameState, pos: Vec): void {
-  const c = ACTION.counter;
-  addHeadLabel(state, pos, c.text, c.color, c.textLife);
-  spawnBurst(state, pos, c.color, c.particles, 150, 0.35, 2);
-  pushSfx(state, "counter");
+/**
+ * 命中の読みの結果の出来事（1 振り × 1 体に 1 回）。出端なら音・粒・白黒・墨の飛沫と起点・応手、
+ * 赤の間の普通の命中なら鈍い打音だけ（倍も盾抜けも無いと音で伝える）
+ */
+function noteReadOutcome(state: GameState, e: Enemy, pos: Vec, counter: boolean): void {
+  const p = state.player;
+  if (!counter) {
+    noteCommittedHit(state, e);
+    return;
+  }
+  fireDebana(state, e, pos);
+  // 右の溜め（居合）を離した振りの出端は居合の応手、それ以外はカウンターの応手
+  noteRiposte(state, p.attack.chargeLevel > 0 && p.attack.lane === "secondary" ? "iai" : "counter", e);
 }
 
 /** 性質「弾斬り」: 敵弾を斬って消す（撃ち返しはしない） */
@@ -1701,7 +1715,8 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
       ...(override.lane ? { lane: override.lane } : {}),
-      ...(override.release ? { release: { ...override.release } } : {}),
+      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が黄だったか。system/readTiming.ts）
+      ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
       ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
     });
   }

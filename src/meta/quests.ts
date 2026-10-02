@@ -251,7 +251,7 @@ export const QUESTS: Readonly<Record<QuestKey, QuestDef>> = {
   kingslayer: { name: "王殺し", desc: "ボスを 2 体倒す。", goal: 2, measure: (s) => s.bossKills, reward: { kind: "relic", relic: "plainBlade" } },
   untouched: { name: "無傷の階", desc: "1 度も被弾せずに階段を降りる。", goal: 1, measure: (s) => s.floorsNoHurt, reward: { kind: "page", page: "enemy" }, keywords: ["ward", "dash"] },
   justDancer: { name: "見切りの舞", desc: "見切りを 15 回決める。", goal: 15, measure: (s) => s.justDodges, reward: { kind: "job", job: "shadow" }, keywords: ["just", "dash"] },
-  counterman: { name: "返し手", desc: "カウンターを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "starReader" }, keywords: ["counter"] },
+  counterman: { name: "返し手", desc: "出端か受け流しを 10 回決める。", goal: 10, measure: (s) => s.counters, reward: { kind: "relic", relic: "starReader" }, keywords: ["counter"] },
   plague: { name: "五重苦", desc: "敵に状態異常を 5 種類付ける。", goal: 5, measure: (s) => s.statusKinds, reward: { kind: "relic", relic: "layeredNecklace" }, keywords: ["burn", "chill", "shock", "poison", "bleed"] },
   cursedDepth: {
     name: "呪いを抱く",

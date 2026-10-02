@@ -57,8 +57,9 @@
 | 見切り（見切り！） | just / justDodge | ダッシュ無敵中に攻撃を受けて回避した瞬間（旧表記「ジャスト」「JUST」）。スロー + ゲージ増 + 気力回収 | `system/combat.ts` |
 | 見切り / 見切った | onJustDodge | 上の行為。説明文での名前（旧表記「ジャスト回避」）。「見切りの息吹」「見切りの記憶」など既存の名前と同じ語で揃う | `system/boons.ts`、`loot/affixes.ts`、`loot/stats.ts`、`loot/triggers.ts` |
 | 見切り斬り（祝福。撤去） | justSlash | 段取り 7b（2026-09-30）で祝福ごと撤去。語は他で使わない | - |
-| カウンター（カウンター！） | counter | 敵の予備動作中に近接を当てる。ダメージ ×1.5・気力 ×2・盾騎士の正面の守りを割る。怯み値は等倍（`ACTION.counter.poiseMul` 1。core-synthesis 3-7 で ×2 から戻した。怯ませるのは読みと受け流し） | `data/tuning.ts` ACTION.counter |
-| ガードブレイク | guard break | 盾騎士の正面ブロックをカウンターで割る | `system/elites.ts` GUARD_BREAK_TEXT |
+| 出端 | debana（`onCounter` の tag） / `ACTION.counter` | 敵の予告が黄の間に振り始めた近接、または撃った放出の弾が当たること（命中の時に赤へ入っていても成立）。ダメージ ×1.5・怯み値 ×1.5・気力 ×2・盾抜け・止め 5。**頭上の文字は出さず**、音・粒・白黒・墨の飛沫で見せる。赤の間に振り始めた一撃は普通の命中（音 `hitCommitted`）。仕組みの名として Tips と本表にだけ置く | `system/readTiming.ts`・`system/debana.ts` |
+| カウンター | counter | 出端と受け流しの総称（起点「カウンター時」・共鳴の語・来歴の節目）。内部 key `counter` / `onCounter`（tag で出端 / 受け流しを分ける） | `data/tuning.ts` ACTION.counter |
+| ガードブレイク | guard break | 盾騎士の正面ブロックを出端で割る | `system/elites.ts` GUARD_BREAK_TEXT |
 | ブロック | block | 盾騎士の正面で攻撃が弾かれた。ブロック時も怯み値の 50% は溜まる | `system/elites.ts` BLOCK_TEXT |
 | パリィ | parry | スキル。再使用型、近接の衝撃波 | `skills/data.ts` |
 | 受け流し（受け流し） | parry（`PARRY`）/ 剣の右 1 段目 `hold.parry` | 全武器共通の行動（2026-09-30。既定 R / 中クリック / パッド RB）。窓の間の被弾を無効にして敵を怯ませ、コミットした攻撃も止める。外すと硬直。スキル石「パリィ」とは別物 | `system/parry.ts` |

@@ -3,7 +3,6 @@ import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { dist, normalize, sub, type Vec } from "../core/vec";
-import { ACTION_TEXT } from "../data/actionText";
 import { enemyDef } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
 import { MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
@@ -280,10 +279,31 @@ function observeReactions(
   counts.maxRedTelegraphs = Math.max(counts.maxRedTelegraphs, red);
 }
 
+/** 出来事 onCounter / onParry を最後に数えた state.time */
+interface SeenCounter {
+  counter: number;
+  parry: number;
+}
+
+/**
+ * 出端の数。onCounter は出端と受け流しの両方が出す（受け流しは onParry も並べる）ので、同じステップの onCounter から onParry を引く。
+ * 浮き文字では数えない（出端は文字を出さない）。出来事は step の終わりに空になるため、直近の記録 state.recent の時刻の変化で拾う
+ */
+function countDebana(state: GameState, seen: SeenCounter): number {
+  const counter = state.recent.onCounter?.lastTime ?? Number.NEGATIVE_INFINITY;
+  const parry = state.recent.onParry?.lastTime ?? Number.NEGATIVE_INFINITY;
+  const newCounter = counter > seen.counter;
+  const newParry = parry > seen.parry;
+  seen.counter = counter;
+  seen.parry = parry;
+  return newCounter && !newParry ? 1 : 0;
+}
+
 function createStepObserver(): StepObserver {
   const counts = emptyCounts();
   const recorder = createCombatRecorder();
   const seenTexts = new WeakSet<object>();
+  const seen: SeenCounter = { counter: Number.NEGATIVE_INFINITY, parry: Number.NEGATIVE_INFINITY };
   /** step の直前の敵ごとの観測（間合い取りの立ち上がり・予備動作の待ちの検出用） */
   let prev = new Map<number, { retreating: boolean; windup: boolean; timer: number }>();
   return {
@@ -305,9 +325,9 @@ function createStepObserver(): StepObserver {
           counts.hitsTaken++;
           counts.damageTaken += hurt;
         }
-        if (t.text === ACTION_TEXT.counter) counts.counters++;
         if (t.text === JUST_DODGE_TEXT) counts.dodges++;
       }
+      counts.counters += countDebana(state, seen);
       observeReactions(state, counts, prev);
       for (const e of state.enemies) {
         if (e.hp <= 0) continue;

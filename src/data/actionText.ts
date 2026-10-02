@@ -4,8 +4,6 @@
  * 数値・色は src/data/balance/combat/ の "ACTION"。tuning.ts の ACTION がここと合流する
  */
 export const ACTION_TEXT = {
-  /** カウンターヒット: 敵の windup 中に近接を当てる */
-  counter: "カウンター！",
   /** ラストキル・スロー: ロック中の部屋で最後の敵を倒した瞬間 */
   lastKill: "殲滅",
 } as const;

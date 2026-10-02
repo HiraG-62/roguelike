@@ -43,6 +43,7 @@ electron/   Electron 版の main / preload / IPC / セーブファイル（src �
 - `limits.ts` 性能の歯止め（`enforceLimits`。step の末尾でプレイヤーの弾・スキルの弾・設置物の置き場ごとに `LIMITS` を超えた分を古い順に消し、`ruleRun.trimmed` に数える。数値は `data/balance/combat/LIMITS.json`）
 - `attributes.ts` ステータスの実効値（`effectiveAttr`）・威力計算（`scaled`）・実効値の畳み込み（`deriveAttributes`）
 - `mana.ts` 気力の増減（`refillMana` / `tickMana` / `canAfford` / `spendMana`）。`core/game.ts` の `step` から直接呼ぶ
+- `readTiming.ts` 読み合いの時刻（出端の判定。`markWindupStart` を `e.phase = "windup"` を書く全ての所で呼ぶ・`noteCommit` が赤になった時刻を `updateEnemies` の後に書く・`yellowAt(e, t)` 時刻 t に予告が黄だったか。`poise.ts` から再 export。設計は `docs/ideas/reading-core-impl.md`）/ `debana.ts` 出端の出来事（`fireDebana` 音・粒・墨の飛沫・`onCounter`〈tag debana〉・起点、`noteCommittedHit` 赤の命中の鈍い音、`pushSfxSpaced` 同じ音を間を空けて積む）
 - `poise.ts` 怯みの蓄積・減衰・堅守・ダウン・処刑・背面の一撃（`addPoise` / `applyStagger` / `isStaggered` / `decayPoise` / `onStaggerEnd`）。敵の攻撃のコミット（`windupCommitted` 予備動作の後半は溜まらない / `attackCommitted` / strike 中に満ちた怯みは `settlePendingStagger` で攻撃の後へ先送り。予備動作の総秒は `Enemy.windupTotal`）。独立した `step` ステップは持たず `combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれる
 - `damageMods.ts` 与ダメの増・倍の集約（`buildContext` / `traitIncreased` / `collectMore`。`combat.ts` の `rollOutgoing` はこれだけを呼ぶ）
 - `reforge.ts` 改鋳の 3 択（5 の倍数の階のボスの後。`offerReforges` / `updateReforgeChoice`。祝福の 3 択と同じ入力経路）と flags の挙動（`tickReforges` ほか）

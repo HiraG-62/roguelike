@@ -4,6 +4,7 @@ import { type EnemyDef, depthDamage, enemyDef } from "../data/enemies";
 import { BOSS, FEEL } from "../data/tuning";
 import { damagePlayer } from "./combat";
 import { shake, spawnBurst } from "./effects";
+import { markWindupStart } from "./readTiming";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { fanDirections, fireEnemyBullet } from "./enemyTraits";
 import { circlesOverlap, overlapsWall } from "./physics";
@@ -111,6 +112,7 @@ function approach(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, d: number
 function beginWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec): void {
   const bereaved = (e.ai?.stage ?? STAGE_PAIRED) >= STAGE_BEREAVED;
   e.phase = "windup";
+  markWindupStart(state, e);
   e.phaseTimer = scaledWindup(def.windup * (bereaved ? BOSS.twinKnights.bereavedWindupMul : 1), state.depth);
   e.windupTotal = e.phaseTimer;
   e.strikeDir = dir;

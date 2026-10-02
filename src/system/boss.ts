@@ -6,6 +6,7 @@ import { generateItem } from "../loot/generator";
 import type { Rarity } from "../loot/types";
 import { type Rect, TILE_SIZE, Tile, rectCenter, rectCenterPx, setTile } from "../map/grid";
 import { boonHeartsAllowed } from "./boons";
+import { markWindupStart } from "./readTiming";
 import { addFloatingText, bossKillFx, shake, spawnBurst, spawnRing } from "./effects";
 import { createEnemy, moveEnemy, scaledWindup } from "./enemies";
 import { spawnBoneWall } from "./hazards";
@@ -285,6 +286,7 @@ function updateBoneLord(state: GameState, e: Enemy, def: EnemyDef, dt: number): 
       }
       if (e.attackCooldown > 0) return;
       e.phase = "windup";
+      markWindupStart(state, e);
       e.phaseTimer = scaledWindup(def.windup, state.depth);
       e.windupTotal = e.phaseTimer;
       ai.counter = 0;

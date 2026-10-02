@@ -91,7 +91,7 @@ const RIPOSTE_TEXT: Readonly<Record<RiposteSource, string>> = {
   justDodge: "見切り",
   guardBlock: "構えの受け止め",
   bulletCut: "敵弾払い",
-  iai: "居合のカウンター",
+  iai: "居合の出端",
   pullInterrupt: "予備動作中の敵の引き寄せ",
   recallCut: "戻りの弾での敵弾消し",
   chargeEndure: "溜め中の被弾",

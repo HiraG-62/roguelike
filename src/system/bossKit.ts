@@ -8,6 +8,7 @@ import { damagePlayer } from "./combat";
 import { addFloatingText, shake } from "./effects";
 import { type EnemyTelegraph, moveEnemy } from "./enemies";
 import { applyStagger, settlePendingStagger } from "./poise";
+import { markWindupStart } from "./readTiming";
 import { circlesOverlap } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -137,6 +138,7 @@ export function runBossCycle(state: GameState, e: Enemy, def: EnemyDef, dt: numb
 /** 追跡から予備動作へ（連撃の始まり） */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, h: BossHooks): void {
   e.phase = "windup";
+  markWindupStart(state, e);
   e.chainWindup = false;
   if (e.ai) e.ai.chain = 0;
   pushSfx(state, "enemyWindup");
@@ -156,6 +158,7 @@ function chainFollowUp(state: GameState, e: Enemy, def: EnemyDef, h: BossHooks):
   ai.chain = (ai.chain ?? 0) + 1;
   ai.move = next;
   e.phase = "windup";
+  markWindupStart(state, e);
   pushSfx(state, "enemyWindup");
   h.beginWindup(state, e, def);
   e.phaseTimer *= h.chainWindupMul?.(e, next) ?? BOSS.rules.chainWindupMul;

@@ -61,6 +61,20 @@
     "particles": 12,
     "color": "#ffd870"
   },
+  "debanaSplash": {
+    "_fields": {
+      "life": "出端の墨の飛沫が消えるまでの長さ（秒）。文字を出さない代わりに出端を見せる",
+      "radius": "飛沫が届く半径（論理 px）",
+      "drops": "飛び散る墨の粒の数",
+      "inkColor": "墨の粒の色",
+      "edgeColor": "粒の縁の色（出端の色）"
+    },
+    "life": 0.32,
+    "radius": 20,
+    "drops": 9,
+    "inkColor": "#120d1c",
+    "edgeColor": "#ff9040"
+  },
   "lordPull": {
     "_fields": {
       "life": "墨の渦が消える（現れる）演出の長さ（秒）",

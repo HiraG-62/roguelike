@@ -10,6 +10,7 @@ import { MOVESETS } from "../data/weapons";
 import { recordProvenance } from "../loot/provenance";
 import type { AttackMode } from "../loot/types";
 import { SKILL } from "../skills/data";
+import { yellowAt } from "./readTiming";
 import { gainEnergy, healSustained, isLastKillInEngagedRoom, pacifistMercyClamp } from "./combat";
 import { addFloatingText, spawnRing, addHeadLabel } from "./effects";
 import { isEngaged } from "./engagement";
@@ -154,6 +155,11 @@ function rhythmBonus(state: GameState): number {
   return bonus;
 }
 
+/** 読み勝ちの誓いが報いる近接か: 予告が黄の間に振り始めた一撃（出端）。命中の瞬間の色ではなく振り始めで決める */
+function readOathHit(state: GameState, enemy: Enemy): boolean {
+  return yellowAt(enemy, state.player.attack.startedAt);
+}
+
 /**
  * 誓約の倍（読み勝ち。楔・遠間などの常時の倍は Modifier〈keystones.ts の keystoneModifiers〉）。
  * 1 つの誓約につき 1 要素（system/damageMods.ts の collectMore が集める）。proc（燃焼・トリガーの衝撃波など）には掛けない
@@ -161,7 +167,7 @@ function rhythmBonus(state: GameState): number {
 export function keystoneMore(state: GameState, enemy: Enemy | null, kind: DamageKind): MoreMul[] {
   const out: MoreMul[] = [];
   if (kind === "proc" || state.stats.keystones.length === 0) return out;
-  if (enemy !== null && kind === "melee" && hasKeystone(state, KS.readOath) && enemy.phase !== "windup") {
+  if (enemy !== null && kind === "melee" && hasKeystone(state, KS.readOath) && !readOathHit(state, enemy)) {
     out.push(oathMore(KS.readOath, KEYSTONE.readOffWindupDamageMul));
   }
   return out;
@@ -279,7 +285,7 @@ function guardCompensation(enemy: Enemy, ratio: number): number {
 function keystonePoiseMul(state: GameState, enemy: Enemy, kind: DamageKind): number {
   if (state.stats.keystones.length === 0) return 1;
   if (hasKeystone(state, KS.unshaken)) return 0;
-  if (kind === "melee" && hasKeystone(state, KS.readOath)) return enemy.phase === "windup" ? KEYSTONE.readPoiseMul : 0;
+  if (kind === "melee" && hasKeystone(state, KS.readOath)) return readOathHit(state, enemy) ? KEYSTONE.readPoiseMul : 0;
   return 1;
 }
 

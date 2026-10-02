@@ -11,6 +11,7 @@ import { chipBoneWallsByShots, damageBoneWalls, laserEnd, spawnBomb, spawnBoneWa
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
 import { chillFactor, createPoiseState, hasStatus, inflictOnPlayer, isFeared, isHalted, isSilenced } from "./statusEffects";
 import { applyStagger, initEnemyPoise, isStaggered, settlePendingStagger } from "./poise";
+import { markWindupStart, NEVER_TIME, noteCommit } from "./readTiming";
 import { createStatusBag } from "../core/status";
 import { bossTelegraph, isBossDriven, onBossDeath, updateBossEnemy } from "./boss";
 import type { EnemyTelegraph } from "./behaviors/base";
@@ -153,6 +154,8 @@ export function createEnemy(state: GameState, def: EnemyDef, pos: Vec, roomIndex
     phase: spawning ? "spawning" : "idle",
     phaseTimer: spawning ? SPAWN_TIME : 0,
     windupTotal: 0,
+    windupAt: NEVER_TIME,
+    committedAt: NEVER_TIME,
     strikeDir: { x: 1, y: 0 },
     attackCooldown: def.attackInterval * (0.5 + state.rng.next()),
     hitFlash: 0,
@@ -187,7 +190,7 @@ export function updateEnemies(state: GameState, dt: number): void {
     const edt = dt * chillFactor(e);
     applyKnock(state, e, def, dt);
     // 先送りされた怯みの安全網（個別 AI のボスなど endStrike を通らない技の後）。行動停止の判定より前に払う
-    if (e.phase !== "strike") settlePendingStagger(state, e);
+    if (e.phase !== "strike" && e.phase !== "windup") settlePendingStagger(state, e);
     // 行動停止（怯み・凍結・麻痺）中は AI も攻撃間隔も止まる。予備動作は怯みなら取り消し済み、麻痺・凍結なら一時停止
     if (isHalted(e)) continue;
     e.animTime += edt;
@@ -247,6 +250,8 @@ export function updateEnemies(state: GameState, dt: number): void {
     }
     if (def.behavior === "wisp") touchWisp(state, e, def);
   }
+  // 赤になった時刻を残す（出端の判定 yellowAt が「プレイヤーが押した時点で黄だったか」を引く。system/readTiming.ts）
+  for (const e of state.enemies) noteCommit(state, e);
   separate(state, dt);
   handleDeaths(state);
   state.enemies = state.enemies.filter((e) => e.hp > 0);
@@ -604,6 +609,7 @@ function beamOffsetDeg(def: EnemyDef, index: number): number {
 /** 予備動作に入る（1 撃目・2 撃目以降の共通）。base は深度前の基準秒 */
 function startWindup(state: GameState, e: Enemy, def: EnemyDef, dir: Vec, base: number): void {
   e.phase = "windup";
+  markWindupStart(state, e);
   e.phaseTimer = scaledWindup(base, state.depth, eliteWindupMul(e));
   e.windupTotal = e.phaseTimer;
   e.chainWindup = false;

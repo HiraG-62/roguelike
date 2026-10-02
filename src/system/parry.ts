@@ -1,5 +1,5 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
-import { enemyTarget, pushEvent } from "../core/events";
+import { type CounterTag, enemyTarget, pushEvent } from "../core/events";
 import { type Vec, angle, length, sub } from "../core/vec";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
@@ -144,7 +144,7 @@ export function parrySucceed(state: GameState, attacker: Enemy | undefined, boss
   if (!attacker || attacker.hp <= 0) return;
   stopAttacker(state, attacker, bossPoise);
   onTraitCounter(state, attacker);
-  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, ...enemyTarget(attacker) });
+  pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, tag: "parry" satisfies CounterTag, ...enemyTarget(attacker) });
 }
 
 /**

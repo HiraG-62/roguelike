@@ -60,6 +60,8 @@ export function windupCommitted(e: Enemy): boolean {
   return e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
 }
 
+export { markWindupStart, noteCommit, yellowAt } from "./readTiming";
+
 /** 攻撃が出ることが確定している（予告の色が「必ず出る」になる）: コミット窓に入った予備動作か攻撃中。render も読む */
 export function attackCommitted(e: Enemy): boolean {
   return e.phase === "strike" || windupCommitted(e);
@@ -78,6 +80,11 @@ export interface PoiseHitOptions {
    * addPoise から処刑すると撃破の報酬・トリガーが抜けたまま消える
    */
   canExecute?: boolean;
+  /**
+   * 出端の命中: コミット窓（赤）の中でも怯み値を溜める。溢れても赤の攻撃は止めず、攻撃中と同じく先送りにして技の後で怯ませる。
+   * 赤を今すぐ止められるのは受け流しだけ、という約束は崩さない
+   */
+  readStart?: boolean;
   /** 受け流し: コミット窓と攻撃中の先送りを破る（窓の中でも溜め、攻撃中でも即怯ませる） */
   ignoreCommit?: boolean;
 }
@@ -129,14 +136,15 @@ export function addPoise(state: GameState, e: Enemy, amount: number, opts: Poise
   if (cannotAccumulate(e)) return false;
   const hitOpts = opts.fromBehind === undefined ? { ...opts, fromBehind: isBehind(state, e) } : opts;
   // コミット窓の中は溜まらない（読んで潰せるのは窓の前だけ）
-  if (opts.ignoreCommit !== true && windupCommitted(e)) return false;
+  const inCommitWindow = windupCommitted(e);
+  if (opts.ignoreCommit !== true && inCommitWindow && opts.readStart !== true) return false;
   const gained = amount * playerPoiseDealtMul(state) * poiseTakenMul(e, hitOpts) * jinBonusMul(state, e, "poiseTaken");
   if (gained <= 0) return false;
   e.poise.damage += gained;
   e.poise.sinceHit = 0;
   if (e.poise.damage < e.poise.max) return false;
   // 攻撃中は満杯で止めて先送り（1 撃は出し切らせる）。怯むのは技の終わり
-  if (opts.ignoreCommit !== true && e.phase === "strike") {
+  if (opts.ignoreCommit !== true && (e.phase === "strike" || inCommitWindow)) {
     e.poise.damage = e.poise.max;
     e.poise.pending = true;
     return false;
