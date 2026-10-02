@@ -13,6 +13,7 @@ import { applyOnHitStatus, applyStatus, findStatus } from "./statusEffects";
 import { createEnemy, moveEnemy } from "./enemies";
 import { consumeCorpse, nearestCorpse, spawnSpot } from "./enemyTraits";
 import { bossArmorBlocks, bossReflects, bossTakenMul } from "./boss";
+import { yellowAt } from "./readTiming";
 import { rallyTakenMul, seedTerrain } from "./enemyTerrain";
 import { placeTerrain } from "./terrain";
 import { manaRegenAllowed } from "./keystones";
@@ -597,8 +598,24 @@ export function isFrontal(e: Enemy, dir: Vec): boolean {
 }
 
 /** 盾持ち（EnemyDef.blocks）が構えているか */
-function canBlock(e: Enemy): boolean {
-  return enemyDef(e.defKey).blocks === true && !isStaggered(e) && e.phase !== "spawning";
+function canBlock(state: GameState, e: Enemy): boolean {
+  // 予告が黄の間は盾を下げている（殴って / 撃って止められる。docs/ideas/reading-core-impl.md 2-5）
+  return enemyDef(e.defKey).blocks === true && !isStaggered(e) && e.phase !== "spawning" && !yellowAt(e, state.time);
+}
+
+/** 弾で受けた wallHit を 1 体につき間引く最終時刻（見た目と音だけ。シミュレーションには効かない） */
+const lastShotBlockSfx = new WeakMap<Enemy, number>();
+const SHOT_BLOCK_SFX_GAP = 0.15;
+const SHOT_BLOCK_PARTICLES = 2;
+
+/** 弾で受けた表示: 文字なし・粒は小さく・音は間引く・押し返さない（弾で押し返し続けられると黄を読む理由が消える） */
+function showShotBlock(state: GameState, e: Enemy): void {
+  spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, SHOT_BLOCK_PARTICLES, 70, 0.15, 1);
+  const last = lastShotBlockSfx.get(e);
+  // state.time が巻き戻った（別のゲーム）ときも鳴らす
+  if (last !== undefined && last <= state.time && state.time - last < SHOT_BLOCK_SFX_GAP) return;
+  lastShotBlockSfx.set(e, state.time);
+  pushSfx(state, "wallHit");
 }
 
 function showBlock(state: GameState, e: Enemy, dir: Vec): void {
@@ -653,7 +670,7 @@ export function interceptEnemyDamage(
   const guardMul = rallyTakenMul(e) * bossTakenMul(state, e);
   if (guardMul !== 1) amount = Math.max(1, Math.round(amount * guardMul));
   if (kind !== "melee") return amount;
-  if (!canBlock(e) || !isFrontal(e, knockDir)) return amount;
+  if (!canBlock(state, e) || !isFrontal(e, knockDir)) return amount;
   if (guardBreak) {
     showGuardBreak(state, e);
     return amount;
@@ -666,17 +683,26 @@ export function interceptEnemyDamage(
   return 0;
 }
 
+/** 盾の正面に来た弾。出端の弾・零距離の短銃弾は盾を抜け、それ以外は怯み値を半分溜めて消える。true なら処理済み */
+function blockShot(state: GameState, pr: Projectile, e: Enemy): boolean {
+  const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
+  if (debana || pr.pointBlank === true) {
+    showGuardBreak(state, e);
+    return false;
+  }
+  if (addPoise(state, e, (pr.poise ?? 0) * POISE.shotBlockMul)) showGuardBreak(state, e);
+  else showShotBlock(state, e);
+  pr.life = 0;
+  return true;
+}
+
 /**
  * プレイヤー弾が敵に当たる直前に呼ぶ。true なら弾は処理済み（ダメージを与えない）。
  * 盾持ちの正面は弾かれて消え、Reflective は向きを反転して敵弾になる
  */
 export function deflectProjectile(state: GameState, pr: Projectile, e: Enemy): boolean {
   if (pr.owner !== "player") return false;
-  if (canBlock(e) && isFrontal(e, pr.vel)) {
-    showBlock(state, e, pr.vel);
-    pr.life = 0;
-    return true;
-  }
+  if (canBlock(state, e) && isFrontal(e, pr.vel)) return blockShot(state, pr, e);
   if (e.elite !== "reflective" && !bossReflects(state, e, pr)) return false;
   // 弾は返されても、弾が運ぶ状態異常（燃焼・感電など）の付与だけは敵に残る（docs/ideas/enemies.md H1）
   if (pr.kind === "ranged") applyOnHitStatus(state, e, { kind: "ranged" });

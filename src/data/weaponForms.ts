@@ -245,7 +245,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 双剣・爪・拳とも右の最終段が乱舞
     release: { kind: "laneStep", keys: ["frenzy"] },
     keywords: kw(["melee", "finisher"], ["combo"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   crusher: defineForm("crusher", {
@@ -256,7 +256,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "maxCharge" },
     derived: true,
     keywords: kw(["melee", "stagger", "finisher"], ["hurt"]),
-    riposte: ["chargeEndure", "justDodge"],
+    riposte: ["parry", "chargeEndure", "justDodge"],
     finisher: ["lastStep", "maxCharge", "release"],
   }),
   rifle: defineForm("rifle", {
@@ -266,7 +266,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "still", perSec: FORM.rifle.gain.still, lossPerSec: FORM.rifle.moveLossPerSec }],
     release: { kind: "nextPrimary" },
     keywords: kw(["ranged", "bullet", "finisher"], ["still"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release", "aimedShot"],
   }),
   // ---- 5b・5d で戦意を埋める骨の型（名前と応手は 3-4 の表のまま） ----
@@ -280,7 +280,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "laneStep", keys: ["rend"] },
     derived: true,
     keywords: kw(["melee", "bleed"], ["counter"]),
-    riposte: ["counter", "justDodge"],
+    riposte: ["parry", "counter", "justDodge"],
   }),
   polearm: defineForm("polearm", {
     name: "長柄",
@@ -291,7 +291,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 満ちた後の最初の突きが放出で、貫く穂先の弾（FORM.polearm.cast）を撃つ
     release: { kind: "nextPrimary" },
     keywords: kw(["melee", "finisher"], ["bullet"]),
-    riposte: ["counter", "bulletCut"],
+    riposte: ["parry", "counter", "bulletCut"],
     finisher: ["lastStep", "release"],
   }),
   chain: defineForm("chain", {
@@ -303,7 +303,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "laneStep", keys: ["slam"] },
     derived: true,
     keywords: kw(["melee", "area"], ["counter"]),
-    riposte: ["pullInterrupt", "justDodge"],
+    riposte: ["parry", "pullInterrupt", "justDodge"],
   }),
   // ---- 5b-D2: 盾・扇・杖・投具 ----
   bulwark: defineForm("bulwark", {
@@ -314,7 +314,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 構えを離した盾押し（hold.release の派生）が放出
     release: { kind: "release" },
     keywords: kw(["ward", "counter"], ["hurt"]),
-    riposte: ["guardBlock"],
+    riposte: ["parry", "guardBlock"],
     finisher: ["lastStep", "release"],
   }),
   warfan: defineForm("warfan", {
@@ -328,7 +328,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     // 構えを離した突風（hold.release の派生）が放出
     release: { kind: "release" },
     keywords: kw(["area", "wall"], ["bullet"]),
-    riposte: ["bulletCut"],
+    riposte: ["parry", "bulletCut"],
     finisher: ["lastStep", "release"],
   }),
   rod: defineForm("rod", {
@@ -340,7 +340,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "branch" },
     derived: true,
     keywords: kw(["ranged", "finisher"], ["combo"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   thrower: defineForm("thrower", {
@@ -352,7 +352,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "laneStep", keys: ["recall", "ringLaunch", "ringSweep"] },
     derived: true,
     keywords: kw(["ranged", "bullet"], ["just"]),
-    riposte: ["recallCut", "justDodge"],
+    riposte: ["parry", "recallCut", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   // ---- 5b-E: 銃の型 2（短銃の装填・砲の一斉起爆） ----
@@ -362,9 +362,9 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     label: "弾倉",
     gain: [{ kind: "shotFired", amount: FORM.pistol.gain.shotFired }],
     release: { kind: "reload", ...FORM.pistol.reload },
-    // 応手は零距離の見切りだけ（範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
+    // 応手は受け流しと零距離の見切り（見切りの範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
     keywords: kw(["ranged", "bullet"], ["just"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   artillery: defineForm("artillery", {
@@ -376,7 +376,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "laneStep", keys: detonateLaneKeys("artillery") },
     derived: true,
     keywords: kw(["placed", "explode"], ["placed"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   // ---- 5d-L: 書・鈴（固有の仕組みは system/tomeBell.ts） ----
@@ -388,7 +388,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "skillHit", amount: FORM.tome.gain.skillHit }],
     release: { kind: "laneStep", keys: ["freeCast"] },
     keywords: kw(["mana"], ["mana"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
   }),
   bell: defineForm("bell", {
     name: "鈴",
@@ -398,7 +398,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     gain: [{ kind: "minionHit", amount: FORM.bell.gain.minionHit }],
     release: { kind: "laneStep", keys: ["toll"] },
     keywords: kw(["placed", "stagger"], ["placed"]),
-    riposte: ["justDodge"],
+    riposte: ["parry", "justDodge"],
   }),
 };
 

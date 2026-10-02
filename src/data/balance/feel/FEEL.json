@@ -2,13 +2,16 @@
   "_fields": {
     "hitstopLight": "通常命中のヒットストップの既定（ステップ。60Hz。段・重さが持たないときの値）。3→1（core-synthesis 3-6。止まる時間を絞り、重い命中だけ止める）",
     "hitstopCounter": "出端（黄の間に振り始めた近接 / 撃った放出の弾の命中）のヒットストップ（ステップ）。通常命中の上限 hitstopNormalMax の例外で、読みの報酬として止める",
+    "hitstopKill": "普通の撃破のヒットストップ（ステップ）。6→3（読み合いの手直し。手数のテンポを守る）",
+    "hitstopKillMark": "節目の撃破（陣の最後の 1 体・大将・精鋭・ボス）のヒットストップ（ステップ）",
     "hitstopNormalMax": "通常命中（怯ませていない・終撃でない・会心でない）のヒットストップの上限（ステップ）。段の JSON の hitstop がこれを超えても切り詰める。0 で通常命中は止まらない。目安 0〜1"
   },
   "hitstopLight": 1,
   "hitstopNormalMax": 1,
   "hitstopCounter": 5,
   "hitstopHeavy": 7,
-  "hitstopKill": 6,
+  "hitstopKill": 3,
+  "hitstopKillMark": 6,
   "hitstopFinisher": 9,
   "shakeLight": 2.5,
   "shakeHeavy": 6,

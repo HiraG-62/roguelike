@@ -358,6 +358,15 @@ export function gainEnergy(state: GameState, amount: number): void {
   p.energy = Math.min(p.maxEnergy, p.energy + amount * state.stats.energyGainMul);
 }
 
+/** 撃破の止めを長くする節目: 精鋭・ボス・陣の大将・陣の最後の 1 体（普通の撃破は短く切って手数のテンポを守る） */
+function killIsMark(state: GameState, enemy: Enemy, boss: boolean): boolean {
+  if (boss || enemy.elite !== undefined) return true;
+  if (enemy.jinId === undefined) return false;
+  const jin = state.jins.find((j) => j.id === enemy.jinId);
+  if (jin?.leaderId === enemy.id) return true;
+  return !state.enemies.some((o) => o !== enemy && o.hp > 0 && o.jinId === enemy.jinId);
+}
+
 function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   const def = enemyDef(enemy.defKey);
   // 壺・木箱は撃破数・得点・コンボ・来歴・ドロップ抽選に数えず、銭と瓶だけ（system/containers.ts）
@@ -372,7 +381,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   spawnBurst(state, enemy.body.pos, "#ffffff", 6, 90, 0.25, 1.5);
   // 攻撃方向へ飛ぶ破片（docs/ideas/combat-feel-design.md D-5）
   spawnDirectional(state, enemy.body.pos, dir, def.color, KILL_DIRECTIONAL_PARTICLES, KILL_DIRECTIONAL_SPEED);
-  hitstop(state, FEEL.hitstopKill);
+  hitstop(state, killIsMark(state, enemy, def.boss === true) ? FEEL.hitstopKillMark : FEEL.hitstopKill);
   shake(state, FEEL.shakeHeavy);
   cameraKick(state, dir, FEEL.kickHeavy);
   pushSfx(state, "kill");

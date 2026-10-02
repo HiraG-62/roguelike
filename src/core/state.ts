@@ -1,3 +1,4 @@
+import type { FrameInput } from "./input";
 import type { AttackProfile } from "./element";
 import type { Rng } from "./rng";
 import type { Vec } from "./vec";
@@ -157,6 +158,13 @@ export interface Player {
   shotChargeTime: number;
   /** 前フレームに右クリック（固有技のキー）を押していたか。右の押した瞬間を取るため */
   secondaryWasHeld: boolean;
+  /**
+   * ヒットストップ中に押した受け流し / ダッシュの席（1 つ。止めが明けた最初のステップで出す。system/player.ts の latchFrozenInput）。
+   * input はダッシュの向きを押した時の移動入力で決めるための写し。未指定 = 空
+   */
+  guardBuffer?: { kind: "parry" | "dash"; input: FrameInput };
+  /** ヒットストップ中に押した攻撃のボタン（止めが明けた最初のステップで押したことにする）。guardBuffer とは後から押した方だけ残る */
+  frozenAttack?: ButtonKey;
   /** 照準（カーソル）までの距離 px。曲射の落下点に使う。マウス照準が無ければ undefined（射程いっぱい）。applyAim が毎ステップ更新 */
   aimDistance?: number;
   /**
@@ -575,6 +583,8 @@ export interface Projectile {
   release?: { finisher: boolean; crit: boolean };
   /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が黄だったか）。放出の弾だけが持つ */
   firedAt?: number;
+  /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */
+  pointBlank?: boolean;
   /** 命中ごとに戻る気力（ThrowArtDef.mana。左の詠唱が近接の段の気力を引き継ぐ）。未指定は MANA.onShot */
   shotMana?: number;
 }

@@ -4,7 +4,7 @@ import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, l
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
 import { emitNoise } from "./noise";
-import { ACTION, BOON_LINEAGE, ECONOMY, FEEL, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
+import { ACTION, BOON_LINEAGE, ECONOMY, FEEL, FORM, KEYSTONE, MANA, PLAYER, WEAPON } from "../data/tuning";
 import {
   type ButtonKey,
   type HitShape,
@@ -28,6 +28,7 @@ import {
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
 import { type JobKey, jobBranch } from "../data/jobs";
+import { enemyDef } from "../data/enemies";
 import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
 import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
@@ -81,7 +82,7 @@ import {
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
-import { formCutsBullets, formReleaseCast } from "../data/weaponForms";
+import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
 import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
@@ -461,11 +462,48 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
 
 /** ダッシュ・近接・奥義の入力を読む（怯み中は呼ばない） */
 function readActions(state: GameState, input: FrameInput): void {
+  releaseFrozenInput(state);
   if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
   if (input.parryPressed) startParry(state);
   if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
+}
+
+/**
+ * ヒットストップ中の押下を覚える（core/game.ts の止めの分岐から毎ステップ）。止まっている間は updatePlayer が通らず、
+ * 押した瞬間の入力が 1 ステップで消えるので、受け流し・ダッシュは守りの席へ、攻撃はボタンだけ覚える。
+ * 後から押した方だけ残す。外した受け流しの硬直中・怯み中の押下は今どおり捨てる（連打の罰を消さない）
+ */
+export function latchFrozenInput(state: GameState, input: FrameInput): void {
+  const p = state.player;
+  if (isPlayerStaggered(p)) return;
+  if (input.dashPressed) {
+    p.guardBuffer = { kind: "dash", input: { ...input } };
+    p.frozenAttack = undefined;
+  } else if (input.parryPressed && p.parry.recover <= 0) {
+    p.guardBuffer = { kind: "parry", input: { ...input } };
+    p.frozenAttack = undefined;
+  }
+  const attack: ButtonKey | undefined = input.attackPressed ? "primary" : input.shootHeld && !p.secondaryWasHeld ? "secondary" : undefined;
+  if (attack === undefined) return;
+  p.frozenAttack = attack;
+  p.guardBuffer = undefined;
+}
+
+/** 止めが明けた最初のステップで、覚えていた押下を出す（readActions の頭。守りが先、攻撃が後で、後から押した方だけが残っている） */
+function releaseFrozenInput(state: GameState): void {
+  const p = state.player;
+  const guard = p.guardBuffer;
+  const attack = p.frozenAttack;
+  p.guardBuffer = undefined;
+  p.frozenAttack = undefined;
+  if (guard?.kind === "dash" && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, guard.input);
+  if (guard?.kind === "parry") startParry(state);
+  if (attack === undefined || skillLocksAttack(state) || artLocksActions(state) || dashLocksActions(state)) return;
+  onButtonPress(state, attack);
+  // 右は「前フレームとの差」で押した瞬間を取るので、続く readAttackButtons が同じ押下をもう一度拾わないようにする
+  if (attack === "secondary") p.secondaryWasHeld = true;
 }
 
 /**
@@ -1682,6 +1720,12 @@ function muzzleAt(state: GameState, dir: Vec): Vec {
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
 
+/** 短銃（型 pistol）が、盾持ちの零距離（FORM.pistol.zeroDistance）で撃ったか。盾を抜ける弾の印（docs/ideas/reading-core-impl.md 2-5） */
+function shotIsPointBlank(state: GameState, muzzle: Vec): boolean {
+  if (formOf(playerMoveset(state)).key !== "pistol") return false;
+  return state.enemies.some((e) => e.hp > 0 && enemyDef(e.defKey).blocks === true && dist(e.body.pos, muzzle) <= FORM.pistol.zeroDistance);
+}
+
 /** 弾を出す（再使用時間は触らない。三点の続きの弾・右レーンと派生の弾もここを通る）。出したら true */
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
@@ -1690,6 +1734,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   const baseAngle = angle(dir) + swayOffset(state, shot);
   const spec = volleySpec(state, shot, level, aim, override);
   const firstShot = state.projectiles.length;
+  const pointBlank = shotIsPointBlank(state, muzzle);
   let orbitIndex = shot.orbit ? orbitingCount(state) : 0;
   for (const offset of spreadOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg)) {
     const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
@@ -1718,6 +1763,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が黄だったか。system/readTiming.ts）
       ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
       ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
+      ...(pointBlank ? { pointBlank: true } : {}),
     });
   }
   const fired = state.projectiles.slice(firstShot);

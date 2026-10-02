@@ -529,6 +529,8 @@ import j_feel_MUSIC from "./feel/MUSIC.json";
 import j_feel_FX_WAVE3 from "./feel/FX_WAVE3.json";
 import j_feel_SFX_WAVE3 from "./feel/SFX_WAVE3.json";
 import j_feel_TELEGRAPH from "./feel/TELEGRAPH.json";
+import j_feel_TELEGRAPH_POSE from "./feel/TELEGRAPH_POSE.json";
+import j_feel_SIGN_CHECK from "./feel/SIGN_CHECK.json";
 import j_feel_MENU_BUDGET from "./feel/MENU_BUDGET.json";
 import j_feel_MAP_LIGHT from "./feel/MAP_LIGHT.json";
 import j_feel_FLOAT_TEXT from "./feel/FLOAT_TEXT.json";
@@ -1503,6 +1505,8 @@ export const feel = {
   "FX_WAVE3": j_feel_FX_WAVE3,
   "SFX_WAVE3": j_feel_SFX_WAVE3,
   "TELEGRAPH": j_feel_TELEGRAPH,
+  "TELEGRAPH_POSE": j_feel_TELEGRAPH_POSE,
+  "SIGN_CHECK": j_feel_SIGN_CHECK,
   "MENU_BUDGET": j_feel_MENU_BUDGET,
   "MAP_LIGHT": j_feel_MAP_LIGHT,
   "FLOAT_TEXT": j_feel_FLOAT_TEXT,
@@ -2632,7 +2636,9 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/MINIMAP.json",
   "feel/MUSIC.json",
   "feel/SFX_WAVE3.json",
+  "feel/SIGN_CHECK.json",
   "feel/TELEGRAPH.json",
+  "feel/TELEGRAPH_POSE.json",
   "feel/_index.json",
   "jobs/DASH_FORM.json",
   "jobs/JOB.json",
