@@ -27,7 +27,6 @@ const MID = 36;
 const SEED = 21;
 const PLAYABLE: readonly JobKey[] = JOB_KEYS.filter((j) => j !== "none");
 /** 既定で解放されているジョブの数（見習いを除く） */
-const DEFAULT_UNLOCKED = 6;
 const RULES_PER_JOB = 2;
 
 function game(job: JobKey, seed = SEED): GameState {
@@ -109,12 +108,10 @@ describe("ジョブの定義", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("既定で 6 つ解放（陰陽師・巫女を含む）、残りは依頼の報酬で、依頼の報酬とジョブの unlockedBy が一致する", () => {
-    expect(PLAYABLE.filter((k) => JOBS[k].unlockedBy === undefined).length).toBe(DEFAULT_UNLOCKED);
-    expect(JOBS.onmyoji.unlockedBy, "陰陽師は既定で解放").toBeUndefined();
-    expect(JOBS.miko.unlockedBy, "巫女は既定で解放").toBeUndefined();
+  it("見習い以外はすべて依頼の報酬で解放され、依頼の報酬とジョブの unlockedBy が一致する", () => {
     for (const key of PLAYABLE) {
       const by = JOBS[key].unlockedBy;
+      expect(by, `${key} は解放型`).toBeDefined();
       if (by === undefined) continue;
       const reward = QUESTS[by].reward;
       expect(reward.kind === "job" && reward.job === key, `${key} を解放する依頼「${by}」の報酬`).toBe(true);
@@ -124,7 +121,7 @@ describe("ジョブの定義", () => {
   it("依頼を達成するとジョブが解放され、報酬の表示はジョブ名を語る", () => {
     const save = createQuestSave();
     const locked = lockedJobs(save);
-    expect(locked.size, "既定で閉じているジョブ").toBe(PLAYABLE.length - DEFAULT_UNLOCKED);
+    expect(locked.size, "既定では見習い以外が閉じている").toBe(PLAYABLE.length);
     expect(locked.has("none"), "見習いは常に選べる").toBe(false);
     save.completed.critStorm = 1;
     expect(lockedJobs(save).has("lancer"), "槍兵が解放").toBe(false);

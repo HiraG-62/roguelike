@@ -108,11 +108,11 @@ describe("起点の解放", () => {
     expect(cursorDescription(ui).desc.length, "解放条件の説明がある").toBeGreaterThan(0);
   });
 
-  it("前回の起点が未解放なら放浪者に戻し、既定の 3 起点は最初から選べる", () => {
+  it("前回の起点が未解放なら放浪者に戻し、最初は放浪者だけ選べる", () => {
     const locked = lockedOrigins(createQuestSave());
     expect(createOriginScreen({ origin: "gambler", modifiers: [] }, locked).origin, "放浪者へ").toBe("wanderer");
     const open = ORIGIN_KEYS.filter((o) => !locked.has(o));
-    expect(open, "放浪者・剣の巡礼者・素手").toEqual(["wanderer", "swordPilgrim", "unarmed"]);
+    expect(open, "放浪者だけ").toEqual(["wanderer"]);
   });
 });
 

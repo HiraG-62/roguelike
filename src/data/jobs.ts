@@ -159,6 +159,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "commonLunge",
     starterWeapon: "katana",
     keywords: kw(["melee", "finisher", "stagger"], ["just"]),
+    unlockedBy: "untouched",
   },
   hunter: {
     lineage: "thunder",
@@ -183,6 +184,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "commonRailshot",
     starterWeapon: "crossbow",
     keywords: kw(["ranged", "stagger", "vulnerable"], ["elite"]),
+    unlockedBy: "lairHunter",
   },
   brawler: {
     lineage: "blade",
@@ -205,6 +207,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "commonQuake",
     starterWeapon: "gauntlets",
     keywords: kw(["melee", "combo", "area"], ["hurt"]),
+    unlockedBy: "burstMaster",
   },
   shieldBearer: {
     lineage: "earth",
@@ -227,6 +230,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "parry",
     starterWeapon: "machete",
     keywords: kw(["ward", "counter", "area"], ["hurt"]),
+    unlockedBy: "counterman",
   },
   hexer: {
     lineage: "moon",
@@ -370,6 +374,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "mines",
     starterWeapon: "ironFan",
     keywords: kw(["placed", "weaken", "energy"], ["kill"]),
+    unlockedBy: "newReaction",
   },
   miko: {
     name: "巫女",
@@ -391,6 +396,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     starterSkill: "manaSpring",
     starterWeapon: "wand",
     keywords: kw(["ward", "heal"], ["hurt", "clear"]),
+    unlockedBy: "comboForms",
   },
 };
 

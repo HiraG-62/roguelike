@@ -194,7 +194,7 @@ describe("石段（出撃の口）", () => {
   it("石段に踏み込むと 1 回だけ depart を返し、入ったままでは再発火しない", () => {
     const session = hub();
     standOnGate(session);
-    expect(stepHub(session, withInput({}), FIXED_DT), "踏み込んだ瞬間に出撃").toEqual({ kind: "depart" });
+    expect(stepHub(session, withInput({}), FIXED_DT), "踏み込んだ瞬間に出撃").toEqual({ kind: "depart", via: "gate" });
     expect(session.hub.gateArmed, "出撃で武装が解ける").toBe(false);
     for (let i = 0; i < 20; i++) {
       standOnGate(session);
@@ -229,9 +229,8 @@ describe("石段（出撃の口）", () => {
   it("決定の長押しの出撃は石段の外でも残る", () => {
     const session = hub();
     const frames = Math.ceil(HUB.departHold / FIXED_DT) + 2;
-    const kinds: string[] = [];
-    for (let i = 0; i < frames; i++) kinds.push(stepHub(session, withInput({}), FIXED_DT, true).kind);
-    expect(kinds, "長押しで出撃").toContain("depart");
+    const actions = Array.from({ length: frames }, () => stepHub(session, withInput({}), FIXED_DT, true));
+    expect(actions, "長押しで即出撃（起点画面を通さない）").toContainEqual({ kind: "depart", via: "hold" });
   });
 });
 
