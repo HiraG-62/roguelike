@@ -64,7 +64,8 @@
 | パリィ | parry | スキル。再使用型、近接の衝撃波 | `skills/data.ts` |
 | 受け流し（受け流し） | parry（`PARRY`）/ 剣の右 1 段目 `hold.parry` | 全武器共通の行動（2026-09-30。既定 R / 中クリック / パッド RB）。窓の間の被弾を無効にして敵を怯ませ、コミットした攻撃も止める。外すと硬直。スキル石「パリィ」とは別物 | `system/parry.ts` |
 | 武器の重さ（軽 / 中 / 重） | `WeaponWeight`（light / medium / heavy）、`WEAPON.weightClass` | 武器種ごとの重さ（2026-09-30）。軽は攻撃中も動ける、中は終撃で足を止める、重は振る間止まりダッシュで取り消せない相が長い。表示は「軽い」「重い」など形容で | `data/weapons.ts`、`system/player.ts` |
-| 予告の色（黄 / 赤） | `TELEGRAPH.readyColor` / `commitColor` | 敵の予告の線と「!」の色。黄 = まだ怯ませて崩せる、赤 = コミット（必ず出る。止められるのは受け流しだけ） | `render/telegraphLineUi.ts` |
+| 予告の色（黄 / 赤） | `TELEGRAPH.readyColor` / `commitColor` | 敵の予告の線・頭上の印・範囲の色。黄 = まだ怯ませて崩せる、赤 = コミット（必ず出る。止められるのは受け流しだけ）。色だけに頼らず形でも言う（下の「下絵 / 墨入れ」） | `render/telegraphInk.ts` |
+| 下絵 / 墨入れ | `telegraphStage`（`sketch` / `ink`）・`TELEGRAPH` | 予告の黄の段 = **下絵**（途切れた細い黄の線。当てるほど欠け、崩すと擦れて消える。頭上は黄の輪 ○）、赤の段 = **墨入れ**（暗い帯と赤い芯の太い線と先端の止め。受け流すと筆先が逸れる。頭上は赤の塗りの点 ●）。表に出す語はこの 2 つだけで、Tips の項目「下絵と墨入れ」に置く。設計の内部の語（溜め = 黄の間の体ののけぞり / 張り = 赤に入った瞬間の伸び / 擦れ / 削れ / 止め / 符号表）は表示に出さない。血の粒の臙脂・怯みの印の胡粉・号令の気の藍寄りの白は、予告の黄赤と紛れない色替え（`data/signs.ts`） | `render/telegraphInk.ts`・`render/telegraphLayer.ts`・`render/telegraphPose.ts`・`data/signs.ts` |
 | 予告の図解 | `telegraphDiagram`（`META.diagramDeaths`） | 図鑑の敵の頁から開ける図。同じ敵に 3 回倒されると開く。予告の形・怯ませられる間とコミットの境・隙・安全な場所を敵のデータから描く（ボスは段階ごとの危ない間合いも） | `system/telegraphDiagram.ts` / `render/telegraphDiagramUi.ts` |
 | ダッシュの無敵時間 | dashInvulnBonus | ステータスの表示名（秒の加算。既定 0） | `loot/stats.ts` |
 | 弾返し（祝福。撤去） | reflect | 段取り 7b（2026-09-30）で祝福ごと撤去。型の受け「弾返し」は別 | - |

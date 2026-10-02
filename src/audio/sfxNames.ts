@@ -206,6 +206,8 @@ export const SFX_NAMES = [
   "hitThump",
   /** 赤の間に振り始めた近接の命中（出端でない普通の命中。低く鈍い木の打音。1 振りに 1 回） */
   "hitCommitted",
+  /** 下絵（黄の予告）を怯みで崩した: 紙を擦る短い音（線が擦れて散る絵と同時） */
+  "sketchErase",
   // ---- 命中音の系統（刃・打撃・刺突・鞭打）× 重さ（docs/recipes/audio.md）。武器種ごとの impact が選ぶ ----
   "hitSlashLight",
   "hitSlashMid",

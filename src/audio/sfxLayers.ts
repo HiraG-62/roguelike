@@ -185,6 +185,8 @@ export const LAYERED_SFX = {
     { k: "kick", from: 170, to: 80, drop: 0.04, dur: 0.08, peak: 0.45, drive: 1.2 },
     { k: "noise", filter: "lowpass", from: 700, to: 250, dur: 0.06, q: 1, peak: 0.3 },
   ],
+  /** 下絵を崩した: 紙を擦る、短く小さな下降の帯域ノイズ（高域だけ。命中音と重ならない） */
+  sketchErase: [{ k: "noise", filter: "bandpass", from: 7000, to: 3200, dur: 0.1, q: 0.9, peak: 0.2 }],
   hitHeavy: [
     { k: "click", freq: 2000, peak: 0.6 },
     { k: "kick", from: 120, to: 38, drop: 0.09, dur: 0.26, peak: 0.7, drive: 2.5 },

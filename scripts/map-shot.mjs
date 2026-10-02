@@ -16,7 +16,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ensureVite, findPlaywright } from "./browser-tools.mjs";
 
-const PORT = 5199;
+/** 別の作業ツリーの vite が 5199 を使っているときは MAP_SHOT_PORT で逃がす（使い回すと別の作業ツリーの絵を撮る） */
+const PORT = Number(process.env.MAP_SHOT_PORT ?? 5199);
 const BASE = `http://localhost:${PORT}`;
 const VIEWPORT = { width: 1920, height: 1080 };
 const READY_TIMEOUT_MS = 120_000;
@@ -38,6 +39,11 @@ const SHOTS = [
   ["d23", "depth=23"],
   ["river", "depth=3&kind=cave&layout=river"],
   ["court", "depth=7&kind=rooms&layout=court"],
+  // 予告の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）: 乱戦 30 体 / 7 形の並べ撮り / 明るい章様式 / 暗闇の階
+  ["tele-crowd", "depth=3&kind=cave&scene=tele&tele=crowd"],
+  ["tele-shapes", "depth=3&kind=cave&scene=tele&tele=shapes"],
+  ["tele-bright", "depth=13&kind=glacier&scene=tele&tele=crowd"],
+  ["tele-dark", "depth=18&kind=dark&scene=tele&tele=crowd"],
 ];
 
 function parseArgs(argv) {

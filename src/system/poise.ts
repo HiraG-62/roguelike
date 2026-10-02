@@ -57,6 +57,8 @@ export function isStaggered(e: Enemy): boolean {
 export function windupCommitted(e: Enemy): boolean {
   if (e.phase !== "windup") return false;
   if (e.chainWindup) return true;
+  // ボスの技が黄の長さを決めている（bossKit の openTime）
+  if (e.openFor !== undefined) return e.openFor <= 0;
   return e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
 }
 
@@ -235,12 +237,16 @@ export interface StaggerOptions {
 export function applyStagger(state: GameState, e: Enemy, time: number, opts: StaggerOptions = {}): boolean {
   if (time <= 0) return false;
   const self = opts.selfInflicted === true;
-  return applyStatus(
+  // 黄（下絵）の間に崩した: 線が擦れて散る絵に合わせて紙を擦る音（見た目と音だけ。結果に効かない）
+  const sketchBroken = e.phase === "windup" && !attackCommitted(e);
+  const applied = applyStatus(
     state,
     { kind: "enemy", enemy: e },
     { kind: "stagger", stacks: 1, duration: time, potency: self ? SELF_INFLICTED_POTENCY : 0 },
     self ? "self" : "player",
   );
+  if (applied && sketchBroken) pushSfx(state, "sketchErase");
+  return applied;
 }
 
 /** 怯みが解けた瞬間: 堅守を付ける（自傷の怯みの後は付けない。崩勢が付いていれば崩勢を消費して付けない = 崩落） */

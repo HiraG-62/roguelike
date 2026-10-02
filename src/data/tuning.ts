@@ -123,6 +123,10 @@ export const FEEL = BALANCE.feel.FEEL;
 
 /** 敵の予告の線の色・長さ。見た目だけ（render/telegraphLineUi.ts が読む） */
 export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
+/** 予備動作の体の溜めと張り。見た目だけ（render/renderer.ts が読む） */
+export const TELEGRAPH_POSE = BALANCE.feel.TELEGRAPH_POSE;
+/** 符号表の検査の閾。検査専用（data/signs.test.ts） */
+export const SIGN_CHECK = BALANCE.feel.SIGN_CHECK;
 
 export const ROOM = BALANCE.world.ROOM;
 

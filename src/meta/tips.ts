@@ -167,6 +167,13 @@ const COMBAT_TIPS: readonly TipDef[] = [
     body: `怯みが解けた直後の状態（${POISE.guardedTime} 秒、ボスは ${POISE.bossGuardedTime} 秒）。受ける怯み値が ×${POISE.guardedMul}（ボスは ×${POISE.bossGuardedMul}）になる。背面の一撃は堅守を無視する。`,
   },
   {
+    key: "inkTelegraph",
+    term: "下絵と墨入れ",
+    category: "combat",
+    body: (b) =>
+      `敵の攻撃は、黄の途切れた細い線（下絵）から始まる。下絵の間は殴って崩せる。当てるほど線が欠け、崩すと擦れて消える。やがて線が赤い芯の太い線（墨入れ）に変わり、頭の上の印も輪（○）から塗りの点（●）になる。墨入れの後は必ず来る。止められるのは受け流し（${k(b, "parry")}）だけで、受け流すと筆先が逸れる。範囲の予告も黄の間は崩せて、赤になれば避けるか受け流す。`,
+  },
+  {
     key: "debana",
     term: "出端",
     category: "combat",

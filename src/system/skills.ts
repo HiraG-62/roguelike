@@ -4,6 +4,7 @@ import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/s
 import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
+import { BLOOD_COLOR } from "../data/signs";
 import { BOON_LINEAGE, ENERGY, FEEL, MANA, PLAYER } from "../data/tuning";
 import { recordProvenance } from "../loot/provenance";
 import { rectCenterPx } from "../map/grid";
@@ -106,7 +107,7 @@ import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } fro
  */
 
 const COLOR_NOT_READY = "#808080";
-const COLOR_BLOOD = "#ff4040";
+const COLOR_BLOOD = BLOOD_COLOR;
 const TEXT_SCALE = 0.9;
 const TEXT_LIFE = 0.4;
 const LABEL_SCALE = 1;
