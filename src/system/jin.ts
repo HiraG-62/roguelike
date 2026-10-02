@@ -22,7 +22,8 @@ import { placeTerrain } from "./terrain";
  *   倒すと銭を多く落とす（追う得）。眠っている陣に合流するとその陣を起こしてこちらへ向かわせる（急報。逃がす損）
  * - 敗走した敵は陣から外れ roomIndex を ROAMING_ROOM にする。部屋の生存者が 0 になるので、決着の報酬は
  *   部屋の制圧（floor.ts の clearRoom）がそのまま出す（全滅・大将撃破・敗走が同じ 1 本の判定に落ちる）
- * - 起床: 気付いた者の近くだけ起こし、残りは後詰として少し遅れて動く
+ * - 起床: 気付いた者（いなければプレイヤー）の近くだけ起こし、起きた者の近くの仲間が順に起きる（固まりごとに反応する）。
+ *   奥の残りは群勢が reserveMoraleRatio を切ったら後詰として動き出す（部屋の端で戦っていても、奥まで全員は寄ってこない）
  * - 増援の代わり: 長居すると眠っている陣を長蛇に変えてプレイヤーの方へ歩かせる（湧かせないので総数は増えない）
  * 乱数は塊に乗らない陣の決着のハートだけ（state.rng）。他は位置と id で決まる
  */
@@ -86,6 +87,7 @@ export function noteJinDeath(state: GameState, e: Enemy): void {
   const loss = deathLoss(state, jin, e);
   if (e.id === jin.leaderId) breakLeader(state, jin, e, loss);
   else jin.morale = Math.max(0, jin.morale - loss);
+  armReserve(state, jin);
   // 一度崩れた陣（背水で踏みとどまった者だけ）はもう崩れない
   if (!jin.broken && jin.morale <= jin.moraleMax * JIN.morale.routRatio) routJin(state, jin);
 }
@@ -379,10 +381,11 @@ export function roomClearText(state: GameState, roomIndex: number): string {
 // -----------------------------------------------------------------------------
 
 /**
- * 陣を起こす: 気付いた者（いなければプレイヤーに最も近いメンバー）から wake.radius 以内だけ起こし、
- * 残りは secondWaveDelay 秒後に後詰として updateJins が起こす。封鎖した部屋の陣は全員起こす
+ * 陣を起こす: seeds（今気付いた者・今聞いた者の位置。省略は既に気付いているメンバー、いなければプレイヤー）から
+ * wake.radius 以内の眠っているメンバーだけ起こす。起きた者が次の輪を起こすことはしない（戦いの音のたびに輪が広がって
+ * 部屋じゅうが寄ってこないように）。残りは自分で気付くか、群勢が崩れかけて後詰が出るまで眠ったまま。封鎖した部屋の陣は全員起こす
  */
-export function wakeJin(state: GameState, jin: Jin): void {
+export function wakeJin(state: GameState, jin: Jin, seeds?: readonly Vec[]): void {
   if (jin.phase === "settled") return;
   jin.phase = "engaged";
   jin.engagedAt ??= state.time;
@@ -393,24 +396,22 @@ export function wakeJin(state: GameState, jin: Jin): void {
     jin.secondWaveAt = null;
     return;
   }
-  const seeds = wakeSeeds(state, members);
-  let left = 0;
-  for (const e of members) {
-    if (e.phase !== "idle") continue;
-    if (seeds.some((s) => dist(s, e.body.pos) <= JIN.wake.radius)) e.phase = "chase";
-    else left++;
-  }
-  if (left > 0 && jin.secondWaveAt === null) jin.secondWaveAt = state.floorTime + JIN.wake.secondWaveDelay;
+  wakeNear(members, seeds ?? defaultSeeds(state, members));
 }
 
-/** 起こす輪の中心: 既に気付いたメンバー。誰も気付いていなければプレイヤーに最も近いメンバー（同じ距離なら id が小さい方） */
-function wakeSeeds(state: GameState, members: readonly Enemy[]): Vec[] {
+/** 起こす輪の中心の既定: 既に気付いたメンバー。誰も気付いていなければプレイヤー（部屋の縁に入っただけでは奥の者は起きない） */
+function defaultSeeds(state: GameState, members: readonly Enemy[]): Vec[] {
   const awake = members.filter((e) => e.phase !== "idle" && e.phase !== "spawning").map((e) => e.body.pos);
   if (awake.length > 0) return awake;
+  return [state.player.body.pos];
+}
+
+/** プレイヤーに最も近いメンバーの位置（同じ距離なら id が小さい方）。物見の鐘で遠くの陣を起こすときの輪の中心 */
+export function nearestMemberSeed(state: GameState, jin: Jin): Vec[] {
   const p = state.player.body.pos;
   let best: Enemy | null = null;
   let bestD = Number.POSITIVE_INFINITY;
-  for (const e of members) {
+  for (const e of jinMembers(state, jin)) {
     const d = dist(e.body.pos, p);
     if (d < bestD || (d === bestD && best !== null && e.id < best.id)) {
       best = e;
@@ -418,6 +419,29 @@ function wakeSeeds(state: GameState, members: readonly Enemy[]): Vec[] {
     }
   }
   return best ? [best.body.pos] : [];
+}
+
+/** 自分で気付いた者（enemies.ts の idle）が、wake.radius 以内の同じ陣の眠っている仲間を起こす（1 輪だけ） */
+export function alertJinNeighbors(state: GameState, e: Enemy): void {
+  const jin = jinById(state, e.jinId);
+  if (!jin || jin.phase === "settled") return;
+  wakeNear(jinMembers(state, jin), [e.body.pos]);
+}
+
+/** seeds のどれかから wake.radius 以内の眠っているメンバーを起こす */
+function wakeNear(members: readonly Enemy[], seeds: readonly Vec[]): void {
+  for (const e of members) {
+    if (e.phase !== "idle") continue;
+    if (seeds.some((s) => dist(s, e.body.pos) <= JIN.wake.radius)) e.phase = "chase";
+  }
+}
+
+/** 後詰の合図: 交戦中の陣の群勢が reserveMoraleRatio を切り、まだ眠っている者がいれば secondWaveDelay 後に起こす */
+function armReserve(state: GameState, jin: Jin): void {
+  if (jin.phase !== "engaged" || jin.secondWaveAt !== null) return;
+  if (jin.morale > jin.moraleMax * JIN.wake.reserveMoraleRatio) return;
+  if (!jinMembers(state, jin).some((e) => e.phase === "idle")) return;
+  jin.secondWaveAt = state.floorTime + JIN.wake.secondWaveDelay;
 }
 
 /** 後詰: 残りの眠っているメンバーを全員起こす */

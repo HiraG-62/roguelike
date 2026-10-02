@@ -11,6 +11,7 @@ import { rectCenterPx } from "../map/grid";
 import { emptyJinSettle, recordJinSettle } from "../qa/jinMetrics";
 import { updateEnemies } from "./enemies";
 import {
+  alertJinNeighbors,
   initJinMorale,
   jinBonusMul,
   memberWeight,
@@ -18,8 +19,8 @@ import {
   roomClearText,
   routJin,
   stepRout,
-  stirSleepingJin,
   stirsDue,
+  stirSleepingJin,
   updateJins,
   wakeJin,
 } from "./jin";
@@ -459,18 +460,46 @@ describe("集まっている間の強化", () => {
 });
 
 describe("起床と後詰", () => {
-  it("気付いた者の近くだけ起き、残りは secondWaveDelay 後に後詰として起きる", () => {
+  it("誰も気付いていなければプレイヤーの近くだけ起き、遠いメンバーは眠ったまま", () => {
     const state = jinArena();
     const jin = addJin(state, 1, ROOM_A, state.player.body.pos, "sleeping");
     const near = member(state, jin, 20);
-    const mid = member(state, jin, 20 + JIN.wake.radius - 10);
-    const far = member(state, jin, 20 + JIN.wake.radius + 60);
+    const mid = member(state, jin, JIN.wake.radius + 10);
     initJinMorale(state, jin);
     wakeJin(state, jin);
     expect(jin.phase).toBe("engaged");
-    expect([near.phase, mid.phase], "近くは起きる").toEqual(["chase", "chase"]);
-    expect(far.phase, "遠くは眠ったまま").toBe("idle");
-    expect(jin.secondWaveAt).toBeCloseTo(state.floorTime + JIN.wake.secondWaveDelay);
+    expect(near.phase, "近くは起きる").toBe("chase");
+    expect(mid.phase, "プレイヤーから wake.radius の外は眠ったまま").toBe("idle");
+    expect(jin.secondWaveAt, "後詰は時間では出ない").toBeNull();
+    // 起きた者が次の輪を起こし続けることはない（戦いの音のたびに部屋じゅうが起きない）
+    updateJins(state);
+    expect(mid.phase).toBe("idle");
+  });
+
+  it("自分で気付いた者は wake.radius 以内の仲間だけ起こす（1 輪だけ）", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos, "sleeping");
+    const spotter = member(state, jin, 20);
+    const buddy = member(state, jin, 20 + JIN.wake.radius - 10);
+    const far = member(state, jin, 20 + JIN.wake.radius * 2 - 20);
+    spotter.phase = "chase";
+    alertJinNeighbors(state, spotter);
+    expect(buddy.phase, "近くの仲間").toBe("chase");
+    expect(far.phase, "仲間の仲間までは起こさない").toBe("idle");
+  });
+
+  it("群勢が reserveMoraleRatio を切ると、眠っている残りが secondWaveDelay 後に後詰として動き出す", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos, "sleeping");
+    const near = member(state, jin, 20);
+    const far = member(state, jin, 20 + JIN.wake.radius + 60);
+    member(state, jin, 20 + JIN.wake.radius + 80);
+    initJinMorale(state, jin);
+    wakeJin(state, jin);
+    expect(far.phase).toBe("idle");
+    jin.morale = jin.moraleMax * JIN.wake.reserveMoraleRatio + JIN.gradeWeight.normal - 0.01;
+    kill(state, near);
+    expect(jin.secondWaveAt, "後詰の合図").toBeCloseTo(state.floorTime + JIN.wake.secondWaveDelay);
     updateJins(state);
     expect(far.phase, "時刻の前は起きない").toBe("idle");
     state.floorTime += JIN.wake.secondWaveDelay;

@@ -18,7 +18,7 @@ import type { EnemyTelegraph } from "./behaviors/base";
 import { behaviorOf } from "./behaviors/registry";
 import { takeRetreatStep, tickReaction } from "./enemyReactions";
 import { followUpOf, learnedRetreatMul, learnedWindupMoveMul } from "./enemyStages";
-import { jinBonusMul, markRoutTurn, routTurnReady, stepRout } from "./jin";
+import { alertJinNeighbors, jinBonusMul, markRoutTurn, routTurnReady, stepRout } from "./jin";
 import { freshStrokeCount, jinzuHoldsAttack, surgeStrikerSlot, updateJinzu } from "./jinzu";
 import { stepJinzuMember } from "./jinzuRun";
 import { wakeByNoise } from "./noise";
@@ -112,8 +112,8 @@ import {
   tryStartEating,
 } from "./enemyBehaviors";
 
-/** 通路からでも気付く距離 */
-export const NOTICE_RANGE = 110;
+/** 眠っている敵が自分で気付く距離（視線が通る間。JIN.wake.noticeRange） */
+export const NOTICE_RANGE = JIN.wake.noticeRange;
 const SEPARATION_FORCE = 40;
 const ENEMY_BULLET_SPEED = 135;
 const ENEMY_BULLET_DAMAGE = 8;
@@ -240,7 +240,11 @@ export function updateEnemies(state: GameState, dt: number): void {
         // 商人は殴られるまで気付かない（怒らせるのは behaviors/families.ts の Merchant.onStruck だけ）。壺・木箱は最後まで気付かない
         if (def.merchant === true || def.container !== undefined) break;
         // 開放型フロア: 壁越しには気付かない（気付いた敵が壁に張り付いたまま動けなくなるため）
-        if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) e.phase = "chase";
+        if ((d < NOTICE_RANGE && lineOfSight(state.map, e.body.pos, player.body.pos)) || state.rooms[e.roomIndex]?.locked) {
+          e.phase = "chase";
+          // 自分で気付いた者は、すぐ近くの同じ陣の仲間だけ起こす（部屋じゅうは起こさない。system/jin.ts）
+          alertJinNeighbors(state, e);
+        }
         break;
       case "chase":
         chase(state, e, def, toPlayer, d, edt);

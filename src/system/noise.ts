@@ -4,7 +4,7 @@ import { enemyDef, isBossClass } from "../data/enemies";
 import type { SfxName } from "../audio/sfxNames";
 import { JIN } from "../data/tuning";
 import { lineOfSight } from "../map/pathing";
-import { jinById, wakeJin } from "./jin";
+import { jinById, nearestMemberSeed, wakeJin } from "./jin";
 
 /**
  * 音で起きる（docs/ideas/jin-impl.md 2-5・3c の I）。
@@ -37,7 +37,7 @@ export function wakeByNoise(state: GameState): void {
   if (state.noises.length === 0) return;
   const noises = state.noises;
   state.noises = [];
-  const jins: Jin[] = [];
+  const heardBy = new Map<Jin, Vec[]>();
   for (const e of state.enemies) {
     // ボスは導入演出などの自前の流れで動くので、音では起こさない
     // ボスは導入演出などの自前の流れで動くので、音では起こさない
@@ -49,9 +49,9 @@ export function wakeByNoise(state: GameState): void {
     if (!heard) continue;
     e.phase = "chase";
     const jin = jinById(state, e.jinId);
-    if (jin && !jins.includes(jin)) jins.push(jin);
+    if (jin) heardBy.set(jin, [...(heardBy.get(jin) ?? []), e.body.pos]);
   }
-  for (const jin of jins) wakeHeardJin(state, jin);
+  for (const [jin, seeds] of heardBy) wakeHeardJin(state, jin, seeds);
 }
 
 /**
@@ -71,11 +71,11 @@ function nearestSleepingJin(state: GameState, from: Jin): Jin | null {
   return best;
 }
 
-/** 聞きつけた者のいる陣を起こす。物見なら鐘を鳴らし、最も近い眠っている陣も起こす（視線で気付いたときと同じ） */
-function wakeHeardJin(state: GameState, jin: Jin): void {
-  wakeJin(state, jin);
+/** 聞きつけた者のいる陣を、聞きつけた者の近くだけ起こす。物見なら鐘を鳴らし、最も近い眠っている陣も起こす（視線で気付いたときと同じ） */
+function wakeHeardJin(state: GameState, jin: Jin, seeds: readonly Vec[]): void {
+  wakeJin(state, jin, seeds);
   if (jin.formation !== "lookout") return;
   ringLookoutBell(state);
   const target = nearestSleepingJin(state, jin);
-  if (target) wakeJin(state, target);
+  if (target) wakeJin(state, target, nearestMemberSeed(state, target));
 }

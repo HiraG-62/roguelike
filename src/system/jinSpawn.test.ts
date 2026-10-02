@@ -451,10 +451,10 @@ describe("物見（見張りの射手、3b）", () => {
     updateLookouts(state);
     expect(jin.phase, "物見の陣").toBe("engaged");
     expect(target.phase, "最も近い眠っている陣").toBe("engaged");
-    // 起こす輪（JIN.wake.radius）の外のメンバーは後詰で起きる（広がった陣は seed によってはその場で全員は起きない）
+    // 起こす輪（JIN.wake.radius）の外のメンバーは眠ったまま（自分で気付くか、群勢が崩れかけて後詰が出るまで）
     const members = membersOf(state, target.id);
     expect(members.some((e) => e.phase !== "idle"), "誰かは起きる").toBe(true);
-    if (members.some((e) => e.phase === "idle")) expect(target.secondWaveAt, "残りは後詰で起こす").not.toBeNull();
+    expect(target.secondWaveAt, "後詰は時間では出ない").toBeNull();
   });
 
   it("通常の気付く距離の外（2 倍の外）では起こさない", () => {

@@ -236,6 +236,8 @@ export interface Jin {
   - 追う得: 撃破の銭 × `ECONOMY.income.routMul` 1.5 → 3。逃げ足 `rout.speedMul` 1.25 → 1.1（泥と窮鼠があるので、追いつけないほど速くはしない）
   - 逃がす損: 眠っている陣に合流すると急報（`alarmJin`。`Jin.alarmed`、その陣はプレイヤーのいた点へ歩き出す。長居の歩き出し `stirSleepingJin` の数には数えない）
 
+- **2026-10-02 起床の見直し（ユーザーの指摘「気付かない所で敵対して、部屋の端まで寄ってくる。部屋の中心へ行かずに全部倒せてしまう」）**: 気付く距離 110 → 70px（`JIN.wake.noticeRange`。`enemies.ts` の `NOTICE_RANGE`）・起こす輪 160 → 80px・音 200 → ダッシュ 90 / 命中 110 / 爆発 140px。起こす輪の中心は「今気付いた者・今聞いた者」（`wakeJin` の seeds）で、誰も気付いていなければプレイヤー（以前は最寄りのメンバー）。自分で気付いた者は 1 輪だけ仲間を起こす（`alertJinNeighbors`。起きた者が次の輪を起こし続けない）。後詰は時間（2.5 秒）で全員を起こすのをやめ、群勢が `reserveMoraleRatio`（0.6）を切ったら `secondWaveDelay`（1 秒）後に出る（`armReserve`）
+
 ### 2-8. 同時攻撃の上限と予告の見やすさの上限（3a）
 
 - `strikeSlotsFull` → `strikerCap(state) = ENEMY_TEMPO.strikerBase(2) + floor(awakeNear / ENEMY_TEMPO.strikerPerAwake(3))`。`awakeNear` = 生存・非ボス・`!hidden`・phase ∉ {idle, spawning}・プレイヤーから `strikerCountRadius`(220) 以内。上限なし。`ENEMY_AI.maxSimultaneousStrikers` は削って ENEMY_TEMPO へ
