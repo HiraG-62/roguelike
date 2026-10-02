@@ -7,7 +7,6 @@ import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import { WEAR_TUNING } from "../skills/tuning2";
 import type { ListEntry, ListTab } from "./listScreen";
-import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
 /**
  * Tips ノート: 用語とシステムの説明の置き場。UI（ツールチップ・ヘルプ・ログ・一覧の案内）には説明を書かず、
@@ -15,13 +14,12 @@ import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
  * 操作の項目はキー設定どおりの表記にするため、本文を束縛表から組む
  */
 
-export const TIP_CATEGORIES = ["controls", "combat", "weapon", "growth", "relic", "skill", "run", "hub"] as const;
+export const TIP_CATEGORIES = ["controls", "combat", "growth", "relic", "skill", "run", "hub"] as const;
 export type TipCategory = (typeof TIP_CATEGORIES)[number];
 
 export const TIP_CATEGORY_LABEL: Readonly<Record<TipCategory, string>> = {
   controls: "操作",
   combat: "戦い",
-  weapon: "武器種",
   growth: "育成",
   relic: "遺物",
   skill: "スキル",
@@ -117,6 +115,12 @@ const CONTROL_TIPS: readonly TipDef[] = [
   },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },
+  {
+    key: "weaponManual",
+    term: "武器指南書",
+    category: "controls",
+    body: "タイトルの記録とポーズから開く。武器種ごとの特色・型と戦意・技の一覧（連撃・右の段・コンボ派生・ダッシュ攻撃・溜め攻撃・戦意の放出・奥義）を載せる。技を選ぶと横の窓で、その技の入力どおりに木人へ打ち込む実演が流れ、入力の列の今の手が光る。",
+  },
   { key: "keybinds", term: "キー設定", category: "controls", body: "設定 → キー設定で、アクションごとに主 / 副 / 予備の 3 つまで割り当てられる。画面の案内の表記もこれに合わせて変わる。" },
   { key: "hitstopDaily", term: "ヒットストップ", category: "controls", body: "設定のヒットストップの強さは、今日の挑戦では既定値で固定される（記録を競うため）。" },
   { key: "padBinds", term: "パッド設定", category: "controls", body: "設定 → パッド設定で、ゲームパッドのボタンを割り当て直せる。ボタンを押さえたまま別のボタンを押すと「LB+A」のような組み合わせになる。左スティック・十字キーの移動、A の決定、B の戻る、Start のポーズは固定。" },
@@ -458,18 +462,7 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "bossHall", term: "御堂", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
 ];
 
-/**
- * 武器種タブ: 全武器種（素手も含む「拳」）を 1 項目ずつ。手書きはしない。
- * 本文は data/weapons.ts の武器の定義（moveset の段・派生・右の段・奥義の名前）から weaponTipBody が組み立てる
- */
-const WEAPON_TIPS: readonly TipDef[] = WEAPON_TIP_KEYS.map((key) => ({
-  key: `weapon_${key}`,
-  term: MOVESETS[key].name,
-  category: "weapon",
-  body: (b: Keybinds | undefined) => weaponTipBody(key, b),
-}));
-
-const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...WEAPON_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
+const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
 
 /** 全項目。binds を省くと現在のキー設定で操作の本文を組む */
 export function tipEntries(binds?: Keybinds): TipEntry[] {

@@ -105,6 +105,7 @@
 | やり直す | restart | 探索を新しいシードでやり直す操作（キー設定の行名は「やり直す（新シード）」、ポーズの項目も「やり直す」） | `render/titleUi.ts` ACTION_LABEL / PAUSE_LABEL |
 | キー表記 | `keyLabel` / `moveKeyLabel` | 表示文字列にキー名を直書きしない。案内のキーは現在のキー設定から組む（`core/input.ts`）。説明文（スキル・祝福など）ではキー名ではなくアクション名（攻撃 1 / 攻撃 2 / 奥義 / ダッシュ）で書く。検査は `ui/keyLabels.test.ts` | `core/input.ts` |
 | Tips ノート | tips（`meta/tips.ts`） | 用語とシステムの説明をまとめた画面。タイトルのメニュー（T）とポーズから開く。UI の案内・ツールチップ・ログに仕組みの説明を書かず、ここへ移す | `meta/tips.ts`、`render/codexUi.ts` |
+| 武器指南書 / 実演 / 木人 | manual（`meta/weaponManual.ts`・`system/manualDemo.ts`） | 武器種ごとの特色・型と戦意・技の一覧（連撃 / 右の段 / コンボ派生 / ダッシュ攻撃 / 溜め攻撃 / 戦意 / 奥義）の画面。Tips ノートから武器種のタブを移した。タイトルの記録（M）とポーズから開く。技を選ぶと横の窓に**実演**（稽古場の**木人**へ、その技の入力の台本を本物の入力として流す）。入力の札は「左」「右」「ダッシュ」「奥義」、長押しは札に「長押し」の印 | `meta/weaponManual.ts`、`render/weaponManualUi.ts` |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |
 | 左クリック / 右クリック / サイド1 / サイド2 | Mouse0 / Mouse2 / Mouse3 / Mouse4 | マウスボタンの表示名。サイド1 = 戻る、サイド2 = 進む | `core/input.ts` formatBindingCode |
 | 攻撃 1（左） / 攻撃 2（右） / 奥義 / 装備画面 | attack / shoot / special / inventory | キー設定画面でのアクション名。攻撃 1 は左の連撃（銃なら射撃）、攻撃 2 は右の連撃（アクション 2）。内部名は変えていない（ほかは 上 / 下 / 左 / 右 / ダッシュ / スキル 1〜4 / 拾う） | `render/titleUi.ts` ACTION_LABEL |

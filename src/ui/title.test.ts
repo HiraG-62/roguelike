@@ -139,18 +139,24 @@ describe("processMenuKeys", () => {
   it("C/Q/A を図鑑・依頼・実績のホットキーとして拾う", () => {
     const hotkeys = processMenuKeys([key("KeyC"), key("KeyQ"), key("KeyA")], createSeedInputState("seed"));
     expect(hotkeys.c && hotkeys.q && hotkeys.a, "3 つとも拾う").toBe(true);
-    expect(titleMenuHotkey({ c: false, q: true, a: false, t: false }), "Q は依頼").toBe("quests");
-    expect(titleMenuHotkey({ c: false, q: false, a: false, t: false }), "押していなければ null").toBeNull();
+    expect(titleMenuHotkey({ c: false, q: true, a: false, t: false, m: false }), "Q は依頼").toBe("quests");
+    expect(titleMenuHotkey({ c: false, q: false, a: false, t: false, m: false }), "押していなければ null").toBeNull();
   });
 
   it("タイトルとポーズのメニューから Tips を開ける", () => {
     expect(TITLE_RECORD_ITEMS, "記録の下に Tips ノート").toContain("tips");
-    expect(titleMenuHotkey({ c: false, q: false, a: false, t: true }), "T は Tips ノート").toBe("tips");
+    expect(titleMenuHotkey({ c: false, q: false, a: false, t: true, m: false }), "T は Tips ノート").toBe("tips");
     expect(PAUSE_MENU_ITEMS, "ポーズのメニューに Tips ノート").toContain("tips");
     const layout = pauseMenuLayout(18);
     const last = layout.items[layout.items.length - 1];
     if (!last) throw new Error("ポーズの項目が無い");
     expect(last.y + last.h, "最後の項目がパネルに収まる").toBeLessThanOrEqual(layout.panel.y + layout.panel.h);
+  });
+
+  it("タイトルとポーズのメニューから武器指南書を開ける", () => {
+    expect(TITLE_RECORD_ITEMS, "記録の下に武器指南書").toContain("manual");
+    expect(titleMenuHotkey({ c: false, q: false, a: false, t: false, m: true }), "M は武器指南書").toBe("manual");
+    expect(PAUSE_MENU_ITEMS, "ポーズのメニューに武器指南書").toContain("manual");
   });
 
   it("D/P/S と矢印キーを拾う", () => {

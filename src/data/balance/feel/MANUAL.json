@@ -1,0 +1,38 @@
+{
+  "_note": "武器指南書の実演（system/manualDemo.ts）。稽古場の木人と台本の待ち。ゲームの進行には効かない",
+  "_fields": {
+    "foeDistance": "自分と木人の中心の距離の既定（台本が決めないとき）。px（10px = 1m）",
+    "foeReachRatio": "近接の武器種の木人までの距離を、左の段の一番短い届きの何割にするか。割合（0..1）。木人の体の半径ぶん内側に入るよう 1 未満",
+    "foeMinDistance": "近接の木人までの距離の下限。px。体どうしが重ならない距離",
+    "gunFoeDistance": "銃の家系の木人までの距離。px",
+    "dashFoeDistance": "ダッシュ攻撃の木人までの距離。px。ダッシュで抜ける長さを見せる",
+    "foeHp": "木人の生命。実演の 1 周で倒れない量",
+    "tailSec": "台本の手をすべて終えてから眺める秒。この後、技が出終わっていれば最初からやり直す",
+    "tailMaxExtraSec": "眺める秒の後、技が出終わるのを待つ上限の秒（持続の奥義・飛んでいる弾）",
+    "readyTimeoutSec": "次の押下を受けられる瞬間を待つ上限の秒。過ぎたら押してしまう（台本が止まらないための保険）",
+    "previewZoom": "実演の窓の拡大。倍率（1 = 本編と同じ大きさ）",
+    "pressFlashSec": "入力の列の今の手を光らせる秒",
+    "foeDistanceCandidates": "台本の距離で当たらない（放てない）とき試す木人の距離。px。台本の距離に近い順に試す"
+  },
+  "foeDistance": 40,
+  "foeReachRatio": 0.8,
+  "foeMinDistance": 16,
+  "gunFoeDistance": 80,
+  "dashFoeDistance": 90,
+  "foeHp": 1000000,
+  "tailSec": 0.9,
+  "tailMaxExtraSec": 3,
+  "readyTimeoutSec": 2,
+  "previewZoom": 1.5,
+  "pressFlashSec": 0.25,
+  "foeDistanceCandidates": [
+    16,
+    24,
+    32,
+    48,
+    64,
+    96,
+    128,
+    160
+  ]
+}

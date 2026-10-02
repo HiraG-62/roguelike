@@ -1,14 +1,8 @@
-import { type Keybinds, keyLabel } from "../core/input";
 import { formatMeters } from "../core/units";
 import {
-  type BranchDef,
   type BulletDef,
-  type ButtonKey,
-  MOVESETS,
-  MOVESET_KEYS,
   type MeleeStepDef,
   type MovesetDef,
-  type MovesetKey,
   type TipDef,
   actionStepName,
   type BulletFeature,
@@ -16,21 +10,15 @@ import {
   isGun,
   movesetCasts,
 } from "../data/weapons";
-import { type UltimateDef, ULTIMATES } from "../data/ultimates";
 import { type FormDef, type MoraleGain, type RiposteSource, formCutsBullets, formOf } from "../data/weaponForms";
 import { STATUS_LABEL } from "../core/status";
 import { FORM } from "../data/tuning";
 import { ATTR_KEYS, ATTR_LABEL, type AttrKey } from "../loot/types";
 
 /**
- * 武器種の Tips 本文を武器の定義（moveset の段・派生・右の段・奥義の名前）と型（data/weaponForms.ts の戦意・放出・応手）から組み立てる。
- * 手書きの表は持たない（MovesetDef.desc は data/weapons.ts が既に持つ手書きの一言をそのまま使う）。
- * Tips ノートの「武器種」タブは meta/tips.ts の TIP_DEFS へこの本文を差し込む
+ * 武器指南書（meta/weaponManual.ts）の頁の本文: 特色（間合い・参照ステータス・固有の仕組み）と型の文（戦意・放出・応手）を
+ * 武器の定義と型（data/weaponForms.ts）から組み立てる。手書きの表は持たない（MovesetDef.desc は data/weapons.ts の手書きの一言をそのまま使う）
  */
-
-/** 奥義の種類の短い表記（docs/GLOSSARY.md「一撃 / 持続」）。ui/sheetBody.ts の ULTIMATE_KIND_LABEL と同じ語だが、
- * meta 層から ui 層へ依存しないようここに小さく持つ */
-const ULTIMATE_KIND_LABEL: Readonly<Record<UltimateDef["kind"], string>> = { instant: "一撃", sustain: "持続" };
 
 /** 弾の性質（data/weapons.ts の BulletFeature）の短い説明 */
 const BULLET_FEATURE_TEXT: Readonly<Record<BulletFeature, string>> = {
@@ -149,17 +137,6 @@ export function formText(m: Readonly<MovesetDef>): string {
   return `${head}戦意「${label}」は${gainText(form)}${releaseSentence(m, form)}${riposte}`;
 }
 
-/** ButtonKey の列を HUD と同じ「左」「右」の表記にする（docs/GLOSSARY.md「アクション 1 / アクション 2」） */
-function sequenceText(seq: readonly ButtonKey[]): string {
-  return seq.map((b) => (b === "primary" ? "左" : "右")).join("");
-}
-
-/** 派生の引き金の表記（構えを離して出す派生は「◯を離す」） */
-function branchTrigger(b: Readonly<BranchDef>): string {
-  const seq = sequenceText(b.sequence);
-  return b.art === "release" ? `${seq}を離す` : seq;
-}
-
 /** 武器種が持つすべての近接の振り（段・ダッシュ攻撃・派生・溜め・右の振り・構えの離し）。固有の仕組みの検出に使う */
 function allSteps(m: Readonly<MovesetDef>): MeleeStepDef[] {
   const out: (MeleeStepDef | undefined)[] = [...m.steps, m.dashAttack, ...m.branches.map((b) => b.step), m.charge?.step, m.charge?.spinning?.step];
@@ -215,7 +192,7 @@ function referencedAttrs(step: Readonly<MeleeStepDef>): AttrKey[] {
 }
 
 /** 特徴（間合い・参照ステータス・固有の仕組み）。desc は data/weapons.ts の手書きの一言 */
-function featureText(m: Readonly<MovesetDef>): string {
+export function featureText(m: Readonly<MovesetDef>): string {
   const desc = withPeriod(m.desc);
   const mechanics = weaponMechanics(m)
     .map(withPeriod)
@@ -228,48 +205,3 @@ function featureText(m: Readonly<MovesetDef>): string {
   const attrText = attrs.length > 0 ? `威力は${attrs.map((a) => ATTR_LABEL[a]).join("・")}で伸びる。` : "";
   return `${desc}${reach}${attrText}${mechanics}`;
 }
-
-/** 右レーンの段の並び（「受け流し（説明）→2 段目→3 段目」）。desc は 1 段目だけが持つ */
-function laneSummary(m: Readonly<MovesetDef>): string {
-  const names = m.steps2.map((s, i) => {
-    const name = actionStepName(s, i);
-    return s.desc ? `${name}（${s.desc}）` : name;
-  });
-  return names.join("→");
-}
-
-/** 操作（攻撃 1 / 攻撃 2 / 奥義）。キー表記は今のキー設定から組む */
-function operationText(m: Readonly<MovesetDef>, binds: Keybinds | undefined): string {
-  const atk = keyLabel("attack", { binds });
-  const sh = keyLabel("shoot", { binds });
-  const sp = keyLabel("special", { binds });
-  const left = isGun(m)
-    ? `${atk}: 押している間、弾を撃つ。`
-    : m.primary === "charge"
-      ? `${atk}: 連撃。長押しで溜め、離すと強い一振り。`
-      : `${atk}: ${m.steps.length} 段の連撃。`;
-  const right = `${sh}: ${laneSummary(m)}。`;
-  return `${left}${right}${sp}: 奥義ゲージが満ちると出せる（拠点で 3 本から選ぶ）。`;
-}
-
-/** コンボ派生の一覧（「左左右→十字断ち」）。無ければ空文字 */
-function comboText(m: Readonly<MovesetDef>): string {
-  if (m.branches.length === 0) return "";
-  const list = m.branches.map((b) => `${branchTrigger(b)}→${b.name}`).join("、");
-  return `派生: ${list}。`;
-}
-
-/** 奥義 3 本の名前と種類 */
-function ultimateText(key: MovesetKey): string {
-  const list = ULTIMATES[key].map((u) => `${u.name}（${ULTIMATE_KIND_LABEL[u.kind]}）`).join("・");
-  return `奥義の候補: ${list}。`;
-}
-
-/** 武器種 1 つの Tips 本文。特徴・操作・コンボ一覧・奥義の候補を武器の定義から組み立てる */
-export function weaponTipBody(key: MovesetKey, binds?: Keybinds): string {
-  const m = MOVESETS[key];
-  return [featureText(m), formText(m), operationText(m, binds), comboText(m), ultimateText(key)].filter((s) => s.length > 0).join(" ");
-}
-
-/** 全武器種の key（Tips のタブ・網羅テストが使う） */
-export const WEAPON_TIP_KEYS: readonly MovesetKey[] = MOVESET_KEYS;
