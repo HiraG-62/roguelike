@@ -139,7 +139,10 @@ function aurasOf(state: GameState): Aura[] {
  */
 function rampOf(fx: SkillFx, key: string, element: string): FxRampKey {
   const own = skillAttack(key as SkillKey)?.element ?? "none";
-  return element === "none" || element === own ? fx.ramp : rampOfElement(element as Element);
+  // 自分の表を持つスキル: 素性どおりならその表の配色（血抜きの血は闇の素性でも赤）
+  if (SKILL_FX[key] && (element === "none" || element === own)) return fx.ramp;
+  // 汎用の技の絵で描く技・属性が差し替わったとき: 属性の配色（無属性は汎用の表の墨）
+  return element === "none" ? fx.ramp : rampOfElement(element as Element);
 }
 
 function paramsElement(params: Readonly<CastParams>): string {
