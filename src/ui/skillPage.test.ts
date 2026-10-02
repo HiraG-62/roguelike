@@ -323,3 +323,24 @@ describe("手持ちの符の並びと絞り込み（handRunes）", () => {
     expect(choices.slice(1).every((k) => runeKeywords("echo").includes(k as Keyword)), "手持ちの符の語だけ").toBe(true);
   });
 });
+
+describe("スキルの頁: 手持ちの絞り込みの一周", () => {
+  it("種類の札は 全 → 変形 → 循環 → 型替え → 全 と一周する", () => {
+    const { state, ui } = openWithHand(["echo", "focus", "bloodPrice", "spillover"]);
+    const seen: (string | null)[] = [];
+    for (let i = 0; i < 5; i++) {
+      confirmOn(state, ui, fid.handOpt("kind"));
+      seen.push(ui.handPref.kind);
+    }
+    expect(seen, "型替えの次は絞らないへ戻る").toEqual(["shape", "cycle", "reshape", null, "shape"]);
+  });
+
+  it("系統の札も最後の系統の次は絞らないへ戻る", () => {
+    const { state, ui } = openWithHand(["echo", "focus", "bloodPrice", "spillover"]);
+    const choices = handKeywordChoices(state);
+    for (let i = 1; i < choices.length; i++) confirmOn(state, ui, fid.handOpt("keyword"));
+    expect(ui.handPref.keyword, "最後の系統").toBe(choices[choices.length - 1]);
+    confirmOn(state, ui, fid.handOpt("keyword"));
+    expect(ui.handPref.keyword, "絞らないへ戻る").toBeNull();
+  });
+});
