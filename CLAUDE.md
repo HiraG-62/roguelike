@@ -28,6 +28,7 @@
 | `npm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
 | `npm run qa:full` | `SIM_FULL=1` でフル QA（1 時間超。裏で回す）。`src/qa/report.md` を上書き。`-- --no-write` で書き出さない |
 | `npm run qa:probe` | `SIM_PROBE=1` で 1 対 1 / 集団の連打計測（約 1 分）。基準値の `src/qa/probe.md` を上書き。`-- --no-write` で書き出さない。`-- --weapons`（武器種 × 敵）/ `-- --bosses`（章ボス 4 と最深の主）/ `-- --deep`（深みの曲線・到達・壊れの重さ）でその節だけ測って差し替え |
+| `npm run qa:gear` | 装備パターンの行列（持ち込みの量・部位・質・武器種・ジョブを標準から 1 軸ずつ変えて bot を並列に回す。約 30〜60 分）。`src/qa/` の gear の表（md）と集計（json）を上書き。`-- --only <軸 / key>` で測り直した分だけ差し替え・`--seeds` / `--steps` / `--jobs` / `--no-write` |
 | `npm run map:shot` | 地図の見た目の確認用 PNG（`tools/map-shot.html` を Chromium で撮る。既定 14 場面）。`-- --only <名前>` / `-- --bench`（描画の ms）/ `-- --out <dir>` |
 | `npm run hitch:probe` | 一瞬の固まりの計測（bot が 60 秒遊び、重いフレームと原因の候補を出す）。`-- --seed / --depth / --frames / --threshold / --methods / --headed` |
 | `npm run electron:dev` / `npm run electron:build` | Electron 版の起動 / 配布物のビルド（`electron/`） |
