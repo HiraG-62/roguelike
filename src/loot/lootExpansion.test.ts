@@ -2,7 +2,7 @@ import { createIncreased } from "../core/damage";
 import { describe, expect, it } from "vitest";
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
-import { KEYSTONE } from "../data/tuning";
+import { BUD, KEYSTONE } from "../data/tuning";
 import {
   AFFIXES,
   CONVERSION_AFFIXES,
@@ -273,10 +273,10 @@ describe("来歴の節目と目覚め", () => {
     if (weapon === null) throw new Error("武器が無い");
     // 他の節目は到達済みにして、盾騎士 30 の節目だけを見る
     weapon.milestones = MILESTONES.map((m) => m.key).filter((k) => k !== "enemy:knight:30");
-    for (let i = 0; i < 30; i++) recordProvenance(state, { kind: "kill", enemyKey: "knight", boss: false });
+    for (let i = 0; i < 30 * BUD.thresholdScale; i++) recordProvenance(state, { kind: "kill", enemyKey: "knight", boss: false });
     expect(weapon.budOffer?.milestone).toBe("enemy:knight:30");
     expect(weapon.budOffer?.options[0].key).toBe("guardedBane");
-    expect(state.pendingBud?.milestoneLabel).toBe("盾騎士撃破 30");
+    expect(state.pendingBud?.milestoneLabel).toBe(`盾騎士撃破 ${30 * BUD.thresholdScale}`);
   });
 
   it("来歴は 1 つずつ積み、印章指輪は 2 倍", () => {

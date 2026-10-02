@@ -220,6 +220,11 @@ export function focusPart(ui: InventoryUi, slot: Slot): void {
   setStack(ui, [attireRoot(ui, fid.part(slot))]);
 }
 
+/** 候補の頁の左の部位のマスから、その部位の候補の頁へ（装束の頁の焦点も新しい部位へ。focusPart や芽の入口と同じ形） */
+export function switchCandidatePart(ui: InventoryUi, slot: Slot): void {
+  setStack(ui, [attireRoot(ui, fid.part(slot)), candidatesFor(ui, slot)]);
+}
+
 /** 紋の珠・系統の札から、その出どころの置き場へ跳ぶ（E-impl 1-3 の jump の表） */
 export function jumpToSource(state: Readonly<GameState>, ui: InventoryUi, source: Readonly<ResonanceOrigin>): void {
   setStack(ui, jumpStack(state, ui, source));

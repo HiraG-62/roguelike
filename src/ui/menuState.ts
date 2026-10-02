@@ -80,6 +80,8 @@ export type MenuAct =
   | { kind: "replace"; view: MenuView }
   | { kind: "jump"; source: ResonanceOrigin }
   | { kind: "focusPart"; slot: Slot }
+  /** 候補の頁の左の部位のマスから、別の部位の候補の頁へ替える（装束の頁の焦点も合わせる） */
+  | { kind: "switchPart"; slot: Slot }
   // 頁ごと（その頁の ViewModule.act が処理する）
   | { kind: "setSort"; sort: CandidateSort }
   | { kind: "equip"; itemId: string }
@@ -102,13 +104,17 @@ export type MenuAct =
   | { kind: "forgePick"; pick: ForgePick }
   | { kind: "forgeExecute" };
 
-/** act = 決定で起きること / hold = 長押し 0.6 秒で起きること / nav = 方向の移動で止まるか（面の札は false） */
+/**
+ * act = 決定で起きること / hold = 長押し 0.6 秒で起きること / nav = 方向の移動で止まるか（面の札は false）/
+ * hover = マウスが通るだけで焦点を移すか（省略は true。false は「押したときだけ」で、通過で差を消したくない当たり）
+ */
 export interface MenuHit {
   id: FocusId;
   rect: Rect;
   act: MenuAct | null;
   hold: MenuAct | null;
   nav: boolean;
+  hover?: boolean;
 }
 /** 荷札 2 行。aside は 1 行目の右寄せ（地金 ▲▼・費用） */
 export interface MenuTag {

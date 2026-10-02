@@ -166,6 +166,7 @@ function createHubState(profile: Profile, skillProfile: SkillProfile, layout: Hu
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
+    budOfferedThisRun: [],
     runKeystones: [],
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],

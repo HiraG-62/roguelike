@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
+import { BUD } from "../data/tuning";
 import { JOBS, JOB_KEYS, type JobKey } from "../data/jobs";
 import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
 import { baseDef } from "../loot/bases";
@@ -14,7 +15,9 @@ import { onTraitKill } from "./traitHooks";
 /** 来歴の節目「初期武器と同じ型での撃破」（key は旧「得意武器での撃破」の favoredKills のまま） */
 
 const NOW = 1_700_000_000_000;
-const FIRST_THRESHOLD = 150;
+/** 節目の key は基準の値（150）のまま、判定は倍率を掛けた値 */
+const FIRST_KEY_BASE = 150;
+const FIRST_THRESHOLD = FIRST_KEY_BASE * BUD.thresholdScale;
 const MIDWAY = 40;
 const ENEMY_DX = 30;
 
@@ -87,9 +90,9 @@ describe("初期武器と同じ型での撃破", () => {
     state.profile.equipment.mainHand = migrated;
     onTraitKill(state, placeEnemy(state, "slime", ENEMY_DX));
     const item = state.profile.equipment.mainHand;
-    expect(item?.provenance?.favoredKills, "150 に届く").toBe(FIRST_THRESHOLD);
-    expect(milestoneDef(`favoredKills:${FIRST_THRESHOLD}`), "節目の key は据え置き").toBeDefined();
-    expect(item?.milestones, "その節目が到達済みになる").toContain(`favoredKills:${FIRST_THRESHOLD}`);
+    expect(item?.provenance?.favoredKills, "節目の値に届く").toBe(FIRST_THRESHOLD);
+    expect(milestoneDef(`favoredKills:${FIRST_KEY_BASE}`), "節目の key は据え置き").toBeDefined();
+    expect(item?.milestones, "その節目が到達済みになる").toContain(`favoredKills:${FIRST_KEY_BASE}`);
   });
 
   it("途中の数えに加算される", () => {

@@ -18,6 +18,7 @@ import {
   type CandidateTarget,
   type GuideVerb,
   type InventoryUi,
+  type LootSlot,
   type MenuAct,
   type MenuHeader,
   type MenuHit,
@@ -45,6 +46,16 @@ export const CANDIDATE_PAGE = MENU_BUDGET.candidates;
 export const CAND_CARD = { x: 120, y: 36, w: 180, h: 23, step: 26 } as const;
 /** 並びの札 3 つ（x 120 + i × 22・y 20・18 × 12） */
 export const SORT_CHIP = { x: 120, y: 20, w: 18, h: 12, step: 22 } as const;
+/** 左の小さな体の部位のマス（18px。描画は render/candidatesUi.ts、当たりは layout。座標の本体はここ） */
+export const MINI_PART = 18;
+export const MINI_PARTS: Readonly<Record<LootSlot, { x: number; y: number }>> = {
+  head: { x: 46, y: 24 },
+  amulet: { x: 84, y: 40 },
+  mainHand: { x: 10, y: 66 },
+  ring: { x: 84, y: 78 },
+  armor: { x: 10, y: 100 },
+  boots: { x: 46, y: 106 },
+};
 /** 並びの順（受け流しキーで送る順と同じ） */
 export const SORT_ORDER: readonly CandidateSort[] = ["fit", "new", "name"];
 /** 並びの札の 1 字と、荷札で言う名前 */
@@ -153,13 +164,17 @@ function ensureOrder(state: Readonly<GameState>, view: Readonly<CandidatesView>)
   return memo.order;
 }
 
-/** 部位の候補で芽のある部位は、先頭に芽吹きの札 2 枚 */
+/**
+ * 部位の候補で芽のある部位は、先頭に芽吹きの札 2 枚。
+ * 開いた部位の遺物の提示（item.budOffer）から作る（state.pendingBud は先頭の 1 つだけなので使わない）
+ */
 function budEntries(state: Readonly<GameState>, target: Readonly<CandidateTarget>): CandidateEntry[] {
-  const pending = state.pendingBud;
-  if (target.kind !== "slot" || pending === null || pending.slot !== target.slot) return [];
+  if (target.kind !== "slot") return [];
+  const offer = state.profile.equipment[target.slot]?.budOffer;
+  if (offer === null || offer === undefined) return [];
   return [
-    { kind: "bud", n: 0, roll: pending.options[0] },
-    { kind: "bud", n: 1, roll: pending.options[1] },
+    { kind: "bud", n: 0, roll: offer.options[0] },
+    { kind: "bud", n: 1, roll: offer.options[1] },
   ];
 }
 
@@ -251,13 +266,35 @@ function sortChipHits(reachable: boolean): MenuHit[] {
   }));
 }
 
+/**
+ * 左の部位のマス（部位の候補だけ。今の部位は除く）。決定・クリックでその部位の候補の頁へ替える。
+ * hover: false = マウスが通るだけでは焦点を奪わない（札の差と動く紋が通過で消えないように）。
+ * ← で札から移れるよう nav は true。札と並びの札より後ろに置く（ensureFocus が最初の nav を焦点にするため）
+ */
+function partHits(target: Readonly<CandidateTarget>): MenuHit[] {
+  if (target.kind !== "slot") return [];
+  return (Object.keys(MINI_PARTS) as LootSlot[])
+    .filter((slot) => slot !== target.slot)
+    .map((slot): MenuHit => {
+      const at = MINI_PARTS[slot];
+      return {
+        id: fid.part(slot),
+        rect: { x: at.x - 1, y: at.y - 1, w: MINI_PART + 2, h: MINI_PART + 2 },
+        act: { kind: "switchPart", slot },
+        hold: null,
+        nav: true,
+        hover: false,
+      };
+    });
+}
+
 function layout(state: Readonly<GameState>, _ui: Readonly<InventoryUi>, view: Readonly<CandidatesView>): MenuHit[] {
   const entries = candidateEntries(state, view);
   syncPage(view as CandidatesView, entries);
   const cards = visibleEntries(entries, view.offset).map((entry, i) =>
     entryHit(entry, { x: CAND_CARD.x, y: CAND_CARD.y + i * CAND_CARD.step, w: CAND_CARD.w, h: CAND_CARD.h }, view.target),
   );
-  return [...cards, ...sortChipHits(view.offset === 0)];
+  return [...cards, ...sortChipHits(view.offset === 0), ...partHits(view.target)];
 }
 
 // -----------------------------------------------------------------------------
@@ -327,7 +364,8 @@ function clearTarget(state: GameState, ui: InventoryUi, view: CandidatesView): v
 }
 
 function budChoose(state: GameState, ui: InventoryUi, view: CandidatesView, option: number): void {
-  const chosen = chooseBud(state, option);
+  if (view.target.kind !== "slot") return;
+  const chosen = chooseBud(state, view.target.slot, option);
   if (chosen === null) return;
   pushSfx(state, "boonSelect");
   showNote(ui, `芽吹き: ${describeTrait(chosen).text}`);
@@ -409,7 +447,10 @@ const GUIDE: readonly GuideVerb[] = ["move", "equip", "sort", "sheet", "back"];
 function sheetFor(state: Readonly<GameState>, view: Readonly<CandidatesView>): SheetSubject | null {
   const entry = focusedEntry(state, view);
   if (entry === null || entry.kind === "clear") return null;
-  if (entry.kind === "bud") return state.pendingBud === null ? null : { kind: "item", itemId: state.pendingBud.itemId };
+  if (entry.kind === "bud") {
+    const worn = view.target.kind === "slot" ? state.profile.equipment[view.target.slot] : null;
+    return worn === null || worn === undefined ? null : { kind: "item", itemId: worn.id };
+  }
   const s = entry.subject;
   if (s.kind === "item") return { kind: "pair", itemId: s.item.id, slot: s.item.slot };
   return { kind: "stonePair", stoneId: s.stone.id, index: view.target.kind === "stone" ? view.target.index : 0 };

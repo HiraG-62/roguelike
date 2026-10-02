@@ -18,7 +18,7 @@ import { addStone, equipStone, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS } from "../skills/types";
 import { RESONANCE_EXCLUDED } from "../system/resonance";
 import { withInput } from "../system/testHelpers";
-import { CANDIDATE_PAGE, CANDIDATES_VIEW, candidateEntries, entryFocusId, sortedIds } from "./candidates";
+import { CANDIDATE_PAGE, CANDIDATES_VIEW, MINI_PART, MINI_PARTS, candidateEntries, entryFocusId, sortedIds } from "./candidates";
 import { createInventoryUi, updateInventoryUi } from "./inventory";
 import { candidatesFor } from "./menuActions";
 import { fid } from "./menuFocus";
@@ -282,6 +282,76 @@ describe("候補の頁", () => {
     expect(worn?.affixes.some((a) => a.origin === "bud" && a.value === 4), "選んだ方が芽吹いた").toBe(true);
     expect(worn?.budOffer ?? null, "提示は消える").toBeNull();
     expect(candidateEntries(state, view).map(entryFocusId)[0], "芽吹きの札は無くなる").toBe(fid.cand("stash-head"));
+  });
+
+  it("複数の装備に芽があるとき、2 つ目の部位の頁にも札が出て、選ぶとその遺物だけ芽吹く", () => {
+    const state = plainState();
+    const milestone = MILESTONES[0]?.key ?? "kills:50";
+    const roll = (value: number): AffixRoll => ({ key: "armorFlat", value, nominal: value, flux: 0, color: "gold", origin: "found" });
+    state.profile.equipment.head = relic("head", "budded-head", { margin: 2, marginMax: 2, budOffer: { milestone, options: [roll(1), roll(2)] } });
+    state.profile.equipment.boots = relic("boots", "budded-boots", { margin: 2, marginMax: 2, budOffer: { milestone, options: [roll(5), roll(6)] } });
+    state.pendingBud = findPendingBud(state.profile);
+    expect(state.pendingBud?.slot, "pendingBud は SLOTS 順で先頭の 1 つだけ").not.toBe("boots");
+
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "boots"));
+    const view = topCandidates(ui);
+    expect(candidateEntries(state, view).map(entryFocusId).slice(0, 2), "pendingBud でない部位にも芽吹きの札").toEqual([fid.bud(0), fid.bud(1)]);
+    expect(CANDIDATES_VIEW.sheetFor(state, { ...view, focus: fid.bud(0) })?.kind, "芽の札の書付は開いた部位の遺物").toBe("item");
+
+    view.focus = fid.bud(1);
+    frame(state, ui, { confirmPressed: true });
+    const boots = state.profile.equipment.boots;
+    expect(boots?.affixes.some((a) => a.origin === "bud" && a.value === 6), "選んだ方が靴の遺物に付いた").toBe(true);
+    expect(boots?.budOffer ?? null, "靴の提示は消える").toBeNull();
+    const head = state.profile.equipment.head;
+    expect(head?.budOffer ?? null, "頭の芽は残る").not.toBeNull();
+    expect(head?.affixes.some((a) => a.origin === "bud"), "頭には付かない").toBe(false);
+    expect(state.pendingBud?.slot, "残った芽が pendingBud になる").toBe("head");
+  });
+
+  it("候補の頁の左の部位のマスをクリックすると、その部位の候補の頁に替わる（通過では焦点を奪わない）", () => {
+    const state = plainState();
+    state.profile.stash = [relic("head", "n1", { foundAt: 500 }), relic("boots", "b1", { foundAt: 10 })];
+    const fresh = state.profile.stash.find((it) => it.id === "n1");
+    if (fresh === undefined) throw new Error("遺物が無い");
+    expect(isUnseen(fresh, state.profile.meta), "最初は新着").toBe(true);
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    view.focus = fid.cand("n1");
+    const boots = MINI_PARTS.boots;
+    const aim = { x: boots.x + MINI_PART / 2, y: boots.y + MINI_PART / 2 };
+
+    frame(state, ui, { aimScreen: { x: 300, y: 200 } });
+    frame(state, ui, { aimScreen: aim });
+    expect(view.focus, "マウスが部位の上を通るだけでは焦点は札のまま").toBe(fid.cand("n1"));
+    expect(topCandidates(ui), "頁も替わらない").toBe(view);
+
+    frame(state, ui, { aimScreen: aim, clickPressed: true });
+    const next = topCandidates(ui);
+    expect(next.target, "靴の候補の頁").toEqual({ kind: "slot", slot: "boots" });
+    expect(ui.stack.map((v) => v.kind), "積み重ねは装束 → 候補のまま").toEqual(["attire", "candidates"]);
+    expect(ui.stack[0]?.focus, "装束の頁の焦点も靴").toBe(fid.part("boots"));
+    expect(isUnseen(fresh, state.profile.meta), "外れた頭の頁の新着は見たことになる").toBe(false);
+    const hitIds = CANDIDATES_VIEW.layout(state, ui, next).map((h) => h.id);
+    expect(hitIds, "今の部位のマスは当たりに出ない").not.toContain(fid.part("boots"));
+    expect(hitIds, "元の部位のマスが当たりに出る").toContain(fid.part("head"));
+  });
+
+  it("候補の頁で ← を押すと札から左の部位へ移れて、決定でその部位の候補の頁に替わる", () => {
+    const state = plainState();
+    for (let i = 0; i < 5; i++) state.profile.stash.push(relic("head", `h${i}`, { foundAt: 10 + i }));
+    state.profile.stash.push(relic("armor", "a1"));
+    const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
+    const view = topCandidates(ui);
+    view.focus = candidateEntries(state, view).map(entryFocusId)[3] ?? null;
+    frame(state, ui, { move: { x: -1, y: 0 } });
+    expect(view.focus?.startsWith("part:"), "札から部位のマスへ移った").toBe(true);
+    const slot = view.focus?.slice("part:".length);
+
+    frame(state, ui, { move: { x: 0, y: 0 } });
+    frame(state, ui, { confirmPressed: true });
+    expect(topCandidates(ui).target, "決定で、その部位の候補の頁").toEqual({ kind: "slot", slot });
+    expect(ui.stack[0]?.focus, "装束の頁の焦点も合う").toBe(fid.part(slot as Slot));
   });
 
   it("候補の頁を離れるとその部位の新着が消える", () => {

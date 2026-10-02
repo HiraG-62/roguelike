@@ -1142,6 +1142,8 @@ export interface GameState {
   reforgeChoice: ReforgeChoice | null;
   /** 装備の芽（来歴の節目で出る 2 択）の提示中。UI が表示し、system/loot.ts の chooseBud で選ぶ */
   pendingBud: PendingBud | null;
+  /** このランで芽を出した遺物の id（1 ランに 1 つまで。BUD.perRunPerItem。永続化しない。loot/provenance.ts の recordProvenance が積む） */
+  budOfferedThisRun: string[];
   // ---- ラン構造（起点・縛り・祭壇・ランイベント・分岐路。docs/ideas/run-expansion.md）----
   /** 祭壇・起点がこのランだけ与えた誓約の key（applyStats が装備の誓約に足す） */
   runKeystones: string[];

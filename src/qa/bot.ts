@@ -1008,7 +1008,7 @@ function decideInput(state: GameState, bot: BotState, dt: number): FrameInput {
   // 装備の芽（state.pendingBud）は boonChoice と違い core/game.ts の step を止めない
   // （system/loot.ts の chooseBud を呼ぶ副作用が要るだけで、FrameInput とは無関係）ため、
   // ここでは何もしない。芽の選択・出現回数の計測は呼び出し側（qa/simulation.test.ts の
-  // runOnce）が state.pendingBud を見て chooseBud(state, 0) を直接呼んでいる
+  // runOnce）が state.pendingBud を見て chooseBud(state, pending.slot, 0) を直接呼んでいる
 
   if (bot.depth !== state.depth) {
     bot.depth = state.depth;

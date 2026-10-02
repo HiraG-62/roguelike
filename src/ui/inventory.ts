@@ -8,7 +8,7 @@ import { CANDIDATES_VIEW } from "./candidates";
 import { CREST_VIEW } from "./crest";
 import { FLOW_BOARD_VIEW, FLOW_VIEW } from "./flow";
 import { pointInRect } from "./inventoryLayout";
-import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, switchFace } from "./menuActions";
+import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, switchCandidatePart, switchFace } from "./menuActions";
 import { fid, focusedHit, hitAt, nearestInDirection } from "./menuFocus";
 import { MENU_HOLD_SECONDS, primeMenuNav, readMenuNav, stepHold } from "./menuInput";
 import {
@@ -154,6 +154,10 @@ function applyAct(state: GameState, ui: InventoryUi, act: MenuAct): void {
       focusPart(ui, act.slot);
       menuClick(state);
       return;
+    case "switchPart":
+      switchCandidatePart(ui, act.slot);
+      menuClick(state);
+      return;
     default: {
       const top = topView(ui);
       if (top !== null) viewModule(top).act(state, ui, top, act);
@@ -199,7 +203,7 @@ function followMouse(ui: InventoryUi, view: MenuView, hits: readonly MenuHit[], 
   ui.aimPrev = aim === null ? null : { x: aim.x, y: aim.y };
   if (!moved) return;
   const hit = hitAt(hits, aim);
-  if (hit !== null && hit.nav) setFocus(ui, view, hit.id);
+  if (hit !== null && hit.nav && hit.hover !== false) setFocus(ui, view, hit.id);
 }
 
 /** 焦点が当たりに無い（積んだばかりの頁・消えた当たり）なら先頭の当たりへ。荷札が空のままにならないように */

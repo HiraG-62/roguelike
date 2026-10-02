@@ -120,6 +120,7 @@ export function createGame(
     reforges: [],
     reforgeChoice: null,
     pendingBud: findPendingBud(profile),
+    budOfferedThisRun: [],
     runKeystones: originKeystones(setup.origin),
     runEvents: createRunEventState(),
     modifiers: [...setup.modifiers],

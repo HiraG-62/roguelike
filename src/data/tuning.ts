@@ -98,6 +98,9 @@ export const RESONANCE = BALANCE.loot.RESONANCE;
 /** 厳選の到達点の閾値（loot/reach.ts。docs/ideas/deep-impl.md 2-4） */
 export const REACH = BALANCE.loot.REACH;
 
+/** 装備の芽の育ちの遅さ: 節目の倍率と 1 ランの上限（loot/provenance.ts。docs/ideas/loot-expansion.md） */
+export const BUD = BALANCE.loot.BUD;
+
 /** 装備ドロップ */
 export const LOOT_DROP = BALANCE.loot.LOOT_DROP;
 

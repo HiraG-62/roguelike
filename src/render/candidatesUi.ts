@@ -12,6 +12,8 @@ import { itemColor } from "../system/loot";
 import {
   CANDIDATE_PAGE,
   CAND_CARD,
+  MINI_PART,
+  MINI_PARTS,
   SORT_CHIP,
   SORT_LABEL,
   SORT_ORDER,
@@ -57,15 +59,6 @@ type CandidatesView = ViewOf<"candidates">;
 
 /** 小さな体（人影を 3 倍・部位 18px の枠）の置き場 */
 const MINI_FIGURE = { x: 40, y: 52, scale: 3 } as const;
-const MINI_PART = 18;
-const MINI_PARTS: Readonly<Record<LootSlot, { x: number; y: number }>> = {
-  head: { x: 46, y: 24 },
-  amulet: { x: 84, y: 40 },
-  mainHand: { x: 10, y: 66 },
-  ring: { x: 84, y: 78 },
-  armor: { x: 10, y: 100 },
-  boots: { x: 46, y: 106 },
-};
 /** あてがいの入れ替えの周期（秒） */
 const TRY_PERIOD = 0.5;
 /** 石の候補で並べる腰の石 */
@@ -321,13 +314,13 @@ function clearDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>): 
   return { title: `スキル ${t.index + 1} を空ける`, aside: null, lines: [{ gain: false, text: SKILL_DEFS[stone.skillKey].verb }], more: 0, empty: "" };
 }
 
-function budDiff(state: Readonly<GameState>, roll: Readonly<AffixRoll>): DiffView {
-  const worn = state.pendingBud === null ? null : state.profile.equipment[state.pendingBud.slot];
+function budDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>, roll: Readonly<AffixRoll>): DiffView {
+  const worn = view.target.kind === "slot" ? state.profile.equipment[view.target.slot] : null;
   return { title: `${worn?.name ?? ""} に芽吹く`, aside: null, lines: [{ gain: true, text: describeTrait(roll).text }], more: 0, empty: "" };
 }
 
 function diffOf(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>): DiffView | null {
-  if (entry.kind === "bud") return budDiff(state, entry.roll);
+  if (entry.kind === "bud") return budDiff(state, view, entry.roll);
   if (entry.kind === "clear") return clearDiff(state, view);
   const s = entry.subject;
   if (s.kind === "stone") return stoneDiff(s.stone, view.target.kind === "stone" ? stoneInSlot(state.skills.profile, view.target.index) : null);
