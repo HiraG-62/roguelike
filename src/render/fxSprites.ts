@@ -20,14 +20,43 @@ export const FX_ART_SCALE = 2;
 const LEVEL_GRAY = 32;
 const LEVELS = 7;
 const RECT_STRIDE = 6;
+/** 滲みの届く距離の余り（斜めの隣 √2 を幅 1 に含める） */
+const HALO_REACH_SLACK = 0.5;
+/** 滲みが外端で 0 になりきらないよう、薄れる幅に足す余り */
+const HALO_FADE_SLACK = 0.5;
 
-export type FxRampKey = Exclude<keyof typeof RAMPS, "_note">;
+export type FxRampKey = Exclude<keyof typeof RAMPS, "_note" | "_halo">;
 
 export const FX_RAMP_KEYS: readonly FxRampKey[] = ["steel", "brass", "fire", "ice", "lightning", "poison", "dark", "light"];
 
 /** 配色の 7 段（暗 → 明） */
 export function rampColors(key: FxRampKey): readonly string[] {
   return RAMPS[key];
+}
+
+/** 線の周りの滲み（墨の主題。docs/ideas/fx-sprites.md 3.6）。r は絵のドット */
+export interface FxHalo {
+  readonly color: string;
+  readonly alpha: number;
+  readonly r: number;
+}
+
+export function rampHalo(key: FxRampKey): FxHalo {
+  return RAMPS._halo[key];
+}
+
+/** 配色の光の色（弾・振りの先端の灯り）。墨の配色は明部が暗いので、滲みの色で灯す */
+export function rampGlow(key: FxRampKey): string {
+  return rampHalo(key).color;
+}
+
+/**
+ * 滲みの不透明度。線（不透明なドット）からの距離 d（絵のドット、隣 = 1）で薄くなり、r を超えると 0。
+ * 線そのもの（d = 0）は 0（線の色で塗る）
+ */
+export function haloAlpha(halo: FxHalo, d: number): number {
+  if (d <= 0 || d > halo.r + HALO_REACH_SLACK) return 0;
+  return Math.max(0, halo.alpha * (1 - (d - 1) / (halo.r + HALO_FADE_SLACK)));
 }
 
 /** 1 フレームの矩形（絵のドット）。(ox, oy) は矩形の左上から原点までのずれ */
@@ -198,11 +227,13 @@ export class FxSpriteBank {
     const img = this.cellCanvas(key, sheet, pick.dir, frame, cell, opts.ramp);
     if (!img) return false;
     const s = (opts.scale ?? 1) / FX_ART_SCALE;
+    // 滲みの分だけ四方に広げて焼いてある（recolorCell）
+    const pad = (img.width - cell.w) / 2;
     ctx.save();
     ctx.translate(snapArt(x), snapArt(y));
     if (pick.flip) ctx.scale(1, -1);
     ctx.globalAlpha = opts.alpha ?? 1;
-    ctx.drawImage(img, -cell.ox * s, -cell.oy * s, cell.w * s, cell.h * s);
+    ctx.drawImage(img, -(cell.ox + pad) * s, -(cell.oy + pad) * s, img.width * s, img.height * s);
     ctx.restore();
     return true;
   }
@@ -212,7 +243,7 @@ export class FxSpriteBank {
     const hit = this.cells.get(id);
     if (hit !== undefined) return hit;
     const img = this.images.get(sheet.atlas);
-    const made = img ? recolorCell(img, cell, this.rampRgb(ramp)) : null;
+    const made = img ? recolorCell(img, cell, this.rampRgb(ramp), rampHalo(ramp)) : null;
     this.cells.set(id, made);
     return made;
   }
@@ -240,26 +271,64 @@ function primeReadback(img: HTMLImageElement): void {
   ctx.getImageData(0, 0, 1, 1);
 }
 
-/** アトラスから 1 フレームを切り出し、段の灰色を配色の色へ写す */
-function recolorCell(img: HTMLImageElement, cell: FxCell, ramp: readonly [number, number, number][]): HTMLCanvasElement | null {
+/**
+ * アトラスから 1 フレームを切り出し、段の灰色を配色の色へ写す。
+ * 墨の滲み（halo）の幅だけ四方に広げた canvas に描き、線の周りの透明なドットに滲みの色を薄く置く（左右上下対称なので上下反転してもずれない）
+ */
+function recolorCell(img: HTMLImageElement, cell: FxCell, ramp: readonly [number, number, number][], halo: FxHalo): HTMLCanvasElement | null {
+  const pad = Math.max(0, Math.ceil(halo.r));
+  const w = cell.w + pad * 2;
+  const h = cell.h + pad * 2;
   const canvas = document.createElement("canvas");
-  canvas.width = cell.w;
-  canvas.height = cell.h;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  ctx.drawImage(img, cell.x, cell.y, cell.w, cell.h, 0, 0, cell.w, cell.h);
-  const image = ctx.getImageData(0, 0, cell.w, cell.h);
+  ctx.drawImage(img, cell.x, cell.y, cell.w, cell.h, pad, pad, cell.w, cell.h);
+  const image = ctx.getImageData(0, 0, w, h);
   const data = image.data;
-  for (let i = 0; i < data.length; i += 4) {
-    if (!data[i + 3]) continue;
-    const level = Math.min(LEVELS, Math.max(1, Math.round((data[i] ?? 0) / LEVEL_GRAY)));
+  const opaque = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    if (!data[o + 3]) continue;
+    opaque[i] = 1;
+    const level = Math.min(LEVELS, Math.max(1, Math.round((data[o] ?? 0) / LEVEL_GRAY)));
     const rgb = ramp[level - 1];
     if (!rgb) continue;
-    data[i] = rgb[0];
-    data[i + 1] = rgb[1];
-    data[i + 2] = rgb[2];
-    data[i + 3] = 255;
+    data[o] = rgb[0];
+    data[o + 1] = rgb[1];
+    data[o + 2] = rgb[2];
+    data[o + 3] = 255;
   }
+  if (pad > 0 && halo.alpha > 0) paintHalo(data, opaque, w, h, pad, halo);
   ctx.putImageData(image, 0, 0);
   return canvas;
+}
+
+/** 透明なドットのうち、線から pad 以内のものに滲みの色を置く（近いほど濃い） */
+function paintHalo(data: Uint8ClampedArray, opaque: Uint8Array, w: number, h: number, pad: number, halo: FxHalo): void {
+  const rgb = hexRgb(halo.color);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (opaque[y * w + x]) continue;
+      let best = Infinity;
+      for (let dy = -pad; dy <= pad; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -pad; dx <= pad; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w || !opaque[yy * w + xx]) continue;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < best) best = d2;
+        }
+      }
+      const a = haloAlpha(halo, Math.sqrt(best));
+      if (a <= 0) continue;
+      const o = (y * w + x) * 4;
+      data[o] = rgb[0];
+      data[o + 1] = rgb[1];
+      data[o + 2] = rgb[2];
+      data[o + 3] = Math.round(a * 255);
+    }
+  }
 }

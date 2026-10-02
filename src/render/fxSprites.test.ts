@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
-import { FX_RAMP_KEYS, cellOf, fitScale, lifeFrame, loopFrame, pickDir, rampColors, snapArt, swingFrame } from "./fxSprites";
+import { FX_RAMP_KEYS, cellOf, fitScale, haloAlpha, lifeFrame, loopFrame, pickDir, rampColors, rampGlow, rampHalo, snapArt, swingFrame } from "./fxSprites";
 import { BULLET_FX, MOVESET_FX, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
 import { ultPiece } from "./fxUltimate";
 import { BULLETS } from "../loot/bullets";
@@ -115,6 +115,40 @@ describe("fxSprites: 生成物と一覧の整合", () => {
   it("配色はすべて 7 段で、属性ごとに配色がある", () => {
     for (const key of FX_RAMP_KEYS) expect(rampColors(key), key).toHaveLength(7);
     for (const element of ELEMENTS) expect(FX_RAMP_KEYS).toContain(rampOfElement(element));
+  });
+
+  it("墨の配色: 無属性は芯ほど濃墨、属性つきは濃墨の一筆に明るい芯（docs/ideas/fx-sprites.md 3.6）", () => {
+    const luma = (hex: string): number => {
+      const n = Number.parseInt(hex.slice(1), 16);
+      return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    };
+    const INK_MAX_LUMA = 64;
+    for (const key of FX_RAMP_KEYS) {
+      const lumas = rampColors(key).map(luma);
+      const core = lumas[6] ?? 0;
+      const body = lumas.slice(0, 5);
+      if (key === "steel" || key === "brass") {
+        expect(core, `${key} の芯は濃墨`).toBeLessThan(INK_MAX_LUMA);
+        expect(lumas[0] ?? 0, `${key} の縁と飛沫は淡墨`).toBeGreaterThan(core);
+      } else {
+        for (const v of body) expect(v, `${key} の本体は墨`).toBeLessThan(INK_MAX_LUMA);
+        expect(core, `${key} の芯は属性の色で明るい`).toBeGreaterThan(INK_MAX_LUMA * 2);
+      }
+    }
+  });
+
+  it("どの配色にも線の周りの滲みがあり、線から離れるほど薄れて幅の外では 0", () => {
+    for (const key of FX_RAMP_KEYS) {
+      const halo = rampHalo(key);
+      expect(halo.alpha, key).toBeGreaterThan(0);
+      expect(halo.alpha, key).toBeLessThanOrEqual(1);
+      expect(Number.isInteger(halo.r) && halo.r >= 1, key).toBe(true);
+      expect(rampGlow(key)).toBe(halo.color);
+      expect(haloAlpha(halo, 0), `${key} 線そのもの`).toBe(0);
+      expect(haloAlpha(halo, 1), key).toBeCloseTo(halo.alpha);
+      expect(haloAlpha(halo, halo.r), key).toBeLessThan(haloAlpha(halo, 1) + 1e-9);
+      expect(haloAlpha(halo, halo.r + 1), `${key} 幅の外`).toBe(0);
+    }
   });
 });
 
