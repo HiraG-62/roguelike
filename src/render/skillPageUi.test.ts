@@ -11,7 +11,7 @@ import { createInventoryUi } from "../ui/inventory";
 import { openMenu } from "../ui/menuActions";
 import { budgetViolations, censusOfText } from "../ui/menuBudget";
 import { fid } from "../ui/menuFocus";
-import type { InventoryUi, MenuView } from "../ui/menuState";
+import { HAND_SLOT, type InventoryUi, type MenuView } from "../ui/menuState";
 
 /**
  * スキルの頁・加護の頁の描画のスモーク。Canvas は呼び出しを数えるだけの偽物にする。
@@ -51,14 +51,15 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-/** 石 0 に反響と収束、石 3 は空のまま（効かない符を作る）、ダッシュの加護とダッシュ系の長靴を持つ state */
+/** 石 0 に反響と収束、手持ちに符、ダッシュの加護とダッシュ系の長靴を持つ state */
 function preparedState(): GameState {
   const state = createGame(1);
   const first = state.skills.slots[0];
   const last = state.skills.slots[3];
   if (!first || !last) throw new Error("スロットが無い");
   first.runModifiers = ["echo", "focus"];
-  last.runModifiers = ["echo"];
+  last.runModifiers = [];
+  state.skills.hand = ["echo", "echo", "focus", "bloodPrice"];
   const grace = BOON_KEYS.find((k) => BOONS[k].card === "grace" && BOONS[k].action === "dash");
   if (grace === undefined) throw new Error("ダッシュの加護が無い");
   grantBoon(state, grace);
@@ -80,7 +81,7 @@ function drawWith(view: MenuView, state: GameState, ui: InventoryUi, drawInvento
   drawInventoryUi(ctx, state, ui);
 }
 
-const SKILL_FOCUSES = [fid.stone(0), fid.stone(3), fid.rune(0, "echo"), fid.loose(3, "echo"), null];
+const SKILL_FOCUSES = [fid.stone(0), fid.stone(3), fid.rune(0, "echo"), fid.hand("echo"), fid.handOpt("sort"), fid.handOpt("keyword"), null];
 const ACT_FOCUSES = [fid.grace("burnSpread"), fid.relic("boots"), "empty:1", fid.action("dash"), null];
 
 describe("スキルの頁・加護の頁の描画", () => {
@@ -92,6 +93,9 @@ describe("スキルの頁・加護の頁の描画", () => {
     for (const focus of SKILL_FOCUSES) drawWith({ kind: "skills", focus, lift: null }, state, ui, drawInventoryUi, ctx);
     drawWith({ kind: "skills", focus: fid.col(1), lift: { slot: 0, key: "echo" } }, state, ui, drawInventoryUi, ctx);
     drawWith({ kind: "skills", focus: fid.col(3), lift: { slot: 3, key: "echo" } }, state, ui, drawInventoryUi, ctx);
+    drawWith({ kind: "skills", focus: fid.col(1), lift: { slot: HAND_SLOT, key: "echo" } }, state, ui, drawInventoryUi, ctx);
+    drawWith({ kind: "skills", focus: fid.hand("focus"), lift: null, hand: { sort: "kind", kind: "shape", keyword: "mana", fitOnly: true } }, state, ui, drawInventoryUi, ctx);
+    drawWith({ kind: "skills", focus: null, lift: null, hand: { sort: "name", kind: "reshape", keyword: null, fitOnly: false } }, state, ui, drawInventoryUi, ctx);
     ui.hold = { id: fid.rune(0, "focus"), t: 0.3, by: "key" };
     drawWith({ kind: "skills", focus: fid.rune(0, "focus"), lift: null }, state, ui, drawInventoryUi, ctx);
     ui.hold = null;
@@ -110,6 +114,7 @@ describe("スキルの頁・加護の頁の描画", () => {
     const views: { name: string; view: MenuView }[] = [
       ...SKILL_FOCUSES.map((focus) => ({ name: `スキル ${focus}`, view: { kind: "skills", focus, lift: null } as MenuView })),
       { name: "スキル 持ち上げ中", view: { kind: "skills", focus: fid.col(1), lift: { slot: 0, key: "echo" } } },
+      { name: "スキル 手持ちを持ち上げ中", view: { kind: "skills", focus: fid.col(1), lift: { slot: HAND_SLOT, key: "echo" } } },
       ...ACT_FOCUSES.map((focus) => ({ name: `加護 ${focus}`, view: { kind: "act", focus, action: "dash" } as MenuView })),
     ];
     for (const { name, view } of views) {

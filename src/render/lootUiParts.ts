@@ -21,7 +21,7 @@ export const COLOR_GROWN = "#9dffb0";
 export const COLOR_INSCRIPTION = "#f0d8a0";
 export const COLOR_BAR_EMPTY = "#303038";
 
-export const GROWN_MARK = "✦";
+export const GROWN_MARK = "★";
 /** 揺らぎの段階の印（0 = 静は何も出さない、3 = 反転） */
 export const FLUX_MARK: Readonly<Record<FluxLevel, string>> = { 0: "", 1: "･", 2: "･･", 3: "･･･" };
 

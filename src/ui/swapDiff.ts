@@ -6,7 +6,8 @@ import { MENU_BUDGET } from "../data/tuning";
 
 /**
  * 候補を今の遺物と比べる「差」（docs/ideas/inventory-v2/E-merged.md 5 章の 3）。
- * 共通の性質は書かず、得る / 失うの行（合わせて diffRows 行 + 「ほか n」）と、地金の差（▲▼ を innateDiffs 個まで）だけを返す。
+ * 共通の性質は書かず、得る / 失うの行（合わせて diffRows 行 + 「ほか n」）と、地金の差（innateDiffs 個まで + 溢れた数）だけを返す。
+ * 地金の差の値（「防御力 12 → 15」）は ui/statDiff.ts が今のステータスから数える。
  * 文は loot/describe.ts の describeTrait の既存の文をそのまま使う（新しい文を作らない）
  */
 
@@ -20,7 +21,7 @@ export interface SwapDiffRow {
   key: string;
 }
 
-/** 地金の差 1 つ。数値は並べ替えの鍵で、画面には ▲▼ だけ出す（UI が出す数の予算） */
+/** 地金の差 1 つ。delta は遺物の地金どうしの差（並べ替えの鍵）。画面に出す「今 → 後」の値は ui/statDiff.ts が数える */
 export interface InnateDelta {
   /** 地金の行の key（attr_str / armorFlat など） */
   key: string;
@@ -35,6 +36,8 @@ export interface SwapDiff {
   /** 行に入りきらなかった得る・失うの数（「ほか n」） */
   more: number;
   innate: InnateDelta[];
+  /** innateDiffs 個に入りきらなかった地金の差の数 */
+  innateMore: number;
 }
 
 /** 得るを先に最大この行数まで見せる（失うを必ず 1 行は残すため）。失うが無いときは全行を使う */
@@ -82,17 +85,19 @@ function innateValues(item: Readonly<Item> | null, depth: number): Map<string, n
   return out;
 }
 
-/** 地金の差。変わりの大きい順（同じ大きさは出た順）に innateDiffs 個まで。depth は今の深度（地金は深度で決め直す。拠点・倉庫は 1） */
-function innateDeltas(candidate: Readonly<Item>, current: Readonly<Item> | null, depth: number): InnateDelta[] {
+/** 地金の差。変わりの大きい順（同じ大きさは出た順）に innateDiffs 個まで、溢れは more。depth は今の深度（地金は深度で決め直す。拠点・倉庫は 1） */
+function innateDeltas(candidate: Readonly<Item>, current: Readonly<Item> | null, depth: number): { list: InnateDelta[]; more: number } {
   const after = innateValues(candidate, depth);
   const before = innateValues(current, depth);
   const keys = [...new Set([...before.keys(), ...after.keys()])];
-  return keys
+  const all = keys
     .map((key) => ({ key, delta: (after.get(key) ?? 0) - (before.get(key) ?? 0) }))
     .filter((d) => Math.abs(d.delta) > INNATE_EPSILON)
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const list = all
     .slice(0, MENU_BUDGET.innateDiffs)
     .map((d): InnateDelta => ({ key: d.key, label: labelOfInnate(d.key), direction: d.delta > 0 ? "up" : "down", delta: d.delta }));
+  return { list, more: all.length - list.length };
 }
 
 /** candidate に替えたときの差（current = 今の遺物。空きの部位は null） */
@@ -100,5 +105,6 @@ export function swapDiff(candidate: Readonly<Item>, current: Readonly<Item> | nu
   const gain = onlyIn(candidate.affixes, current?.affixes ?? []);
   const lose = onlyIn(current?.affixes ?? [], candidate.affixes);
   const { rows, more } = pickRows(gain, lose);
-  return { rows, more, innate: innateDeltas(candidate, current, depth) };
+  const innate = innateDeltas(candidate, current, depth);
+  return { rows, more, innate: innate.list, innateMore: innate.more };
 }

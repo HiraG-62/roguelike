@@ -10,16 +10,19 @@ import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { KEYSTONE } from "../data/tuning";
-import { BODY_SKILL_KEYS, SKILL } from "../skills/data";
+import { BODY_SKILL_KEYS, MODIFIERS, SKILL, SKILL_DEFS, canAttach } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
-import { createDefaultSkillProfile } from "../skills/persistence";
-import { SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "../skills/types";
+import { createDefaultSkillProfile, stoneInSlot } from "../skills/persistence";
+import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "../skills/types";
 import { updatePlayer } from "./player";
 import {
+  addToHand,
+  attachFromHand,
   attachRune,
   capManaCost,
   chargeRatio,
   createSkillRunState,
+  detachToHand,
   dropRune,
   frenzyMul,
   moveRunModifier,
@@ -448,24 +451,55 @@ describe("刻印符（ラン内だけの物）", () => {
     expect(mods(state, 0), "最古の収束が押し出される").toEqual(["bloodPrice", "spillover", "echo", "streak"]);
   });
 
-  it("床の刻印符は触れると付けられるスロットへ入る（所持品もセーブも経由しない）", () => {
+  it("床の刻印符は触れると手持ちへ入る（スキルへは付かない。所持品もセーブも経由しない）", () => {
     const state = skillArena([{ key: "parry" }, { key: "gravityWell" }]);
     dropRune(state, state.player.body.pos, "echo");
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
     expect(state.skills.runes, "床から消える").toHaveLength(0);
-    expect(state.skills.slots[1]?.runModifiers, "反響が付かないスロット 1 を飛ばして、スロット 2 の符になる").toEqual(["echo"]);
-    expect(mods(state, 1)).toEqual(["echo"]);
+    expect(state.skills.hand, "手持ちへ入る").toEqual(["echo"]);
+    expect(state.skills.slots.every((s) => s.runModifiers.length === 0), "どのスキルにも付かない").toBe(true);
     expect("runes" in state.skills.profile, "プロフィールに符を持たない").toBe(false);
-    expect(state.log.some((l) => l.text.includes("スキル 2")), "ログに付けた先").toBe(true);
+    expect(state.log.some((l) => l.text.includes("手持ち")), "ログに手持ち").toBe(true);
   });
 
-  it("付けられるスキルが無い符は床に残り、1 回だけ知らせる", () => {
+  it("付けられるスキルが無い符でも拾えて手持ちに残る（付ける先は後から選ぶ）", () => {
     const state = skillArena([{ key: "parry" }]);
     dropRune(state, state.player.body.pos, "echo");
     run(state, SKILL.drop.pickupDelay + FIXED_DT);
-    expect(state.skills.runes, "床に残る").toHaveLength(1);
-    expect(state.skills.runes[0]?.warned).toBe(true);
-    expect(state.skills.slots[0]?.runModifiers).toEqual([]);
+    expect(state.skills.runes, "床には残らない").toHaveLength(0);
+    expect(state.skills.hand).toEqual(["echo"]);
+  });
+
+  it("手持ちの符を付けるとスロットへ移り、外すと手持ちへ戻る（手持ちに上限はない）", () => {
+    const state = skillArena([{ key: "parry" }, { key: "gravityWell" }]);
+    for (let i = 0; i < 12; i++) addToHand(state, "echo");
+    expect(state.skills.hand, "12 枚持てる").toHaveLength(12);
+    expect(attachFromHand(state, 0, "echo"), "相性表で付かないスキル").toBe("notFit");
+    expect(state.skills.hand, "付けられなければ手持ちは減らない").toHaveLength(12);
+    expect(attachFromHand(state, 1, "echo")).toBe("ok");
+    expect(state.skills.hand, "手持ちから 1 枚減る").toHaveLength(11);
+    expect(state.skills.slots[1]?.runModifiers).toEqual(["echo"]);
+    expect(attachFromHand(state, 1, "echo"), "同じ符は 1 スキルに 1 枚").toBe("duplicate");
+    expect(attachFromHand(state, 1, "streak"), "手持ちに無い符").toBe("missing");
+    expect(detachToHand(state, 1, "echo")).toBe(true);
+    expect(state.skills.hand, "外した符は手持ちへ戻る").toHaveLength(12);
+    expect(state.skills.slots[1]?.runModifiers).toEqual([]);
+    expect(detachToHand(state, 1, "echo"), "付いていない符は外せない").toBe(false);
+  });
+
+  it("型替え符は 1 スロット 1 枚。付かなかった符は手持ちに残る", () => {
+    const state = skillArena([{ key: "gravityWell" }]);
+    const stone = stoneInSlot(state.skills.profile, 0);
+    if (!stone) throw new Error("石が無い");
+    const reshapes = MODIFIER_KEYS.filter((k) => MODIFIERS[k].reshape && canAttach(SKILL_DEFS[stone.skillKey], k));
+    const [a, b] = reshapes;
+    expect(a !== undefined && b !== undefined, "型替え符が 2 種以上ある").toBe(true);
+    if (a === undefined || b === undefined) return;
+    addToHand(state, a);
+    addToHand(state, b);
+    expect(attachFromHand(state, 0, a)).toBe("ok");
+    expect(attachFromHand(state, 0, b), "型替え符 2 枚目").toBe("reshape");
+    expect(state.skills.hand, "付かなかった符は手持ちに残る").toEqual([b]);
   });
 
   it("リンクはスロットごとに固定: スロット 4 は 2 本まで。3 枚目の符は効かない", () => {

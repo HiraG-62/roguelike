@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createGame, step } from "../core/game";
 import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/state";
 import { ULTIMATES } from "../data/ultimates";
-import { placeEnemy, arena, slayFloorLord } from "../system/testHelpers";
+import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
 import {
   HIDDEN_DOOR_GIVE_UP,
+  autoAttachHand,
   botInput,
   chooseTargetRoomIndex,
   createBotState,
@@ -446,5 +447,34 @@ describe("bot は穴越しの敵へ直進しない", () => {
       closest = Math.min(closest, Math.hypot(pin.x - state.player.body.pos.x, pin.y - state.player.body.pos.y));
     }
     expect(closest, "穴の縁で止まらず敵のそばまで回り込む").toBeLessThan(REACHED_DIST);
+  });
+});
+
+describe("bot の刻印符の自動装着", () => {
+  it("手持ちの符を付けられるスキルへ付け、付けた数を返す。付かなかった符は手持ちに残る", () => {
+    const state = createGame(3);
+    state.skills.hand = ["focus", "echo", "streak"];
+    const attached = autoAttachHand(state);
+    const placed = state.skills.slots.reduce((n, s) => n + s.runModifiers.length, 0);
+    expect(attached, "返り値は付けた枚数").toBe(placed);
+    expect(state.skills.hand.length, "付けた分だけ手持ちが減る").toBe(3 - attached);
+  });
+
+  it("botInput は手持ちの符を毎ステップ付けにいく（本体は自動で付けない）", () => {
+    const state = createGame(3);
+    const stone = state.skills.slots.findIndex((_, i) => (state.skills.profile.loadout[i] ?? null) !== null);
+    expect(stone, "石を持つスロットがある").toBeGreaterThanOrEqual(0);
+    state.skills.hand = ["focus", "echo", "streak"];
+    step(state, botInput(state, createBotState(3), 1 / 60), 1 / 60);
+    const placed = state.skills.slots.reduce((n, s) => n + s.runModifiers.length, 0);
+    expect(placed + state.skills.hand.length, "符は増えも消えもしない（押し出しが起きない枚数）").toBe(3);
+    expect(placed, "付けられる符は付く").toBeGreaterThan(0);
+  });
+
+  it("ゲーム本体の step だけでは手持ちの符は付かない", () => {
+    const state = createGame(3);
+    state.skills.hand = ["focus"];
+    for (let i = 0; i < 30; i++) step(state, withInput({}), 1 / 60);
+    expect(state.skills.hand, "手持ちのまま").toEqual(["focus"]);
   });
 });

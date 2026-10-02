@@ -184,11 +184,11 @@ describe("起点の適用", () => {
     expect(s.stats.increased.vsStaggered, "封印が解けて装備の性質が乗る").toBeGreaterThan(bare.increased.vsStaggered);
   });
 
-  it("詠み手: 刻印符を差して始まり、最大 HP が 2 割減る", () => {
+  it("詠み手: 刻印符を手持ちに持って始まり（スキルへは付かない）、最大 HP が 2 割減る", () => {
     const base = game({ origin: "wanderer", modifiers: [] });
     const s = game({ origin: "chanter", modifiers: [] });
-    const runes = s.skills.slots.reduce((n, slot) => n + slot.modifiers.length, 0);
-    expect(runes).toBeGreaterThan(0);
+    expect(s.skills.hand, "手持ちに開始の符").toHaveLength(ORIGIN.chanterRunes);
+    expect(s.skills.slots.every((slot) => slot.modifiers.length === 0), "スキルには付いていない").toBe(true);
     expect(s.stats.maxHp).toBeCloseTo(base.stats.maxHp * ORIGIN.chanterHpMul);
   });
 

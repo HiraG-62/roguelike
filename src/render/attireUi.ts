@@ -104,7 +104,8 @@ export function drawStoneGem(
   for (let j = 0; j < n; j++) {
     const c = hookColors[j];
     if (c !== undefined) px(ctx, hx + j * HOOK_GAP, y + HOOK_DY, HOOK_W, HOOK_H, c);
-    else box(ctx, hx + j * HOOK_GAP, y + HOOK_DY, HOOK_W, HOOK_H, MENU_INK.dim);
+    // 空きの鉤は細い縦線（四角の枠にすると、字が描けていない豆腐「□□□□」に見える）
+    else px(ctx, hx + j * HOOK_GAP + (HOOK_W >> 1), y + HOOK_DY, 1, HOOK_H, MENU_INK.dim);
   }
   noteMarks();
 }

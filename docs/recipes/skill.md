@@ -13,7 +13,7 @@
   - 発動の起点を変える型替え符は `ModifierDef.reshape`（照準起点・足元起点・据え置き。リンク 2 本、1 スロット 1 枚まで）
   - 連動符（終撃連動・応手連動）は `ModifierDef.autoCast`（`AutoCastTrigger`）。終撃が当たる（`system/moments.ts`）・応手が起きると `tryAutoCast` が予約し、次の `updateSkills` で `castSlotAt` が手動と同じ経路で撃つ（気力・再使用は払い、撃てなければ黙る）。変身・構えの維持（`form` / `channel`）とは噛み合わないので付けさせない。検査は `skills/autoCast.test.ts`
   - 符が語（共鳴の数え）を持つなら `ModifierDef.keywords`（`kw(源, 糧, 強め)`）
-- 刻印符はラン内だけの物（2026-09-30）。付け外しは `attachRune` / `moveRunModifier` / `removeRunModifier`（`system/skills.ts`）、1 スロットに付く本数は `SKILL.slotLinks`。石には符を持たせない
+- 刻印符はラン内だけの物（2026-09-30）。拾うと自動では付かず手持ち `SkillRunState.hand` へ入る（`addToHand`。起点「詠み手」も同じ）。付け外しは `attachFromHand` / `moveRunModifier` / `detachToHand`（外した符は手持ちへ戻る。`system/skills.ts`）で、装備画面のスキルの頁が呼ぶ。石を替えた後は `returnInactiveRunes` で付かなくなった符を手持ちへ戻す。リプレイは `ReplayLoadout.handRunes` に手持ちを写す（版 38）。QA の bot は画面を操作できないので `qa/bot.ts` の `autoAttachHand` が付ける（本体は自動で付けない）。1 スロットに付く本数は `SKILL.slotLinks`。石には符を持たせない
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（手書きスキルとの全組み合わせをテストで固定している。技との相性は `fitsArt` / 行為の列で決まる）
 - 常時の増・倍・条件付き・「〜につき」: スキル石の定義に `modifiers`（`core/rules.ts` の `Modifier`）を置くと、スロットに入っている間だけ与ダメ・怯み値に効く（評価は `system/modifiers.ts`。書き方は `docs/recipes/boon.md` の「常時の増・倍」節）。`CastParams` の倍率で常時の与ダメを盛らない
 

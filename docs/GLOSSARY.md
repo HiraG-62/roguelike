@@ -290,7 +290,8 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 帯 / 珠 | `CrestRow` / `CrestBead` | 紋の系統 1 本（太さと光の速さが段）/ 帯の両側の出どころ 1 つ（角 = 遺物・菱形 = スキル石・小札 = 祝福・二重丸 = 流儀と型）。表示には出さず Tips で使う | `ui/crestShape.ts` |
 | 伏流 | `CrestRow.undercurrent` | 源か糧を 1 つ以上持つが段の立っていない系統。紋の下に破線で描き、足りない側に「＋」 | `ui/crestShape.ts` |
 | 候補 | candidates | 部位（か腰の石）を選ぶと並ぶ倉庫の物。5 枚ずつ | `ui/candidates.ts` |
-| 合 / 新 / 名 | `CandidateSort` fit / new / name | 候補の並び。噛み合う順 / 新着順 / 名・銘・芽。札は 1 字、荷札で長い名 | 同上 |
+| 合 / 新 / 名 | `CandidateSort` fit / new / name | 候補の並び。噛み合う順 / 新着順 / 名・銘・芽。札は 1 字、荷札で長い名。右に絞り込みの札「系統」「型」（スキル石の候補だけ「型」） | 同上 |
+| 荷札の頭の印 ◆ | `TAG_MARK` | 荷札・候補の差の見出しの頭。▶ は DotGothic16 に無く環境で豆腐になるので ◆ を使う（`render/fontCoverage.test.ts` が本体の文字列の字をフォントと突き合わせる） | `render/inventoryUi.ts` |
 | 新着 | `ProfileMeta.seenAt` | その部位の候補を最後に見た後に倉庫へ入った遺物。部位の角と候補の札の白い点 | `ui/seen.ts` |
 | 芽吹き（札） | - | 芽のある部位の候補の先頭に並ぶ 2 択の札。決定で芽吹く | `ui/candidates.ts` |
 | 得る / 失う | `SwapDiff`（`ui/swapDiff.ts`） | 候補と今の物の性質の差。共通の性質は書かない | `ui/swapDiff.ts` |
@@ -300,7 +301,12 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 金床の構え | anvil | 拠点の鍛冶屋で開く装束。部位 → 装備中の物とその部位の倉庫 → 操作。表示は見出しの「鍛冶屋」だけ | `ui/anvil.ts` |
 | 残響の壺 | - | 金床の構えの下の 5 色の壺。水位が残響の量（数字は荷札だけ） | `render/anvilUi.ts` |
 | 乗る遺物 / 注ぐ系統 | - | 加護の頁の見出し。その行動の系統を持つ装備中の遺物 / その行動の加護が起こす系統 | `ui/actPage.ts` |
-| 効かない符 | `RuneEntry.active` false | スキルの頁の下の列。付いているが今の石に効かない刻印符 | `ui/skillPage.ts` |
+| 手持ち（刻印符） | `SkillRunState.hand` | 拾った符・起点「詠み手」の符。どのスキルにも付いていない。符は拾っても勝手に付かず、まず手持ちに入り、スキルの頁の下の「手持ち」の欄から自分で選んで付ける。外した符・石を替えて付かなくなった符も手持ちへ戻る。上限なし・探索が終わると消える。同じ符は 1 枚にまとめ右上に「×3」。付けられないスキルは沈めて見せる | `ui/skillPage.ts`、`ui/handRunes.ts` |
+| 並び（手持ち）新着順 / 名前順 / 種類順 | `HandSort` new / name / kind | 手持ちの符の並び。新着は最後に拾った符が先頭。札を決定するたびに次へ送る（R キーも） | `ui/handRunes.ts` |
+| 種類で絞る 変形 / 循環 / 型替え | `RuneKind` shape / cycle / reshape | 手持ちの符の絞り込み。決定で 全て → 変形 → 循環 → 型替え と送る | `ui/handRunes.ts` |
+| 系統で絞る / 付けられる物だけ | `HandOptions.keyword` / `fitOnly` / `CandidateFilter.keyword` | 手持ちの符・候補の頁の絞り込み。系統は丸印の語を 1 つ選ぶ（今ある物に出てくる語だけを順に送る）。付けられる物だけは今のスキルのどれかに付く符だけ | `ui/handRunes.ts`、`ui/candidates.ts` |
+| 型で絞る 気力型 / 再使用型 | `CandidateFilter.resource` mana / cooldown | スキル石の候補の絞り込み。スキルの資源の型（`SkillResource`）。決定で 絞らない → 気力型 → 再使用型 | `ui/candidates.ts` |
+| 今の値 → 付けた後の値 | `StatChange` | 候補の差の右の列。付けると変わる地金のステータスを「防御力 10.4 → 12.4」と並べる（上がる = 緑・下がる = 赤）。多いときは最後の行を「ほか n」にまとめる。装備・起点・祝福を畳んだ後の自分の値で、単一の総合指標は出さない | `ui/statDiff.ts` |
 | 系統を選ぶ | flowBoard | 紋に描けない 5 本目以降の系統を選ぶ盤（丸印だけの格子） | `ui/flow.ts` |
 | 持ち上げ中 | - | スキルの頁で符を持ち上げている間の荷札 | `ui/skillPage.ts` |
 | 相性（遺物のツールチップ） | `describeSynergy` | 遺物のツールチップ末尾の「系統: 源 … 糧 …」と「相性: 〜 / 潤い: 〜 / 受け皿: 〜」の行（旧「ここに噛む」「語: 出す … 食う …」） | `loot/describe.ts`、`render/itemTips.ts` |
@@ -386,7 +392,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 刻印符 | rune / modifier | スキルのスロットに刺す修飾子。**ラン内だけの物**（2026-09-30 から。持ち越さない）。拾うと付けられるスロットへ入り、装備画面のスキルの頁で持ち上げて別の石へ置く。長押しで外す（外すと消える）。リンクはスロットで固定（4 / 3 / 2 / 2。`SKILL.slotLinks`） | `skills/data.ts`、`system/skills.ts` |
 | 所持（刻印符。撤去） | 旧 `SkillProfile.runes` | 2026-09-30 に撤去。旧セーブの手持ちの符は読み捨て、拠点で 1 回だけ知らせる | `skills/persistence.ts` |
 | 移す / 外す（刻印符） | `moveRunModifier` / `removeRunModifier` | 装備画面のスキルの頁で符を持ち上げて別の石の列へ置く / 長押しで外す（外すと消える）。祝福が足した符は動かせない。付けられるスロットが無い床の符は拾えず「付ける先なし」 | `system/skills.ts`、`ui/skillPage.ts` |
-| ラン内の刻印符 | `SkillSlotState.runModifiers` | 拾った符・起点「詠み手」・図書館の符。スロットのリンクまで付き、溢れると古い順に押し出す。祝福の加護が足す符（`grantsModifier`）は後ろに並ぶ | `system/skills.ts` |
+| ラン内の刻印符 | `SkillSlotState.runModifiers` | 自分で手持ちから付けた符（リンクの本数まで。付けられなければ付かない）。祝福の加護が足す符（`grantsModifier`）は後ろに並ぶ | `system/skills.ts` |
 | 本動作 | `SkillDef.exclusiveGroup: "body"` | 体を使うスキル（近接・移動・照準）。本動作どうしは同時に発動できず、それ以外（設置・射撃・強化）は並行して撃てる。HUD では本動作の最中に同じ組のスロットが暗くなる | `skills/data.ts` BODY_SKILL_KEYS |
 | 溜め | charge | 長押しで威力を上げる刻印符 | 同上 |
 | 祝福 | boon | 階層到達時の 3 択。ルール変更が中心 | `system/boons.ts` |

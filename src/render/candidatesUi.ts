@@ -12,14 +12,19 @@ import { itemColor } from "../system/loot";
 import {
   CANDIDATE_PAGE,
   CAND_CARD,
+  FILTER_AXES,
+  FILTER_CHIPS,
+  MINI_GEM,
   MINI_PART,
   MINI_PARTS,
+  RESOURCE_LABEL,
   SORT_CHIP,
   SORT_LABEL,
   SORT_ORDER,
   type CandidateEntry,
   candidateEntries,
   entryFocusId,
+  filterAvailable,
   focusedEntry,
   tryOnForEntry,
   visibleEntries,
@@ -29,6 +34,7 @@ import { SLOT_LABEL } from "../ui/inventoryLayout";
 import { fid } from "../ui/menuFocus";
 import type { InventoryUi, LootSlot, MenuHit, ViewOf } from "../ui/menuState";
 import { isUnseen } from "../ui/seen";
+import { type StatChanges, statChangesOf } from "../ui/statDiff";
 import { swapDiff } from "../ui/swapDiff";
 import { type BandDelta, type TryOnResult, tryOnBase } from "../ui/tryOn";
 import { drawFigure, drawRelicGlyph, drawStoneGem, glyphSize } from "./attireUi";
@@ -64,8 +70,6 @@ const MINI_FIGURE = { x: 40, y: 52, scale: 3 } as const;
 const MINI_FEET = { x: MINI_FIGURE.x + 15, y: MINI_FIGURE.y + 41 } as const;
 /** あてがいの入れ替えの周期（秒） */
 const TRY_PERIOD = 0.5;
-/** 石の候補で並べる腰の石 */
-const MINI_GEM = { x: 14, step: 22, y: 136 } as const;
 
 /** 札の絵・名前・丸印の位置 */
 const CARD_ICON = { x: 4, y: 6 } as const;
@@ -88,10 +92,16 @@ const MORPH_MARKS: Readonly<Record<BandDelta["change"], { text: string; color: s
 };
 const BLACK = "#000000";
 
-/** 差の置き場（区切り y 176・荷札 y 182・得る / 失う y 198 + i × 12） */
-const DIFF = { ruleY: 176, titleY: 182, rowY: 198, rowStep: 12, labelW: 24, textX: 34, asideX: 340, asideW: 132, titleW: 330, fullW: 464 } as const;
+/** 差の置き場（区切り y 176・荷札 y 182・得る / 失う y 198 + i × 12。右の列 x 340〜 に変わるステータスを同じ行高で積む） */
+const DIFF = { ruleY: 176, titleY: 182, rowY: 198, rowStep: 12, labelW: 24, textX: 34, statX: 340, statW: 132, fullW: 464 } as const;
+/** 変わるステータスが多いとき、最後の行を「ほか n」にまとめる */
+const STAT_MORE_LABEL = "ほか";
 const TEXT_X = 8;
 const TEXT_RIGHT = 472;
+/** 右のステータスの列と得る・失うの文の間の余白 */
+const STAT_GAP = 6;
+/** 見出しの印（体の描画にフォントに無い ▶ を使わない。docs/GLOSSARY.md の字の注意） */
+const TAG_MARK = "◆ ";
 const SCROLL_MARK_Y = 166;
 /** 系統から来たときの丸印（並びの札の右） */
 const FLOW_DISC = { x: 290, y: 26 } as const;
@@ -148,7 +158,7 @@ function drawMiniGems(ctx: CanvasRenderingContext2D, state: Readonly<GameState>,
   for (let i = 0; i < state.skills.slots.length; i++) {
     const here = i === view.target.index;
     const stone = here ? (cleared ? null : (trial ?? stoneInSlot(state.skills.profile, i))) : stoneInSlot(state.skills.profile, i);
-    drawStoneGem(ctx, i, MINI_GEM.x + i * MINI_GEM.step, MINI_GEM.y, stone, here, false);
+    drawStoneGem(ctx, i, MINI_GEM.x + i * MINI_GEM.step, MINI_GEM.y, stone, here || view.focus === fid.gem(i), false);
   }
 }
 
@@ -165,6 +175,33 @@ function drawSortChips(ctx: CanvasRenderingContext2D, view: Readonly<CandidatesV
     box(ctx, x, SORT_CHIP.y, SORT_CHIP.w, SORT_CHIP.h, focused ? MENU_INK.focus : on ? MENU_INK.gold : MENU_INK.rule);
     menuText(ctx, SORT_LABEL[sort].chip, x + SORT_CHIP.w / 2, SORT_CHIP.y + 1, { size: "SMALL", color: on ? MENU_INK.focus : MENU_INK.sub, role: "ornament", align: "center" });
   });
+}
+
+/** 絞り込みの札の丸印の大きさ */
+const FILTER_DISC = 10;
+const FILTER_LABEL_Y = 1;
+const FILTER_OFF_KEYWORD = "系統";
+const FILTER_OFF_RESOURCE = "型";
+
+/** 絞り込みの札。絞っているときは金の枠（系統は丸印、型は名前）、絞っていなければ「系統」「型」 */
+function drawFilterChips(ctx: CanvasRenderingContext2D, view: Readonly<CandidatesView>): void {
+  const filter = view.filter;
+  for (const axis of FILTER_AXES) {
+    if (!filterAvailable(view.target, axis)) continue;
+    const r = FILTER_CHIPS[axis];
+    const keyword = axis === "keyword" ? (filter?.keyword ?? null) : null;
+    const resource = axis === "resource" ? (filter?.resource ?? null) : null;
+    const on = keyword !== null || resource !== null;
+    const focused = view.focus === fid.filter(axis);
+    px(ctx, r.x, r.y, r.w, r.h, on ? MENU_INK.card2 : MENU_INK.paper);
+    box(ctx, r.x, r.y, r.w, r.h, focused ? MENU_INK.focus : on ? MENU_INK.gold : MENU_INK.rule);
+    if (keyword !== null) {
+      drawGlyphDisc(ctx, keyword, r.x + r.w / 2, r.y + r.h / 2, FILTER_DISC, KEYWORD_DEFS[keyword].color);
+      continue;
+    }
+    const text = axis === "keyword" ? FILTER_OFF_KEYWORD : resource === null ? FILTER_OFF_RESOURCE : RESOURCE_LABEL[resource];
+    menuText(ctx, text, r.x + r.w / 2, r.y + FILTER_LABEL_Y, { size: "SMALL", color: on ? MENU_INK.focus : MENU_INK.sub, role: "ornament", align: "center" });
+  }
 }
 
 /** 札に並べる系統の丸印（その物の源・糧・強めの系統。多くて 3 つ） */
@@ -236,7 +273,8 @@ function drawCards(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, vi
 }
 
 function drawEmpty(ctx: CanvasRenderingContext2D, view: Readonly<CandidatesView>): void {
-  const text = view.target.kind === "slot" ? "倉庫にこの部位の遺物はありません" : view.target.kind === "stone" ? "倉庫にほかのスキル石はありません" : "この系統の候補は倉庫にありません";
+  const filtered = view.filter !== undefined && (view.filter.keyword !== null || view.filter.resource !== null);
+  const text = filtered ? "この絞り込みの候補は倉庫にありません" : view.target.kind === "slot" ? "倉庫にこの部位の遺物はありません" : view.target.kind === "stone" ? "倉庫にほかのスキル石はありません" : "この系統の候補は倉庫にありません";
   menuText(ctx, text, CAND_CARD.x + 4, CAND_CARD.y + 24, { size: "SMALL", color: MENU_INK.sub, role: "sentence", maxW: CAND_CARD.w - 8 });
 }
 
@@ -273,7 +311,8 @@ interface DiffLine {
 
 interface DiffView {
   title: string;
-  aside: string | null;
+  /** 付けたときに変わるステータス（「防御力 12 → 15」。遺物の候補だけ） */
+  stats: StatChanges;
   lines: DiffLine[];
   more: number;
   /** 行が無いときの 1 行 */
@@ -281,16 +320,14 @@ interface DiffView {
 }
 
 const NAME_JOINT = " と ";
-const ARROW_UP = "▲";
-const ARROW_DOWN = "▼";
-const ASIDE_SEP = "  ";
+const NO_STATS: StatChanges = { changes: [], more: 0 };
 
 function itemDiff(state: Readonly<GameState>, candidate: Readonly<Item>, current: Readonly<Item> | null): DiffView {
   const diff = swapDiff(candidate, current, Math.max(1, state.depth));
-  const aside = diff.innate.map((d) => `${d.label} ${d.direction === "up" ? ARROW_UP : ARROW_DOWN}`).join(ASIDE_SEP);
+  const stats = statChangesOf(state, candidate, current);
   return {
     title: current === null ? candidate.name : `${candidate.name}${NAME_JOINT}${current.name}`,
-    aside: aside === "" ? null : aside,
+    stats,
     lines: diff.rows.map((r) => ({ gain: r.kind === "gain", text: r.text })),
     more: diff.more,
     empty: diff.innate.length > 0 ? "性質は同じ。地金だけが替わる" : "性質も地金も同じ",
@@ -302,7 +339,7 @@ function stoneDiff(candidate: Readonly<SkillStone>, current: Readonly<SkillStone
   const now = current === null ? null : SKILL_DEFS[current.skillKey];
   const lines: DiffLine[] = [{ gain: true, text: next.verb }];
   if (now !== null && now.verb !== next.verb) lines.push({ gain: false, text: now.verb });
-  return { title: now === null ? next.name : `${next.name}${NAME_JOINT}${now.name}`, aside: null, lines, more: 0, empty: "" };
+  return { title: now === null ? next.name : `${next.name}${NAME_JOINT}${now.name}`, stats: NO_STATS, lines, more: 0, empty: "" };
 }
 
 function clearDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>): DiffView | null {
@@ -311,17 +348,17 @@ function clearDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>): 
     const item = state.profile.equipment[t.slot] ?? null;
     if (item === null) return null;
     const rows = item.affixes.map((roll) => ({ gain: false, text: describeTrait(roll).text }));
-    return { title: `${SLOT_LABEL[t.slot]}を空ける`, aside: null, lines: rows.slice(0, MENU_BUDGET.diffRows), more: Math.max(0, rows.length - MENU_BUDGET.diffRows), empty: "" };
+    return { title: `${SLOT_LABEL[t.slot]}を空ける`, stats: NO_STATS, lines: rows.slice(0, MENU_BUDGET.diffRows), more: Math.max(0, rows.length - MENU_BUDGET.diffRows), empty: "" };
   }
   if (t.kind !== "stone") return null;
   const stone = stoneInSlot(state.skills.profile, t.index);
   if (stone === null) return null;
-  return { title: `スキル ${t.index + 1} を空ける`, aside: null, lines: [{ gain: false, text: SKILL_DEFS[stone.skillKey].verb }], more: 0, empty: "" };
+  return { title: `スキル ${t.index + 1} を空ける`, stats: NO_STATS, lines: [{ gain: false, text: SKILL_DEFS[stone.skillKey].verb }], more: 0, empty: "" };
 }
 
 function budDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>, roll: Readonly<AffixRoll>): DiffView {
   const worn = view.target.kind === "slot" ? state.profile.equipment[view.target.slot] : null;
-  return { title: `${worn?.name ?? ""} に芽吹く`, aside: null, lines: [{ gain: true, text: describeTrait(roll).text }], more: 0, empty: "" };
+  return { title: `${worn?.name ?? ""} に芽吹く`, stats: NO_STATS, lines: [{ gain: true, text: describeTrait(roll).text }], more: 0, empty: "" };
 }
 
 function diffOf(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>): DiffView | null {
@@ -332,20 +369,32 @@ function diffOf(state: Readonly<GameState>, view: Readonly<CandidatesView>, entr
   return itemDiff(state, s.item, state.profile.equipment[s.item.slot] ?? null);
 }
 
+/** 変わるステータスの行（多いときは最後の行を「ほか n」に）。色は上がる = 上 / 下がる = 下 */
+function statRows(stats: Readonly<StatChanges>): { text: string; color: string }[] {
+  const shown = stats.changes.map((c) => ({ text: `${c.label} ${c.before} → ${c.after}`, color: c.rises ? MENU_INK.up : MENU_INK.down }));
+  if (stats.more <= 0) return shown;
+  const kept = shown.slice(0, Math.max(0, MENU_BUDGET.innateDiffs - 1));
+  return [...kept, { text: `${STAT_MORE_LABEL} ${stats.more + shown.length - kept.length}`, color: MENU_INK.sub }];
+}
+
 function drawDiff(ctx: CanvasRenderingContext2D, diff: Readonly<DiffView>): void {
   px(ctx, TEXT_X, DIFF.ruleY, TEXT_RIGHT - TEXT_X, 1, MENU_INK.rule);
-  const titleW = diff.aside === null ? DIFF.fullW : DIFF.titleW;
-  menuText(ctx, `▶ ${diff.title}`, TEXT_X, DIFF.titleY, { size: "BODY", color: MENU_INK.focus, role: "sentence", maxW: titleW });
-  if (diff.aside !== null) menuText(ctx, diff.aside, DIFF.asideX + DIFF.asideW, DIFF.titleY + 1, { size: "SMALL", color: MENU_INK.sub, role: "label", align: "right", maxW: DIFF.asideW });
-  if (diff.lines.length === 0) {
+  menuText(ctx, `${TAG_MARK}${diff.title}`, TEXT_X, DIFF.titleY, { size: "BODY", color: MENU_INK.focus, role: "sentence", maxW: DIFF.fullW });
+  const stats = statRows(diff.stats);
+  if (diff.lines.length === 0 && stats.length === 0) {
     if (diff.empty !== "") menuText(ctx, diff.empty, TEXT_X, DIFF.rowY, { size: "SMALL", color: MENU_INK.sub, role: "sentence", maxW: DIFF.fullW });
     return;
   }
+  // 右の列があるときは、得る・失うの文をその手前で切る（重ねない）
+  const textW = (stats.length === 0 ? TEXT_RIGHT : DIFF.statX - STAT_GAP) - DIFF.textX;
   diff.lines.forEach((line, i) => {
     const y = DIFF.rowY + i * DIFF.rowStep;
     menuText(ctx, line.gain ? "得る" : "失う", TEXT_X, y, { size: "SMALL", color: line.gain ? MENU_INK.up : MENU_INK.down, role: "ornament" });
     const more = i === diff.lines.length - 1 && diff.more > 0 ? `　ほか ${diff.more}` : "";
-    menuText(ctx, `${line.text}${more}`, DIFF.textX, y, { size: "SMALL", color: MENU_INK.text, role: "sentence", maxW: TEXT_RIGHT - DIFF.textX });
+    menuText(ctx, `${line.text}${more}`, DIFF.textX, y, { size: "SMALL", color: MENU_INK.text, role: "sentence", maxW: textW });
+  });
+  stats.forEach((row, i) => {
+    menuText(ctx, row.text, DIFF.statX, DIFF.rowY + i * DIFF.rowStep, { size: "SMALL", color: row.color, role: "label", maxW: DIFF.statW });
   });
 }
 
@@ -365,6 +414,7 @@ export function drawCandidates(
   drawMiniParts(ctx, state, ui, view, entry);
   drawMiniGems(ctx, state, ui, view, entry);
   drawSortChips(ctx, view);
+  drawFilterChips(ctx, view);
   if (view.target.kind === "flow") drawGlyphDisc(ctx, view.target.keyword, FLOW_DISC.x, FLOW_DISC.y, CARD_MARK_D, KEYWORD_DEFS[view.target.keyword].color);
   if (entries.length === 0) drawEmpty(ctx, view);
   drawCards(ctx, state, view, entries);

@@ -23,6 +23,7 @@
     "electron:build": "node scripts/electron-build.mjs",
     "sync:claude": "node scripts/sync-claude-global.mjs",
     "map:shot": "node scripts/map-shot.mjs",
+    "menu:shot": "node scripts/menu-shot.mjs",
     "hitch:probe": "node scripts/hitch-probe.mjs"
   },
   "devDependencies": {
