@@ -1789,6 +1789,26 @@ export const KEYSTONES: readonly KeystoneDef[] = [
       oathMore(s, "ks_chant", 1 + KEYSTONE.chantSkillBonus, SKILL_TAGS, SKILL_PART);
     },
   },
+  {
+    key: "ks_breathOath",
+    name: "呼気の誓い",
+    description: `通常攻撃の命中と撃破では気力が戻らない。見切り・受け流しで戻る気力が${KEYSTONE.breathOathEvadeMul}倍になり、最大気力 +${Math.round(KEYSTONE.breathOathMaxManaPct * 100)}%。`,
+    exclusiveGroup: "mana",
+    // 回収の規則は system/keystones.ts の attackManaMul / killManaMul / evadeManaMul
+    apply: (s) => {
+      s.maxMana *= 1 + KEYSTONE.breathOathMaxManaPct;
+    },
+  },
+  {
+    key: "ks_brimOath",
+    name: "満願の誓い",
+    description: `今の気力が最大の1割あるごとに、全ての与ダメージ +${Math.round(KEYSTONE.brimOathPerTenth * 100)}%（満タンで +${Math.round(KEYSTONE.brimOathPerTenth * 10 * 100)}%、倍として掛かる）。スキルの気力の消費 +${Math.round((KEYSTONE.brimOathCostMul - 1) * 100)}%。`,
+    exclusiveGroup: "mana",
+    // 倍は system/keystones.ts の KEYSTONE_MODIFIERS（今の気力の 1 割につき）
+    apply: (s) => {
+      s.manaCostMul *= KEYSTONE.brimOathCostMul;
+    },
+  },
   // ---- 状態異常（status）----
   {
     key: "ks_pure",

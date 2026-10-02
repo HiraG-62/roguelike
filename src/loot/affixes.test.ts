@@ -68,7 +68,7 @@ const CONDITION_KEYS = [
 /** 性質の数（条件の族 25 + 行動 43 + 来歴 3）・転じ 12 + 属性の変換 6・誓約 */
 const AFFIX_COUNT = 71;
 const CONVERSION_COUNT = 18;
-const KEYSTONE_COUNT = 20;
+const KEYSTONE_COUNT = 22;
 const BEHAVIOR_COUNT = 43;
 
 /** 深度 SAMPLE_DEPTH の期待値で振った性質（反転なし） */

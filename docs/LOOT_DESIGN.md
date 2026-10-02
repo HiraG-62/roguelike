@@ -155,7 +155,7 @@ docs/ideas/loot-identity.md の推奨案「揺らぎ・来歴」に置き換え�
 - **来歴**（3）: 若木・歴戦・古傷。装備全体・その遺物の来歴で値が育つ（`loot/traitContext.ts`）
 - **無条件の数値だけの性質は作らない**（`affixes.test.ts` の「無条件に数値を上げない」）。近接ダメージ・最大生命・攻撃速度・気力の各種などは地金（`loot/innate.ts`）へ。倉庫の遺物から消えた性質 1 つにつき余白 +1
 - **転じ**（12）: 会心率 → 連鎖係数 / 移動速度 → 与ダメ / 最大気力 → 弾数 / 防御力 → 怯み値 / 最大生命 → 範囲攻撃 / コンボ猶予 → 終撃 / 持ち金 → 与ダメの倍 / 会心 → 連鎖雷・銭・戦意 / ダッシュ回数 → 距離 / 弾数 → 怯み値。**属性の変換**（6）は近接・射撃の n% を炎・氷・雷・毒・闇・光の属性にする（通常攻撃の属性を変える手段を武器のベースだけにしないため残した）
-- **誓約**（20）: body 2 / tempo 5 / style 4 / mana 3 / status 2 / poise 1 / coin 3。新しいのは 虚心・刹那・遠間の誓い・清貧・黄金の檻・喜捨。消えた誓約のうち 11 は性質の条件の族・行動へ写した（狂戦士 → 瀕死の間の与ダメ、不動 → 踏ん張り、構えの誓い → 構えなど）。常時の倍は `system/keystones.ts` の `keystoneModifiers`、「〜時: 〜」は `keystoneRules`
+- **誓約**（22）: body 2 / tempo 5 / style 4 / mana 5 / status 2 / poise 1 / coin 3。気力の軸の 呼気の誓い・満願の誓い は 2026-10-02 に追加。新しいのは 虚心・刹那・遠間の誓い・清貧・黄金の檻・喜捨。消えた誓約のうち 11 は性質の条件の族・行動へ写した（狂戦士 → 瀕死の間の与ダメ、不動 → 踏ん張り、構えの誓い → 構えなど）。常時の倍は `system/keystones.ts` の `keystoneModifiers`、「〜時: 〜」は `keystoneRules`
 - **名のある遺物**（18。`loot/named.ts` の `UNIQUES`）: 全部が固有の Rule / Modifier / `apply` / 分岐のどれかを持つ。Rule と Modifier は `stats.rules` / `stats.modifiers` へ畳み（`applyNamedRelics`）、書けない固有は `system/namedRelics.ts` の分岐（共有ファイルは 1 行で呼ぶ）。数えは `boonRun.tallies["relic:<key>"]`（ラン内で消える）。数値は `balance/loot/RELIC.json`（`data/tuning.ts` の `RELIC`）
 
 | 名 | 部位 | 固有 |

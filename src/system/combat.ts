@@ -14,7 +14,7 @@ import { type HitFamily, type HitWeight, hitSfxName, skipsThump } from "./effect
 import { cameraKick } from "./camera";
 import { roomInCombat } from "./engagement";
 import { emitNoise } from "./noise";
-import { KS, hasKeystone, healMul, regenAllowed } from "./keystones";
+import { KS, evadeManaMul, hasKeystone, healMul, killManaMul, regenAllowed } from "./keystones";
 import { rollEnemyDrop } from "./loot";
 import { applyOnHitStatus, enemyDamageMul, explodeOnKill, findStatus, hasStatus, removeStatus } from "./statusEffects";
 import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from "./statusEffects";
@@ -391,7 +391,7 @@ function killEnemy(state: GameState, enemy: Enemy, dir: Vec): void {
   pushSfx(state, "kill");
 
   applyLifeOnKill(state);
-  gainMana(state, MANA.onKill + state.stats.manaOnKill);
+  gainMana(state, (MANA.onKill + state.stats.manaOnKill) * killManaMul(state));
   if (counted) rollEnemyDrop(state, enemy);
   dropCoins(state, enemy);
   explodeOnKill(state, enemy);
@@ -751,7 +751,7 @@ function justDodge(state: GameState, attacker: Enemy | undefined): void {
   p.justTimer = state.stats.justDodgeWindow;
   state.slowmo = Math.max(state.slowmo, FEEL.justDodgeSlowmo);
   gainEnergy(state, ENERGY.just);
-  gainMana(state, MANA.onJust);
+  gainMana(state, MANA.onJust * evadeManaMul(state));
   registerComboHit(state);
   addHeadLabel(state, p.body.pos, "見切り！", COLOR_JUST, 0.7);
   spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);

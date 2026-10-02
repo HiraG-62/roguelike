@@ -326,6 +326,8 @@ const KEYSTONE_FACTS: Readonly<Record<string, StatFact>> = {
   [KS.poverty]: { tags: [], keywords: kw(["mana"]) },
   [KS.goldCage]: { tags: [], keywords: emptyProfile() },
   [KS.alms]: { tags: [], keywords: kw(["heal"]) },
+  [KS.breathOath]: { tags: [], keywords: kw(["mana"], ["just"]) },
+  [KS.brimOath]: { tags: [], keywords: kw([], ["mana"]) },
 };
 
 const KEYSTONE_UMBRA: KeywordProfile = kw(["umbra"]);
