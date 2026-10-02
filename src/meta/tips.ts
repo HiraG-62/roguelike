@@ -245,7 +245,7 @@ const GROWTH_TIPS: readonly TipDef[] = [
     category: "growth",
     body: "誓約・共鳴・芯・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
   },
-  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。" },
+  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。最初は見習いだけで、依頼の報酬で増える。" },
   { key: "dashForm", term: "ダッシュの形", category: "growth", body: "ジョブごとのダッシュ。詰め足は振りの途中でも出せて連撃が続き、退き足は後ろへ跳んで足元に罠を残し、不退はその場で構えて受け止める。" },
   { key: "manaSource", term: "気力の源", category: "growth", body: "ジョブごとに気力が多く湧く出来事。剣士は応手と終撃、狩人は遠い命中、術士はスキルの命中など。通常攻撃の命中でも少しは湧く。" },
   { key: "starterWeapon", term: "初期武器", category: "growth", body: "ジョブの初期の武器種の素の器。同じベースを持っていなければ、出撃のときに渡される。遺物の来歴では、同じ型の武器での撃破も数える。" },
@@ -428,14 +428,14 @@ const RUN_TIPS: readonly TipDef[] = [
 ];
 
 const HUB_TIPS: readonly TipDef[] = [
-  { key: "hub", term: "拠点", category: "hub", body: (b) => `探索の合間に戻る場所。台に近づいて ${k(b, "interact")} で開き、${k(b, "confirm")} の長押しで出撃する。探索を重ねると設備が増える。` },
+  { key: "hub", term: "拠点", category: "hub", body: (b) => `探索の合間に戻る場所。台に近づいて ${k(b, "interact")} で開く。石段に踏み込むと支度を選んで出撃し、${k(b, "confirm")} の長押しなら前回の支度のまま出撃する。探索を重ねると設備が増える。` },
   {
     key: "anvilStance",
     term: "金床の構え",
     category: "hub",
     body: "拠点の鍛冶屋で開く装束。部位を選ぶと装備中の遺物とその部位の倉庫が並び、そこから鍛冶の操作を選ぶ。下の壺の水位が残響の量。砕くのは長押しで、倉庫の遺物だけ。",
   },
-  { key: "origin", term: "起点", category: "hub", body: "出撃の前に選ぶ出発の条件。依頼の報酬で増える。" },
+  { key: "origin", term: "起点", category: "hub", body: "出撃の前に選ぶ出発の条件。最初は放浪者だけで、依頼の報酬で増える。" },
   { key: "runMod", term: "縛り", category: "hub", body: "起点の画面で積む難しさ。点の合計が位階になる。" },
   { key: "quest", term: "依頼", category: "hub", body: "出撃の前に 3 択から 1 つ受けるお題。達成すると次の探索から選べるものが増える。未達成なら次へ引き継ぐ。" },
   { key: "codex", term: "図鑑", category: "hub", body: "見た・起きたものの記録。？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える。" },

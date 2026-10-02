@@ -949,8 +949,14 @@ function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean,
     return;
   }
   if (action.kind !== "depart") return;
-  // 即出撃: 前回の支度（runSetup）と保存中の依頼のまま始める
   sfx.play("uiClick");
+  if (action.via === "gate") {
+    // 石段: 井戸と同じく起点画面（ジョブ → 起点・縛り → 依頼）を通して出る。Esc で拠点へ戻る（石段の上に立ったままなので再発火しない）
+    menuReturn = "hub";
+    openOrigin(committedSeedText, frame.move.x, frame.move.y);
+    return;
+  }
+  // 長押しの即出撃: 前回の支度（runSetup）と保存中の依頼のまま始める
   beginRun(committedSeedText);
 }
 
