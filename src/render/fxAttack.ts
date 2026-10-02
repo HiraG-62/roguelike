@@ -385,7 +385,7 @@ function syncShots(state: GameState, layer: Layer, emit: boolean, dt: number): v
     const known = layer.shots.get(pr.id);
     const style = known?.style ?? projectileStyle(pr);
     const fx = known ? known.fx : shotFx(pr);
-    const ramp = known ? known.ramp : fx ? shotRamp(state, pr, fx) : undefined;
+    const ramp = known ? known.ramp : fx ? shotRamp(state, pr) : undefined;
     const now: ShotSeen = { x: pr.pos.x, y: pr.pos.y, vx: pr.vel.x, vy: pr.vel.y, radius: pr.radius, life: pr.life, color: pr.color, owner: pr.owner, style, fx, ramp };
     if (!known && emit) onShotBorn(state, layer, pr, style, merged, now);
     layer.shots.set(pr.id, now);

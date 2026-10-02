@@ -43,7 +43,7 @@ Aseprite の場所は環境変数 `ASEPRITE_PATH`（無ければ PATH と Steam 
 
 - 手で打たず **生成器**（`scripts/fx/`）で描く。設計と決まりは `docs/ideas/fx-sprites.md`（密度 2 倍・段の配色・方向の事前描画・時間割）
 - 1 武器種 = 1 ファイル `scripts/fx/sheets/<武器種の key>.mjs`（登録は要らない。`gen.mjs` が自動で集める）。`export const ATLAS = { key, sheets, fx }` を持ち、`fx` がモーション → シートの表（`motions` の key は `l:<段>` / `r:<右の段の key>` / `branch:<派生の key>` / `dash` / `charge`、命中 `hit` / `hitHeavy`）。手本は `sword.mjs`
-- 形の部品は `shapes.mjs`（三日月・レンズ形の斬線・速度線・輪・刃片）、弧の斬撃の時間割は `motifs.mjs`、塗りの道具は `raster.mjs`。部品を土台にしつつ、その武器だけの形を必ず足す
+- 形の部品は `shapes.mjs`（三日月・レンズ形の斬線・速度線・輪・刃片）、弧の斬撃の時間割は `motifs.mjs`、塗りの道具は `raster.mjs`。部品を土台にしつつ、その武器だけの形を必ず足す。墨の筆致（縁・掠れ・毛羽・飛沫）は `ink.mjs` が全フレームに後から掛けるので、絵の関数では描かない（`docs/ideas/fx-sprites.md` 3.5）
 - 確認しながら詰める: `node scripts/fx/gen.mjs --only <シートの key> --preview <scratchpad の dir> --dirs 0,3 --scale 4` で配色済みの一覧 PNG を描いて目で見る
 - 仕上げに `node scripts/fx/gen.mjs --atlas <key>`（その武器の PNG と `src/data/fx/<key>.gen.json`、束ねる `src/data/fxSheets.gen.ts` を書き直す）。全部は `npm run fx:gen`。表の網羅（振りのモーションをすべて持つ）は `render/fxSprites.test.ts` が検査する。時間の割り付けの数値は `src/data/balance/feel/FX_ATTACK/sprite.json`
 - 表の任意の項目: `mirror`（`faceLeft` / `faceRight`: 突きの鉤など非対称な絵を手に持つ武器の向きに合わせる）、`ground`（キャラより下に描く地面の層のシート）、`holds`（右の溜めの段の回しを押している間の繰り返しの絵）。手本は `scythe.mjs` / `hammer.mjs` / `flail.mjs`

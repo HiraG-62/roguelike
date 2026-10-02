@@ -15,6 +15,7 @@ import { encodePng } from "./png.mjs";
 import { shelfPack } from "./pack.mjs";
 import { Frame, cleanup, trimBox } from "./raster.mjs";
 import { fitAtlas } from "./fit.mjs";
+import { inkify } from "./ink.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
@@ -58,15 +59,25 @@ const checkOnly = args.includes("--check");
 const only = argValue("--only");
 const atlasFilter = argValue("--atlas")?.split(",");
 
+/** シートの key → 墨の筆致の種（決定的な文字列ハッシュ） */
+function keySeed(key) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
 /** 1 シートの全フレーム（方向 × フレーム）を描いて切り詰める。scale は当たり判定に合わせた縮尺（fit.mjs） */
 function renderSheet(sheet, scale = 1) {
   const cells = [];
+  const sheetSeed = keySeed(sheet.key);
   for (let d = 0; d < sheet.dirs; d++) {
     const angle = (d / sheet.dirs) * Math.PI * 2;
     for (let f = 0; f < sheet.frames; f++) {
       const frame = new Frame(sheet.size, sheet.size, angle, scale);
       sheet.draw(frame, f, { dir: d, angle });
       cleanup(frame);
+      // 墨の筆致（ink.mjs）。掠れの筋はシートと方向で決め、粒だけフレームで変える
+      if (sheet.ink !== false) inkify(frame, sheetSeed ^ Math.imul(d + 1, 0x9e3779b1), Math.imul(f + 1, 0x85ebca6b));
       const box = trimBox(frame);
       cells.push({ frame, box, w: box?.w ?? 0, h: box?.h ?? 0 });
     }

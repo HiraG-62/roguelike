@@ -105,7 +105,7 @@ import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
-import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampColors, sheetDef, snapArt, swingFrame } from "./fxSprites";
+import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type Pt, type RigPose, armPixels, attackClip, bodyClip, handPixels, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
@@ -2649,7 +2649,7 @@ export class Renderer {
     // 当たりの中心に淡い加算の光（ドット絵の上に空気の明るさを足す。形は絵が担う）
     if (plan.active) {
       const glow = plan.motion.pivot === "muzzle" ? plan.origin : plan.anchor;
-      this.drawGlow(glow.x, glow.y, rampColors(plan.opts.ramp)[4] ?? COLOR_WHITE, step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
+      this.drawGlow(glow.x, glow.y, rampGlow(plan.opts.ramp), step.heavy ? c.heavyGlowR : c.glowR, c.tipGlow * plan.progress);
     }
     return true;
   }

@@ -9,10 +9,9 @@ import type { FxSheetKey } from "../data/fxSheets.gen";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
 import { ULTIMATE_FX, type UltPiece, type UltimateFx, mirrorFlip, rampOfElement } from "./fxMotions";
 
-/** 奥義の絵の配色: 素性の属性、無ければ絵の表の配色 */
+/** 奥義の絵の配色: 素性の属性、無ければ無属性の墨（表の配色は使わない。docs/ideas/fx-sprites.md 3.6） */
 export function ultimateRamp(key: string): FxRampKey {
-  const element = ultimateDef(key)?.attack.element ?? "none";
-  return element === "none" ? (ULTIMATE_FX[key]?.ramp ?? "light") : rampOfElement(element);
+  return rampOfElement(ultimateDef(key)?.attack.element ?? "none");
 }
 
 /** 出来事の種類と番号から絵を引く */
