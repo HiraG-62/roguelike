@@ -2,7 +2,13 @@
 
 次のセッションが最初に読むファイル。`IDEAS.md` の「現状」と `CHANGELOG.md` が詳細、ここは「いまどこで、何が動いていて、次に何をするか」だけ。
 
-## 0. 現在地（2026-10-02 朝。ローカルセッション）
+## 0. 現在地（2026-10-02 夕。クラウドセッション）
+
+- ブランチ `claude/bold-hopper-0ou94g`（master の PR #39 の後から。push 済み・PR は未作成）。`REPLAY_VERSION` 39
+- プレイの指摘 7 件に対応（詳細は `CHANGELOG.md` の [Unreleased]）: 壺・木箱からハート（章ごとに絞る）と瓶 5 → 8% / 商人を誤って怒らせない（交戦中は当たらない・平時は警告から。`system/merchantAi.ts` の `shieldsMerchant`）/ 商人の品・契約者・部屋の台座を照準 + インタラクトで使う（`system/interact.ts`）/ 芯 4 → 8 / 拠点の石段で体が隠れる不具合 / 前進の足が後ずさりに見える不具合（体のアトラスを作り直し・後ずさりは逆再生）/ 序盤の気力を絞る（`MANA.json`。武器の命中の回収は `attackGainScale` で一括）
+- **未確認**: 気力と回復の量は実プレイの感触で詰める方針（数値は JSON）。フル QA はまだ回していない（bot は台座を市の瓶しか使わなくなった）
+
+## 0-旧. 現在地（2026-10-02 朝。ローカルセッション）
 
 - ブランチは `master` → `perf/floor-gen-time` → `perf/hitch-warmup` → `feat/room-jin-and-hub` の積み重ね（最新は `feat/room-jin-and-hub`。**push していない**。ユーザーの承認後に `git push -u origin feat/room-jin-and-hub` で master へ PR を 1 本）。`npm run check` 通過（テスト 7,464 件）。`REPLAY_VERSION` 35
 - 2026-10-01 夜〜10-02 にやったこと（詳細は `CHANGELOG.md` の [Unreleased]）
