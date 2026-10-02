@@ -213,6 +213,19 @@ describe("スライム王: 第 1 段階（跳躍）", () => {
     expect(aiOf(boss).progress, "段階 1 の墜落は数える").toBe(1);
   });
 
+  it("遅れた出端が 1 つの跳びに何度入っても、墜落は 1 つだけ数える", () => {
+    const { state, boss } = kingFloor();
+    arm(boss, KS_JUMP);
+    tickUntil(state, () => phaseOf(boss) === "strike", jiggle(state));
+    tick(state, 1, jiggle(state));
+    bossOnAnswer(state, boss, "debana");
+    bossOnAnswer(state, boss, "debana");
+    bossOnAnswer(state, boss, "debana");
+    expect(aiOf(boss).progress, "1 跳びに 1 つ").toBe(1);
+    tickUntil(state, () => phaseOf(boss) !== "strike", jiggle(state));
+    expect(state.boss?.answers?.["墜落"], "答えの記録も 1 つ").toBe(1);
+  });
+
   it("継続ダメージ（燃焼）が黄の間に入っても墜落しない", () => {
     const { state, boss } = kingFloor();
     arm(boss, KS_JUMP);
@@ -619,6 +632,17 @@ describe("スライム王: 第 3 段階（噛み・膨張）", () => {
     light.hp = Math.floor(light.maxHp * 0.1);
     hit(light, POISE.executeMinPoise - 1);
     expect(light.hp, "軽い一撃では討てない").toBeGreaterThan(0);
+  });
+
+  it("最終段階の答えで怯めなかった（怯みの免疫の間）ときは引導の窓を開かない", () => {
+    const state = arena(9);
+    const e = placeEnemy(state, "kingSlime", 30);
+    aiOf(e).stage = 3;
+    // 怯みの直後の免疫（起き上がった直後の噛みを受け流した）
+    e.status.immune.stagger = 5;
+    expect(bossDown(state, e, 2, "呑み損ね", "#fff", "final"), "怯めない").toBe(false);
+    expect(isStaggered(e)).toBe(false);
+    expect(aiOf(e).finale, "窓は開かない").toBeUndefined();
   });
 
   function inflateFloor(): { state: GameState; boss: Enemy; corner: { x: number; y: number } } {

@@ -478,6 +478,10 @@ function readActions(state: GameState, input: FrameInput): void {
  */
 export function latchFrozenInput(state: GameState, input: FrameInput): void {
   const p = state.player;
+  // 右は押しっぱなししか来ないので、止めの間も前のステップとの差で押した瞬間を取る（押しっぱなしで毎ステップ覚え直し、
+  // 後から押した受け流し・ダッシュを消さないように）
+  const secondaryPressed = input.shootHeld && !p.secondaryWasHeld;
+  p.secondaryWasHeld = input.shootHeld;
   if (isPlayerStaggered(p)) return;
   if (input.dashPressed) {
     p.guardBuffer = { kind: "dash", input: { ...input } };
@@ -486,7 +490,7 @@ export function latchFrozenInput(state: GameState, input: FrameInput): void {
     p.guardBuffer = { kind: "parry", input: { ...input } };
     p.frozenAttack = undefined;
   }
-  const attack: ButtonKey | undefined = input.attackPressed ? "primary" : input.shootHeld && !p.secondaryWasHeld ? "secondary" : undefined;
+  const attack: ButtonKey | undefined = input.attackPressed ? "primary" : secondaryPressed ? "secondary" : undefined;
   if (attack === undefined) return;
   p.frozenAttack = attack;
   p.guardBuffer = undefined;

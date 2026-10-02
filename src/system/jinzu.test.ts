@@ -662,6 +662,19 @@ describe("構えと総掛かり", () => {
     expect(f.jin.morale, "当たった隊の分は減らない").toBeGreaterThan(f.jin.moraleMax - loss * jz(f).strokes.length - 1e-9);
   });
 
+  it("構えの間に怯んだ隊の兵は、総掛かりで持ち場を解かれる（立ったまま残らない）", () => {
+    const f = field();
+    untilPhase(f, "hold");
+    const stroke = jz(f).strokes.find((s) => s.state === "ink" && s.kind !== "volley")!;
+    const id = stroke.squad[0]!;
+    const stunned = f.state.enemies.find((e) => e.id === id)!;
+    expect(stunned.jinzuRun?.mode, "構えの間は持ち場").toBe("stand");
+    expect(applyStagger(f.state, stunned, 3)).toBe(true);
+    untilPhase(f, "charge");
+    expect(stunned.jinzuRun, "走れない兵の持ち場は解く").toBeUndefined();
+    expect(stroke.squad, "隊から外れる").not.toContain(id);
+  });
+
   it("空を切った隊は群勢が missMoraleLoss ぶん減る。当たった隊・隊頭が詰まった隊は減らない", () => {
     const f = field();
     untilPhase(f, "charge");

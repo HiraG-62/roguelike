@@ -604,6 +604,8 @@ export function kingSlimeAnswer(state: GameState, e: Enemy, _def: EnemyDef, hit:
   if (!ai) return;
   const ks = BOSS.kingSlime;
   if (hit.kind === "debana" && isHighJump(ai.move) && (ai.chain ?? 0) === 0 && (e.phase === "windup" || e.phase === "strike")) {
+    // 遅れた出端の墜落は 1 跳びに 1 つ（多段・連打・散弾の出端が重なっても墜落の数を 2 つ以上進めない）
+    if (!hit.landedYellow && ai.owedDown !== undefined) return;
     if (ai.stage === STAGE_JUMP) ai.progress = (ai.progress ?? 0) + 1;
     if (hit.landedYellow) bossDown(state, e, ks.dropDown, DROP_TEXT, ANSWER_TEXT_COLOR, "answer");
     else oweBossDown(e, { time: ks.dropDown, text: DROP_TEXT, color: ANSWER_TEXT_COLOR, tag: "answer" });

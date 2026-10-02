@@ -393,7 +393,10 @@ function beginCharge(state: GameState, jin: Jin, jz: JinzuState): void {
   jz.chargedAt = state.time;
   jz.strokes.forEach((s, i) => {
     if (s.state !== "ink") return;
-    const able = squadOf(state, s).filter((e) => e.jinzuRun?.jin === jin.id && !isStaggered(e) && !isFeared(e));
+    const members = squadOf(state, s).filter((e) => e.jinzuRun?.jin === jin.id);
+    const able = members.filter((e) => !isStaggered(e) && !isFeared(e));
+    // 走れない兵は持ち場（stand）を解く。残すと畳むまで動かない兵になり、次の掲げの隊にも入れない
+    for (const e of members) if (!able.includes(e)) e.jinzuRun = undefined;
     s.squad = able.map((e) => e.id);
     able.forEach((e, rank) => {
       e.jinzuRun = { jin: jin.id, mode: "run", stroke: i, next: 1, delay: rank * JINZU.runnerGapSec, time: 0, stuck: 0 };

@@ -132,8 +132,9 @@ export function routJin(state: GameState, jin: Jin): void {
   const members = jinMembers(state, jin);
   if (members.length === 0) return;
   const at = centroid(members);
-  // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）
-  const fleeing = members.filter((e) => !e.nemesis);
+  // 仇は逃げ切ると消えて仇討ちができなくなるので、敗走せず部屋に残す（部屋は仇を倒すまで制圧されない）。
+  // 階の主（ボス陣の大将）も残す: 逃がすと部屋が「敗走」で制圧され、主が倒れないので階段が出ず階が詰む
+  const fleeing = members.filter((e) => !e.nemesis && e.id !== state.boss?.enemyId);
   const target = nearestRefuge(state, at, jin.id);
   routTallyOf(state, jin.id).fled += fleeing.length;
   for (const e of fleeing) startRout(e, jin, target);

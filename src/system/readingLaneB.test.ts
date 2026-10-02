@@ -96,6 +96,18 @@ describe("ヒットストップ中の押下", () => {
     expect(state.player.frozenAttack, "攻撃は消える").toBeUndefined();
   });
 
+  it("止めの中で右を押しっぱなしにしても、後から押した受け流しが残る（右は押した瞬間の 1 回だけ覚える）", () => {
+    const state = arena();
+    state.hitstop = 4;
+    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    expect(state.player.frozenAttack, "右を押した瞬間を覚えた").toBe("secondary");
+    step(state, withInput({ shootHeld: true, parryPressed: true }), FIXED_DT);
+    expect(state.player.guardBuffer?.kind, "受け流しに替わる").toBe("parry");
+    step(state, withInput({ shootHeld: true }), FIXED_DT);
+    expect(state.player.guardBuffer?.kind, "押しっぱなしの右で受け流しを消さない").toBe("parry");
+    expect(state.player.frozenAttack, "右は覚え直さない").toBeUndefined();
+  });
+
   it("外した受け流しの硬直中の押下は捨てる", () => {
     const state = arena();
     state.player.parry.recover = 0.3;

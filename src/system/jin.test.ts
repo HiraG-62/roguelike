@@ -157,6 +157,20 @@ describe("群勢の減り", () => {
     expect(jin.routTally?.fled, "敗走に数えない").toBe(1);
   });
 
+  it("階の主（ボス陣の大将）は陣が敗走しても部屋に残る（逃げると主が倒れず階段が出ない）", () => {
+    const state = jinArena();
+    const jin = addJin(state, 1, ROOM_A, state.player.body.pos);
+    const escort = member(state, jin, 20);
+    const lord = member(state, jin, 40);
+    jin.leaderId = lord.id;
+    state.boss = { enemyId: lord.id, name: "主", roomIndex: ROOM_A, introTimer: 0, defeated: false, major: false };
+    initJinMorale(state, jin);
+    routJin(state, jin);
+    expect(escort.rout, "取り巻きは敗走").toBeDefined();
+    expect(lord.rout, "主は敗走しない").toBeUndefined();
+    expect(lord.roomIndex, "部屋に残る").toBe(ROOM_A);
+  });
+
   it("大将を倒すと leaderBreakRatio まで落ちて必ず敗走する", () => {
     const state = jinArena();
     const jin = addJin(state, 1, ROOM_A, state.player.body.pos);

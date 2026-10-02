@@ -8,7 +8,7 @@ import { damagePlayer } from "./combat";
 import { addFloatingText, shake } from "./effects";
 import { phaseShift } from "./boss";
 import { type EnemyTelegraph, moveEnemy } from "./enemies";
-import { applyStagger, settlePendingStagger } from "./poise";
+import { applyStagger, isStaggered, settlePendingStagger } from "./poise";
 import { markWindupStart } from "./readTiming";
 import { circlesOverlap } from "./physics";
 import { inflictOnPlayer } from "./statusEffects";
@@ -284,7 +284,8 @@ export function bossDown(state: GameState, e: Enemy, time: number, text: string,
   showBossDown(state, e, text, color);
   if (tag !== undefined) {
     noteBossAnswer(state, e, text);
-    if (tag === "final" && e.ai) e.ai.finale = true;
+    // 引導の窓は怯み（ダウン）の間だけ。怯めなかった（免疫など）ときに開くと、後の普通の怯みで引導が出てしまう
+    if (tag === "final" && e.ai && isStaggered(e)) e.ai.finale = true;
   }
   if (!staggered) return false;
   shake(state, FEEL.shakeHeavy);
