@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ACTOR_ATLASES, ACTOR_SHEETS } from "../data/actorSheets.gen";
 import { JOB_KEYS } from "../data/jobs";
 import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
-import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponStanceMeta } from "./actorSprites";
+import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
 import { BODY_CLIP_FRAMES, DEFAULT_STANCE, IDLE_PERIOD, solveRig, stanceFromMeta } from "./playerRig";
 
 const RECT_STRIDE = 6;
@@ -152,12 +152,92 @@ describe("爪の手前の手の前後（構えの restFront）", () => {
     }
   });
 
-  it("restFront は手にはめる爪だけ。ほかの武器種の待機の前後は変えない", () => {
+  it("restFront は爪と刀だけ。ほかの武器種の待機の前後は変えない", () => {
     for (const key of MOVESET_KEYS) {
       const atlas = weaponAtlas(key);
       if (!atlas) continue;
-      expect(stanceFromMeta(weaponStanceMeta(atlas)).restFront === true, key).toBe(key === "claws");
+      expect(stanceFromMeta(weaponStanceMeta(atlas)).restFront === true, key).toBe(key === "claws" || key === "katana");
     }
+  });
+});
+
+describe("刀の前後と腰の鞘（構えの sheath / iai）", () => {
+  const katana = weaponAtlas("katana");
+  if (!katana) throw new Error("刀の絵が無い");
+  const stance = stanceFromMeta(weaponStanceMeta(katana));
+  const idleWalkClips = ["idleReady", "idleHeavy", "idleLight", "idleAim", "walk"] as const;
+  const anchors = (body: string, clip: string, f: number) => ({
+    shoulderF: actorAnchor(`${body}.${clip}`, 0, f, "shoulderF"),
+    shoulderB: actorAnchor(`${body}.${clip}`, 0, f, "shoulderB"),
+    hip: actorAnchor(`${body}.${clip}`, 0, f, "hip"),
+  });
+
+  it("全ジョブの体の全クリップの全フレームに腰の位置の印がある", () => {
+    for (const job of JOB_KEYS) {
+      const body = bodyAtlas(job);
+      for (const [clip, frames] of Object.entries(BODY_CLIP_FRAMES)) {
+        for (let f = 0; f < frames; f++) expect(actorAnchor(`${body}.${clip}`, 0, f, "hip"), `${job} ${clip} ${f}`).toBeDefined();
+      }
+    }
+  });
+
+  it("刀は鞘の絵と鞘の構え・居合を持つ", () => {
+    expect(ACTOR_SHEETS[`${katana}.sheath`]?.dirs).toBe(32);
+    expect(stance.sheath, "鞘の構え").toBeDefined();
+    expect(stance.iai).toBe(true);
+  });
+
+  it("待機・歩きでは呼吸の全位相で、右向きの刀は体の手前・鞘は奥、左向きの刀は体の奥・鞘は手前", () => {
+    for (const job of JOB_KEYS) {
+      const body = bodyAtlas(job);
+      for (const clip of idleWalkClips) {
+        for (let f = 0; f < BODY_CLIP_FRAMES[clip]; f++) {
+          const { shoulderF, shoulderB, hip } = anchors(body, clip, f);
+          if (!shoulderF || !shoulderB || !hip) continue;
+          for (let k = 0; k < 16; k++) {
+            const time = (IDLE_PERIOD * k) / 16;
+            for (const facingRight of [true, false]) {
+              const rig = solveRig({ stance, swing: undefined, step: 0, aim: facingRight ? 0 : Math.PI, aimHeld: false, facingRight, shoulderF, shoulderB, hip, time, offGrip: weaponOffGrip(katana), aimOrigin: { x: 0, y: -20 }, barrelY: 0 });
+              const where = `${job} ${clip}[${f}] 時刻 ${time} ${facingRight ? "右" : "左"}`;
+              expect(rig.front.behind, where).toBe(!facingRight);
+              expect(rig.sheath?.behind, where).toBe(facingRight);
+              expect(rig.sheath?.sheathed, where).toBe(false);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("居合の溜めでは刀を鞘に納め、柄を握る手は鯉口の前、後ろの手は鞘に添える", () => {
+    const { shoulderF, shoulderB, hip } = anchors(bodyAtlas("none"), "atkIai", 1);
+    if (!shoulderF || !shoulderB || !hip || !stance.sheath) throw new Error("印が無い");
+    for (const facingRight of [true, false]) {
+      const rig = solveRig({ stance, swing: undefined, step: 0, aim: 0, aimHeld: false, facingRight, shoulderF, shoulderB, hip, time: 0, offGrip: weaponOffGrip(katana), aimOrigin: { x: 0, y: -20 }, barrelY: 0, iai: { phase: "hold", t: 0 } });
+      const mouth = rig.sheath?.mouth;
+      if (!mouth) throw new Error("鞘が無い");
+      expect(rig.sheath?.sheathed).toBe(true);
+      expect(rig.front.angle, "刀は鞘の向き").toBeCloseTo((stance.sheath.deg * Math.PI) / 180);
+      expect(rig.front.hand.x, "柄は鯉口より前").toBeGreaterThan(mouth.x);
+      expect(rig.front.behind, "柄を握る腕は手前").toBe(false);
+      expect(rig.back.bare).toBe(true);
+      expect(Math.hypot(rig.back.hand.x - mouth.x, rig.back.hand.y - mouth.y), "後ろの手は鯉口のそば").toBeLessThan(3);
+      expect(rig.back.behind, "鞘に添えた手は鞘と同じ側").toBe(rig.sheath?.behind);
+    }
+  });
+
+  it("抜き付けは前下から前へ斬り上げ、振り終わりで刀を前へ伸ばす（頭の上を通さない）", () => {
+    const { shoulderF, shoulderB, hip } = anchors(bodyAtlas("none"), "atkIai", 3);
+    if (!shoulderF || !shoulderB || !hip) throw new Error("印が無い");
+    let prev = Number.POSITIVE_INFINITY;
+    for (let k = 0; k <= 10; k++) {
+      const rig = solveRig({ stance, swing: undefined, step: 0, aim: 0, aimHeld: false, facingRight: true, shoulderF, shoulderB, hip, time: 0, offGrip: weaponOffGrip(katana), aimOrigin: { x: 0, y: -20 }, barrelY: 0, iai: { phase: "active", t: k / 10 } });
+      expect(rig.sheath?.sheathed).toBe(false);
+      expect(Math.cos(rig.front.angle), `t ${k / 10} は前を向く`).toBeGreaterThan(0);
+      expect(rig.front.angle, `t ${k / 10} は下から上へ`).toBeLessThanOrEqual(prev);
+      prev = rig.front.angle;
+    }
+    expect(Math.abs(prev), "振り終わりはほぼ水平").toBeLessThan(0.3);
   });
 });
 

@@ -3,7 +3,7 @@ import type { GameState } from "../core/state";
 import { playerMoveset } from "../system/player";
 import { ACTOR_ART_SCALE, ActorSpriteBank, type ActorCell, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
 import { MENU_INK, px } from "./crestDraw";
-import { type ArmInk, type HeldPart, type Pt, type RigPose, type Stance, armPixels, bodyClip, elbowOf, handPixels, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type Pt, type RigPose, type SheathPart, type Stance, armPixels, bodyClip, elbowOf, handPixels, solveRig, stanceFromMeta } from "./playerRig";
 
 /**
  * 装束・候補の頁の「体」。ゲーム中のプレイヤーと同じ高精細の体（待機の 1 巡）に、待機の構えの腕と手に持つ武器を重ねて
@@ -105,6 +105,8 @@ export interface FigurePainter {
   arm(shoulder: Pt, part: HeldPart, dim: boolean, withHand: boolean): void;
   /** 拳だけ（銃の先台を握る手を銃の上に重ね直す） */
   hand(at: Pt): void;
+  /** 腰の鞘（構えが sheath を持つ武器だけ。省けば描かない） */
+  sheath?(part: SheathPart): void;
 }
 
 export interface IdlePose {
@@ -114,7 +116,7 @@ export interface IdlePose {
   readonly stance: Stance;
 }
 
-/** 待機の重ね順（rigLayers の待機の部分）: 後ろの武器 → 後ろの腕 → 体 → 前の武器 → 前の腕 */
+/** 待機の重ね順（rigLayers の待機の部分）: 後ろの武器 → 後ろの腕 → 体 → 前の武器 → 前の腕。腰の鞘は前後に合わせて最初か体の直後 */
 export function composeIdle(p: FigurePainter, pose: IdlePose, bodyCell: ActorCell): void {
   const { rig, shoulderF, shoulderB, stance } = pose;
   const worn = stance.worn === true;
@@ -134,6 +136,10 @@ export function composeIdle(p: FigurePainter, pose: IdlePose, bodyCell: ActorCel
     p.hand(rig.back.hand);
     return;
   }
+  const sheath = (): void => {
+    if (rig.sheath) p.sheath?.(rig.sheath);
+  };
+  if (rig.sheath?.behind === true) sheath();
   const twoHanded = rig.back.bare && stance.grip === "two";
   const backFront = !twoHanded && !rig.back.behind;
   const backUnderWeapon = twoHanded && !rig.back.behind;
@@ -143,6 +149,7 @@ export function composeIdle(p: FigurePainter, pose: IdlePose, bodyCell: ActorCel
   if (rig.front.behind) held(rig.front);
   if (frontArmBehind) arm(shoulderF, rig.front, false);
   p.body(bodyCell);
+  if (rig.sheath?.behind === false) sheath();
   if (!rig.back.bare && !rig.back.behind) held(rig.back);
   if (backFront) arm(shoulderB, rig.back, true);
   if (backUnderWeapon) arm(shoulderB, rig.back, true);
@@ -212,6 +219,13 @@ function canvasPainter(ctx: CanvasRenderingContext2D, weapon: string, colors: { 
     hand: (at) => {
       for (const p of handPixels(at)) dot(p.x, p.y, p.ink === 0 ? OUTLINE : (colors.hand[p.ink - 4] ?? OUTLINE));
     },
+    sheath: (part) => {
+      const key = `${weapon}.sheath`;
+      const sheet = actorSheet(key);
+      if (!sheet) return;
+      const c = bank.cell(key, actorDir(part.angle, sheet.dirs), 0);
+      if (c) cell(c, part.mouth.x, part.mouth.y);
+    },
   };
 }
 
@@ -231,6 +245,7 @@ export function drawAttireFigure(ctx: CanvasRenderingContext2D, state: Readonly<
   const bodyCell = bank.cell(bodyKey, 0, clip.frame);
   const shoulderF = actorAnchor(bodyKey, 0, clip.frame, "shoulderF");
   const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
+  const hip = actorAnchor(bodyKey, 0, clip.frame, "hip");
   if (!bodyCell || !shoulderF || !shoulderB) return false;
   const moveset = playerMoveset(state as GameState);
   const rig = solveRig({
@@ -247,6 +262,7 @@ export function drawAttireFigure(ctx: CanvasRenderingContext2D, state: Readonly<
     aimOrigin: { x: 0, y: AIM_ORIGIN_Y },
     barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
     unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
+    ...(hip ? { hip } : {}),
   });
   const d = dotSize(zoom);
   ctx.save();
