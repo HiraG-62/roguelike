@@ -919,6 +919,8 @@ export interface Merchant {
   greeted: boolean;
   /** 殴られて怒った（以後は品を投げてくる。売らない） */
   provoked: boolean;
+  /** 平時に殴られて警告した state.time（次の一撃で怒る。system/merchantAi.ts の shieldsMerchant）。省略 = まだ警告していない */
+  warnedAt?: number;
   /** 仕入れ直しをした回数（その値段が rerollStep ずつ上がる） */
   rerolls: number;
   /** false = 旅商人がまだ店を広げていない（台座を出さず、売らない）。省略 = 広げている（市・章の市・闇市） */

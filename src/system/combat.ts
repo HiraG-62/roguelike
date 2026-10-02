@@ -21,6 +21,7 @@ import { enemyStatusTakenMul, onPlayerHurtStatus, playerStatusTakenMul } from ".
 import { isAllied } from "./rules";
 import { addPoise, isStaggered } from "./poise";
 import { gainMana } from "./mana";
+import { isStrike, shieldsMerchant } from "./merchantAi";
 import { fireTrigger } from "./triggers";
 import { pushComboEvent, pushEvent, pushHitEvents, pushKillEvents, pushPlayerEvent, pushShatterEvent } from "../core/events";
 import { onTraitHit, onTraitKill, onTraitStagger, traitElementMul, traitIncomingMul, traitPoiseMul } from "./traitHooks";
@@ -206,6 +207,8 @@ export function damageEnemy(
   // 従魔（眷属の Rule 効果 tameEnemy）はプレイヤーの攻撃でも巻き添えでも傷つかない
   if (enemy.hp <= 0 || isAllied(state, enemy)) return false;
   const kind = opts.kind ?? "proc";
+  // 怒っていない商人: 巻き添え・交戦中の一撃は受け止め、平時の 1 発目は警告だけ（system/merchantAi.ts）
+  if (shieldsMerchant(state, enemy, isStrike(kind, opts.silent))) return false;
   const poise = (opts.poise ?? 0) * traitPoiseMul(state, enemy, kind, opts.crit === true) * poiseIncreasedMul(state, enemy);
   const intercepted = interceptEnemyDamage(state, enemy, amount, knockDir, kind, opts.guardBreak, poise);
   if (intercepted <= 0) return false;

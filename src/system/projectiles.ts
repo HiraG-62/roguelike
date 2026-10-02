@@ -8,8 +8,9 @@ import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { isAllied } from "./rules";
 import { attackManaMul } from "./keystones";
-import { gainAttackMana } from "./mana";
+import { gainWeaponMana } from "./mana";
 import { attackHitManaMul } from "./manaSources";
+import { merchantSheltered } from "./merchantAi";
 import { bossOnAnswer } from "./boss";
 import { fireDebana } from "./debana";
 import { noteRiposte } from "./moments";
@@ -365,14 +366,14 @@ function gainShotMana(state: GameState, pr: Projectile, debana = false): void {
   volley.manaHits += 1;
   // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainAttackMana(state, (pr.shotMana ?? MANA.onShot) * (debana ? MANA.onCounterMul : 1) * attackHitManaMul(state), attackManaMul(state));
+  gainWeaponMana(state, (pr.shotMana ?? MANA.onShot) * (debana ? MANA.onCounterMul : 1) * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
 function hitEnemies(state: GameState, pr: Projectile): void {
   for (const e of state.enemies) {
-    // 従魔（眷属）は撃ち抜く（貫通を減らさず、傷つけない）
-    if (e.hp <= 0 || pr.hitIds.has(e.id) || isAllied(state, e)) continue;
+    // 従魔（眷属）と、交戦中で身を守っている商人は撃ち抜く（貫通を減らさず、傷つけない）
+    if (e.hp <= 0 || pr.hitIds.has(e.id) || isAllied(state, e) || merchantSheltered(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
