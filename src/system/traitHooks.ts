@@ -155,7 +155,7 @@ function rhythmBonus(state: GameState): number {
   return bonus;
 }
 
-/** 読み勝ちの誓いが報いる近接か: 予告が黄の間に振り始めた一撃（出端）。命中の瞬間の色ではなく振り始めで決める */
+/** 読み勝ちの誓いが報いる近接か: 予告が下絵の間に振り始めた一撃（出端）。命中の瞬間の色ではなく振り始めで決める */
 function readOathHit(state: GameState, enemy: Enemy): boolean {
   return yellowAt(enemy, state.player.attack.startedAt);
 }

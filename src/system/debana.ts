@@ -8,12 +8,12 @@ import { attackCommitted } from "./poise";
 import { onTraitCounter } from "./traitHooks";
 
 /**
- * 出端（予告が黄の間に振り始めた近接 / 撃った放出の弾の命中。docs/ideas/reading-core-impl.md 2-3）の出来事。
+ * 出端（予告が下絵の間に振り始めた近接 / 撃った放出の弾の命中。docs/ideas/reading-core-impl.md 2-3）の出来事。
  * 近接（player.ts）と弾（projectiles.ts）が同じ見せ方・同じ出来事を出すためにここへ寄せる。
  * 頭上の文字は出さない。音・粒・白黒・墨の飛沫で見せる
  */
 
-/** 赤の間の命中音を重ねない間隔（秒）。乱戦で鳴りっぱなしにしない */
+/** 墨入れの間の命中音を重ねない間隔（秒）。乱戦で鳴りっぱなしにしない */
 const COMMITTED_SFX_GAP = 0.15;
 const SPEED_BURST = 150;
 const LIFE_BURST = 0.35;
@@ -47,7 +47,7 @@ export function fireDebana(state: GameState, e: Enemy, pos: Vec): void {
   pushEvent(state, { kind: "onCounter", actor: "player", source: { kind: "player", key: "counter" }, tag: COUNTER_TAG, ...enemyTarget(e) });
 }
 
-/** 赤（攻撃が確定した）の敵への普通の命中: 倍も盾抜けも無い、と音で知らせる。1 振り × 1 体に 1 回、呼び側が絞る */
+/** 墨入れ（攻撃が確定した）の敵への普通の命中: 倍も盾抜けも無い、と音で知らせる。1 振り × 1 体に 1 回、呼び側が絞る */
 export function noteCommittedHit(state: GameState, e: Enemy): void {
   if (!attackCommitted(e)) return;
   pushSfxSpaced(state, "hitCommitted", COMMITTED_SFX_GAP);

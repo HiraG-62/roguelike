@@ -80,7 +80,7 @@ export interface AttackState {
   lane: ButtonKey;
   /** 先行入力（buffered）がどちらのボタンか */
   bufferedLane: ButtonKey;
-  /** 今の振りを始めた state.time（出端の判定: 振り始めに敵が黄だったか。system/readTiming.ts） */
+  /** 今の振りを始めた state.time（出端の判定: 振り始めに敵が下絵だったか。system/readTiming.ts） */
   startedAt: number;
   /** この振りで「出端か普通の命中か」の出来事（音・イベント・応手）を出し済みの敵。多段でも 1 振り × 1 体に 1 回にする */
   readIds: Set<number>;
@@ -253,9 +253,9 @@ export interface Enemy {
   windupTotal: number;
   /** 今の予備動作が始まった state.time（system/readTiming.ts の markWindupStart）。省略は未記録 */
   windupAt?: number;
-  /** その予備動作が赤になった state.time（noteCommit）。windupAt 未満は「まだ赤でない」 */
+  /** その予備動作が墨入れになった state.time（noteCommit）。windupAt 未満は「まだ墨入れでない」 */
   committedAt?: number;
-  /** 予備動作のうち黄（まだ止められる）の残り秒。ボスの技が BossHooks.openTime で決める。undefined は commitRatio の規則 */
+  /** 予備動作のうち下絵（まだ止められる）の残り秒。ボスの技が BossHooks.openTime で決める。undefined は commitRatio の規則 */
   openFor?: number;
   /** 連撃の 2 撃目以降の予備動作。最初からコミット（怯み値が溜まらず必ず出る）。startWindup が毎回戻す */
   chainWindup?: boolean;
@@ -386,7 +386,7 @@ export interface Corpse {
 
 /** 答えのダウンの印。answer = 段階の答え、final = 最終段階の答え（引導の窓） */
 export type BossDownTag = "answer" | "final";
-/** 技の後に払うダウン（答えの一撃が赤に入ったとき） */
+/** 技の後に払うダウン（答えの一撃が墨入れに入ったとき） */
 export interface OwedBossDown {
   time: number;
   text: string;
@@ -605,7 +605,7 @@ export interface Projectile {
   lane?: ButtonKey;
   /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
   release?: { finisher: boolean; crit: boolean };
-  /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が黄だったか）。放出の弾だけが持つ */
+  /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が下絵だったか）。放出の弾だけが持つ */
   firedAt?: number;
   /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */
   pointBlank?: boolean;
@@ -1031,7 +1031,7 @@ export interface Jin {
 /** 陣図の段（docs/ideas/jinzu-impl.md。待ち → 掲げ → 筆 → 構え → 総掛かり → 立て直し。回数が尽きたら spent） */
 export type JinzuPhase = "ready" | "raise" | "brush" | "hold" | "charge" | "regroup" | "spent";
 
-/** 画の状態: pending まだ出ていない / sketch 下絵（黄・怯みで消せる）/ ink 墨（赤・必ず来る）/ erased 筆折れで消えた / done 走り終えた・止まった */
+/** 画の状態: pending まだ出ていない / sketch 下絵（怯みで消せる）/ ink 墨（必ず来る）/ erased 筆折れで消えた / done 走り終えた・止まった */
 export type JinzuStrokeState = "pending" | "sketch" | "ink" | "erased" | "done";
 
 /** 陣図の 1 画 */

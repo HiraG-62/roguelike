@@ -5,7 +5,7 @@ import { SIGN_CHECK, TELEGRAPH } from "./tuning";
 import { STATUS_COLOR } from "../render/statusUi";
 import { ELITE_COLOR } from "../system/elites";
 
-/** 符号表の検査（docs/ideas/ink-telegraph-impl.md 段 0-b）。予告の黄・赤を世界の層の他の色が横取りしていないか */
+/** 符号表の検査（docs/ideas/ink-telegraph-impl.md 段 0-b・案 B）。予告の 4 色を世界の層の他の色が横取りしていないか */
 
 function rgb(hex: string): [number, number, number] {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -49,7 +49,6 @@ function collectWorldColors(): Map<string, string> {
   for (const [kind, hex] of Object.entries(ELITE_COLOR)) out.set(`elite.${kind}`, hex);
   for (const def of ENEMIES) if (def.color) out.set(`enemy.${def.key}`, def.color);
   out.set("blood", BLOOD_COLOR);
-  out.set("gofun", GOFUN_COLOR);
   return out;
 }
 
@@ -58,6 +57,7 @@ function clashing(): string[] {
   const names: string[] = [];
   for (const [name, hex] of collectWorldColors()) {
     for (const sign of RESERVED_SIGNS) {
+      if (!sign.exclusive) continue;
       const near = distance(hex, sign.color) < SIGN_CHECK.oklabMinDist;
       const sameLight = Math.abs(luma(hex) - luma(sign.color)) < SIGN_CHECK.lumaMinDelta;
       if (near && sameLight) names.push(`${name}~${sign.key}`);
@@ -66,34 +66,43 @@ function clashing(): string[] {
   return names.sort();
 }
 
-describe("符号表: 予告の黄と赤", () => {
-  it("黄と赤の相対輝度の差が下限以上（色が見えにくくても明るさで分かれる）", () => {
-    const delta = Math.abs(luma(TELEGRAPH.readyColor) - luma(TELEGRAPH.commitColor));
-    expect(delta).toBeGreaterThanOrEqual(SIGN_CHECK.readyCommitLumaMin);
+function chroma(hex: string): number {
+  const [, a, b] = oklab(hex);
+  return Math.hypot(a, b);
+}
+
+describe("符号表: 予告の薄墨・濃墨・朱・胡粉", () => {
+  it("薄墨と濃墨、胡粉と濃墨の相対輝度の差が下限以上（灰色にしても 2 段が明暗で分かれる）", () => {
+    expect(luma(TELEGRAPH.usuzumiColor) - luma(TELEGRAPH.sumiColor), "薄墨と濃墨").toBeGreaterThanOrEqual(SIGN_CHECK.readyCommitLumaMin);
+    expect(luma(TELEGRAPH.gofunColor) - luma(TELEGRAPH.sumiColor), "胡粉と濃墨").toBeGreaterThanOrEqual(SIGN_CHECK.readyCommitLumaMin);
   });
 
   it("予約色は予告の色そのもの（表と TELEGRAPH がずれない）", () => {
-    expect(RESERVED_SIGNS.map((s) => s.color)).toEqual([TELEGRAPH.readyColor, TELEGRAPH.commitColor]);
+    expect(RESERVED_SIGNS.map((s) => s.color)).toEqual([TELEGRAPH.usuzumiColor, TELEGRAPH.sumiColor, TELEGRAPH.shuColor, TELEGRAPH.gofunColor]);
+    expect(GOFUN_COLOR, "怯みの印の胡粉は予告の胡粉と同じ").toBe(TELEGRAPH.gofunColor);
   });
 
-  it("下絵の淡墨の筋の色は黄の帯の中（色相が黄から離れず、赤とは別）", () => {
-    const hue = (hex: string): number => {
-      const [, a, b] = oklab(hex);
-      return (Math.atan2(b, a) * 180) / Math.PI;
-    };
-    const diff = Math.abs(hue(TELEGRAPH.sketchDullColor) - hue(TELEGRAPH.readyColor));
-    expect(diff, "黄との色相差").toBeLessThanOrEqual(SIGN_CHECK.sketchHueMaxDeg);
-    expect(distance(TELEGRAPH.sketchDullColor, TELEGRAPH.commitColor), "赤から離れている").toBeGreaterThanOrEqual(SIGN_CHECK.oklabMinDist);
+  it("下絵の薄墨（滲み・筋）は色味の無い灰で、朱から離れ、濃墨より明るい", () => {
+    for (const hex of [TELEGRAPH.usuzumiColor, TELEGRAPH.usuzumiLightColor, TELEGRAPH.usuzumiDarkColor]) {
+      expect(chroma(hex), `${hex} の彩度`).toBeLessThanOrEqual(SIGN_CHECK.usuzumiChromaMax);
+      expect(distance(hex, TELEGRAPH.shuColor), `${hex} と朱`).toBeGreaterThanOrEqual(SIGN_CHECK.oklabMinDist);
+      expect(luma(hex) - luma(TELEGRAPH.sumiColor), `${hex} と濃墨の明るさ`).toBeGreaterThanOrEqual(SIGN_CHECK.readyCommitLumaMin);
+    }
   });
 
-  it("世界の層で予約色に紛れる色は既知の例外だけ（増やさない。直したら例外から消す）", () => {
+  it("朱は濃墨と明るさで分かれ、薄墨・胡粉とは色で分かれる（墨溜まりの点が黒に埋もれない）", () => {
+    expect(luma(TELEGRAPH.shuColor) - luma(TELEGRAPH.sumiColor)).toBeGreaterThanOrEqual(SIGN_CHECK.lumaMinDelta);
+    expect(chroma(TELEGRAPH.shuColor), "朱は色味がある").toBeGreaterThan(SIGN_CHECK.usuzumiChromaMax * 2);
+  });
+
+  it("世界の層で独占する予約色（濃墨・朱）に紛れる色は既知の例外だけ（増やさない。直したら例外から消す）", () => {
     const expected = KNOWN_EXCEPTIONS.map((x) => x.key).sort();
     expect(clashing()).toEqual(expected);
   });
 
-  it("色替え済みの 4 つ（怯みの星・怯みゲージ・号令の気・血）は予約色から離れている", () => {
-    for (const hex of [GOFUN_COLOR, COMMANDING_AURA_COLOR, BLOOD_COLOR, STATUS_COLOR.stagger]) {
-      for (const sign of RESERVED_SIGNS) {
+  it("色替え済みの 2 つ（号令の気・血）は独占する予約色（濃墨・朱）から離れている", () => {
+    for (const hex of [COMMANDING_AURA_COLOR, BLOOD_COLOR]) {
+      for (const sign of RESERVED_SIGNS.filter((x) => x.exclusive)) {
         const far = distance(hex, sign.color) >= SIGN_CHECK.oklabMinDist || Math.abs(luma(hex) - luma(sign.color)) >= SIGN_CHECK.lumaMinDelta;
         expect(far, `${hex} と ${sign.key}`).toBe(true);
       }

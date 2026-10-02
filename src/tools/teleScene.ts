@@ -1,6 +1,6 @@
 // 予告の撮影の場面（docs/ideas/ink-telegraph-impl.md 段 0-c）。ゲーム本体からは import しない。
 // ?scene=tele&tele=crowd|shapes|solo|idle で、プレイヤーの周りに予備動作・攻撃中の敵を並べる（時間は進めず、描画だけ）。
-// 乱戦で黄と赤が線の質で読めるか・7 形の見え方を、章様式の明るさ違い（明るい氷河・暗闇の階）で確かめる
+// 乱戦で下絵と墨入れが線の質で読めるか・7 形の見え方を、章様式の明るさ違い（明るい氷河・暗闇の階）で確かめる
 import { step } from "../core/game";
 import { EMPTY_INPUT } from "../core/input";
 import { FIXED_DT } from "../core/loop";
@@ -92,7 +92,7 @@ function addEnemy(state: GameState, key: string, x: number, y: number, look: Loo
   state.enemies.push(e);
 }
 
-/** 乱戦: 自分の周り 30 体。黄 10（浅い・深い）・赤 10・攻撃中 5・待機 5 */
+/** 乱戦: 自分の周り 30 体。下絵 10（浅い・深い）・墨入れ 10・攻撃中 5・待機 5 */
 /** idle = 同じ 30 体を待機のまま置く（予告の描画の増分を引き算で測るための比較用） */
 function placeCrowd(state: GameState, idle: boolean): void {
   const p = state.player.body.pos;
@@ -106,7 +106,7 @@ function placeCrowd(state: GameState, idle: boolean): void {
   }
 }
 
-/** 並べ撮り: 上の段は黄（怯み値 0 / 3 割 / 6 割の欠け違いの 3 行）、下の段は同じ敵の赤 */
+/** 並べ撮り: 上の段は下絵（怯み値 0 / 3 割 / 6 割の欠け違いの 3 行）、下の段は同じ敵の墨入れ */
 function placeShapes(state: GameState): void {
   const p = state.player.body.pos;
   const left = p.x - ((SHAPE_KEYS.length - 1) * SHAPE_GAP) / 2;
@@ -116,7 +116,7 @@ function placeShapes(state: GameState): void {
   });
 }
 
-/** 筆致の確認用: 7 形を 1 つずつ離して置き、黄（上）と赤（下）で並べる。重なりがなく、線の質だけを見られる */
+/** 筆致の確認用: 7 形を 1 つずつ離して置き、下絵（上）と墨入れ（下）で並べる。重なりがなく、線の質だけを見られる */
 function placeSolo(state: GameState): void {
   const p = state.player.body.pos;
   const right = { x: 1, y: 0 };
@@ -195,7 +195,7 @@ function placeJinzu(state: GameState): void {
   for (let i = 0; i < Math.ceil(JINZU_MAX_SEC / FIXED_DT) && !ready(); i++) step(state, EMPTY_INPUT, FIXED_DT);
 }
 
-/** スライム王の跳躍の滞空（予告は黄）。王は影の上に浮き、足元に着地の影、脇に冠スライム */
+/** スライム王の跳躍の滞空（予告は下絵）。王は影の上に浮き、足元に着地の影、脇に冠スライム */
 function placeSlime(state: GameState): void {
   const p = state.player.body.pos;
   const king = createEnemy(state, enemyDef("kingSlime"), { x: p.x, y: p.y - 40 }, 0, false);

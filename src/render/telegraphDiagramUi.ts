@@ -22,7 +22,7 @@ const SAFE_TINT_ALPHA = 0.1;
 const DANGER_ALPHA = 0.32;
 
 const TITLE_SUFFIX = "予告の図解";
-const PARRY_NOTE = "赤の間は受け流しだけが止められる";
+const PARRY_NOTE = "墨入れの間は受け流しだけが止められる";
 const HINT = "Esc / Enter 戻る";
 const SAFE_LABEL = "安全な場所";
 const NO_SHAPE_NOTE = "予告の形なし";
@@ -162,7 +162,7 @@ function strokeCross(ctx: CanvasRenderingContext2D, k: number): void {
   ctx.stroke();
 }
 
-/** 形を描く。面を持つ形は「舞台を安全の緑で薄く塗る → 危ない範囲を地の色で抜く → 赤で塗る → 黄で縁取る」の順 */
+/** 形を描く。面を持つ形は「舞台を安全の緑で薄く塗る → 危ない範囲を地の色で抜く → 朱で薄く塗る → 胡粉で縁取る」の順 */
 function drawShape(ctx: CanvasRenderingContext2D, shape: DiagramShape, radius: number, k: number): void {
   ctx.fillStyle = COLOR_SAFE;
   ctx.globalAlpha = SAFE_TINT_ALPHA;
@@ -172,11 +172,11 @@ function drawShape(ctx: CanvasRenderingContext2D, shape: DiagramShape, radius: n
   ctx.fillStyle = COLOR_PANEL;
   ctx.fill();
   ctx.globalAlpha = DANGER_ALPHA;
-  ctx.fillStyle = TELEGRAPH.commitColor;
+  ctx.fillStyle = TELEGRAPH.shuColor;
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.lineWidth = STROKE_W;
-  ctx.strokeStyle = TELEGRAPH.readyColor;
+  ctx.strokeStyle = TELEGRAPH.gofunColor;
   ctx.stroke();
   if (shape.kind === "laser") strokeFan(ctx, fanAngles(shape.count, shape.spreadDeg), TELEGRAPH.maxLength * k, false);
   if (shape.kind === "volley") strokeFan(ctx, fanAngles(shape.count, shape.spreadDeg), TELEGRAPH.fallbackLength * VOLLEY_LENGTH_RATIO * k, true);
@@ -198,16 +198,21 @@ function drawEnemy(ctx: CanvasRenderingContext2D, sprite: Sprite | undefined, ra
 interface Segment {
   label: string;
   seconds: number;
+  /** 帯の塗り */
   color: string;
+  /** 見出しの字の色（濃墨は暗い地で読めないので朱で書く） */
+  text: string;
+  /** 帯を胡粉で縁取る（濃墨の帯を暗い地から浮かせる） */
+  edged: boolean;
 }
 
-/** 時間の帯の区間。黄 = 怯ませられる間、赤 = コミット（必ず出る）、白 = 攻撃、緑 = 隙 */
+/** 時間の帯の区間。下絵（薄墨）= 怯ませられる間、墨入れ（濃墨）= 必ず出る、白 = 攻撃、緑 = 隙 */
 function segmentsOf(d: TelegraphDiagram): Segment[] {
   return [
-    { label: "黄 怯ませられる", seconds: d.commitFrom, color: TELEGRAPH.readyColor },
-    { label: "赤 コミット", seconds: Math.max(0, d.windup - d.commitFrom), color: TELEGRAPH.commitColor },
-    { label: "白 攻撃", seconds: d.strike, color: COLOR_STRIKE },
-    { label: "緑 隙", seconds: d.recover, color: COLOR_SAFE },
+    { label: "下絵 怯ませられる", seconds: d.commitFrom, color: TELEGRAPH.usuzumiColor, text: TELEGRAPH.usuzumiLightColor, edged: false },
+    { label: "墨入れ 必ず出る", seconds: Math.max(0, d.windup - d.commitFrom), color: TELEGRAPH.sumiColor, text: TELEGRAPH.shuColor, edged: true },
+    { label: "白 攻撃", seconds: d.strike, color: COLOR_STRIKE, text: COLOR_STRIKE, edged: false },
+    { label: "緑 隙", seconds: d.recover, color: COLOR_SAFE, text: COLOR_SAFE, edged: false },
   ];
 }
 
@@ -223,6 +228,10 @@ function drawTimeBar(ctx: CanvasRenderingContext2D, d: TelegraphDiagram): number
   for (const s of segs) {
     const w = total > 0 ? Math.max(SEG_MIN_W, Math.round((s.seconds / total) * barW)) : 0;
     if (w > 0 && s.seconds > 0) {
+      if (s.edged) {
+        ctx.fillStyle = TELEGRAPH.gofunColor;
+        ctx.fillRect(x, BAR_Y - 1, w, BAR_H + 2);
+      }
       ctx.fillStyle = s.color;
       ctx.fillRect(x, BAR_Y, w, BAR_H);
       x += w;
@@ -234,7 +243,7 @@ function drawTimeBar(ctx: CanvasRenderingContext2D, d: TelegraphDiagram): number
   const ly = BAR_Y + BAR_H + 3;
   for (const s of segs) {
     const text = `${s.label} ${secondsText(s.seconds)}`;
-    drawText(ctx, text, lx, ly, m, s.color, "left", "top");
+    drawText(ctx, text, lx, ly, m, s.text, "left", "top");
     lx += textWidth(text, m) + gap;
   }
   return ly + lineH(m);

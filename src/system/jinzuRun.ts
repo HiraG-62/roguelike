@@ -13,8 +13,8 @@ import { isFeared } from "./statusEffects";
 /**
  * 陣図に動かされている兵の 1 ステップ（docs/ideas/jinzu-impl.md R3-d・R5）。
  * - 筆を持つ大将と持ち場の兵（stand）は動かず的を向く
- * - 走る兵（run）は phase = strike として画の点列を辿る。これで怯み値の先送り・受け流しの直接の怯み・背面・予告の赤が
- *   1 体の攻撃と同じ規則でそのまま効く（「赤は返せ」が隊の単位でも成り立つ）。当たりは 1 人 1 回まで
+ * - 走る兵（run）は phase = strike として画の点列を辿る。これで怯み値の先送り・受け流しの直接の怯み・背面・予告の墨入れが
+ *   1 体の攻撃と同じ規則でそのまま効く（「墨入れは返せ」が隊の単位でも成り立つ）。当たりは 1 人 1 回まで
  * - 射線の画の射手は走らず、画の向きへ 1 発ずつ撃つ
  * 乱数を引かない。updateEnemies が呼び、true を返したらその敵の通常の AI は回さない
  */
@@ -64,7 +64,7 @@ export function stepJinzuMember(state: GameState, e: Enemy, def: EnemyDef, dt: n
   return true;
 }
 
-/** 走り出す: phase を strike にして、赤（確定）から始める。予備動作の時刻は記録しない（黄の出端の判定に残さない） */
+/** 走り出す: phase を strike にして、墨入れ（確定）から始める。予備動作の時刻は記録しない（下絵の出端の判定に残さない） */
 function beginRun(e: Enemy): void {
   const run = e.jinzuRun;
   if (!run) return;

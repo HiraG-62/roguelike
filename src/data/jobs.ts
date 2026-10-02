@@ -163,12 +163,12 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
   hunter: {
     lineage: "thunder",
     name: "狩人",
-    desc: "予告が黄の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
+    desc: "予告が下絵の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
     dash: "leap",
     mana: [BASE_ATTACK_MANA, { kind: "rangedHitFar", perMeter: MS.hunter.perMeter, minDistance: MS.hunter.minDistance }],
     rules: [
-      jobRule("hunter", 0, `予告が黄の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
+      jobRule("hunter", 0, `予告が下絵の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",
         if: [{ kind: "trigger", condition: "targetInWindup" }],
         then: { kind: "addPoise", magnitude: JOB.hunterWindupPoise },

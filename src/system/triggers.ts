@@ -114,7 +114,7 @@ function targetConditionMet(state: GameState, target: Enemy | undefined, conditi
   if (target === undefined) return false;
   switch (condition) {
     case "targetInWindup":
-      // 予告が黄の間だけ（赤は攻撃が確定していて、殴って止められない。system/readTiming.ts）
+      // 予告が下絵の間だけ（墨入れは攻撃が確定していて、殴って止められない。system/readTiming.ts）
       return yellowAt(target, state.time);
     case "targetGuarded":
       return hasStatus(target.status, "guarded");

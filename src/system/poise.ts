@@ -59,7 +59,7 @@ export function isStaggered(e: Enemy): boolean {
 export function windupCommitted(e: Enemy): boolean {
   if (e.phase !== "windup") return false;
   if (e.chainWindup) return true;
-  // ボスの技が黄の長さを決めている（bossKit の openTime）
+  // ボスの技が下絵の長さを決めている（bossKit の openTime）
   if (e.openFor !== undefined) return e.openFor <= 0;
   return e.windupTotal > 0 && e.phaseTimer <= e.windupTotal * ENEMY_TEMPO.commitRatio;
 }
@@ -85,8 +85,8 @@ export interface PoiseHitOptions {
    */
   canExecute?: boolean;
   /**
-   * 出端の命中: コミット窓（赤）の中でも怯み値を溜める。溢れても赤の攻撃は止めず、攻撃中と同じく先送りにして技の後で怯ませる。
-   * 赤を今すぐ止められるのは受け流しだけ、という約束は崩さない
+   * 出端の命中: コミット窓（墨入れ）の中でも怯み値を溜める。溢れても墨入れの攻撃は止めず、攻撃中と同じく先送りにして技の後で怯ませる。
+   * 墨入れを今すぐ止められるのは受け流しだけ、という約束は崩さない
    */
   readStart?: boolean;
   /** 受け流し: コミット窓と攻撃中の先送りを破る（窓の中でも溜め、攻撃中でも即怯ませる） */
@@ -256,7 +256,7 @@ export interface StaggerOptions {
 export function applyStagger(state: GameState, e: Enemy, time: number, opts: StaggerOptions = {}): boolean {
   if (time <= 0) return false;
   const self = opts.selfInflicted === true;
-  // 黄（下絵）の間に崩した: 線が擦れて散る絵に合わせて紙を擦る音（見た目と音だけ。結果に効かない）
+  // 下絵の間に崩した: 線が擦れて散る絵に合わせて紙を擦る音（見た目と音だけ。結果に効かない）
   const sketchBroken = e.phase === "windup" && !attackCommitted(e);
   const applied = applyStatus(
     state,

@@ -25,7 +25,7 @@ import { terrainAt } from "./terrain";
 export type BossAnswerKind = "debana" | "parry" | "just";
 export interface BossAnswerHit {
   readonly kind: BossAnswerKind;
-  /** 答えの瞬間にまだ黄だったか（yellowAt(e, state.time)）。出端は振り始めの色で決まるので、赤に入ってから当たった遅れた出端は false */
+  /** 答えの瞬間にまだ下絵だったか（yellowAt(e, state.time)）。出端は振り始めの色で決まるので、墨入れに入ってから当たった遅れた出端は false */
   readonly landedYellow: boolean;
 }
 
@@ -75,7 +75,7 @@ export interface BossHooks {
   onRecoverEnd?(state: GameState, e: Enemy): void;
   /** 攻撃間隔の倍率（激昂など） */
   intervalMul?(e: Enemy): number;
-  /** 予備動作のうち黄の秒（0 = 最初から赤、予備動作の秒以上 = 全部黄）。null / 省略は commitRatio の規則 */
+  /** 予備動作のうち下絵の秒（0 = 最初から墨入れ、予備動作の秒以上 = 全部下絵）。null / 省略は commitRatio の規則 */
   openTime?(state: GameState, e: Enemy, def: EnemyDef): number | null;
   /** 予備動作中の毎ステップ（スライム王の上昇の移動など） */
   tickWindup?(state: GameState, e: Enemy, def: EnemyDef, dt: number): void;
@@ -168,7 +168,7 @@ function startWindup(state: GameState, e: Enemy, def: EnemyDef, h: BossHooks): v
   pushSfx(state, "enemyWindup");
   h.beginWindup(state, e, def);
   e.windupTotal = e.phaseTimer;
-  // 毎回代入する（前の技の黄を残さない）
+  // 毎回代入する（前の技の下絵を残さない）
   e.openFor = h.openTime?.(state, e, def) ?? undefined;
 }
 

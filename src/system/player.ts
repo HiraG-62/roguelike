@@ -1363,7 +1363,7 @@ function stepHitEnergy(state: GameState, step: Readonly<MeleeStep>): number {
 }
 
 /**
- * 近接 1 ヒット。予告が黄の間に振り始めた一撃なら出端（命中の瞬間に赤へ入っていても。system/readTiming.ts）。tip は先端に当たった。
+ * 近接 1 ヒット。予告が下絵の間に振り始めた一撃なら出端（命中の瞬間に墨入れへ入っていても。system/readTiming.ts）。tip は先端に当たった。
  * 威力・怯み値は多段の命中ごとに掛かるが、出来事（音・イベント・応手）は 1 振り × 1 体に 1 回
  */
 function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false): void {
@@ -1463,7 +1463,7 @@ export function counterPoise(step: Readonly<MeleeStep>, counter: boolean): numbe
 
 /**
  * 命中の読みの結果の出来事（1 振り × 1 体に 1 回）。出端なら音・粒・白黒・墨の飛沫と起点・応手、
- * 赤の間の普通の命中なら鈍い打音だけ（倍も盾抜けも無いと音で伝える）
+ * 墨入れの間の普通の命中なら鈍い打音だけ（倍も盾抜けも無いと音で伝える）
  */
 function noteReadOutcome(state: GameState, e: Enemy, pos: Vec, counter: boolean): void {
   const p = state.player;
@@ -1767,7 +1767,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
       ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
       ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
       ...(override.lane ? { lane: override.lane } : {}),
-      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が黄だったか。system/readTiming.ts）
+      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
       ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
       ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
       ...(pointBlank ? { pointBlank: true } : {}),

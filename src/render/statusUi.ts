@@ -185,7 +185,7 @@ export function drawEnemyStatus(ctx: CanvasRenderingContext2D, e: Enemy, cx: num
   ctx.globalAlpha = 1;
 }
 
-/** 怯みゲージ（細い黄色、蓄積 / 耐性）。見せる条件を満たさなければ何もしない */
+/** 怯みゲージ（細い胡粉、蓄積 / 耐性）。見せる条件を満たさなければ何もしない */
 export function drawPoiseGauge(ctx: CanvasRenderingContext2D, e: Enemy, cx: number, y: number, w: number): void {
   if (!poiseGaugeVisible(e)) return;
   const left = Math.round(cx - w / 2);

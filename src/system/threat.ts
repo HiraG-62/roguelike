@@ -158,7 +158,7 @@ function aimsAtPlayer(e: Enemy, p: Vec): boolean {
 }
 
 /**
- * その敵の今の予告が自分の体に掛かるか（段・赤か黄かは見ない。呼び側が attackCommitted と組む）。
+ * その敵の今の予告が自分の体に掛かるか（段・墨入れか下絵かは見ない。呼び側が attackCommitted と組む）。
  * 線は敵の体の大きさも足した距離、光線は目標までの線、輪と扇は縁の内側（体の半径と余裕を足す）、形の無い敵は狙いの角で判定する
  */
 export function threatensPlayer(state: GameState, e: Enemy): boolean {

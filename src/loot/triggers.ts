@@ -107,7 +107,7 @@ export const CONDITION_TEXT: Readonly<Record<TriggerCondition, string>> = {
   manaFull: "（気力満タン）",
   manaLow: "（気力残りわずか）",
   selfAfflicted: "（自分が状態異常中）",
-  targetInWindup: "（相手の予告が黄）",
+  targetInWindup: "（相手の予告が下絵）",
   targetGuarded: "（相手が堅守中）",
   targetMultiStatus: "（相手の状態異常が 2 種以上）",
   targetElite: "（相手が精鋭）",

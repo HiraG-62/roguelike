@@ -9,9 +9,9 @@ import { BrushPen, placeBrushLine } from "./inkBrush";
  * 殺気と被弾筋（docs/ideas/ink-telegraph-impl.md 段 2）。見た目だけで、ゲームの結果には効かない。state を読み、前のフレームの様子は
  * この記憶だけに持つ（state には書かない）。描画で state.rng を使わず、筆のゆらぎは座標ハッシュ
  *
- * - 殺気: 画面の外の敵の攻撃が、自分に掛かる形で赤（墨入れ）に入った瞬間、その方向の画面の縁に墨の払いを短く出す。
+ * - 殺気: 画面の外の敵の攻撃が、自分に掛かる形で墨入れに入った瞬間、その方向の画面の縁に墨の払いを短く出す。
  *   画面の中の敵は線そのものが見えるので出さない（自分の周りに印を足すと、一番大事な所が汚れる）
- * - 被弾筋: 被弾した瞬間、当てた相手から自分へ、太い所から細る墨の一筆。赤い芯は持たず（これから来る物と取り違えない）、乾いて消える。
+ * - 被弾筋: 被弾した瞬間、当てた相手から自分へ、太い所から細る墨の一筆。朱は持たず（これから来る物と取り違えない）、乾いて消える。
  *   被弾の検知は state.hurt.last が新しい記録に替わったことで行う（sim の記録は読むだけ）
  */
 
@@ -65,7 +65,7 @@ function edgeScale(dx: number, dy: number, inset: number): number {
   return Math.min(tx, ty);
 }
 
-/** 敵 1 体が「赤に入った」状態か（予備動作でコミット窓の中）。攻撃中は立ち上がりの後なので数えない */
+/** 敵 1 体が「墨入れに入った」状態か（予備動作でコミット窓の中）。攻撃中は立ち上がりの後なので数えない */
 function committedWindup(e: Enemy): boolean {
   return e.phase === "windup" && attackCommitted(e);
 }
@@ -79,7 +79,7 @@ export class ThreatCues {
   private prevNear: Near[] = [];
   private seq = 0;
 
-  /** 1 フレームに 1 回、描く前に呼ぶ: 赤への立ち上がり（殺気）と被弾（被弾筋）を拾う */
+  /** 1 フレームに 1 回、描く前に呼ぶ: 墨入れへの立ち上がり（殺気）と被弾（被弾筋）を拾う */
   update(state: GameState): void {
     this.expire(state.time);
     this.noteEdges(state);

@@ -62,7 +62,7 @@ import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
-import { EFFECTS, FLOAT_TEXT, FX_ATTACK } from "../data/tuning";
+import { EFFECTS, FLOAT_TEXT, FX_ATTACK, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -209,7 +209,7 @@ const SHOCKWAVE_ALPHA = 0.85;
 /** 鎖縛のの鎖・鎖の死神の予告線の濃さ */
 const CROSS_LINE_ALPHA = 0.5;
 
-/** 精鋭の気・名札の色（号令の気は予告の黄から外した色。system/elites.ts の ELITE_COLOR） */
+/** 精鋭の気・名札の色（号令の気は予告の色から外した色。system/elites.ts の ELITE_COLOR） */
 function eliteDrawColor(kind: EliteKind): string {
   return ELITE_COLOR[kind];
 }
@@ -1526,7 +1526,7 @@ export class Renderer {
     let x = cx;
     let bottom = feetY - this.jumpLift(e, state.depth);
     if (floating) bottom += Math.sin(e.animTime * FLOAT_BOB_SPEED + e.id) * FLOAT_BOB_AMOUNT;
-    // 予備動作の体: 黄の間は攻撃の逆へのけぞって縦に縮む（溜め）、赤に入った瞬間に攻撃の向きへ伸びる（張り）
+    // 予備動作の体: 下絵の間は攻撃の逆へのけぞって縦に縮む（溜め）、墨入れに入った瞬間に攻撃の向きへ伸びる（張り）
     const pose = telegraphPose(e, state.time, telegraphLineDir(e, behaviorOf(def).aimFixedAtWindup(e, def), state.player.body.pos));
     x += pose.dx;
     bottom += pose.dy;
@@ -1550,10 +1550,10 @@ export class Renderer {
     const base = hit ? sprite.white : sprite.frames;
     this.drawAnchored(sprite, pick(base, frame), x, bottom, sx, sy, rot, flip);
 
-    // 状態の重ね描き（同じ変形のシルエットを半透明で）。赤は予告の色と同じく攻撃が確定してから（黄の間は殴って止められる）
+    // 状態の重ね描き（同じ変形のシルエットを半透明で）。朱の点滅は予告の墨入れと同じく攻撃が確定してから（下絵の間は殴って止められる）
     if (e.phase === "windup" && attackCommitted(e) && Math.sin(state.time * WINDUP_BLINK_SPEED) > 0) {
       ctx.globalAlpha = WINDUP_RED_ALPHA;
-      this.drawAnchored(sprite, pick(this.tinted(key, COLOR_TELEGRAPH), frame), x, bottom, sx, sy, rot, flip);
+      this.drawAnchored(sprite, pick(this.tinted(key, TELEGRAPH.shuColor), frame), x, bottom, sx, sy, rot, flip);
     }
     if (hasStatus(e.status, "chill") || hasStatus(e.status, "freeze")) {
       ctx.globalAlpha = CHILL_TINT_ALPHA;
@@ -1811,7 +1811,7 @@ export class Renderer {
 
   /**
    * 爆弾ハザード。出どころで見た目を変える:
-   * bomber = 赤い予告円 + 導火線が短くなるほど速く点滅する爆弾、
+   * bomber = 墨入れの輪 + 導火線が短くなるほど速く点滅する爆弾、
    * wisp の死亡爆発 = 白い縮む円、Explosive エリートの死亡爆発 = 橙の脈動円 + 縮む白輪
    */
   private drawBomb(state: GameState, h: Hazard): void {
@@ -1901,7 +1901,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** 着地予告: 最終半径の赤い輪 + 縮んでいく影 */
+  /** 着地予告: 最終半径の墨の輪 + 縮んでいく影 */
   private drawLanding(state: GameState, h: Hazard): void {
     const { ctx } = this;
     const t = h.maxTime > 0 ? h.time / h.maxTime : 0;
@@ -1911,7 +1911,7 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(h.pos.x, h.pos.y, h.radius * scale * LANDING_RX, h.radius * scale * LANDING_RY, 0, 0, Math.PI * 2);
     ctx.fill();
-    // 縁は出した敵の予告と同じ色・同じ段（黄の間は下絵 = 打てば止められる、赤は墨入れ）。出した敵がいなければ墨入れ
+    // 縁は出した敵の予告と同じ段（下絵 = 打てば止められる薄墨、墨入れ = 朱の縁と濃墨の輪）。出した敵がいなければ墨入れ
     const source = h.sourceId === undefined ? undefined : state.enemies.find((en) => en.id === h.sourceId);
     if (source) {
       ctx.strokeStyle = telegraphColor(source);

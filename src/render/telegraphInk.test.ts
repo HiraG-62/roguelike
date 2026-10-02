@@ -130,7 +130,7 @@ describe("筆先が逸れる", () => {
 });
 
 describe("溜めと張り", () => {
-  it("黄の間は攻撃の逆へのけぞり縦に縮み、進むほど深い", () => {
+  it("下絵の間は攻撃の逆へのけぞり縦に縮み、進むほど深い", () => {
     const early = windupEnemy("slime", 0.95);
     const late = windupEnemy("slime", ENEMY_TEMPO.commitRatio + 0.01);
     const a = telegraphPose(early.e, 0, { x: 1, y: 0 });
@@ -141,7 +141,7 @@ describe("溜めと張り", () => {
     expect(b.sy).toBeGreaterThanOrEqual(1 - TELEGRAPH_POSE.squashMax);
   });
 
-  it("赤に入った直後だけ攻撃の向きへ伸び、張りの長さを過ぎたら元に戻る", () => {
+  it("墨入れに入った直後だけ攻撃の向きへ伸び、張りの長さを過ぎたら元に戻る", () => {
     const { e } = windupEnemy("slime", ENEMY_TEMPO.commitRatio - 0.05);
     e.committedAt = 10;
     const p = telegraphPose(e, 10, { x: 1, y: 0 });
@@ -149,7 +149,7 @@ describe("溜めと張り", () => {
     expect(telegraphPose(e, 10 + TELEGRAPH_POSE.stretchSec + 0.01, { x: 1, y: 0 })).toEqual({ dx: 0, dy: 0, sx: 1, sy: 1 });
   });
 
-  it("黄の進みは 0 から 1、予備動作でなければ動かない", () => {
+  it("下絵の進みは 0 から 1、予備動作でなければ動かない", () => {
     const { e } = windupEnemy("slime", 1);
     expect(yellowProgress(e)).toBe(0);
     e.phaseTimer = ENEMY_TEMPO.commitRatio;
@@ -159,7 +159,7 @@ describe("溜めと張り", () => {
   });
 });
 
-describe("黄の間は赤を使わない（全部の敵）", () => {
+describe("下絵の間は朱・胡粉を使わない（全部の敵）", () => {
   function colorsFor(ratio: number): Set<string> {
     const state = arena();
     ENEMIES.forEach((def, i) => {
@@ -174,16 +174,27 @@ describe("黄の間は赤を使わない（全部の敵）", () => {
     return colors;
   }
 
-  it("黄の間の予告は commitColor を使わない（線・範囲・折れ線・頭上の印のすべて）", () => {
+  it("下絵の間の予告は薄墨を使い、朱と胡粉を使わない（線・範囲・折れ線・頭上の印のすべて）", () => {
     const colors = colorsFor(1);
-    expect(colors.has(TELEGRAPH.readyColor), "黄は使う").toBe(true);
-    expect(colors.has(TELEGRAPH.commitColor), "赤は使わない").toBe(false);
+    expect(colors.has(TELEGRAPH.usuzumiLightColor.toLowerCase()), "薄墨は使う").toBe(true);
+    expect(colors.has(TELEGRAPH.shuColor.toLowerCase()), "朱は使わない").toBe(false);
+    expect(colors.has(TELEGRAPH.gofunColor.toLowerCase()), "胡粉は使わない").toBe(false);
   });
 
-  it("赤の間の予告は commitColor を使い、readyColor を使わない", () => {
+  it("墨入れの間の予告は濃墨と朱を使い、薄墨の筋を使わない", () => {
     const colors = colorsFor(ENEMY_TEMPO.commitRatio - 0.1);
-    expect(colors.has(TELEGRAPH.commitColor)).toBe(true);
-    expect(colors.has(TELEGRAPH.readyColor)).toBe(false);
+    expect(colors.has(TELEGRAPH.sumiColor.toLowerCase()), "濃墨").toBe(true);
+    expect(colors.has(TELEGRAPH.shuColor.toLowerCase()), "朱").toBe(true);
+    expect(colors.has(TELEGRAPH.usuzumiLightColor.toLowerCase()), "薄墨の明るい筋は使わない").toBe(false);
+    expect(colors.has(TELEGRAPH.usuzumiDarkColor.toLowerCase()), "薄墨の暗い筋は使わない").toBe(false);
+  });
+
+  it("予告の色に旧い黄・赤（#ffd040 / #ff4040）を使わない", () => {
+    for (const ratio of [1, ENEMY_TEMPO.commitRatio - 0.1]) {
+      const colors = colorsFor(ratio);
+      expect(colors.has("#ffd040"), `残り ${ratio} の黄`).toBe(false);
+      expect(colors.has("#ff4040"), `残り ${ratio} の赤`).toBe(false);
+    }
   });
 });
 

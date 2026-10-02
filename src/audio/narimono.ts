@@ -10,7 +10,7 @@ import type { SfxName } from "./sfxNames";
 /**
  * 鳴物帳（docs/ideas/ink-telegraph-impl.md 段 3）。予告まわりの音を「家（音色の系統）1 つに意味 1 つ」で持つ表と、
  * main.ts が state を読んで鳴らす・替える規則。ロジック（system/）は音を知らないので、sim は触らず、drain のときにここを通す。
- * 画面と音が同じ言葉で言う（黄 = 下絵は無音、赤に入る = 柝頭、読みが当たる = 附打）ための表で、新しい音を足すときは先にこの表を読む
+ * 画面と音が同じ言葉で言う（下絵は無音、墨入れに入る = 柝頭、読みが当たる = 附打）ための表で、新しい音を足すときは先にこの表を読む
  */
 
 export interface NarimonoEntry {
@@ -22,7 +22,7 @@ export interface NarimonoEntry {
 }
 
 export const NARIMONO_TABLE: readonly NarimonoEntry[] = [
-  { name: "commitClack", house: "拍子木（高く乾いた木）", meaning: "自分に掛かる攻撃が赤に入った" },
+  { name: "commitClack", house: "拍子木（高く乾いた木）", meaning: "自分に掛かる攻撃が墨入れに入った" },
   { name: "tsukeHeavy", house: "板を打つ（低く強い）", meaning: "受け流しが当たった（読みの成功）" },
   { name: "sketchErase", house: "紙を擦る", meaning: "下絵を崩した" },
   { name: "enemyWindup", house: "上り調子の唸り", meaning: "精鋭とボスの予備動作の始まり" },
@@ -49,7 +49,7 @@ function isBossFoe(state: GameState, e: Enemy): boolean {
 
 export class Narimono {
   private owner: GameState | null = null;
-  /** 敵 id → 前に見た committedAt（赤への立ち上がりの検出） */
+  /** 敵 id → 前に見た committedAt（墨入れへの立ち上がりの検出） */
   private committed = new Map<number, number>();
   /** 敵 id → 数え済みの windupAt（予備動作の始まりを 1 回だけ数える） */
   private windups = new Map<number, number>();
@@ -127,8 +127,8 @@ export class Narimono {
   }
 
   /**
-   * 柝頭: 敵の攻撃が赤（墨入れ）に入った瞬間、自分に掛かる物のうち一番早く当たる 1 体だけ、前の柝頭から clackGapSec 以上空けて、
-   * 敵の画面上の横位置で左右に振って鳴らす。掛からない赤・遠すぎる敵の赤は鳴らさない（鳴り続ける合図は合図にならない）
+   * 柝頭: 敵の攻撃が墨入れに入った瞬間、自分に掛かる物のうち一番早く当たる 1 体だけ、前の柝頭から clackGapSec 以上空けて、
+   * 敵の画面上の横位置で左右に振って鳴らす。掛からない墨入れ・遠すぎる敵の墨入れは鳴らさない（鳴り続ける合図は合図にならない）
    */
   clack(state: GameState): Clack | null {
     this.own(state);
@@ -140,7 +140,7 @@ export class Narimono {
       next.set(e.id, c);
       const red = c > NEVER_TIME && c >= (e.windupAt ?? NEVER_TIME);
       if (!red || this.committed.get(e.id) === c) continue;
-      // 初めて見る敵は、赤になって間もないときだけ立ち上がりに数える（途中から見えた敵を鳴らさない）
+      // 初めて見る敵は、墨入れになって間もないときだけ立ち上がりに数える（途中から見えた敵を鳴らさない）
       if (!this.committed.has(e.id) && state.time - c > FRESH_SEC) continue;
       risen.push(e);
     }

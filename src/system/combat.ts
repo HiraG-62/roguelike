@@ -92,8 +92,8 @@ export interface HitOptions {
   /** カウンターヒット / JUST カウンター: knight の盾を無視して通す（GUARD BREAK） */
   guardBreak?: boolean;
   /**
-   * 出端の命中（system/readTiming.ts の yellowAt）。怯み値は溜め、赤に入っていて溢れても赤の攻撃は止めず技の後へ先送りする
-   * （PoiseHitOptions.readStart）。重い得物の出端でも「黄は打って止められる」を残しつつ、赤を止めるのは受け流しだけの約束を守る
+   * 出端の命中（system/readTiming.ts の yellowAt）。怯み値は溜め、墨入れに入っていて溢れても墨入れの攻撃は止めず技の後へ先送りする
+   * （PoiseHitOptions.readStart）。重い得物の出端でも「下絵は打って止められる」を残しつつ、墨入れを止めるのは受け流しだけの約束を守る
    */
   readStart?: boolean;
   /** 出端の止め（FEEL.hitstopCounter）を入れる。通常命中の上限の例外。多段の 2 発目以降には付けない */

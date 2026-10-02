@@ -377,7 +377,7 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     pr.hitIds.add(e.id);
     // knight の盾 / Reflective の反射
     if (deflectProjectile(state, pr, e)) return;
-    // 出端: 放出の弾を撃った時に、この敵の予告が黄だった（弾の飛ぶ間に赤へ入っていても。system/readTiming.ts）
+    // 出端: 放出の弾を撃った時に、この敵の予告が下絵だった（弾の飛ぶ間に墨入れへ入っていても。system/readTiming.ts）
     const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
     const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
     const amount = debana ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;

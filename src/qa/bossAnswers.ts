@@ -12,7 +12,7 @@ import { MELEE_RANGE, worldToScreen } from "./bot";
  * ボスの答えの定跡（docs/ideas/boss-reading-impl.md 4-7。最小形）。
  * 連打の bot（qa/bot.ts の botInput）が作った入力を、スライム王の「読める場面」だけ上書きする。
  * - mash: 上書きしない（今の連打の bot）
- * - read: 影が黄のうちに跳んだ王へ詰めて振る（墜落）/ 赤なら影から離れる / 王が跳んでいる間に冠へ詰めて振る（冠落ち）/
+ * - read: 影が下絵のうちに跳んだ王へ詰めて振る（墜落）/ 墨入れなら影から離れる / 王が跳んでいる間に冠へ詰めて振る（冠落ち）/
  *   噛みの着地の直前に受け流す（呑み損ね）
  * 人に無理な答えを通さないよう、予告を見てから REACT_SEC 秒は反応しない。乱数は使わない
  */
@@ -45,7 +45,7 @@ function approachAndSwing(state: GameState, base: FrameInput, target: Enemy): Fr
   return input;
 }
 
-/** 赤になった影から離れる（落下の衝撃波の縁を越える向きへ。間に合わなければダッシュ） */
+/** 墨入れになった影から離れる（落下の衝撃波の縁を越える向きへ。間に合わなければダッシュ） */
 function leaveShadow(state: GameState, base: FrameInput, king: Enemy): FrameInput {
   const pos = state.player.body.pos;
   const input = noMove(base);
@@ -75,7 +75,7 @@ export function answerInput(state: GameState, mode: AnswerMode, base: FrameInput
     return near && king.phaseTimer <= PARRY_LEAD_SEC ? { ...noMove(base), parryPressed: true } : noMove(base);
   }
   if (readableJump(state, king)) {
-    // 黄: 影の上の王を殴って落とす。赤（落下）: 影から離れる
+    // 下絵: 影の上の王を殴って落とす。墨入れ（落下）: 影から離れる
     return attackCommitted(king) ? leaveShadow(state, base, king) : approachAndSwing(state, base, king);
   }
   // 王が跳んでいる間（予備動作・攻撃中）は、晒された冠へ詰めて割る

@@ -6,7 +6,7 @@ import { clamp01 } from "./renderMath";
 
 /**
  * 予備動作の体の動き（docs/ideas/ink-telegraph-impl.md 段 0-a）。
- * 黄の間は攻撃の逆へのけぞって縦に縮む（溜め。向きと時機を言う）、赤に入った瞬間は攻撃の向きへ伸びる（張り）。
+ * 下絵の間は攻撃の逆へのけぞって縦に縮む（溜め。向きと時機を言う）、墨入れに入った瞬間は攻撃の向きへ伸びる（張り）。
  * 以前の細かい揺れは「危ない」しか言わず向きを言わなかったので置き換えた。色は重ねない（燃焼・怯みの星と紛れる）。
  * 描画だけ。state を読むだけで rng も書き込みも使わない
  */
@@ -22,7 +22,7 @@ export interface TelegraphPose {
 
 const NEUTRAL: TelegraphPose = { dx: 0, dy: 0, sx: 1, sy: 1 };
 
-/** 黄の間の進み 0..1（予備動作の始まり 0 → 赤に入る瞬間 1） */
+/** 下絵の間の進み 0..1（予備動作の始まり 0 → 墨入れに入る瞬間 1） */
 export function yellowProgress(e: Enemy): number {
   if (e.windupTotal <= 0) return 0;
   const span = e.windupTotal * (1 - ENEMY_TEMPO.commitRatio);

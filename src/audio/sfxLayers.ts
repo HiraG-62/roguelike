@@ -181,7 +181,7 @@ export const LAYERED_SFX = {
   ],
   /** 近接命中の低域のドン。hit と一緒に積む（重撃は hitHeavy が自分で低域を持つ） */
   hitThump: [{ k: "kick", from: 150, to: 50, drop: 0.05, dur: 0.1, peak: 0.5, drive: 1.5 }],
-  /** 赤の間の命中: 出端の澄んだ音の対。短く低い、木を叩く鈍い音（高域・火花なし） */
+  /** 墨入れの間の命中: 出端の澄んだ音の対。短く低い、木を叩く鈍い音（高域・火花なし） */
   hitCommitted: [
     { k: "click", freq: 900, peak: 0.25 },
     { k: "kick", from: 170, to: 80, drop: 0.04, dur: 0.08, peak: 0.45, drive: 1.2 },

@@ -416,7 +416,7 @@ export const AFFIXES: readonly AffixDef[] = [
   trait({
     key: "readAhead",
     color: "gold",
-    label: "予告が黄の敵への与ダメージ +{v}%",
+    label: "予告が下絵の敵への与ダメージ +{v}%",
     tags: ["condition", "damage", "combo"],
     slots: ["mainHand"],
     curve: curveFor("readAhead"),
@@ -1703,7 +1703,7 @@ export const KEYSTONES: readonly KeystoneDef[] = [
   {
     key: "ks_readOath",
     name: "読み勝ちの誓い",
-    description: "予告が黄の間に振り始めた近接は怯み値が10倍になる。それ以外の近接は怯み値が0になり、与ダメージ -30%。",
+    description: "予告が下絵の間に振り始めた近接は怯み値が10倍になる。それ以外の近接は怯み値が0になり、与ダメージ -30%。",
     exclusiveGroup: "tempo",
     apply: noNumericEffect,
   },

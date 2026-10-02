@@ -27,11 +27,11 @@ import {
 
 /**
  * ボス: スライム王（章 1。docs/ideas/boss-reading-impl.md）。「動きを読めば勝て、読まなければ削られる」3 つの動詞の試験。
- * 段階 1（跳躍）= 黄のうちに、跳んだ王を打つ（墜落）。予備動作そのものが空中（上昇 + 滞空が黄、落下が赤）。
+ * 段階 1（跳躍）= 下絵のうちに、跳んだ王を打つ（墜落）。予備動作そのものが空中（上昇 + 滞空が下絵、落下が墨入れ）。
  * 段階 2（分裂）= 分裂体のうち最も遠い 1 体が冠を被り、王の陰に隠れる。冠を割れば冠落ち（大きなダウン）、
- * 冠を呑まれると回復して段階 3 へ進む（失敗の道）。呑みは最初から赤で、消化中も王は動く。
+ * 冠を呑まれると回復して段階 3 へ進む（失敗の道）。呑みは最初から墨入れで、消化中も王は動く。
  * 段階 3（膨張）= 近くへは噛み（着地を受け流すと呑み損ね = 最終段階の答え）、遠くへは跳躍、中間では中央へ跳んで膨張。
- * 答えのない技（呑み・噛み・膨張・続け跳び）は予備動作の最初から赤。答えのダウンは bossDown の tag で数える
+ * 答えのない技（呑み・噛み・膨張・続け跳び）は予備動作の最初から墨入れ。答えのダウンは bossDown の tag で数える
  */
 
 const STAGE_JUMP = 1;
@@ -112,7 +112,7 @@ function kingColor(): string {
   return enemyDef("kingSlime").color;
 }
 
-/** 高い跳躍（予備動作が空中で、黄 → 赤。答えは墜落）。中央へ戻る跳躍も同じ */
+/** 高い跳躍（予備動作が空中で、下絵 → 墨入れ。答えは墜落）。中央へ戻る跳躍も同じ */
 function isHighJump(move: number | undefined): boolean {
   return move === KS_JUMP || move === KS_CENTER;
 }
@@ -285,7 +285,7 @@ function pickMove(state: GameState, e: Enemy, read: PlayerRead): number {
   return atCenter(state, e) ? KS_INFLATE : KS_CENTER;
 }
 
-/** 連撃: 第 1 段階は止まっている相手へもう 1 度跳ぶ（最初から赤）。中央に着いたら膨張 */
+/** 連撃: 第 1 段階は止まっている相手へもう 1 度跳ぶ（最初から墨入れ）。中央に着いたら膨張 */
 function followUp(state: GameState, e: Enemy, done: number): number | null {
   const ai = e.ai;
   if (!ai) return null;
@@ -337,7 +337,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
       spawnLanding(state, e.body.pos, inflateRadius(state, e), e.phaseTimer, e.id);
       return;
     case KS_BITE:
-      // 噛みの屈み: 最初から赤（答えは着地の受け流し）
+      // 噛みの屈み: 最初から墨入れ（答えは着地の受け流し）
       e.phaseTimer = scaledWindup(ks.biteWindup, state.depth);
       return;
     case KS_JUMP:
@@ -351,7 +351,7 @@ function beginWindup(state: GameState, e: Enemy, def: EnemyDef): void {
   }
 }
 
-/** 高い跳躍: 予備動作の始まりに跳び上がる。着地点と影を決め、上昇 + 滞空の間（黄）影が縮む */
+/** 高い跳躍: 予備動作の始まりに跳び上がる。着地点と影を決め、上昇 + 滞空の間（下絵）影が縮む */
 function beginHighJump(state: GameState, e: Enemy): void {
   const ai = e.ai;
   if (!ai) return;
@@ -367,7 +367,7 @@ function beginHighJump(state: GameState, e: Enemy): void {
   spawnBurst(state, e.body.pos, enemyDef("kingSlime").color, 10, 90, 0.3, 2);
 }
 
-/** 高い跳躍は予備動作の全部が黄（落下は攻撃中 = 赤）。他の技は最初から赤 */
+/** 高い跳躍は予備動作の全部が下絵（落下は攻撃中 = 墨入れ）。他の技は最初から墨入れ */
 function openTime(_state: GameState, e: Enemy): number {
   return isHighJump(e.ai?.move) ? e.phaseTimer : 0;
 }
@@ -403,7 +403,7 @@ function beginStrike(state: GameState, e: Enemy, def: EnemyDef): void {
       leap(state, e, def, state.player.body.pos, ks.biteHopTime, ks.biteRadius);
       return;
     default:
-      // 高い跳躍: 影の真上から落ちる（赤）。影は予備動作から続く
+      // 高い跳躍: 影の真上から落ちる（墨入れ）。影は予備動作から続く
       e.phaseTimer = ks.jumpFall;
       return;
   }
@@ -595,7 +595,7 @@ function nearest(list: readonly Enemy[], from: Vec): Enemy | undefined {
 
 /**
  * プレイヤーの答えを受け取る（boss.ts の bossOnAnswer から）。
- * - 出端 × 高い跳躍（連撃でない）: 黄のうちに当たれば墜落（技を取り消してダウン）。赤に入ってから当たった
+ * - 出端 × 高い跳躍（連撃でない）: 下絵のうちに当たれば墜落（技を取り消してダウン）。墨入れに入ってから当たった
  *   遅れた出端は、技は止めず着地の後に同じダウンを払う（出端は振り始めの色で決まる）。段階 1 では墜落を数える
  * - 受け流し × 噛み: 呑み損ね（最終段階の答え。引導の窓が開く）
  */
@@ -665,7 +665,7 @@ export function kingSlimeAirTime(e: Enemy): number | null {
   }
 }
 
-/** 予告の形: 呑みは小さな輪（跳躍・噛み・膨張は影か、予告なしの赤） */
+/** 予告の形: 呑みは小さな輪（跳躍・噛み・膨張は影か、予告なしの墨入れ） */
 export function kingSlimeTelegraph(e: Enemy): EnemyTelegraph {
   if (e.ai?.move === KS_SWALLOW) return { kind: "ring", radius: BOSS.kingSlime.swallowRingRadius };
   return null;

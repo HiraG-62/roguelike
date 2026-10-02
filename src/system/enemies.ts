@@ -256,7 +256,7 @@ export function updateEnemies(state: GameState, dt: number): void {
   }
   // 本陣の陣図の段を進める（大将の怯み・恐怖の見張りは、このステップの怯みが入った後のここで取る）
   updateJinzu(state, dt);
-  // 赤になった時刻を残す（出端の判定 yellowAt が「プレイヤーが押した時点で黄だったか」を引く。system/readTiming.ts）
+  // 墨入れになった時刻を残す（出端の判定 yellowAt が「プレイヤーが押した時点で下絵だったか」を引く。system/readTiming.ts）
   for (const e of state.enemies) noteCommit(state, e);
   separate(state, dt);
   handleDeaths(state);
@@ -462,7 +462,7 @@ function chase(state: GameState, e: Enemy, def: EnemyDef, toPlayer: Vec, d: numb
 
   if (!wantsEngage(state, e, def, d) || e.attackCooldown > 0) return;
   if (!canBeginAttack(state, e, def, d)) return;
-  // 予告の見やすさの上限: 同じ 0.3 秒に赤くなる予告を絞る（次の窓で再挑戦）
+  // 予告の見やすさの上限: 同じ 0.3 秒に墨入れになる予告を絞る（次の窓で再挑戦）
   if (telegraphCrowded(state, e)) {
     e.attackCooldown = ENEMY_TEMPO.telegraphWindow;
     return;

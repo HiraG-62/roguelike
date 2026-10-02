@@ -4,13 +4,14 @@ import { JINZU, TELEGRAPH } from "../data/tuning";
 import { TILE_SIZE } from "../map/grid";
 import { pointAtFraction } from "../map/jinzuShape";
 import { poiseRatio } from "../system/poise";
+import { BrushPen, placeBrushPoly } from "./inkBrush";
 import { hash01 } from "./renderMath";
-import { type Seg, drawHeadMark, sketchGap, strokeSketch } from "./telegraphInk";
+import { drawHeadMark, sketchGap } from "./telegraphInk";
 
 /**
  * 本陣の陣図の描画（docs/ideas/jinzu-impl.md 2-4）。state を読むだけで、乱数は使わない（擦れの散りは座標ハッシュ）。
- * 予告と同じ文法で描く: 書きかけの画 = 淡墨の下絵（黄・欠けた細い線。大将の怯み値が溜まるほど欠ける）、
- * 墨の入った画 = 濃墨（暗い帯 + 赤い芯）、構え = 太く矢じり付き + 隊の頭上に赤の印。
+ * 予告と同じ文法で描く: 書きかけの画 = 薄墨の下絵（明るく淡い掠れた帯。大将の怯み値が溜まるほど掠れる）、
+ * 墨の入った画 = 濃墨の一筆（下に胡粉・入りに朱）、構え = 太く矢じり付き + 隊の頭上に ●（濃墨に朱）。
  * world 層の床の印の後・敵の下に描く（予告の線より下に他の床の絵を置かない）
  */
 
@@ -30,47 +31,24 @@ const MINI_POLE_H = 4;
 const MINI_FLAG = 2;
 
 const COLOR_SHADOW = "#000000";
-
-/** 画 1 本の線分の列（隣り合う点の組） */
-function segsOf(points: readonly Vec[], from = 0): Seg[] {
-  const out: Seg[] = [];
-  for (let i = Math.max(1, from); i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
-    if (a && b) out.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y });
-  }
-  return out;
-}
+/** 的の墨の点・旗倒れの墨の波紋の濃さ */
+const TARGET_ALPHA = 0.8;
+const RIPPLE_ALPHA = 0.8;
 
 function leaderOf(state: GameState, jin: Jin): Enemy | undefined {
   if (jin.leaderId === null) return undefined;
   return state.enemies.find((e) => e.id === jin.leaderId && e.hp > 0);
 }
 
-/** 折れ線を 1 本の path に組む */
-function tracePolyline(ctx: CanvasRenderingContext2D, points: readonly Vec[]): void {
-  ctx.beginPath();
-  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-}
-
-/** 墨の画: 暗い帯 → 赤い芯（途切れない）。widthMul は構えで太らせる倍率 */
-function strokeInkPolyline(ctx: CanvasRenderingContext2D, points: readonly Vec[], widthMul: number, alpha: number): void {
+/** 墨の画: 画 1 本を折れ角でも途切れない濃墨の一筆で引く（入りに朱・下に胡粉）。widthMul は構えで太らせる倍率、id は筆の変種の鍵 */
+function strokeInkPolyline(ctx: CanvasRenderingContext2D, points: readonly Vec[], id: number, widthMul: number, alpha: number): void {
   if (points.length < 2) return;
-  tracePolyline(ctx, points);
-  ctx.lineCap = "butt";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = TELEGRAPH.casingColor;
-  ctx.globalAlpha = TELEGRAPH.inkCasingAlpha * alpha;
-  ctx.lineWidth = TELEGRAPH.inkCasingWidth * widthMul;
-  ctx.stroke();
-  ctx.strokeStyle = TELEGRAPH.commitColor;
-  ctx.globalAlpha = alpha;
-  ctx.lineWidth = TELEGRAPH.inkWidth * widthMul;
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  const pen = new BrushPen(ctx);
+  placeBrushPoly(pen, points, "ink", id, 0, alpha, widthMul);
+  pen.end();
 }
 
-/** 終点の矢じり（走る向きを見せる）。暗い縁 + 赤 */
+/** 終点の矢じり（走る向きを見せる）。胡粉の縁 + 濃墨 */
 function drawArrowhead(ctx: CanvasRenderingContext2D, points: readonly Vec[], alpha: number): void {
   const end = points[points.length - 1];
   const before = points[points.length - 2];
@@ -89,44 +67,46 @@ function drawArrowhead(ctx: CanvasRenderingContext2D, points: readonly Vec[], al
     ctx.closePath();
     ctx.fill();
   };
-  fill(TIP_CASING, TELEGRAPH.casingColor, TELEGRAPH.inkCasingAlpha * alpha);
-  fill(0, TELEGRAPH.commitColor, alpha);
+  fill(TIP_CASING, TELEGRAPH.gofunColor, alpha);
+  fill(0, TELEGRAPH.sumiColor, alpha);
   ctx.globalAlpha = 1;
 }
 
-/** 的（掲げた瞬間のプレイヤーの位置）: 墨の点。構えに入ると赤の輪になる */
+/** 的（掲げた瞬間のプレイヤーの位置）: 墨の点に薄墨の輪。構えに入ると朱の輪になる */
 function drawTarget(ctx: CanvasRenderingContext2D, at: Vec, inked: boolean): void {
   const r = JINZU.draw.targetRadius;
-  ctx.fillStyle = TELEGRAPH.casingColor;
-  ctx.globalAlpha = TELEGRAPH.inkCasingAlpha;
+  ctx.fillStyle = TELEGRAPH.sumiColor;
+  ctx.globalAlpha = TARGET_ALPHA;
   ctx.beginPath();
   ctx.arc(at.x, at.y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = inked ? TELEGRAPH.commitColor : TELEGRAPH.readyColor;
+  ctx.strokeStyle = inked ? TELEGRAPH.shuColor : TELEGRAPH.usuzumiLightColor;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(at.x, at.y, r - 1, 0, Math.PI * 2);
   ctx.stroke();
 }
 
-/** 筆先の点: 下絵の上を strokeSec で進む（墨が入るまでの残りを見せる） */
+/** 筆先の点: 下絵の上を strokeSec で進む（墨が入るまでの残りを見せる）。墨の縁に薄墨 */
 function drawBrushTip(ctx: CanvasRenderingContext2D, points: readonly Vec[], f: number): void {
   const p = pointAtFraction(points, f);
   const size = JINZU.draw.tipSize;
   const half = size / 2;
-  ctx.fillStyle = TELEGRAPH.casingColor;
+  ctx.fillStyle = TELEGRAPH.sumiColor;
   ctx.fillRect(p.x - half - TIP_CASING, p.y - half - TIP_CASING, size + TIP_CASING * 2, size + TIP_CASING * 2);
-  ctx.fillStyle = TELEGRAPH.readyColor;
+  ctx.fillStyle = TELEGRAPH.usuzumiLightColor;
   ctx.fillRect(p.x - half, p.y - half, size, size);
 }
 
-/** 下絵の画（黄・欠けた細い線）。alpha と drift は筆折れの擦れ（散って消える）で使う */
+/** 下絵の画（薄墨の掠れた帯。画 1 本を折れ角で途切れない 1 筆で引く）。alpha と drift は筆折れの擦れ（散って消える）で使う */
 function drawSketch(ctx: CanvasRenderingContext2D, jinId: number, index: number, stroke: JinzuStroke, gap: number, alpha: number, drift: number): void {
-  segsOf(stroke.points).forEach((seg, k) => {
-    const id = jinId * 1000 + index * 16 + k;
-    strokeSketch(ctx, seg, id, gap, null, alpha, (hash01(id * 7 + 1, 3) - 0.5) * 2 * DRIFT_PX * drift);
-  });
+  const id = jinId * 1000 + index;
+  const dx = (hash01(id * 7 + 1, 3) - 0.5) * 2 * DRIFT_PX * drift;
+  const dy = (hash01(id * 7 + 2, 3) - 0.5) * 2 * DRIFT_PX * drift;
+  const pen = new BrushPen(ctx);
+  placeBrushPoly(pen, stroke.points, "sketch", id, gap, alpha, 1, dx, dy);
+  pen.end();
 }
 
 function drawStroke(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin, index: number, stroke: JinzuStroke, gap: number): void {
@@ -146,7 +126,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin, i
     }
     case "ink": {
       const held = jz.phase === "hold" || jz.phase === "charge";
-      strokeInkPolyline(ctx, stroke.points, held ? JINZU.draw.holdWidthMul : 1, 1);
+      strokeInkPolyline(ctx, stroke.points, jin.id * 1000 + index, held ? JINZU.draw.holdWidthMul : 1, 1);
       if (held) drawArrowhead(ctx, stroke.points, 1);
       // 走り出した後は隊頭が走り抜けた所から後ろが掠れて消える
       return;
@@ -154,7 +134,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin, i
     case "done": {
       const f = (now - (stroke.endedAt ?? now)) / JINZU.draw.fadeSec;
       if (f >= 1 || stroke.kind === "volley") return;
-      strokeInkPolyline(ctx, stroke.points, 1, 1 - f);
+      strokeInkPolyline(ctx, stroke.points, jin.id * 1000 + index, 1, 1 - f);
       return;
     }
     case "pending":
@@ -169,7 +149,7 @@ function trimRun(stroke: JinzuStroke): JinzuStroke {
   return { ...stroke, points: stroke.points.slice(Math.max(0, from)) };
 }
 
-/** 構えの間、墨の画の隊の頭上に赤の印（総掛かりへ入る合図）。隊の兵 1 人ずつに出す */
+/** 構えの間、墨の画の隊の頭上に ●（濃墨に朱。総掛かりへ入る合図）。隊の兵 1 人ずつに出す */
 function drawHoldMarks(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin): void {
   const jz = jin.jinzu;
   if (!jz || jz.phase !== "hold") return;
@@ -250,8 +230,8 @@ function drawFlagFall(ctx: CanvasRenderingContext2D, state: GameState, jin: Jin)
   const rt = t / JINZU.draw.rippleSec;
   if (rt >= 1) return;
   const radius = JINZU.draw.rippleRadius * (1 - (1 - rt) * (1 - rt));
-  ctx.strokeStyle = TELEGRAPH.casingColor;
-  ctx.globalAlpha = (1 - rt) * TELEGRAPH.inkCasingAlpha;
+  ctx.strokeStyle = TELEGRAPH.sumiColor;
+  ctx.globalAlpha = (1 - rt) * RIPPLE_ALPHA;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(fall.pos.x, fall.pos.y, radius, 0, Math.PI * 2);

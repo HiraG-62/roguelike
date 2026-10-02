@@ -600,7 +600,7 @@ export function isFrontal(e: Enemy, dir: Vec): boolean {
 
 /** 盾持ち（EnemyDef.blocks）が構えているか */
 function canBlock(state: GameState, e: Enemy): boolean {
-  // 予告が黄の間は盾を下げている（殴って / 撃って止められる。docs/ideas/reading-core-impl.md 2-5）
+  // 予告が下絵の間は盾を下げている（殴って / 撃って止められる。docs/ideas/reading-core-impl.md 2-5）
   return enemyDef(e.defKey).blocks === true && !isStaggered(e) && e.phase !== "spawning" && !yellowAt(e, state.time);
 }
 
@@ -609,7 +609,7 @@ const lastShotBlockSfx = new WeakMap<Enemy, number>();
 const SHOT_BLOCK_SFX_GAP = 0.15;
 const SHOT_BLOCK_PARTICLES = 2;
 
-/** 弾で受けた表示: 文字なし・粒は小さく・音は間引く・押し返さない（弾で押し返し続けられると黄を読む理由が消える） */
+/** 弾で受けた表示: 文字なし・粒は小さく・音は間引く・押し返さない（弾で押し返し続けられると下絵を読む理由が消える） */
 function showShotBlock(state: GameState, e: Enemy): void {
   spawnBurst(state, e.body.pos, ENEMY_AI.knight.blockColor, SHOT_BLOCK_PARTICLES, 70, 0.15, 1);
   const last = lastShotBlockSfx.get(e);
