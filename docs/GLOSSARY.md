@@ -471,7 +471,7 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 門前町 / 石段 | `TownLook` / `HubLayout.gateZone` | 拠点の町の名前（町の入口の名札と資料だけ。メニューの「拠点へ」はそのまま）。石段は町の北端にある出撃の口で、踏み込むと井戸と同じ支度の画面（ジョブ → 起点・縛り → 依頼）を開く（決定の長押しは前回の支度のまま即出撃）。建物・灯籠・井戸の段・幟などの景色は既存の保存データから導く（新しい保存キーなし） | `meta/townLook.ts`、`map/hubMap.ts` |
 | 〜が建った | `newlyBuilt` | 拠点の設備が新しく使えるようになったときのバナー。解放は既存の記録から導き、強さは変えない | `meta/hub.ts`、`render/hubUi.ts` |
 | 記念品 / 書架 / 看板 | `HubDecor` | 拠点の飾り。踏破の碑（踏破したとき）、倒したボスの記念品、図鑑の埋まり具合で伸びる記録の蔵の書架、名乗っている称号の看板 | `meta/hub.ts` |
-| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。カードの格子で並べ、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
+| 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。群（近接・銃・投擲物）→ 武器種 → 器の 3 段のカードで並べ（銃・投擲物は器ごとに弾が違うので器まで選ぶ）、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | ボスの間（拠点の表示名は御堂） | hall（`FacilityKey` / `HubSpotKey`） | 拠点の設備（章ボスか最深の主を 1 体倒すと建つ）。倒したボスに今の装備の写し（借り物を含む）で挑み直す。祝福なし。保存するのは挑戦・撃破の回数と最速・最少の被弾だけ（`roguelike.hub.v1` の `hall`）。部屋の種類の「〜の間」（潮の間・反転の間）・最深の間とは別物 | `system/bossHall.ts`、`meta/hubStore.ts` HallRecord |
 | 稽古の間 | dojo（`HubSpotKey`。`system/dojo.ts`） | 拠点の稽古場の南の端の台から入る検証用の専用ステージ（稽古場が建つと使える。拠点の稽古場の木人と武器掛けはそのまま）。稽古帳で相手・数・深さ・修飾・動き・攻めの速さ・並び・間合い・倒れない・湧き直し・無傷・気力 / 奥義ゲージが尽きない・時の流れを変え、右上の計測の欄に毎秒の傷と内訳を出す。保存しない・撃破数とドロップに数えない。部屋の種類の「〜の間」とは別物 | `system/dojo.ts`、`system/dojoConfig.ts`、`docs/ideas/dojo.md` |
