@@ -696,7 +696,7 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     expect(bulletDef("kunai").pierceBonus, "クナイは貫かない").toBe(0);
     const shuriken = MOVESETS.shuriken;
     expect(shuriken.form).toBe("star");
-    expect(shuriken.steps.map((s) => s.cast?.throw.count), "左は 3 本 → 4 本 → 大手裏剣").toEqual([3, 4, 1]);
+    expect(shuriken.steps.map((s) => (s.cast?.throw.count ?? 0) * (s.cast?.throw.bullet.burst?.count ?? 1)), "左は 3 連射 → 4 連射 → 大手裏剣").toEqual([3, 4, 1]);
     expect(shuriken.steps2.map((s) => (s.kind === "swing" ? s.step.cast?.throw.count : undefined)), "右は扇に 3 本 → 4 本 → 大手裏剣").toEqual([3, 4, 1]);
     for (const key of ["kunai", "shuriken"] as const) expect(BASES.filter((b) => b.moveset === key).map((b) => b.key), `${key} の器`).toEqual([key]);
   });

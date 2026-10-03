@@ -14,7 +14,7 @@ import { arena, placeEnemy, withInput } from "./testHelpers";
 import { endUltimate, tryUltimate } from "./ultimates";
 
 /**
- * 手裏剣の技の一式（docs/ideas/gun-bases-review.md 0-5・2-9）: 交互の連撃・平行の 3 本と扇の 3 本・刺さり崩しと戦意・
+ * 手裏剣の技の一式（docs/ideas/gun-bases-review.md 0-5・2-9）: 交互の連撃・左の 3 連射と右の扇の 3 本・刺さり崩しと戦意・
  * 大手裏剣の食い込み・連ね投げ・抜け斬りの気力・奥義 3 本を、本物の定義（MOVESETS.shuriken）で確かめる
  */
 
@@ -86,29 +86,32 @@ describe("手裏剣の連撃（交互）", () => {
     step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     for (let i = 0; i < 120; i++) step(state, withInput({ attackHeld: true }), FIXED_DT);
     const stars = state.projectiles.filter((p) => p.owner === "player" && p.radius <= 3);
-    expect(stars.length, "1 回の投げ（3 本）までしか出ない").toBeLessThanOrEqual(STAR.steps[0]?.cast?.throw.count ?? 0);
+    expect(stars.length, "1 回の投げ（3 連射）までしか出ない").toBeLessThanOrEqual(STAR.steps[0]?.cast?.throw.bullet.burst?.count ?? 0);
   });
 
-  it("連撃の本数は 3 本 → 4 本 → 大手裏剣 1 本で、右も同じ", () => {
-    expect(STAR.steps.map((s) => s.cast?.throw.count)).toEqual([3, 4, 1]);
+  it("連撃の本数は 3 本 → 4 本 → 大手裏剣 1 本で、右も同じ（左は連射の数、右は扇の数）", () => {
+    expect(STAR.steps.map((s) => (s.cast?.throw.count ?? 0) * (s.cast?.throw.bullet.burst?.count ?? 1))).toEqual([3, 4, 1]);
     expect(STAR.steps2.map((s) => (s.kind === "swing" ? s.step.cast?.throw.count : undefined))).toEqual([3, 4, 1]);
   });
 });
 
-describe("左は平行の 3 本、右は扇の 3 本", () => {
-  it("左は同じ向きへ直交して並んだ 3 本が飛ぶ", () => {
+describe("左は 3 連射、右は扇の 3 本", () => {
+  it("左は同じ向きへ 1 本ずつ間を置いて 3 本続けて投げる（同時に並べない）", () => {
     const state = arena(5, { moveset: "shuriken" });
-    const shots = throwOnce(state, "primary");
-    expect(shots, "3 本").toHaveLength(3);
-    const dirs = new Set(shots.map((p) => Math.atan2(p.vel.y, p.vel.x).toFixed(6)));
+    const first = throwOnce(state, "primary");
+    expect(first, "投げた瞬間は 1 本").toHaveLength(1);
+    const burst = STAR.steps[0]?.cast?.throw.bullet.burst;
+    expect(burst?.count, "3 連射").toBe(3);
+    const seen: Projectile[] = [...first];
+    for (let i = 0; i < 60 && seen.length < 3; i++) {
+      step(state, withInput({}), FIXED_DT);
+      for (const p of playerShots(state)) if (!seen.includes(p)) seen.push(p);
+    }
+    expect(seen, "続けて 3 本").toHaveLength(3);
+    const dirs = new Set(seen.map((p) => Math.atan2(p.vel.y, p.vel.x).toFixed(4)));
     expect(dirs.size, "全部同じ向き").toBe(1);
-    const xs = new Set(shots.map((p) => p.pos.x.toFixed(3)));
-    expect(xs.size, "進む向きの位置は揃う（横にだけ並ぶ）").toBe(1);
-    const ys = shots.map((p) => p.pos.y).sort((l, r) => l - r);
-    const gap = STAR.steps[0]?.cast?.throw.lineGap ?? 0;
-    expect(gap, "間隔が決まっている").toBeGreaterThan(0);
-    expect(ys[1]! - ys[0]!, "隣との間隔").toBeCloseTo(gap, 5);
-    expect(ys[2]! - ys[1]!, "隣との間隔").toBeCloseTo(gap, 5);
+    const xs = seen.map((p) => p.pos.x);
+    expect(xs[0]! > xs[1]! && xs[1]! > xs[2]!, "先に投げた物ほど先を飛ぶ（1 本ずつ投げた）").toBe(true);
   });
 
   it("右は向きの違う 3 本が扇に広がる", () => {

@@ -666,6 +666,8 @@ export interface BurstEntry {
   override: VolleyOverride;
   left: number;
   timer: number;
+  /** 技の弾（振りの cast・弾の段）の連射。器の弾ではないので、器を付け替えても続ける */
+  art?: true;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

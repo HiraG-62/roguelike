@@ -41,6 +41,8 @@ export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {
   // 敵に刺さったクナイ・手裏剣（sprites/weapons.ts の PIN_SPRITES。render/pinsUi.ts が回して置く）
   "pin.kunai": 2,
   "pin.shuriken": 2,
+  // 手裏剣の連撃の 3 段目・奥義「大車輪」の大手裏剣（sprites/weapons.ts。render/thrownLook.ts が回して描く）
+  "thrownWeapon.bigShuriken": 2,
 };
 
 /** ポーズの接尾辞を外した元のキー */

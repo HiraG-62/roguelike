@@ -247,11 +247,6 @@ export interface ThrowArtDef {
   readonly sprite?: string;
   /** 命中・炸裂した敵に付ける状態異常（MeleeStepDef.applies と同じ形。付与元は player） */
   readonly applies?: readonly StatusApply[];
-  /**
-   * 弾を扇ではなく、進む向きに直交して並べる間隔（px。手裏剣の左「まっすぐ 3 本」）。指定があれば spreadDeg は使わず、
-   * 弾はすべて同じ向きへ平行に飛ぶ
-   */
-  readonly lineGap?: number;
 }
 
 /**
@@ -809,8 +804,7 @@ function reviveThrowAs(raw: unknown, bulletKey: string, name: string, profile: V
   const bullet = reviveBullet(raw.bullet, bulletKey, name, ART_BULLET_KEYWORDS, look.attack);
   const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite" | "applies">;
   const applies = Array.isArray(raw.applies) ? { applies: raw.applies.map(statusApply) } : {};
-  const lineGap = typeof raw.lineGap === "number" ? { lineGap: raw.lineGap } : {};
-  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies, ...lineGap };
+  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies };
 }
 
 /** JSON の右レーンの 1 段（kind は union 文字列なので照合して絞る。未知の kind は読み込み時に落とす） */

@@ -107,7 +107,7 @@ import { strokeInkRing, telegraphStage } from "./telegraphInk";
 import { telegraphColor, telegraphLineDir } from "./telegraphLineUi";
 import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
-import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
+import { drawThrownProjectile, drawThrownSkillAir, heldThrownRect, projectileLook, thrownAngle, thrownScale } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
 import { drawSkillFxAir, drawSkillFxGround, skillSpritesReady } from "./fxSkill";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
@@ -2148,6 +2148,8 @@ export class Renderer {
       const py = pr.pos.y - lift - (isPlayer && lift === 0 ? PLAYER_SHOT_LIFT : 0);
       // 投げた武器（斧・短刀・輪 …。thrownLook.ts）は武器の絵が本体。弾の専用スプライトはその下に風切りの軌跡として重ねる
       const thrown = projectileLook(pr) !== undefined;
+      // 手に持つ絵のまま飛ぶ物（戦輪の輪）は、その絵だけで描く（弾の専用スプライトの輪の本体を重ねない）
+      if (thrown && this.drawHeldThrown(ctx, state, pr, pr.pos.x, py)) continue;
       // 弾の専用スプライト（銃の弾・魔法・奥義の弾）があれば尾も絵が持つ
       const drewShot = drawShotSprite(ctx, state, pr, pr.pos.x, py, this.fxBank, this.fxSprites.glow);
       if (drewShot && !thrown) continue;
@@ -2519,6 +2521,22 @@ export class Renderer {
     if (!a) return null;
     const m = toScreen({ x: part.hand.x + a.x, y: part.hand.y + a.y });
     return { ...m, dist: Math.hypot(m.x - center.x, m.y + PLAYER_SHOT_LIFT - center.y) };
+  }
+
+  /** 手に持つ武器の絵のまま飛ぶ弾（ThrownLook.held。戦輪の輪）を、方向ごとに焼いたフレームで回して描く。描けたら true */
+  private drawHeldThrown(ctx: CanvasRenderingContext2D, state: GameState, pr: Projectile, x: number, y: number): boolean {
+    const look = projectileLook(pr);
+    const key = look?.held;
+    if (!look || key === undefined) return false;
+    const sheet = actorSheet(key);
+    if (!sheet) return false;
+    const dir = actorDir(thrownAngle(look, state.time, pr.id, pr.vel), sheet.dirs);
+    const cell = this.actorBank.cell(key, dir, 0);
+    if (!cell) return false;
+    const pivot = actorAnchor(key, dir, 0, "muzzle") ?? { x: 0, y: 0 };
+    const r = heldThrownRect(cell, pivot, x, y, ACTOR_ART_SCALE, thrownScale(pr.radius, look.baseRadius));
+    ctx.drawImage(cell.img, cell.sx, cell.sy, cell.w, cell.h, r.x, r.y, r.w, r.h);
+    return true;
   }
 
   /** 作業面の原点（足元）から (x, y) ドットの位置に、原点を合わせてセルを置く */

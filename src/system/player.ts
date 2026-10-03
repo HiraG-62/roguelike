@@ -475,7 +475,11 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   // 射撃は左で撃つ武器種だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
   const canShoot = shotHeld && !staggered && !skillLocksAttack(state) && !artLocksActions(state);
   if (shootsPrimary(playerMoveset(state))) updateShooting(state, canShoot, dt, aimDistance(state, input));
-  else resetShooting(p);
+  else {
+    resetShooting(p);
+    // 技の弾の連射（手裏剣の左の 3 連射）は左で撃たない武器種でも続ける
+    updateBurst(state, dt);
+  }
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
   if (state.stats.traits.unmoving > 0) p.knock = { x: 0, y: 0 };
@@ -1660,7 +1664,7 @@ function updateBurst(state: GameState, dt: number): void {
 
 /** 三点の続き 1 つぶんを進め、間が来たら 1 本撃つ。器を付け替えていたら残りを捨てる */
 function stepBurstEntry(state: GameState, entry: BurstEntry, equipped: string, dt: number): void {
-  if (entry.shot.key !== equipped) {
+  if (entry.art !== true && entry.shot.key !== equipped) {
     entry.left = 0;
     return;
   }
@@ -1681,13 +1685,18 @@ function canContinueBurst(state: GameState): boolean {
  * 三点の器なら、向き（facing からのずれ）ごとに続きの弾を積む。続きは 1 本目の上書きから、放出の印（終撃・会心）と
  * レーン・扇を外したもの（放出の倍率は残し、揺れも掛けない。続きは左の射撃 1 回に数えない）
  */
-function queueBurst(state: GameState, shot: BulletDef, angles: readonly number[], override: VolleyOverride): void {
+function queueBurst(state: GameState, shot: BulletDef, angles: readonly number[], override: VolleyOverride, art = false): void {
   const burst = shot.burst;
   if (!burst || burst.count <= 1) return;
   const follow = burstFollowOverride(override);
   for (const angle of angles) {
-    state.player.shotBurst.queue.push({ shot, angle, override: { ...follow }, left: burst.count - 1, timer: burst.interval });
+    state.player.shotBurst.queue.push({ shot, angle, override: { ...follow }, left: burst.count - 1, timer: burst.interval, ...(art ? { art: true as const } : {}) });
   }
+}
+
+/** 技の弾（振りの cast・弾の段）が連射の弾（BulletDef.burst）なら、続きを積む（手裏剣の左の 3 連射。system/weaponArts.ts の emitArtVolley） */
+export function queueArtBurst(state: GameState, shot: BulletDef, override: VolleyOverride): void {
+  queueBurst(state, shot, [0], override, true);
 }
 
 /** 三点の続きが 1 本目から持ち越す上書き */
@@ -1701,10 +1710,10 @@ function burstFollowOverride(override: VolleyOverride): VolleyOverride {
   return follow;
 }
 
-/** 銃を持っていない間は射撃の途中経過を持ち越さない */
+/** 銃を持っていない間は射撃の途中経過を持ち越さない（技の弾の連射は残す） */
 function resetShooting(p: Player): void {
   cancelShotCharge(p);
-  p.shotBurst.queue.length = 0;
+  if (p.shotBurst.queue.some((e) => e.art !== true)) p.shotBurst.queue = p.shotBurst.queue.filter((e) => e.art === true);
 }
 
 function cancelShotCharge(p: Player): void {
@@ -1796,8 +1805,6 @@ export interface VolleyOverride {
   steady?: boolean;
   /** 撃った手（二丁拳銃。その手の銃口から出す。省略は撃つたびに左右を入れ替える） */
   hand?: HandIndex;
-  /** 弾を扇にせず、進む向きに直交して lineGap（px）おきに平行に並べる（ThrowArtDef.lineGap。手裏剣の左） */
-  lineGap?: number;
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1918,13 +1925,6 @@ export function emitShotRounds(state: GameState, shot: BulletDef, rounds: { coun
   return true;
 }
 
-/** 平行に並べる投げ（lineGap）の、進む向きの横へのずらし（px。中央が 0）。扇の投げ・1 本なら undefined */
-function parallelShifts(count: number, lineGap: number | undefined): number[] | undefined {
-  if (lineGap === undefined || count <= 1) return undefined;
-  const center = (count - 1) / 2;
-  return Array.from({ length: count }, (_, i) => (i - center) * lineGap);
-}
-
 /** 1 回の弾の角度（扇の回のずれ + 回の中の散らし）。fan が無ければ 1 回ぶん */
 function volleyOffsets(count: number, spreadDeg: number, fan: VolleyOverride["fan"]): number[] {
   const inRound = spreadOffsets(count, spreadDeg);
@@ -1965,15 +1965,13 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
   let orbitIndex = shot.orbit ? orbitingCount(state) : 0;
   // 手元へ戻る弾は 1 回の投げの弾がすべて同じ組を持つ（行きと帰りの両方で当てた敵を数える）
   const trip = returnsToHand(shot) ? newShotTrip() : undefined;
-  const lanes = parallelShifts(spec.count, override.lineGap);
-  const offsets = lanes ? lanes.map(() => 0) : volleyOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg, override.fan);
-  for (const [index, offset] of offsets.entries()) {
+  const offsets = volleyOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg, override.fan);
+  for (const offset of offsets) {
     for (const side of pairSides(shot)) {
       const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
       orbitIndex += 1;
-      // 平行に並べる投げは口元を進む向きの横へずらす。2 枚投げは口元を上下へずらし、弧の弾は行きの区間を作る
-      const origin = lanes ? add(muzzle, scale({ x: -Math.sin(baseAngle), y: Math.cos(baseAngle) }, lanes[index] ?? 0)) : muzzle;
-      const flight = launchThrow(state, shot, origin, baseAngle + offset, side, spec.speed, spec.life, aim);
+      // 2 枚投げは口元を上下へずらし、弧の弾は行きの区間を作る
+      const flight = launchThrow(state, shot, muzzle, baseAngle + offset, side, spec.speed, spec.life, aim);
       if (runtime && flight.arc) runtime.arc = flight.arc;
       if (runtime && trip) runtime.trip = trip;
       state.projectiles.push({
