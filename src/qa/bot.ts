@@ -76,7 +76,7 @@ const MELEE_CHARGE_HOLD = 0.85;
 const SHOT_CHARGE_HOLD = 0.75;
 /**
  * 右クリック（アクション 2。docs/ideas/ougi-and-dual-actions.md 4.4）: 近接は射程内で左右を混ぜた列（LANE_PATTERNS）を 1 押しずつ出す。
- * 銃の家系と射程外の弾・手元返しの右段は、連撃の始めだけこの秒ごとに右を 1 フレーム押し、連撃の途中は続けて押す。
+ * 銃の家系と射程外の弾の右段は、連撃の始めだけこの秒ごとに右を 1 フレーム押し、連撃の途中は続けて押す。
  * 受け流しは敵の予備動作を見て PARRY_HOLD 秒押す。居合は MELEE_CHARGE_HOLD 秒溜める。盾の構えは 1 フレームだけ押す（溜めない。QA の穴として report に注記）
  */
 const ART_PERIOD = 1.0;
@@ -1004,7 +1004,7 @@ function pressMixedLane(state: GameState, bot: BotState, moveset: MovesetDef, in
 }
 
 /**
- * 左で撃つ武器種と、近接の射程外で次の右段が弾・手元返しのとき: 右段の射程内なら右を 1 フレーム押す。
+ * 左で撃つ武器種と、近接の射程外で次の右段が弾のとき: 右段の射程内なら右を 1 フレーム押す。
  * 連撃の始め（1 段目）は ART_PERIOD 秒ごと（paced が false なら待たない）、連撃の途中は振りが先行入力を受ける時点で続けて押す。押したら true
  */
 function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput, paced = true): boolean {
