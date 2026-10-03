@@ -48,7 +48,7 @@ import {
 } from "../skills/data";
 import { type RuneDropSource, rollRuneDrop, rollRuneModifier } from "../skills/generator";
 import { castElement, skillHit, skillPower } from "../skills/hit";
-import { saveSkillProfile, stoneInSlot } from "../skills/persistence";
+import { saveSkillProfile, stoneInSlot, swapStoneSlots } from "../skills/persistence";
 import { placeMine, playerInFrost, spawnField, spawnWell, updatePlacedSkills } from "../skills/placed";
 import { updateShots } from "../skills/shots";
 import { noteWearCast } from "../skills/wear";
@@ -1688,6 +1688,22 @@ export function moveRunModifier(rs: SkillRunState, from: number, to: number, mod
   src.runModifiers.splice(idx, 1);
   dst.runModifiers.push(modifier);
   return "ok";
+}
+
+/**
+ * 2 つのスロットの石を入れ替える（装備画面のドラッグ）。拾って付けた符も石と一緒に移し、移った先で付かない符
+ * （リンクの本数が違う・同時に効かない）は手持ちへ戻す。戻した枚数を返す（入れ替えられなければ null）。
+ * 再使用の残りなどのスロットの状態は動かさない（候補の頁で別の枠の石を付けたときと同じ）。反映は moveRunModifier と同じく次のステップ
+ */
+export function swapSkillSlots(state: GameState, a: number, b: number): number | null {
+  const rs = state.skills;
+  const slotA = rs.slots[a];
+  const slotB = rs.slots[b];
+  if (!slotA || !slotB || !swapStoneSlots(rs.profile, a, b)) return null;
+  const runesA = slotA.runModifiers;
+  slotA.runModifiers = slotB.runModifiers;
+  slotB.runModifiers = runesA;
+  return returnInactiveRunes(state);
 }
 
 /** スロットのラン内の符を外す（外した符は消える）。無ければ false。反映は moveRunModifier と同じく次のステップ */

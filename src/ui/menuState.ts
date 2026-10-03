@@ -140,7 +140,28 @@ export type MenuAct =
   | { kind: "forgePick"; pick: ForgePick }
   | { kind: "forgeExecute" }
   // 拠点の装束の部位の長押し: 持ち込みの印の付け外し（loot/runGear.ts）
-  | { kind: "toggleCarry"; slot: Slot };
+  | { kind: "toggleCarry"; slot: Slot }
+  /** 腰の石のドラッグ: 2 つのスキル枠の石を入れ替える（inventory.ts / menuActions.ts が処理する） */
+  | { kind: "swapStones"; a: number; b: number };
+
+/**
+ * マウスで掴んで動かせる当たりの中身。同じ kind の当たりの上で離すと入れ替える。
+ * zone = 落とし先として受ける範囲（省略は当たりの rect。スキルの頁は列全体で受ける）
+ */
+export interface MenuDrag {
+  kind: "stone";
+  index: number;
+  zone?: Rect;
+}
+
+/** 掴んでいる間の状態。active = 押した位置から閾値を越えて動いた（越えずに離せばクリック） */
+export interface MenuDragState {
+  id: FocusId;
+  source: MenuDrag;
+  from: Vec;
+  at: Vec;
+  active: boolean;
+}
 
 /**
  * act = 決定で起きること / hold = 長押し 0.6 秒で起きること / nav = 方向の移動で止まるか（面の札は false）/
@@ -153,6 +174,8 @@ export interface MenuHit {
   hold: MenuAct | null;
   nav: boolean;
   hover?: boolean;
+  /** マウスで掴んで動かせる（クリックの決定は離したときに起きる） */
+  drag?: MenuDrag;
 }
 /** 荷札 2 行。aside は 1 行目の右寄せ（地金 ▲▼・費用） */
 export interface MenuTag {
@@ -200,6 +223,8 @@ export interface InventoryUi {
   aimPrev: Vec | null;
   clickHeldPrev: boolean;
   hold: { id: FocusId; t: number; by: "key" | "mouse" } | null;
+  /** マウスで掴んでいる当たり */
+  drag: MenuDragState | null;
   /** 開いている間の経過秒（state.time は止まっている） */
   time: number;
   /** 焦点が動いた ui.time（動く紋の 4 コマ） */

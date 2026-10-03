@@ -2,11 +2,12 @@ import { type GameState, pushSfx } from "../core/state";
 import { saveProfile } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { LOOT_SLOTS, type Slot } from "../loot/types";
-import { stoneInSlot } from "../skills/persistence";
+import { saveSkillProfile, stoneInSlot } from "../skills/persistence";
 import { BOONS } from "../system/boonDefs";
 import { refreshPendingBud } from "../system/loot";
 import { applyStats } from "../system/player";
 import type { ResonanceOrigin } from "../system/resonance";
+import { swapSkillSlots } from "../system/skills";
 import { beadFocusFor, crestShape, originOfKey, sourceKey } from "./crestShape";
 import { fid, fidArgs } from "./menuFocus";
 import {
@@ -55,6 +56,7 @@ function setStack(ui: InventoryUi, stack: MenuView[]): void {
   ui.stack = stack;
   ui.note = null;
   ui.hold = null;
+  ui.drag = null;
   touchFocus(ui);
 }
 
@@ -112,6 +114,7 @@ export function pushView(ui: InventoryUi, view: MenuView): void {
   ui.stack.push(view);
   ui.note = null;
   ui.hold = null;
+  ui.drag = null;
   touchFocus(ui);
 }
 
@@ -121,6 +124,7 @@ export function popView(ui: InventoryUi): MenuView | null {
   const popped = ui.stack.pop() ?? null;
   ui.note = null;
   ui.hold = null;
+  ui.drag = null;
   touchFocus(ui);
   return popped;
 }
@@ -307,4 +311,30 @@ export function applyEquipmentChange(state: GameState): void {
 /** 頁を積んだ・替えたときの音（面替え・跳ぶ・積む） */
 export function menuClick(state: GameState): void {
   pushSfx(state, "uiClick");
+}
+
+/** 入れ替えで付かなくなった符が手持ちへ戻ったときの知らせの続き */
+const SWAP_RUNES_BACK = "　付かない符は手持ちへ";
+
+/**
+ * 2 つのスキル枠の石を入れ替える（腰の石のドラッグ）。拾って付けた符も石と一緒に移る。
+ * 候補の頁が積まれていれば並びを作り直させる（その枠の石が替わり、並ぶ石も替わる）
+ */
+export function swapStones(state: GameState, ui: InventoryUi, a: number, b: number): void {
+  const profile = state.skills.profile;
+  const stoneA = stoneInSlot(profile, a);
+  const stoneB = stoneInSlot(profile, b);
+  if (stoneA === null && stoneB === null) return;
+  const back = swapSkillSlots(state, a, b);
+  if (back === null) return;
+  saveSkillProfile(profile);
+  for (const view of ui.stack) {
+    if (view.kind !== "candidates") continue;
+    view.order = null;
+    view.offset = 0;
+    view.pinnedId = null;
+  }
+  pushSfx(state, "equipOn");
+  showNote(ui, `スキル ${a + 1} と スキル ${b + 1} を入れ替えた${back > 0 ? SWAP_RUNES_BACK : ""}`);
+  touchFocus(ui);
 }

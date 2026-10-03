@@ -94,7 +94,14 @@ function plainHits(state: Readonly<GameState>, ui: Readonly<InventoryUi>): MenuH
   }));
   hits.push({ id: fid.body, rect: FIGURE_RECT, act: { kind: "push", view: sheetOf({ kind: "body" }) }, hold: null, nav: true });
   for (let i = 0; i < SKILL.slots; i++) {
-    hits.push({ id: fid.stone(i), rect: stoneRect(i), act: { kind: "push", view: { kind: "skills", focus: fid.stone(i), lift: null } }, hold: null, nav: true });
+    hits.push({
+      id: fid.stone(i),
+      rect: stoneRect(i),
+      act: { kind: "push", view: { kind: "skills", focus: fid.stone(i), lift: null } },
+      hold: null,
+      nav: true,
+      drag: { kind: "stone", index: i },
+    });
   }
   for (const mini of miniCrestRows(crestShape(state), MINI_CREST_RECT)) {
     const keyword = mini.row.keyword;
