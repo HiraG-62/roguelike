@@ -1,11 +1,12 @@
 import type { GameState } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { FACE_CHIPS, HEADER_CRUMBS_X, holdRatio, menuHits, viewModule } from "../ui/inventory";
+import { stoneInSlot } from "../skills/persistence";
+import { FACE_CHIPS, HEADER_CRUMBS_X, dragTag, dropTargetAt, holdRatio, menuHits, viewModule } from "../ui/inventory";
 import { focusedHit } from "../ui/menuFocus";
 import { menuGuideText } from "../ui/menuInput";
 import { type GuideVerb, type InventoryUi, type MenuHit, type MenuView, rootFace, topView } from "../ui/menuState";
 import { drawActPage } from "./actPageUi";
-import { drawAttire } from "./attireUi";
+import { GEM_D, drawAttire, drawStoneGem } from "./attireUi";
 import { drawCandidates } from "./candidatesUi";
 import { MENU_INK, box, drawHoldRing, menuText, px } from "./crestDraw";
 import { drawCrest } from "./crestUi";
@@ -134,8 +135,8 @@ function drawHeader(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, u
 }
 
 /** 荷札（焦点の 1 つにだけ付く 2 行）。一時の知らせは 2 行目に出す */
-function drawTag(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>, focus: MenuHit | null): void {
-  const tag = viewModule(view).tag(state, ui, view, focus);
+function drawTag(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<MenuView>, hits: readonly MenuHit[]): void {
+  const tag = dragTag(state, ui, hits) ?? viewModule(view).tag(state, ui, view, focusedHit(hits, view.focus));
   const aside = tag.aside;
   if (tag.title !== "") {
     const w = aside === null ? TEXT_W : TEXT_W - TAG_ASIDE_W;
@@ -194,6 +195,17 @@ function drawPage(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui:
   }
 }
 
+/** 掴んで動かしている石: 落とし先の金の枠と、カーソルに付いてくる石 */
+function drawDrag(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, hits: readonly MenuHit[]): void {
+  const drag = ui.drag;
+  if (drag === null || !drag.active) return;
+  const target = dropTargetAt(hits, drag);
+  const zone = target === null ? null : (target.drag?.zone ?? target.rect);
+  if (zone !== null) box(ctx, zone.x, zone.y, zone.w, zone.h, MENU_INK.gold);
+  const stone = stoneInSlot(state.skills.profile, drag.source.index);
+  drawStoneGem(ctx, drag.source.index, Math.round(drag.at.x - GEM_D / 2), Math.round(drag.at.y - GEM_D / 2), stone, true, false);
+}
+
 /** 装備画面。閉じていれば何もしない */
 export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState, ui: InventoryUi): void {
   if (!ui.open) return;
@@ -203,10 +215,11 @@ export function drawInventoryUi(ctx: CanvasRenderingContext2D, state: GameState,
   drawPaper(ctx);
   drawPage(ctx, state, ui, view, hits);
   drawHeader(ctx, state, ui, view);
-  drawTag(ctx, state, ui, view, focusedHit(hits, view.focus));
+  drawTag(ctx, state, ui, view, hits);
   drawGuide(ctx, state, ui, view);
   const hold = ui.hold;
   const held = hold === null ? null : focusedHit(hits, hold.id);
   if (held !== null) drawHoldRing(ctx, held.rect, holdRatio(ui));
+  drawDrag(ctx, state, ui, hits);
   drawFrame(ctx);
 }

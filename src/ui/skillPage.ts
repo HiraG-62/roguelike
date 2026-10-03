@@ -221,6 +221,8 @@ function plainHits(state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: 
       act: { kind: "push", view: { kind: "candidates", focus: null, target, sort: ui.sortPref, offset: 0, order: null, pinnedId: null } },
       hold: null,
       nav: true,
+      // 掴んで別の列へ落とすと石を入れ替える（落とし先は列全体）
+      drag: { kind: "stone", index: i, zone: colRect(i) },
     });
   }
   for (let i = 0; i < SKILL.slots; i++) {

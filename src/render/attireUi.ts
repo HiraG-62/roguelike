@@ -74,7 +74,7 @@ export function drawFigure(ctx: CanvasRenderingContext2D, x: number, y: number, 
 }
 
 /** 腰の石の菱形と符の鉤の寸法 */
-const GEM_D = 16;
+export const GEM_D = 16;
 const HOOK_W = 3;
 const HOOK_H = 6;
 const HOOK_GAP = 5;

@@ -218,6 +218,15 @@ export function equipStone(profile: SkillProfile, stoneId: string, slot: number)
   return true;
 }
 
+/** 2 つのスロットの石を入れ替える（片方が空なら移すだけ）。範囲外か同じスロットなら false */
+export function swapStoneSlots(profile: SkillProfile, a: number, b: number): boolean {
+  if (a === b || a < 0 || b < 0 || a >= SKILL.slots || b >= SKILL.slots) return false;
+  const stoneA = profile.loadout[a] ?? null;
+  profile.loadout[a] = profile.loadout[b] ?? null;
+  profile.loadout[b] = stoneA;
+  return true;
+}
+
 export function unequipSlot(profile: SkillProfile, slot: number): void {
   if (slot < 0 || slot >= profile.loadout.length) return;
   profile.loadout[slot] = null;

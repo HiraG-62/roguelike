@@ -2,13 +2,15 @@ import type { FrameInput } from "../core/input";
 import { type GameState, pushSfx } from "../core/state";
 import type { Vec } from "../core/vec";
 import { loadCraft, type CraftSave } from "../loot/craftingStore";
+import { SKILL_DEFS } from "../skills/data";
+import { stoneInSlot } from "../skills/persistence";
 import { ACT_VIEW } from "./actPage";
 import { ATTIRE_VIEW } from "./attire";
 import { CANDIDATES_VIEW } from "./candidates";
 import { CREST_VIEW } from "./crest";
 import { FLOW_BOARD_VIEW, FLOW_VIEW } from "./flow";
 import { pointInRect } from "./inventoryLayout";
-import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, switchCandidatePart, switchCandidateStone, switchFace } from "./menuActions";
+import { closeMenu, focusPart, jumpToSource, menuClick, openMenu, popView, pushView, replaceTop, swapStones, switchCandidatePart, switchCandidateStone, switchFace } from "./menuActions";
 import { fid, focusedHit, hitAt, nearestInDirection } from "./menuFocus";
 import { MENU_HOLD_SECONDS, primeMenuNav, readMenuNav, stepHold } from "./menuInput";
 import {
@@ -16,9 +18,12 @@ import {
   type FocusId,
   type InventoryUi,
   type MenuAct,
+  type MenuDrag,
+  type MenuDragState,
   type MenuFace,
   type MenuHit,
   type MenuSignals,
+  type MenuTag,
   type MenuView,
   type Rect,
   type SheetSubject,
@@ -52,6 +57,7 @@ export function createInventoryUi(craft: CraftSave = loadCraft()): InventoryUi {
     aimPrev: null,
     clickHeldPrev: false,
     hold: null,
+    drag: null,
     time: 0,
     focusAt: 0,
     note: null,
@@ -164,6 +170,9 @@ function applyAct(state: GameState, ui: InventoryUi, act: MenuAct): void {
       switchCandidateStone(ui, act.index);
       menuClick(state);
       return;
+    case "swapStones":
+      swapStones(state, ui, act.a, act.b);
+      return;
     default: {
       const top = topView(ui);
       if (top !== null) viewModule(top).act(state, ui, top, act);
@@ -257,8 +266,77 @@ function updateHold(state: GameState, ui: InventoryUi, hits: readonly MenuHit[],
   return true;
 }
 
+/** 押した位置からこの距離（論理 px）を越えて動かしたらドラッグ。越えずに離せばクリック */
+export const DRAG_THRESHOLD = 3;
+
+/** 落とし先: 掴んだ物と同じ kind の別の当たりで、受ける範囲（zone か rect）に入っているもの。後ろの当たりを優先 */
+export function dropTargetAt(hits: readonly MenuHit[], drag: Readonly<MenuDragState>): MenuHit | null {
+  for (let i = hits.length - 1; i >= 0; i--) {
+    const h = hits[i];
+    if (h === undefined || h.drag === undefined || h.id === drag.id) continue;
+    if (h.drag.kind !== drag.source.kind || h.drag.index === drag.source.index) continue;
+    if (pointInRect(drag.at, h.drag.zone ?? h.rect)) return h;
+  }
+  return null;
+}
+
+const DRAG_HINT = "別の石の上で離すと入れ替え";
+
+/** 掴んで動かしている間の荷札（掴んだ石と、今離したら何が起きるか）。掴んでいなければ null */
+export function dragTag(state: Readonly<GameState>, ui: Readonly<InventoryUi>, hits: readonly MenuHit[]): MenuTag | null {
+  const drag = ui.drag;
+  if (drag === null || !drag.active) return null;
+  const stone = stoneInSlot(state.skills.profile, drag.source.index);
+  const head = `スキル ${drag.source.index + 1}`;
+  const title = stone === null ? head : `${head}  ${SKILL_DEFS[stone.skillKey].name}`;
+  const target = dropTargetAt(hits, drag);
+  const sub = target?.drag === undefined ? DRAG_HINT : `離すと スキル ${target.drag.index + 1} と入れ替え`;
+  return { title, sub, aside: null };
+}
+
+/** 掴んだ物を落とし先へ落としたときの操作 */
+function dropAct(source: Readonly<MenuDrag>, target: Readonly<MenuDrag>): MenuAct {
+  return { kind: "swapStones", a: source.index, b: target.index };
+}
+
+/**
+ * 掴んでいる間の 1 フレーム。動かしたら追い、離したら落とし先へ落とす（動かさずに離せばクリックとして決定）。
+ * 掴んでいれば true（残りの入力は読まない）
+ */
+function updateDrag(state: GameState, ui: InventoryUi, view: MenuView, hits: readonly MenuHit[], input: Readonly<FrameInput>): boolean {
+  const drag = ui.drag;
+  if (drag === null) return false;
+  const aim = input.aimScreen;
+  if (aim !== null) drag.at = { x: aim.x, y: aim.y };
+  if (!drag.active && Math.hypot(drag.at.x - drag.from.x, drag.at.y - drag.from.y) > DRAG_THRESHOLD) drag.active = true;
+  if (input.clickHeld) return true;
+  ui.drag = null;
+  if (!drag.active) {
+    const hit = focusedHit(hits, drag.id);
+    if (hit !== null) pressNow(state, ui, view, hit, "mouse");
+    return true;
+  }
+  const target = dropTargetAt(hits, drag);
+  if (target?.drag !== undefined) {
+    if (target.nav) setFocus(ui, view, target.id);
+    dispatchMenuAct(state, ui, dropAct(drag.source, target.drag));
+  }
+  return true;
+}
+
 /** 決定（キー・パッド）か当たりの上のクリック。長押しの当たりは長押しを始める */
 function press(state: GameState, ui: InventoryUi, view: MenuView, hit: MenuHit, by: "key" | "mouse"): void {
+  // 掴める当たりのクリックは、離すまで決定を待つ（動かせばドラッグ）
+  if (by === "mouse" && hit.drag !== undefined && hit.hold === null) {
+    if (hit.nav) setFocus(ui, view, hit.id);
+    const at = ui.aimPrev ?? { x: 0, y: 0 };
+    ui.drag = { id: hit.id, source: hit.drag, from: { ...at }, at: { ...at }, active: false };
+    return;
+  }
+  pressNow(state, ui, view, hit, by);
+}
+
+function pressNow(state: GameState, ui: InventoryUi, view: MenuView, hit: MenuHit, by: "key" | "mouse"): void {
   if (hit.nav) setFocus(ui, view, hit.id);
   if (hit.hold !== null) {
     ui.hold = { id: hit.id, t: 0, by };
@@ -285,6 +363,7 @@ function updateOpen(state: GameState, ui: InventoryUi, input: Readonly<FrameInpu
   const hits = menuHits(state, ui);
   if (updateHold(state, ui, hits, input, signals, dt)) return;
   followMouse(ui, view, hits, input.aimScreen);
+  if (updateDrag(state, ui, view, hits, input)) return;
   ensureFocus(ui, view, hits);
 
   const nav = readMenuNav(ui.nav, input, dt);
@@ -355,6 +434,11 @@ export function updateInventoryUi(state: GameState, ui: InventoryUi, input: Fram
   }
   if (signals.back) {
     ui.hold = null;
+    // 掴んでいる間の戻るは、掴むのをやめるだけ
+    if (ui.drag !== null) {
+      ui.drag = null;
+      return;
+    }
     goBack(state, ui);
     return;
   }

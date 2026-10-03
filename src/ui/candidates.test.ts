@@ -188,7 +188,7 @@ describe("候補の頁", () => {
     frame(state, ui, { confirmPressed: true });
     expect(state.profile.equipment.head?.id, "b を付けた").toBe("b");
     expect(state.profile.stash.map((it) => it.id), "外した物は倉庫の末尾（変えない）").toEqual(["a", "c", "worn"]);
-    expect(candidateEntries(state, view).map(entryFocusId)[0], "外した物が一覧の先頭").toBe(fid.cand("worn"));
+    expect(candidateEntries(state, view).map(entryFocusId).slice(0, 2), "装備中の札の次に、外した物").toEqual([fid.worn, fid.cand("worn")]);
     expect(view.focus, "焦点は外した物").toBe(fid.cand("worn"));
     expect(view.offset, "頁は先頭").toBe(0);
   });
@@ -341,15 +341,15 @@ describe("候補の頁", () => {
     const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "head"));
     const view = topCandidates(ui);
     const entries = candidateEntries(state, view).map(entryFocusId);
-    expect(entries.slice(0, 2), "先頭に芽吹きの札 2 枚").toEqual([fid.bud(0), fid.bud(1)]);
-    expect(entries[2], "その次に倉庫の物").toBe(fid.cand("stash-head"));
+    expect(entries.slice(0, 3), "装備中の札の次に芽吹きの札 2 枚").toEqual([fid.worn, fid.bud(0), fid.bud(1)]);
+    expect(entries[3], "その次に倉庫の物").toBe(fid.cand("stash-head"));
 
     view.focus = fid.bud(1);
     frame(state, ui, { confirmPressed: true });
     const worn = state.profile.equipment.head;
     expect(worn?.affixes.some((a) => a.origin === "bud" && a.value === 4), "選んだ方が芽吹いた").toBe(true);
     expect(worn?.budOffer ?? null, "提示は消える").toBeNull();
-    expect(candidateEntries(state, view).map(entryFocusId)[0], "芽吹きの札は無くなる").toBe(fid.cand("stash-head"));
+    expect(candidateEntries(state, view).map(entryFocusId)[1], "芽吹きの札は無くなる").toBe(fid.cand("stash-head"));
   });
 
   it("複数の装備に芽があるとき、2 つ目の部位の頁にも札が出て、選ぶとその遺物だけ芽吹く", () => {
@@ -363,7 +363,7 @@ describe("候補の頁", () => {
 
     const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "boots"));
     const view = topCandidates(ui);
-    expect(candidateEntries(state, view).map(entryFocusId).slice(0, 2), "pendingBud でない部位にも芽吹きの札").toEqual([fid.bud(0), fid.bud(1)]);
+    expect(candidateEntries(state, view).map(entryFocusId).slice(1, 3), "pendingBud でない部位にも芽吹きの札").toEqual([fid.bud(0), fid.bud(1)]);
     expect(CANDIDATES_VIEW.sheetFor(state, { ...view, focus: fid.bud(0) })?.kind, "芽の札の書付は開いた部位の遺物").toBe("item");
 
     view.focus = fid.bud(1);
@@ -441,7 +441,7 @@ describe("候補の頁", () => {
     state.profile.equipment.boots = relic("boots", "worn-boots");
     const ui = openCandidates(state, candidatesFor(createInventoryUi(createCraftSave()), "boots"));
     const view = topCandidates(ui);
-    expect(candidateEntries(state, view).map(entryFocusId), "埋まっていれば末尾に空ける").toEqual([fid.clear]);
+    expect(candidateEntries(state, view).map(entryFocusId), "装備中の札と、埋まっていれば末尾に空ける").toEqual([fid.worn, fid.clear]);
     view.focus = fid.clear;
     frame(state, ui, { confirmPressed: true });
     expect(state.profile.equipment.boots, "外れた").toBeNull();
@@ -553,7 +553,9 @@ describe("候補の頁: 腰の石の切り替え", () => {
     const view = topCandidates(ui);
     const hits = CANDIDATES_VIEW.layout(state, ui, view).map((h) => h.id);
     expect(hits, "ほかの 3 枠の石に当たり").toEqual(expect.arrayContaining([fid.gem(1), fid.gem(2), fid.gem(3)]));
-    expect(hits, "今の枠の石には当たりが無い").not.toContain(fid.gem(0));
+    const here = CANDIDATES_VIEW.layout(state, ui, view).find((h) => h.id === fid.gem(0));
+    expect(here?.act ?? null, "今の枠の石は決定では何も起きない（掴むだけ）").toBeNull();
+    expect(here?.nav, "今の枠の石には方向で止まらない").toBe(false);
 
     view.focus = fid.gem(2);
     frame(state, ui, { confirmPressed: true });
@@ -570,7 +572,7 @@ describe("候補の頁: 腰の石の切り替え", () => {
     const state = stoneState();
     const ui = openCandidates(state, { kind: "candidates", focus: null, target: { kind: "stone", index: 0 }, sort: "fit", offset: 0, order: null, pinnedId: null });
     const view = topCandidates(ui);
-    const gems = CANDIDATES_VIEW.layout(state, ui, view).filter((h) => h.id.startsWith("gem:"));
+    const gems = CANDIDATES_VIEW.layout(state, ui, view).filter((h) => h.id.startsWith("gem:") && h.id !== fid.gem(0));
     expect(gems.every((h) => h.nav && h.hover === false), "方向で止まり、通るだけでは焦点を奪わない").toBe(true);
   });
 });

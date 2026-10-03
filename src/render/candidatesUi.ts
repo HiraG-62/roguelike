@@ -23,11 +23,13 @@ import {
   SORT_LABEL,
   SORT_ORDER,
   type CandidateEntry,
+  type CandidateSubject,
   candidateEntries,
   entryFocusId,
   filterAvailable,
   focusedEntry,
   groupHead,
+  isStoneWorn,
   tryOnForEntry,
   visibleEntries,
 } from "../ui/candidates";
@@ -87,6 +89,9 @@ const CARD_MARK_STEP = 14;
 const CARD_MARK_D = 12;
 const CARD_MARKS_MAX = 3;
 const CARD_RIGHT = 6;
+/** 付けている物の印（名前の右・系統の丸印の左）と、丸印との間 */
+const WORN_BADGE = "装備中";
+const BADGE_GAP = 4;
 
 /** 動く紋の置き場（x 312〜470・y 30 + i × 22） */
 const MORPH = { rule: 306, ruleY: 20, ruleH: 150, discX: 320, bandX0: 330, bandX1: 380, dotsX: 384, arrowX: 402, toX: 412, markX: 458, y0: 30, step: 22, disc: 12 } as const;
@@ -214,7 +219,7 @@ function drawFilterChips(ctx: CanvasRenderingContext2D, view: Readonly<Candidate
 }
 
 /** 札に並べる系統の丸印（その物の源・糧・強めの系統。多くて 3 つ） */
-function cardKeywords(subject: Readonly<CandidateEntry & { kind: "subject" }>["subject"]): ReturnType<typeof profileKeywords> {
+function cardKeywords(subject: Readonly<CandidateSubject>): ReturnType<typeof profileKeywords> {
   const profile = subject.kind === "item" ? relicKeywords(subject.item) : skillKeywords(SKILL_DEFS[subject.stone.skillKey]);
   return profileKeywords(profile).slice(0, CARD_MARKS_MAX);
 }
@@ -224,9 +229,8 @@ function drawStoneIcon(ctx: CanvasRenderingContext2D, stone: Readonly<SkillStone
   px(ctx, x + 4, y + 4, 3, 3, stoneFaceColor(stone.skillKey));
 }
 
-/** 札 1 枚（絵・名前・系統の丸印。新着 = 左上の白い点 / 名のある遺物 = 左下の金 / 失う帯 = 左端の朱） */
-function drawSubjectCard(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, entry: Readonly<CandidateEntry & { kind: "subject" }>, x: number, y: number, focused: boolean, lost: boolean): void {
-  const s = entry.subject;
+/** 札 1 枚（絵・名前・系統の丸印。新着 = 左上の白い点 / 名のある遺物 = 左下の金 / 失う帯 = 左端の朱 / 付けている物 = 名前の右に「装備中」） */
+function drawSubjectCard(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, s: Readonly<CandidateSubject>, x: number, y: number, focused: boolean, lost: boolean, worn: boolean): void {
   const keywords = cardKeywords(s);
   if (s.kind === "item") {
     if (isLootSlot(s.item.slot)) drawRelicGlyph(ctx, s.item.slot, x + CARD_ICON.x, y + CARD_ICON.y, 1, itemColor(s.item));
@@ -237,7 +241,7 @@ function drawSubjectCard(ctx: CanvasRenderingContext2D, state: Readonly<GameStat
   }
   const name = s.kind === "item" ? s.item.name : SKILL_DEFS[s.stone.skillKey].name;
   const chips = s.kind === "stone" ? stoneCardChips(s.stone) : [];
-  drawCardText(ctx, name, chips, keywords, x, y, focused);
+  drawCardText(ctx, name, chips, keywords, x, y, focused, worn ? WORN_BADGE : null);
   if (lost) px(ctx, x - 2, y + 9, 2, 5, MENU_INK.down);
 }
 
@@ -251,10 +255,17 @@ const CHIP_COLOR: Readonly<Record<StoneCardChip["tone"], string>> = {
  * 札の名前と系統の丸印。chips（宿り符）があれば 2 段にし、下の段に金で出す。変異の値は札に出さず差の欄に出す
  * （docs/ideas/skill-stone-hunt.md）
  */
-function drawCardText(ctx: CanvasRenderingContext2D, name: string, chips: readonly StoneCardChip[], keywords: readonly Keyword[], x: number, y: number, focused: boolean): void {
+function drawCardText(ctx: CanvasRenderingContext2D, name: string, chips: readonly StoneCardChip[], keywords: readonly Keyword[], x: number, y: number, focused: boolean, badge: string | null = null): void {
   const twoLine = chips.length > 0;
   const nameY = twoLine ? CARD_TWO_LINE.nameY : CARD_NAME.y;
-  menuText(ctx, name, x + CARD_NAME.x, y + nameY, { size: "SMALL", color: focused ? MENU_INK.focus : MENU_INK.text, role: "ornament", maxW: CARD_NAME_W - keywords.length * CARD_MARK_STEP });
+  const marksW = keywords.length * CARD_MARK_STEP;
+  // 「装備中」は系統の丸印の左に置き、その分だけ名前を短く切る
+  const badgeW = badge === null ? 0 : textWidth(badge, TEXT.SMALL) + BADGE_GAP;
+  menuText(ctx, name, x + CARD_NAME.x, y + nameY, { size: "SMALL", color: focused ? MENU_INK.focus : MENU_INK.text, role: "ornament", maxW: CARD_NAME_W - marksW - badgeW });
+  if (badge !== null) {
+    const right = x + CAND_CARD.w - CARD_RIGHT - marksW - BADGE_GAP;
+    menuText(ctx, badge, right, y + nameY, { size: "SMALL", color: MENU_INK.gold, role: "ornament", align: "right" });
+  }
   const markY = twoLine ? CARD_TWO_LINE.markY : CAND_CARD.h >> 1;
   keywords.forEach((k, j) => {
     const cx = x + CAND_CARD.w - CARD_RIGHT - (keywords.length - j) * CARD_MARK_STEP + CARD_MARK_D / 2;
@@ -297,6 +308,11 @@ function drawClearCard(ctx: CanvasRenderingContext2D, x: number, y: number, focu
   menuText(ctx, "空ける", x + CARD_NAME.x, y + CARD_NAME.y, { size: "SMALL", color: focused ? MENU_INK.focus : MENU_INK.sub, role: "ornament" });
 }
 
+/** 倉庫の札のうち、別のスキル枠に付けている石（遺物の候補は倉庫の物だけなので付けている物は無い） */
+function isWornSubject(state: Readonly<GameState>, s: Readonly<CandidateSubject>): boolean {
+  return s.kind === "stone" && isStoneWorn(state, s.stone.id);
+}
+
 function cardLost(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>, base: ReturnType<typeof tryOnBase>): boolean {
   if (entry.kind !== "subject") return false;
   const result = tryOnForEntry(state, view, entry, base);
@@ -310,11 +326,12 @@ function drawCards(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, vi
     const y = CAND_CARD.y + i * CAND_CARD.step;
     const focused = view.focus === entryFocusId(entry);
     px(ctx, x, y, CAND_CARD.w, CAND_CARD.h, focused ? MENU_INK.card2 : MENU_INK.card);
-    box(ctx, x, y, CAND_CARD.w, CAND_CARD.h, focused ? MENU_INK.focus : MENU_INK.rule);
+    box(ctx, x, y, CAND_CARD.w, CAND_CARD.h, focused ? MENU_INK.focus : entry.kind === "worn" ? MENU_INK.gold : MENU_INK.rule);
     if (entry.kind === "bud") drawBudCard(ctx, entry.roll, x, y, focused);
     else if (entry.kind === "clear") drawClearCard(ctx, x, y, focused);
     else if (entry.kind === "group") drawGroupCard(ctx, entry, x, y, focused);
-    else drawSubjectCard(ctx, state, entry, x, y, focused, cardLost(state, view, entry, base));
+    else if (entry.kind === "worn") drawSubjectCard(ctx, state, entry.subject, x, y, focused, false, true);
+    else drawSubjectCard(ctx, state, entry.subject, x, y, focused, cardLost(state, view, entry, base), isWornSubject(state, entry.subject));
   });
   if (entries.length > view.offset + CANDIDATE_PAGE) {
     menuText(ctx, "▼", CAND_CARD.x + CAND_CARD.w / 2, SCROLL_MARK_Y, { size: "SMALL", color: MENU_INK.sub, role: "ornament", align: "center" });
@@ -376,6 +393,9 @@ interface DiffView {
 }
 
 const NAME_JOINT = " と ";
+/** 装備中の札の欄の行の頭（得る・失うの代わり） */
+const WORN_TRAIT_LABEL = "性質";
+const WORN_SKILL_LABEL = "効果";
 const NO_STATS: StatChanges = { changes: [], more: 0 };
 
 function itemDiff(state: Readonly<GameState>, candidate: Readonly<Item>, current: Readonly<Item> | null): DiffView {
@@ -415,8 +435,19 @@ function budDiff(state: Readonly<GameState>, view: Readonly<CandidatesView>, rol
   return { title: `${worn?.name ?? ""} に芽吹く`, stats: NO_STATS, lines: [{ gain: true, text: describeTrait(roll).text }], more: 0, empty: "" };
 }
 
+/** 付けている物の欄: 性質（遺物）か、何をするスキルか（石）。比べる相手が無いので得る・失うにしない */
+function wornDiff(s: Readonly<CandidateSubject>): DiffView {
+  if (s.kind === "item") {
+    const rows = s.item.affixes.map((roll): DiffLine => ({ gain: true, label: WORN_TRAIT_LABEL, text: describeTrait(roll).text }));
+    return { title: `${WORN_BADGE}  ${s.item.name}`, stats: NO_STATS, lines: rows.slice(0, MENU_BUDGET.diffRows), more: Math.max(0, rows.length - MENU_BUDGET.diffRows), empty: "" };
+  }
+  const def = SKILL_DEFS[s.stone.skillKey];
+  return { title: `${WORN_BADGE}  ${def.name}`, stats: NO_STATS, lines: [{ gain: true, label: WORN_SKILL_LABEL, text: def.verb }], more: 0, empty: "" };
+}
+
 function diffOf(state: Readonly<GameState>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry>): DiffView | null {
   if (entry.kind === "bud") return budDiff(state, view, entry.roll);
+  if (entry.kind === "worn") return wornDiff(entry.subject);
   if (entry.kind === "clear") return clearDiff(state, view);
   const worn = view.target.kind === "stone" ? stoneInSlot(state.skills.profile, view.target.index) : null;
   if (entry.kind === "group") {

@@ -10,7 +10,7 @@ import type { StatusEffect } from "../core/status";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { KEYSTONE } from "../data/tuning";
-import { BODY_SKILL_KEYS, MODIFIERS, SKILL, SKILL_DEFS, canAttach } from "../skills/data";
+import { BODY_SKILL_KEYS, MODIFIERS, SKILL, SKILL_DEFS, canAttach, slotLinks } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { createDefaultSkillProfile, stoneInSlot } from "../skills/persistence";
 import { MODIFIER_KEYS, SKILL_KEYS, type ModifierKey, type SkillKey, type SkillStone, type VariantRoll } from "../skills/types";
@@ -32,6 +32,7 @@ import {
   skillLocksDash,
   skillMoveMul,
   slotModifierView,
+  swapSkillSlots,
   trackDamageDealt,
   updateSkills,
   usedLinks,
@@ -563,6 +564,34 @@ describe("刻印符の移す・外す（装備画面）", () => {
     const empty = skillArena([{ key: "gravityWell", modifiers: ["echo"] }]);
     expect(moveRunModifier(empty.skills, 0, 2, "echo"), "石の無いスロット").toBe("noStone");
     expect(rs.slots[0]?.runModifiers, "失敗したら動かない").toEqual(["echo"]);
+  });
+
+  it("石を入れ替えると拾った符も一緒に移り、移った先のリンクに入らない符は手持ちへ戻る", () => {
+    const state = skillArena([
+      { key: "gravityWell", modifiers: ["bloodPrice", "echo", "spillover"] },
+      { key: "parry" },
+      { key: "gravityWell" },
+      { key: "gravityWell", modifiers: ["streak"] },
+    ]);
+    const stone0 = stoneInSlot(state.skills.profile, 0);
+    const stone3 = stoneInSlot(state.skills.profile, 3);
+    const back = swapSkillSlots(state, 0, 3);
+    expect(stoneInSlot(state.skills.profile, 3)?.id, "スロット 1 の石がスロット 4 へ").toBe(stone0?.id);
+    expect(stoneInSlot(state.skills.profile, 0)?.id, "スロット 4 の石がスロット 1 へ").toBe(stone3?.id);
+    expect(state.skills.slots[0]?.runModifiers, "符も石と一緒に移る").toEqual(["streak"]);
+    expect(usedLinks(state.skills, 3), "スロット 4 のリンク 2 本に収まる分だけ残る").toBeLessThanOrEqual(slotLinks(3));
+    expect(back, "入らない符は手持ちへ").toBeGreaterThan(0);
+    expect(state.skills.hand.length, "戻した枚数だけ手持ちに入る").toBe(back);
+    expect(swapSkillSlots(state, 1, 1), "同じスロットは入れ替えない").toBeNull();
+  });
+
+  it("空のスロットとも入れ替えられる（移すだけ）", () => {
+    const state = skillArena([{ key: "gravityWell", modifiers: ["echo"] }]);
+    const stone = stoneInSlot(state.skills.profile, 0);
+    expect(swapSkillSlots(state, 0, 2)).toBe(0);
+    expect(stoneInSlot(state.skills.profile, 0), "元のスロットは空く").toBeNull();
+    expect(stoneInSlot(state.skills.profile, 2)?.id).toBe(stone?.id);
+    expect(state.skills.slots[2]?.runModifiers).toEqual(["echo"]);
   });
 
   it("型替え符は 1 枚まで", () => {

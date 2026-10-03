@@ -49,6 +49,8 @@ export const fid = {
   hand: (key: ModifierKey): FocusId => join("hand", key),
   bud: (n: number): FocusId => join("bud", n),
   clear: "clear" as FocusId,
+  /** 候補の頁の先頭の「装備中」の札（今その部位・枠に付けている物） */
+  worn: "worn" as FocusId,
   rune: (i: number, key: ModifierKey): FocusId => join("rune", i, key),
   col: (i: number): FocusId => join("col", i),
   action: (a: BoonAction): FocusId => join("action", a),
