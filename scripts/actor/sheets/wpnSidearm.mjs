@@ -24,4 +24,4 @@ function draw(frame) {
   frame.anchor("muzzle", 17 * K, -3.2 * K);
 }
 
-export const ATLAS = { key: "wpnSidearm", sheets: weaponSheets("wpnSidearm", draw, { size: 56 }), meta: { offGrip: -1.5, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 } } };
+export const ATLAS = { key: "wpnSidearm", sheets: weaponSheets("wpnSidearm", draw, { size: 56 }), meta: { offGrip: -1.5, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1, parry: { hand: [9, 3], deg: -70, off: [10, 4], contact: 8 } } } };
