@@ -158,12 +158,9 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 
 /**
  * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
- * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
+ * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に、クナイの振りは段 7-B（2026-10-03）に描き切ったので空
  */
-const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
-  // クナイ（段 5-A で足した）: 段 7-A で命中と弾の絵のアトラスだけ作った。振りの絵は技の配線が固まってから段 7-B で描く
-  kunai: ["dash", "r:kunaiCut", "r:kunaiReturn", "r:kunaiDrive", "branch:shadowPin", "branch:farThrow"],
-};
+const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
 /**
  * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
@@ -321,12 +318,12 @@ describe("fxMotions: 奥義の絵の表", () => {
 
 /**
  * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
- * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切った。
- * 手裏剣は段 5-A で足した（絵は段 7-B）。クナイは段 7-A で命中と弾の絵の表を作った（振りは UNDRAWN_MOTIONS）
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に、
+ * クナイ・手裏剣は段 7-B（2026-10-03）に描き切ったので空
  */
-const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["shuriken"];
-/** 奥義の絵（`<武器種>Ult.mjs`）がまだ無い武器種。クナイ・手裏剣の奥義は技の配線が固まってから段 7-B で描く */
-const UNDRAWN_ULTIMATES: readonly MovesetKey[] = ["kunai", "shuriken"];
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
+/** 奥義の絵（`<武器種>Ult.mjs`）がまだ無い武器種。クナイ・手裏剣の奥義は段 7-B で描いたので空 */
+const UNDRAWN_ULTIMATES: readonly MovesetKey[] = [];
 
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
