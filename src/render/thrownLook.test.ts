@@ -16,6 +16,7 @@ import {
   THROWN_ECHO_LOOK,
   ULTIMATE_LOOK,
   arcPoint,
+  drawThrownLook,
   projectileLook,
   skillShotLook,
   thrownAngle,
@@ -264,5 +265,54 @@ describe("説明に「投げる」とある技の洗い出し", () => {
 
   it("洗い出しが空でない（語の検出が働いている）", () => {
     expect(throws.length).toBeGreaterThan(20);
+  });
+});
+
+describe("投げた絵の描き方（論理寸法）", () => {
+  /** drawImage の引数だけ記録する最小の 2D コンテキスト */
+  function recorder(): { ctx: CanvasRenderingContext2D; draws: number[][]; scales: number[][] } {
+    const draws: number[][] = [];
+    const scales: number[][] = [];
+    const ctx = {
+      save: () => undefined,
+      restore: () => undefined,
+      translate: () => undefined,
+      rotate: () => undefined,
+      scale: (x: number, y: number) => scales.push([x, y]),
+      drawImage: (_img: unknown, ...args: number[]) => draws.push(args),
+    } as unknown as CanvasRenderingContext2D;
+    return { ctx, draws, scales };
+  }
+  const look = MOVESET_THROWN_LOOK.ringBlades;
+
+  /** 実寸（ドット数）width x height の絵を、密度 dots で持つスプライトのアトラス */
+  function atlasOf(width: number, height: number, dots: 1 | 2) {
+    const frame = { width, height } as unknown as HTMLCanvasElement;
+    return { [look?.sprite ?? ""]: { frames: [frame], white: [frame], w: width / dots, h: height / dots, dots } };
+  }
+
+  it("密度 1 の絵は実寸のまま、密度 2 の絵は同じ論理寸法で描く（2 倍の大きさにならない）", () => {
+    expect(look, "戦輪の見た目").toBeDefined();
+    if (!look) return;
+    const one = recorder();
+    expect(drawThrownLook(one.ctx, atlasOf(10, 10, 1), look, 0, 0, 0, 1)).toBe(true);
+    expect(one.draws[0], "密度 1: 中心に置いた 10x10").toEqual([-5, -5, 10, 10]);
+    const two = recorder();
+    drawThrownLook(two.ctx, atlasOf(20, 20, 2), look, 0, 0, 0, 1);
+    expect(two.draws[0], "密度 2: 同じ 10x10 の論理寸法").toEqual([-5, -5, 10, 10]);
+  });
+
+  it("大輪の拡大率は半径に比例して掛かる", () => {
+    if (!look) return;
+    const r = recorder();
+    drawThrownLook(r.ctx, atlasOf(10, 10, 1), look, 0, 0, 0, thrownScale(6.4));
+    expect(r.scales[0]?.[0] ?? 0, "半径 6.4 は 1.6 倍").toBeCloseTo(1.6);
+  });
+
+  it("絵が無ければ描かず false", () => {
+    if (!look) return;
+    const r = recorder();
+    expect(drawThrownLook(r.ctx, {}, look, 0, 0, 0, 1)).toBe(false);
+    expect(r.draws.length).toBe(0);
   });
 });

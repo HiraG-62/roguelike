@@ -429,6 +429,11 @@ export interface RigInput {
   readonly guard?: GuardMotion;
   /** 投げた輪が戻るまで手ぶら（戦輪。system/projectiles.ts の ringsInFlight）。腕の構えはそのまま、手に持つ絵だけ描かない */
   readonly emptyHanded?: boolean;
+  /**
+   * 段の絵（meta.stepArt の hand が off）を後ろの手で振る間（短銃の逆手の短刀）。前の手は振らずに今の武器の構え（撃つ構え）のまま、
+   * 後ろの手が swing の姿勢で振る。後ろの手を素手にしない。省けば今までの振り
+   */
+  readonly offStep?: boolean;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -454,6 +459,24 @@ const ARM_SPAN = 10.5;
 const CAST_UP_DEG = -15;
 /** 術を放つ後ろの手を下げる下限（度。正 = 下） */
 const CAST_DOWN_DEG = 50;
+/**
+ * 後ろの手が段の絵を振る間の手（offStep）。前の手は振りを無視して待機・構えのまま（銃を持ち続ける）。
+ * 後ろの手は二刀の後ろの手と同じく後ろの肩から振りの向きへ出し、戻しの後半で待機の後ろの手（添え手・垂らした手）へ寄せる
+ * （寄せ切る前に絵を持たせたまま柄の位置へ滑らせない。半分を越えたら素手にする）
+ */
+function offStepHands(i: RigInput, swing: WeaponPose): RigPose {
+  const { iai: _iai, ...rest } = i;
+  const idle: RigInput = { ...rest, swing: undefined };
+  const front = mainPart(idle);
+  const restBack = backPart(idle, front);
+  const angle = toRigAngle(swing.angle, i.facingRight);
+  const swung = part(at(i.shoulderB, angle, swingHandReach(swing)), angle, rigSwingSign(i) > 0, false, true);
+  const k = i.restBlend ?? 0;
+  if (k <= 0) return { front, back: swung };
+  const back = blendPart(swung, restBack, k);
+  return { front, back: k >= 0.5 ? { ...back, bare: restBack.bare } : back };
+}
+
 /** 術を放つ後ろの腕の付け根を、後ろの肩から前の肩へ寄せる割合（体の捻り） */
 const CAST_TWIST = 0.8;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
@@ -480,6 +503,18 @@ function sway(time: number, deg: number): number {
 /** 振りの向きの符号（組み立ての空間で時計回りなら +1）。左向きでは写すので逆 */
 function rigSwingSign(i: Pick<RigInput, "sign" | "step" | "facingRight">): number {
   return (i.sign ?? swingSign(i.step)) * (i.facingRight ? 1 : -1);
+}
+
+/** 振りの間の絵（`<武器>.swing`・段の持ち替えの前の手の絵）を使う、構え直しの割合の上限（これを越えたら待機の絵へ戻す） */
+export const SWING_ART_UNTIL = 0.5;
+
+/**
+ * 今描く段の持ち替えの絵。振りの間だけで、終われば（振っていない）元の武器に戻る。
+ * 後ろの手の絵（off）は振りの間ずっと後ろの手が振る（戻しの半ばで素手になるのは offStepHands）。前の手の絵（main）は構え直しの半ばで元の武器へ戻す
+ */
+export function stepArtInUse<T extends { readonly hand: "main" | "off" }>(art: T | undefined, phase: "none" | "windup" | "active" | "recover", restBlend: number): T | undefined {
+  if (!art || phase === "none") return undefined;
+  return art.hand === "off" || restBlend < SWING_ART_UNTIL ? art : undefined;
 }
 
 /** 撃った反動: 戻るまでの秒と、1 のときに銃を引く距離（ドット）・銃口を跳ね上げる角 */
@@ -546,6 +581,7 @@ export function solveRig(i: RigInput): RigPose {
 
 function solveHands(i: RigInput): RigPose {
   if (i.guard && !i.swing) return guardHands(i, i.guard);
+  if (i.offStep && i.swing) return offStepHands(i, i.swing);
   const k = i.restBlend ?? 0;
   if (k > 0 && i.swing) {
     const { iai: _iai, ...rest } = i;

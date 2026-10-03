@@ -156,13 +156,15 @@ export function arcPoint(from: Vec, to: Vec, t: number, height: number): Vec {
 
 /** 絵を中心に置いて回して描く。絵が無ければ（読み込み前・key 違い）false */
 export function drawThrownLook(ctx: CanvasRenderingContext2D, atlas: SpriteAtlas, look: ThrownLook, x: number, y: number, angle: number, scale: number): boolean {
-  const img = atlas[look.sprite]?.frames[0];
-  if (!img) return false;
+  const sprite = atlas[look.sprite];
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
   if (scale !== 1) ctx.scale(scale, scale);
-  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  // 論理寸法（sprite.w / h）で描く。img.width（ドット数）で描くと、密度 2 の絵が 2 倍の大きさになる
+  ctx.drawImage(img, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
   ctx.restore();
   return true;
 }

@@ -11,7 +11,7 @@
     "decayPerSec": "冷める速さ（戦意 / 秒）",
     "releaseCrit": "放出の弾が必ず会心になる（真偽。長銃の満ちた 1 発）",
     "gain": "溜まる出来事ごとの量。meleeHit = 通常の振りの命中（多段の区切りごとに 1 回。同じ区切りで何体に当てても 1 回）/ riposte = 型の応手 1 回（1 振りで 1 回まで）/ tipHit = 長柄の先端（槍の穂先・棍の棒先）の命中 1 回 / still = 止まっている 1 秒あたり / skillHit = 書: スキルの命中 1 回（設置物・連動体の命中は除く）/ minionHit = 鈴: 設置物・連動体の命中 1 回 / quickReload = 短銃: 早込めが決まった 1 回 / pack = 装薬: 詰めの段が 1 つ上がった / blastHit = 擲弾: 敵を 1 体以上巻き込んだ自分の炸裂 1 回（巻き込まない炸裂は数えない）/ alternateShot = 二丁: 前の押下と違う手で撃った 1 発（同じ手が続くと拍は 0 へ途切れる）/ pinStagger = 手裏剣: 刺さり崩しで敵を怯ませた 1 回 / roundTrip = 戦輪: 1 回の投げで行きと帰りの両方で当てた敵 1 体（1 体につき 1 回）。PlayerStats.moraleGainMul を掛ける",
-    "perUnit": "放出の戦意 1 あたりの上乗せ。damageMul / poiseMul / reachMul / knockbackMul は倍率への加算（1 + 値 × 戦意）、hitsAdd / pierceAdd は多段と貫通への加算（値 × 戦意の切り捨て）",
+    "perUnit": "放出の戦意 1 あたりの上乗せ。damageMul / poiseMul / reachMul / knockbackMul は倍率への加算（1 + 値 × 戦意）、hitsAdd / pierceAdd は多段と貫通への加算（値 × 戦意の切り捨て）。reachMul は弾を撃つ放出（詠唱の弾の段）では弾の半径にも掛かる（戦輪の大輪。当たりも絵も大きくなる）",
     "guardBlock": "盾: 構えで受けた被ダメージ 1 あたりの受け溜め（受けた元のダメージ × この値）。moraleGainMul を掛ける",
     "bulletCut": "扇: 払いで敵弾を消した 1 発あたりの風（moraleGainMul を掛ける）",
     "blockOnlyCommitted": "盾: 応手（guardBlock）になるのはコミットした攻撃（攻撃が確定した予備動作・攻撃中の敵）を構えで受けたときだけ（真偽）。受け溜めは受けた量で常に溜まる",

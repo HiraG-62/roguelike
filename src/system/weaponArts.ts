@@ -288,12 +288,14 @@ export interface ArtVolleyOverride {
   lane?: ButtonKey;
   /** 放出の弾（終撃・会心。Projectile.release へ写す） */
   release?: { finisher: boolean; crit: boolean };
+  /** 弾の半径に掛ける（放出の倍率 reachMul。戦輪の大輪は半径が増え、当たりも絵も大きくなる） */
+  radiusMul?: number;
 }
 
 /** 放出の倍率（戦意）を弾の差し替えに写す。放出でなければ空 */
 function releaseOverride(r: ShotRelease | undefined): ArtVolleyOverride {
   if (!r) return {};
-  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, release: { finisher: r.finisher, crit: r.crit } };
+  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, radiusMul: r.mul.reachMul, release: { finisher: r.finisher, crit: r.crit } };
 }
 
 /** 振りの詠唱（cast）の魔弾の差し替え。放出の振り（杖の 3 手の派生）が撃つ魔弾は放出の弾にする（player.ts の updateAttack） */
@@ -319,6 +321,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     ...(t.lineGap !== undefined ? { lineGap: t.lineGap } : {}),
     lane: over.lane ?? "secondary",
     release: over.release,
+    ...(over.radiusMul !== undefined ? { radiusMul: over.radiusMul } : {}),
     ...(over.fan ? { fan: over.fan } : {}),
   });
 }

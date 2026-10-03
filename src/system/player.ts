@@ -1786,6 +1786,8 @@ export interface VolleyOverride {
   lane?: ButtonKey;
   /** 放出の弾（Projectile.release） */
   release?: { finisher: boolean; crit: boolean };
+  /** 弾の半径に掛ける（放出の倍率 reachMul。弾の当たりと絵が大きくなる） */
+  radiusMul?: number;
   /** 向き（facing）からのずれ（ラジアン）。三点の続きが撃った回の向きを保つ */
   angleOffset?: number;
   /** 同じ形の 1 回を count 回、spreadDeg（度）ずつ扇にずらして同時に出す（派生の弾。省略は 1 回） */
@@ -1806,7 +1808,7 @@ function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: numb
   return {
     damage: override.damage ?? shotDamage(s) * damageMul,
     poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul * (override.poiseMul ?? 1),
-    radius: charged?.radius ?? shot.radius,
+    radius: (charged?.radius ?? shot.radius) * (override.radiusMul ?? 1),
     pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
     speed,
     life: shotLife(shot, speed, aim),

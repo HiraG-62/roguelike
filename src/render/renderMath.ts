@@ -497,6 +497,18 @@ export function laneHoldPose(step: ActionStepDef | undefined, holding: boolean):
   return undefined;
 }
 
+/** 今の振りが右レーンの何の段か（段の key。左・派生・溜め・ダッシュ攻撃・振っていない間は undefined） */
+export function activeLaneStepKey(
+  steps2: readonly ActionStepDef[],
+  a: { readonly lane: string; readonly step: number; readonly branch: number; readonly chargeLevel: number; readonly charging: boolean },
+  swinging: boolean,
+  dashStrike: boolean,
+): string | undefined {
+  if (!swinging || dashStrike || a.charging || a.lane !== "secondary" || a.branch >= 0 || a.chargeLevel > 0) return undefined;
+  const s = steps2[a.step];
+  return s?.kind === "swing" ? s.key : undefined;
+}
+
 export interface WeaponView {
   readonly frame: WeaponFrame;
   readonly flipX: boolean;

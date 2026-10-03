@@ -3,7 +3,7 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { dist } from "../core/vec";
-import { PLAYER, ULTIMATE } from "../data/tuning";
+import { FORM, PLAYER, ULTIMATE } from "../data/tuning";
 import { ultimateDef } from "../data/ultimates";
 import { formOf } from "../data/weaponForms";
 import { MOVESETS } from "../data/weapons";
@@ -253,6 +253,15 @@ describe("大輪（強化投げの放出）", () => {
     expect(big[0]?.pierceLeft ?? 0, "大輪は貫く").toBeGreaterThan((normal[0]?.pierceLeft ?? 0) + 50);
     expect(big[0]?.damage ?? 0, "大輪は威力が増す").toBeGreaterThan((normal[0]?.damage ?? 0) * 1.5);
     expect(full.player.morale.value, "戦意は使い切る").toBe(0);
+  });
+
+  it("大輪は放出の倍率（reachMul）のぶん半径が大きく、満ちていない輪は器の半径のまま", () => {
+    const normal = hurl(arena(5, RING_STATS), false);
+    const big = hurl(arena(5, RING_STATS), true);
+    const base = normal[0]?.radius ?? 0;
+    expect(base, "普通の輪は器の半径").toBeGreaterThan(0);
+    expect(big[0]?.radius ?? 0, "大輪は半径が増える").toBeCloseTo(base * (1 + FORM.thrower.perUnit.reachMul * 4), 5);
+    expect(big[0]?.radius ?? 0, "大輪は普通の輪より大きい").toBeGreaterThan(base);
   });
 
   it("大輪は敵の群れを貫いて全員に当たり、普通の輪は貫通が尽きると折り返す", () => {
