@@ -161,7 +161,11 @@ import { enemyDef } from "./data/enemies";
 import { telegraphDiagram } from "./system/telegraphDiagram";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, borrowRackEntry, createHub, equippedMoveset, fillHubResources, hubResourceRatio, trialUltimateName, rackEntryName, setHubResource, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type HubSession, borrowRackEntry, borrowWeapon, createHub, equippedMoveset, fillResourcesOf, resourceRatioOf, trialUltimateName, rackEntryName, setResourceOf, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type DojoSession, createDojo, dojoMeterView, respawnDojo, resetDojoMeter, restoreDojoPlayer, setDojoConfig, setDojoTrialWeapon, stepDojo } from "./system/dojo";
+import { type DojoConfig, defaultDojoConfig } from "./system/dojoConfig";
+import { type DojoBoardUi, createDojoBoardUi, dojoBoardRowGap, stepDojoBoard } from "./ui/dojoBoard";
+import { drawDojoBoard, drawDojoOverlay, drawDojoProps } from "./render/dojoUi";
 import { HUB, META } from "./data/tuning";
 import type { HubSpotKey } from "./map/hubMap";
 import { availableSpots, builtFacilities, facilityBuiltBanner, newlyBuilt } from "./meta/hub";
@@ -171,7 +175,7 @@ import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
 import type { MovesetKey } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
-import { type RackAction, type RackCard, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
+import { type RackAction, type RackCard, type RackInput, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
 import {
   type TitleAction,
   type TitleMenuItem,
@@ -237,6 +241,8 @@ type Screen =
   | "rack"
   | "hall"
   | "hallFight"
+  | "dojo"
+  | "dojoBoard"
   | "carryBack";
 
 /** タイトルのメニューから開く一覧画面（Tips ノートはポーズからも開く） */
@@ -357,6 +363,7 @@ function applyHitstopScale(): void {
     recorder?.noteHitstopScale(state, settings.hitstopScale);
   }
   if (hub) hub.state.hitstopScale = settings.hitstopScale;
+  if (dojo) dojo.state.hitstopScale = settings.hitstopScale;
   saveSettings(settings);
 }
 
@@ -935,6 +942,7 @@ function leaveMenu(): void {
 
 function leaveHub(): void {
   hub = null;
+  dojo = null;
   inventoryUi.open = false;
   menuReturn = "title";
   screen = "title";
@@ -952,7 +960,11 @@ function openHubSpot(spot: HubSpotKey, session: HubSession, frame: FrameInput): 
     return;
   }
   if (open.kind === "rack") {
-    openRack(session, frame.move.x, frame.move.y);
+    openRack(hubRackHost(session), frame.move.x, frame.move.y);
+    return;
+  }
+  if (open.kind === "dojo") {
+    openDojo(session);
     return;
   }
   if (open.kind === "hall") {
@@ -1130,7 +1142,7 @@ function drawHallFight(ctx: CanvasRenderingContext2D, fight: HallFight): void {
 }
 
 const RACK_TITLE = "武器掛け";
-const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 拠点へ";
+const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 戻る";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
 const rackLatch = createHoldLatch();
@@ -1139,15 +1151,56 @@ let rackCardList: RackCard[] = [];
 /** 「装備のまま」のカードに出す武器種（開いたときと借りたときだけ数え直す） */
 let rackEquipped: MovesetKey | null = null;
 
-function refreshRackCards(session: HubSession): void {
-  rackCardList = rackCards(session.hub.trialMoveset);
-  rackEquipped = equippedMoveset(session.state.profile);
+/**
+ * 武器掛けを開いた箱庭（拠点 / 稽古の間）。画面の操作は同じで、試しと借り物の書き先と戻り先だけが違う。
+ * 資源の調整は state を直接書く（どちらの state もリプレイにも保存にも載らない）
+ */
+interface RackHost {
+  state: GameState;
+  trialMoveset: () => MovesetKey | null;
+  setTrial: (moveset: MovesetKey | null) => void;
+  /** 素の器を借りる。借りたら試しを外す。倉庫が満杯なら null */
+  borrow: (moveset: MovesetKey, now: number) => Item | null;
+  back: () => void;
+}
+let rackHost: RackHost | null = null;
+
+function hubRackHost(session: HubSession): RackHost {
+  return {
+    state: session.state,
+    trialMoveset: () => session.hub.trialMoveset,
+    setTrial: (moveset) => setTrialWeapon(session, moveset),
+    borrow: (moveset, now) => borrowRackEntry(session, { kind: "moveset", key: moveset }, now),
+    back: returnToHub,
+  };
 }
 
-function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): void {
+function dojoRackHost(session: DojoSession): RackHost {
+  return {
+    state: session.state,
+    trialMoveset: () => session.dojo.trialMoveset,
+    setTrial: (moveset) => setDojoTrialWeapon(session, moveset),
+    borrow: (moveset, now) => {
+      const item = borrowWeapon(session.state.profile, moveset, now);
+      if (item !== null) setDojoTrialWeapon(session, null);
+      return item;
+    },
+    back: () => {
+      screen = "dojo";
+    },
+  };
+}
+
+function refreshRackCards(host: RackHost): void {
+  rackCardList = rackCards(host.trialMoveset());
+  rackEquipped = equippedMoveset(host.state.profile);
+}
+
+function openRack(host: RackHost, frameMoveX: number, frameMoveY: number): void {
   screen = "rack";
+  rackHost = host;
   rackUi = createRackUi();
-  refreshRackCards(session);
+  refreshRackCards(host);
   rackHold = 0;
   resetHoldLatch(rackLatch);
   menuNav.prevX = frameMoveX;
@@ -1155,7 +1208,8 @@ function openRack(session: HubSession, frameMoveX: number, frameMoveY: number): 
   menuAimPrev = null;
 }
 
-function stepRackInput(frame: FrameInput, arrowX: number, arrowY: number): RackAction {
+/** 格子・行の画面（武器掛け・稽古帳）の入力。矢印キーかパッドの倒し始め、ホバー、クリック、決定 */
+function gridMenuInput(frame: FrameInput, arrowX: number, arrowY: number): RackInput {
   const aim = frame.aimScreen;
   const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
   menuAimPrev = aim;
@@ -1163,48 +1217,49 @@ function stepRackInput(frame: FrameInput, arrowX: number, arrowY: number): RackA
   const navY = arrowY !== 0 ? arrowY : edgeDir(menuNav.prevY, frame.move.y);
   menuNav.prevX = frame.move.x;
   menuNav.prevY = frame.move.y;
-  const input = { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
-  return stepRack(rackUi, rackCardList, input);
+  return { navX, navY, wheel: frame.wheel, aim, aimMoved, click: frame.clickPressed, confirm: frame.confirmPressed };
 }
 
 /** 短押し（決定）で試し、長押しで借りる。試すカードは押した瞬間に替わるので、借りる前に振り心地が変わって見える */
-function updateRackFrame(session: HubSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
+function updateRackFrame(host: RackHost, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
   if (escape) {
     sfx.play("uiClose");
-    returnToHub();
+    rackHost = null;
+    host.back();
     return;
   }
-  applyRackAction(session, stepRackInput(frame, arrowX, arrowY));
+  applyRackAction(host, stepRack(rackUi, rackCardList, gridMenuInput(frame, arrowX, arrowY)));
   const target = rackCursorCard(rackUi, rackCardList)?.moveset ?? null;
   rackHold = target !== null && latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
   if (target === null || rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  const borrowed = borrowRackEntry(session, { kind: "moveset", key: target }, Date.now());
+  const borrowed = host.borrow(target, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
-  refreshRackCards(session);
+  refreshRackCards(host);
 }
 
-/** カードは試し、調整欄は拠点の資源を書き換える（拠点の state はリプレイにも保存にも載らない） */
-function applyRackAction(session: HubSession, action: RackAction): void {
+/** カードは試し、調整欄は箱庭の資源を書き換える（拠点・稽古の間の state はリプレイにも保存にも載らない） */
+function applyRackAction(host: RackHost, action: RackAction): void {
   if (action.kind === "none") return;
   if (action.kind === "moved") {
     sfx.play("menuMove");
     return;
   }
   if (action.kind === "try") {
-    setTrialWeapon(session, action.moveset);
-    refreshRackCards(session);
+    host.setTrial(action.moveset);
+    refreshRackCards(host);
   } else if (action.kind === "adjust") {
-    setHubResource(session, action.resource, hubResourceRatio(session, action.resource) + action.delta);
+    setResourceOf(host.state, action.resource, resourceRatioOf(host.state, action.resource) + action.delta);
   } else {
-    fillHubResources(session);
+    fillResourcesOf(host.state);
   }
   sfx.play("uiClick");
 }
 
-function drawRackFrame(ctx: CanvasRenderingContext2D, session: HubSession): void {
-  const resources = { hp: hubResourceRatio(session, "hp"), mana: hubResourceRatio(session, "mana"), energy: hubResourceRatio(session, "energy") };
+function drawRackFrame(ctx: CanvasRenderingContext2D, host: RackHost): void {
+  const s = host.state;
+  const resources = { hp: resourceRatioOf(s, "hp"), mana: resourceRatioOf(s, "mana"), energy: resourceRatioOf(s, "energy") };
   drawRackScreen(ctx, {
     title: RACK_TITLE,
     hint: RACK_HINT,
@@ -1215,6 +1270,102 @@ function drawRackFrame(ctx: CanvasRenderingContext2D, session: HubSession): void
     borrowHold: rackHold / HUB.rackBorrowHold,
     lookup: (key) => renderer.atlasSprite(key),
   });
+}
+
+// -----------------------------------------------------------------------------
+// 稽古の間（docs/ideas/dojo.md。拠点の稽古場の台から入る検証用の箱庭）
+// -----------------------------------------------------------------------------
+
+let dojo: DojoSession | null = null;
+/** 稽古帳の設定。拠点を出入りしても覚え、ゲームを閉じると既定に戻る（保存しない） */
+let dojoConfig: DojoConfig = defaultDojoConfig();
+const dojoBoardUi: DojoBoardUi = createDojoBoardUi();
+
+/** 拠点で試している武器種・誓約を持ち込んで入る */
+function openDojo(session: HubSession): void {
+  const h = session.hub;
+  dojo = createDojo({ profile, skillProfile, hitstopScale: settings.hitstopScale, config: dojoConfig, trialMoveset: h.trialMoveset, trialKeystone: h.trialKeystone });
+  inventoryUi.open = false;
+  // 入った最初のコマから床が出るよう、映る範囲のチャンクを焼いておく（稽古の間は迷宮と同じ焼き方）
+  renderer.settleMap(dojo.state);
+  screen = "dojo";
+}
+
+/** 稽古の間で替えた試しの武器種を拠点へ持ち帰る（借り物・装備の変更も拠点の stats に数え直す） */
+function leaveDojo(session: DojoSession): void {
+  dojo = null;
+  inventoryUi.open = false;
+  if (hub) setTrialWeapon(hub, session.dojo.trialMoveset);
+  returnToHub();
+}
+
+function updateDojoFrame(session: DojoSession, frame: FrameInput, escape: boolean, dt: number): void {
+  // 装備画面（Tab）は拠点と同じく stepDojo より前に処理する。Esc で閉じた同じフレームに稽古の間から出ない
+  const wasOpen = inventoryUi.open;
+  updateInventoryUi(session.state, inventoryUi, frame, dt, { back: escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
+  if (wasOpen || inventoryUi.open) {
+    drainSfx(session.state);
+    drainEchoes(session.state);
+    return;
+  }
+  if (escape) {
+    sfx.play("uiClose");
+    leaveDojo(session);
+    return;
+  }
+  const action = stepDojo(session, frame, dt);
+  drainSfx(session.state);
+  drainEchoes(session.state);
+  if (action.kind !== "open") return;
+  sfx.play("uiClick");
+  if (action.spot === "board") openDojoBoard(frame.move.x, frame.move.y);
+  else if (action.spot === "rack") openRack(dojoRackHost(session), frame.move.x, frame.move.y);
+  else leaveDojo(session);
+}
+
+function openDojoBoard(frameMoveX: number, frameMoveY: number): void {
+  screen = "dojoBoard";
+  menuNav.prevX = frameMoveX;
+  menuNav.prevY = frameMoveY;
+  menuAimPrev = null;
+}
+
+function updateDojoBoardFrame(session: DojoSession, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number): void {
+  if (escape) {
+    sfx.play("uiClose");
+    screen = "dojo";
+    return;
+  }
+  const action = stepDojoBoard(dojoBoardUi, dojoConfig, gridMenuInput(frame, arrowX, arrowY), dojoBoardRowGap(textLineHeight(TEXT.SMALL)));
+  if (action.kind === "none") return;
+  if (action.kind === "moved") {
+    sfx.play("menuMove");
+    return;
+  }
+  sfx.play("uiClick");
+  if (action.kind === "change") {
+    // 湧き直しの要る行（相手・数など）は setDojoConfig が湧き直す
+    dojoConfig = action.config;
+    setDojoConfig(session, dojoConfig);
+    return;
+  }
+  if (action.row === "respawnNow") respawnDojo(session);
+  else if (action.row === "resetMeter") resetDojoMeter(session);
+  else restoreDojoPlayer(session);
+}
+
+function drawDojoScreen(ctx: CanvasRenderingContext2D, session: DojoSession): void {
+  const s = session.state;
+  const d = session.dojo;
+  // 台は床の物なので world 層で描く（体より奥）。他の画面の描画に残らないよう描いたら外す
+  renderer.setWorldDecor((g, st) => drawDojoProps(g, st, d.layout, (key) => renderer.atlasSprite(key)));
+  renderGame(s, inventoryUi.open ? null : lastAim);
+  renderer.setWorldDecor(null);
+  if (inventoryUi.open) {
+    drawInventoryUi(ctx, s, inventoryUi);
+    return;
+  }
+  drawDojoOverlay(ctx, s, { meter: dojoMeterView(session), config: d.config, near: d.near, layout: d.layout });
 }
 
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
@@ -1570,7 +1721,7 @@ function questDoneInRun(s: GameState): boolean {
  */
 const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay", "hallFight"]);
 /** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
-const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack", "hall"]);
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack", "hall", "dojo", "dojoBoard"]);
 function updateMusic(): void {
   if (hub && MUSIC_HUB_SCREENS.has(screen)) {
     music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
@@ -1654,7 +1805,7 @@ function renderGame(s: GameState, aim: { x: number; y: number } | null): void {
  */
 let cursorVisible = false;
 function updateCursorVisibility(cur: GameState | null): void {
-  const inWorld = screen === "playing" || screen === "hub" || screen === "hallFight";
+  const inWorld = screen === "playing" || screen === "hub" || screen === "hallFight" || screen === "dojo";
   const wantVisible = inventoryUi.open || !inWorld || cur?.boonChoice != null || cur?.reforgeChoice != null;
   if (wantVisible === cursorVisible) return;
   cursorVisible = wantVisible;
@@ -1663,12 +1814,12 @@ function updateCursorVisibility(cur: GameState | null): void {
 
 startLoop(
   (dt) => {
-    const frame = input.snapshot((state ?? hallFight?.run.state ?? hub?.state)?.camera.offset);
+    const frame = input.snapshot((state ?? hallFight?.run.state ?? (screen === "dojo" ? dojo?.state : undefined) ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
     keyboardEscape = hotkeys.escape;
     // B / Start はメニューの「戻る/ポーズ」として Escape 相当に統合する。
     // ただしプレイ中（装備画面を閉じている間）は B がダッシュと共用なので、ポーズは Start だけで開く
-    const padInGame = (screen === "playing" || screen === "hub" || screen === "hallFight") && !inventoryUi.open;
+    const padInGame = (screen === "playing" || screen === "hub" || screen === "hallFight" || screen === "dojo") && !inventoryUi.open;
     if (padInGame ? gamepad.pausePressed() : input.gamepadEscapePressed()) hotkeys.escape = true;
     lastAim = frame.aimScreen;
     updateMusic();
@@ -1706,11 +1857,29 @@ startLoop(
       }
 
       case "rack": {
-        if (!hub) {
-          screen = "title";
+        if (!hub || !rackHost) {
+          screen = hub ? "hub" : "title";
           break;
         }
-        updateRackFrame(hub, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
+        updateRackFrame(rackHost, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY, dt);
+        break;
+      }
+
+      case "dojo": {
+        if (!hub || !dojo) {
+          screen = hub ? "hub" : "title";
+          break;
+        }
+        updateDojoFrame(dojo, frame, hotkeys.escape, dt);
+        break;
+      }
+
+      case "dojoBoard": {
+        if (!hub || !dojo) {
+          screen = hub ? "hub" : "title";
+          break;
+        }
+        updateDojoBoardFrame(dojo, frame, hotkeys.escape, hotkeys.arrowX, hotkeys.arrowY);
         break;
       }
 
@@ -2158,8 +2327,18 @@ startLoop(
       drawGamepadConnectedHint(ctx);
       return;
     }
-    if (screen === "rack" && hub) {
-      drawRackFrame(ctx, hub);
+    if (screen === "rack" && rackHost) {
+      drawRackFrame(ctx, rackHost);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "dojo" && dojo) {
+      drawDojoScreen(ctx, dojo);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (screen === "dojoBoard") {
+      drawDojoBoard(ctx, { ui: dojoBoardUi, config: dojoConfig, rowGap: dojoBoardRowGap(textLineHeight(TEXT.SMALL)) });
       drawGamepadConnectedHint(ctx);
       return;
     }

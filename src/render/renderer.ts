@@ -664,6 +664,9 @@ function pick<T>(arr: readonly T[], i: number): T | undefined {
   return arr[i % arr.length];
 }
 
+/** world 層へ外から差し込む絵（カメラの座標系。state は読むだけ） */
+export type WorldDecor = (ctx: CanvasRenderingContext2D, state: GameState) => void;
+
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   /** PNG 取り込み（setAtlas）で差し替わるので readonly にしない */
@@ -767,6 +770,8 @@ export class Renderer {
   private lookup: RoomLookup | null = null;
   /** 拠点の台（setHubView）。拠点以外では null */
   private hubView: TownHubView | null = null;
+  /** world 層に差し込む外の絵（稽古の間の台。setWorldDecor）。体より奥・床より上に、カメラの座標系で描く */
+  private worldDecor: WorldDecor | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -910,6 +915,7 @@ export class Renderer {
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
+    this.worldDecor?.(ctx, state);
     drawExitHints(ctx, state);
     const town = this.hubView;
     if (town) this.townLayer.drawBack(ctx, state, town);
@@ -1068,6 +1074,11 @@ export class Renderer {
     this.hubView = view;
   }
 
+  /** world 層の床の上・体の下に描く外の絵（稽古の間の台）。描いたら呼び出し側が null に戻す */
+  setWorldDecor(decor: WorldDecor | null): void {
+    this.worldDecor = decor;
+  }
+
   /** 外から描く UI（拠点の設備など）が PNG 素材を引くための公開。無ければ undefined（呼び出し側がフォールバック） */
   atlasSprite(key: string): Sprite | undefined {
     return this.atlas[key];
@@ -1175,8 +1186,9 @@ export class Renderer {
       this.demoChunks.drawGround(this.ctx, view);
       return;
     }
-    if (state.sandbox === true) {
-      if (this.hubView) this.drawTownGround(this.hubView, viewX, viewY);
+    // 拠点は門前町の床。拠点の絵の無い箱庭（稽古の間）は迷宮と同じ章の様式で焼く
+    if (state.sandbox === true && this.hubView) {
+      this.drawTownGround(this.hubView, viewX, viewY);
       return;
     }
     const view = this.setMapView(viewX, viewY);
@@ -1242,7 +1254,6 @@ export class Renderer {
 
   settleMap(state: GameState): void {
     const town = state.sandbox === true ? this.hubView : null;
-    if (state.sandbox === true && !town) return;
     const cam = state.camera;
     const view = this.setMapView(Math.round(cam.pos.x - cam.offset.x - VIEW_W / 2), Math.round(cam.pos.y - cam.offset.y - VIEW_H / 2));
     if (town) {

@@ -73,6 +73,7 @@ export const FACILITY_OF_SPOT: Readonly<Record<HubSpotKey, FacilityKey>> = {
   achievements: "archive",
   rack: "rack",
   hall: "hall",
+  dojo: "training",
 };
 
 /** 最初から建っている設備。建った演出は出さない（初回に 4 枚のバナーが並ばないように） */

@@ -25,8 +25,8 @@ function isFloor(map: GameMap, [x, y]: readonly [number, number]): boolean {
   return getTile(map, x, y) === Tile.Floor;
 }
 
-/** 台は自分の敷地の南 1 マス以内（敷地の列の範囲の中）に立つ。記録の蔵の 3 台は蔵の南 */
-const SPOT_LOT: Readonly<Record<HubSpotKey, HubLotKey>> = {
+/** 台は自分の敷地の南 1 マス以内（敷地の列の範囲の中）に立つ。記録の蔵の 3 台は蔵の南。稽古の間の入口は稽古場の中（別に見る） */
+const SPOT_LOT: Readonly<Record<Exclude<HubSpotKey, "dojo">, HubLotKey>> = {
   well: "well",
   board: "board",
   forge: "forge",
@@ -73,7 +73,7 @@ describe("門前町の配置", () => {
   });
 
   it("台は自分の敷地の南 1 マス以内に立つ", () => {
-    for (const key of HUB_SPOT_KEYS) {
+    for (const key of Object.keys(SPOT_LOT) as (keyof typeof SPOT_LOT)[]) {
       const lot = layout.lots[SPOT_LOT[key]];
       const [tx, ty] = tileOf(layout.spots[key]);
       expect(ty, `${key} は敷地の 1 行南`).toBe(lot.y + lot.h);
@@ -100,6 +100,7 @@ describe("門前町の配置", () => {
     const yard = layout.lots.yard;
     for (const t of tilesOf(layout.lots.rackShed)) expect(inRect(yard, t), "小屋が稽古場の中").toBe(true);
     for (const d of layout.dummySpots) expect(inRect(yard, tileOf(d)), "木人が稽古場の中").toBe(true);
+    expect(inRect(yard, tileOf(layout.spots.dojo)), "稽古の間の入口が稽古場の中").toBe(true);
   });
 
   it("鳥居の柱は当たりで壁、ground で床。鳥居の矩形は石段を含み、柱の間は参道", () => {

@@ -344,6 +344,9 @@ export const HUB = BALANCE.world.HUB;
 /** ボスの間（src/system/bossHall.ts）。拠点から倒したボスに挑み直す練習の場 */
 export const BOSS_HALL = BALANCE.world.BOSS_HALL;
 
+/** 稽古の間（src/system/dojo.ts）。拠点の稽古場から入る検証用の専用ステージ */
+export const DOJO = BALANCE.world.DOJO;
+
 /** ボス階の専用の部屋の並べ方（src/map/layout/lordHall.ts） */
 export const LORD_HALL = BALANCE.world.LORD_HALL;
 
