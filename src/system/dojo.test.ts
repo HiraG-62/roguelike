@@ -8,7 +8,7 @@ import { createEmptyProfile } from "../loot/types";
 import { overlapsWall } from "./physics";
 import { createDefaultSkillProfile } from "../skills/persistence";
 import { damageEnemy, damagePlayerDot } from "./combat";
-import { type DojoSession, createDojo, dojoMeterView, dojoSpawnPoints, resetDojoMeter, restoreDojoPlayer, setDojoConfig, stepDojo } from "./dojo";
+import { type DojoSession, createDojo, dojoMeterView, dojoSpawnPoints, resetDojoMeter, restoreDojoPlayer, setDojoConfig, setDojoTrialWeapon, stepDojo } from "./dojo";
 import { type DojoConfig, defaultDojoConfig, dojoEliteOptions, dojoEnemyKeys } from "./dojoConfig";
 import { fireEnemyBullet } from "./enemyTraits";
 import { createSandboxState } from "./sandbox";
@@ -29,6 +29,7 @@ function dojo(patch: Partial<DojoConfig> = {}): DojoSession {
     hitstopScale: 1,
     config: { ...defaultDojoConfig(), ...patch },
     trialMoveset: null,
+    trialBase: null,
     trialKeystone: null,
   });
 }
@@ -381,5 +382,27 @@ describe("稽古の間の台", () => {
     expect(p.hp).toBe(p.maxHp);
     expect(p.mana).toBe(s.state.stats.maxMana);
     expect(p.energy).toBe(p.maxEnergy);
+  });
+});
+
+describe("稽古の間の武器の試し", () => {
+  it("銃の家系は拠点で選んだ器の弾を持ち込み、器を替えて試せる", () => {
+    const session = createDojo({
+      profile: createEmptyProfile(),
+      skillProfile: createDefaultSkillProfile(),
+      hitstopScale: 1,
+      config: defaultDojoConfig(),
+      trialMoveset: "longarm",
+      trialBase: "rifle",
+      trialKeystone: null,
+    });
+    expect(session.state.stats.bullet, "持ち込んだ小銃").toBe("rifle");
+    run(session, FIXED_DT);
+    expect(session.state.stats.bullet, "ステップ後も小銃").toBe("rifle");
+    setDojoTrialWeapon(session, "longarm", "tripleCrossbow");
+    run(session, FIXED_DT);
+    expect(session.state.stats.bullet, "三連弩に替える").toBe("tripleCrossbow");
+    setDojoTrialWeapon(session, null, "rifle");
+    expect(session.dojo.trialBase, "装備のままでは器を持たない").toBeNull();
   });
 });

@@ -22,19 +22,24 @@ export const FORM_KEYS = [
   "warfan",
   "rod",
   "thrower",
+  "dart",
+  "star",
   "pistol",
+  "akimbo",
   "rifle",
   "artillery",
+  "powder",
+  "shell",
   "tome",
   "bell",
 ] as const;
 export type FormKey = (typeof FORM_KEYS)[number];
 
 /** 応手になる出来事（system/moments.ts の noteRiposte に渡す） */
-export type RiposteSource = "parry" | "counter" | "justDodge" | "guardBlock" | "bulletCut" | "iai" | "pullInterrupt" | "recallCut" | "chargeEndure";
+export type RiposteSource = "parry" | "counter" | "justDodge" | "guardBlock" | "bulletCut" | "iai" | "pullInterrupt" | "chargeEndure";
 
 /** 終撃になる出来事。lastStep（連撃の最終段・フィニッシュ派生）は全型 */
-export type FinisherSource = "lastStep" | "maxCharge" | "release" | "detonate" | "aimedShot";
+export type FinisherSource = "lastStep" | "maxCharge" | "release" | "detonate";
 
 /**
  * 戦意の溜まる出来事。amount / perSec / perDamage は FORM.<型>.gain の値を差し込む。
@@ -59,10 +64,14 @@ export type MoraleGain =
   | { kind: "bulletCut"; amount: number }
   /** この連撃で出た詠唱・魔弾の数（杖。導出） */
   | { kind: "cast" }
-  /** 自分の飛んでいる弾の数（投具。導出） */
-  | { kind: "flyingShots" }
-  /** 撃った弾（短銃の弾倉） */
-  | { kind: "shotFired"; amount: number }
+  /** 早込めが決まった（短銃。system/magazine.ts の tryQuickReload） */
+  | { kind: "quickReload"; amount: number }
+  /** 前の押下と違う手で撃った 1 発（二丁の拍。system/dualPistols.ts。同じ手が続くと 0 へ途切れる） */
+  | { kind: "alternateShot"; amount: number }
+  /** 砲の詰めの段が 1 つ上がった（装薬。system/magazine.ts の tickPack） */
+  | { kind: "pack"; amount: number }
+  /** 敵を 1 体以上巻き込んだ自分の炸裂（擲弾。system/projectiles.ts の detonateMine → system/morale.ts の noteBlast） */
+  | { kind: "blastHit"; amount: number }
   /** 止まっている秒（長銃の狙い）。動く・ダッシュすると lossPerSec で減る */
   | { kind: "still"; perSec: number; lossPerSec: number }
   /** 床の自分の設置弾・曲射弾の数（砲。導出） */
@@ -70,7 +79,13 @@ export type MoraleGain =
   /** スキルの命中（書） */
   | { kind: "skillHit"; amount: number }
   /** 設置物・連動体の命中（鈴） */
-  | { kind: "minionHit"; amount: number };
+  | { kind: "minionHit"; amount: number }
+  /** 刺さった飛び物を叩き込んだ本数（クナイ。system/pins.ts の drivePins。1 本ごとに amount） */
+  | { kind: "pinDriven"; amount: number }
+  /** 刺さり崩しで敵を怯ませた（手裏剣。system/pins.ts の stickPin） */
+  | { kind: "pinStagger"; amount: number }
+  /** 1 回の投げで行きと帰りの両方で当てた敵 1 体（戦輪。system/projectiles.ts の投げの組） */
+  | { kind: "roundTrip"; amount: number };
 
 /**
  * 放出の形。laneStep の keys は右レーンの段の key（型に束ねた武器種ごとに 1 つ。設計の key を 1 つから列へ広げた）。
@@ -81,14 +96,26 @@ export type MoraleRelease =
   | { kind: "laneStep"; keys: readonly string[] }
   /** 3 手の派生が放出（杖） */
   | { kind: "branch" }
-  /** 満ちた後の最初の左が放出（長柄の突き・長銃の 1 発） */
-  | { kind: "nextPrimary" }
+  /**
+   * 満ちた後の最初の左が放出（長柄の突き・長銃の 1 発）。gate "rifle" は長銃の関門: 溜めの器は最大段の発射だけ、
+   * 溜めでない器はリロード後の 1 発目だけが放出（docs/ideas/gun-bases-review.md 0-4・4-3 の 9）
+   */
+  | { kind: "nextPrimary"; gate?: "rifle" }
+  /** 満ちたその込めの弾倉が強装填（短銃。弾倉の全弾が強く、1 発目が放出の弾） */
+  | { kind: "nextMagazine" }
+  /** 次の 1 発（左の射撃）か、右レーンのこの key の段が放出（装薬: 左の次の 1 発か零距離砲。どちらでも詰めを使う） */
+  | { kind: "nextShot"; keys: readonly string[] }
   /** 最大段の溜め攻撃が放出（重打） */
   | { kind: "maxCharge" }
   /** 構えを離した振りが放出（盾押し） */
   | { kind: "release" }
-  /** 弾倉が空で装填、窓の中で右を押すと強装填（短銃。数値は FORM.pistol.reload） */
-  | { kind: "reload"; windowSec: number; primeFrom: number; primeTo: number };
+  /** 左右をほぼ同時に押した撃ち尽くしが放出（二丁拳銃。system/dualPistols.ts。0 でも撃てて段ぶん強い） */
+  | { kind: "bothHands" }
+  /**
+   * 満ちた後の次の投げ（振りの開始・左の射撃）で始まり、sec 秒のあいだ攻撃の速さが attackSpeedMul 倍（投げの間隔が縮む。
+   * 手裏剣の連ね投げ。system/morale.ts の timedAttackSpeedMul）
+   */
+  | { kind: "timed"; sec: number; attackSpeedMul: number };
 
 /** 放出の戦意 1 あたりの上乗せ（FORM.<型>.perUnit） */
 export interface ReleasePerUnit {
@@ -149,8 +176,9 @@ export const MOMENT_TEXT = {
   release: "放出",
   twinStrike: "双撃",
   firstStrike: "先制",
-  /** 短銃の装填（弾倉が空。充溢の代わり）と強装填（窓の中で右を押せた） */
+  /** 装填（旧短銃の戦意の文言。今は出さない。MOMENT.json の見た目の行と揃えて残す） */
   reload: "装填",
+  /** 短銃の戦意が満ちて、その込めの弾倉が強装填になった */
   primed: "強装填",
 } as const;
 
@@ -180,13 +208,6 @@ function lastLaneKeys(form: FormKey): string[] {
     const key = lane[lane.length - 1]?.key;
     return key === undefined ? [] : [key];
   });
-}
-
-/** 型に束ねた武器種の右レーンのうち、床の設置弾・曲射弾を一斉に起爆する段の key（砲の放出の段。段の JSON の detonateMines が元） */
-function detonateLaneKeys(form: FormKey): string[] {
-  return movesetsOfForm(form).flatMap((k) =>
-    MOVESETS[k].steps2.flatMap((s) => (s.kind === "swing" && s.extras?.detonateMines && s.key !== undefined ? [s.key] : [])),
-  );
 }
 
 interface FormSpec {
@@ -264,10 +285,11 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     desc: "足を止めて狙い、満ちた 1 発で貫く",
     label: "狙い",
     gain: [{ kind: "still", perSec: FORM.rifle.gain.still, lossPerSec: FORM.rifle.moveLossPerSec }],
-    release: { kind: "nextPrimary" },
+    // 溜めの器（火縄銃・手砲）は最大段の発射、溜めでない器はリロード後の 1 発目だけが放出（system/morale.ts の passesRifleGate）
+    release: { kind: "nextPrimary", gate: "rifle" },
     keywords: kw(["ranged", "bullet", "finisher"], ["still"]),
     riposte: ["parry", "justDodge"],
-    finisher: ["lastStep", "release", "aimedShot"],
+    finisher: ["lastStep", "release"],
   }),
   // ---- 5b・5d で戦意を埋める骨の型（名前と応手は 3-4 の表のまま） ----
   // ---- 5b-D1: 刃斧・長柄・鎖（固有の仕組みは system/formMarks.ts） ----
@@ -343,39 +365,95 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
+  // ---- 投擲物の型（docs/ideas/gun-bases-review.md 0-5・2-9） ----
   thrower: defineForm("thrower", {
-    name: "投具",
-    desc: "投げて飛ばし、戻りの刃で刻む",
-    label: "飛んでいる数",
-    // 飛んでいる自分の弾の数（導出）。手元返し（投擲）・輪刃の投げ放ち・戦輪の払いが放出
-    gain: [{ kind: "flyingShots" }],
-    release: { kind: "laneStep", keys: ["recall", "ringLaunch", "ringSweep"] },
-    derived: true,
+    name: "戦輪",
+    desc: "輪を投げて行き帰りで刻み、強化投げで放つ",
+    label: "往復",
+    // 1 回の投げで行きと帰りの両方で当てた敵 1 体につき +1（system/projectiles.ts の投げの組）。満ちると右の強化投げが大輪（貫いて戻る）
+    gain: [{ kind: "roundTrip", amount: FORM.thrower.gain.roundTrip }],
+    release: { kind: "laneStep", keys: ["ringHurl"] },
     keywords: kw(["ranged", "bullet"], ["just"]),
-    riposte: ["parry", "recallCut", "justDodge"],
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
-  // ---- 5b-E: 銃の型 2（短銃の装填・砲の一斉起爆） ----
+  dart: defineForm("dart", {
+    name: "苦無",
+    desc: "投げて刺し、右の斬りで叩き込んで、満ちた左で千本を放つ",
+    label: "叩き込み",
+    // 叩き込んだクナイの本数で溜まり、満ちた後の次の左が千本（扇に 5 本。全部刺さる。system/player.ts の fireVolley）
+    gain: [{ kind: "pinDriven", amount: FORM.dart.gain.pinDriven }],
+    release: { kind: "nextPrimary" },
+    keywords: kw(["ranged", "bullet"], ["melee"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  star: defineForm("star", {
+    name: "手裏剣",
+    desc: "手数で刺し、刺さった数で崩す",
+    label: "崩し",
+    // 戦意は刺さり崩しで怯ませた回数（system/pins.ts の stickPin）。満ちた後の次の投げが放出で、秒のあいだ投げの間隔が縮む（連ね投げ）
+    gain: [{ kind: "pinStagger", amount: FORM.star.gain.pinStagger }],
+    release: { kind: "timed", sec: FORM.star.timed.sec, attackSpeedMul: FORM.star.timed.attackSpeedMul },
+    keywords: kw(["ranged", "combo"], ["dash"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  // ---- 銃の型（docs/ideas/gun-bases-review.md 0-4。弾倉は system/magazine.ts） ----
   pistol: defineForm("pistol", {
     name: "短銃",
-    desc: "弾倉を撃ち切り、装填の拍で強装填する",
-    label: "弾倉",
-    gain: [{ kind: "shotFired", amount: FORM.pistol.gain.shotFired }],
-    release: { kind: "reload", ...FORM.pistol.reload },
+    desc: "片手で撃ち、込めの拍で早く込めて強装填を作る",
+    label: "早込め",
+    // 早込め 1 回で溜まり、満ちたその込めの弾倉が強装填（全弾が強く、1 発目が放出の弾）
+    gain: [{ kind: "quickReload", amount: FORM.pistol.gain.quickReload }],
+    release: { kind: "nextMagazine" },
     // 応手は受け流しと零距離の見切り（見切りの範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
     keywords: kw(["ranged", "bullet"], ["just"]),
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
+  // 二丁拳銃: 左右の手を交互に撃つ拍で溜まり、左右をほぼ同時に押す撃ち尽くしが放出（system/dualPistols.ts）
+  akimbo: defineForm("akimbo", {
+    name: "二丁",
+    desc: "左右の手を交互に撃って拍を刻み、両手の弾倉を撃ち尽くす",
+    label: "拍",
+    gain: [{ kind: "alternateShot", amount: FORM.akimbo.gain.alternateShot }],
+    release: { kind: "bothHands" },
+    keywords: kw(["ranged", "bullet"], ["combo"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
   artillery: defineForm("artillery", {
-    name: "砲",
+    name: "仕掛け",
     desc: "弾を置いて広げ、一斉に起爆する",
     label: "置いた弾",
     gain: [{ kind: "placedShots" }],
-    // 右の一斉起爆の段（零距離砲・起爆・蹴り飛ばし）が放出。一斉起爆した数が単位で、その一撃が終撃
-    release: { kind: "laneStep", keys: detonateLaneKeys("artillery") },
+    // 仕掛けだけの型。右の起爆の段が放出で、一斉起爆した数が単位、その一撃が終撃
+    release: { kind: "laneStep", keys: ["detonate"] },
     derived: true,
     keywords: kw(["placed", "explode"], ["placed"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  powder: defineForm("powder", {
+    name: "装薬",
+    desc: "満ちた弾倉に込め続けて詰め、次の 1 発で吹き飛ばす",
+    label: "詰め",
+    // 詰めの段（満ちた弾倉でリロードを押し続ける）で溜まる。左の次の 1 発か零距離砲が放出で、詰めた段の表（FORM.powder.levels）で粒・威力・反動が増える
+    gain: [{ kind: "pack", amount: FORM.powder.gain.pack }],
+    release: { kind: "nextShot", keys: ["pointBlank"] },
+    keywords: kw(["ranged", "area", "finisher"], ["still"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  shell: defineForm("shell", {
+    name: "擲弾",
+    desc: "敵を巻き込む炸裂を重ね、筒払いで押し返す",
+    label: "炸裂",
+    // 敵を 1 体以上巻き込んだ炸裂だけ数える（空撃ちでは溜まらない）。満ちると右 1 段目の筒払いが放出
+    gain: [{ kind: "blastHit", amount: FORM.shell.gain.blastHit }],
+    release: { kind: "laneStep", keys: ["tubeBash"] },
+    keywords: kw(["explode", "area"], ["explode"]),
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
@@ -401,6 +479,35 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["parry", "justDodge"],
   }),
 };
+
+// ---------------------------------------------------------------------------
+// 銃の型の放出の表（system/morale.ts が読む）
+// ---------------------------------------------------------------------------
+
+/** 装薬の詰めの段 1 つぶんの放出（FORM.powder.levels の 1 行） */
+export interface PowderLevel {
+  /** 散弾の粒に足す数 */
+  readonly pelletsAdd: number;
+  /** 弾（零距離砲の振り）の威力・怯み値の倍率 */
+  readonly damageMul: number;
+  /** 撃った向きの逆へ跳ぶ距離（px。壁で止まる） */
+  readonly recoilPx: number;
+}
+
+const POWDER_LEVELS: readonly PowderLevel[] = FORM.powder.levels.map((l) => ({ pelletsAdd: l.pelletsAdd, damageMul: l.damageMul, recoilPx: l.recoilPx }));
+
+/** 詰めの段 units の放出（1 段目から。表を超える段は最後の行、0 以下は undefined） */
+export function powderLevelOf(units: number): PowderLevel | undefined {
+  const level = Math.min(Math.floor(units), POWDER_LEVELS.length);
+  if (level <= 0) return undefined;
+  return POWDER_LEVELS[level - 1];
+}
+
+/** 短銃の強装填の弾倉の倍率（FORM.pistol.primed） */
+export const PISTOL_PRIMED: { readonly damageMul: number; readonly poiseMul: number } = { ...FORM.pistol.primed };
+
+/** 苦無の放出「千本」の形（FORM.dart.senbon）: 扇に count 本投げ、1 体に pinMax 本まで刺さる */
+export const KUNAI_SENBON: { readonly count: number; readonly spreadDeg: number; readonly pinMax: number } = { ...FORM.dart.senbon };
 
 /** 武器種（変身・奥義の差し替え後の型でも key と form は装備のまま）の型 */
 export function formOf(moveset: Pick<MovesetDef, "form">): FormDef {

@@ -438,6 +438,44 @@ export const LAYERED_SFX = {
     { k: "kick", from: 90, to: 40, drop: 0.08, dur: 0.22, peak: 0.55, drive: 2 },
     { k: "noise", filter: "lowpass", from: 1400, to: 150, dur: 0.18, peak: 0.35 },
   ],
+  // ---- 銃の弾倉（system/magazine.ts）: 銃声より小さく、金属の擦れと打ちで込めの拍を聞かせる ----
+  reloadStart: [
+    { k: "click", freq: 3000, peak: 0.2 },
+    { k: "noise", filter: "bandpass", from: 2400, to: 4200, dur: 0.07, q: 2, peak: 0.16 },
+    { k: "metal", freq: 1400, ratios: CLANG, dur: 0.08, peak: 0.05 },
+  ],
+  reloadDone: [
+    { k: "click", freq: 2600, peak: 0.3 },
+    { k: "kick", from: 260, to: 120, drop: 0.02, dur: 0.05, peak: 0.18 },
+    { k: "metal", freq: 1800, ratios: CLANG, dur: 0.1, peak: 0.07 },
+    { k: "click", freq: 4200, peak: 0.22, at: 0.07 },
+    { k: "noise", filter: "bandpass", from: 3800, to: 2000, dur: 0.05, q: 2, peak: 0.12, at: 0.07 },
+  ],
+  reloadBeat: [
+    { k: "click", freq: 2200, peak: 0.24 },
+    { k: "kick", from: 200, to: 90, drop: 0.03, dur: 0.06, peak: 0.16 },
+    { k: "noise", filter: "lowpass", from: 1600, to: 400, dur: 0.05, peak: 0.12 },
+  ],
+  quickReload: [
+    { k: "click", freq: 4500, peak: 0.35 },
+    { k: "kick", from: 300, to: 140, drop: 0.02, dur: 0.04, peak: 0.2 },
+    { k: "metal", freq: 2637, ratios: BLADE_RING, dur: 0.18, peak: 0.09 },
+    { k: "tone", type: "sine", freq: CHARGE_ROOT * 2, dur: 0.1, peak: 0.07, at: 0.03 },
+  ],
+  quickMiss: [
+    { k: "click", freq: 1800, peak: 0.24 },
+    { k: "noise", filter: "bandpass", from: 1400, to: 700, dur: 0.1, q: 2, peak: 0.16, drive: 2 },
+    { k: "metal", freq: 620, ratios: CLANG, dur: 0.14, peak: 0.06 },
+  ],
+  packLevel: [
+    { k: "click", freq: 1600, peak: 0.26 },
+    { k: "kick", from: 150, to: 60, drop: 0.04, dur: 0.1, peak: 0.26, drive: 2 },
+    { k: "noise", filter: "lowpass", from: 900, to: 200, dur: 0.1, peak: 0.14 },
+  ],
+  dryFire: [
+    { k: "click", freq: 5200, peak: 0.22 },
+    { k: "metal", freq: 2400, ratios: [1, 1.43], dur: 0.04, peak: 0.05 },
+  ],
   /** 弾の命中: 小さな破裂 */
   bulletHit: [
     { k: "click", freq: 2500, peak: 0.4 },

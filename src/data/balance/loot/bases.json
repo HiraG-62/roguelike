@@ -125,17 +125,8 @@
   "railgun": {
     "minLevel": 16
   },
-  "throwingKnives": {
-    "minLevel": 2
-  },
-  "blowgun": {
-    "minLevel": 3
-  },
   "matchlock": {
     "minLevel": 4
-  },
-  "ricochetGun": {
-    "minLevel": 3
   },
   "mineLauncher": {
     "minLevel": 10
@@ -146,29 +137,17 @@
   "crossbow": {
     "minLevel": 4
   },
-  "chakram": {
-    "minLevel": 9
-  },
   "handCannon": {
     "minLevel": 13
   },
   "caltrops": {
     "minLevel": 4
   },
-  "seekerOrb": {
-    "minLevel": 8
-  },
   "burstRifle": {
     "minLevel": 3
   },
   "tripleCrossbow": {
     "minLevel": 10
-  },
-  "returnChakram": {
-    "minLevel": 3
-  },
-  "flyingBlade": {
-    "minLevel": 11
   },
   "mortar": {
     "minLevel": 3
@@ -332,6 +311,12 @@
   },
   "vajraBell": {
     "minLevel": 13
+  },
+  "kunai": {
+    "minLevel": 2
+  },
+  "shuriken": {
+    "minLevel": 3
   },
   "hood": {
     "minLevel": 1

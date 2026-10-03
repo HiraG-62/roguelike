@@ -1,5 +1,5 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx, runOver } from "../core/state";
+import { type BurstEntry, type Enemy, type GameState, type Player, type Projectile, allocId, pushSfx, runOver } from "../core/state";
 import { type Vec, add, dist, fromAngle, angle, isZero, normalize, scale, sub, length } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import type { SfxName } from "../audio/sfxNames";
@@ -19,11 +19,12 @@ import {
   chargeButton,
   bulletFeatures,
   chargeLevelAt,
-  isGun,
   laneLength,
   laneSwing,
   matchBranch,
   meleeChargeOf,
+  shootsPrimary,
+  firesByHand,
   withExtraBranch,
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
@@ -31,7 +32,7 @@ import { type JobKey, jobBranch } from "../data/jobs";
 import { enemyDef } from "../data/enemies";
 import { withReforges } from "../data/reforges";
 import { DEFAULT_STATS, createLootRuntime, type PlayerStats, type Scaling } from "../loot/types";
-import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
+import { cancelAttack, damageEnemy, meleeHitEnergy, rollOutgoing, tickDelayedDamage, tickHpRegen, tickRegain } from "./combat";
 import { EARTH_WALL_SLAM_KEY } from "./boonDefs/earth";
 import { markShotBullet, shake, spawnBurst, spawnLine, addHeadLabel } from "./effects";
 import { chargeUpFx, onSwingFx, shotSfxName } from "./effects";
@@ -75,6 +76,7 @@ import {
   endArtHold,
   finishArtHold,
   isInstantStep,
+  nearestOwnMine,
   onBranchStart,
   onLaneSwingStart,
   startLaneArt,
@@ -82,14 +84,18 @@ import {
 } from "./weaponArts";
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
-import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
-import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
+import { ultimateOnSwing, ultimateOnSwingHit, ultimatePinDriveMul } from "./ultimates";
+import { KUNAI_SENBON, formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
-import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
-import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul, timedAttackSpeedMul } from "./morale";
+import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { type HandIndex, canFireAny, createMagazineFor, nextFireHand, pressTrigger, reloadMoveMul, spendRounds, tickMagazine } from "./magazine";
+import { pressHand, tickDualPistols } from "./dualPistols";
 import { relicBlocksSwing, relicStride, tickNamedRelics } from "./namedRelics";
 import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
 import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
+import { drivePins } from "./pins";
+import { launchThrow, newShotTrip, pairSides, returnsToHand, ringsInFlight } from "./projectiles";
 
 const KNOCK_DECAY = 14;
 const KNOCK_MIN = 2;
@@ -170,12 +176,13 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     shotCharging: false,
     shotChargeTime: 0,
     secondaryWasHeld: false,
-    shotBurst: { left: 0, timer: 0, side: 1 },
+    shotBurst: { queue: [], side: 1 },
     swingImpact: 0,
     art: { cooldown: 0, holding: false, holdTime: 0, recover: 0, cooldowns: new Map() },
     parry: { window: 0, recover: 0 },
     ultimate: createUltimateState(),
     morale: createMorale(),
+    magazine: createMagazineFor(stats),
     moment: createMoment(),
   };
 }
@@ -259,8 +266,16 @@ export interface MeleeStep {
   cast?: CastDef;
   /** 弾返し・弾斬りが無くても敵弾を消す（MeleeStepDef.cutsBullets） */
   cutsBullets: boolean;
+  /** 命中した敵を飛ばす向き（MeleeStepDef.knockToward） */
+  knockToward?: MeleeStepDef["knockToward"];
   /** 戦意を使った放出の振り（system/morale.ts。与ダメのタグ release・終撃の判定） */
   release?: boolean;
+  /** 命中した敵の刺さりを叩き込む（MeleeStepDef.drivePins。true = 全部、数 = 古い順にその本数） */
+  drivePins?: true | number;
+  /** 抜け斬り（MeleeStepDef.passThrough） */
+  passThrough?: boolean;
+  /** 斬った敵 1 体ごとの気力（MeleeStepDef.manaPerTarget） */
+  manaPerTarget?: number;
 }
 
 /** 装備中の武器種。武器なしは剣 */
@@ -378,7 +393,11 @@ function scaleStep(
     // 長柄: 放出の突きは貫く穂先の弾を撃ち、穂先を持つ突きは敵弾を払う（data/weaponForms.ts）
     cast: base.cast ?? formReleaseCast(moveset, base, release !== undefined),
     cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
+    ...(base.knockToward ? { knockToward: base.knockToward } : {}),
     ...(release ? { release: true } : {}),
+    ...(base.drivePins !== undefined ? { drivePins: base.drivePins } : {}),
+    ...(base.passThrough ? { passThrough: true } : {}),
+    ...(base.manaPerTarget !== undefined ? { manaPerTarget: base.manaPerTarget } : {}),
   };
 }
 
@@ -432,6 +451,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   // 血の契約の吸収は前フレームの敵・弾による与ダメも拾う
   trackDamageDealt(state);
   tickTimers(state, dt);
+  // 銃の弾倉（込めは振り・ダッシュ・怯みの最中も進む。弾が替わったら作り直す）
+  tickMagazine(state, input, dt);
   // 戦意と共通の瞬間（止まっている秒を数えるので入力を渡す）
   tickFormState(state, input, dt);
   const aiming = applyAim(state, input);
@@ -451,9 +472,9 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   relicStride(state, dt);
   tickNamedRelics(state);
   const shotHeld = shotButtonHeld(state, input);
-  // 射撃は銃の家系だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
+  // 射撃は左で撃つ武器種だけ（docs/ideas/weapon-redesign.md 0 章）。持ち替えたら溜め撃ち・三点の残りを捨てる
   const canShoot = shotHeld && !staggered && !skillLocksAttack(state) && !artLocksActions(state);
-  if (isGun(playerMoveset(state))) updateShooting(state, canShoot, dt, aimDistance(state, input));
+  if (shootsPrimary(playerMoveset(state))) updateShooting(state, canShoot, dt, aimDistance(state, input));
   else resetShooting(p);
   // 右の「押した瞬間」は前フレームとの差で取る（FrameInput は押しっぱなししか持たない）
   p.secondaryWasHeld = input.shootHeld;
@@ -466,7 +487,11 @@ function readActions(state: GameState, input: FrameInput): void {
   releaseFrozenInput(state);
   if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
   if (input.parryPressed) startParry(state);
-  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
+  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) {
+    readAttackButtons(state, input);
+    // 二丁拳銃の覚えておいた押下（振りの最中・手の間に押した分）を出せるようになったら出す
+    tickDualPistols(state);
+  }
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
 }
@@ -525,6 +550,15 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
   if (shapeButtonPress(state, button)) return;
   const p = state.player;
   const moveset = playerMoveset(state);
+  // 二丁拳銃は左右とも手の銃（左 = 左手、右 = 右手）。連続・同時押し・弾切れの手は system/dualPistols.ts が決める
+  if (firesByHand(moveset)) {
+    pressHand(state, button === "primary" ? 0 : 1);
+    return;
+  }
+  // 込めの最中の短銃の左は早込め（押下を使う）。撃てない引き金は空撃ちの音
+  if (button === "primary" && shootsPrimary(moveset) && pressTrigger(state)) return;
+  // 投げた輪が戻るまでは左も右も何も出さない（戦輪。受け流しとダッシュは別の入力なので出せる）
+  if (waitingForReturn(state, moveset)) return;
   // 振っている最中に派生を予約済みなら、その派生が出るまで次の押下は受けない（予約の上書きで列と技がずれないように）
   if (p.attack.pendingBranch >= 0 && p.attack.phase !== "none") return;
   // 再使用中の右段は何も起こさない（派生に当たる右は妨げない）
@@ -571,11 +605,11 @@ function pressLane(state: GameState, moveset: MovesetDef, button: ButtonKey): vo
     pressSecondary(state, moveset);
     return;
   }
-  if (!isGun(moveset)) {
+  if (!shootsPrimary(moveset)) {
     tryAttack(state, moveset.primary === "charge");
     return;
   }
-  // 銃の家系はダッシュ中の押下を反転撃ち（ダッシュ攻撃）として予約する
+  // 左で撃つ武器種はダッシュ中の押下を反転撃ち（ダッシュ攻撃）として予約する
   if (isDashing(p)) {
     p.dashAttackQueued = true;
     return;
@@ -587,14 +621,12 @@ function pressLane(state: GameState, moveset: MovesetDef, button: ButtonKey): vo
 
 /**
  * 右の押下。振っていなければ今の段を出し、振っている最中は先行入力にする。
- * 次の段が弾・手元返しなら recover 中は振りを打ち切ってすぐ出す（先行入力と同じ手触り）
+ * 次の段が弾（volley）なら recover 中は振りを打ち切ってすぐ出す（先行入力と同じ手触り）
  */
 function pressSecondary(state: GameState, moveset: MovesetDef): void {
   const p = state.player;
   const a = p.attack;
   if (isDashing(p)) return;
-  // 短銃の装填の拍に押せたら強装填（右の段は出さない）
-  if (primeReload(state)) return;
   if (a.phase === "none") {
     startLaneStep(state, moveset, a.step);
     return;
@@ -636,10 +668,16 @@ function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
   return false;
 }
 
-/** 射撃の押しっぱなし。銃の家系の左だけ（近接の武器種は撃たない） */
+/** 戻るまで投げられない武器種（MovesetDef.waitForReturn）で、投げた輪がまだ飛んでいるか */
+function waitingForReturn(state: GameState, moveset: MovesetDef): boolean {
+  return moveset.waitForReturn === true && ringsInFlight(state);
+}
+
+/** 射撃の押しっぱなし。左で撃つ武器種の左だけ（近接の武器種は撃たない。二丁拳銃は 1 クリック 1 発なので押しっぱなしで撃たない） */
 function shotButtonHeld(state: GameState, input: FrameInput): boolean {
   if (shapeLocksShot(state)) return false;
-  return isGun(playerMoveset(state)) && input.attackHeld;
+  const moveset = playerMoveset(state);
+  return shootsPrimary(moveset) && !firesByHand(moveset) && input.attackHeld;
 }
 
 /** 実際に出た段のボタンを派生の入力列に積む。長さは chainMaxInputs まで */
@@ -652,11 +690,13 @@ export function logButton(p: Player, button: ButtonKey): void {
 
 /**
  * 入力列が途切れた（窓が切れて振っていない）ら捨て、段カウンタも 1 段目へ戻す（構え中は構えの段を保つ）。
- * 窓は振っていない間だけ減らす（振り終わりから数える）: 振りが窓より長い重い武器でも、振り終えてから押して連撃を続けられる
+ * 窓は振っていない・溜めていない間だけ減らす（振り終わり・撃ち終わりから数える）: 振りが窓より長い重い武器や、
+ * 撃つ溜め（火縄銃・手砲）を溜め切ってから撃っても連撃を続けられる（P3。docs/ideas/gun-bases-review.md 0-4）
  */
-function tickButtonChain(p: Player, dt: number): void {
+function tickButtonChain(p: Player, dt: number, paused: boolean): void {
   const a = p.attack;
-  if (a.phase !== "none" || a.charging) return;
+  // 投げた輪が戻るのを待つ間（戦輪）も窓を減らさない（戻ってから続きを出せる）
+  if (a.phase !== "none" || a.charging || p.shotCharging || paused) return;
   a.inputTimer = Math.max(0, a.inputTimer - dt);
   if (a.inputTimer > 0) return;
   a.inputs.length = 0;
@@ -699,7 +739,8 @@ function withoutSkillInput(input: FrameInput): FrameInput {
 
 /** 近接・射撃の速度に血の契約（frenzy）を乗せた stats。装備の stats は書き換えない */
 function actionStats(state: GameState): PlayerStats {
-  const mul = frenzyMul(state);
+  // 連ね投げ（時間の放出）の間は振りも射撃も速い
+  const mul = frenzyMul(state) * timedAttackSpeedMul(state);
   if (mul === 1) return state.stats;
   return { ...state.stats, attackSpeedMul: state.stats.attackSpeedMul * mul, fireRateMul: state.stats.fireRateMul * mul };
 }
@@ -732,7 +773,7 @@ function tickTimers(state: GameState, dt: number): void {
   p.buffs.invuln = Math.max(0, p.buffs.invuln - dt);
   p.lifeOnHitWindow.timer = Math.max(0, p.lifeOnHitWindow.timer - dt);
   tickRegain(state, dt);
-  tickButtonChain(p, dt);
+  tickButtonChain(p, dt, waitingForReturn(state, playerMoveset(state)));
   tickTriggerCooldowns(state, dt);
   tickHpRegen(state, dt);
   tickDelayedDamage(state);
@@ -857,6 +898,8 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       ultimateMoveMul(state) *
       skillMoveMul(state) *
       boonMoveMul(state) *
+      // 銃の込めの最中の足（武器種の reloadMoveMul）
+      reloadMoveMul(state) *
       staggerMul *
       playerStatusMoveMul(state);
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
@@ -906,6 +949,15 @@ function tryAttack(state: GameState, charge = false): void {
   if (a.phase !== "recover" && a.phase !== "active") return;
   a.buffered = true;
   a.bufferedLane = "primary";
+}
+
+/**
+ * 二丁拳銃の手の技（蹴り・回し蹴り・銃把打ち）を lane の index 段目として振る（system/dualPistols.ts）。
+ * 段は共有の段カウンタではなく手の連続で決まるので、終撃かは呼び手が渡す（祝福の「常に最終段」は掛けない）
+ */
+export function startHandSwing(state: GameState, lane: ButtonKey, index: number, finisher: boolean): void {
+  if (isDashing(state.player)) return;
+  beginSwing(state, { step: index, dashStrike: false, chargeLevel: 0, branch: -1, combo: finisher ? FINISHER_COMBO : 0, lane });
 }
 
 /** 次の段を振る。logAs は派生の列に積むボタン（省略は振りのレーン） */
@@ -1079,11 +1131,16 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   // 右レーンの振りの段は振り始めに再使用と付随効果（零距離砲の反動・起爆）を立てる
   const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
   if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
+  // 振り始めで三点の続きを捨てる（振りの最中に撃ち続けない）。派生の弾の三点は振り始めの後（onBranchStart）に積むので残る
+  p.shotBurst.queue.length = 0;
   a.hitIds.clear();
   a.readIds.clear();
   a.startedAt = state.time;
   a.hitTick = 0;
   a.dir = { ...p.facing };
+  // 抜け斬りは振り始めの位置から今の位置までの道筋で斬る。斬った敵ごとの気力は頭打ちを外す
+  a.passFrom = step.passThrough ? { ...p.body.pos } : undefined;
+  a.uncappedMana = step.manaPerTarget !== undefined ? true : undefined;
   if (step.invuln > 0) p.invulnTimer = Math.max(p.invulnTimer, step.invuln);
   const sfx = SLASH_SFX[spec.combo];
   if (sfx) pushSfx(state, sfx);
@@ -1157,6 +1214,8 @@ function endSwing(state: GameState): void {
   const next = nextStepAfter(moveset, a, p.dashStrike, a.bufferedLane);
   const lane = a.bufferedLane;
   const chainEnds = nextStepAfter(moveset, a, p.dashStrike, a.lane) === undefined;
+  // 投げた輪が戻るまでは先行入力も派生の予約も出さず、次の段を覚えて待つ（戦輪）
+  if (holdChainForReturn(state, moveset)) return;
   // 派生の照合に含めた予約中の段は先に出し、派生はその後に出す（出ていない段で派生を成立させない）
   if (a.buffered && next !== undefined) {
     const pending = a.pendingBranch;
@@ -1170,9 +1229,26 @@ function endSwing(state: GameState): void {
   }
   resetSwing(state);
   if (!chainEnds) return;
-  // 最終段・フィニッシュの後は少し間を置く。効くのは銃の家系（右レーンの振りの後に撃てる）だけ
-  if (isGun(moveset)) p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
+  // 最終段・フィニッシュの後は少し間を置く。効くのは左で撃つ武器種（右レーンの振りの後に撃てる）だけ
+  if (shootsPrimary(moveset)) p.shootCooldown = Math.max(p.shootCooldown, PLAYER.comboLockout);
   a.inputs.length = 0;
+}
+
+/**
+ * 戻るまで投げられない武器種（戦輪）で、この振りが投げた輪がまだ飛んでいるなら、連撃を終えずに次の段を覚えて待つ
+ * （先行入力は捨てる。輪が戻ってから押すと続きの段が出る。窓は戻るまで減らない）。待ったら true
+ */
+function holdChainForReturn(state: GameState, moveset: MovesetDef): boolean {
+  const p = state.player;
+  const a = p.attack;
+  if (!waitingForReturn(state, moveset)) return false;
+  const next = nextStepAfter(moveset, a, p.dashStrike, "secondary") ?? nextStepAfter(moveset, a, p.dashStrike, "primary");
+  if (next === undefined) return false;
+  resetSwing(state);
+  a.pendingBranch = -1;
+  a.step = next;
+  a.inputTimer = WEAPON.chainWindow;
+  return true;
 }
 
 /** 予約中の段の後に出す派生。段が振りならその振りの後に予約し直し、振り以外（弾・構え）ならすぐ出す */
@@ -1193,6 +1269,8 @@ function resetSwing(state: GameState): void {
   a.branch = -1;
   a.buffered = false;
   a.bufferedLane = "primary";
+  a.passFrom = undefined;
+  a.uncappedMana = undefined;
   p.dashStrike = false;
 }
 
@@ -1211,7 +1289,10 @@ function continueLane(state: GameState, moveset: MovesetDef, lane: ButtonKey, ne
 /** 今の振りの後に lane のボタンで続けられる段。フィニッシュ・溜め攻撃・そのレーンの最終段なら undefined */
 function nextStepAfter(moveset: MovesetDef, a: Player["attack"], dashStrike: boolean, lane: ButtonKey): number | undefined {
   if (a.chargeLevel > 0) return undefined;
-  const next = a.branch >= 0 && !dashStrike ? moveset.branches[a.branch]?.next : a.step + 1;
+  // 交互の連撃（手裏剣）: 同じ手を続けても段はそのまま、左右を替えたときだけ進む
+  // 最後の段は同じ手でも続かない（大手裏剣を押しっぱなしの連打で出し続けない）
+  const stay = moveset.chainAdvance === "alternate" && a.branch < 0 && !dashStrike && lane === a.lane && a.step + 1 < laneLength(moveset, lane);
+  const next = a.branch >= 0 && !dashStrike ? moveset.branches[a.branch]?.next : stay ? a.step : a.step + 1;
   if (next === undefined) return undefined;
   return next < laneLength(moveset, lane) ? next : undefined;
 }
@@ -1331,12 +1412,24 @@ function resolveMeleeHits(state: GameState, step: MeleeStep): void {
   for (const e of state.enemies) {
     // 従魔（眷属）は斬り抜ける（命中・ヒットストップ・気力を起こさない）
     if (p.attack.hitIds.has(e.id) || e.hp <= 0 || isAllied(state, e)) continue;
-    const contact = meleeContact(p, step, e.body.pos, e.body.radius);
+    const contact = passContact(p, e) ? "hit" : meleeContact(p, step, e.body.pos, e.body.radius);
     if (contact === "none") continue;
     p.attack.hitIds.add(e.id);
     meleeHitEnemy(state, e, step, contact === "tip");
   }
   resolveMeleeBullets(state, step);
+}
+
+/** 抜け斬りの道筋（振り始めの位置 → 今の位置）で自分の体が敵の体に重なったか */
+function passContact(p: Player, e: Enemy): boolean {
+  const from = p.attack.passFrom;
+  if (!from) return false;
+  const to = p.body.pos;
+  const seg = sub(to, from);
+  const len2 = seg.x * seg.x + seg.y * seg.y;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((e.body.pos.x - from.x) * seg.x + (e.body.pos.y - from.y) * seg.y) / len2)) : 0;
+  const nearest = add(from, scale(seg, t));
+  return circlesOverlap(nearest.x, nearest.y, p.body.radius, e.body.pos.x, e.body.pos.y, e.body.radius);
 }
 
 /**
@@ -1392,7 +1485,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   p.swingImpact = FEEL.swingImpact;
   if (finisher) pushSfx(state, "finisherHit");
   // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
-  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
+  damageEnemy(state, e, amount, knockDirection(state, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
     poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
     hitstopSteps: baseHitstop,
     readStart: counter,
@@ -1410,8 +1503,10 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   if (firstOnEnemy) noteReadOutcome(state, e, pos, counter);
   // 通常の振りの命中の戦意は多段の区切りごとに 1 回（群れを薙いで一気に満たさない）
   if (p.attack.hitIds.size === 1) gainMorale(state, "meleeHit");
-  gainMeleeMana(state, step.mana * tipMul.mana, counter);
-  noteMeleeHitMana(state, tip);
+  // 抜け斬りは斬った敵 1 体ごとに決まった気力（多段で重ねない）
+  if (step.manaPerTarget === undefined) gainMeleeMana(state, step.mana * tipMul.mana, counter);
+  else if (firstOnEnemy) gainMeleeMana(state, step.manaPerTarget, counter);
+  noteMeleeHitMana(state, tip, p.dashStrike);
   p.meleeHitCount += 1;
   fireTrigger(state, "onMeleeHit", { pos, targetId: e.id });
   fireTrigger(state, "everyNthMeleeHit", { pos, targetId: e.id });
@@ -1420,6 +1515,8 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   onSkillMeleeHit(state, e, p.attack.combo);
   onShapeMeleeHit(state, e);
   applyStepStatus(state, e, step);
+  // 叩き込み（クナイ）: 刺さった飛び物を 1 振り × 1 体に 1 回叩き込む（段が決めた本数。true は全部）
+  if (step.drivePins !== undefined && firstOnEnemy && e.hp > 0) drivePins(state, e, p.attack.dir, { max: step.drivePins === true ? undefined : step.drivePins, mul: ultimatePinDriveMul(state) });
 }
 
 /** 壁際（大地の加護）: 放出の一撃は大きく弾き、壁に当たれば叩きつけにする。吹き飛ばしの倍率（持っていない・放出でなければ 1） */
@@ -1442,11 +1539,24 @@ function tipMultipliers(step: Readonly<MeleeStep>, tip: boolean): { damage: numb
   return { damage: t.offDamageMul, poise: 1, mana: t.offManaMul };
 }
 
-/** ノックバックの向き。引き寄せ（鎌）は自分の方へ、投げ（拳）は自分の背後へ */
-function knockDirection(p: Player, e: Enemy, step: Readonly<MeleeStep>): Vec {
+/** ノックバックの向き。引き寄せ（鎌）は自分の方へ、投げ（拳）は自分の背後へ、蹴り込み（仕掛け）は一番近い自分の設置弾の方へ */
+function knockDirection(state: GameState, e: Enemy, step: Readonly<MeleeStep>): Vec {
+  const p = state.player;
   if (step.pull) return normalize(sub(p.body.pos, e.body.pos), scale(p.attack.dir, -1));
   if (step.throw) return scale(p.attack.dir, -1);
+  // 抜け斬りは前へ押さず、道筋の脇へ払う（すり抜けた敵を押して連れて行かない）
+  if (step.passThrough) return sideAway(p.attack.dir, sub(e.body.pos, p.body.pos));
+  if (step.knockToward === "ownMine") {
+    const mine = nearestOwnMine(state, e.body.pos);
+    if (mine) return normalize(sub(mine, e.body.pos), p.attack.dir);
+  }
   return p.attack.dir;
+}
+
+/** 向き dir の道筋から見て rel（自分 → 敵）の側へ直交する向き（真正面なら左手側） */
+function sideAway(dir: Vec, rel: Vec): Vec {
+  const left = { x: -dir.y, y: dir.x };
+  return rel.x * left.x + rel.y * left.y >= 0 ? left : scale(left, -1);
 }
 
 /**
@@ -1454,7 +1564,8 @@ function knockDirection(p: Player, e: Enemy, step: Readonly<MeleeStep>): Vec {
  * 1 振りで回収する敵は meleeTargetCap 体まで（群れを薙いで一気に満タンにしない）
  */
 function gainMeleeMana(state: GameState, base: number, counter: boolean): void {
-  if (state.player.attack.hitIds.size > MANA.meleeTargetCap) return;
+  // 抜け斬り（manaPerTarget）は斬った敵の数だけ戻すので頭打ちしない
+  if (state.player.attack.uncappedMana !== true && state.player.attack.hitIds.size > MANA.meleeTargetCap) return;
   // 静寂の誓い（ks_silentVow）では通常攻撃からマナが戻らない
   const mul = counter ? MANA.onCounterMul : 1;
   // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
@@ -1515,7 +1626,7 @@ export function spreadOffsets(count: number, spreadDeg: number = PLAYER.projecti
  */
 function updateShooting(state: GameState, held: boolean, dt: number, aim?: number): void {
   const shot = currentShot(state.stats);
-  updateBurst(state, shot, dt);
+  updateBurst(state, dt);
   if (shot.charge) {
     updateShotCharge(state, shot, held, dt, aim);
     return;
@@ -1531,34 +1642,69 @@ function aimDistance(state: GameState, input: FrameInput): number | undefined {
 }
 
 /**
- * 三点の続きの弾。1 発目は fireVolley が撃ち、残りを interval 秒おきに出す。
- * 近接・怯み・撃てないダッシュ・射撃を禁じる祝福・型の付け替えで残りは捨てる
+ * 三点の続きの弾。1 本目は fireVolley（派生の弾は emitShotRounds）が撃ち、残りを向きごとに interval 秒おきに出す。
+ * 続きも 1 本目と同じ射撃として、撃った弾（持続の奥義の差し替え済み）と放出の倍率を持ち越す（P4）。終撃は 1 本目だけ。
+ * 怯み・撃てないダッシュ・器の付け替えで残りは捨てる（振り始めは beginSwing が捨てる）
  */
-function updateBurst(state: GameState, shot: BulletDef, dt: number): void {
-  const p = state.player;
-  const b = p.shotBurst;
-  if (b.left <= 0) return;
-  if (!shot.burst || !canContinueBurst(state)) {
-    b.left = 0;
+function updateBurst(state: GameState, dt: number): void {
+  const b = state.player.shotBurst;
+  if (b.queue.length === 0) return;
+  if (!canContinueBurst(state)) {
+    b.queue.length = 0;
     return;
   }
-  b.timer -= dt;
-  if (b.timer > BURST_EPSILON) return;
-  b.left -= 1;
-  b.timer += shot.burst.interval;
-  emitVolley(state, shot, 0, undefined, { energy: gunShotEnergy(state, shot, 0) });
+  const equipped = currentShot(state.stats).key;
+  for (const entry of b.queue) stepBurstEntry(state, entry, equipped, dt);
+  b.queue = b.queue.filter((entry) => entry.left > 0);
+}
+
+/** 三点の続き 1 つぶんを進め、間が来たら 1 本撃つ。器を付け替えていたら残りを捨てる */
+function stepBurstEntry(state: GameState, entry: BurstEntry, equipped: string, dt: number): void {
+  if (entry.shot.key !== equipped) {
+    entry.left = 0;
+    return;
+  }
+  entry.timer -= dt;
+  if (entry.timer > BURST_EPSILON) return;
+  entry.left -= 1;
+  entry.timer += entry.shot.burst?.interval ?? 0;
+  emitVolley(state, entry.shot, 0, undefined, { ...entry.override, angleOffset: entry.angle });
 }
 
 function canContinueBurst(state: GameState): boolean {
   const p = state.player;
-  if (isAttacking(p) || isPlayerStaggered(p)) return false;
+  if (isPlayerStaggered(p)) return false;
   return !isDashing(p);
+}
+
+/**
+ * 三点の器なら、向き（facing からのずれ）ごとに続きの弾を積む。続きは 1 本目の上書きから、放出の印（終撃・会心）と
+ * レーン・扇を外したもの（放出の倍率は残し、揺れも掛けない。続きは左の射撃 1 回に数えない）
+ */
+function queueBurst(state: GameState, shot: BulletDef, angles: readonly number[], override: VolleyOverride): void {
+  const burst = shot.burst;
+  if (!burst || burst.count <= 1) return;
+  const follow = burstFollowOverride(override);
+  for (const angle of angles) {
+    state.player.shotBurst.queue.push({ shot, angle, override: { ...follow }, left: burst.count - 1, timer: burst.interval });
+  }
+}
+
+/** 三点の続きが 1 本目から持ち越す上書き */
+function burstFollowOverride(override: VolleyOverride): VolleyOverride {
+  const follow: VolleyOverride = { ...override };
+  delete follow.release;
+  delete follow.lane;
+  delete follow.fan;
+  delete follow.angleOffset;
+  if (override.release || override.steady) follow.steady = true;
+  return follow;
 }
 
 /** 銃を持っていない間は射撃の途中経過を持ち越さない */
 function resetShooting(p: Player): void {
   cancelShotCharge(p);
-  p.shotBurst.left = 0;
+  p.shotBurst.queue.length = 0;
 }
 
 function cancelShotCharge(p: Player): void {
@@ -1590,10 +1736,11 @@ function updateShotCharge(state: GameState, shot: BulletDef, held: boolean, dt: 
   fireVolley(state, level, aim);
 }
 
-/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中） */
+/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中・弾倉が空か込めの最中） */
 function canShootNow(state: GameState): boolean {
   const p = state.player;
-  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || isReloading(state)) return false;
+  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || !canFireAny(state)) return false;
+  if (waitingForReturn(state, playerMoveset(state))) return false;
   return !isDashing(p);
 }
 
@@ -1615,13 +1762,15 @@ interface VolleySpec {
 }
 
 /**
- * 今の銃の弾とは別に弾を出す経路（右レーンの投擲・魔弾・乱れ撃ち、短銃の狙い撃ち、派生の弾）が差し替える値。
+ * 今の銃の弾とは別に弾を出す経路（右レーンの投擲・魔弾・乱れ撃ち、派生の弾、砲の詰めの 1 発）が差し替える値。
  * damage / poise は最終値（省略は銃の弾の値）、damageMul / pierceBonus は銃の弾の値に掛ける・足す
  */
 export interface VolleyOverride {
   damage?: number;
   poise?: number;
   damageMul?: number;
+  /** 銃の弾の怯み値に掛ける（短銃の強装填・装薬の詰め） */
+  poiseMul?: number;
   pierceBonus?: number;
   count?: number;
   spreadDeg?: number;
@@ -1631,16 +1780,24 @@ export interface VolleyOverride {
   recoil?: boolean;
   /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite） */
   sprite?: string;
-  /** 弾 1 発が命中で溜める奥義ゲージ（銃の射撃だけ。省略は溜めない） */
-  energy?: number;
   /** 命中・炸裂で付ける状態異常（ThrowArtDef.applies） */
   applies?: readonly StatusApply[];
   /** 撃ったレーン（双撃の判定。Projectile.lane） */
   lane?: ButtonKey;
   /** 放出の弾（Projectile.release） */
   release?: { finisher: boolean; crit: boolean };
-  /** 命中ごとの気力（Projectile.shotMana。ThrowArtDef.mana） */
-  shotMana?: number;
+  /** 弾の半径に掛ける（放出の倍率 reachMul。弾の当たりと絵が大きくなる） */
+  radiusMul?: number;
+  /** 向き（facing）からのずれ（ラジアン）。三点の続きが撃った回の向きを保つ */
+  angleOffset?: number;
+  /** 同じ形の 1 回を count 回、spreadDeg（度）ずつ扇にずらして同時に出す（派生の弾。省略は 1 回） */
+  fan?: { count: number; spreadDeg: number };
+  /** 揺れ（BulletDef.sway）を掛けない。放出の弾（release を持つ弾と、その三点の続き）は狙ったとおりに飛ぶ（P7） */
+  steady?: boolean;
+  /** 撃った手（二丁拳銃。その手の銃口から出す。省略は撃つたびに左右を入れ替える） */
+  hand?: HandIndex;
+  /** 弾を扇にせず、進む向きに直交して lineGap（px）おきに平行に並べる（ThrowArtDef.lineGap。手裏剣の左） */
+  lineGap?: number;
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1650,8 +1807,8 @@ function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: numb
   const speed = PLAYER.shoot.speed * shot.speedMul * s.projectileSpeedMul;
   return {
     damage: override.damage ?? shotDamage(s) * damageMul,
-    poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
-    radius: charged?.radius ?? shot.radius,
+    poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul * (override.poiseMul ?? 1),
+    radius: (charged?.radius ?? shot.radius) * (override.radiusMul ?? 1),
     pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
     speed,
     life: shotLife(shot, speed, aim),
@@ -1680,11 +1837,13 @@ function swayOffset(state: GameState, shot: BulletDef): number {
 
 /** 弾ごとの作業領域。挙動の性質も周回も持たない弾は持たない（従来の弾と同じ形のまま）。回転刃・曲射は撃った瞬間の寿命を覚える */
 function shotRuntime(shot: BulletDef, life: number, fireAngle: number, orbitIndex: number): ShotRuntime | undefined {
-  if (bulletFeatures(shot).length === 0 && !shot.orbit && !shot.look && !shot.leaves) return undefined;
+  if (bulletFeatures(shot).length === 0 && !shot.orbit && !shot.look && !shot.leaves && !shot.grind) return undefined;
   const lifeTotal = shot.boomerang || shot.lob ? { lifeTotal: life } : {};
   const orbit = shot.orbit ? { orbit: { ...shot.orbit }, orbitAngle: fireAngle, orbitPhase: orbitPhaseOf(orbitIndex), orbitTravel: 0 } : {};
   const extra = { ...(shot.leaves ? { leaves: shot.leaves } : {}), ...(shot.look ? { look: shot.look } : {}) };
-  return { key: shot.key, bouncesLeft: shot.bounce?.count, ...lifeTotal, ...orbit, ...extra };
+  // 刺さる・食い込むは撃った瞬間の定義を写す（BULLETS に無い差し替えの弾でも効く）
+  const thrown = { ...(shot.pin ? { pin: shot.pin } : {}), ...(shot.grind ? { grind: { sec: shot.grind.sec, hits: shot.grind.hits, done: 0, elapsed: 0 } } : {}) };
+  return { key: shot.key, bouncesLeft: shot.bounce?.count, ...lifeTotal, ...orbit, ...extra, ...thrown };
 }
 
 /**
@@ -1702,32 +1861,86 @@ function orbitingCount(state: GameState): number {
   return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0 && pr.shot?.orbit !== undefined).length;
 }
 
-/** 射撃 1 回（再使用時間を立てる）。三点なら残りの弾を予約する */
+/** 射撃 1 回（再使用時間を立てる。弾倉を 1 回ぶん使う）。三点なら残りの弾を予約する */
 function fireVolley(state: GameState, level: number, aim?: number): void {
   const p = state.player;
   const s = state.stats;
+  // 引き金 1 回で弾倉を 1 減らす（散弾の粒・三点の続きは数えない）。二丁拳銃は撃てる手の銃口から
+  const hand = nextFireHand(state);
+  // リロード後の 1 発目か（撃つと消えるので撃つ前に読む。長銃の関門・短銃の強装填の 1 発目）
+  const fresh = p.magazine.fresh;
+  if (hand === undefined || spendRounds(state, hand, 1) <= 0) return;
   const shot = ultimateShot(state, currentShot(s));
-  p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
-  // 満ちた後の 1 発（長銃）は戦意を使った放出の弾
-  emitVolley(state, shot, level, aim, { energy: gunShotEnergy(state, shot, level), lane: "primary", ...startShotMoments(state) });
-  if (!shot.burst) return;
-  p.shotBurst.left = shot.burst.count - 1;
-  p.shotBurst.timer = shot.burst.interval;
+  p.shootCooldown = shotInterval(state, shot);
+  // 放出の 1 発（長銃の満ちた 1 発・装薬の詰めた 1 発）と短銃の強装填の弾倉。放出の弾には揺れを掛けない（P7）
+  const { powder, ...moments } = startShotMoments(state, { level, chargeLevels: shot.charge?.levels.length ?? 0, fresh });
+  const steady = moments.release ? { steady: true } : {};
+  // 装薬は詰めた段ぶん散弾の粒が増える
+  const pellets = powder ? { count: s.projectileCount + shot.pellets + powder.pelletsAdd } : {};
+  // 千本（苦無の放出）は扇に投げ、刺さりの上限を超えて全部刺さる
+  const senbon = moments.release && formOf(playerMoveset(state)).key === "dart" ? KUNAI_SENBON : undefined;
+  const override: VolleyOverride = { lane: "primary", ...moments, ...pellets, ...steady, ...(senbon ? { fan: { count: senbon.count, spreadDeg: senbon.spreadDeg } } : {}) };
+  emitVolley(state, senbon && shot.pin ? { ...shot, pin: { ...shot.pin, max: senbon.pinMax } } : shot, level, aim, override);
+  // 装薬の反動は詰めた段の距離だけ後ろへ跳ぶ（押しの速さは減衰で距離 = 速さ / KNOCK_DECAY。動きの当たりで壁に止まる）
+  if (powder) p.knock = add(p.knock, scale(p.facing, -powder.recoilPx * KNOCK_DECAY));
+  queueBurst(state, shot, [0], override);
 }
 
-/** 銃の射撃 1 発の奥義ゲージ。射撃間隔の基礎秒（溜め撃ちは溜めの秒も足す）を 1 回に出る弾数（散弾・三点）で割る */
-function gunShotEnergy(state: GameState, shot: BulletDef, level: number): number {
-  const chargeSec = level > 0 ? (shot.charge?.levels[level - 1]?.time ?? 0) : 0;
-  const bullets = (state.stats.projectileCount + shot.pellets) * (shot.burst?.count ?? 1);
-  return shotHitEnergy(PLAYER.shoot.cooldown * shot.cooldownMul + chargeSec, bullets);
+/** 射撃 1 回の後の再使用の秒（連射の速さ・血の契約・持続の奥義を掛ける） */
+function shotInterval(state: GameState, shot: BulletDef): number {
+  const s = state.stats;
+  return (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state) * timedAttackSpeedMul(state));
 }
 
-/** 銃口の位置。二丁拳銃は撃つたびに左右の銃口を入れ替える */
-function muzzleAt(state: GameState, dir: Vec): Vec {
+/**
+ * 二丁拳銃の手 1 本の 1 発（system/dualPistols.ts）。その手の弾倉から 1 発使い、その手の銃口から撃つ。
+ * 撃つ間（再使用）は手ごとに持つ（もう片方の手はすぐ撃てる）。撃てたら true
+ */
+export function fireHandVolley(state: GameState, hand: HandIndex): boolean {
+  if (spendRounds(state, hand, 1) <= 0) return false;
+  const shot = ultimateShot(state, currentShot(state.stats));
+  state.player.magazine.hands[hand].cooldown = shotInterval(state, shot);
+  const override: VolleyOverride = { lane: hand === 0 ? "primary" : "secondary", hand };
+  emitVolley(state, shot, 0, state.player.aimDistance, override);
+  queueBurst(state, shot, [0], override);
+  return true;
+}
+
+/**
+ * 普段の射撃を rounds.count 回、回ごとに扇へ spreadDeg（省略は弾の spreadDeg）ずつずらして同時に撃つ（派生の弾。
+ * docs/ideas/gun-bases-review.md 0-3 の A 案）。1 回の形（1 + 装備の弾数 + 散弾の粒）は捨てず、三点の器は回の向きごとに三点の続きを積む。
+ * 再使用時間は触らない。出したら true
+ */
+export function emitShotRounds(state: GameState, shot: BulletDef, rounds: { count: number; spreadDeg?: number }, override: VolleyOverride = {}): boolean {
+  const fan = { count: Math.max(1, rounds.count), spreadDeg: rounds.spreadDeg ?? shot.spreadDeg };
+  if (!emitVolley(state, shot, 0, state.player.aimDistance, { ...override, fan })) return false;
+  queueBurst(state, shot, spreadOffsets(fan.count, fan.spreadDeg), override);
+  return true;
+}
+
+/** 平行に並べる投げ（lineGap）の、進む向きの横へのずらし（px。中央が 0）。扇の投げ・1 本なら undefined */
+function parallelShifts(count: number, lineGap: number | undefined): number[] | undefined {
+  if (lineGap === undefined || count <= 1) return undefined;
+  const center = (count - 1) / 2;
+  return Array.from({ length: count }, (_, i) => (i - center) * lineGap);
+}
+
+/** 1 回の弾の角度（扇の回のずれ + 回の中の散らし）。fan が無ければ 1 回ぶん */
+function volleyOffsets(count: number, spreadDeg: number, fan: VolleyOverride["fan"]): number[] {
+  const inRound = spreadOffsets(count, spreadDeg);
+  if (!fan || fan.count <= 1) return inRound;
+  return spreadOffsets(fan.count, fan.spreadDeg).flatMap((round) => inRound.map((offset) => round + offset));
+}
+
+/**
+ * 銃口の位置。二丁拳銃は撃った手（hand）の銃口で、手が無ければ撃つたびに左右を入れ替える。
+ * 左右のずれは向きの右手側が正（render/renderMath.ts の offhandOffset と同じ）なので、左手は負の側
+ */
+function muzzleAt(state: GameState, dir: Vec, hand?: HandIndex): Vec {
   const p = state.player;
   const front = add(p.body.pos, scale(dir, p.body.radius + 2));
   if (playerMoveset(state).key !== "gunner") return front;
-  const side = p.shotBurst.side;
+  const side = hand === undefined ? p.shotBurst.side : hand === 0 ? -1 : 1;
   p.shotBurst.side = -side;
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
@@ -1742,45 +1955,53 @@ function shotIsPointBlank(state: GameState, muzzle: Vec): boolean {
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
   const dir = { ...p.facing };
-  const muzzle = muzzleAt(state, dir);
-  const baseAngle = angle(dir) + swayOffset(state, shot);
+  const muzzle = muzzleAt(state, dir, override.hand);
+  // 放出の弾には揺れを掛けない（P7。docs/ideas/gun-bases-review.md 0-3）
+  const sway = override.steady || override.release ? 0 : swayOffset(state, shot);
+  const baseAngle = angle(dir) + (override.angleOffset ?? 0) + sway;
   const spec = volleySpec(state, shot, level, aim, override);
   const firstShot = state.projectiles.length;
   const pointBlank = shotIsPointBlank(state, muzzle);
   let orbitIndex = shot.orbit ? orbitingCount(state) : 0;
-  for (const offset of spreadOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg)) {
-    const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
-    orbitIndex += 1;
-    state.projectiles.push({
-      id: allocId(state),
-      owner: "player",
-      pos: { ...muzzle },
-      vel: scale(fromAngle(baseAngle + offset), spec.speed),
-      radius: spec.radius,
-      damage: spec.damage,
-      life: spec.life,
-      color: spec.color,
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: spec.pierce,
-      poise: spec.poise,
-      ...(runtime ? { shot: runtime } : {}),
-      // 右レーンの弾（魔弾の光など）は段の素性を持つ。無ければ elementCombat が stats.bullet から引く
-      ...(override.attack ? { attack: override.attack } : {}),
-      ...(override.sprite ? { sprite: override.sprite } : {}),
-      // 周回する弾は 1 周ごとに当て直すので、持続の奥義が終わった後に奥義ゲージを溜め直させない
-      ...(override.energy !== undefined && !shot.orbit ? { energy: override.energy } : {}),
-      ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
-      ...(override.lane ? { lane: override.lane } : {}),
-      // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
-      ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
-      ...(override.shotMana !== undefined ? { shotMana: override.shotMana } : {}),
-      ...(pointBlank ? { pointBlank: true } : {}),
-    });
+  // 手元へ戻る弾は 1 回の投げの弾がすべて同じ組を持つ（行きと帰りの両方で当てた敵を数える）
+  const trip = returnsToHand(shot) ? newShotTrip() : undefined;
+  const lanes = parallelShifts(spec.count, override.lineGap);
+  const offsets = lanes ? lanes.map(() => 0) : volleyOffsets(spec.count, override.spreadDeg ?? shot.spreadDeg, override.fan);
+  for (const [index, offset] of offsets.entries()) {
+    for (const side of pairSides(shot)) {
+      const runtime = shotRuntime(shot, spec.life, baseAngle + offset, orbitIndex);
+      orbitIndex += 1;
+      // 平行に並べる投げは口元を進む向きの横へずらす。2 枚投げは口元を上下へずらし、弧の弾は行きの区間を作る
+      const origin = lanes ? add(muzzle, scale({ x: -Math.sin(baseAngle), y: Math.cos(baseAngle) }, lanes[index] ?? 0)) : muzzle;
+      const flight = launchThrow(state, shot, origin, baseAngle + offset, side, spec.speed, spec.life, aim);
+      if (runtime && flight.arc) runtime.arc = flight.arc;
+      if (runtime && trip) runtime.trip = trip;
+      state.projectiles.push({
+        id: allocId(state),
+        owner: "player",
+        pos: flight.pos,
+        vel: scale(fromAngle(baseAngle + offset), spec.speed),
+        radius: spec.radius,
+        damage: spec.damage,
+        life: flight.life,
+        color: spec.color,
+        kind: "ranged",
+        hitIds: new Set(),
+        pierceLeft: spec.pierce,
+        poise: spec.poise,
+        ...(runtime ? { shot: runtime } : {}),
+        // 右レーンの弾（魔弾の光など）は段の素性を持つ。無ければ elementCombat が stats.bullet から引く
+        ...(override.attack ? { attack: override.attack } : {}),
+        ...(override.sprite ? { sprite: override.sprite } : {}),
+        ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
+        ...(override.lane ? { lane: override.lane } : {}),
+        // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
+        ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
+        ...(pointBlank ? { pointBlank: true } : {}),
+      });
+    }
   }
   const fired = state.projectiles.slice(firstShot);
-  // 短銃の弾倉は左の射撃 1 回で 1 発数える（右レーンの弾・三点の続きは数えない）
-  if (override.lane === "primary") noteShotFired(state);
   for (const pr of fired) markShotBullet(pr, shot.key);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   const sparks = shot.look?.particles ?? MUZZLE_PARTICLES;

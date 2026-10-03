@@ -311,14 +311,16 @@ describe("computeStats: 武器種と弾（ベースから決まる）", () => {
     expect(stats.bullet, "散弾銃 → 散弾銃の弾").toBe("shotgun");
   });
 
-  it("新しい器のベース（手甲・跳ね銃）も型を持つ", () => {
+  it("新しい器のベース（手甲・クナイ・手裏剣）も型を持つ", () => {
     const equipment = createEmptyEquipment();
     equipment.mainHand = makeItem("mainHand", { baseKey: "gauntlets" });
     expect(computeStats(equipment).moveset).toBe("fists");
-    equipment.mainHand = makeItem("mainHand", { baseKey: "ricochetGun" });
+    equipment.mainHand = makeItem("mainHand", { baseKey: "kunai" });
     const stats = computeStats(equipment);
-    expect(stats.moveset).toBe("thrown");
-    expect(stats.bullet).toBe("ricochetGun");
+    expect(stats.moveset).toBe("kunai");
+    expect(stats.bullet, "クナイは左で投げる弾を持つ").toBe("kunai");
+    equipment.mainHand = makeItem("mainHand", { baseKey: "shuriken" });
+    expect(computeStats(equipment).moveset).toBe("shuriken");
   });
 
   it("型を持たない未知のベースは既定に落ちる", () => {

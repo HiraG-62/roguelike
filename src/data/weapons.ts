@@ -4,13 +4,14 @@ import type { EventKind } from "../core/events";
 import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, type TerrainKind } from "../core/terrain";
+import type { Vec } from "../core/vec";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 import type { FormKey } from "./weaponForms";
 
 /**
  * 武器種（通常攻撃の型・左右のアクションの連撃と派生）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
- * 右手のベースが moveset を決め、銃の家系（GUN_MOVESETS）のベースは自分の弾も持つ（src/loot/bullets.ts）。
+ * 右手のベースが moveset を決め、近接でない群（isRangedWeapon）のベースは自分の弾も持つ（src/loot/bullets.ts）。
  * 数値は src/data/tuning.ts の WEAPON。ここは形の型・表示名・語（kw）をまとめる
  */
 
@@ -36,11 +37,9 @@ export const MOVESET_KEYS = [
   "sidearm",
   "longarm",
   "cannon",
-  "thrown",
-  // 砲・投擲に埋もれていた弾（曲射・設置弾・回転刃）を独立させた銃の家系
+  // 砲・投擲に埋もれていた弾（曲射・設置弾）を独立させた銃の家系
   "grenade",
   "trapper",
-  "warRing",
   // 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章）
   "claws",
   "flail",
@@ -49,6 +48,9 @@ export const MOVESET_KEYS = [
   // 段取り 5d: 書・鈴（docs/ideas/weapon-forms-impl.md 3-8）。型の key（tome / bell）と重ねない
   "book",
   "handbell",
+  // 投擲物（docs/ideas/gun-bases-review.md 0-5・2-9）。投擲・戦輪の器を消し、器ごとに別の武器種にした
+  "kunai",
+  "shuriken",
 ] as const;
 export type MovesetKey = (typeof MOVESET_KEYS)[number];
 
@@ -56,7 +58,7 @@ export type MovesetKey = (typeof MOVESET_KEYS)[number];
  * 弾の挙動の性質。弾は銃のベースごとに持ち（src/loot/bullets.ts）、性質はその数値から読む（bulletFeatures）。
  * 祝福の出現条件・統一ルールの条件・性質の効き先が「設置弾を撃つ武器」のように弾の挙動で絞るときに使う
  */
-export const BULLET_FEATURES = ["rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob"] as const;
+export const BULLET_FEATURES = ["rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob", "pin", "arc"] as const;
 export type BulletFeature = (typeof BULLET_FEATURES)[number];
 
 /**
@@ -131,6 +133,20 @@ export interface MeleeStepDef {
   readonly cast?: CastDef;
   /** active の間、弾返し・弾斬りが無くても敵弾を消す（扇子の払い） */
   readonly cutsBullets?: boolean;
+  /**
+   * 命中した敵を飛ばす向き。ownMine = 一番近い自分の設置弾の方（無ければ攻撃の向き。仕掛けの罠蹴り）。
+   * 省略は攻撃の向き（pull / throw の段は自分の方 / 背後）
+   */
+  readonly knockToward?: "ownMine";
+  /**
+   * 命中した敵に刺さっている飛び物（Enemy.pins）を叩き込む（クナイ。system/pins.ts の drivePins）。true = 全部、
+   * 数 = 古い順にその本数だけ（連撃の前の段は 1 本ずつ、叩き込みの段は全部）
+   */
+  readonly drivePins?: true | number;
+  /** 踏み込みの道筋で体が重なった敵も斬り、敵を前へ押さず脇へ払う（抜け斬り。手裏剣のダッシュ攻撃） */
+  readonly passThrough?: true;
+  /** 斬った敵 1 体ごとに戻す気力。MANA.meleeTargetCap の頭打ちを外す（抜け斬り）。省略は mana の通常の回収 */
+  readonly manaPerTarget?: number;
 }
 
 /** 左の段・派生・ダッシュ攻撃が撃つ弾。name は HUD の「左: 火矢」（CAST_NAMES） */
@@ -145,9 +161,10 @@ export type ButtonKey = "primary" | "secondary";
 
 /**
  * 左クリックの役割。melee = 押すたびに連撃の次の段 / charge = 長押しで溜め、離して振る（大剣・戦鎚。tap は連撃）/
- * shot = 押している間、ベースの弾を撃つ（銃の家系だけ）
+ * shot = 押している間、ベースの弾を撃つ（銃の家系だけ）/
+ * hands = 左右のクリックがそれぞれ左手・右手の銃で、1 クリック 1 発（二丁拳銃。system/dualPistols.ts が左右とも引き受ける）
  */
-export type PrimaryKind = "melee" | "charge" | "shot";
+export type PrimaryKind = "melee" | "charge" | "shot" | "hands";
 
 interface ArtBase {
   /** "parry" など。名前は STEP2_NAMES（BRANCH_NAMES と同じ流儀）。再使用はこの key ごとに数える */
@@ -171,16 +188,8 @@ export interface StrikeExtras {
   readonly detonateMines?: boolean;
 }
 
-/** 狙い撃ち（短銃）: 押している間溜め、time 秒に届いて離すとベースの弾の型を 1 発、強めて撃つ */
-export interface AimArtDef {
-  readonly moveMul: number;
-  readonly time: number;
-  readonly damageMul: number;
-  readonly pierceBonus: number;
-}
-
 /** 右レーン（アクション 2）の段の種類。docs/ideas/ougi-and-dual-actions.md 4.1 */
-export const ACTION_STEP_KINDS = ["swing", "hold", "volley", "charge", "aim", "recall"] as const;
+export const ACTION_STEP_KINDS = ["swing", "hold", "volley", "charge"] as const;
 export type ActionStepKind = (typeof ACTION_STEP_KINDS)[number];
 
 /**
@@ -198,16 +207,14 @@ export interface SwingActionStep {
 }
 
 /**
- * 右レーンの段。振り以外の段（構え・弾・溜め・狙い・手元返し）は押した瞬間に始まり、段カウンタ（AttackState.step）だけ進める。
+ * 右レーンの段。振り以外の段（構え・弾・溜め）は押した瞬間に始まり、段カウンタ（AttackState.step）だけ進める。
  * 段カウンタは左右で共有する（3 段目に右を押せば steps2[2]）
  */
 export type ActionStepDef =
   | SwingActionStep
   | (ArtBase & { readonly kind: "hold"; readonly hold: HoldArtDef })
   | (ArtBase & { readonly kind: "volley"; readonly throw: ThrowArtDef })
-  | (ArtBase & { readonly kind: "charge"; readonly charge: MeleeChargeDef })
-  | (ArtBase & { readonly kind: "aim"; readonly aim: AimArtDef })
-  | (ArtBase & { readonly kind: "recall"; readonly recall: RecallArtDef });
+  | (ArtBase & { readonly kind: "charge"; readonly charge: MeleeChargeDef });
 
 /** 右レーン（1 段以上）。steps2[0] を添字の undefined 無しで読めるよう、空を型で禁じる */
 export type ActionLane = readonly [ActionStepDef, ...ActionStepDef[]];
@@ -240,25 +247,15 @@ export interface ThrowArtDef {
   readonly sprite?: string;
   /** 命中・炸裂した敵に付ける状態異常（MeleeStepDef.applies と同じ形。付与元は player） */
   readonly applies?: readonly StatusApply[];
-  /** 弾 1 発の命中ごとに戻る気力（Projectile.shotMana）。省略は射撃の既定（MANA.onShot）。左の詠唱が近接の段の気力を引き継ぐのに使う */
-  readonly mana?: number;
-}
-
-/** 自分の弾を手元へ戻す。戻りの弾は威力 returnDamageMul 倍。homing があれば戻りの弾は range 内の近くの敵へ曲がる（毎秒 turnRate ラジアンまで） */
-export interface RecallArtDef {
-  readonly returnDamageMul: number;
-  readonly speedMul: number;
-  readonly homing?: RecallHomingDef;
-}
-
-/** 手元返しの戻りの追尾（投擲の右の呼び戻し）。敵がいなければ手元へ戻る */
-export interface RecallHomingDef {
-  readonly turnRate: number;
-  readonly range: number;
+  /**
+   * 弾を扇ではなく、進む向きに直交して並べる間隔（px。手裏剣の左「まっすぐ 3 本」）。指定があれば spreadDeg は使わず、
+   * 弾はすべて同じ向きへ平行に飛ぶ
+   */
+  readonly lineGap?: number;
 }
 
 /**
- * 周回: 撃った弾が自分の周りを半径 radius で回り続ける（円環の理）。turnRate は毎秒の回転（ラジアン）、laps 周で消える。
+ * 周回: 撃った弾が自分の周りを半径 radius で回り続ける（手裏剣の大車輪）。turnRate は毎秒の回転（ラジアン）、laps 周で消える。
  * 1 周ごとに当てた敵を忘れてもう一度当たる。基礎の弾の性質ではなく持続の奥義が付ける挙動なので BULLET_FEATURES には入れない
  */
 export interface OrbitDef {
@@ -298,6 +295,10 @@ export interface BranchShots {
   readonly damageMul: number;
   readonly spreadDeg?: number;
   readonly pierceBonus?: number;
+  /** 弾の寿命の倍率（足元へ投げる影留め。省略は等倍） */
+  readonly lifeMul?: number;
+  /** 命中した敵に付ける状態異常（影留めの足止め。ThrowArtDef.applies と同じ形） */
+  readonly applies?: readonly StatusApply[];
 }
 
 /** コンボ派生: 入力列の末尾が sequence と一致したら、次の振りを step に差し替える */
@@ -382,6 +383,10 @@ export interface MovesetDef {
   readonly rules?: readonly Rule[];
   /** 武器種の常時の増・倍（Modifier）。system/modifiers.ts が今の武器種の分だけ集める */
   readonly modifiers?: readonly Modifier[];
+  /** 連撃の段の進め方。alternate = 左右を替えるときだけ段が進む（同じ手を続けても段はそのまま。手裏剣）。省略は押すたびに進む */
+  readonly chainAdvance?: "alternate";
+  /** 投げた輪（手元へ戻る自分の弾）が飛んでいる間は左の射撃も連撃も進まない（戦輪。system/projectiles.ts の ringsInFlight） */
+  readonly waitForReturn?: true;
 }
 
 export interface BulletChargeLevelDef {
@@ -433,12 +438,25 @@ export interface BulletDef {
   readonly mine?: MineDef;
   /** 三点: 1 押しで count 発を interval 秒おきに撃つ */
   readonly burst?: { readonly count: number; readonly interval: number };
+  /**
+   * 銃の弾倉（銃の器だけが持つ。docs/ideas/gun-bases-review.md 2-8。処理は system/magazine.ts）。capacity は引き金を引いた回数、
+   * reloadSec は空から満タンまでの込めの秒、perRoundSec は 1 発ずつ込める器（砲）の 1 発の秒
+   */
+  readonly magazine?: { readonly capacity: number; readonly reloadSec: number; readonly perRoundSec?: number };
   /** 回転刃: 寿命の returnAt の割合で反転して手元へ戻り、catchRadius で手に収まる */
   readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
   /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */
   readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
-  /** 周回（持続の奥義・チャクラムの段が付ける。OrbitDef） */
+  /** 周回（奥義の大車輪・持続の差し替えが付ける。OrbitDef） */
   readonly orbit?: OrbitDef;
+  /** 刺さる弾: 当たると消えて敵に刺さって残る（クナイ・手裏剣。system/pins.ts） */
+  readonly pin?: PinDef;
+  /** 食い込む弾: 最初に当たった敵の位置で止まり、sec 秒のあいだに hits 回当ててから戻る（大手裏剣・牙輪） */
+  readonly grind?: GrindDef;
+  /** 弧で飛ぶ弾: 口元から弧を描いてカーソル（最大射程で頭打ち）まで飛び、反対側の弧で手元へ戻る（戦輪） */
+  readonly arc?: ArcDef;
+  /** 2 枚投げ: 1 回の射撃で体の上下（進む向きに直交する両側）から 1 枚ずつ出す（戦輪） */
+  readonly pair?: PairDef;
   /** 見た目（色・尾・粒・光）。描画と発射の粒だけが読み、当たり方は変えない */
   readonly look?: BulletLookDef;
   /** 消える位置（命中・壁・炸裂・寿命切れ。手元に戻った弾は除く）に地形を残す */
@@ -452,6 +470,76 @@ export interface BulletDef {
   readonly attack: AttackProfile;
 }
 
+/** 敵に刺さる飛び物の種類（描画の絵と、刺さり崩しを数える単位） */
+export const PIN_KINDS = ["kunai", "shuriken"] as const;
+export type PinKind = (typeof PIN_KINDS)[number];
+
+/**
+ * 刺さる弾（BulletDef.pin）。max = 1 体に同じ種類が刺さったままでいられる本数（超えたら古い順に抜く）、
+ * sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率（刺さったときの威力に掛ける）、
+ * staggerAt = 刺さり崩し（同じ敵に同じ種類がこの本数刺さると怯ませて刺さりを消す。省略は崩さない）
+ */
+export interface PinDef {
+  readonly kind: PinKind;
+  readonly max: number;
+  readonly sec: number;
+  readonly driveMul: number;
+  readonly staggerAt?: number;
+}
+
+/** 食い込む弾（BulletDef.grind）。sec 秒のあいだに hits 回（最初の命中を含む）当てる */
+export interface GrindDef {
+  readonly sec: number;
+  readonly hits: number;
+}
+
+/**
+ * 弧で飛ぶ弾（BulletDef.arc）。bulge = 弧の頂点の横のふくらみ（px）、catchRadius = 帰りに手元のこの距離で収まる（px）、
+ * range = 固定の射程（px。連撃の近投げ。省略はカーソルの距離を最大射程 = 速さ × 寿命で頭打ち）
+ */
+export interface ArcDef {
+  readonly bulge: number;
+  readonly catchRadius: number;
+  readonly range?: number;
+}
+
+/** 2 枚投げ（BulletDef.pair）。offset = 口元から進む向きに直交する両側へずらす距離（px） */
+export interface PairDef {
+  readonly offset: number;
+}
+
+/**
+ * 弧の弾の飛び方（ShotRuntime.arc）。行き: from（口元）→ 頂点 → to（カーソル）。帰り: from（折り返した位置）→ 反対側の頂点 →
+ * 今の自分の位置（毎ステップ読み直す）。頂点は区間の向きに直交する side の側（帰りは向きが逆なので世界では反対側になる）。
+ * t は区間の進み（0..1）、dur は区間の秒、speed は撃った速さ（帰りの区間の秒を決める）
+ */
+export interface ShotArc {
+  from: Vec;
+  to: Vec;
+  side: 1 | -1;
+  bulge: number;
+  t: number;
+  dur: number;
+  back: boolean;
+  speed: number;
+  catchRadius: number;
+}
+
+/** 食い込みの作業領域（ShotRuntime.grind）。targetId = 食い込んだ敵（未定 = まだ当たっていない）、done = 当てた回数、elapsed = 食い込んでからの秒 */
+export interface ShotGrind {
+  sec: number;
+  hits: number;
+  targetId?: number;
+  done: number;
+  elapsed: number;
+}
+
+/** 投げの組（ShotRuntime.trip）。同じ 1 回の投げの弾が共有する。out = 行きで当てた敵、scored = 往復を数えた敵 */
+export interface ShotTrip {
+  out: Set<number>;
+  scored: Set<number>;
+}
+
 /** 弾ごとの作業領域（Projectile.shot）。projectiles.ts が読む */
 export interface ShotRuntime {
   /** 撃った弾の BulletDef.key */
@@ -462,10 +550,8 @@ export interface ShotRuntime {
   detonated?: boolean;
   /** 撃った瞬間の寿命（回転刃の反転・曲射の山の高さの基準） */
   lifeTotal?: number;
-  /** 回転刃が手元へ戻っている最中（手元返しで戻した弾も立つ） */
+  /** 回転刃が手元へ戻っている最中 */
   returning?: boolean;
-  /** 手元返しの戻りの追尾（RecallArtDef.homing の写し） */
-  recallHoming?: RecallHomingDef;
   /** 周回の定義（撃った瞬間の BulletDef.orbit の写し。持続が終わっても回り切る） */
   orbit?: OrbitDef;
   /** 周回の今の角度（自分から見た弾の向き、ラジアン） */
@@ -482,6 +568,14 @@ export interface ShotRuntime {
   look?: BulletLookDef;
   /** 地形を残し終えた（二重に置かない） */
   left?: boolean;
+  /** 刺さる弾（撃った瞬間の BulletDef.pin の写し。BULLETS に無い差し替えの弾でも効く） */
+  pin?: PinDef;
+  /** 食い込み（撃った瞬間に BulletDef.grind から作る） */
+  grind?: ShotGrind;
+  /** 弧の飛び方（撃った瞬間に BulletDef.arc から作る） */
+  arc?: ShotArc;
+  /** 投げの組（戻る弾だけ。行きと帰りの両方で当てた敵を数える） */
+  trip?: ShotTrip;
 }
 
 /** 弾の挙動ブロックの数値だけ（JSON の形。key・名前・語・素性は持ち主が足す） */
@@ -492,7 +586,7 @@ export function bulletFeatures(b: Readonly<BulletNumbers>): BulletFeature[] {
   const out: BulletFeature[] = [];
   if (b.sway) out.push("rapid");
   if (b.pellets > 0) out.push("spread");
-  if (b.pierceBonus > 0 && !b.boomerang) out.push("pierce");
+  if (b.pierceBonus > 0 && !b.boomerang && !b.arc) out.push("pierce");
   if (b.homing) out.push("homing");
   if (b.bounce) out.push("ricochet");
   if (b.charge) out.push("charge");
@@ -500,6 +594,8 @@ export function bulletFeatures(b: Readonly<BulletNumbers>): BulletFeature[] {
   if (b.burst) out.push("burst");
   if (b.boomerang) out.push("boomerang");
   if (b.lob) out.push("lob");
+  if (b.pin) out.push("pin");
+  if (b.arc) out.push("arc");
   return out;
 }
 
@@ -511,7 +607,19 @@ export function hasBulletFeature(b: Readonly<BulletNumbers>, feature: BulletFeat
 export function reviveBullet(raw: unknown, key: string, name: string, keywords: KeywordProfile, profile: AttackProfile): BulletDef {
   if (!isRecord(raw) || typeof raw.cooldownMul !== "number") throw new Error(`不正な弾: ${key}`);
   const bullet: BulletDef = { ...(raw as unknown as BulletNumbers), key, name, keywords, attack: profile };
-  return raw.leaves === undefined ? bullet : { ...bullet, leaves: reviveLeaves(raw.leaves, key) };
+  const pinned = raw.pin === undefined ? bullet : { ...bullet, pin: revivePin(raw.pin, key) };
+  return raw.leaves === undefined ? pinned : { ...pinned, leaves: reviveLeaves(raw.leaves, key) };
+}
+
+/** 刺さる弾（kind は union 文字列なので一覧と照合する） */
+function revivePin(raw: unknown, key: string): PinDef {
+  if (!isRecord(raw) || typeof raw.kind !== "string" || typeof raw.max !== "number" || typeof raw.sec !== "number" || typeof raw.driveMul !== "number") {
+    throw new Error(`不正な pin: ${key}`);
+  }
+  const kind = PIN_KINDS.find((k) => k === raw.kind);
+  if (kind === undefined) throw new Error(`未知の刺さる弾の種類: ${raw.kind}（${key}）`);
+  const staggerAt = typeof raw.staggerAt === "number" ? { staggerAt: raw.staggerAt } : {};
+  return { kind, max: raw.max, sec: raw.sec, driveMul: raw.driveMul, ...staggerAt };
 }
 
 /** 弾が残す地形（terrain は union 文字列なので一覧と照合する） */
@@ -648,6 +756,8 @@ function reviveShots(raw: unknown): BranchShots | undefined {
     damageMul: raw.damageMul,
     spreadDeg: optionalNumber(raw.spreadDeg),
     pierceBonus: optionalNumber(raw.pierceBonus),
+    lifeMul: optionalNumber(raw.lifeMul),
+    applies: Array.isArray(raw.applies) ? raw.applies.map(statusApply) : undefined,
   };
 }
 
@@ -699,8 +809,8 @@ function reviveThrowAs(raw: unknown, bulletKey: string, name: string, profile: V
   const bullet = reviveBullet(raw.bullet, bulletKey, name, ART_BULLET_KEYWORDS, look.attack);
   const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite" | "applies">;
   const applies = Array.isArray(raw.applies) ? { applies: raw.applies.map(statusApply) } : {};
-  const mana = optionalNumber(raw.mana);
-  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies, ...(mana === undefined ? {} : { mana }) };
+  const lineGap = typeof raw.lineGap === "number" ? { lineGap: raw.lineGap } : {};
+  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies, ...lineGap };
 }
 
 /** JSON の右レーンの 1 段（kind は union 文字列なので照合して絞る。未知の kind は読み込み時に落とす） */
@@ -721,10 +831,6 @@ function reviveActionStep(raw: unknown): ActionStepDef {
       return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name), ...window };
     case "charge":
       return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge), ...window };
-    case "aim":
-      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef, ...window };
-    case "recall":
-      return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef, ...window };
     default:
       throw new Error(`未知の右レーンの段の kind: ${raw.kind}`);
   }
@@ -821,10 +927,6 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   barrelSwing: "砲身振り",
   contactShot: "密着砲",
   shoveOff: "突き飛ばし",
-  tripleThrow: "三本投げ",
-  spinThrow: "回し投げ",
-  grabToss: "掴み投げ",
-  drawCut: "返し斬り",
   twinShell: "二連弾",
   footShot: "足元撃ち",
   kickShell: "蹴り撃ち",
@@ -833,11 +935,7 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   trapCircle: "罠陣",
   kickDetonate: "蹴り起爆",
   trapToss: "罠投げ",
-  tripleRing: "三輪",
-  ringSpin: "輪回し",
-  ringSlash: "輪斬り",
-  returnRing: "戻り輪",
-  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  // 武器 Wave 4: 爪 / チェーンアレイ / 扇子（チャクラムは戦輪 ringBlades へ統合した）
   fangRush: "牙駆け",
   lacerationDance: "裂傷舞",
   crossClaw: "十字爪",
@@ -863,6 +961,9 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   warding: "魔除け",
   ringOut: "振り鈴",
   purifyStrike: "清め打ち",
+  // 投擲物: クナイ（手裏剣は派生を持たない。docs/ideas/gun-bases-review.md 4-3 の 4）
+  shadowPin: "影留め",
+  farThrow: "離れ投げ",
 };
 
 /** 右レーンの段の表示名（数値は tuning の WEAPON.movesets[].steps2）。構えの離した振りは `${key}.release` */
@@ -933,31 +1034,37 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   hammerDown: "振り下ろし",
   hammerSide: "横殴り",
   earthSlam: "大地叩き",
-  barrage: "乱れ撃ち",
   gunnerButt: "銃把打ち",
   spinShot: "回転撃ち",
-  aimedShot: "狙い撃ち",
+  daggerCut: "短刀斬り",
+  emptyHandStrike: "銃把打ち",
   sidearmButt: "銃把打ち",
   muzzleSweep: "銃口払い",
   bayonet: "銃剣突き",
   stockStrike: "銃床打ち",
   bayonetSweep: "銃剣払い",
+  rammerThrust: "込め棒突き",
+  rammerThrust2: "二の突き",
   pointBlank: "零距離砲",
-  barrelBash: "筒殴り",
-  buttSwing: "尻叩き",
-  recall: "手元返し",
-  throughThrow: "投げ抜け",
-  thrownKick: "蹴り",
   tubeBash: "筒払い",
   tubeThrust: "筒突き",
   kickAway: "蹴り飛ばし",
   scatterMines: "撒き散らし",
   trapKick: "罠蹴り",
   detonate: "起爆",
+  // 戦輪（docs/ideas/gun-bases-review.md 2-9）: 輪払い → 近投げ → 輪払い → 強化投げ
   ringSweep: "輪払い",
-  ringThrow: "輪投げ",
-  twinRings: "二輪",
-  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  ringToss: "近投げ",
+  ringSweep2: "輪払い",
+  ringHurl: "強化投げ",
+  // クナイ: 逆手斬り → 返し斬り → 叩き込み / 手裏剣: 扇に投げ、3 段目は大手裏剣
+  kunaiCut: "逆手斬り",
+  kunaiReturn: "返し斬り",
+  kunaiDrive: "叩き込み",
+  starFan: "扇投げ",
+  starFan2: "扇投げ",
+  bigStarToss: "大手裏剣",
+  // 武器 Wave 4: 爪 / チェーンアレイ / 扇子（チャクラムは戦輪 ringBlades へ統合した）
   fangBite: "獣噛み",
   rake: "引っ掻き",
   leapBack: "跳び退き",
@@ -969,10 +1076,6 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   chainSwing: "振り回し",
   ballDrop: "鉄球落とし",
   chainWrap: "鎖巻き",
-  orbitRing: "周回",
-  ringCut: "輪断ち",
-  twinRingCut: "二輪断ち",
-  ringLaunch: "投輪",
   fanning: "扇ぎ",
   "fanning.release": "突風",
   fanSnap: "扇打ち",
@@ -1004,17 +1107,18 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   guard: "押している間、前からの被弾を大きく減らし奥義ゲージを溜める。離すと盾押し",
   chainWeight: "分銅を投げて引き寄せ、崩勢にする",
   hammerSweep: "大きく薙ぎ払う",
-  aimedShot: "足を止めて狙い、離すと強く貫く 1 発を撃つ",
+  daggerCut: "空いた手の逆手の短刀で、軽く速く斬る",
   bayonet: "銃剣で踏み込んで突き、押し返す",
-  pointBlank: "至近を吹き飛ばして後ろへ跳ぶ。床の自分の設置弾をすべて起爆する",
-  recall: "飛んでいる自分の弾をすべて手元へ向け直す",
-  barrage: "全方位へ弾をばら撒く",
+  rammerThrust: "込め棒で突いて、近づいた敵を押し返す。込めている最中にも出せて、込めは止まらない",
+  gunnerButt: "銃把で殴って怯ませる",
+  emptyHandStrike: "弾倉が空で込めている手で殴る。込めは止まらない",
   tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
   scatterMines: "前方へ設置弾を扇に 3 つ撒く",
   ringSweep: "手元の輪で周りを広く斬る",
+  kunaiCut: "逆手のクナイで斬る。刺さっている敵に当てると、刺さったクナイを 1 本叩き込む（最後の段は全部）",
+  starFan: "手裏剣を 3 本、扇に投げる",
   fangBite: "踏み込んで噛みつき、出血させる",
   flailWhirl: "押している間、鉄球を回して周りを打ち続ける。離すと勢いのついた一撃",
-  orbitRing: "輪を自分の周りに回らせる。回っている間、近くの敵に何度も当たる",
   fanning: "押している間、前からの被弾を減らす。離すと突風で押し返し、敵弾を払う",
   freeCast: "頁を払って周りを打つ。術が溜まっていれば、次のスキル 1 回の気力が 0 になる",
   toll: "鈴を鳴らして周りを打つ。鈴音が溜まっていれば、近くの自分の設置物がすぐ動き、設置物・連動体の威力が少しの間上がる",
@@ -1041,6 +1145,15 @@ export const CAST_NAMES: Readonly<Record<string, string>> = {
   arcLightning: "跳ね雷",
   flyingPage: "飛び頁",
   inkGlyph: "墨文字",
+  // 戦輪の近投げ・強化投げ（短い固定の射程で投げて戻る）
+  ringToss: "近投げ",
+  ringHurl: "強化投げ",
+  // 手裏剣: 左はまっすぐ、右は扇。3 段目は大手裏剣
+  starToss: "手裏剣",
+  starToss2: "手裏剣",
+  starFan: "扇投げ",
+  starFan2: "扇投げ",
+  bigStar: "大手裏剣",
 };
 
 /** cast の弾の素性と絵（キーは cast.key）。無ければ射撃・物理で点の弾 */
@@ -1066,8 +1179,6 @@ const STEP2_VOLLEY: Readonly<Record<string, VolleyProfile>> = {
   blizzard: { attack: attack("ranged", "arcane", "ice") },
   axeThrow: { attack: GUN_ATTACK, sprite: "weapon.axe" },
   scatterMines: { attack: attack("ranged", "physical", "fire") },
-  orbitRing: { attack: GUN_ATTACK },
-  ringLaunch: { attack: GUN_ATTACK, sprite: "weapon.ringBlades" },
   windCutter: { attack: attack("ranged", "hybrid") },
 };
 
@@ -1394,29 +1505,24 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   gunner: defineMoveset({
     key: "gunner",
     name: "二丁拳銃",
-    desc: "左で撃ち、左右の銃口を交互に使う。右の連撃は乱れ撃ち・銃把打ち・回転撃ち。ダッシュの終わりに反転撃ち",
-    steps: [],
+    desc: "左右のクリックで左手・右手の銃を 1 発ずつ撃ち、交互に撃つと拍が溜まる。同じ手を続けると左は蹴り技、右は銃把打ちと回転撃ち。左右をほぼ同時に押すと両手の弾倉を撃ち尽くす",
+    // 左の段 = 左手を続けた 2・3 回目（蹴り・回し蹴り）。右の段 = 右手を続けた 2・3 回目（銃把打ち・回転撃ち）と弾切れの手の銃把打ち
+    steps: reviveSteps(W.gunner.steps),
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
     weight: reviveWeight(W.gunner.weight),
-    form: "pistol",
-    primary: "shot",
+    form: "akimbo",
+    primary: "hands",
     steps2: reviveLane(W.gunner.steps2),
-    branches: reviveBranches(W.gunner.branches),
+    // 派生は持たない（左右を交互に撃つ拍と、同じ手を続けた技が入力を使い切る）
+    branches: [],
     keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
     attack: attack("ranged", "physical"),
-    rules: [
-      movesetRule("gunner", 0, {
-        when: "onRangedHit",
-        then: { kind: "energy", magnitude: R.gunnerHitEnergy },
-        icd: R.gunnerHitIcd,
-      }),
-    ],
   }),
   sidearm: defineMoveset({
     key: "sidearm",
     name: "短銃",
-    desc: "左で撃ちながら軽く動ける。右の 1 段目は長押しで狙い撃ち（強い 1 発）",
+    desc: "左で撃ちながら軽く動ける。右は空いた手の逆手の短刀で斬り、銃把と銃口で払う",
     steps: [],
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
@@ -1446,31 +1552,16 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   cannon: defineMoveset({
     key: "cannon",
     name: "砲",
-    desc: "左で撃つ最も重い銃。右の零距離砲は周りを吹き飛ばして自分も跳び、床の設置弾をすべて起爆する",
+    desc: "左で撃つ最も重い銃。右の込め棒の突きは込めの最中にも出せ、零距離砲は周りを吹き飛ばして自分も跳ぶ",
     steps: [],
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
     weight: reviveWeight(W.cannon.weight),
-    form: "artillery",
+    form: "powder",
     primary: "shot",
     steps2: reviveLane(W.cannon.steps2),
     branches: reviveBranches(W.cannon.branches),
     keywords: kw(["ranged", "explode", "area"], ["placed"], ["stagger"]),
-    attack: attack("ranged", "physical"),
-  }),
-  thrown: defineMoveset({
-    key: "thrown",
-    name: "投擲",
-    desc: "左で投げる。右の 1 段目の手元返しで飛んでいる弾を呼び戻し、帰りの弾は強く当たる",
-    steps: [],
-    dashAttack: reviveStep(W.thrown.dashAttack),
-    attackMoveMul: W.thrown.attackMoveMul,
-    weight: reviveWeight(W.thrown.weight),
-    form: "thrower",
-    primary: "shot",
-    steps2: reviveLane(W.thrown.steps2),
-    branches: reviveBranches(W.thrown.branches),
-    keywords: kw(["ranged", "bullet"], [], ["dash"]),
     attack: attack("ranged", "physical"),
   }),
   grenade: defineMoveset({
@@ -1481,7 +1572,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     dashAttack: reviveStep(W.grenade.dashAttack),
     attackMoveMul: W.grenade.attackMoveMul,
     weight: reviveWeight(W.grenade.weight),
-    form: "artillery",
+    form: "shell",
     primary: "shot",
     steps2: reviveLane(W.grenade.steps2),
     branches: reviveBranches(W.grenade.branches),
@@ -1491,7 +1582,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   trapper: defineMoveset({
     key: "trapper",
     name: "仕掛け",
-    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らし、3 段目で起爆する",
+    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らし、敵を設置弾の方へ蹴り込み、3 段目で起爆する",
     steps: [],
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,
@@ -1501,21 +1592,6 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     steps2: reviveLane(W.trapper.steps2),
     branches: reviveBranches(W.trapper.branches),
     keywords: kw(["ranged", "placed", "explode", "area"], [], ["dash"]),
-    attack: attack("ranged", "physical"),
-  }),
-  warRing: defineMoveset({
-    key: "warRing",
-    name: "戦輪",
-    desc: "左で刃の輪を投げる。右の輪払いで手に持った輪を振り、続けて右で輪を投げる",
-    steps: [],
-    dashAttack: reviveStep(W.warRing.dashAttack),
-    attackMoveMul: W.warRing.attackMoveMul,
-    weight: reviveWeight(W.warRing.weight),
-    form: "thrower",
-    primary: "shot",
-    steps2: reviveLane(W.warRing.steps2),
-    branches: reviveBranches(W.warRing.branches),
-    keywords: kw(["ranged", "bullet", "area"], [], ["melee"]),
     attack: attack("ranged", "physical"),
   }),
   // ---- 武器 Wave 4（docs/ideas/weapons-wave4.md 2〜5 章） ----
@@ -1566,17 +1642,20 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   }),
   ringBlades: defineMoveset({
     key: "ringBlades",
-    name: "チャクラム",
-    desc: "両手の刃の輪で速く広く斬る 4 段。右の周回で輪を自分の周りに回らせ、4 段目で投げる（戻る）。輪が当たった直後の斬りは怯ませやすい",
-    steps: reviveSteps(W.ringBlades.steps),
+    name: "戦輪",
+    desc: "左で体の上下から輪を 2 枚、弧でカーソルまで投げて交差させ、弧で戻す。戻るまで次を投げられず右も出せない。右の連撃は輪払い・近投げ・輪払い・強化投げ。輪が当たった直後の斬りは怯ませやすい",
+    steps: [],
     dashAttack: reviveStep(W.ringBlades.dashAttack),
     attackMoveMul: W.ringBlades.attackMoveMul,
     weight: reviveWeight(W.ringBlades.weight),
     form: "thrower",
-    primary: "melee",
+    primary: "shot",
+    // 投げた輪が戻るまでは次を投げられず、右の輪払いも出せない（手ぶら。受け流しとダッシュは出せる）
+    waitForReturn: true,
     steps2: reviveLane(W.ringBlades.steps2),
     branches: reviveBranches(W.ringBlades.branches),
-    keywords: kw(["melee", "ranged", "combo", "area"], [], ["bullet", "crit"]),
+    keywords: kw(["ranged", "melee", "combo", "area"], [], ["bullet", "crit"]),
+    // 輪払い・派生の斬りは近接として当たる（投げた輪は弾の素性で受けさせる）
     attack: attack("melee", "physical"),
     rules: [
       movesetRule("ringBlades", 0, {
@@ -1646,24 +1725,131 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     keywords: kw(["melee", "area", "placed"], [], ["placed"]),
     attack: attack("melee", "arcane"),
   }),
+  // ---- 投擲物（docs/ideas/gun-bases-review.md 0-5・2-9）。刺さる・叩き込み・刺さり崩し・弧の仕組みは system/pins.ts・system/projectiles.ts ----
+  kunai: defineMoveset({
+    key: "kunai",
+    name: "クナイ",
+    desc: "左で 1 本ずつ投げる。クナイは敵に刺さって残り、右の連撃（逆手斬り・返し斬り・叩き込み）で叩き込むと大きな傷になる。貫かない",
+    steps: [],
+    dashAttack: reviveStep(W.kunai.dashAttack),
+    attackMoveMul: W.kunai.attackMoveMul,
+    weight: reviveWeight(W.kunai.weight),
+    form: "dart",
+    primary: "shot",
+    steps2: reviveLane(W.kunai.steps2),
+    branches: reviveBranches(W.kunai.branches),
+    keywords: kw(["ranged", "bullet", "melee"], [], ["stagger"]),
+    attack: attack("ranged", "physical"),
+  }),
+  shuriken: defineMoveset({
+    key: "shuriken",
+    name: "手裏剣",
+    desc: "左で 3 本をまっすぐ、右で 3 本を扇に投げる。連撃が進むほど本数が増え、3 段目は大手裏剣。気力はダッシュの抜け斬りで戻す",
+    steps: reviveSteps(W.shuriken.steps),
+    dashAttack: reviveStep(W.shuriken.dashAttack),
+    attackMoveMul: W.shuriken.attackMoveMul,
+    weight: reviveWeight(W.shuriken.weight),
+    form: "star",
+    primary: "melee",
+    // 左右を替えるときだけ段が進む（同じ手を続けても段はそのまま）
+    chainAdvance: "alternate",
+    steps2: reviveLane(W.shuriken.steps2),
+    // 派生なし: 左右を混ぜるほど本数が増える連撃そのものが派生の役（docs/ideas/gun-bases-review.md 4-3 の 4）
+    branches: [],
+    keywords: kw(["ranged", "bullet", "combo"], [], ["dash"]),
+    attack: attack("ranged", "physical"),
+  }),
 };
 
-/** 銃の家系（左で撃つ武器種）。祝福の loadout・性質の家系条件が読む */
-export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner", "grenade", "trapper", "warRing"];
+/**
+ * 武器の群（docs/ideas/gun-bases-review.md 0-1）。銃と投擲物は別の概念として扱う。
+ * melee = 近接 / gun = 銃（弾倉を持つ）/ throwing = 投擲物（投げる。弾倉を持たない）
+ */
+export const WEAPON_GROUPS = ["melee", "gun", "throwing"] as const;
+export type WeaponGroup = (typeof WEAPON_GROUPS)[number];
+
+/** 武器種の群（表で引く。武器種を足したら型エラーで 1 行足す） */
+const WEAPON_GROUP_OF: Readonly<Record<MovesetKey, WeaponGroup>> = {
+  sword: "melee",
+  greatsword: "melee",
+  twinBlades: "melee",
+  spear: "melee",
+  scythe: "melee",
+  fists: "melee",
+  whip: "melee",
+  cleaver: "melee",
+  staff: "melee",
+  wand: "melee",
+  katana: "melee",
+  axe: "melee",
+  shield: "melee",
+  chainSickle: "melee",
+  hammer: "melee",
+  claws: "melee",
+  flail: "melee",
+  fan: "melee",
+  book: "melee",
+  handbell: "melee",
+  gunner: "gun",
+  sidearm: "gun",
+  longarm: "gun",
+  cannon: "gun",
+  grenade: "gun",
+  trapper: "gun",
+  ringBlades: "throwing",
+  kunai: "throwing",
+  shuriken: "throwing",
+};
+
+export function weaponGroup(moveset: Pick<MovesetDef, "key">): WeaponGroup {
+  return WEAPON_GROUP_OF[moveset.key];
+}
+
+/** 投擲物の群か */
+export function isThrowingWeapon(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) === "throwing";
+}
+
+/** 近接でない群（銃・投擲物）か。器が弾を持ち、武器掛けで器を選ぶ */
+export function isRangedWeapon(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) !== "melee";
+}
+
+/**
+ * 左で器の弾を撃つ武器種か（群とは別。銃でも左で撃たない型がある）。shot は押しっぱなしで撃ち続け、
+ * hands（二丁拳銃）は左右のクリックで 1 発ずつ（押しっぱなしの射撃は firesByHand で外す）
+ */
+export function shootsPrimary(moveset: Pick<MovesetDef, "primary">): boolean {
+  return moveset.primary === "shot" || moveset.primary === "hands";
+}
+
+/** 左右のクリックがそれぞれの手の銃の 1 発になる武器種か（二丁拳銃。system/dualPistols.ts） */
+export function firesByHand(moveset: Pick<MovesetDef, "primary">): boolean {
+  return moveset.primary === "hands";
+}
+
+/** 銃の群の武器種（MOVESET_KEYS の順）。器の家系・性質の家系条件・テストが読む */
+export const GUN_MOVESETS: readonly MovesetKey[] = MOVESET_KEYS.filter((k) => WEAPON_GROUP_OF[k] === "gun");
+
+/** 投擲物の群の武器種（MOVESET_KEYS の順） */
+export const THROWING_MOVESETS: readonly MovesetKey[] = MOVESET_KEYS.filter((k) => WEAPON_GROUP_OF[k] === "throwing");
 
 /** 武器種の固有効果の Rule（今の武器種のものだけ。定義が無ければ空） */
 export function movesetRules(key: MovesetKey): readonly Rule[] {
   return MOVESETS[key]?.rules ?? [];
 }
 
-/** 銃の家系か（左で撃つ。近接の段を持たない） */
-export function isGun(moveset: MovesetDef): boolean {
-  return moveset.primary === "shot";
+/**
+ * 銃の群か（弾倉・銃の決まりが掛かる）。左で撃つかは shootsPrimary で別に見る
+ * （投擲物にも左で撃つ武器種があり、二丁拳銃のように左で撃たない銃も来る）
+ */
+export function isGun(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) === "gun";
 }
 
-/** 弾を出す武器種か（銃の家系、右レーンに弾を出す段がある、または振りが cast を持つ）。祝福の「射撃」タグの生死判定 */
+/** 弾を出す武器種か（左で撃つ、右レーンに弾を出す段がある、または振りが cast を持つ）。祝福の「射撃」タグの生死判定 */
 export function usesProjectiles(moveset: MovesetDef): boolean {
-  return isGun(moveset) || moveset.steps2.some((s) => s.kind === "volley") || movesetCasts(moveset).length > 0;
+  return shootsPrimary(moveset) || moveset.steps2.some((s) => s.kind === "volley") || movesetCasts(moveset).length > 0;
 }
 
 /** レーンの段数（左 = steps、右 = steps2） */

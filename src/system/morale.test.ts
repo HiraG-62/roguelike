@@ -5,17 +5,17 @@ import { updateEnemies } from "./enemies";
 import { beginSwingMorale } from "./morale";
 import { releaseTerrainRadiusBonus } from "./morale";
 import { currentShot, emitVolley } from "./player";
-import { updateProjectiles } from "./projectiles";
 import { emitArtVolley } from "./weaponArts";
 import type { GameEvent } from "../core/events";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { FORM, PARRY, WEAPON } from "../data/tuning";
-import { FORMS } from "../data/weaponForms";
+import { FORMS, formOf } from "../data/weaponForms";
 import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { damagePlayer, rollOutgoing } from "./combat";
-import { gainMorale, isReloading, moraleGauge, moraleMax, placedShotCount } from "./morale";
+import { gainMorale, moraleGauge, moraleMax, placedShotCount } from "./morale";
+import { startReload } from "./magazine";
 import { applyStats, currentMeleeStep, meleeStep, playerMoveset, updatePlayer } from "./player";
 import { detonateOwnMines } from "./weaponArts";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -229,7 +229,10 @@ describe("戦意: 長銃（狙い）", () => {
     if (!normal) throw new Error("普通の 1 発が出ない");
     state.projectiles.length = 0;
     state.player.shootCooldown = 0;
+    // 溜めでない器の放出はリロード後の 1 発目だけ（関門は system/gunMorale.test.ts）。込め直しながら狙いを満たす
+    startReload(state, 0);
     run(state, {}, stepsFor(FORM.rifle.max / FORM.rifle.gain.still) + 1);
+    expect(state.player.magazine.fresh, "込め直した").toBe(true);
     expect(state.player.morale.primed).toBe(true);
     const events = run(state, { attackHeld: true });
     const shot = playerShots(state)[0];
@@ -281,122 +284,8 @@ describe("戦意の共通", () => {
   });
 });
 
-describe("戦意: 短銃（弾倉と装填）", () => {
+describe("戦意: 短銃（応手）", () => {
   const pistol = { moveset: "sidearm" as const, bullet: "pistol" };
-  const RELOAD = FORM.pistol.reload;
-
-  /** 左を 1 発撃つ（再使用を空けて 1 ステップ押す） */
-  function fire(state: GameState): GameEvent[] {
-    state.player.shootCooldown = 0;
-    return run(state, { attackHeld: true });
-  }
-
-  /** 弾倉を撃ち切って装填の窓を開ける（最後の 1 発で窓が立つ） */
-  function emptyMagazine(state: GameState): GameEvent[] {
-    const events: GameEvent[] = [];
-    for (let i = 0; i < FORM.pistol.max; i++) events.push(...fire(state));
-    return events;
-  }
-
-  /** 装填の窓が開いてから経った秒（窓は撃った瞬間に立ち、次のステップから減る） */
-  function pressRightAfter(state: GameState, sec: number): void {
-    run(state, {}, stepsFor(sec));
-    run(state, { shootHeld: true });
-    run(state, {});
-  }
-
-  it("撃った弾が弾倉に数えられ、空で装填の窓が開いて充溢の代わりに装填になり、窓の間は撃てない", () => {
-    const state = arena(5, pistol);
-    fire(state);
-    expect(state.player.morale.value, "1 発撃って弾倉 1").toBe(FORM.pistol.gain.shotFired);
-    const events = emptyMagazine(state);
-    expect(isReloading(state), "撃ち切ったら装填の窓").toBe(true);
-    // 窓は撃った瞬間に立ち、同じステップの終わりで 1 ステップ減る
-    expect(state.player.morale.window, "窓は装填の秒").toBeGreaterThan(RELOAD.windowSec - 2 * FIXED_DT);
-    expect(state.player.morale.window).toBeLessThanOrEqual(RELOAD.windowSec);
-    expect(kinds(events, "onBrim"), "空になった瞬間に 1 回（充溢の合図が装填の合図）").toHaveLength(1);
-    expect(kinds(run(state, {}), "onBrim"), "窓の間は繰り返さない").toHaveLength(0);
-
-    const shots = playerShots(state).length;
-    fire(state);
-    expect(playerShots(state).length, "窓の間は左で撃てない").toBe(shots);
-
-    run(state, {}, stepsFor(RELOAD.windowSec) + 1);
-    expect(isReloading(state), "窓が終わった").toBe(false);
-    expect(state.player.morale.value, "新しい弾倉").toBe(0);
-    fire(state);
-    expect(playerShots(state).length, "また撃てる").toBe(shots + 1);
-  });
-
-  it("短銃以外は弾倉を数えず装填もしない", () => {
-    const state = arena(5, { moveset: "longarm", bullet: "rifle" });
-    for (let i = 0; i < FORM.pistol.max + 2; i++) fire(state);
-    expect(isReloading(state), "長銃は装填しない").toBe(false);
-  });
-
-  it("窓の拍（primeFrom〜primeTo）に右を押すと強装填。次の弾倉は威力が乗り、1 発目だけが放出と終撃", () => {
-    const state = arena(5, pistol);
-    fire(state);
-    const normal = playerShots(state)[0];
-    if (!normal) throw new Error("普通の 1 発が出ない");
-    state.projectiles.length = 0;
-    state.player.morale.value = 0;
-    emptyMagazine(state);
-    state.projectiles.length = 0;
-    pressRightAfter(state, (RELOAD.primeFrom + RELOAD.primeTo) / 2);
-    expect(state.player.morale.primed, "拍に押せたら強装填").toBe(true);
-    expect(state.player.art.holding, "右の段（狙い）は出さない").toBe(false);
-    run(state, {}, stepsFor(RELOAD.windowSec));
-    expect(state.player.morale.primed, "窓が終わっても次の弾倉へ持ち越す").toBe(true);
-
-    const first = run(state, {}).concat(fire(state));
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("強装填の 1 発目が出ない");
-    expect(shot.damage / normal.damage, "威力").toBeCloseTo(1 + FORM.pistol.perUnit.damageMul);
-    expect(shot.release, "1 発目は放出の弾（終撃）").toEqual({ finisher: true, crit: false });
-    expect(kinds(first, "onRelease"), "放出は 1 回").toHaveLength(1);
-
-    state.projectiles.length = 0;
-    fire(state);
-    const second = playerShots(state)[0];
-    if (!second) throw new Error("2 発目が出ない");
-    expect(second.damage / normal.damage, "2 発目も威力は乗る").toBeCloseTo(1 + FORM.pistol.perUnit.damageMul);
-    expect(second.release, "2 発目は放出でない").toBeUndefined();
-  });
-
-  it("強装填は撃ち切った弾倉で降り、次は拍を取り直す", () => {
-    const state = arena(5, pistol);
-    emptyMagazine(state);
-    pressRightAfter(state, (RELOAD.primeFrom + RELOAD.primeTo) / 2);
-    run(state, {}, stepsFor(RELOAD.windowSec));
-    emptyMagazine(state);
-    expect(state.player.morale.primed, "撃ち切ったら降りる").toBe(false);
-  });
-
-  it("拍より早い・遅い右は強装填にならない", () => {
-    const early = arena(5, pistol);
-    emptyMagazine(early);
-    pressRightAfter(early, 0);
-    expect(early.player.morale.primed, "早すぎ").toBe(false);
-    const late = arena(5, pistol);
-    emptyMagazine(late);
-    pressRightAfter(late, (RELOAD.primeTo + RELOAD.windowSec) / 2);
-    expect(late.player.morale.primed, "遅すぎ").toBe(false);
-  });
-
-  it("装填の秒を 0 にすると装填ごと無効（つまみ）", () => {
-    const release = FORMS.pistol.morale.release as { windowSec: number };
-    const saved = release.windowSec;
-    release.windowSec = 0;
-    try {
-      const state = arena(5, pistol);
-      for (let i = 0; i < FORM.pistol.max + 2; i++) fire(state);
-      expect(isReloading(state), "窓が開かない").toBe(false);
-      expect(state.player.morale.value, "弾倉も数えない").toBe(0);
-    } finally {
-      release.windowSec = saved;
-    }
-  });
 
   it("応手の見切りは零距離（zeroDistance）の敵だけ", () => {
     const near = arena(5, pistol);
@@ -416,7 +305,7 @@ describe("戦意: 短銃（弾倉と装填）", () => {
   });
 });
 
-describe("戦意: 砲（置いた弾と一斉起爆）", () => {
+describe("戦意: 仕掛け（置いた弾と一斉起爆）", () => {
   const trapper = { moveset: "trapper" as const, bullet: "mineLauncher" };
   const DETONATE_LIFE_MAX = 0.001;
   const DETONATE_STEP = MOVESETS.trapper.steps2.findIndex((s) => s.key === "detonate");
@@ -476,18 +365,9 @@ describe("戦意: 砲（置いた弾と一斉起爆）", () => {
     expect(currentMeleeStep(state)?.release).toBeUndefined();
   });
 
-  it("擲弾の曲射弾も置いた弾で、蹴り飛ばしの段で一斉起爆する。零距離砲・起爆・蹴り飛ばしが放出の段", () => {
+  it("仕掛けだけの型で、放出の段は起爆だけ（砲は装薬、擲弾は擲弾の型。system/gunMorale.test.ts）", () => {
     const keys = FORMS.artillery.morale.release.kind === "laneStep" ? FORMS.artillery.morale.release.keys : [];
-    expect([...keys].sort(), "砲の放出の段").toEqual(["detonate", "kickAway", "pointBlank"]);
-    const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
-    state.player.shootCooldown = 0;
-    run(state, { attackHeld: true });
-    run(state, {});
-    expect(state.player.morale.value, "曲射弾が置いた弾").toBeGreaterThanOrEqual(1);
-    const kick = MOVESETS.grenade.steps2.findIndex((s) => s.key === "kickAway");
-    readyLaneStep(state, kick);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")[0]?.amount, "曲射弾を起爆した数").toBeGreaterThanOrEqual(1);
+    expect([...keys], "仕掛けの放出の段").toEqual(["detonate"]);
   });
 });
 
@@ -699,118 +579,17 @@ function throwShots(state: GameState, n: number): void {
   for (const pr of playerShots(state)) pr.pos.x += 60;
 }
 
-describe("戦意: 投具（飛んでいる数）", () => {
-  const thrown = { moveset: "thrown" as const };
-
-  it("飛んでいる自分の弾の数が戦意になり、満ちると充溢する（導出）", () => {
-    const state = arena(5, thrown);
-    throwShots(state, FORM.thrower.max);
-    const events = run(state, {});
-    expect(state.player.morale.value, "飛んでいる数").toBe(FORM.thrower.max);
-    expect(kinds(events, "onBrim"), "満ちた瞬間に充溢").toHaveLength(1);
-    gainMorale(state, "meleeHit");
-    expect(state.player.morale.value, "出来事では溜め込まない").toBe(FORM.thrower.max);
-    state.projectiles.length = 0;
-    run(state, {});
-    expect(state.player.morale.value, "弾が無くなれば 0").toBe(0);
-  });
-
-  it("手元返しが放出になり、戻りの弾は飛んでいた数だけ強い放出の弾になる", () => {
-    const state = arena(5, thrown);
+describe("戦意: 投擲物の型（クナイ・手裏剣・戦輪の詳しい検査は system/kunai.test.ts・shuriken.test.ts・ringBlades.test.ts）", () => {
+  it("クナイの型（苦無）は叩き込みで溜まり、自分の弾が飛んでいるだけでは戦意は 0", () => {
+    const state = arena(5, { moveset: "kunai" });
+    expect(formOf(MOVESETS.kunai).morale.gain.map((g) => g.kind)).toEqual(["pinDriven"]);
     throwShots(state, 2);
     run(state, {});
-    const recall = MOVESETS.thrown.steps2[0];
-    if (recall?.kind !== "recall") throw new Error("投擲の右 1 段目は手元返し");
-    const before = playerShots(state).map((pr) => pr.damage);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")[0]?.amount, "飛んでいた数が放出の量").toBe(2);
-    const returned = playerShots(state);
-    expect(returned, "戻した弾").toHaveLength(2);
-    returned.forEach((pr, i) => {
-      expect(pr.damage / (before[i] ?? 1), "戻りの威力").toBeCloseTo(recall.recall.returnDamageMul * (1 + FORM.thrower.perUnit.damageMul * 2));
-      expect(pr.release, "放出の弾（終撃）").toEqual({ finisher: true, crit: false });
-    });
+    expect(state.player.morale.value).toBe(0);
   });
 
-  it("飛んでいる弾が無ければ手元返しは放出にならない", () => {
-    const state = arena(5, thrown);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")).toHaveLength(0);
-  });
-
-  it("輪刃の投げ放ち（右の最終段）は回っている輪の数だけ強い放出の弾になる", () => {
-    const state = arena(5, { moveset: "ringBlades" });
-    const launch = MOVESETS.ringBlades.steps2.length - 1;
-    expect(MOVESETS.ringBlades.steps2[launch]?.key).toBe("ringLaunch");
-    const plainState = arena(5, { moveset: "ringBlades" });
-    readyLaneStep(plainState, launch);
-    run(plainState, { shootHeld: true });
-    const plain = playerShots(plainState)[0];
-    if (!plain) throw new Error("普通の投げ放ちが出ない");
-
-    run(state, { shootHeld: true });
-    expect(playerShots(state), "輪が 1 つ回っている").toHaveLength(1);
-    state.player.art.cooldown = 0;
-    readyLaneStep(state, launch);
-    const events = run(state, { shootHeld: false }).concat(run(state, { shootHeld: true }));
-    expect(kinds(events, "onRelease")[0]?.amount, "回っている輪の数").toBe(1);
-    const launched = playerShots(state).find((pr) => pr.release !== undefined);
-    if (!launched) throw new Error("放出の輪が出ない");
-    expect(launched.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.thrower.perUnit.damageMul);
-  });
-
-  it("戦輪の払い（右 1 段目）は飛んでいる輪の数だけ強い放出の振りになる", () => {
-    const state = arena(5, { moveset: "warRing" });
-    throwShots(state, 2);
-    run(state, {});
-    const events = run(state, { shootHeld: true });
-    expect(MOVESETS.warRing.steps2[0]?.key).toBe("ringSweep");
-    expect(kinds(events, "onRelease")[0]?.amount, "飛んでいる数").toBe(2);
-    const now = currentMeleeStep(state);
-    const plain = plainStepOf(state);
-    if (!now || !plain) throw new Error("払いの振りが無い");
-    expect(now.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.thrower.perUnit.damageMul * 2);
-  });
-
-  /** 戻りの弾（手元返しで戻している弾）と敵弾を重ねて置き、1 ステップ進める */
-  function overlapReturning(state: GameState): Projectile {
-    throwShots(state, 1);
-    const mine = playerShots(state)[0];
-    if (!mine) throw new Error("自分の弾が無い");
-    mine.shot ??= { key: "" };
-    mine.shot.returning = true;
-    // 動かさず敵弾に重ねたまま 1 ステップ進める
-    mine.vel = { x: 0, y: 0 };
-    const enemyShot: Projectile = {
-      id: 9002,
-      owner: "enemy",
-      pos: { ...mine.pos },
-      vel: { x: 0, y: 0 },
-      radius: 3,
-      damage: 5,
-      life: 5,
-      color: "#ff0000",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    };
-    state.projectiles.push(enemyShot);
-    updateProjectiles(state, FIXED_DT);
-    return enemyShot;
-  }
-
-  it("戻りの弾が敵弾を消すと応手（recallCut）になる", () => {
-    const state = arena(5, thrown);
-    const enemyShot = overlapReturning(state);
-    expect(enemyShot.life, "敵弾が消えた").toBeLessThanOrEqual(0);
-    expect(kinds(state.events, "onRiposte").map((ev) => ev.tag)).toEqual(["recallCut"]);
-  });
-
-  it("投具でない武器の戻りの弾は敵弾を消さない", () => {
-    const state = arena(5);
-    const enemyShot = overlapReturning(state);
-    expect(enemyShot.life, "敵弾は残る").toBeGreaterThan(0);
-    expect(kinds(state.events, "onRiposte")).toHaveLength(0);
+  it("戦輪の型の放出の段は強化投げ", () => {
+    expect(formOf(MOVESETS.ringBlades).morale.release).toEqual({ kind: "laneStep", keys: ["ringHurl"] });
   });
 });
 

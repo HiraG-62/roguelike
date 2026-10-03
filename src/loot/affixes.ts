@@ -4,6 +4,7 @@ import { ELEMENTS, ELEMENT_LABEL, type Element } from "../core/element";
 import type { StatusKind, StatusProc } from "../core/status";
 import { formatMeters } from "../core/units";
 import { ECONOMY, HEAL, KEYSTONE, STATUS, TRIGGER } from "../data/tuning";
+import type { WeaponGroup } from "../data/weapons";
 import type { EventKind, EventSource } from "../core/events";
 import { type KeywordProfile, emptyProfile, kw } from "../core/keywords";
 import { type Modifier, type ModifierPer, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
@@ -94,6 +95,18 @@ export const APPLY_STAGES: readonly ApplyStage[] = ["flat", "scale", "convert"];
 
 export type ApplyFn = (stats: PlayerStats, value: number, value2: number) => void;
 
+/** 性質の家系（右手の家系で性質を絞る値）。武器の群は 3 つだが、性質の家系は近接と弾の 2 つ */
+export type AffixFamily = "melee" | "gun";
+
+/**
+ * 右手の武器の群 → 性質の家系。投擲物も弾で戦うので銃の家系の性質（連射の烙印・杭・転じ）が付く
+ * （docs/ideas/gun-bases-review.md 4-3 の 11）。右手以外（undefined）は家系を問わない
+ */
+export function affixFamilyOf(group: WeaponGroup | undefined): AffixFamily | undefined {
+  if (group === undefined) return undefined;
+  return group === "melee" ? "melee" : "gun";
+}
+
 /** 性質の定義（旧アフィックス。prefix / suffix の区別は廃止） */
 export interface AffixDef {
   key: string;
@@ -103,9 +116,9 @@ export interface AffixDef {
   slots: readonly Slot[];
   /**
    * 右手の家系を絞る（docs/ideas/weapon-redesign.md 5.2）。省略は家系を問わない。
-   * mainHand を含む性質だけが意味を持つ（ring / amulet では常に出る）
+   * mainHand を含む性質だけが意味を持つ（ring / amulet では常に出る）。"gun" は投擲物の器にも付く（affixFamilyOf）
    */
-  family?: "melee" | "gun";
+  family?: AffixFamily;
   /** 期待値曲線（順不同。深度の昇順に並べ直して使う） */
   curve: readonly CurvePoint[];
   /** 色。省略時は tags から決める（colors.ts の colorFromTags） */
@@ -303,7 +316,6 @@ function ratioPct(ratio: number): number {
 /** ベースの implicit の固定値（ロールしない側） */
 const MACHETE_BURN_DPS = 3;
 const MATCHLOCK_BURN_DPS = 4;
-const BLOWGUN_POISON_PCT = 25;
 const FANG_BLEED_POTENCY = 1.5;
 /** 出血が 1 回刻まれる移動距離（表示用。m に直す） */
 const BLEED_STEP = formatMeters(STATUS.bleed.distance);
@@ -1566,7 +1578,7 @@ export function isConversionKey(key: string): boolean {
 
 /** slot に付けられ、depth で曲線が始まっている変換の性質 */
 /** family を渡すと、その家系専用（AffixDef.family）の性質だけに絞る。省略は家系を問わない */
-function familyAllowed(d: AffixDef, family: "melee" | "gun" | undefined): boolean {
+function familyAllowed(d: AffixDef, family: AffixFamily | undefined): boolean {
   return d.family === undefined || family === undefined || d.family === family;
 }
 
@@ -1583,7 +1595,7 @@ export function slotAllows(d: Pick<AffixDef, "slots">, slot: Slot): boolean {
   return alias !== undefined && d.slots.includes(alias);
 }
 
-export function conversionsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
+export function conversionsFor(slot: Slot, depth: number, family?: AffixFamily): AffixDef[] {
   return CONVERSION_AFFIXES.filter((d) => slotAllows(d, slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 
@@ -2280,16 +2292,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     },
   },
   {
-    key: "implicit.throwingKnives",
-    label: "連射速度 +{v}%、会心率 +3%、射撃ダメージ -15%",
-    range: { min: 15, max: 25 },
-    apply: (s, v) => {
-      s.fireRateMul += pct(v);
-      s.critChance += pct(3);
-      s.increased.ranged -= pct(15);
-    },
-  },
-  {
     key: "implicit.matchlock",
     label: "炎上確率 +{v}%（炎上 4 ダメージ/秒）、連射速度 -30%",
     range: { min: 45, max: 60 },
@@ -2297,16 +2299,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.burnChance += pct(v);
       s.burnDps += MATCHLOCK_BURN_DPS;
       s.fireRateMul -= pct(30);
-    },
-  },
-  {
-    key: "implicit.blowgun",
-    label: "射撃命中時 25% で毒、状態異常の効果量 +{v}%、射撃ダメージ -35%",
-    range: { min: 15, max: 25 },
-    apply: (s, v) => {
-      pushProc(s, statusProc("poison", BLOWGUN_POISON_PCT, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "ranged"));
-      s.statusPotencyMul += pct(v);
-      s.increased.ranged -= pct(35);
     },
   },
   {
@@ -2587,14 +2579,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     },
   },
   {
-    key: "implicit.chakram",
-    label: "弾速 +{v}%",
-    range: { min: 15, max: 22 },
-    apply: (s, v) => {
-      s.projectileSpeedMul += pct(v);
-    },
-  },
-  {
     key: "implicit.handCannon",
     label: "近接・射撃の{v}%を炎属性に変換",
     range: { min: 20, max: 30 },
@@ -2609,14 +2593,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 12, max: 18 },
     apply: (s, v) => {
       s.traits.enemyOnTerrainMul += pct(v);
-    },
-  },
-  {
-    key: "implicit.seekerOrb",
-    label: "状態異常の効果量 +{v}%",
-    range: { min: 10, max: 15 },
-    apply: (s, v) => {
-      s.statusPotencyMul += pct(v);
     },
   },
   {
@@ -2761,7 +2737,7 @@ export function firstDepth(def: AffixDef): number {
 }
 
 /** slot に付けられ、depth で曲線が始まっている通常の性質（変換・目覚め・地金の行は含まない） */
-export function traitsFor(slot: Slot, depth: number, family?: "melee" | "gun"): AffixDef[] {
+export function traitsFor(slot: Slot, depth: number, family?: AffixFamily): AffixDef[] {
   return AFFIXES.filter((d) => d.awakening !== true && slotAllows(d, slot) && firstDepth(d) <= depth && familyAllowed(d, family));
 }
 

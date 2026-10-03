@@ -10,8 +10,8 @@ import { COMMON_ART_KEYS } from "../skills/arts/keys";
 import { ART_ACT_KINDS } from "../skills/arts/types";
 import { ultPiece } from "./fxUltimate";
 import { actPieceOf } from "./fxSkill";
-import { BULLETS } from "../loot/bullets";
-import { BASES, baseFamily } from "../loot/bases";
+import { BULLETS, baseHasBullet } from "../loot/bullets";
+import { BASES } from "../loot/bases";
 import { movesetCasts } from "../data/weapons";
 import { ULTIMATES, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
@@ -158,13 +158,13 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 
 /**
  * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
- * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
+ * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に、クナイの振りは段 7-B（2026-10-03）に描き切ったので空
  */
 const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
 /**
  * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
- * 連刃の段数の拡張（5b-F）の旧 key は 2026-09-30 に取り除いたので空
+ * 砲の筒殴り・尻叩き、チャクラムの左 4 段と輪断ち・二輪断ちは段 7-A で取り除いたので空
  */
 const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
@@ -258,10 +258,10 @@ describe("fxMotions: 武器種のモーションの表", () => {
   });
 });
 
-/** 武器種が撃つ弾の key（銃のベースの弾・右の弾の段・振りの cast） */
+/** 武器種が撃つ弾の key（弾を持つベースの弾・右の弾の段・振りの cast） */
 function movesetBulletKeys(moveset: MovesetKey): string[] {
   const def = MOVESETS[moveset];
-  const bases = BASES.filter((b) => b.moveset === moveset && baseFamily(b) === "gun").map((b) => b.key);
+  const bases = BASES.filter((b) => b.moveset === moveset && baseHasBullet(b)).map((b) => b.key);
   const volleys = def.steps2.flatMap((s) => (s.kind === "volley" ? [s.throw.bullet.key] : []));
   const casts = movesetCasts(def).map((c) => c.throw.bullet.key);
   return [...new Set([...bases, ...volleys, ...casts])];
@@ -318,9 +318,12 @@ describe("fxMotions: 奥義の絵の表", () => {
 
 /**
  * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
- * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切ったので空
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に、
+ * クナイ・手裏剣は段 7-B（2026-10-03）に描き切ったので空
  */
 const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
+/** 奥義の絵（`<武器種>Ult.mjs`）がまだ無い武器種。クナイ・手裏剣の奥義は段 7-B で描いたので空 */
+const UNDRAWN_ULTIMATES: readonly MovesetKey[] = [];
 
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
@@ -402,7 +405,7 @@ describe("fxMotions: 全武器種・全奥義の網羅", () => {
 
   it("どの奥義も専用の絵を持つ（一撃は発動と行為、持続は発動と纏い）", () => {
     for (const key of MOVESET_KEYS) {
-      if (UNDRAWN_MOVESETS.includes(key)) continue;
+      if (UNDRAWN_ULTIMATES.includes(key)) continue;
       for (const def of ULTIMATES[key]) {
         const fx = ULTIMATE_FX[def.key];
         expect(fx?.cast, `${def.key} の発動`).toBeDefined();

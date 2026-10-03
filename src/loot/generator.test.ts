@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
-import { affixDef, implicitDef, isConversionKey, isKeystoneKey, keystoneDef } from "./affixes";
+import { affixDef, affixFamilyOf, implicitDef, isConversionKey, isKeystoneKey, keystoneDef } from "./affixes";
 import { baseDef } from "./bases";
 import { COLOR_ADJECTIVE, traitColorOf } from "./colors";
 import { INVERSION_MIN_DEPTH, fluxClassOf } from "./flux";
@@ -407,6 +407,26 @@ describe("generateItem: 右手の家系ゲート（剣は撃たず、銃は近�
       }
     }
     expect(sawAnyTrait, "検査対象の性質が生成されたこと").toBe(true);
+  });
+
+  it("投擲物（クナイ）は family:gun の性質が付き、family:melee の性質は付かない（gun-bases-review 4-3 の 11）", () => {
+    let sawGunTrait = false;
+    for (let seed = 0; seed < SEEDS * 4; seed++) {
+      const item = generateOnBase("kunai", seed);
+      for (const roll of item.affixes) {
+        const family = affixDef(roll.key)?.family;
+        expect(family, `seed ${seed}: ${roll.key}`).not.toBe("melee");
+        if (family === "gun") sawGunTrait = true;
+      }
+    }
+    expect(sawGunTrait, "銃の家系の性質が投擲物に付いた").toBe(true);
+  });
+
+  it("右手の群から性質の家系へ: 近接は近接、銃と投擲物は銃、右手以外は問わない", () => {
+    expect(affixFamilyOf("melee")).toBe("melee");
+    expect(affixFamilyOf("gun")).toBe("gun");
+    expect(affixFamilyOf("throwing")).toBe("gun");
+    expect(affixFamilyOf(undefined)).toBeUndefined();
   });
 
   it("銃でも onMeleeHit / onCounter トリガーは出うる（ダッシュ攻撃・銃剣・零距離砲で実際に機能するため）", () => {

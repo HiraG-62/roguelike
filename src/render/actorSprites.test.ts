@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ACTOR_ATLASES, ACTOR_SHEETS } from "../data/actorSheets.gen";
 import { JOB_KEYS } from "../data/jobs";
 import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
-import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
+import { actorAnchor, actorDir, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta, weaponStepArt } from "./actorSprites";
 import { BODY_CLIP_FRAMES, DEFAULT_STANCE, IDLE_PERIOD, solveRig, stanceFromMeta } from "./playerRig";
 
 const RECT_STRIDE = 6;
@@ -80,7 +80,8 @@ describe("actorSprites: 全ジョブの体", () => {
 
 /**
  * 手に持つ絵がまだ無い武器種（描画は 24x24 の体と HELD の持ち手に落ちる）。
- * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す
+ * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す。
+ * 投擲物のクナイ・手裏剣は段 7 で描いたので空
  */
 const UNDRAWN_WEAPONS: readonly MovesetKey[] = [];
 
@@ -258,6 +259,35 @@ describe("二刀の後ろの手の前後（構えの offFront）", () => {
             expect(rig.back.behind, `${key} ${job} ${clip}[${f}]`).toBe(key !== "fists");
           }
         }
+      }
+    }
+  });
+});
+
+describe("段ごとの持ち替えの絵（meta.stepArt）", () => {
+  it("短銃の短刀斬りは後ろの手の短刀、砲の込め棒突きは前の手の込め棒", () => {
+    expect(weaponStepArt("wpnSidearm", "daggerCut")).toEqual({ key: "wpnSidearm.dagger", hand: "off" });
+    expect(weaponStepArt("wpnCannon", "rammerThrust")).toEqual({ key: "wpnCannon.rammer", hand: "main" });
+    expect(weaponStepArt("wpnCannon", "rammerThrust2")).toEqual({ key: "wpnCannon.rammer", hand: "main" });
+  });
+
+  it("持ち替えの無い段・段の key が無い・アトラスが無いなら undefined", () => {
+    expect(weaponStepArt("wpnSidearm", "sidearmButt")).toBeUndefined();
+    expect(weaponStepArt("wpnSidearm", undefined)).toBeUndefined();
+    expect(weaponStepArt("wpnNothing", "daggerCut")).toBeUndefined();
+  });
+
+  it("stepArt を持つ全アトラスで、段の key は同じ武器種の右の段で、シートが実在し、手は main / off", () => {
+    for (const [atlas, def] of Object.entries(ACTOR_ATLASES)) {
+      const art = (def.meta as { stepArt?: Record<string, { sheet: string; hand: string }> } | null)?.stepArt;
+      if (!art) continue;
+      const moveset = MOVESETS[`${atlas.slice(3, 4).toLowerCase()}${atlas.slice(4)}` as MovesetKey];
+      expect(moveset, `${atlas} の武器種`).toBeDefined();
+      const keys = moveset?.steps2.flatMap((s) => (s.kind === "swing" && s.key ? [s.key] : [])) ?? [];
+      for (const [stepKey, spec] of Object.entries(art)) {
+        expect(keys, `${atlas}.${stepKey} は右の振りの段`).toContain(stepKey);
+        expect(ACTOR_SHEETS[`${atlas}.${spec.sheet}`], `${atlas}.${spec.sheet} のシート`).toBeDefined();
+        expect(["main", "off"], `${atlas}.${stepKey} の手`).toContain(spec.hand);
       }
     }
   });

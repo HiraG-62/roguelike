@@ -3,7 +3,7 @@ import type { Enemy, GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyWeaknesses } from "../data/enemyDefense";
 import { ELEMENT } from "../data/tuning";
-import { MOVESETS, actionStepName, isGun } from "../data/weapons";
+import { MOVESETS, actionStepName, isRangedWeapon, shootsPrimary } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import type { Item, PlayerStats } from "../loot/types";
@@ -23,7 +23,7 @@ export function itemAttackLine(item: Item): string | null {
   const base = baseDef(item.baseKey);
   if (base?.moveset === undefined) return null;
   const m = MOVESETS[base.moveset];
-  const bullet = isGun(m) ? BULLETS[base.key] : undefined;
+  const bullet = isRangedWeapon(m) ? BULLETS[base.key] : undefined;
   return `${m.name}: ${attackLabel(bullet?.attack ?? m.attack)}`;
 }
 
@@ -35,7 +35,7 @@ export function skillAttackLine(key: SkillKey): string | null {
 
 /**
  * いまの近接・射撃の素性（属性の変換はステータス一覧の「近接・射撃の炎属性 n%」が別に出す）。
- * 銃の家系（isGun）以外は「射撃: …」の代わりに右の 1 段目（アクション 2）を出す。
+ * 左で撃つ武器種（shootsPrimary）以外は「射撃: …」の代わりに右の 1 段目（アクション 2）を出す。
  * 弾を出す段（斧の投擲・杖の魔弾など）はその素性、それ以外は「右の技」とだけ出す
  */
 /** 射撃の行の見出し（弾の名前はベース名と同じなので、武器種の行と並べたとき紛れないよう「射撃」とだけ出す） */
@@ -46,7 +46,7 @@ const ART_LINE_LABEL = "右の技";
 export function loadoutAttackLines(stats: Readonly<PlayerStats>): string[] {
   const m = MOVESETS[stats.moveset];
   const meleeLine = `${m.name}: ${attackLabel(m.attack)}`;
-  if (isGun(m)) return [meleeLine, `${SHOT_LINE_LABEL}: ${attackLabel(currentBullet(stats).attack)}`];
+  if (shootsPrimary(m)) return [meleeLine, `${SHOT_LINE_LABEL}: ${attackLabel(currentBullet(stats).attack)}`];
   const art = m.steps2[0];
   if (art.kind === "volley") return [meleeLine, `${art.name}: ${attackLabel(art.throw.attack)}`];
   return [meleeLine, `${actionStepName(art, 0)}: ${ART_LINE_LABEL}`];

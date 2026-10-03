@@ -5,7 +5,7 @@ import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "
 import { pushPlayerEvent } from "../core/events";
 import { enemyDef } from "../data/enemies";
 import { FEEL, ULTIMATE } from "../data/tuning";
-import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
+import type { LungeAct, NovaAct, PackedShotAct, PinNovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
 import { ultimateDef } from "../data/ultimates";
 import {
   type ActionStepDef,
@@ -27,12 +27,15 @@ import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
 import { gainMana } from "./mana";
 import { boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
-import { emitVolley, spreadOffsets } from "./player";
+import { currentShot, emitVolley, spreadOffsets } from "./player";
+import { emptyMagazine } from "./magazine";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isAllied } from "./rules";
 import { placeTerrain } from "./terrain";
-import { detonateOwnMines, recallShots } from "./weaponArts";
+import { detonateOwnMines } from "./weaponArts";
 import { endShape } from "../skills/forms";
+import { detonatePins, stickPin } from "./pins";
+import { bulletDef } from "../loot/bullets";
 
 /**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3.2）。奥義ゲージが満タンなら、選んだ奥義を出す。
@@ -218,6 +221,15 @@ function runAct(state: GameState, def: UltimateDef, act: UltimateAct, slot: ActS
       addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runDetonate(state, act.damageMul ?? 1);
       return 0;
+    case "packedShot":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
+      runPackedShot(state, def, act);
+      return 0;
+    case "pinNova":
+      return runPinNova(state, def, act, slot);
+    case "detonatePins":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
+      return runDetonatePins(state, act.damageMul);
   }
 }
 
@@ -470,6 +482,66 @@ function runVolley(state: GameState, t: ThrowArtDef): void {
   });
 }
 
+/**
+ * 弾倉の残りを全部詰めた 1 発（砲の全弾発射）。弾倉は 0 になり（そのまま込めに入る）、装備の砲の弾が粒を足して強く、
+ * 反動で大きく後ろへ下がる。弾倉が空でも撃つ（ゲージは払い済みで、残りが無いことを理由に無駄にしない）
+ */
+function runPackedShot(state: GameState, def: UltimateDef, act: PackedShotAct): void {
+  const p = state.player;
+  const shot = currentShot(state.stats);
+  emptyMagazine(state);
+  emitVolley(state, shot, 0, p.aimDistance, {
+    count: state.stats.projectileCount + shot.pellets + act.pelletsAdd,
+    damageMul: act.damageMul,
+    attack: def.attack,
+    recoil: false,
+    steady: true,
+  });
+  p.knock = sub(p.knock, scale(p.facing, act.selfKnock));
+}
+
+/** 影縫いの陣が刺すクナイの種類（左の投げのクナイの弾の pin。刺さる本数・秒・叩き込みの倍率はそれに揃える） */
+const KUNAI_BULLET = "kunai";
+/** 影縫いの陣の刺さりの線（自分から刺した敵へ） */
+const PIN_LINE_COLOR = "#e8f0ff";
+
+/**
+ * 周りの敵すべてにクナイを pins 本ずつ刺す（影縫いの陣）。半径は burstRadiusMul、当てた敵へ scaling の傷を 1 回与え、
+ * その威力を刺さったときの威力として刺す（後の叩き込み・炸裂がこの威力を元にする）。倒れた敵・従魔には刺さない
+ */
+function runPinNova(state: GameState, def: UltimateDef, act: PinNovaAct, slot: ActSlot): number {
+  const p = state.player;
+  const pin = bulletDef(KUNAI_BULLET).pin;
+  const radius = act.radius * state.stats.burstRadiusMul;
+  addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing), size: radius });
+  spawnRing(state, p.body.pos, radius, ULTIMATE.common.textColor, RING_LIFE);
+  const spec = hitSpec(state, { scaling: act.scaling, poise: act.poise, poiseRatio: act.poiseRatio, knockback: 0 });
+  let kills = 0;
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.hidden || !circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    if (strikeEnemy(state, def, e, spec, p.body.pos)) {
+      kills += 1;
+      continue;
+    }
+    if (isAllied(state, e) || pin === undefined) continue;
+    const dir = angle(sub(e.body.pos, p.body.pos));
+    for (let i = 0; i < act.pins; i++) stickPin(state, e, pin, dir, spec.damage);
+    spawnLine(state, p.body.pos, e.body.pos, PIN_LINE_COLOR, LINE_LIFE);
+  }
+  pushSfx(state, "bulletHitHeavy");
+  return kills;
+}
+
+/**
+ * 刺さっているクナイをすべて炸裂させる（爆ぜクナイ）。刺さったときの威力 × damageMul × 奥義の増（increased.ultimate）を
+ * 1 本ごとに入れる。炸裂で倒した数を返す
+ */
+function runDetonatePins(state: GameState, damageMul: number): number {
+  const carrying = state.enemies.filter((e) => e.hp > 0 && (e.pins?.length ?? 0) > 0);
+  detonatePins(state, damageMul * increasedMul(state.stats.increased, "ultimate"));
+  return carrying.filter((e) => e.hp <= 0).length;
+}
+
 /** 引き寄せ: 半径（burstRadiusMul）内の敵を toDistance まで寄せる（壁の手前で止まる）。single なら最も近い 1 体 */
 function runPull(state: GameState, def: UltimateDef, act: PullAct, slot: ActSlot): void {
   const p = state.player;
@@ -567,32 +639,35 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
     (def.sustain.onEnd ?? []).forEach((act, i) => withUltimateFx(state, def.key, i, () => runAct(state, def, act, { part: "end", index: i })));
     // 差し替えた段は装備の型では引けないので、振りの途中なら止める（変身の endShape と同じ）
     if (changesMoveset(def.sustain) && state.player.attack.phase !== "none") cancelAttack(state);
+    // 借りた武器種の段の添字・派生は装備の型の段数と合わない（刀 4 段 → 手裏剣 3 段）ので、連撃を頭から始め直す
+    if (def.sustain.lanes) restartChain(state);
     addFloatingText(state, state.player.body.pos, END_TEXT, ULTIMATE.common.endTextColor, END_TEXT_SCALE, END_TEXT_LIFE);
     pushSfx(state, "formShift");
   }
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
 }
 
-/** 奥義の時間を進める（player.ts の updatePlayer で updateArt の直後）。持続中はゲージを減らし、纏い・手元返しを出し、尽きたら終える */
+/** 連撃の段カウンタと派生の列を頭へ戻す（振りは止め済み） */
+function restartChain(state: GameState): void {
+  const a = state.player.attack;
+  a.step = 0;
+  a.lane = "primary";
+  a.branch = -1;
+  a.pendingBranch = -1;
+  a.inputs.length = 0;
+}
+
+/** 奥義の時間を進める（player.ts の updatePlayer で updateArt の直後）。持続中はゲージを減らし、纏いを出し、尽きたら終える */
 export function updateUltimate(state: GameState, dt: number): void {
   const def = activeSustain(state);
   if (!def) return;
   const p = state.player;
-  const before = p.ultimate.elapsed;
   p.ultimate.elapsed += dt;
   p.energy = Math.max(0, p.energy - def.sustain.drainPerSec * dt);
   p.ultimate.quakeCooldown = Math.max(0, p.ultimate.quakeCooldown - dt);
   tickAura(state, def, dt);
-  const recall = def.sustain.recall;
-  if (recall && crossed(before, p.ultimate.elapsed, recall.interval)) recallShots(state, recall);
   if (def.sustain.minePull) pullToMines(state, def.sustain.minePull, dt);
   if (p.energy <= 0 && p.ultimate.elapsed >= def.sustain.minSec) endUltimate(state, "drained");
-}
-
-/** 経過が interval の倍数をまたいだか（決定的な周期。乱数も実時間も使わない） */
-function crossed(before: number, after: number, interval: number): boolean {
-  if (interval <= 0) return false;
-  return Math.floor(after / interval) > Math.floor(before / interval);
 }
 
 /** 纏い: interval 秒ごとに周り（burstRadiusMul）の敵へ当てる */
@@ -678,7 +753,7 @@ function pullToMines(state: GameState, pull: NonNullable<SustainDef["minePull"]>
 
 /** 型を差し替える持続か（段の差し替え・命中付与・振りの速さ・怯み値） */
 function changesMoveset(s: SustainDef): boolean {
-  return s.patch !== undefined || (s.applies?.length ?? 0) > 0 || s.mul.attackSpeed !== undefined || s.mul.poise !== undefined;
+  return s.patch !== undefined || s.lanes !== undefined || (s.applies?.length ?? 0) > 0 || s.mul.attackSpeed !== undefined || s.mul.poise !== undefined;
 }
 
 /** 入力の型 × 奥義の key ごとの合成済みの型（毎ステップ新しいオブジェクトを作らない。中身は定義から決まるので決定性に影響しない） */
@@ -700,7 +775,26 @@ export function ultimateMoveset(state: GameState, base: MovesetDef): MovesetDef 
   return merged;
 }
 
-function patchMoveset(base: MovesetDef, s: SustainDef): MovesetDef {
+/** 連撃（左・右レーン・派生・溜め）とダッシュ攻撃を借りた武器種のものにする。型・戦意は装備のまま。key は絵とエフェクトを引くので借りた武器種のもの */
+function borrowLanes(base: MovesetDef, from: MovesetKey): MovesetDef {
+  const src = MOVESETS[from];
+  return {
+    ...base,
+    key: src.key,
+    steps: src.steps,
+    steps2: src.steps2,
+    branches: src.branches,
+    charge: src.charge,
+    tip: src.tip,
+    // ダッシュ攻撃も刀のものにする（刀の key で描くので、手裏剣の抜け斬りのままだと動きと絵が食い違う）
+    dashAttack: src.dashAttack,
+    chainAdvance: undefined,
+    waitForReturn: undefined,
+  };
+}
+
+function patchMoveset(carrier: MovesetDef, s: SustainDef): MovesetDef {
+  const base = s.lanes ? borrowLanes(carrier, s.lanes.moveset) : carrier;
   const p = s.patch ?? {};
   const moveMul = p.attackMoveMul ?? 1;
   const step = (st: MeleeStepDef): MeleeStepDef => patchStep(st, s);
@@ -766,7 +860,7 @@ function scaleRatio(r: AttrRatio | undefined, mul: number): AttrRatio | undefine
   return out;
 }
 
-/** 持続中の射撃の弾（key はそのまま。周回（円環の理）のほかは弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
+/** 持続中の射撃の弾（key はそのまま。周回のほかは弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
 export function ultimateShot(state: GameState, shot: BulletDef): BulletDef {
   const mod = activeSustain(state)?.sustain.shot;
   if (!mod) return shot;
@@ -789,6 +883,11 @@ export function ultimateFireRateMul(state: GameState): number {
   if (!s) return 1;
   const still = s.stillFireRate !== undefined && length(state.player.body.vel) < STILL_SPEED ? s.stillFireRate : 1;
   return (s.mul.fireRate ?? 1) * still;
+}
+
+/** 持続中の叩き込み（クナイの刺さりを叩き込む追撃）の倍率（無ければ 1。player.ts の meleeHitEnemy から） */
+export function ultimatePinDriveMul(state: GameState): number {
+  return activeSustain(state)?.sustain.pinDriveMul ?? 1;
 }
 
 /**

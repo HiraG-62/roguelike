@@ -125,8 +125,9 @@ describe("武器 Wave 4: 型の復元（JSON → 型）", () => {
 
   it("杖以外の既存の武器種は cast を持たず、弾の段の弾は applies を持たない（挙動は不変）", () => {
     for (const m of Object.values(MOVESETS)) {
-      // 杖は魔法の武器種に作り替えた（wandMagic.test.ts）。書（段取り 5d）は派生の頁飛ばしが頁の弾を撃つ
-      if (m.key === "wand" || m.key === "book") continue;
+      // 杖は魔法の武器種に作り替えた（wandMagic.test.ts）。書（段取り 5d）は派生の頁飛ばしが頁の弾を撃つ。
+      // 戦輪の近投げ・強化投げと手裏剣の左右は振りが投げる弾（段 5-A。weapons.test.ts が見る）
+      if (m.key === "wand" || m.key === "book" || m.key === "ringBlades" || m.key === "shuriken") continue;
       expect(movesetCasts(m), m.key).toEqual([]);
       for (const s of m.steps2) {
         if (s.kind === "volley") expect(s.throw.applies, `${m.key}.${s.key}`).toBeUndefined();

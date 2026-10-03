@@ -21,6 +21,8 @@ export interface ThrownLook {
   readonly motion: ThrownMotion;
   /** spin の毎秒の回転（ラジアン） */
   readonly spin: number;
+  /** 回る向きを進む向きで替えない（弧で行って戻る輪。折り返しや縦の弧で左右が入れ替わっても逆回しにならない） */
+  readonly steady?: true;
 }
 
 /** 軽い物（輪・短刀・鉈）の回転 */
@@ -45,36 +47,41 @@ function point(shape: ThrownShape): ThrownLook {
 const KNIFE = point("knife");
 const KNIFE_SPIN = spin("knife");
 const AXE = spin("axe", SPIN_HEAVY);
-const WAR_RING = spin("warRing");
-const RING_BLADES = spin("ringBlades");
+const RING_BLADES: ThrownLook = { ...spin("ringBlades"), steady: true };
+const KUNAI = point("kunai");
+const SHURIKEN = spin("shuriken");
+const BIG_SHURIKEN = spin("bigShuriken");
 
 /**
  * 弾の key（BulletDef.key。右レーンの弾の段は `art.<段の key>`、銃の家系の左はベースの key）→ 見た目。
- * 派生の弾（二丁投げ・三本投げ・回し投げ・三連輪 …）も同じ弾の key を撃つのでここで拾える
+ * 派生の弾（二丁投げ・重ね輪・離れ投げ …）も同じ弾の key を撃つのでここで拾える。振りが撃つ弾は `cast.<cast の key>`
  */
 export const BULLET_LOOK: Readonly<Record<string, ThrownLook>> = {
   // 斧の右「投擲」（と派生の二丁投げ）
   "art.axeThrow": AXE,
-  // チャクラムの右 4 段目「投輪」
-  "art.ringLaunch": RING_BLADES,
-  // 戦輪の右「輪投げ」「双輪」
-  "art.ringThrow": WAR_RING,
-  "art.twinRings": WAR_RING,
-  // 投擲の左（投げ短剣）
-  throwingKnives: KNIFE,
-  // 戦輪の左（刃の輪を投げる）
-  chakram: WAR_RING,
-  returnChakram: WAR_RING,
-  flyingBlade: WAR_RING,
+  // 戦輪の左（器の輪刃・牙輪）と、右の近投げ・強化投げ
+  ringBlades: RING_BLADES,
+  fangRings: RING_BLADES,
+  "cast.ringToss": RING_BLADES,
+  "cast.ringHurl": RING_BLADES,
+  // クナイの左
+  kunai: KUNAI,
+  // 手裏剣の左右（3 段目は大手裏剣）
+  "cast.starToss": SHURIKEN,
+  "cast.starToss2": SHURIKEN,
+  "cast.starFan": SHURIKEN,
+  "cast.starFan2": SHURIKEN,
+  "cast.bigStar": BIG_SHURIKEN,
 };
 
-/** 奥義の key（`<武器種>.<id>`）→ 見た目。弾の key より優先する（大投擲は返し輪の弾で斧を投げる） */
+/** 奥義の key（`<武器種>.<id>`）→ 見た目。弾の key より優先する（大投擲は斧の投擲の弾で斧を投げる） */
 export const ULTIMATE_LOOK: Readonly<Record<string, ThrownLook>> = {
   "axe.greatThrow": AXE,
-  "thrown.thousandHands": KNIFE,
-  "thrown.pinpoint": KNIFE,
-  "warRing.ringDance": WAR_RING,
-  "warRing.headsman": WAR_RING,
+  "ringBlades.headsman": RING_BLADES,
+  "ringBlades.ringDance": RING_BLADES,
+  "kunai.shadowStitch": KUNAI,
+  "shuriken.eightfold": SHURIKEN,
+  "shuriken.greatWheel": BIG_SHURIKEN,
 };
 
 /** 技・スキル石の key（CastParams.skillKey）→ 見た目。武器種に依らず同じ絵を飛ばすもの。技の弾（state.skills.shots）に使う */
@@ -104,8 +111,8 @@ export const MOVESET_THROWN_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook
   flail: spin("ironBall", SPIN_HEAVY),
   twinBlades: KNIFE_SPIN,
   cleaver: spin("cleaver"),
-  thrown: KNIFE_SPIN,
-  warRing: WAR_RING,
+  kunai: KUNAI,
+  shuriken: SHURIKEN,
 };
 
 /** 型替え符「照準起点」で近接が飛ばす刃 */
@@ -128,12 +135,12 @@ export function skillShotLook(key: string, moveset: MovesetKey): ThrownLook | un
 }
 
 /**
- * 描く角度。spin は時刻で回し（左へ飛ぶものは逆回し）、point は進む向き。
+ * 描く角度。spin は時刻で回し（左へ飛ぶものは逆回し。steady は向きによらず同じ向きに回す）、point は進む向き。
  * 速度 0 の弾（止まった瞬間）は右向き
  */
 export function thrownAngle(look: ThrownLook, time: number, id: number, vel: Vec): number {
   if (look.motion === "point") return vel.x === 0 && vel.y === 0 ? 0 : Math.atan2(vel.y, vel.x);
-  const dir = vel.x < 0 ? -1 : 1;
+  const dir = look.steady === true || vel.x >= 0 ? 1 : -1;
   return dir * (time * look.spin + id * SPIN_PHASE_PER_ID);
 }
 
@@ -149,13 +156,15 @@ export function arcPoint(from: Vec, to: Vec, t: number, height: number): Vec {
 
 /** 絵を中心に置いて回して描く。絵が無ければ（読み込み前・key 違い）false */
 export function drawThrownLook(ctx: CanvasRenderingContext2D, atlas: SpriteAtlas, look: ThrownLook, x: number, y: number, angle: number, scale: number): boolean {
-  const img = atlas[look.sprite]?.frames[0];
-  if (!img) return false;
+  const sprite = atlas[look.sprite];
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
   if (scale !== 1) ctx.scale(scale, scale);
-  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  // 論理寸法（sprite.w / h）で描く。img.width（ドット数）で描くと、密度 2 の絵が 2 倍の大きさになる
+  ctx.drawImage(img, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
   ctx.restore();
   return true;
 }

@@ -154,3 +154,20 @@ export function weaponOffGrip(weapon: string): number | null {
   const meta = ACTOR_ATLASES[weapon].meta as { offGrip?: number | null } | null;
   return meta?.offGrip ?? null;
 }
+
+/** 段ごとの持ち替えの絵（武器のアトラスの meta.stepArt）: 使うシートの key（`<アトラス>.<sheet>`）と、どの手に持つか */
+export interface StepArt {
+  readonly key: string;
+  /** main = 前の手で今の武器の代わりに持つ / off = 後ろの手に持ち、前の手は今の武器のまま */
+  readonly hand: "main" | "off";
+}
+
+/** 武器の絵の段 key（右レーンの段の key）に持ち替えの絵があれば返す。形が崩れている・シートが無ければ undefined */
+export function weaponStepArt(weapon: string, stepKey: string | undefined): StepArt | undefined {
+  if (stepKey === undefined || !isActorAtlas(weapon)) return undefined;
+  const meta = ACTOR_ATLASES[weapon].meta as { stepArt?: Record<string, { sheet?: unknown; hand?: unknown }> } | null;
+  const art = meta?.stepArt?.[stepKey];
+  if (!art || typeof art.sheet !== "string" || (art.hand !== "main" && art.hand !== "off")) return undefined;
+  const key = `${weapon}.${art.sheet}`;
+  return key in ACTOR_SHEETS ? { key, hand: art.hand } : undefined;
+}

@@ -2,13 +2,13 @@ import type { FrameInput } from "../core/input";
 import type { GameState, Player, Projectile } from "../core/state";
 import { isZero } from "../core/vec";
 import { FORM } from "../data/tuning";
-import { type FormDef, type MoraleGain, type MoraleRelease, type ReleasePerUnit, formOfKey } from "../data/weaponForms";
-import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, isGun, meleeChargeOf } from "../data/weapons";
+import { type FormDef, type MoraleGain, type PowderLevel, type ReleasePerUnit, PISTOL_PRIMED, formOfKey, powderLevelOf } from "../data/weaponForms";
+import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { hasReach } from "../loot/reach";
 import { gatherLinked, linkedCount, woundPeak } from "./formMarks";
 import { reforgedForm } from "../data/reforges";
-import { movingAimGainMul, pullTowardShots, tickReforges } from "./reforge";
+import { movingAimGainMul, tickReforges } from "./reforge";
 
 /**
  * 戦意（docs/ideas/weapon-forms-impl.md 3-2）。武器の型ごとのゲージで、溜まる出来事（MoraleGain）で増え、
@@ -44,10 +44,31 @@ export interface ShotRelease {
   mul: ReleaseMul;
   finisher: boolean;
   crit: boolean;
+  /** 装薬の詰めの段の放出（粒・威力・反動）。装薬でなければ無い */
+  powder?: PowderLevel;
+}
+
+/** 左の射撃 1 回の材料（player.ts の fireVolley が渡す。弾倉は撃つ前の値） */
+export interface ShotTrigger {
+  /** 溜め撃ちの段（溜めない器は 0） */
+  level: number;
+  /** 器の溜めの段数（溜めない器は 0） */
+  chargeLevels: number;
+  /** リロード後の 1 発目か（撃つ前の magazine.fresh） */
+  fresh: boolean;
+}
+
+/** 短銃の強装填の弾倉の 1 発（全弾の倍率と、1 発目なら放出の弾の印） */
+export interface PrimedShot {
+  damageMul: number;
+  poiseMul: number;
+  /** 強装填の弾倉の 1 発目（放出の弾。終撃） */
+  first: boolean;
+  finisher: boolean;
 }
 
 export function createMorale(): MoraleState {
-  return { value: 0, sinceGain: 0, window: 0, primed: false, full: false, swingUnits: 0 };
+  return { value: 0, sinceGain: 0, primed: false, full: false, swingUnits: 0 };
 }
 
 /** 武器種を持ち替えたら戦意を捨てる（型が違えば単位も違う。同じ型でも持ち替えで溜めを持ち越させない） */
@@ -150,13 +171,10 @@ export function gainMorale(state: GameState, kind: MoraleGain["kind"], scale = 1
  * 満ちた瞬間（前ステップは満ちていない）なら true（充溢）
  */
 export function tickMorale(state: GameState, input: FrameInput, dt: number): boolean {
-  // 改鋳の挙動（装填の窓のダッシュ・設置弾の這い寄り）を窓の進みより先に（system/reforge.ts）
+  // 改鋳の挙動（込めの最中のダッシュ・設置弾の這い寄り。system/reforge.ts）
   tickReforges(state);
   const m = state.player.morale;
   const form = currentForm(state);
-  const reloading = m.window > 0;
-  m.window = Math.max(0, m.window - dt);
-  if (reloading && m.window === 0) finishReload(m);
   m.sinceGain += dt;
   if (form.morale.derived) m.value = derivedValue(state, form);
   else {
@@ -177,9 +195,8 @@ function derivedValue(state: GameState, form: FormDef): number {
   // 刃斧は近くの敵の傷の最大スタック、鎖は繋いだ敵の数（system/formMarks.ts）
   if (hasGain(form, "applyStatus")) return Math.min(woundPeak(state), moraleMax(state));
   if (hasGain(form, "pullHit")) return Math.min(linkedCount(state), moraleMax(state));
-  // 杖の術式は連撃の入力数、投具は飛んでいる自分の弾の数（どちらも上限で頭打ち）
+  // 杖の術式は連撃の入力数（上限で頭打ち）
   if (hasGain(form, "cast")) return Math.min(state.player.attack.inputs.length, moraleMax(state));
-  if (hasGain(form, "flyingShots")) return Math.min(flyingShotCount(state), moraleMax(state));
   if (hasGain(form, "placedShots")) return Math.min(placedShotCount(state), moraleMax(state));
   if (!hasGain(form, "chargeLevel")) return 0;
   const a = state.player.attack;
@@ -213,8 +230,6 @@ function tickDecay(m: MoraleState, form: FormDef, dt: number): void {
 /** 満ちた後の最初の一撃が放出の型（長銃）: 満ちたら構え、放出の最低を割ったら解く */
 function updatePrimed(state: GameState, form: FormDef, full: boolean): void {
   const m = state.player.morale;
-  // 短銃の強装填は装填の窓で立て、次の弾倉の間ずっと持つ（満ちた瞬間の構えとは別。noteShotFired が空になると降ろす）
-  if (form.morale.release.kind === "reload") return;
   if (form.morale.release.kind !== "nextPrimary") {
     m.primed = false;
     return;
@@ -239,13 +254,26 @@ function isReleaseSwing(form: FormDef, moveset: MovesetDef, spec: ReleaseSwingSp
     }
     case "nextPrimary":
       // 近接（長柄）は満ちた後の最初の「突き」の段だけ（薙ぎ・回しでは穂先を放たない）
-      return primed && !isGun(moveset) && spec.lane === "primary" && spec.branch < 0 && !spec.dashStrike && spec.chargeLevel === 0 && moveset.steps[spec.step]?.shape.kind === "thrust";
+      return primed && !shootsPrimary(moveset) && spec.lane === "primary" && spec.branch < 0 && !spec.dashStrike && spec.chargeLevel === 0 && moveset.steps[spec.step]?.shape.kind === "thrust";
+    case "nextShot": {
+      // 装薬の零距離砲（右レーンの段）。左の次の 1 発は fireVolley の consumeShotRelease が扱う
+      if (spec.lane !== "secondary" || spec.branch >= 0 || spec.dashStrike) return false;
+      const key = moveset.steps2[spec.step]?.key;
+      return key !== undefined && release.keys.includes(key);
+    }
+    case "nextMagazine":
+      // 短銃の強装填は弾倉が担う（振りは放出にならない）
+      return false;
     case "branch":
       return branch !== undefined && branch.sequence.length >= 3;
     case "release":
       return branch?.art === "release";
-    case "reload":
+    case "bothHands":
+      // 撃ち尽くしは振りではなく左右の同時押し（system/dualPistols.ts の consumeBothHandsRelease）
       return false;
+    case "timed":
+      // 連ね投げは満ちた後の次の投げ（ダッシュ攻撃でない振り）で始まる
+      return !spec.dashStrike;
   }
 }
 
@@ -271,6 +299,8 @@ function consume(state: GameState): number {
   m.primed = false;
   // 使って満ちていなくなったので、また満ちれば充溢が出る
   m.full = false;
+  // 装薬は詰めを使い切る（零距離砲で放っても弾倉の詰めの段が残って詰め直せなくならないように。撃てば spendRounds も 0 に戻す）
+  if (currentForm(state).morale.release.kind === "nextShot") state.player.magazine.packSec = 0;
   return units;
 }
 
@@ -284,6 +314,7 @@ export function beginSwingMorale(state: GameState, moveset: MovesetDef, spec: Re
   const form = currentForm(state);
   if (!isReleaseSwing(form, moveset, spec, m.primed)) return 0;
   m.swingUnits = form.morale.release.kind === "branch" ? branchUnits(state, moveset, spec) : spendRelease(state, form, spec);
+  if (m.swingUnits > 0) startTimedRelease(state, form);
   // 鎖の束ね打ちは振り始めに繋いだ敵を前へ寄せる（放出の繋ぎを使い切る）
   if (m.swingUnits > 0 && hasGain(form, "pullHit")) gatherLinked(state);
   return m.swingUnits;
@@ -301,11 +332,19 @@ export function releaseMulOf(perUnit: ReleasePerUnit, units: number): ReleaseMul
   };
 }
 
+/** 型の戦意 units の放出の倍率。装薬は詰めの段の表（FORM.powder.levels）で威力と怯み値を引く（段ごとの倍率が線形でない） */
+function formReleaseMul(form: FormDef, units: number): ReleaseMul {
+  const base = releaseMulOf(form.morale.numbers.perUnit, units);
+  const powder = form.morale.release.kind === "nextShot" ? powderLevelOf(units) : undefined;
+  if (!powder) return base;
+  return { ...base, damageMul: base.damageMul * powder.damageMul, poiseMul: base.poiseMul * powder.damageMul };
+}
+
 /** 今の振りの放出の倍率（放出でなければ undefined）。meleeStep の呼び出しが渡す */
 export function swingReleaseMul(state: GameState): ReleaseMul | undefined {
   const units = state.player.morale.swingUnits;
   if (units <= 0) return undefined;
-  return releaseMulOf(currentForm(state).morale.numbers.perUnit, units);
+  return formReleaseMul(currentForm(state), units);
 }
 
 /** 放出の一撃が終撃になる型か */
@@ -314,18 +353,92 @@ export function releaseIsFinisher(state: GameState): boolean {
 }
 
 /**
- * 左の射撃 1 回（player.ts の fireVolley）。満ちた後の 1 発が放出の型（長銃）で構えていれば戦意をすべて使い、弾の倍率を返す。
- * 放出でなければ undefined
+ * 長銃の関門（docs/ideas/gun-bases-review.md 0-4・4-3 の 9）: 溜めの器は最大段の発射だけ、溜めでない器はリロード後の 1 発目だけが放出。
+ * 満ちていること（primed）は呼び出し側が見る
  */
-export function consumeShotRelease(state: GameState): ShotRelease | undefined {
+function passesRifleGate(trigger: ShotTrigger): boolean {
+  if (trigger.chargeLevels > 0) return trigger.level >= trigger.chargeLevels;
+  return trigger.fresh;
+}
+
+/**
+ * 左の射撃 1 回（player.ts の fireVolley）。放出の 1 発なら戦意を使い、弾の倍率を返す。放出でなければ undefined。
+ * 長銃は満ちて構えていて関門を通る 1 発、装薬は詰めがあれば次の 1 発（詰めの段の粒・威力・反動）
+ */
+export function consumeShotRelease(state: GameState, trigger: ShotTrigger): ShotRelease | undefined {
   const form = currentForm(state);
+  const release = form.morale.release;
   const m = state.player.morale;
-  if (form.morale.release.kind === "reload") return reloadShotRelease(state, form);
-  if (form.morale.release.kind !== "nextPrimary" || !m.primed) return undefined;
+  if (release.kind === "nextPrimary") {
+    if (!m.primed || (release.gate === "rifle" && !passesRifleGate(trigger))) return undefined;
+  } else if (release.kind !== "nextShot" && release.kind !== "timed") return undefined;
   const units = consume(state);
   if (units <= 0) return undefined;
-  const n = form.morale.numbers;
-  return { units, mul: releaseMulOf(n.perUnit, units), finisher: form.finisher.includes("release"), crit: n.releaseCrit };
+  startTimedRelease(state, form);
+  return shotReleaseOf(form, units);
+}
+
+/**
+ * 短銃の強装填（release nextMagazine）: 戦意が満ちていて、弾倉がリロード後の 1 発目を残している（込め終えたまま撃っていない）なら、
+ * 戦意を使ってその弾倉を強装填にする。使った戦意を返す（0 = 強装填にしていない）。
+ * 早込めで満ちた瞬間（同じステップの射撃より前）と毎ステップの両方から呼ぶ（system/moments.ts）
+ */
+export function primeMagazine(state: GameState, fresh: boolean): number {
+  const form = currentForm(state);
+  const mag = state.player.magazine;
+  if (form.morale.release.kind !== "nextMagazine" || mag.primed || mag.bulletKey === "" || !fresh) return 0;
+  if (mag.hands[0].reloadLeft > 0) return 0;
+  const units = consume(state);
+  if (units > 0) mag.primed = true;
+  return units;
+}
+
+/** 強装填は込め直しまで（込めを始めた弾倉は新しい弾倉。system/moments.ts の tickFormState が毎ステップ） */
+export function expirePrimedMagazine(state: GameState): void {
+  const mag = state.player.magazine;
+  if (mag.primed && mag.hands[0].reloadLeft > 0) mag.primed = false;
+}
+
+/** 強装填の弾倉から撃つ 1 発の倍率（強装填でなければ undefined）。fresh は撃つ前の magazine.fresh（弾倉の 1 発目） */
+export function primedShotOf(state: GameState, fresh: boolean): PrimedShot | undefined {
+  if (!state.player.magazine.primed || currentForm(state).morale.release.kind !== "nextMagazine") return undefined;
+  return { damageMul: PISTOL_PRIMED.damageMul, poiseMul: PISTOL_PRIMED.poiseMul, first: fresh, finisher: releaseIsFinisher(state) };
+}
+
+/**
+ * 戦意を 0 へ途切れさせる（二丁の拍: 同じ手が続いた。system/dualPistols.ts）。今の型が kind の出来事で溜まる型のときだけ
+ */
+export function breakMoraleStreak(state: GameState, kind: MoraleGain["kind"]): void {
+  if (!hasGain(currentForm(state), kind)) return;
+  const m = state.player.morale;
+  m.value = 0;
+  m.full = false;
+  m.primed = false;
+}
+
+/**
+ * 撃ち尽くし（二丁拳銃の左右の同時押し。system/dualPistols.ts）。放出が bothHands の型なら溜めた戦意をすべて使い、
+ * その量の倍率を返す（0 でも撃てるので units 0・倍率 1 で返す）。型が違えば undefined
+ */
+export function consumeBothHandsRelease(state: GameState): ShotRelease | undefined {
+  const form = currentForm(state);
+  if (form.morale.release.kind !== "bothHands") return undefined;
+  return shotReleaseOf(form, consume(state));
+}
+
+/** 放出が timed の型なら、今から sec 秒の窓を開ける（手裏剣の連ね投げ。戦意は呼び出し側が使い済み） */
+function startTimedRelease(state: GameState, form: FormDef): void {
+  const release = form.morale.release;
+  if (release.kind !== "timed") return;
+  state.player.morale.timedUntil = state.time + release.sec;
+}
+
+/** 連ね投げの窓が開いている間の攻撃の速さの倍率（振りの秒と射撃の間隔を割る。player.ts）。窓の外・型が違えば 1 */
+export function timedAttackSpeedMul(state: GameState): number {
+  const until = state.player.morale.timedUntil;
+  if (until === undefined || state.time >= until) return 1;
+  const release = currentForm(state).morale.release;
+  return release.kind === "timed" ? release.attackSpeedMul : 1;
 }
 
 /** 重打の溜め中の堅さ（combat.ts の damagePlayer が被ダメと押しに掛ける）。溜めていなければ undefined */
@@ -335,66 +448,8 @@ export function chargeArmorOf(state: GameState): { damageTakenMul: number; noKno
 }
 
 // ---------------------------------------------------------------------------
-// 短銃の装填（弾倉が空 → 窓 → 強装填）と砲の置いた弾
+// 砲の置いた弾
 // ---------------------------------------------------------------------------
-
-type ReloadRelease = Extract<MoraleRelease, { kind: "reload" }>;
-
-/** 装填を持つ型で、窓が 0 より長いときの設定（windowSec 0 は装填ごと無効のつまみ） */
-function reloadOf(form: FormDef): ReloadRelease | undefined {
-  const r = form.morale.release;
-  return r.kind === "reload" && r.windowSec > 0 ? r : undefined;
-}
-
-/** 装填の窓の間か（player.ts の canShootNow が撃てなくする） */
-export function isReloading(state: GameState): boolean {
-  return state.player.morale.window > 0;
-}
-
-/** 窓が終わった: 新しい弾倉（撃った数を 0 に戻す）。強装填はそのまま次の弾倉へ持ち越す */
-function finishReload(m: MoraleState): void {
-  m.value = 0;
-  m.full = false;
-  m.sinceGain = 0;
-}
-
-/**
- * 左で 1 発撃った（player.ts の emitVolley）。短銃は撃った数を弾倉に数え、空（max 発）で装填の窓を開ける。
- * 弾倉は出来事で溜まる戦意と違い、溜まりやすさの倍率を掛けない（弾数を増やす道具ではない）。
- * 装填の窓が始まったら true
- */
-export function noteShotFired(state: GameState): boolean {
-  const form = currentForm(state);
-  const reload = reloadOf(form);
-  const m = state.player.morale;
-  if (!reload || m.window > 0) return false;
-  m.value = Math.min(moraleMax(state), m.value + gainAmountOf(form, "shotFired"));
-  m.sinceGain = 0;
-  if (m.value < moraleMax(state)) return false;
-  m.window = reload.windowSec;
-  // 窓の外で立てた強装填は撃ち切った弾倉のもの。窓の中で押し直して次の弾倉へ
-  m.primed = false;
-  return true;
-}
-
-/** 強装填を立てる（player.ts の右の押下）。窓の primeFrom〜primeTo の間の最初の押下だけ。立てたら true */
-export function tryPrimeReload(state: GameState): boolean {
-  const reload = reloadOf(currentForm(state));
-  const m = state.player.morale;
-  if (!reload || m.window <= 0 || m.primed) return false;
-  const elapsed = reload.windowSec - m.window;
-  if (elapsed < reload.primeFrom || elapsed > reload.primeTo) return false;
-  m.primed = true;
-  return true;
-}
-
-/** 強装填の弾倉の弾。弾倉の 1 発目だけが放出（終撃）で、以降は威力の上乗せだけ */
-function reloadShotRelease(state: GameState, form: FormDef): ShotRelease | undefined {
-  const m = state.player.morale;
-  if (!m.primed || m.window > 0) return undefined;
-  const first = m.value === 0;
-  return { units: first ? 1 : 0, mul: releaseMulOf(form.morale.numbers.perUnit, 1), finisher: first && form.finisher.includes("release"), crit: false };
-}
 
 /** 床に置いた自分の弾（設置弾・曲射弾）で、まだ炸裂していないもの（砲の置いた弾。起爆の対象） */
 export function isPlacedShot(pr: Projectile): boolean {
@@ -418,33 +473,6 @@ function branchUnits(state: GameState, moveset: MovesetDef, spec: ReleaseSwingSp
   return units >= moraleReleaseMin(state) ? units : 0;
 }
 
-/** 飛んでいる自分の武器の弾か（床に据えた設置弾・山なりの曲射は飛んでいるとは数えない） */
-function isFlyingShot(pr: Projectile): boolean {
-  if (pr.owner !== "player" || pr.life <= 0 || pr.lane === undefined) return false;
-  const def = pr.shot ? BULLETS[pr.shot.key] : undefined;
-  return def === undefined || (def.mine === undefined && def.lob === undefined);
-}
-
-/** 投具の戦意: 飛んでいる自分の武器の弾（戻る弾・周回弾・投げた弾）の数 */
-function flyingShotCount(state: GameState): number {
-  return state.projectiles.reduce((n, pr) => n + (isFlyingShot(pr) ? 1 : 0), 0);
-}
-
-/**
- * 右レーンの弾を出す段・手元返しが放出か（投具。振りの段は beginSwing が判定する）。
- * 飛んでいる弾の数を単位に、今から出す弾（戻す弾）への倍率を返す。放出でなければ undefined。導出の型なので消費しない
- */
-export function laneStepRelease(state: GameState, key: string | undefined): ShotRelease | undefined {
-  const form = currentForm(state);
-  const release = form.morale.release;
-  if (key === undefined || release.kind !== "laneStep" || !release.keys.includes(key) || !hasGain(form, "flyingShots")) return undefined;
-  const units = derivedValue(state, form);
-  if (units <= 0 || units < moraleReleaseMin(state)) return undefined;
-  // 改鋳「牽引」は放出で飛んでいる刃の方へ引き寄せられる
-  pullTowardShots(state);
-  return shotReleaseOf(form, units);
-}
-
 /** 今の振りが放出のとき、その振りが撃つ弾（杖の詠唱の魔弾）に写す倍率。放出の振りでなければ undefined */
 export function swingShotRelease(state: GameState): ShotRelease | undefined {
   const units = state.player.morale.swingUnits;
@@ -454,7 +482,14 @@ export function swingShotRelease(state: GameState): ShotRelease | undefined {
 
 function shotReleaseOf(form: FormDef, units: number): ShotRelease {
   const n = form.morale.numbers;
-  return { units, mul: releaseMulOf(n.perUnit, units), finisher: form.finisher.includes("release"), crit: n.releaseCrit };
+  const powder = form.morale.release.kind === "nextShot" ? powderLevelOf(units) : undefined;
+  return { units, mul: formReleaseMul(form, units), finisher: form.finisher.includes("release"), crit: n.releaseCrit, ...(powder ? { powder } : {}) };
+}
+
+/** 自分の炸裂（system/projectiles.ts の detonateMine）。敵を 1 体以上巻き込んだ炸裂だけ擲弾の戦意「炸裂」を溜める（空撃ちでは溜まらない） */
+export function noteBlast(state: GameState, hits: number): void {
+  if (hits <= 0) return;
+  gainMorale(state, "blastHit");
 }
 
 /** 扇の突風（放出の振り）の間、地形を広げる半径に足す量。風 1 あたり spreadRadiusPerUnit。突風でなければ 0 */

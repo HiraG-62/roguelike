@@ -6,7 +6,7 @@
  *
  * 使い方:
  *   npm run qa:probe              # 武器種 × 敵の表を除いて実行し、probe.md を上書き（武器種の節は今の内容を残す。約 1 分）
- *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（27 武器種 × 敵 3 × 深度 2 × seed 3。約 2 分）だけ測り、probe.md のその節だけ差し替える
+ *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（29 武器種、銃・投擲物は器ごと × 敵 3 × 深度 2 × seed 3。約 4 分）だけ測り、probe.md のその節だけ差し替える
  *   npm run qa:probe -- --bosses    # 章ボス 4 と最深の主を 1 体ずつ測り（5 体 × seed 5。約 1 分）、probe.md の「## ボス」の節だけ差し替える
  *   npm run qa:probe -- --deep      # 深み（深度 21〜40 の曲線・到達の届き方・壊れたビルドの重さ。src/qa/deepProbe.ts）だけ測り、probe.md の「## 深み」の節だけ差し替える
  *   npm run qa:probe -- --jinzu     # 試し陣（深度 4 の鶴翼の本陣。方針 3 つ × seed 16。src/qa/jinzuProbe.ts）だけ測り、probe.md の「## 本陣と陣図」の節だけ差し替える

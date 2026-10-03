@@ -106,14 +106,14 @@ SkillProfile（永続: roguelike.skills.v1）─ stones: SkillStone[]、loadout�
   └─ createSkillRunState ──> SkillRunState（ラン内: 気力型のコスト / 再使用型の再使用時間、スロットごとの最低間隔、ラン内の刻印符、設置物、発動中）
 
 GameState
-  ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / 見切り / リゲインのタイマー、buffs、loot: LootRuntime〔性質の作業領域〕）
+  ├─ player: Player（body、hp、mana、status: StatusBag、攻撃 / ダッシュ / 見切り / リゲインのタイマー、buffs、loot: LootRuntime〔性質の作業領域〕、morale〔戦意。`timedUntil` は時間の放出の窓〕、magazine: MagazineState〔銃の弾倉。戦意とは別。`hands` に残りの回数と込めの残り秒を手ごとに 2 本、`fresh` = リロード後の 1 発目 / `primed` = 強装填 / `quickTried` = 早込めの 1 回 / `packSec` = 砲の詰め。`system/magazine.ts` が読み書きし、描画は `magazineView` で読む。リロードは `FrameInput.reloadPressed` / `reloadHeld`〕）
   ├─ stats: PlayerStats（attributes / attributesEff を含む。ロジックは必ずこれを通す）
   ├─ pendingExit: ExitReward | null（降りた階段の出口の予告。次の階の buildFloor の末尾で確定して消す）
-  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai、leaderId?〔群れの長・双子の相方〕、stolenMana?、eliteWork?〔新精鋭修飾子の作業領域〕）
+  ├─ enemies: Enemy[]（defKey → data/enemies.ts の EnemyDef、phase、status: StatusBag、poise: PoiseState、elite、ai、leaderId?〔群れの長・双子の相方〕、stolenMana?、eliteWork?〔新精鋭修飾子の作業領域〕、pins?: EnemyPin[]〔刺さっている飛び物。クナイ・手裏剣。`system/pins.ts`。`until` を過ぎたものは読む側が数えず、叩き込み・刺さり崩し・炸裂が読む〕）
   ├─ rooms: RoomState[]（kind、locked、cleared、wave、engaged?〔封鎖しない部屋の交戦中フラグ。全滅で 1 回だけ制圧〕…）、floorKind、map、lockedTiles
   ├─ terrain: TerrainLayer（床の地形の層。フロアが変わると作り直す）
   ├─ corpses: Corpse[]（敵の死骸。骨拾い・墓守の鐘・貪食のが使う）
-  ├─ projectiles / hazards / pickups / floorItems
+  ├─ projectiles / hazards / pickups / floorItems（プレイヤーの弾は撃った瞬間に `pin` / `grind` / `arc` / `trip`〔刺さる・食い込む・弧・往復を数える投げの組〕を弾の定義から写して持つ。プレイヤーの弾〔銃・投擲物・魔法〕の命中・炸裂では気力も奥義ゲージも溜まらない。溜まるのは近接の振りの命中だけ）
   ├─ skills: SkillRunState（lastCast: LastCast | null〔連携の受付〕を含む）
   ├─ boons: BoonKey[]、boonChoice、boonRun
   ├─ runEvents: RunEventState（部屋の枠・階の枠のランイベント、落下物・落雷、長居の代償、変異、strata〔最深の階・戻った回数・帰還中か・反転層の遺物の抽選済み id〕、pendingEchoes〔main.ts が残響へ移す〕）、stairs: StairsChoice[]（分岐路）

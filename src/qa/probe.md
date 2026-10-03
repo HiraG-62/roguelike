@@ -328,187 +328,265 @@
 
 ## 武器種 × 敵
 
-装備なし（素の能力）のまま武器種だけ替え、bot「連打+ダッシュ」で 1 回 60 秒 × seed 3（1, 2, 3）。銃の家系はその武器種の最初のベースの弾を撃つ。bot は左の連撃の連打だけ（銃の家系は押しっぱなしで撃つ。右レーン・溜め・構えは押さない）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。
+装備なし（素の能力）のまま武器種だけ替え、bot「連打+ダッシュ」で 1 回 60 秒 × seed 3（1, 2, 3）。銃・投擲物は器（右手のベース）ごとに 1 行（弾倉・溜め・三点・刺さり・弧が器ごとに違うため）。近接は器で弾が変わらないので 1 行。bot は左の連撃の連打だけ（銃の家系は押しっぱなしで撃ち、溜め撃ちは最大段で離し、曲射は敵の位置を指す。リロード・右レーン・構えは押さない。弾倉が尽きたら本体が自動で込める）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。
 
 - 比 = その武器種の値 ÷ 同じ敵・深度での武器種をまたいだ中央値。`*` は目標の幅の外（撃破秒は ±20%、被弾/60秒は ±30%）
 - 撃破 0 のとき撃破秒は「-」（60 秒で 1 体も倒せない）
 
-| 武器種 | 敵 | 深度 | 撃破秒 | 撃破秒の比 | 被弾/60秒 | 被弾の比 |
-| --- | --- | --- | --- | --- | --- | --- |
-| sword | slime | 1 | 1.62 | 0.98 | 0.0 | 0.00* |
-| sword | slime | 5 | 1.30 | 0.70* | 45.7 | 1.52* |
-| sword | knight | 1 | 5.81 | 0.73* | 15.7 | 0.84 |
-| sword | knight | 5 | 11.25 | 0.94 | 17.0 | 0.91 |
-| sword | eye | 1 | 5.62 | 4.19* | 22.7 | 1.24 |
-| sword | eye | 5 | 8.18 | 3.73* | 24.7 | 1.10 |
-| greatsword | slime | 1 | 1.87 | 1.13 | 0.0 | 0.00* |
-| greatsword | slime | 5 | 1.38 | 0.75* | 23.3 | 0.78 |
-| greatsword | knight | 1 | 5.45 | 0.68* | 25.0 | 1.34* |
-| greatsword | knight | 5 | 7.50 | 0.63* | 17.0 | 0.91 |
-| greatsword | eye | 1 | 180.00 | 134.00* | 25.0 | 1.36* |
-| greatsword | eye | 5 | 180.00 | 82.00* | 25.0 | 1.12 |
-| twinBlades | slime | 1 | 1.82 | 1.10 | 32.0 | 3.20* |
-| twinBlades | slime | 5 | 1.50 | 0.81 | 32.0 | 1.07 |
-| twinBlades | knight | 1 | 6.00 | 0.75* | 21.0 | 1.13 |
-| twinBlades | knight | 5 | 11.25 | 0.94 | 16.7 | 0.89 |
-| twinBlades | eye | 1 | 1.09 | 0.81 | 10.0 | 0.55* |
-| twinBlades | eye | 5 | 1.62 | 0.74* | 15.3 | 0.69* |
-| spear | slime | 1 | 0.73 | 0.44* | 0.0 | 0.00* |
-| spear | slime | 5 | 0.75 | 0.40* | 1.3 | 0.04* |
-| spear | knight | 1 | 6.67 | 0.83 | 17.0 | 0.91 |
-| spear | knight | 5 | 12.00 | 1.00 | 16.3 | 0.88 |
-| spear | eye | 1 | 0.65 | 0.49* | 0.0 | 0.00* |
-| spear | eye | 5 | 1.04 | 0.47* | 0.0 | 0.00* |
-| scythe | slime | 1 | 1.24 | 0.75* | 25.0 | 2.50* |
-| scythe | slime | 5 | 1.86 | 1.00 | 32.3 | 1.08 |
-| scythe | knight | 1 | 5.62 | 0.70* | 18.7 | 1.00 |
-| scythe | knight | 5 | 9.00 | 0.75* | 21.0 | 1.13 |
-| scythe | eye | 1 | 45.00 | 33.50* | 25.3 | 1.38* |
-| scythe | eye | 5 | 36.00 | 16.40* | 26.3 | 1.18 |
-| fists | slime | 1 | 1.70 | 1.02 | 0.3 | 0.03* |
-| fists | slime | 5 | 2.07 | 1.11 | 29.0 | 0.97 |
-| fists | knight | 1 | 6.21 | 0.78* | 14.0 | 0.75 |
-| fists | knight | 5 | 8.18 | 0.68* | 17.3 | 0.93 |
-| fists | eye | 1 | 0.90 | 0.67* | 1.3 | 0.07* |
-| fists | eye | 5 | 1.58 | 0.72* | 12.0 | 0.54* |
-| whip | slime | 1 | 0.64 | 0.38* | 0.0 | 0.00* |
-| whip | slime | 5 | 1.14 | 0.61* | 23.7 | 0.79 |
-| whip | knight | 1 | 7.83 | 0.98 | 22.0 | 1.18 |
-| whip | knight | 5 | 12.86 | 1.07 | 21.3 | 1.14 |
-| whip | eye | 1 | 1.07 | 0.80* | 12.3 | 0.67* |
-| whip | eye | 5 | 2.20 | 1.00 | 24.3 | 1.09 |
-| cleaver | slime | 1 | 2.31 | 1.39* | 25.0 | 2.50* |
-| cleaver | slime | 5 | 2.57 | 1.39* | 31.7 | 1.06 |
-| cleaver | knight | 1 | 7.50 | 0.94 | 23.0 | 1.23 |
-| cleaver | knight | 5 | 8.57 | 0.71* | 13.7 | 0.73 |
-| cleaver | eye | 1 | 18.00 | 13.40* | 26.0 | 1.42* |
-| cleaver | eye | 5 | 25.71 | 11.71* | 25.3 | 1.13 |
-| staff | slime | 1 | 1.38 | 0.83 | 5.3 | 0.53* |
-| staff | slime | 5 | 1.91 | 1.03 | 17.0 | 0.57* |
-| staff | knight | 1 | 9.47 | 1.18 | 15.0 | 0.80 |
-| staff | knight | 5 | 15.00 | 1.25* | 20.0 | 1.07 |
-| staff | eye | 1 | 8.18 | 6.09* | 22.0 | 1.20 |
-| staff | eye | 5 | 9.47 | 4.32* | 24.7 | 1.10 |
-| wand | slime | 1 | 1.18 | 0.71* | 2.3 | 0.23* |
-| wand | slime | 5 | 1.48 | 0.80* | 12.0 | 0.40* |
-| wand | knight | 1 | 15.00 | 1.87* | 20.7 | 1.11 |
-| wand | knight | 5 | 30.00 | 2.50* | 21.7 | 1.16 |
-| wand | eye | 1 | 1.00 | 0.74* | 16.7 | 0.91 |
-| wand | eye | 5 | 1.40 | 0.64* | 27.0 | 1.21 |
-| katana | slime | 1 | 0.72 | 0.44* | 0.0 | 0.00* |
-| katana | slime | 5 | 1.15 | 0.62* | 15.3 | 0.51* |
-| katana | knight | 1 | 5.00 | 0.62* | 14.0 | 0.75 |
-| katana | knight | 5 | 7.50 | 0.63* | 16.7 | 0.89 |
-| katana | eye | 1 | 0.94 | 0.70* | 7.0 | 0.38* |
-| katana | eye | 5 | 1.12 | 0.51* | 13.3 | 0.60* |
-| axe | slime | 1 | 0.83 | 0.50* | 23.0 | 2.30* |
-| axe | slime | 5 | 2.25 | 1.21* | 27.7 | 0.92 |
-| axe | knight | 1 | 3.67 | 0.46* | 21.3 | 1.14 |
-| axe | knight | 5 | 4.86 | 0.41* | 17.0 | 0.91 |
-| axe | eye | 1 | 20.00 | 14.89* | 25.3 | 1.38* |
-| axe | eye | 5 | 11.25 | 5.13* | 26.7 | 1.19 |
-| shield | slime | 1 | 1.89 | 1.14 | 37.7 | 3.77* |
-| shield | slime | 5 | 3.05 | 1.64* | 31.3 | 1.04 |
-| shield | knight | 1 | 8.57 | 1.07 | 21.3 | 1.14 |
-| shield | knight | 5 | 12.00 | 1.00 | 19.7 | 1.05 |
-| shield | eye | 1 | 20.00 | 14.89* | 25.3 | 1.38* |
-| shield | eye | 5 | 18.00 | 8.20* | 25.7 | 1.15 |
-| chainSickle | slime | 1 | 1.76 | 1.06 | 14.0 | 1.40* |
-| chainSickle | slime | 5 | 1.80 | 0.97 | 33.0 | 1.10 |
-| chainSickle | knight | 1 | 8.18 | 1.02 | 25.7 | 1.38* |
-| chainSickle | knight | 5 | 11.25 | 0.94 | 19.0 | 1.02 |
-| chainSickle | eye | 1 | 4.62 | 3.44* | 22.3 | 1.22 |
-| chainSickle | eye | 5 | 4.39 | 2.00* | 23.0 | 1.03 |
-| hammer | slime | 1 | 1.73 | 1.04 | 11.0 | 1.10 |
-| hammer | slime | 5 | 1.51 | 0.82 | 26.0 | 0.87 |
-| hammer | knight | 1 | 5.81 | 0.73* | 25.7 | 1.38* |
-| hammer | knight | 5 | 8.57 | 0.71* | 18.0 | 0.96 |
-| hammer | eye | 1 | 45.00 | 33.50* | 26.0 | 1.42* |
-| hammer | eye | 5 | 45.00 | 20.50* | 26.3 | 1.18 |
-| gunner | slime | 1 | 1.75 | 1.05 | 23.3 | 2.33* |
-| gunner | slime | 5 | 2.95 | 1.59* | 33.3 | 1.11 |
-| gunner | knight | 1 | - | - | 11.3 | 0.61* |
-| gunner | knight | 5 | - | - | 8.7 | 0.46* |
-| gunner | eye | 1 | 1.08 | 0.81 | 19.0 | 1.04 |
-| gunner | eye | 5 | 1.29 | 0.59* | 15.7 | 0.70 |
-| sidearm | slime | 1 | 1.71 | 1.03 | 13.3 | 1.33* |
-| sidearm | slime | 5 | 2.90 | 1.56* | 33.3 | 1.11 |
-| sidearm | knight | 1 | 180.00 | 22.49* | 17.0 | 0.91 |
-| sidearm | knight | 5 | 180.00 | 15.00* | 9.0 | 0.48* |
-| sidearm | eye | 1 | 1.03 | 0.77* | 17.3 | 0.95 |
-| sidearm | eye | 5 | 1.26 | 0.57* | 15.3 | 0.69* |
-| longarm | slime | 1 | 1.62 | 0.98 | 0.0 | 0.00* |
-| longarm | slime | 5 | 1.94 | 1.04 | 31.3 | 1.04 |
-| longarm | knight | 1 | - | - | 2.7 | 0.14* |
-| longarm | knight | 5 | 180.00 | 15.00* | 3.7 | 0.20* |
-| longarm | eye | 1 | 0.65 | 0.49* | 0.0 | 0.00* |
-| longarm | eye | 5 | 0.94 | 0.43* | 0.0 | 0.00* |
-| cannon | slime | 1 | 1.84 | 1.11 | 0.0 | 0.00* |
-| cannon | slime | 5 | 2.73 | 1.47* | 22.0 | 0.73 |
-| cannon | knight | 1 | 180.00 | 22.49* | 16.3 | 0.88 |
-| cannon | knight | 5 | - | - | 15.7 | 0.84 |
-| cannon | eye | 1 | 0.73 | 0.54* | 0.0 | 0.00* |
-| cannon | eye | 5 | 1.03 | 0.47* | 1.3 | 0.06* |
-| thrown | slime | 1 | 1.51 | 0.91 | 20.3 | 2.03* |
-| thrown | slime | 5 | 2.05 | 1.10 | 30.0 | 1.00 |
-| thrown | knight | 1 | 60.00 | 7.50* | 37.3 | 2.00* |
-| thrown | knight | 5 | 30.00 | 2.50* | 20.3 | 1.09 |
-| thrown | eye | 1 | 0.82 | 0.61* | 0.0 | 0.00* |
-| thrown | eye | 5 | 1.07 | 0.49* | 3.3 | 0.15* |
-| grenade | slime | 1 | - | - | 2.3 | 0.23* |
-| grenade | slime | 5 | 13.85 | 7.46* | 25.3 | 0.84 |
-| grenade | knight | 1 | - | - | 13.0 | 0.70* |
-| grenade | knight | 5 | - | - | 1.7 | 0.09* |
-| grenade | eye | 1 | 4.00 | 2.98* | 27.7 | 1.51* |
-| grenade | eye | 5 | 5.62 | 2.56* | 28.0 | 1.25 |
-| trapper | slime | 1 | 1.20 | 0.72* | 49.0 | 4.90* |
-| trapper | slime | 5 | 1.67 | 0.90 | 36.3 | 1.21 |
-| trapper | knight | 1 | 4.19 | 0.52* | 15.0 | 0.80 |
-| trapper | knight | 5 | 6.00 | 0.50* | 21.7 | 1.16 |
-| trapper | eye | 1 | 0.58 | 0.43* | 0.0 | 0.00* |
-| trapper | eye | 5 | 1.30 | 0.59* | 22.3 | 1.00 |
-| warRing | slime | 1 | 1.36 | 0.82 | 44.3 | 4.43* |
-| warRing | slime | 5 | 1.78 | 0.96 | 33.7 | 1.12 |
-| warRing | knight | 1 | 60.00 | 7.50* | 38.0 | 2.04* |
-| warRing | knight | 5 | 30.00 | 2.50* | 20.0 | 1.07 |
-| warRing | eye | 1 | 1.02 | 0.76* | 0.0 | 0.00* |
-| warRing | eye | 5 | 1.35 | 0.62* | 12.7 | 0.57* |
-| claws | slime | 1 | 1.30 | 0.79* | 25.0 | 2.50* |
-| claws | slime | 5 | 1.61 | 0.87 | 23.0 | 0.77 |
-| claws | knight | 1 | 3.53 | 0.44* | 17.7 | 0.95 |
-| claws | knight | 5 | 3.33 | 0.28* | 18.7 | 1.00 |
-| claws | eye | 1 | 0.87 | 0.65* | 0.0 | 0.00* |
-| claws | eye | 5 | 1.18 | 0.54* | 11.7 | 0.52* |
-| flail | slime | 1 | 1.36 | 0.82 | 0.0 | 0.00* |
-| flail | slime | 5 | 1.64 | 0.88 | 20.3 | 0.68* |
-| flail | knight | 1 | 9.47 | 1.18 | 23.7 | 1.27 |
-| flail | knight | 5 | 16.36 | 1.36* | 23.3 | 1.25 |
-| flail | eye | 1 | 1.34 | 1.00 | 23.0 | 1.25 |
-| flail | eye | 5 | 6.21 | 2.83* | 24.3 | 1.09 |
-| ringBlades | slime | 1 | 1.75 | 1.05 | 10.0 | 1.00 |
-| ringBlades | slime | 5 | 1.82 | 0.98 | 33.0 | 1.10 |
-| ringBlades | knight | 1 | 11.25 | 1.41* | 18.7 | 1.00 |
-| ringBlades | knight | 5 | 15.00 | 1.25* | 19.3 | 1.04 |
-| ringBlades | eye | 1 | 1.49 | 1.11 | 18.3 | 1.00 |
-| ringBlades | eye | 5 | 2.02 | 0.92 | 22.0 | 0.99 |
-| fan | slime | 1 | 1.71 | 1.03 | 0.0 | 0.00* |
-| fan | slime | 5 | 1.86 | 1.00 | 33.0 | 1.10 |
-| fan | knight | 1 | 8.57 | 1.07 | 16.0 | 0.86 |
-| fan | knight | 5 | 12.00 | 1.00 | 19.0 | 1.02 |
-| fan | eye | 1 | 1.57 | 1.17 | 12.0 | 0.65* |
-| fan | eye | 5 | 2.22 | 1.01 | 13.7 | 0.61* |
-| book | slime | 1 | 2.14 | 1.29* | 27.7 | 2.77* |
-| book | slime | 5 | 2.77 | 1.49* | 29.7 | 0.99 |
-| book | knight | 1 | 22.50 | 2.81* | 22.3 | 1.20 |
-| book | knight | 5 | 30.00 | 2.50* | 22.0 | 1.18 |
-| book | eye | 1 | 1.89 | 1.41* | 29.7 | 1.62* |
-| book | eye | 5 | 3.10 | 1.41* | 21.0 | 0.94 |
-| handbell | slime | 1 | 3.16 | 1.90* | 4.3 | 0.43* |
-| handbell | slime | 5 | 3.40 | 1.83* | 36.0 | 1.20 |
-| handbell | knight | 1 | 8.18 | 1.02 | 23.7 | 1.27 |
-| handbell | knight | 5 | 12.00 | 1.00 | 19.0 | 1.02 |
-| handbell | eye | 1 | 36.00 | 26.80* | 25.3 | 1.38* |
-| handbell | eye | 5 | 60.00 | 27.33* | 26.7 | 1.19 |
+| 武器種 | 器 | 敵 | 深度 | 撃破秒 | 撃破秒の比 | 被弾/60秒 | 被弾の比 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| sword | - | slime | 1 | 1.43 | 0.88 | 0.0 | 0.00* |
+| sword | - | slime | 5 | 1.98 | 0.85 | 30.0 | 1.02 |
+| sword | - | knight | 1 | 12.00 | 1.03 | 19.3 | 1.00 |
+| sword | - | knight | 5 | 22.50 | 1.25* | 17.7 | 0.96 |
+| sword | - | eye | 1 | 7.20 | 4.52* | 24.0 | 1.17 |
+| sword | - | eye | 5 | 6.67 | 3.00* | 24.7 | 1.10 |
+| greatsword | - | slime | 1 | 0.75 | 0.47* | 14.0 | 0.92 |
+| greatsword | - | slime | 5 | 1.33 | 0.57* | 16.0 | 0.55* |
+| greatsword | - | knight | 1 | 5.81 | 0.50* | 27.0 | 1.40* |
+| greatsword | - | knight | 5 | 12.00 | 0.67* | 18.3 | 1.00 |
+| greatsword | - | eye | 1 | 3.91 | 2.46* | 25.3 | 1.24 |
+| greatsword | - | eye | 5 | 4.62 | 2.08* | 26.3 | 1.17 |
+| twinBlades | - | slime | 1 | 1.62 | 1.00 | 12.0 | 0.79 |
+| twinBlades | - | slime | 5 | 2.40 | 1.03 | 25.3 | 0.86 |
+| twinBlades | - | knight | 1 | 11.25 | 0.97 | 17.7 | 0.91 |
+| twinBlades | - | knight | 5 | 18.00 | 1.00 | 18.3 | 1.00 |
+| twinBlades | - | eye | 1 | 1.68 | 1.06 | 17.0 | 0.83 |
+| twinBlades | - | eye | 5 | 2.34 | 1.05 | 20.7 | 0.92 |
+| spear | - | slime | 1 | 0.43 | 0.27* | 0.0 | 0.00* |
+| spear | - | slime | 5 | 0.76 | 0.32* | 10.0 | 0.34* |
+| spear | - | knight | 1 | 12.00 | 1.03 | 17.0 | 0.88 |
+| spear | - | knight | 5 | 13.85 | 0.77* | 9.7 | 0.53* |
+| spear | - | eye | 1 | 0.41 | 0.26* | 0.0 | 0.00* |
+| spear | - | eye | 5 | 0.76 | 0.34* | 2.0 | 0.09* |
+| scythe | - | slime | 1 | 0.75 | 0.46* | 6.3 | 0.42* |
+| scythe | - | slime | 5 | 1.32 | 0.57* | 28.7 | 0.98 |
+| scythe | - | knight | 1 | 5.29 | 0.46* | 17.7 | 0.91 |
+| scythe | - | knight | 5 | 6.67 | 0.37* | 16.7 | 0.91 |
+| scythe | - | eye | 1 | 6.43 | 4.04* | 24.7 | 1.20 |
+| scythe | - | eye | 5 | 9.00 | 4.05* | 24.7 | 1.10 |
+| fists | - | slime | 1 | 2.05 | 1.27* | 28.3 | 1.87* |
+| fists | - | slime | 5 | 2.20 | 0.94 | 28.3 | 0.97 |
+| fists | - | knight | 1 | 15.00 | 1.29* | 19.7 | 1.02 |
+| fists | - | knight | 5 | 13.85 | 0.77* | 22.0 | 1.20 |
+| fists | - | eye | 1 | 1.38 | 0.87 | 19.0 | 0.93 |
+| fists | - | eye | 5 | 2.20 | 0.99 | 19.0 | 0.84 |
+| whip | - | slime | 1 | 0.42 | 0.26* | 17.7 | 1.16 |
+| whip | - | slime | 5 | 1.33 | 0.57* | 30.0 | 1.02 |
+| whip | - | knight | 1 | 12.86 | 1.11 | 21.3 | 1.10 |
+| whip | - | knight | 5 | 30.00 | 1.67* | 23.0 | 1.25 |
+| whip | - | eye | 1 | 0.41 | 0.26* | 3.7 | 0.18* |
+| whip | - | eye | 5 | 1.13 | 0.51* | 16.7 | 0.74 |
+| cleaver | - | slime | 1 | 1.15 | 0.71* | 19.0 | 1.25 |
+| cleaver | - | slime | 5 | 1.10 | 0.47* | 19.0 | 0.65* |
+| cleaver | - | knight | 1 | 5.62 | 0.48* | 22.7 | 1.17 |
+| cleaver | - | knight | 5 | 7.50 | 0.42* | 16.3 | 0.89 |
+| cleaver | - | eye | 1 | 2.73 | 1.71* | 25.3 | 1.24 |
+| cleaver | - | eye | 5 | 2.73 | 1.23* | 24.7 | 1.10 |
+| staff | - | slime | 1 | 0.87 | 0.54* | 0.0 | 0.00* |
+| staff | - | slime | 5 | 1.43 | 0.61* | 13.7 | 0.47* |
+| staff | - | knight | 1 | 18.00 | 1.55* | 17.7 | 0.91 |
+| staff | - | knight | 5 | 30.00 | 1.67* | 18.3 | 1.00 |
+| staff | - | eye | 1 | 3.83 | 2.40* | 25.0 | 1.22 |
+| staff | - | eye | 5 | 5.14 | 2.31* | 24.3 | 1.08 |
+| wand | - | slime | 1 | 1.02 | 0.63* | 0.0 | 0.00* |
+| wand | - | slime | 5 | 1.38 | 0.59* | 21.3 | 0.73 |
+| wand | - | knight | 1 | 13.85 | 1.19 | 22.3 | 1.16 |
+| wand | - | knight | 5 | 180.00 | 10.00* | 24.0 | 1.31* |
+| wand | - | eye | 1 | 0.93 | 0.59* | 26.0 | 1.27 |
+| wand | - | eye | 5 | 1.70 | 0.76* | 26.7 | 1.19 |
+| katana | - | slime | 1 | 0.87 | 0.54* | 1.0 | 0.07* |
+| katana | - | slime | 5 | 1.46 | 0.63* | 32.0 | 1.09 |
+| katana | - | knight | 1 | 11.25 | 0.97 | 14.7 | 0.76 |
+| katana | - | knight | 5 | 18.00 | 1.00 | 15.0 | 0.82 |
+| katana | - | eye | 1 | 0.56 | 0.35* | 7.7 | 0.37* |
+| katana | - | eye | 5 | 1.62 | 0.73* | 18.7 | 0.83 |
+| axe | - | slime | 1 | 1.16 | 0.72* | 18.0 | 1.19 |
+| axe | - | slime | 5 | 1.08 | 0.46* | 19.0 | 0.65* |
+| axe | - | knight | 1 | 3.75 | 0.32* | 25.7 | 1.33* |
+| axe | - | knight | 5 | 4.86 | 0.27* | 19.3 | 1.05 |
+| axe | - | eye | 1 | 2.90 | 1.82* | 22.0 | 1.07 |
+| axe | - | eye | 5 | 4.19 | 1.88* | 25.7 | 1.14 |
+| shield | - | slime | 1 | 2.14 | 1.33* | 1.0 | 0.07* |
+| shield | - | slime | 5 | 2.61 | 1.12 | 23.3 | 0.80 |
+| shield | - | knight | 1 | 12.00 | 1.03 | 29.0 | 1.50* |
+| shield | - | knight | 5 | 12.00 | 0.67* | 16.0 | 0.87 |
+| shield | - | eye | 1 | 3.67 | 2.31* | 25.0 | 1.22 |
+| shield | - | eye | 5 | 4.00 | 1.80* | 26.7 | 1.19 |
+| chainSickle | - | slime | 1 | 1.29 | 0.80* | 23.0 | 1.52* |
+| chainSickle | - | slime | 5 | 2.07 | 0.88 | 29.7 | 1.01 |
+| chainSickle | - | knight | 1 | 8.57 | 0.74* | 20.0 | 1.03 |
+| chainSickle | - | knight | 5 | 11.25 | 0.63* | 19.0 | 1.04 |
+| chainSickle | - | eye | 1 | 3.67 | 2.31* | 23.3 | 1.14 |
+| chainSickle | - | eye | 5 | 4.50 | 2.02* | 26.7 | 1.19 |
+| hammer | - | slime | 1 | 0.93 | 0.58* | 1.0 | 0.07* |
+| hammer | - | slime | 5 | 4.29 | 1.83* | 29.0 | 0.99 |
+| hammer | - | knight | 1 | 6.67 | 0.57* | 27.0 | 1.40* |
+| hammer | - | knight | 5 | 9.00 | 0.50* | 17.3 | 0.95 |
+| hammer | - | eye | 1 | 5.14 | 3.23* | 25.0 | 1.22 |
+| hammer | - | eye | 5 | 7.20 | 3.24* | 26.7 | 1.19 |
+| gunner | twinPistols | slime | 1 | 1.26 | 0.78* | 23.0 | 1.52* |
+| gunner | twinPistols | slime | 5 | 2.25 | 0.96 | 30.0 | 1.02 |
+| gunner | twinPistols | knight | 1 | 12.86 | 1.11 | 20.7 | 1.07 |
+| gunner | twinPistols | knight | 5 | 22.50 | 1.25* | 20.3 | 1.11 |
+| gunner | twinPistols | eye | 1 | 0.76 | 0.47* | 7.7 | 0.37* |
+| gunner | twinPistols | eye | 5 | 1.41 | 0.63* | 24.0 | 1.07 |
+| gunner | twinRevolvers | slime | 1 | 1.23 | 0.76* | 23.3 | 1.54* |
+| gunner | twinRevolvers | slime | 5 | 2.25 | 0.96 | 29.0 | 0.99 |
+| gunner | twinRevolvers | knight | 1 | 12.86 | 1.11 | 19.3 | 1.00 |
+| gunner | twinRevolvers | knight | 5 | 20.00 | 1.11 | 19.0 | 1.04 |
+| gunner | twinRevolvers | eye | 1 | 0.78 | 0.49* | 8.3 | 0.41* |
+| gunner | twinRevolvers | eye | 5 | 1.51 | 0.68* | 23.3 | 1.04 |
+| sidearm | pistol | slime | 1 | 1.96 | 1.21* | 23.7 | 1.56* |
+| sidearm | pistol | slime | 5 | 3.75 | 1.60* | 36.0 | 1.23 |
+| sidearm | pistol | knight | 1 | 10.00 | 0.86 | 23.3 | 1.21 |
+| sidearm | pistol | knight | 5 | 15.00 | 0.83 | 20.0 | 1.09 |
+| sidearm | pistol | eye | 1 | 1.25 | 0.78* | 19.0 | 0.93 |
+| sidearm | pistol | eye | 5 | 1.57 | 0.70* | 19.0 | 0.84 |
+| sidearm | burstRifle | slime | 1 | 1.75 | 1.08 | 22.0 | 1.45* |
+| sidearm | burstRifle | slime | 5 | 2.73 | 1.17 | 34.7 | 1.18 |
+| sidearm | burstRifle | knight | 1 | 8.57 | 0.74* | 23.7 | 1.22 |
+| sidearm | burstRifle | knight | 5 | 12.00 | 0.67* | 19.7 | 1.07 |
+| sidearm | burstRifle | eye | 1 | 1.41 | 0.88 | 17.3 | 0.85 |
+| sidearm | burstRifle | eye | 5 | 1.87 | 0.84 | 17.7 | 0.79 |
+| sidearm | smg | slime | 1 | 3.33 | 2.06* | 10.7 | 0.70 |
+| sidearm | smg | slime | 5 | 3.53 | 1.51* | 28.7 | 0.98 |
+| sidearm | smg | knight | 1 | 9.00 | 0.77* | 21.3 | 1.10 |
+| sidearm | smg | knight | 5 | 13.85 | 0.77* | 19.3 | 1.05 |
+| sidearm | smg | eye | 1 | 1.19 | 0.75* | 13.3 | 0.65* |
+| sidearm | smg | eye | 5 | 1.75 | 0.79* | 14.3 | 0.64* |
+| sidearm | revolver | slime | 1 | 3.21 | 1.99* | 19.0 | 1.25 |
+| sidearm | revolver | slime | 5 | 3.53 | 1.51* | 34.3 | 1.17 |
+| sidearm | revolver | knight | 1 | 13.85 | 1.19 | 25.0 | 1.29 |
+| sidearm | revolver | knight | 5 | 20.00 | 1.11 | 22.0 | 1.20 |
+| sidearm | revolver | eye | 1 | 1.44 | 0.90 | 21.0 | 1.02 |
+| sidearm | revolver | eye | 5 | 2.02 | 0.91 | 21.0 | 0.93 |
+| longarm | matchlock | slime | 1 | 2.25 | 1.39* | 32.0 | 2.11* |
+| longarm | matchlock | slime | 5 | 5.45 | 2.33* | 36.3 | 1.24 |
+| longarm | matchlock | knight | 1 | - | - | 22.0 | 1.14 |
+| longarm | matchlock | knight | 5 | 180.00 | 10.00* | 23.7 | 1.29 |
+| longarm | matchlock | eye | 1 | 2.73 | 1.71* | 22.0 | 1.07 |
+| longarm | matchlock | eye | 5 | 5.00 | 2.25* | 24.3 | 1.08 |
+| longarm | crossbow | slime | 1 | 1.73 | 1.07 | 1.3 | 0.09* |
+| longarm | crossbow | slime | 5 | 2.65 | 1.13 | 33.7 | 1.15 |
+| longarm | crossbow | knight | 1 | - | - | 3.3 | 0.17* |
+| longarm | crossbow | knight | 5 | - | - | 4.7 | 0.25* |
+| longarm | crossbow | eye | 1 | 1.84 | 1.15 | 31.7 | 1.54* |
+| longarm | crossbow | eye | 5 | 3.00 | 1.35* | 22.7 | 1.01 |
+| longarm | rifle | slime | 1 | 1.61 | 1.00 | 36.7 | 2.42* |
+| longarm | rifle | slime | 5 | 2.47 | 1.05 | 34.0 | 1.16 |
+| longarm | rifle | knight | 1 | - | - | 3.0 | 0.16* |
+| longarm | rifle | knight | 5 | - | - | 2.3 | 0.13* |
+| longarm | rifle | eye | 1 | 1.18 | 0.74* | 20.0 | 0.98 |
+| longarm | rifle | eye | 5 | 1.82 | 0.82 | 20.0 | 0.89 |
+| longarm | tripleCrossbow | slime | 1 | 1.91 | 1.19 | 14.3 | 0.95 |
+| longarm | tripleCrossbow | slime | 5 | 2.77 | 1.18 | 27.3 | 0.93 |
+| longarm | tripleCrossbow | knight | 1 | - | - | 1.7 | 0.09* |
+| longarm | tripleCrossbow | knight | 5 | - | - | 1.7 | 0.09* |
+| longarm | tripleCrossbow | eye | 1 | 1.94 | 1.21* | 23.0 | 1.12 |
+| longarm | tripleCrossbow | eye | 5 | 2.69 | 1.21* | 24.0 | 1.07 |
+| longarm | handCannon | slime | 1 | 2.40 | 1.49* | 30.7 | 2.02* |
+| longarm | handCannon | slime | 5 | 9.47 | 4.05* | 37.0 | 1.26 |
+| longarm | handCannon | knight | 1 | - | - | 12.0 | 0.62* |
+| longarm | handCannon | knight | 5 | 180.00 | 10.00* | 15.3 | 0.84 |
+| longarm | handCannon | eye | 1 | 3.00 | 1.88* | 21.0 | 1.02 |
+| longarm | handCannon | eye | 5 | 7.20 | 3.24* | 22.0 | 0.98 |
+| longarm | railgun | slime | 1 | 2.86 | 1.77* | 20.7 | 1.36* |
+| longarm | railgun | slime | 5 | 6.00 | 2.57* | 36.7 | 1.25 |
+| longarm | railgun | knight | 1 | - | - | 3.0 | 0.16* |
+| longarm | railgun | knight | 5 | - | - | 1.7 | 0.09* |
+| longarm | railgun | eye | 1 | 1.86 | 1.16 | 22.0 | 1.07 |
+| longarm | railgun | eye | 5 | 2.86 | 1.29* | 22.0 | 0.98 |
+| cannon | blunderbuss | slime | 1 | 2.05 | 1.27* | 2.3 | 0.15* |
+| cannon | blunderbuss | slime | 5 | 3.33 | 1.43* | 18.0 | 0.61* |
+| cannon | blunderbuss | knight | 1 | - | - | 1.7 | 0.09* |
+| cannon | blunderbuss | knight | 5 | 90.00 | 5.00* | 10.3 | 0.56* |
+| cannon | blunderbuss | eye | 1 | 1.70 | 1.07 | 23.0 | 1.12 |
+| cannon | blunderbuss | eye | 5 | 2.50 | 1.13 | 25.0 | 1.11 |
+| cannon | shotgun | slime | 1 | 2.09 | 1.30* | 2.3 | 0.15* |
+| cannon | shotgun | slime | 5 | 3.46 | 1.48* | 17.3 | 0.59* |
+| cannon | shotgun | knight | 1 | - | - | 1.7 | 0.09* |
+| cannon | shotgun | knight | 5 | - | - | 1.7 | 0.09* |
+| cannon | shotgun | eye | 1 | 1.68 | 1.06 | 25.0 | 1.22 |
+| cannon | shotgun | eye | 5 | 2.22 | 1.00 | 25.0 | 1.11 |
+| grenade | mortar | slime | 1 | 2.34 | 1.45* | 33.3 | 2.20* |
+| grenade | mortar | slime | 5 | 4.00 | 1.71* | 35.0 | 1.19 |
+| grenade | mortar | knight | 1 | 20.00 | 1.72* | 19.0 | 0.98 |
+| grenade | mortar | knight | 5 | 22.50 | 1.25* | 18.3 | 1.00 |
+| grenade | mortar | eye | 1 | 1.61 | 1.01 | 19.3 | 0.94 |
+| grenade | mortar | eye | 5 | 2.47 | 1.11 | 21.7 | 0.96 |
+| grenade | grenadeLauncher | slime | 1 | 2.77 | 1.72* | 16.0 | 1.05 |
+| grenade | grenadeLauncher | slime | 5 | 4.00 | 1.71* | 36.3 | 1.24 |
+| grenade | grenadeLauncher | knight | 1 | 16.36 | 1.41* | 18.0 | 0.93 |
+| grenade | grenadeLauncher | knight | 5 | 30.00 | 1.67* | 18.0 | 0.98 |
+| grenade | grenadeLauncher | eye | 1 | 1.58 | 0.99 | 21.3 | 1.04 |
+| grenade | grenadeLauncher | eye | 5 | 2.34 | 1.05 | 24.7 | 1.10 |
+| trapper | caltrops | slime | 1 | 1.68 | 1.04 | 37.7 | 2.48* |
+| trapper | caltrops | slime | 5 | 2.09 | 0.90 | 38.0 | 1.30 |
+| trapper | caltrops | knight | 1 | 5.81 | 0.50* | 19.0 | 0.98 |
+| trapper | caltrops | knight | 5 | 8.18 | 0.45* | 20.7 | 1.13 |
+| trapper | caltrops | eye | 1 | 0.84 | 0.53* | 15.0 | 0.73 |
+| trapper | caltrops | eye | 5 | 1.67 | 0.75* | 22.3 | 0.99 |
+| trapper | mineLauncher | slime | 1 | 2.00 | 1.24* | 31.7 | 2.09* |
+| trapper | mineLauncher | slime | 5 | 2.69 | 1.15 | 38.0 | 1.30 |
+| trapper | mineLauncher | knight | 1 | 7.20 | 0.62* | 21.7 | 1.12 |
+| trapper | mineLauncher | knight | 5 | 10.00 | 0.56* | 20.3 | 1.11 |
+| trapper | mineLauncher | eye | 1 | 1.12 | 0.70* | 19.3 | 0.94 |
+| trapper | mineLauncher | eye | 5 | 2.20 | 0.99 | 22.7 | 1.01 |
+| claws | - | slime | 1 | 1.84 | 1.14 | 19.3 | 1.27 |
+| claws | - | slime | 5 | 3.05 | 1.30* | 20.0 | 0.68* |
+| claws | - | knight | 1 | 5.81 | 0.50* | 15.7 | 0.81 |
+| claws | - | knight | 5 | 4.86 | 0.27* | 19.0 | 1.04 |
+| claws | - | eye | 1 | 1.29 | 0.81 | 16.0 | 0.78 |
+| claws | - | eye | 5 | 1.84 | 0.83 | 18.3 | 0.81 |
+| flail | - | slime | 1 | 0.41 | 0.26* | 1.0 | 0.07* |
+| flail | - | slime | 5 | 0.45 | 0.19* | 17.0 | 0.58* |
+| flail | - | knight | 1 | 18.00 | 1.55* | 20.7 | 1.07 |
+| flail | - | knight | 5 | 60.00 | 3.33* | 16.0 | 0.87 |
+| flail | - | eye | 1 | 0.97 | 0.61* | 17.7 | 0.86 |
+| flail | - | eye | 5 | 1.17 | 0.53* | 20.3 | 0.90 |
+| ringBlades | ringBlades | slime | 1 | 1.18 | 0.73* | 6.0 | 0.40* |
+| ringBlades | ringBlades | slime | 5 | 2.37 | 1.01 | 31.0 | 1.06 |
+| ringBlades | ringBlades | knight | 1 | 15.00 | 1.29* | 20.0 | 1.03 |
+| ringBlades | ringBlades | knight | 5 | 20.00 | 1.11 | 21.3 | 1.16 |
+| ringBlades | ringBlades | eye | 1 | 0.77 | 0.48* | 12.7 | 0.62* |
+| ringBlades | ringBlades | eye | 5 | 1.05 | 0.47* | 22.0 | 0.98 |
+| ringBlades | fangRings | slime | 1 | 0.47 | 0.29* | 0.0 | 0.00* |
+| ringBlades | fangRings | slime | 5 | 0.80 | 0.34* | 17.3 | 0.59* |
+| ringBlades | fangRings | knight | 1 | 11.25 | 0.97 | 13.7 | 0.71 |
+| ringBlades | fangRings | knight | 5 | 16.36 | 0.91 | 14.3 | 0.78 |
+| ringBlades | fangRings | eye | 1 | 0.59 | 0.37* | 1.0 | 0.05* |
+| ringBlades | fangRings | eye | 5 | 0.78 | 0.35* | 3.0 | 0.13* |
+| fan | - | slime | 1 | 1.71 | 1.06 | 1.0 | 0.07* |
+| fan | - | slime | 5 | 2.31 | 0.99 | 27.0 | 0.92 |
+| fan | - | knight | 1 | 12.00 | 1.03 | 18.0 | 0.93 |
+| fan | - | knight | 5 | 18.00 | 1.00 | 20.0 | 1.09 |
+| fan | - | eye | 1 | 1.70 | 1.07 | 19.0 | 0.93 |
+| fan | - | eye | 5 | 2.22 | 1.00 | 19.3 | 0.86 |
+| book | - | slime | 1 | 1.48 | 0.91 | 11.0 | 0.73 |
+| book | - | slime | 5 | 2.28 | 0.97 | 31.3 | 1.07 |
+| book | - | knight | 1 | 12.00 | 1.03 | 21.3 | 1.10 |
+| book | - | knight | 5 | 22.50 | 1.25* | 20.3 | 1.11 |
+| book | - | eye | 1 | 2.31 | 1.45* | 26.3 | 1.28 |
+| book | - | eye | 5 | 2.86 | 1.29* | 24.0 | 1.07 |
+| handbell | - | slime | 1 | 1.96 | 1.21* | 30.0 | 1.98* |
+| handbell | - | slime | 5 | 3.33 | 1.43* | 32.3 | 1.10 |
+| handbell | - | knight | 1 | 8.18 | 0.70* | 22.3 | 1.16 |
+| handbell | - | knight | 5 | 16.36 | 0.91 | 21.0 | 1.15 |
+| handbell | - | eye | 1 | 22.50 | 14.12* | 25.0 | 1.22 |
+| handbell | - | eye | 5 | 25.71 | 11.57* | 24.7 | 1.10 |
+| kunai | kunai | slime | 1 | 1.05 | 0.65* | 57.0 | 3.76* |
+| kunai | kunai | slime | 5 | 1.64 | 0.70* | 39.3 | 1.34* |
+| kunai | kunai | knight | 1 | 18.00 | 1.55* | 16.0 | 0.83 |
+| kunai | kunai | knight | 5 | 22.50 | 1.25* | 17.3 | 0.95 |
+| kunai | kunai | eye | 1 | 0.60 | 0.38* | 0.0 | 0.00* |
+| kunai | kunai | eye | 5 | 0.90 | 0.40* | 0.7 | 0.03* |
+| shuriken | shuriken | slime | 1 | 0.74 | 0.46* | 0.0 | 0.00* |
+| shuriken | shuriken | slime | 5 | 0.64 | 0.27* | 0.0 | 0.00* |
+| shuriken | shuriken | knight | 1 | 6.00 | 0.52* | 16.7 | 0.86 |
+| shuriken | shuriken | knight | 5 | 12.86 | 0.71* | 16.0 | 0.87 |
+| shuriken | shuriken | eye | 1 | 0.51 | 0.32* | 0.0 | 0.00* |
+| shuriken | shuriken | eye | 5 | 0.77 | 0.35* | 0.0 | 0.00* |
 
 ## 地力 ÷ 敵の生命（深度に見合う並の遺物 6 部位）
 

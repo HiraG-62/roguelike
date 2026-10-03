@@ -1,0 +1,13 @@
+{
+  "weight": "light",
+  "stepsMin": 2,
+  "stepsMax": 2,
+  "max": 6,
+  "releaseMin": 1,
+  "consumeUnits": 0,
+  "decayDelaySec": 1.2,
+  "decayPerSec": 2,
+  "releaseCrit": false,
+  "perUnit": {"damageMul": 0.15, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
+  "gain": {"alternateShot": 1}
+}

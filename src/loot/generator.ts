@@ -2,6 +2,7 @@ import { createRng, type Rng } from "../core/rng";
 import {
   KEYSTONES,
   affixDef,
+  affixFamilyOf,
   conversionsFor,
   implicitDef,
   isConversionKey,
@@ -10,6 +11,7 @@ import {
   keystoneToRoll,
   traitsFor,
   type AffixDef,
+  type AffixFamily,
   type RollRange,
 } from "./affixes";
 import { baseDef, baseFamily, basesForSlot, type BaseItemDef } from "./bases";
@@ -272,7 +274,7 @@ interface TraitContext {
   lean: TraitColor | undefined;
   opts: TraitRollOptions;
   /** 右手の家系（docs/ideas/weapon-redesign.md 5.2）。mainHand 以外では意味を持たない */
-  family?: "melee" | "gun";
+  family?: AffixFamily;
 }
 
 function pickTableDef(rng: Rng, pool: readonly AffixDef[], ctx: TraitContext, used: ReadonlySet<string>): AffixDef | undefined {
@@ -332,7 +334,7 @@ export function rollTraits(
   baseKey: string,
   count: number,
   opts: TraitRollOptions,
-  family?: "melee" | "gun",
+  family?: AffixFamily,
 ): AffixRoll[] {
   const ctx: TraitContext = { slot, lean: baseLean(baseKey), opts, family };
   const rolls: AffixRoll[] = [];
@@ -376,7 +378,7 @@ export function rollTraitOfColor(
   color: TraitColor,
   used: ReadonlySet<string>,
   opts: TraitRollOptions,
-  family?: "melee" | "gun",
+  family?: AffixFamily,
 ): AffixRoll | undefined {
   const tables = traitsFor(slot, opts.depth, family).filter((d) => affixColor(d) === color && !used.has(d.key));
   const shapes = grammarForSlot(slot, family).filter((s) => triggerCanBeColor(s, color));
@@ -499,7 +501,7 @@ function rollRegularItem(rng: Rng, slot: Slot, opts: TraitRollOptions): Rolled {
   const count = rollTraitCount(rng, opts.depth);
   // 襤褸などの余白の上乗せ。器の容量は超えない
   const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
-  const affixes = maybeVow(rng, rollTraits(rng, slot, base.key, count, opts, baseFamily(base)));
+  const affixes = maybeVow(rng, rollTraits(rng, slot, base.key, count, opts, affixFamilyOf(baseFamily(base))));
   return { base, affixes, margin };
 }
 
@@ -527,7 +529,7 @@ function fixedBaseDef(key: string): BaseItemDef {
 function rollFixedItem(rng: Rng, base: BaseItemDef, plain: boolean, opts: TraitRollOptions): Rolled {
   const count = plain ? 0 : rollTraitCount(rng, opts.depth);
   const margin = Math.min(VESSEL_CAPACITY, rollMargin(rng, count) + (base.marginBonus ?? 0));
-  const traits = rollTraits(rng, base.slot, base.key, count, opts, baseFamily(base));
+  const traits = rollTraits(rng, base.slot, base.key, count, opts, affixFamilyOf(baseFamily(base)));
   return { base, affixes: plain ? traits : maybeVow(rng, traits), margin };
 }
 

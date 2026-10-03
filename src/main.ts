@@ -161,7 +161,7 @@ import { enemyDef } from "./data/enemies";
 import { telegraphDiagram } from "./system/telegraphDiagram";
 import { drawQuestChoice } from "./render/questUi";
 import { type QuestChoiceScreen, chosenQuest, createQuestChoice, moveQuestChoice, questChoiceItemAt } from "./ui/quests";
-import { type HubSession, borrowRackEntry, borrowWeapon, createHub, equippedMoveset, fillResourcesOf, resourceRatioOf, trialUltimateName, rackEntryName, setResourceOf, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
+import { type HubSession, type RackEntry, borrowRackEntry, borrowWeapon, createHub, equippedMoveset, fillResourcesOf, resourceRatioOf, trialUltimateName, rackEntryName, setResourceOf, setTrialKeystone, setTrialWeapon, stepHub } from "./system/hub";
 import { type DojoSession, createDojo, dojoMeterView, respawnDojo, resetDojoMeter, restoreDojoPlayer, setDojoConfig, setDojoTrialWeapon, stepDojo } from "./system/dojo";
 import { type DojoConfig, defaultDojoConfig } from "./system/dojoConfig";
 import { type DojoBoardUi, createDojoBoardUi, dojoBoardRowGap, stepDojoBoard } from "./ui/dojoBoard";
@@ -173,9 +173,24 @@ import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./
 import { type TownLook, townLook } from "./meta/townLook";
 import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
-import type { MovesetKey } from "./data/weapons";
+import type { MovesetKey, WeaponGroup } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
-import { type RackAction, type RackCard, type RackInput, type RackUi, createRackUi, rackCards, rackCursorCard, stepRack } from "./ui/rackScreen";
+import {
+  type RackAction,
+  type RackCard,
+  type RackInput,
+  type RackTrial,
+  type RackUi,
+  closeRackLevel,
+  createRackUi,
+  openRackFamily,
+  openRackGroup,
+  rackCardBorrowable,
+  rackCards,
+  rackCursorCard,
+  rackTitle,
+  stepRack,
+} from "./ui/rackScreen";
 import {
   type TitleAction,
   type TitleMenuItem,
@@ -1141,7 +1156,7 @@ function drawHallFight(ctx: CanvasRenderingContext2D, fight: HallFight): void {
   else drawHallResult(ctx, fight.result, hallResultHint());
 }
 
-const RACK_TITLE = "武器掛け";
+// 群・器の複数ある武器種のカードの決定は次の段を開き、Esc は 1 段ずつ戻る（案内の幅を増やさないため同じ文で言う）
 const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 戻る";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
@@ -1157,10 +1172,11 @@ let rackEquipped: MovesetKey | null = null;
  */
 interface RackHost {
   state: GameState;
-  trialMoveset: () => MovesetKey | null;
-  setTrial: (moveset: MovesetKey | null) => void;
+  trial: () => RackTrial;
+  /** base は銃の家系の器（null = 家系の一番早く出る器） */
+  setTrial: (moveset: MovesetKey | null, base: string | null) => void;
   /** 素の器を借りる。借りたら試しを外す。倉庫が満杯なら null */
-  borrow: (moveset: MovesetKey, now: number) => Item | null;
+  borrow: (entry: RackEntry, now: number) => Item | null;
   back: () => void;
 }
 let rackHost: RackHost | null = null;
@@ -1168,9 +1184,9 @@ let rackHost: RackHost | null = null;
 function hubRackHost(session: HubSession): RackHost {
   return {
     state: session.state,
-    trialMoveset: () => session.hub.trialMoveset,
-    setTrial: (moveset) => setTrialWeapon(session, moveset),
-    borrow: (moveset, now) => borrowRackEntry(session, { kind: "moveset", key: moveset }, now),
+    trial: () => ({ moveset: session.hub.trialMoveset, base: session.hub.trialBase }),
+    setTrial: (moveset, base) => setTrialWeapon(session, moveset, base),
+    borrow: (entry, now) => borrowRackEntry(session, entry, now),
     back: returnToHub,
   };
 }
@@ -1178,10 +1194,10 @@ function hubRackHost(session: HubSession): RackHost {
 function dojoRackHost(session: DojoSession): RackHost {
   return {
     state: session.state,
-    trialMoveset: () => session.dojo.trialMoveset,
-    setTrial: (moveset) => setDojoTrialWeapon(session, moveset),
-    borrow: (moveset, now) => {
-      const item = borrowWeapon(session.state.profile, moveset, now);
+    trial: () => ({ moveset: session.dojo.trialMoveset, base: session.dojo.trialBase }),
+    setTrial: (moveset, base) => setDojoTrialWeapon(session, moveset, base),
+    borrow: (entry, now) => {
+      const item = borrowWeapon(session.state.profile, entry.key, now, entry.base);
       if (item !== null) setDojoTrialWeapon(session, null);
       return item;
     },
@@ -1192,7 +1208,7 @@ function dojoRackHost(session: DojoSession): RackHost {
 }
 
 function refreshRackCards(host: RackHost): void {
-  rackCardList = rackCards(host.trialMoveset());
+  rackCardList = rackCards(host.trial(), rackUi.group, rackUi.family);
   rackEquipped = equippedMoveset(host.state.profile);
 }
 
@@ -1224,19 +1240,40 @@ function gridMenuInput(frame: FrameInput, arrowX: number, arrowY: number): RackI
 function updateRackFrame(host: RackHost, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
   if (escape) {
     sfx.play("uiClose");
+    // 武器種・器の段では 1 段上へ戻るだけ（画面は閉じない）
+    if (rackUi.group !== null) {
+      switchRackLevel(host, { kind: "close" });
+      return;
+    }
     rackHost = null;
     host.back();
     return;
   }
   applyRackAction(host, stepRack(rackUi, rackCardList, gridMenuInput(frame, arrowX, arrowY)));
-  const target = rackCursorCard(rackUi, rackCardList)?.moveset ?? null;
+  const card = rackCursorCard(rackUi, rackCardList);
+  const target = card !== null && card.moveset !== null && rackCardBorrowable(card) ? card.moveset : null;
   rackHold = target !== null && latchedHold(rackLatch, input.confirmHeld()) ? rackHold + dt : 0;
   if (target === null || rackHold < HUB.rackBorrowHold) return;
   rackHold = 0;
   resetHoldLatch(rackLatch);
-  const borrowed = host.borrow(target, Date.now());
+  const borrowed = host.borrow({ kind: "moveset", key: target, base: card?.base ?? undefined }, Date.now());
   sfx.play(borrowed ? "uiClick" : "uiClose");
   refreshRackCards(host);
+}
+
+type RackLevelMove = { kind: "close" } | { kind: "group"; group: WeaponGroup } | { kind: "family"; moveset: MovesetKey };
+
+/**
+ * 群・武器種・器の 3 段を行き来する。
+ * 開いた決定の押しっぱなしがそのまま借りる長押しにならないよう、一度離すまで長押しを数えない
+ */
+function switchRackLevel(host: RackHost, move: RackLevelMove): void {
+  if (move.kind === "close") closeRackLevel(rackUi);
+  else if (move.kind === "group") openRackGroup(rackUi, move.group);
+  else openRackFamily(rackUi, move.moveset);
+  refreshRackCards(host);
+  rackHold = 0;
+  resetHoldLatch(rackLatch);
 }
 
 /** カードは試し、調整欄は箱庭の資源を書き換える（拠点・稽古の間の state はリプレイにも保存にも載らない） */
@@ -1247,8 +1284,14 @@ function applyRackAction(host: RackHost, action: RackAction): void {
     return;
   }
   if (action.kind === "try") {
-    host.setTrial(action.moveset);
+    host.setTrial(action.moveset, action.base);
     refreshRackCards(host);
+  } else if (action.kind === "openGroup") {
+    switchRackLevel(host, { kind: "group", group: action.group });
+  } else if (action.kind === "open") {
+    switchRackLevel(host, { kind: "family", moveset: action.moveset });
+  } else if (action.kind === "back") {
+    switchRackLevel(host, { kind: "close" });
   } else if (action.kind === "adjust") {
     setResourceOf(host.state, action.resource, resourceRatioOf(host.state, action.resource) + action.delta);
   } else {
@@ -1261,7 +1304,7 @@ function drawRackFrame(ctx: CanvasRenderingContext2D, host: RackHost): void {
   const s = host.state;
   const resources = { hp: resourceRatioOf(s, "hp"), mana: resourceRatioOf(s, "mana"), energy: resourceRatioOf(s, "energy") };
   drawRackScreen(ctx, {
-    title: RACK_TITLE,
+    title: rackTitle(rackUi),
     hint: RACK_HINT,
     ui: rackUi,
     cards: rackCardList,
@@ -1284,7 +1327,7 @@ const dojoBoardUi: DojoBoardUi = createDojoBoardUi();
 /** 拠点で試している武器種・誓約を持ち込んで入る */
 function openDojo(session: HubSession): void {
   const h = session.hub;
-  dojo = createDojo({ profile, skillProfile, hitstopScale: settings.hitstopScale, config: dojoConfig, trialMoveset: h.trialMoveset, trialKeystone: h.trialKeystone });
+  dojo = createDojo({ profile, skillProfile, hitstopScale: settings.hitstopScale, config: dojoConfig, trialMoveset: h.trialMoveset, trialBase: h.trialBase, trialKeystone: h.trialKeystone });
   inventoryUi.open = false;
   // 入った最初のコマから床が出るよう、映る範囲のチャンクを焼いておく（稽古の間は迷宮と同じ焼き方）
   renderer.settleMap(dojo.state);
@@ -1295,7 +1338,7 @@ function openDojo(session: HubSession): void {
 function leaveDojo(session: DojoSession): void {
   dojo = null;
   inventoryUi.open = false;
-  if (hub) setTrialWeapon(hub, session.dojo.trialMoveset);
+  if (hub) setTrialWeapon(hub, session.dojo.trialMoveset, session.dojo.trialBase);
   returnToHub();
 }
 
@@ -1371,7 +1414,7 @@ function drawDojoScreen(ctx: CanvasRenderingContext2D, session: DojoSession): vo
 /** 拠点の重ね描きに出す、試している武器と借り物の名前 */
 function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: string | null; trialUltimate: string | null } {
   const h = session.hub;
-  const trialWeapon = h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset });
+  const trialWeapon = h.trialMoveset === null ? null : rackEntryName({ kind: "moveset", key: h.trialMoveset, base: h.trialBase ?? undefined });
   const eq = session.state.profile.equipment;
   const loaned = eq.mainHand?.loaned === true ? [eq.mainHand.name] : [];
   return { trialWeapon, loaned: loaned.length > 0 ? loaned.join(" / ") : null, trialUltimate: trialUltimateName(session) };

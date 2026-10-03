@@ -463,7 +463,7 @@ describe("マナの回収（B-1）", () => {
     expect(state.player.mana).toBe(MANA.onKill + MANA.onJust);
   });
 
-  it("射撃弾の命中 1 体ごとに onShot、1 回の射撃で shotVolleyCap 回まで", () => {
+  it("自分の弾が何体に当たっても気力は戻らない（遠距離の攻撃は資源を戻さない。2026-10-03 に onShot を撤去）", () => {
     const state = arena();
     state.player.mana = 0;
     // 1 階は洞窟で開始の部屋が狭いことがある。的の周りを床にしておく（壁の中の弾は当たる前に消える）
@@ -487,7 +487,8 @@ describe("マナの回収（B-1）", () => {
       });
     }
     updateProjectiles(state, FIXED_DT);
-    expect(state.player.mana).toBeCloseTo(MANA.onShot * MANA.shotVolleyCap * MANA.attackGainScale, 5);
+    expect(targets.every((t) => t.hp < t.maxHp), "全部に当たっている").toBe(true);
+    expect(state.player.mana, "弾の命中の気力").toBe(0);
   });
 
   it("静寂の誓いでは射撃の命中でマナが戻らない", () => {

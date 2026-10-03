@@ -27,19 +27,19 @@ import actor_wpnGunner from "./actor/wpnGunner.gen.json";
 import actor_wpnHammer from "./actor/wpnHammer.gen.json";
 import actor_wpnHandbell from "./actor/wpnHandbell.gen.json";
 import actor_wpnKatana from "./actor/wpnKatana.gen.json";
+import actor_wpnKunai from "./actor/wpnKunai.gen.json";
 import actor_wpnLongarm from "./actor/wpnLongarm.gen.json";
 import actor_wpnRingBlades from "./actor/wpnRingBlades.gen.json";
 import actor_wpnScythe from "./actor/wpnScythe.gen.json";
 import actor_wpnShield from "./actor/wpnShield.gen.json";
+import actor_wpnShuriken from "./actor/wpnShuriken.gen.json";
 import actor_wpnSidearm from "./actor/wpnSidearm.gen.json";
 import actor_wpnSpear from "./actor/wpnSpear.gen.json";
 import actor_wpnStaff from "./actor/wpnStaff.gen.json";
 import actor_wpnSword from "./actor/wpnSword.gen.json";
-import actor_wpnThrown from "./actor/wpnThrown.gen.json";
 import actor_wpnTrapper from "./actor/wpnTrapper.gen.json";
 import actor_wpnTwinBlades from "./actor/wpnTwinBlades.gen.json";
 import actor_wpnWand from "./actor/wpnWand.gen.json";
-import actor_wpnWarRing from "./actor/wpnWarRing.gen.json";
 import actor_wpnWhip from "./actor/wpnWhip.gen.json";
 
 /** アトラス（public/ からの相対パスと寸法、付帯情報） */
@@ -71,19 +71,19 @@ export const ACTOR_ATLASES = {
   wpnHammer: { url: "assets/actor/wpnHammer.png", width: actor_wpnHammer.width, height: actor_wpnHammer.height, meta: actor_wpnHammer.meta },
   wpnHandbell: { url: "assets/actor/wpnHandbell.png", width: actor_wpnHandbell.width, height: actor_wpnHandbell.height, meta: actor_wpnHandbell.meta },
   wpnKatana: { url: "assets/actor/wpnKatana.png", width: actor_wpnKatana.width, height: actor_wpnKatana.height, meta: actor_wpnKatana.meta },
+  wpnKunai: { url: "assets/actor/wpnKunai.png", width: actor_wpnKunai.width, height: actor_wpnKunai.height, meta: actor_wpnKunai.meta },
   wpnLongarm: { url: "assets/actor/wpnLongarm.png", width: actor_wpnLongarm.width, height: actor_wpnLongarm.height, meta: actor_wpnLongarm.meta },
   wpnRingBlades: { url: "assets/actor/wpnRingBlades.png", width: actor_wpnRingBlades.width, height: actor_wpnRingBlades.height, meta: actor_wpnRingBlades.meta },
   wpnScythe: { url: "assets/actor/wpnScythe.png", width: actor_wpnScythe.width, height: actor_wpnScythe.height, meta: actor_wpnScythe.meta },
   wpnShield: { url: "assets/actor/wpnShield.png", width: actor_wpnShield.width, height: actor_wpnShield.height, meta: actor_wpnShield.meta },
+  wpnShuriken: { url: "assets/actor/wpnShuriken.png", width: actor_wpnShuriken.width, height: actor_wpnShuriken.height, meta: actor_wpnShuriken.meta },
   wpnSidearm: { url: "assets/actor/wpnSidearm.png", width: actor_wpnSidearm.width, height: actor_wpnSidearm.height, meta: actor_wpnSidearm.meta },
   wpnSpear: { url: "assets/actor/wpnSpear.png", width: actor_wpnSpear.width, height: actor_wpnSpear.height, meta: actor_wpnSpear.meta },
   wpnStaff: { url: "assets/actor/wpnStaff.png", width: actor_wpnStaff.width, height: actor_wpnStaff.height, meta: actor_wpnStaff.meta },
   wpnSword: { url: "assets/actor/wpnSword.png", width: actor_wpnSword.width, height: actor_wpnSword.height, meta: actor_wpnSword.meta },
-  wpnThrown: { url: "assets/actor/wpnThrown.png", width: actor_wpnThrown.width, height: actor_wpnThrown.height, meta: actor_wpnThrown.meta },
   wpnTrapper: { url: "assets/actor/wpnTrapper.png", width: actor_wpnTrapper.width, height: actor_wpnTrapper.height, meta: actor_wpnTrapper.meta },
   wpnTwinBlades: { url: "assets/actor/wpnTwinBlades.png", width: actor_wpnTwinBlades.width, height: actor_wpnTwinBlades.height, meta: actor_wpnTwinBlades.meta },
   wpnWand: { url: "assets/actor/wpnWand.png", width: actor_wpnWand.width, height: actor_wpnWand.height, meta: actor_wpnWand.meta },
-  wpnWarRing: { url: "assets/actor/wpnWarRing.png", width: actor_wpnWarRing.width, height: actor_wpnWarRing.height, meta: actor_wpnWarRing.meta },
   wpnWhip: { url: "assets/actor/wpnWhip.png", width: actor_wpnWhip.width, height: actor_wpnWhip.height, meta: actor_wpnWhip.meta },
 } as const;
 
@@ -129,18 +129,18 @@ export const ACTOR_SHEETS: Record<string, ActorSheetDef> = {
   ...actor_wpnHammer.sheets,
   ...actor_wpnHandbell.sheets,
   ...actor_wpnKatana.sheets,
+  ...actor_wpnKunai.sheets,
   ...actor_wpnLongarm.sheets,
   ...actor_wpnRingBlades.sheets,
   ...actor_wpnScythe.sheets,
   ...actor_wpnShield.sheets,
+  ...actor_wpnShuriken.sheets,
   ...actor_wpnSidearm.sheets,
   ...actor_wpnSpear.sheets,
   ...actor_wpnStaff.sheets,
   ...actor_wpnSword.sheets,
-  ...actor_wpnThrown.sheets,
   ...actor_wpnTrapper.sheets,
   ...actor_wpnTwinBlades.sheets,
   ...actor_wpnWand.sheets,
-  ...actor_wpnWarRing.sheets,
   ...actor_wpnWhip.sheets,
 };

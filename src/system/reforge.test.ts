@@ -6,13 +6,15 @@ import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
 import { REFORGES, REFORGE_KEYS, type ReforgeKey, reforgesOfForm, withReforges } from "../data/reforges";
 import { FORM, REFORGE } from "../data/tuning";
-import { FORMS, FORM_KEYS, movesetsOfForm } from "../data/weaponForms";
+import { FORMS, FORM_KEYS, type FormKey, movesetsOfForm } from "../data/weaponForms";
 import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { terrainAt } from "./terrain";
 import { onBossDeath } from "./boss";
 import { currentForm, moraleMax, tickMorale } from "./morale";
+import { startReload, tickMagazine } from "./magazine";
+import { BULLETS } from "../loot/bullets";
 import { playerMoveset, updatePlayer } from "./player";
-import { chooseReforge, grantReforge, offerReforges, pullTowardShots, reforgeRules, rollReforgeOptions } from "./reforge";
+import { chooseReforge, grantReforge, offerReforges, reforgeRules, rollReforgeOptions } from "./reforge";
 import { resolveRules } from "./rules";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { botInput, createBotState } from "../qa/bot";
@@ -23,8 +25,16 @@ import { botInput, createBotState } from "../qa/bot";
  */
 
 const PER_FORM = 2;
+/**
+ * 改鋳の数が 2 つに満たない型（銃と投擲物の見直しで、働かなくなった改鋳を消し、新しい型の改鋳は後で作る。
+ * docs/ideas/gun-bases-review.md 4-3 の 3）。投具は牽引・双刃（手元返し・投げ放ちが消える）、仕掛けは連爆を装薬へ移した残り、
+ * 装薬は連爆だけ、擲弾はまだ無い
+ */
+const UNDER_FILLED: Readonly<Partial<Record<FormKey, number>>> = { thrower: 0, dart: 0, star: 0, artillery: 1, powder: 1, shell: 0, akimbo: 0 };
 const INPUT_WAIT = REFORGE.inputDelay + FIXED_DT;
 const EPS = 1e-6;
+/** 放出の粒が届いて炸裂するまで待つステップ */
+const CHAIN_STEPS = 30;
 /** bot が 3 択を閉じるまで待つ上限のステップ（待ちは祝福と同じ 0.5 秒） */
 const BOT_STEPS = 120;
 
@@ -49,9 +59,10 @@ function laneSwing(state: GameState, key: string) {
 }
 
 describe("改鋳のデータ", () => {
-  it("型ごとに 2 つ、計 30。key と表示名は重ならない", () => {
-    expect(REFORGE_KEYS, "計 30").toHaveLength(FORM_KEYS.length * PER_FORM);
-    for (const form of FORM_KEYS) expect(reforgesOfForm(form), `${form} の改鋳`).toHaveLength(PER_FORM);
+  it("型ごとに 2 つ（理由付きで 0〜1 の型は UNDER_FILLED）。key と表示名は重ならない", () => {
+    for (const form of FORM_KEYS) expect(reforgesOfForm(form), `${form} の改鋳`).toHaveLength(UNDER_FILLED[form] ?? PER_FORM);
+    const total = FORM_KEYS.reduce((n, form) => n + (UNDER_FILLED[form] ?? PER_FORM), 0);
+    expect(REFORGE_KEYS, "合計").toHaveLength(total);
     const names = REFORGE_KEYS.map((k) => REFORGES[k].name);
     expect(new Set(names).size, "表示名の重なり").toBe(names.length);
     for (const k of REFORGE_KEYS) expect(REFORGES[k].key, "key の写し").toBe(k);
@@ -61,6 +72,11 @@ describe("改鋳のデータ", () => {
     const blocks = REFORGE as unknown as Readonly<Record<string, unknown>>;
     for (const form of FORM_KEYS) {
       const block = blocks[form];
+      // 改鋳の無い型はブロックを置かない（空のブロックは balance の検査が禁じる）
+      if (reforgesOfForm(form).length === 0) {
+        expect(block, `${form} のブロック`).toBeUndefined();
+        continue;
+      }
       expect(typeof block, `${form} のブロック`).toBe("object");
       expect(Object.keys(block as object).sort(), `${form} の key`).toEqual(reforgesOfForm(form).sort());
     }
@@ -235,15 +251,6 @@ describe("改鋳の段の書き換え（playerMoveset の withReforges）", () =
     const base = MOVESETS.wand.branches.find((b) => b.key === "lightningBolt");
     expect(base?.step.cast?.throw.bullet.leaves, "元の定義は変えない").toBeUndefined();
   });
-
-  it("投具「双刃」: 投げる刃が 1 枚増え、飛んでいる数の上限が上がる", () => {
-    const state = withReforge("ringBlades", "throwerTwin");
-    const base = MOVESETS.ringBlades.steps2.find((s) => s.kind === "volley");
-    const now = playerMoveset(state).steps2.find((s) => s.kind === "volley");
-    if (base?.kind !== "volley" || now?.kind !== "volley") throw new Error("弾の段が無い");
-    expect(now.throw.count, "弾数").toBe(base.throw.count + REFORGE.thrower.throwerTwin.countAdd);
-    expect(moraleMax(state), "上限").toBe(REFORGE.thrower.throwerTwin.max);
-  });
 });
 
 describe("改鋳の戦意の上書き（currentForm の reforgedForm）", () => {
@@ -279,17 +286,17 @@ describe("改鋳の挙動の切り替え（morale.ts から読む）", () => {
     expect(state.player.morale.value - MID, "半分の速さで溜まる").toBeCloseTo(gain);
   });
 
-  it("短銃「疾駆」: 装填の窓の中でダッシュすると即座に装填し、強装填になる", () => {
+  it("短銃「疾駆」: 込めの最中にダッシュすると、その場で弾倉が満ちる", () => {
     const state = arena(5, { moveset: "sidearm", bullet: "pistol" });
     state.reforges = ["pistolDash"];
-    const m = state.player.morale;
-    m.value = FORM.pistol.max;
-    m.window = FORM.pistol.reload.windowSec;
+    tickMagazine(state, withInput({}), FIXED_DT);
+    const hand = state.player.magazine.hands[0];
+    hand.rounds = 0;
+    startReload(state, 0);
     state.player.dashTimer = FIXED_DT * 2;
     tickMorale(state, withInput({}), FIXED_DT);
-    expect(m.window, "窓が閉じる").toBe(0);
-    expect(m.value, "弾倉が満ちる").toBe(0);
-    expect(m.primed, "強装填").toBe(true);
+    expect(hand.reloadLeft, "込めが終わる").toBe(0);
+    expect(hand.rounds, "弾倉が満ちる").toBe(BULLETS.pistol?.magazine?.capacity);
   });
 
   it("砲「吸着」: 設置弾が近くの敵へ向かって動く", () => {
@@ -304,30 +311,6 @@ describe("改鋳の挙動の切り替え（morale.ts から読む）", () => {
     e.body.pos = { x: mine.pos.x, y: mine.pos.y + REFORGE.artillery.artilleryCling.range / 2 };
     tickMorale(state, withInput({}), FIXED_DT);
     expect(mine.vel.y, "敵の方へ").toBeCloseTo(REFORGE.artillery.artilleryCling.speed);
-  });
-
-  it("投具「牽引」: 放出で飛んでいる刃の方へ引き寄せられる", () => {
-    const state = arena(5, { moveset: "thrown" });
-    const p = state.player;
-    state.projectiles.push({
-      id: 999,
-      owner: "player",
-      pos: { x: p.body.pos.x + REFORGE.thrower.throwerPull.minDistance * 4, y: p.body.pos.y },
-      vel: { x: 0, y: 0 },
-      radius: 2,
-      damage: 1,
-      life: 1,
-      color: "#fff",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-      lane: "secondary",
-    });
-    pullTowardShots(state);
-    expect(p.knock.x, "改鋳なし").toBe(0);
-    state.reforges = ["throwerPull"];
-    pullTowardShots(state);
-    expect(p.knock.x, "刃の方へ").toBeCloseTo(REFORGE.thrower.throwerPull.pullSpeed);
   });
 });
 
@@ -356,6 +339,28 @@ describe("改鋳の起点（統一ルール文法）", () => {
     pushEvent(state, { kind: "onBrim", actor: "player", source: { kind: "player", key: "morale" }, pos: { ...state.player.body.pos }, tag: "bulwark" });
     resolveRules(state, FIXED_DT);
     expect(state.projectiles.length, "衝撃波の弾").toBeGreaterThan(before);
+  });
+
+  it("装薬「連爆」: 詰めた放出の粒が当たった敵が炸裂し、周りの敵を巻き込む", () => {
+    const hurt = (reforges: ReforgeKey[]): number => {
+      const state = arena(5, { moveset: "cannon", bullet: "shotgun" });
+      state.reforges = [...reforges];
+      tickMagazine(state, withInput({}), 0);
+      const target = placeEnemy(state, "slime", 24);
+      // 粒の扇の外（真横）で、炸裂の半径の内に立つ敵
+      const side = placeEnemy(state, "slime", 24, REFORGE.powder.powderChain.radius - 4);
+      for (const e of [target, side]) {
+        e.hp = 99999;
+        e.maxHp = 99999;
+        e.attackCooldown = 99;
+      }
+      state.player.morale.value = FORM.powder.max;
+      state.player.shootCooldown = 0;
+      step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+      for (let i = 0; i < CHAIN_STEPS; i++) step(state, withInput({}), FIXED_DT);
+      return side.maxHp - side.hp;
+    };
+    expect(hurt(["powderChain"]), "炸裂が横の敵を巻き込む").toBeGreaterThan(hurt([]));
   });
 
   it("選んだ改鋳の数値は型の定義に残らない（ランを跨がない）", () => {

@@ -16,6 +16,7 @@ import {
   rackAdjustButtonRect,
   rackAdjustGaugeRect,
   rackAdjustRowRect,
+  rackCardBorrowable,
   rackCardDetail,
   rackCardRect,
   rackCursorAdjust,
@@ -27,6 +28,10 @@ import { TEXT, drawText, textLineHeight, truncateText, wrapText } from "./pixelT
 import { ACTOR_ART_SCALE, type ActorCell } from "./actorSprites";
 import type { Sprite } from "./sprites";
 import { ICON_BOX_H, weaponIconCell, weaponIconSize } from "./weaponIcons";
+import { BULLET_FX, movesetAtlas, rampOfElement } from "./fxMotions";
+import { FX_ART_SCALE, FxSpriteBank, cellOf, sheetDef } from "./fxSprites";
+import type { FxSheetDef } from "../data/fxSheets.gen";
+import { bulletDef } from "../loot/bullets";
 
 export type RackSpriteLookup = (key: string) => Sprite | undefined;
 
@@ -101,7 +106,7 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
   const m = TEXT.SMALL;
   const name = truncateText(card.name, r.w - CARD_TEXT_PAD * 2, m);
   drawText(ctx, name, r.x + r.w / 2, r.y + r.h - CARD_TEXT_PAD - HOLD_H, m, card.marked ? COLOR_MARK : COLOR_TEXT, "center", "bottom");
-  if (cursor && view.borrowHold > 0 && card.moveset !== null) {
+  if (cursor && view.borrowHold > 0 && rackCardBorrowable(card)) {
     const w = Math.round((r.w - 2) * Math.min(1, view.borrowHold));
     fillRectPx(ctx, { x: r.x + 1, y: r.y + r.h - 1 - HOLD_H, w, h: HOLD_H }, COLOR_HOLD);
   }
@@ -109,15 +114,95 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
 
 /** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（読めていない間は旧い 12px の絵） */
 function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card: RackCard, r: Rect): void {
+  if (card.kind === "back") return;
+  // 器のカードは、和紙の札にその器の弾が飛ぶ絵（札が無ければ武器種の絵）
+  if (card.kind === "base" && card.base !== null && card.moveset !== null && drawBulletIcon(ctx, view, card.moveset, card.base, r)) return;
   const moveset = card.moveset ?? view.equipped;
   if (moveset === null) return;
   const prevAlpha = ctx.globalAlpha;
   // 「装備のまま」は装備中の武器の絵を薄く出して、武器種のカードと見分ける
-  if (card.moveset === null) ctx.globalAlpha = 0.5;
+  if (card.kind === "clear") ctx.globalAlpha = 0.5;
   const cell = weaponIconCell(moveset);
   if (cell) drawHeldIcon(ctx, cell, r);
   else drawLegacyIcon(ctx, view, moveset, r);
   ctx.globalAlpha = prevAlpha;
+}
+
+/** 器のカードの札（和紙。data/sprites/rackPaper.ts の rack.paper） */
+const PAPER_KEY = "rack.paper";
+/** 札の拡大（論理寸法の 1.5 倍。密度 2 の 1 ドットが背面バッファの 3px） */
+const PAPER_SCALE = 1.5;
+/** 札の内側（耳と縁を除いて弾の絵を収める範囲。論理 px） */
+const PAPER_INSET_X = 3;
+const PAPER_INSET_Y = 3;
+/** 弾の絵の倍率の上限（小さな弾は拡げて読めるようにし、拡げすぎてドットが粗くならないように） */
+const SHOT_MAX_SCALE = 3;
+/** 弾の絵の向き（右へ飛ぶ） */
+const SHOT_ANGLE = 0;
+/** 弾の飛ぶ絵は 1 武器種ずつしか並ばないので、開いている家系のアトラスだけを持つ専用の bank */
+const shotBank = new FxSpriteBank();
+
+/**
+ * 器のカードの絵: 和紙の札に、その器の弾が飛ぶ絵（ゲーム内と同じエフェクトのスプライト・同じ墨の配色）を重ねる。
+ * 札が無ければ false（呼び側が武器種の絵で代わりに描く）。弾の絵がまだ読めていない間は札だけ
+ */
+function drawBulletIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, moveset: MovesetKey, base: string, r: Rect): boolean {
+  const paper = view.lookup(PAPER_KEY);
+  const img = paper?.frames[0];
+  if (!paper || !img) return false;
+  const w = paper.w * PAPER_SCALE;
+  const h = paper.h * PAPER_SCALE;
+  const box: Rect = { x: Math.round(r.x + (r.w - w) / 2), y: Math.round(r.y + ICON_TOP + (ICON_BOX_H - h) / 2), w, h };
+  const prevSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, box.x, box.y, w, h);
+  ctx.imageSmoothingEnabled = prevSmoothing;
+  drawShotOnPaper(ctx, moveset, base, { x: box.x + PAPER_INSET_X, y: box.y + PAPER_INSET_Y, w: w - PAPER_INSET_X * 2, h: h - PAPER_INSET_Y * 2 });
+  return true;
+}
+
+/**
+ * 向き 0 のコマのうち、絵の矩形がいちばん大きいコマ（回る輪のように 1 コマ目が欠けて見える絵でも形が読める）。
+ * 同じ大きさなら先のコマ
+ */
+function widestFrame(sheet: FxSheetDef): number {
+  let best = 0;
+  let bestArea = -1;
+  for (let f = 0; f < sheet.frames; f++) {
+    const c = cellOf(sheet, 0, f);
+    const area = c ? c.w * c.h : 0;
+    if (area > bestArea) {
+      best = f;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
+/** 弾の飛ぶ絵のいちばん大きく見えるコマを、札の内側に収まる倍率で中央に置く（はみ出す尾は札の内側で切る） */
+function drawShotOnPaper(ctx: CanvasRenderingContext2D, moveset: MovesetKey, base: string, inner: Rect): void {
+  const fx = BULLET_FX.get(base);
+  if (!fx) return;
+  shotBank.focus([movesetAtlas(moveset)]);
+  if (!shotBank.has(fx.fly)) return;
+  const sheet = sheetDef(fx.fly);
+  const frame = widestFrame(sheet);
+  const cell = cellOf(sheet, 0, frame);
+  if (!cell) return;
+  const cw = cell.w / FX_ART_SCALE;
+  const ch = cell.h / FX_ART_SCALE;
+  const scale = Math.min(SHOT_MAX_SCALE, Math.max(1, Math.floor(Math.min(inner.w / cw, inner.h / ch))));
+  // 原点（ox, oy）を置く位置を、絵の矩形の中心が札の中心に来るようにずらす
+  const x = inner.x + inner.w / 2 + (cell.ox / FX_ART_SCALE - cw / 2) * scale;
+  const y = inner.y + inner.h / 2 + (cell.oy / FX_ART_SCALE - ch / 2) * scale;
+  // ゲーム内と同じ配色: 弾そのものの属性（無ければ無属性の墨）
+  const ramp = rampOfElement(bulletDef(base).attack.element);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(inner.x, inner.y, inner.w, inner.h);
+  ctx.clip();
+  shotBank.draw(ctx, fx.fly, frame, x, y, SHOT_ANGLE, { ramp, scale });
+  ctx.restore();
 }
 
 function drawHeldIcon(ctx: CanvasRenderingContext2D, cell: ActorCell, r: Rect): void {

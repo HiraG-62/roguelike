@@ -156,20 +156,16 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.hammer.steps2[0].step.scaling": [20.465, 1.835],
   "weapons.WEAPON.movesets.hammer.branches.groundBreaker.step.scaling": [83.61, 7.496],
   "weapons.WEAPON.movesets.gunner.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.gunner.steps2[0].throw.scaling": [3.9, 0.3],
   "weapons.WEAPON.movesets.sidearm.dashAttack.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.longarm.dashAttack.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.longarm.steps2[0].step.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.cannon.dashAttack.scaling": [10, 0.8],
-  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [13, 1],
-  "weapons.WEAPON.movesets.thrown.dashAttack.scaling": [7.5, 0.6],
+  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [11.25, 0.95],
   // 振り直しの後に足した銃の家系（値は足した時点のもの）
   "weapons.WEAPON.movesets.grenade.dashAttack.scaling": [8.5, 0.7],
-  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9, 0.8],
+  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9.9, 0.88],
   "weapons.WEAPON.movesets.trapper.dashAttack.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling": [10, 0],
-  "weapons.WEAPON.movesets.warRing.dashAttack.scaling": [7.5, 0.6],
-  "weapons.WEAPON.movesets.warRing.steps2[0].step.scaling": [7, 0.8],
   "weapons.WEAPON.jobBranches.swordsman.scaling": [11.5, 1.1],
   "weapons.WEAPON.jobBranches.hunter.scaling": [10, 1],
   "weapons.WEAPON.jobBranches.brawler.scaling": [4.1, 0.5],
@@ -291,14 +287,51 @@ const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./
 /** 段取り 5d で足した書・鈴の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
 const TOME_BELL_TABLE = /^weapons\.WEAPON\.movesets\.(book|handbell)\./;
 
+/** 段 5-A（docs/ideas/gun-bases-review.md 2-9）で足した投擲物（クナイ・手裏剣）の係数表。振り直しの後に足した行動 */
+const THROWING_TABLE = /^weapons\.WEAPON\.movesets\.(kunai|shuriken)\./;
+
 /**
  * 連刃の段数の拡張（段取り 5b-F）で終撃の手前に足した左の段（双剣・拳の 5 段目。爪は WAVE4_TABLE）。
  * 終撃の段は 6 段目へ下がったので、上の PINNED は steps[5] を指す。秒間威力の目安は data/weapons.test.ts が見る
  */
 const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
 
+/** 二丁拳銃の左手を続けた技（段 4-B の蹴り・回し蹴り。docs/ideas/gun-bases-review.md 0-4）。振り直しの後に足した行動 */
+const GUNNER_HANDS_TABLE = /^weapons\.WEAPON\.movesets\.gunner\.steps\[\d+\]\.scaling$/;
+
 /** 陰陽師・巫女（段取り 5d-O）のジョブ固有の派生の係数表。振り直しの後に足した行動 */
 const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
+
+function isRecordValue(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** 当たり判定を持たない純粋な詠唱・投げ（size 0 で cast を持つ振り）か */
+function isPureCast(step: unknown): boolean {
+  return isRecordValue(step) && step.size === 0 && step.cast !== undefined;
+}
+
+/**
+ * 純粋な詠唱・投げの振り（手裏剣の左右・戦輪の近投げ・強化投げ）の係数表のパス。
+ * 振りそのものは当たらず弾（cast）が威力を持つので、振りの係数表は形を満たすだけの基礎値
+ */
+function pureCastPaths(): Set<string> {
+  const out = new Set<string>();
+  const movesets: unknown = weaponsJson.WEAPON.movesets;
+  if (!isRecordValue(movesets)) return out;
+  for (const [key, m] of Object.entries(movesets)) {
+    if (!isRecordValue(m)) continue;
+    const steps = Array.isArray(m.steps) ? m.steps : [];
+    steps.forEach((step: unknown, i) => {
+      if (isPureCast(step)) out.add(`weapons.WEAPON.movesets.${key}.steps[${i}].scaling`);
+    });
+    const lane = Array.isArray(m.steps2) ? m.steps2 : [];
+    lane.forEach((s: unknown, i) => {
+      if (isRecordValue(s) && isPureCast(s.step)) out.add(`weapons.WEAPON.movesets.${key}.steps2[${i}].step.scaling`);
+    });
+  }
+  return out;
+}
 
 /** 奥義の定義の係数表のパスの頭 */
 const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
@@ -379,8 +412,10 @@ describe("振り直しで基礎値の値は変わらない", () => {
       if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
       if (WAVE4_TABLE.test(path)) continue;
       if (TOME_BELL_TABLE.test(path)) continue;
+      if (THROWING_TABLE.test(path)) continue;
       if (FLURRY_EXTRA_TABLE.test(path)) continue;
       if (NEW_JOB_BRANCH_TABLE.test(path)) continue;
+      if (GUNNER_HANDS_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
@@ -434,8 +469,9 @@ describe("参照ステータスが行動ごとに違う", () => {
     expect(ALL_SCALINGS.some((s) => refs(s).length === COMBAT_ATTR_KEYS.length), "5 種すべてを参照する行動").toBe(true);
   });
 
-  it("ステータスを参照しない行動は数個（3〜8）だけで、表に挙げたもの", () => {
-    const fixed = [...CURRENT].filter(([, s]) => coefSum(s) === 0).map(([p]) => p);
+  it("ステータスを参照しない行動は数個（3〜8）だけで、表に挙げたもの（当たらない純粋な投げの振りは除く）", () => {
+    const pure = pureCastPaths();
+    const fixed = [...CURRENT].filter(([p, s]) => coefSum(s) === 0 && !pure.has(p)).map(([p]) => p);
     expect(fixed.sort()).toEqual([...FIXED_ACTIONS].sort());
     expect(fixed.length).toBeGreaterThanOrEqual(3);
     // 設置弾は器ごとに弾を持つので、置き撃ち筒・撒き菱筒・撒き散らしの 3 つに分かれる

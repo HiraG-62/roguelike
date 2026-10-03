@@ -824,7 +824,6 @@ function meleeHit(frame, f, heavy) {
 const BULLET_ART = {
   twinPistols: { name: "twinPistols", muzzle: muzzleTwinPistol, muzzleFrames: 4, muzzleSize: 64, fizzle: fizzleSmoke },
   twinRevolvers: { name: "twinRevolvers", muzzle: muzzleTwinRevolver, muzzleFrames: 6, muzzleSize: 96, fizzle: fizzleSmoke },
-  "art.barrage": { name: "barrage", muzzle: muzzleBarrage, muzzleFrames: 6, muzzleSize: 88, fizzle: fizzlePop },
   "art.spinShot": { name: "spinShot", muzzle: muzzleSpin, muzzleFrames: 6, muzzleSize: 72, fizzle: fizzlePop },
 };
 
@@ -869,10 +868,10 @@ const FX = {
   motions: {
     dash: { sheet: "gunner.dash", pivot: "self", base: 36, measure: "size" },
     "r:gunnerButt": { sheet: "gunner.butt", pivot: "anchor", base: 12, measure: "reach" },
-    "branch:twinShot": { sheet: "gunner.twin", pivot: "self", base: 20, measure: "size" },
-    "branch:quickFire": { sheet: "gunner.quick", pivot: "self", base: 20, measure: "size" },
-    "branch:kickShot": { sheet: "gunner.kick", pivot: "anchor", base: 12, measure: "reach" },
-    "branch:rollShot": { sheet: "gunner.roll", pivot: "self", base: 36, measure: "size" },
+    // 段 4-B: 弾切れの手の銃把打ちは銃把打ちの絵、左の連続の蹴り・回し蹴りは旧派生（蹴り撃ち・側転撃ち）の絵を仮に使う
+    "r:emptyHandStrike": { sheet: "gunner.butt", pivot: "anchor", base: 9, measure: "reach" },
+    "l:0": { sheet: "gunner.kick", pivot: "anchor", base: 10, measure: "reach" },
+    "l:1": { sheet: "gunner.roll", pivot: "self", base: 36, measure: "size" },
   },
   hit: "gunner.hit",
   hitHeavy: "gunner.hitHeavy",

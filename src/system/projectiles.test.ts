@@ -4,8 +4,8 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { PLAYER } from "../data/tuning";
-import { bulletDef } from "../loot/bullets";
-import type { OrbitDef } from "../data/weapons";
+import { BULLETS, bulletDef } from "../loot/bullets";
+import type { BulletDef, BulletNumbers, OrbitDef } from "../data/weapons";
 import { overlapsWall } from "./physics";
 import { emitVolley, shotChargeLevel, shotDamage } from "./player";
 import { updateProjectiles } from "./projectiles";
@@ -22,6 +22,24 @@ const WALL_SEARCH = 2000;
 function shooter(bullet: string): GameState {
   return arena(5, { bullet, moveset: "sidearm" });
 }
+
+/**
+ * 合成の弾（器を持たない挙動を確かめる。追尾・跳弾の器は投擲・旧戦輪の撤去で無くなった）。
+ * 拳銃の弾に挙動のブロックを足し、弾の表（BULLETS）へ一時的に載せて fn を回し、終わったら消す
+ */
+function withSyntheticBullet(key: string, extra: Partial<BulletNumbers>, fn: (def: BulletDef) => void): void {
+  const table = BULLETS as Record<string, BulletDef>;
+  const def: BulletDef = { ...bulletDef("pistol"), key, name: key, ...extra };
+  table[key] = def;
+  try {
+    fn(def);
+  } finally {
+    delete table[key];
+  }
+}
+
+const SYNTHETIC_HOMING: Partial<BulletNumbers> = { speedMul: 0.38, lifeMul: 3.16, homing: { turnRate: 5, range: 120 } };
+const SYNTHETIC_RICOCHET: Partial<BulletNumbers> = { bounce: { count: 2, mul: 1.3 } };
 
 function tough(e: Enemy): Enemy {
   e.attackCooldown = NO_ATTACK_COOLDOWN;
@@ -76,15 +94,17 @@ describe("弾の挙動: 単発・連射・散弾・貫通", () => {
 });
 
 describe("弾の挙動: 追尾", () => {
-  it("正面から外れた敵へ弾が曲がる", () => {
-    const state = shooter("blowgun");
-    tough(placeEnemy(state, "boar", 70, 40));
-    const shots = fireOnce(state);
-    const shot = shots[0];
-    if (!shot) throw new Error("弾が出ていない");
-    expect(state.player.facing.y, "撃った向きはまっすぐ +x").toBe(0);
-    for (let i = 0; i < 10; i++) step(state, withInput({}), FIXED_DT);
-    expect(shot.vel.y, "敵のいる +y へ曲がった").toBeGreaterThan(0);
+  it("正面から外れた敵へ弾が曲がる（合成の追尾の弾）", () => {
+    withSyntheticBullet("test.homing", SYNTHETIC_HOMING, (def) => {
+      const state = shooter(def.key);
+      tough(placeEnemy(state, "boar", 70, 40));
+      const shots = fireOnce(state);
+      const shot = shots[0];
+      if (!shot) throw new Error("弾が出ていない");
+      expect(state.player.facing.y, "撃った向きはまっすぐ +x").toBe(0);
+      for (let i = 0; i < 10; i++) step(state, withInput({}), FIXED_DT);
+      expect(shot.vel.y, "敵のいる +y へ曲がった").toBeGreaterThan(0);
+    });
   });
 });
 
@@ -113,16 +133,18 @@ describe("弾の挙動: 跳弾", () => {
     return pr;
   }
 
-  it("壁で跳ね返り、威力と怯み値が上がる", () => {
-    const state = shooter("ricochetGun");
-    const pr = bulletIntoWall(state, "ricochetGun");
-    for (let i = 0; i < 3; i++) updateProjectiles(state, FIXED_DT);
-    const mul = bulletDef("ricochetGun").bounce?.mul ?? 0;
-    expect(pr.life, "弾は残る").toBeGreaterThan(0);
-    expect(pr.vel.x, "向きが反転").toBeLessThan(0);
-    expect(pr.shot?.bouncesLeft, "残り回数が減る").toBe((bulletDef("ricochetGun").bounce?.count ?? 0) - 1);
-    expect(pr.damage, "威力が上がる").toBeCloseTo(10 * mul);
-    expect(pr.poise, "怯み値が上がる").toBeCloseTo(2 * mul);
+  it("壁で跳ね返り、威力と怯み値が上がる（合成の跳弾の弾）", () => {
+    withSyntheticBullet("test.ricochet", SYNTHETIC_RICOCHET, (def) => {
+      const state = shooter(def.key);
+      const pr = bulletIntoWall(state, def.key);
+      for (let i = 0; i < 3; i++) updateProjectiles(state, FIXED_DT);
+      const mul = def.bounce?.mul ?? 0;
+      expect(pr.life, "弾は残る").toBeGreaterThan(0);
+      expect(pr.vel.x, "向きが反転").toBeLessThan(0);
+      expect(pr.shot?.bouncesLeft, "残り回数が減る").toBe((def.bounce?.count ?? 0) - 1);
+      expect(pr.damage, "威力が上がる").toBeCloseTo(10 * mul);
+      expect(pr.poise, "怯み値が上がる").toBeCloseTo(2 * mul);
+    });
   });
 
   it("跳弾でない弾は壁で消える", () => {
@@ -207,24 +229,27 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
   });
 
   it("回転刃は寿命の半ばで折り返して手元へ戻り、行きと帰りで同じ敵に当たる", () => {
-    const state = shooter("returnChakram");
-    const e = tough(placeEnemy(state, "boar", 40));
-    const blade = fireOnce(state)[0];
-    if (!blade) throw new Error("弾が出ていない");
-    let farthest = 0;
-    let hitsOut = 0;
-    for (let i = 0; i < 240 && blade.life > 0; i++) {
-      step(state, withInput({}), FIXED_DT);
-      e.body.pos = { x: state.player.body.pos.x + 40, y: state.player.body.pos.y };
-      e.knock = { x: 0, y: 0 };
-      farthest = Math.max(farthest, blade.pos.x - state.player.body.pos.x);
-      if (!blade.shot?.returning) hitsOut = TOUGH_HP - e.hp;
-    }
-    expect(hitsOut, "行きで当たった").toBeGreaterThan(0);
-    expect(TOUGH_HP - e.hp, "帰りでもう一度当たった").toBeGreaterThan(hitsOut);
-    expect(farthest, "遠くまで飛んだ").toBeGreaterThan(40);
-    expect(blade.life, "手元に戻って消えた").toBeLessThanOrEqual(0);
-    expect(state.projectiles.includes(blade), "配列から消えた").toBe(false);
+    // 器の戻る輪は弧へ移したので（system/ringBlades.test.ts）、回転刃（斧の投擲の弾が持つ）は合成の弾で確かめる
+    withSyntheticBullet("test.spinBlade", { pierceBonus: 99, boomerang: { returnAt: 0.5, catchRadius: 4 }, lifeMul: 1.4 }, () => {
+      const state = arena(5, { bullet: "test.spinBlade", moveset: "sidearm" });
+      const e = tough(placeEnemy(state, "boar", 40));
+      const blade = fireOnce(state)[0];
+      if (!blade) throw new Error("弾が出ていない");
+      let farthest = 0;
+      let hitsOut = 0;
+      for (let i = 0; i < 240 && blade.life > 0; i++) {
+        step(state, withInput({}), FIXED_DT);
+        e.body.pos = { x: state.player.body.pos.x + 40, y: state.player.body.pos.y };
+        e.knock = { x: 0, y: 0 };
+        farthest = Math.max(farthest, blade.pos.x - state.player.body.pos.x);
+        if (!blade.shot?.returning) hitsOut = TOUGH_HP - e.hp;
+      }
+      expect(hitsOut, "行きで当たった").toBeGreaterThan(0);
+      expect(TOUGH_HP - e.hp, "帰りでもう一度当たった").toBeGreaterThan(hitsOut);
+      expect(farthest, "遠くまで飛んだ").toBeGreaterThan(40);
+      expect(blade.life, "手元に戻って消えた").toBeLessThanOrEqual(0);
+      expect(state.projectiles.includes(blade), "配列から消えた").toBe(false);
+    });
   });
 
   it("曲射は照準の距離で炸裂し、飛行中は敵に当たらない", () => {
@@ -251,21 +276,21 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
   });
 });
 
-describe("弾の挙動: 周回（円環の理）", () => {
+describe("弾の挙動: 周回（大車輪・持続の差し替え）", () => {
   const ORBIT: OrbitDef = { radius: 40, turnRate: 6, laps: 3 };
   const LAP_SEC = (Math.PI * 2) / ORBIT.turnRate;
   /** 周回の半径に乗るまでの秒（半径へ滑らかに寄せるので少し待つ） */
   const SETTLE_SEC = 1;
 
   function orbitShooter(): GameState {
-    const state = arena(5, { bullet: "chakram", moveset: "warRing" });
+    const state = arena(5);
     state.player.facing = { x: 1, y: 0 };
     return state;
   }
 
   function fireOrbit(state: GameState): Projectile {
     const before = state.projectiles.length;
-    emitVolley(state, { ...bulletDef("chakram"), orbit: ORBIT }, 0, undefined, { count: 1 });
+    emitVolley(state, { ...bulletDef("pistol"), key: "test.orbit", orbit: ORBIT }, 0, undefined, { count: 1 });
     const pr = state.projectiles[before];
     if (!pr) throw new Error("弾が出ていない");
     return pr;
@@ -304,15 +329,6 @@ describe("弾の挙動: 周回（円環の理）", () => {
     expect(Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y), "同じ角度に重ならない").toBeGreaterThan(ORBIT.radius / 2);
     advance(state, ORBIT.laps * LAP_SEC);
     expect(playerShots(state), "回り切って消えた").toHaveLength(0);
-  });
-
-  it("持続の円環の理で撃った弾は周回する", () => {
-    const state = orbitShooter();
-    state.player.ultimate.active = "warRing.circleLaw";
-    state.player.energy = state.player.maxEnergy;
-    const shots = fireOnce(state);
-    expect(shots.length, "撃った").toBeGreaterThan(0);
-    expect(shots[0]?.shot?.orbit, "周回を持つ").toBeDefined();
   });
 
   it("1 周ごとに同じ敵へもう一度当たる", () => {

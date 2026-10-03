@@ -20,7 +20,8 @@ import {
 
 /**
  * 改鋳（docs/ideas/weapon-forms-impl.md 3-6、docs/ideas/build-core.md 4-1）。5 の倍数の階のボスの後に 3 択から選び、
- * 武器の型の「行動そのもの」を書き換える（ラン内。永続化しない）。型ごとに 2 つ、計 30。
+ * 武器の型の「行動そのもの」を書き換える（ラン内。永続化しない）。型ごとに 0〜2 つ（銃と投擲物の見直しで、働かなくなった改鋳を消し、
+ * 新しい型の改鋳は後で作る。docs/ideas/gun-bases-review.md 4-3 の 3）。
  * 書き換えは 4 つの口のどれか（複数可）で表す:
  * - patch: 武器種の段の書き換え（system/player.ts の playerMoveset が withReforges を通す）
  * - morale: 戦意の数値の上書き（system/morale.ts の currentForm が reforgedForm を通す）
@@ -48,14 +49,12 @@ export const REFORGE_KEYS = [
   "warfanReturn",
   "rodQuad",
   "rodResidue",
-  "throwerPull",
-  "throwerTwin",
   "pistolDash",
   "pistolChain",
   "rifleStride",
   "rifleScatter",
   "artilleryCling",
-  "artilleryChain",
+  "powderChain",
   "tomeHaste",
   "tomeFont",
   "bellToll",
@@ -65,10 +64,10 @@ export type ReforgeKey = (typeof REFORGE_KEYS)[number];
 
 /**
  * 段・戦意・ルールで表せない挙動の切り替え（system/reforge.ts が読む）。
- * aimWhileMoving = 動いても狙いが減らず溜まる / dashReload = 装填の窓のダッシュで即座に装填 /
- * pullToShots = 放出で飛んでいる自分の弾の方へ引き寄せられる / minesCling = 設置弾が近くの敵へ這い寄る
+ * aimWhileMoving = 動いても狙いが減らず溜まる / dashReload = 込めの最中のダッシュで即座に込め終わる /
+ * minesCling = 設置弾が近くの敵へ這い寄る
  */
-export const REFORGE_FLAGS = ["aimWhileMoving", "dashReload", "pullToShots", "minesCling"] as const;
+export const REFORGE_FLAGS = ["aimWhileMoving", "dashReload", "minesCling"] as const;
 export type ReforgeFlag = (typeof REFORGE_FLAGS)[number];
 
 /** 戦意の数値の上書き（書いた項目だけ置き換える） */
@@ -139,18 +138,6 @@ function patchEverySwing(m: MovesetDef, when: (step: MeleeStepDef) => boolean, f
     dashAttack: one(laned.dashAttack),
     branches: laned.branches.map((b) => ({ ...b, step: one(b.step) })),
   };
-}
-
-/** 右レーンの弾を出す段と手元返しを書き換える */
-function patchVolleys(m: MovesetDef, countAdd: number, spreadMin: number, returnMul: number): MovesetDef {
-  return mapLane(m, (s) => {
-    if (s.kind === "volley") {
-      const count = s.throw.count + countAdd;
-      return { ...s, throw: { ...s.throw, count, spreadDeg: Math.max(s.throw.spreadDeg, spreadMin) } };
-    }
-    if (s.kind === "recall") return { ...s, recall: { ...s.recall, returnDamageMul: s.recall.returnDamageMul * returnMul } };
-    return s;
-  });
 }
 
 /** 改鋳が撃たせる弾。弾の名前は改鋳の名前（data/weapons.ts の CAST_NAMES には載せない） */
@@ -257,11 +244,6 @@ function rodResidue(m: MovesetDef): MovesetDef {
   return { ...m, branches };
 }
 
-function throwerTwin(m: MovesetDef): MovesetDef {
-  const r = REFORGE.thrower.throwerTwin;
-  return patchVolleys(m, r.countAdd, r.spreadDeg, r.returnDamageMul);
-}
-
 // ---------------------------------------------------------------------------
 // 起点（統一ルール文法の条件）
 // ---------------------------------------------------------------------------
@@ -297,14 +279,12 @@ const REFORGE_KEYWORDS: Readonly<Record<ReforgeKey, KeywordProfile>> = {
   warfanReturn: kw(["ranged", "bullet"], ["bullet"]),
   rodQuad: kw(["finisher"], ["combo"]),
   rodResidue: kw(["placed"], ["ranged"]),
-  throwerPull: kw(["dash"], ["bullet"]),
-  throwerTwin: kw(["bullet"], [], ["ranged"]),
   pistolDash: kw([], ["dash"]),
   pistolChain: kw(["shock"], ["finisher"]),
   rifleStride: kw([], [], ["ranged"]),
   rifleScatter: kw(["area", "bullet"], ["finisher"]),
   artilleryCling: kw([], [], ["placed"]),
-  artilleryChain: kw(["explode"], ["finisher"]),
+  powderChain: kw(["explode", "area"], ["finisher"]),
   tomeHaste: kw([], ["finisher"], ["mana"]),
   tomeFont: kw(["mana"]),
   bellToll: kw(["stagger"]),
@@ -410,14 +390,9 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
   // ---- 杖 ----
   rodQuad: def("rodQuad", "rod", "四重詠唱", `術式が ${R.rod.rodQuad.max} つまで並ぶ。3 手の魔法の頭の手を重ねた 4 手で、強い魔法を放つ`, { patch: rodQuad, morale: { max: R.rod.rodQuad.max } }),
   rodResidue: def("rodResidue", "rod", "残滓", "魔法の弾が消えた場所に、属性に合った地形が残る", { patch: rodResidue }),
-  // ---- 投具 ----
-  throwerPull: def("throwerPull", "thrower", "牽引", "呼び戻しや投げ放ちで、自分も飛んでいる刃の方へ引き寄せられる", { flags: ["pullToShots"] }),
-  throwerTwin: def("throwerTwin", "thrower", "双刃", `投げる刃が ${R.thrower.throwerTwin.countAdd} 枚増え、戻りの刃が強まる。飛んでいる数の上限が ${R.thrower.throwerTwin.max} になる`, {
-    patch: throwerTwin,
-    morale: { max: R.thrower.throwerTwin.max },
-  }),
+  // 投具の牽引・双刃は手元返し・投げ放ちが消える（段 5-A）ので消した。投擲物の改鋳は後で作る
   // ---- 短銃 ----
-  pistolDash: def("pistolDash", "pistol", "疾駆", "装填の間にダッシュすると、その場で弾倉が満ちて強装填になる", { flags: ["dashReload"] }),
+  pistolDash: def("pistolDash", "pistol", "疾駆", "込めの最中にダッシュすると、その場で弾倉が満ち、早込めにも数える", { flags: ["dashReload"] }),
   pistolChain: def("pistolChain", "pistol", "雷管", "強装填の 1 発目が当たると、近くの敵へ雷が連鎖する", {
     rules: [
       {
@@ -440,15 +415,17 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
       },
     ],
   }),
-  // ---- 砲 ----
+  // ---- 仕掛け ----
   artilleryCling: def("artilleryCling", "artillery", "吸着", "置いた設置弾が、近くの敵へ這い寄る", { flags: ["minesCling"] }),
-  artilleryChain: def("artilleryChain", "artillery", "連爆", "一斉起爆が当たった敵の場所で、もう一度爆ぜる", {
+  // ---- 装薬 ----
+  // 放出の粒（詰めた次の 1 発・零距離砲）は終撃なので、その命中（onFinisher の tag release）を起点にする
+  powderChain: def("powderChain", "powder", "連爆", "詰めた放出の粒が当たった敵が炸裂し、周りの敵を巻き込む", {
     rules: [
       {
         when: "onFinisher",
         if: [RELEASE_HIT],
-        then: { kind: "explode", magnitude: R.artillery.artilleryChain.magnitude, scaleBy: "slashBase", radius: R.artillery.artilleryChain.radius, excludeTarget: true },
-        icd: R.artillery.artilleryChain.icd,
+        then: { kind: "explode", magnitude: R.powder.powderChain.magnitude, scaleBy: "slashBase", radius: R.powder.powderChain.radius, excludeTarget: true },
+        icd: R.powder.powderChain.icd,
       },
     ],
   }),

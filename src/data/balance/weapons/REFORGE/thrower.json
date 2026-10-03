@@ -1,4 +1,0 @@
-{
-  "throwerPull": { "pullSpeed": 260, "minDistance": 24 },
-  "throwerTwin": { "countAdd": 1, "spreadDeg": 12, "returnDamageMul": 1.25, "max": 4 }
-}

@@ -83,7 +83,7 @@ export interface HitOptions {
   /** スキル由来の命中（性質の on-hit 付与で on: "skill" を判定する） */
   skill?: boolean;
   hitstopSteps?: number;
-  /** この命中で溜まる奥義ゲージ（近接は meleeHitEnergy、射撃は弾の Projectile.energy。省略は溜めない） */
+  /** この命中で溜まる奥義ゲージ（近接の振りは meleeHitEnergy。自分の弾の命中は溜めないので渡さない。省略は溜めない） */
   energy?: number;
   /** 既定は proc（on-hit 効果なし） */
   kind?: DamageKind;
@@ -259,7 +259,7 @@ export function damageEnemy(
 
   if (kind !== "proc" || opts.skill) pushHitEvents(state, enemy, kind, opts.skill === true, opts.crit === true, amount);
   noteHitMoments(state, enemy, { kind, skill: opts.skill, silent: opts.silent, finisher: opts.finisher, release: opts.release, lane: opts.lane });
-  // 流儀の気力の源: 背面の命中・遠い命中（system/manaSources.ts）
+  // 流儀の気力の源: 背面の命中（弾の命中では湧かない。system/manaSources.ts）
   noteHitMana(state, enemy, kind, opts.skill === true, opts.silent === true);
   // 一蓮托生: 鎖で繋いだ敵どうしで与ダメを分け合う（system/formMarks.ts）
   shareLinkedDamage(state, enemy, amount, kind, opts.silent === true);
@@ -357,11 +357,6 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
  */
 export function meleeHitEnergy(baseSec: number, hits: number): number {
   return clampEnergy((ENERGY.perSwingSec * baseSec) / Math.max(1, hits));
-}
-
-/** 射撃の弾 1 発が命中で溜める奥義ゲージ。射撃間隔の基礎秒を 1 回に出る弾数で割り、近接より rangedRatio だけ低くする */
-export function shotHitEnergy(intervalSec: number, bullets: number): number {
-  return clampEnergy((ENERGY.perSwingSec * ENERGY.rangedRatio * intervalSec) / Math.max(1, bullets));
 }
 
 function clampEnergy(v: number): number {
@@ -790,6 +785,9 @@ export function cancelAttack(state: GameState): void {
   a.timer = 0;
   a.buffered = false;
   a.hitIds.clear();
+  // 抜け斬りの道筋と気力の頭打ちの外しは止めた振りのもの（次の振りまで持ち越さない）
+  a.passFrom = undefined;
+  a.uncappedMana = undefined;
 }
 
 export interface HealOptions {

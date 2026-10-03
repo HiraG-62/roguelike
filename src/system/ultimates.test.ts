@@ -26,9 +26,11 @@ import {
   ultimateShot,
   updateUltimate,
 } from "./ultimates";
-import { applyStats, currentShot, playerMoveset, updatePlayer } from "./player";
+import { applyStats, currentShot, playerMoveset, shotDamage, updatePlayer } from "./player";
 import { damageEnemy, rollOutgoing } from "./combat";
 import { applyStatus } from "./statusEffects";
+import { startReload, tickMagazine } from "./magazine";
+import { bulletDef } from "../loot/bullets";
 
 /**
  * 奥義（docs/ideas/ougi-and-dual-actions.md 3 章）: 発動・ゲージ・一撃の行為・持続の倍率と差し替え・終わり方を
@@ -184,6 +186,35 @@ describe("一撃の奥義の行為", () => {
     tryUltimate(b);
     const shotB = b.projectiles.find((p) => p.owner === "player");
     expect(shotB?.damage, "弾の威力 2 倍").toBeCloseTo((shotsA[0]?.damage ?? 0) * 2, 5);
+  });
+
+  it("全弾発射は弾倉の残りを 3 段の 1 発として撃ち、弾倉を 0 にする", () => {
+    const state = ready("cannon.fullSalvo", { bullet: "shotgun" });
+    tickMagazine(state, withInput({}), 0);
+    const hand = state.player.magazine.hands[0];
+    const rounds = hand.rounds;
+    expect(rounds, "弾倉が残っている").toBeGreaterThan(0);
+    const act = ULTIMATE.defs.cannon.fullSalvo.packedShot;
+    const shot = bulletDef("shotgun");
+    tryUltimate(state);
+    const fired = state.projectiles.filter((p) => p.owner === "player");
+    expect(fired, "詰めの粒が増えた 1 発").toHaveLength(state.stats.projectileCount + shot.pellets + act.pelletsAdd);
+    expect(fired[0]?.damage, "威力が詰めの倍率だけ上がる").toBeCloseTo(shotDamage(state.stats) * shot.damageMul * act.damageMul, 5);
+    expect(hand.rounds, "弾倉は 0").toBe(0);
+    expect(hand.reloadLeft, "撃ち切ったので込めに入る").toBeGreaterThan(0);
+    expect(state.player.knock.x, "反動で大きく後ろへ下がる").toBeCloseTo(-act.selfKnock, 5);
+  });
+
+  it("全弾発射は込めの最中でも残りを使い切って撃つ（空の弾倉でも撃ち、ゲージは払う）", () => {
+    const state = ready("cannon.fullSalvo", { bullet: "shotgun" });
+    tickMagazine(state, withInput({}), 0);
+    const hand = state.player.magazine.hands[0];
+    hand.rounds = 1;
+    startReload(state, 0);
+    expect(tryUltimate(state), "出る").toBe(true);
+    expect(state.projectiles.some((p) => p.owner === "player"), "撃った").toBe(true);
+    expect(hand.rounds, "残りも使い切る").toBe(0);
+    expect(state.player.energy, "ゲージを払った").toBeLessThan(ULTIMATE.common.cost);
   });
 
   it("首落としは生命の少ない敵（ボスを除く）を倒す", () => {

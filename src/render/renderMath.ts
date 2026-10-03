@@ -446,16 +446,16 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   sidearm: 1,
   longarm: 2,
   cannon: 3,
-  thrown: 1,
   grenade: 3,
   trapper: 2,
-  warRing: 2,
   claws: 1,
   flail: 3,
   ringBlades: 2,
   fan: 2,
   book: 1,
   handbell: 2,
+  kunai: 1,
+  shuriken: 1,
 };
 
 // ---------------------------------------------------------------------------
@@ -487,15 +487,26 @@ export interface WeaponPoseInput {
   readonly sign?: number;
 }
 
-/** 右レーンの構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す）/ 狙い撃ち（腕を伸ばして照準へ） */
-export type HoldPose = "parry" | "guard" | "aim";
+/** 右レーンの構え: 受け流し（刃を立てて前に出す）/ 盾の構え（盾を前へ突き出す） */
+export type HoldPose = "parry" | "guard";
 
 /** 右レーンの段と押している最中かから、構えの姿勢を選ぶ（構えの無い段・段が無い・押していないなら undefined） */
 export function laneHoldPose(step: ActionStepDef | undefined, holding: boolean): HoldPose | undefined {
   if (!holding || step === undefined) return undefined;
   if (step.kind === "hold") return step.hold.parry ? "parry" : "guard";
-  if (step.kind === "aim") return "aim";
   return undefined;
+}
+
+/** 今の振りが右レーンの何の段か（段の key。左・派生・溜め・ダッシュ攻撃・振っていない間は undefined） */
+export function activeLaneStepKey(
+  steps2: readonly ActionStepDef[],
+  a: { readonly lane: string; readonly step: number; readonly branch: number; readonly chargeLevel: number; readonly charging: boolean },
+  swinging: boolean,
+  dashStrike: boolean,
+): string | undefined {
+  if (!swinging || dashStrike || a.charging || a.lane !== "secondary" || a.branch >= 0 || a.chargeLevel > 0) return undefined;
+  const s = steps2[a.step];
+  return s?.kind === "swing" ? s.key : undefined;
 }
 
 export interface WeaponView {
@@ -697,14 +708,13 @@ function basePose(input: WeaponPoseInput): WeaponPose {
   return poseAt(angle, reach);
 }
 
-/** 構えで拳を前へ出す距離（px）。盾と狙い撃ちは腕を伸ばして見せる */
+/** 構えで拳を前へ出す距離（px）。盾は腕を伸ばして見せる */
 const GUARD_PUSH = 2;
-const AIM_PUSH = 2;
 const QUARTER_TURN = Math.PI / 2;
 
 /**
  * 右レーンの構え。受け流しは照準の先に拳を出して刃を上へ立て（剣を横に寝かせた受けの形）、
- * 盾は照準へ突き出し、狙い撃ちは照準へ腕を伸ばす
+ * 盾は照準へ突き出す
  */
 function holdPose(input: WeaponPoseInput): WeaponPose {
   const { aim } = input;
@@ -717,10 +727,8 @@ function holdPose(input: WeaponPoseInput): WeaponPose {
       const up = tie ? ((Math.cos(a) >= 0) === input.facingRight ? a : b) : Math.sin(a) < Math.sin(b) ? a : b;
       return { ...poseAt(aim, HAND_RADIUS), ...weaponView(up), angle: up };
     }
-    case "guard":
-      return poseAt(aim, HAND_RADIUS + GUARD_PUSH);
     default:
-      return poseAt(aim, HAND_RADIUS + AIM_PUSH);
+      return poseAt(aim, HAND_RADIUS + GUARD_PUSH);
   }
 }
 

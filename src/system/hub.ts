@@ -5,8 +5,8 @@ import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
-import { bulletOfBase } from "../loot/bullets";
+import { MOVESETS, type MovesetKey, isRangedWeapon } from "../data/weapons";
+import { bulletOfBase, rangedBasesOf } from "../loot/bullets";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -32,6 +32,8 @@ export interface HubRun {
   trialKeystone: string | null;
   /** 武器掛けで試している武器種（銃の家系を含む。null = 装備のまま）。拠点を出ると消える */
   trialMoveset: MovesetKey | null;
+  /** 銃の家系を試すときに撃つ弾の器（ベースの key）。null = 家系の一番早く出る器。近接では使わない */
+  trialBase: string | null;
   /** 木人ごとの立ち直りまでの残り秒（0 = 立っている） */
   dummyTimers: number[];
   /** 木人ごとの今立っている敵の id（立て直しで倒れたかを見分ける） */
@@ -80,6 +82,7 @@ export function createHub(
     departHold: 0,
     trialKeystone: null,
     trialMoveset: null,
+    trialBase: null,
     dummyTimers: layout.dummySpots.map(() => 0),
     dummyIds: layout.dummySpots.map((pos) => placeDummy(state, pos)),
     available,
@@ -215,36 +218,46 @@ export function trialKeystoneKeys(): string[] {
 // 武器掛け（試す = 武器種だけを差し替える / 借りる = 素の器を右手に装着する）
 // -----------------------------------------------------------------------------
 
-/** 武器掛けの 1 行が指すもの。銃の家系（GUN_MOVESETS）も武器種として並ぶ */
-export type RackEntry = { kind: "moveset"; key: MovesetKey };
+/**
+ * 武器掛けの 1 行が指すもの。銃・投擲物（isRangedWeapon）も武器種として並ぶ。
+ * base は銃・投擲物で選んだ弾の器（ベースの key）。省略は家系の一番早く出る器
+ */
+export type RackEntry = { kind: "moveset"; key: MovesetKey; base?: string };
 
 /**
  * 試す武器種を差し替える（拠点を出ると state ごと捨てるので残らない）。null で装備のものに戻す。
- * 差し替えは変身と同じく stats の写しの moveset と bullet だけを替える（銃は家系の一番早い器の弾。近接なら装備のまま）
+ * 差し替えは変身と同じく stats の写しの moveset と bullet だけを替える（銃は base の器の弾。近接なら装備のまま）
  */
-export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
+export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null, base: string | null = null): void {
   session.hub.trialMoveset = moveset;
-  applyTrialMoveset(session.state, moveset);
+  session.hub.trialBase = moveset === null ? null : base;
+  applyTrialMoveset(session.state, moveset, session.hub.trialBase);
 }
 
 /** 試す武器種を state に掛け直す（拠点と稽古の間の共通。null で装備のものに戻す）。試しの記録は呼び出し側が持つ */
-export function applyTrialMoveset(state: GameState, moveset: MovesetKey | null): void {
+export function applyTrialMoveset(state: GameState, moveset: MovesetKey | null, base: string | null = null): void {
   // 振りの途中で型が替わると段の添字が新しい型に無いことがあるので止める
   if (state.player.attack.phase !== "none") cancelAttack(state);
   refreshRunStats(state);
-  enforceTrialMoveset(state, moveset);
+  enforceTrialMoveset(state, moveset, base);
 }
 
 /** 装備画面などで applyStats が stats を作り直しても、試している型へ差し直す（stepHub が毎ステップ呼ぶ） */
 function enforceTrialWeapon(session: HubSession): void {
-  enforceTrialMoveset(session.state, session.hub.trialMoveset);
+  enforceTrialMoveset(session.state, session.hub.trialMoveset, session.hub.trialBase);
+}
+
+/** 試す・借りる器。base がその武器種の器でなければ家系の一番早く出る器 */
+function rackBase(moveset: MovesetKey, base: string | null | undefined): BaseItemDef | undefined {
+  const picked = base == null ? undefined : rangedBasesOf(moveset).find((b) => b.key === base);
+  return picked ?? earliestBase("mainHand", (b) => b.moveset === moveset);
 }
 
 /** stats の写しの moveset と bullet を試す武器種へ差し直す（null なら何もしない。毎ステップ呼んでよい） */
-export function enforceTrialMoveset(state: GameState, moveset: MovesetKey | null): void {
+export function enforceTrialMoveset(state: GameState, moveset: MovesetKey | null, base: string | null = null): void {
   if (moveset === null) return;
-  // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
-  const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
+  // 銃・投擲物は選んだ器（省略は借りるときと同じ一番早く出る器）の弾で撃つ（装備の武器の弾のままにしない）
+  const bullet = isRangedWeapon(MOVESETS[moveset]) ? bulletOfBase(rackBase(moveset, base)?.key) : state.stats.bullet;
   if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
   // 素手の威力の倍は試す武器種には掛けない（素手のまま武器掛けで試したとき）
@@ -282,9 +295,12 @@ function borrowInto(profile: Profile, base: BaseItemDef, salt: number, now: numb
   return item;
 }
 
-/** 武器種の素の器を借りて右手に装着する。元の装備は倉庫へ（満杯なら断る）。借り物はランが終わると消える */
-export function borrowWeapon(profile: Profile, moveset: MovesetKey, now: number): Item | null {
-  const base = earliestBase("mainHand", (b) => b.moveset === moveset);
+/**
+ * 武器種の素の器を借りて右手に装着する。元の装備は倉庫へ（満杯なら断る）。借り物はランが終わると消える。
+ * baseKey は銃の家系で選んだ器（省略・その武器種の器でなければ一番早く出る器）
+ */
+export function borrowWeapon(profile: Profile, moveset: MovesetKey, now: number, baseKey?: string): Item | null {
+  const base = rackBase(moveset, baseKey);
   if (base === undefined) return null;
   return borrowInto(profile, base, BASES.indexOf(base), now);
 }
@@ -292,7 +308,7 @@ export function borrowWeapon(profile: Profile, moveset: MovesetKey, now: number)
 /** 武器掛けの行を借りる。借りたら「試す」を外し、装備から stats を作り直す */
 export function borrowRackEntry(session: HubSession, entry: RackEntry, now: number): Item | null {
   const { state } = session;
-  const item = borrowWeapon(state.profile, entry.key, now);
+  const item = borrowWeapon(state.profile, entry.key, now, entry.base);
   if (item === null) return null;
   setTrialWeapon(session, null);
   return item;
@@ -317,9 +333,12 @@ export function equippedMoveset(profile: Profile): MovesetKey {
   return computeStats(profile.equipment).moveset;
 }
 
-/** 表示名（「大剣」「散弾銃」） */
+/** 表示名（「大剣」。銃・投擲物は器を添えて「長銃（小銃）」） */
 export function rackEntryName(entry: RackEntry): string {
-  return MOVESETS[entry.key].name;
+  const name = MOVESETS[entry.key].name;
+  if (!isRangedWeapon(MOVESETS[entry.key])) return name;
+  const base = rackBase(entry.key, entry.base);
+  return base === undefined ? name : `${name}（${base.name}）`;
 }
 
 // -----------------------------------------------------------------------------

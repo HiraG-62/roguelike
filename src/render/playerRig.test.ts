@@ -24,6 +24,8 @@ import {
   elbowOf,
   solveRig,
   stanceFromMeta,
+  SWING_ART_UNTIL,
+  stepArtInUse,
   toRigAngle,
   WALK_FRAME_TIME,
   walkFrame,
@@ -560,5 +562,69 @@ describe("playerRig: 受け流しの構え（stance.parry）", () => {
     expect(bodyClip({ ...idle, moving: true, parry: { impact: true } })).toEqual({ clip: "parry", frame: 1 });
     expect(bodyClip({ ...idle, hit: true, parry: { impact: false } }).clip).toBe("hit");
     expect(BODY_CLIPS.find((c) => c.name === "parry")?.frames, "生成器と実行時の枚数が揃う").toBe(BODY_CLIP_FRAMES.parry);
+  });
+});
+
+describe("playerRig: 投げた輪が戻るまでの手ぶら", () => {
+  it("emptyHanded なら腕の構えはそのままに、手に持つ絵を両手とも描かない", () => {
+    const held = solveRig(base);
+    const empty = solveRig({ ...base, emptyHanded: true });
+    expect(empty.front.bare, "前の手").toBe(true);
+    expect(empty.back.bare, "後ろの手").toBe(true);
+    expect(empty.front.hand, "手の位置は変えない").toEqual(held.front.hand);
+    expect(solveRig({ ...base, emptyHanded: false }).front.bare).toBe(held.front.bare);
+  });
+});
+
+describe("playerRig: 後ろの手が段の絵を振る間（offStep。短銃の逆手の短刀）", () => {
+  const gun: Stance = { ...DEFAULT_STANCE, grip: "two", body: "aim", restDeg: 0, swayDeg: 0 };
+  const swing = { angle: 0.6, reach: 17, frame: "arc", flipX: false, flipY: false } as unknown as NonNullable<RigInput["swing"]>;
+  const gunBase: RigInput = { ...base, stance: gun, aimHeld: true, offGrip: -1.5, aim: 0, swing };
+
+  it("前の手は振りを無視して銃の構えのまま、後ろの手が振る（素手にしない）", () => {
+    const aimed = solveRig({ ...gunBase, swing: undefined });
+    const r = solveRig({ ...gunBase, offStep: true });
+    expect(r.front.hand, "前の手は撃つ構えの位置").toEqual(aimed.front.hand);
+    expect(r.front.angle, "銃は照準の向き").toBeCloseTo(aimed.front.angle);
+    expect(r.front.bare, "前の手は銃を持つ").toBe(false);
+    expect(r.back.bare, "後ろの手は短刀を持つ").toBe(false);
+    expect(r.back.angle, "短刀は振りの向き").toBeCloseTo(0.6);
+  });
+
+  it("offStep が無ければ今までの振り（前の手が振る）", () => {
+    const plain = solveRig(gunBase);
+    expect(plain.front.angle).toBeCloseTo(0.6);
+  });
+
+  it("戻しの後半は後ろの手を待機の手（銃の先台）へ寄せて素手に戻し、前の手は銃のまま", () => {
+    const aimed = solveRig({ ...gunBase, swing: undefined });
+    const late = solveRig({ ...gunBase, offStep: true, restBlend: 1 });
+    expect(late.back.bare, "戻り切ったら先台の素手").toBe(true);
+    expect(late.back.hand.x).toBeCloseTo(aimed.back.hand.x);
+    expect(late.front.hand).toEqual(aimed.front.hand);
+  });
+});
+
+describe("playerRig: 段の持ち替えの絵を使う間（stepArtInUse）", () => {
+  const off = { key: "wpnSidearm.dagger", hand: "off" } as const;
+  const main = { key: "wpnCannon.rammer", hand: "main" } as const;
+
+  it("振りの間だけ持ち替え、終われば（振っていない）元の武器へ戻る", () => {
+    for (const phase of ["windup", "active", "recover"] as const) {
+      expect(stepArtInUse(off, phase, 0), `${phase} の短刀`).toBe(off);
+      expect(stepArtInUse(main, phase, 0), `${phase} の込め棒`).toBe(main);
+    }
+    expect(stepArtInUse(off, "none", 0)).toBeUndefined();
+    expect(stepArtInUse(main, "none", 0)).toBeUndefined();
+  });
+
+  it("前の手の絵は構え直しの半ばで元の武器へ戻り、後ろの手の絵は振りの間ずっと続く", () => {
+    expect(stepArtInUse(main, "recover", SWING_ART_UNTIL - 0.01)).toBe(main);
+    expect(stepArtInUse(main, "recover", SWING_ART_UNTIL)).toBeUndefined();
+    expect(stepArtInUse(off, "recover", 1)).toBe(off);
+  });
+
+  it("持ち替えの無い段は何も持ち替えない", () => {
+    expect(stepArtInUse(undefined, "active", 0)).toBeUndefined();
   });
 });
