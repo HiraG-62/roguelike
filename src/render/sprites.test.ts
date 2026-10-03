@@ -11,6 +11,7 @@ import { W3_BACK_KEYS } from "../data/sprites/w3back";
 import { W3_FRONT_KEYS, W3_FRONT_STILL_KEYS } from "../data/sprites/w3front";
 import { SHALLOWS_KEYS } from "../data/sprites/shallows";
 import { ECONOMY_KEYS, ECONOMY_POSED_KEYS, ECONOMY_STILL } from "../data/sprites/economy";
+import { BULLET_ICON_KEYS } from "../data/sprites/bulletIcons";
 import {
   CLAWS_DIAG,
   CLAWS_SIDE,
@@ -529,6 +530,8 @@ describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
     ...BOSS_KEYS,
     ...ECONOMY_KEYS,
     ...STILL_PLAIN.map(([key]) => key),
+    // 銃の器の弾のアイコン（武器掛けの器のカード。描く側が論理寸法で置く）
+    ...BULLET_ICON_KEYS,
   ]);
 
   it("経済の絵はすべて密度 2 で登録されている", () => {
