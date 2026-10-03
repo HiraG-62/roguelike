@@ -52,6 +52,7 @@ const SPOT_ACTION: Readonly<Record<HubSpotKey, string>> = {
   achievements: "実績を開く",
   rack: "武器を試す",
   hall: "挑む",
+  dojo: "稽古の間へ",
 };
 
 const SHADOW = "#000000";

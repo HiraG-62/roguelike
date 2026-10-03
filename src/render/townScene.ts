@@ -57,6 +57,10 @@ const PLANNED_SUFFIX = "（建設予定）";
 const LABEL_LIFT = 4;
 /** 敷地に台がない稽古場の名札は敷地の上辺から下げる */
 const LABEL_YARD_DROP = 10;
+/** 稽古場の中の台（稽古の間の入口）の小札。稽古場が建っていれば台の上に掛ける */
+const DOJO_LABEL = "稽古の間";
+/** 稽古の間の小札の、台の中心からの上げ幅（論理 px） */
+const DOJO_LABEL_LIFT = 10;
 
 /** 地面に張り付く物（体に隠れない）。稽古場は柵と砂の円で、中を歩ける */
 const FLAT_LOTS: ReadonlySet<HubLotKey> = new Set<HubLotKey>(["yard"]);
@@ -341,6 +345,10 @@ export function buildTownLabels(layout: HubLayout, look: TownLook): TownLabel[] 
     const x = first ? layout.spots[first].x : centerX;
     const name = FACILITY_NAME[facility];
     out.push({ text: built ? name : `${name}${PLANNED_SUFFIX}`, x, y, spot: first ?? null, built });
+  }
+  if (look.built.has(FACILITY_OF_LOT.yard)) {
+    const at = layout.spots.dojo;
+    out.push({ text: DOJO_LABEL, x: at.x, y: at.y - DOJO_LABEL_LIFT, spot: "dojo", built: true });
   }
   return out;
 }

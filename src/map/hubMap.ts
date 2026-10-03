@@ -1,8 +1,8 @@
 import type { Vec } from "../core/vec";
 import { type GameMap, type Rect, TILE_SIZE, Tile, createMap, setTile } from "./grid";
 
-/** 拠点の台（設備）。記録室は履歴・図鑑・実績の 3 台に分かれる。rack は武器掛け */
-export const HUB_SPOT_KEYS = ["well", "board", "forge", "library", "altar", "garden", "history", "codex", "achievements", "rack", "hall"] as const;
+/** 拠点の台（設備）。記録室は履歴・図鑑・実績の 3 台に分かれる。rack は武器掛け、dojo は稽古場の奥の稽古の間（docs/ideas/dojo.md）への入口 */
+export const HUB_SPOT_KEYS = ["well", "board", "forge", "library", "altar", "garden", "history", "codex", "achievements", "rack", "hall", "dojo"] as const;
 export type HubSpotKey = (typeof HUB_SPOT_KEYS)[number];
 
 /**
@@ -66,7 +66,7 @@ const HUB_ASCII: readonly string[] = [
   "#..GGGGGG....====............#",
   "#..GGGGGG....====............#",
   "#..GGGGGG....====............#",
-  "#.......g....====............#",
+  "#.......g....====.....d......#",
   "##############################",
 ];
 
@@ -84,6 +84,8 @@ const SPOT_CHAR: Readonly<Record<string, HubSpotKey>> = {
   k: "rack",
   // ボスの間は書庫と同じ東の並び（倒したボスの記録を読む台の続き）
   x: "hall",
+  // 稽古の間の入口は稽古場の南の端（稽古場の名札がここに掛かる）
+  d: "dojo",
 };
 
 /** 敷地の文字。稽古場（yard）は当たりが床なので配置図に文字を持たず、YARD で矩形だけ持つ */

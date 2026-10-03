@@ -25,7 +25,8 @@ export type HubOpen =
   | { kind: "screen"; screen: HubScreenKind }
   | { kind: "altar" }
   | { kind: "rack" }
-  | { kind: "hall" };
+  | { kind: "hall" }
+  | { kind: "dojo" };
 
 const HUB_OPEN: Readonly<Record<HubSpotKey, HubOpen>> = {
   well: { kind: "screen", screen: "origin" },
@@ -39,6 +40,7 @@ const HUB_OPEN: Readonly<Record<HubSpotKey, HubOpen>> = {
   achievements: { kind: "screen", screen: "achievements" },
   rack: { kind: "rack" },
   hall: { kind: "hall" },
+  dojo: { kind: "dojo" },
 };
 
 export function hubOpenFor(spot: HubSpotKey): HubOpen {

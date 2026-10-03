@@ -1196,6 +1196,17 @@ export interface LogMessage {
   time: number;
 }
 
+/** 与えた傷の出どころ（稽古の間の計測）。dot = 継続ダメージ（silent の命中）/ other = 付帯の命中（proc） */
+export type DamageTapKind = "melee" | "ranged" | "skill" | "dot" | "other";
+
+/** 与えた傷 1 件（GameState.damageTap） */
+export interface DamageTapEntry {
+  amount: number;
+  kind: DamageTapKind;
+  crit: boolean;
+  enemyId: number;
+}
+
 export interface GameState {
   seed: number;
   seedText: string;
@@ -1255,6 +1266,10 @@ export interface GameState {
   runRecorded: boolean;
   /** 拠点の state。来歴・石の使い込み・ラン記録・ドロップへ書かない（src/system/hub.ts） */
   sandbox?: true;
+  /** 与えた傷の記録（稽古の間の計測だけが付ける。system/combat.ts の damageEnemy が積み、system/dojo.ts が汲み出す）。本編は undefined */
+  damageTap?: DamageTapEntry[];
+  /** 自分が受けた傷の量を 1 発ずつ（稽古の間の計測だけが付ける。damagePlayer / damagePlayerDot が積む。代償の生命は入らない）。本編は undefined */
+  hurtTap?: number[];
   /** スキル（永続の石 + ラン内の CD・刻印符・発動中状態）。docs/ideas/skills.md */
   skills: SkillRunState;
   hazards: Hazard[];

@@ -1,4 +1,4 @@
-import { type DamageKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
+import { type DamageKind, type DamageTapKind, type Enemy, type GameState, type VaultKind, pushLog, pushSfx } from "../core/state";
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { formatAmount } from "../core/units";
 import type { HurtCause } from "../core/hurt";
@@ -218,6 +218,7 @@ export function damageEnemy(
   amount = pacifistMercyClamp(state, enemy, amount);
   const def = enemyDef(enemy.defKey);
   enemy.hp -= amount;
+  if (state.damageTap) state.damageTap.push({ amount, kind: tapKindOf(kind, opts), crit: opts.crit === true, enemyId: enemy.id });
   // 砕きで凍結が消える前に積む（砕く一撃そのものも溜めに入る）
   stashFrozenDamage(state, enemy, amount);
   if (shatter) shatterFreeze(state, enemy);
@@ -266,6 +267,19 @@ export function damageEnemy(
   spawnDeathFx(state, enemy, opts);
   killEnemy(state, enemy, dir);
   return true;
+}
+
+/** 稽古の間の計測: 自分が受けた傷を 1 発ずつ積む（state.hurtTap があるときだけ。先送りされて今減らない傷は払うときに積む） */
+function tapHurt(state: GameState, amount: number): void {
+  if (state.hurtTap && amount > 0) state.hurtTap.push(amount);
+}
+
+/** 稽古の間の計測の出どころ。継続（silent）を先に見て、スキルの命中は kind によらずスキルに数える */
+function tapKindOf(kind: DamageKind, opts: HitOptions): DamageTapKind {
+  if (opts.silent) return "dot";
+  if (opts.skill) return "skill";
+  if (kind === "melee" || kind === "ranged") return kind;
+  return "other";
 }
 
 /** 受ける側の倍率: 脆弱・砕き・ボスのダウン中 */
@@ -586,7 +600,9 @@ export function damagePlayer(
     wardIncomingMul(state) *
     (chargeArmor?.damageTakenMul ?? 1);
   const taken = relicPayWithCoins(state, mitigate(state, raw, enemyAttackOf(attacker)));
-  p.hp = Math.max(0, p.hp - takeNowOrDefer(state, taken));
+  const takenNow = takeNowOrDefer(state, taken);
+  p.hp = Math.max(0, p.hp - takenNow);
+  tapHurt(state, takenNow);
   noteHurt(state, attacker, opts.cause);
   spillCoins(state, fromPos);
   addRegain(state, taken);
@@ -634,6 +650,7 @@ export function damagePlayerDot(state: GameState, amount: number, cause?: HurtCa
   const p = state.player;
   if (state.status !== "playing" || amount <= 0) return;
   p.hp = Math.max(0, p.hp - amount);
+  tapHurt(state, amount);
   noteHurt(state, undefined, cause);
   if (p.hp > 0) return;
   killPlayer(state);

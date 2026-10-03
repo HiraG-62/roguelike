@@ -1,6 +1,7 @@
 // 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
 // クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
 // manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ
+// dojo は &enemy=<敵の key>&count=<数>&behavior=<動き>&frames=<ステップ数>&stand=<台の key> で稽古の間（手前の敵へ寄って殴り続ける）、dojo-board は稽古帳
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
@@ -27,6 +28,18 @@ import { stepManualDemo } from "../system/manualDemo";
 import { createManualUi, stepManualUi, syncManualDemo } from "../ui/weaponManual";
 import { drawWeaponManual } from "../render/weaponManualUi";
 import { TEXT, textLineHeight, wrapText } from "../render/pixelText";
+import { EMPTY_INPUT, type FrameInput } from "../core/input";
+import { VIEW_H, VIEW_W } from "../core/view";
+import { createEmptyProfile } from "../loot/types";
+import { createDefaultSkillProfile } from "../skills/persistence";
+import { createDojo, dojoMeterView, stepDojo } from "../system/dojo";
+import { DOJO_BEHAVIORS, defaultDojoConfig } from "../system/dojoConfig";
+import { createDojoBoardUi, dojoBoardRowGap } from "../ui/dojoBoard";
+import { DOJO_SPOT_KEYS } from "../map/dojoMap";
+import { loadImageAtlas } from "../render/imageAtlas";
+import { SHEETS, TILE_SPRITES } from "../data/tiles";
+import { TILE_SIZE } from "../map/grid";
+import { drawDojoBoard, drawDojoOverlay, drawDojoProps } from "../render/dojoUi";
 
 declare global {
   interface Window {
@@ -106,6 +119,68 @@ async function shootManual(renderer: Renderer, q: URLSearchParams): Promise<void
   }
 }
 
+const DOJO_DEFAULT_FRAMES = 240;
+/** 稽古の間の撮影で敵へ寄る距離（px）と、攻撃を押す間隔（ステップ） */
+const DOJO_REACH = 26;
+const DOJO_ATTACK_EVERY = 8;
+
+/** 一番近い敵へ寄り、届いたら殴り続ける入力 */
+function dojoBotInput(state: GameState, i: number): FrameInput {
+  const p = state.player.body.pos;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const e of state.enemies) {
+    const d = Math.hypot(e.body.pos.x - p.x, e.body.pos.y - p.y);
+    if (e.hp > 0 && d < bestD) {
+      best = e.body.pos;
+      bestD = d;
+    }
+  }
+  if (best === null) return EMPTY_INPUT;
+  const cam = state.camera;
+  const aimScreen = { x: best.x - cam.pos.x + VIEW_W / 2, y: best.y - cam.pos.y + VIEW_H / 2 };
+  const far = bestD > DOJO_REACH;
+  const move = far ? { x: (best.x - p.x) / bestD, y: (best.y - p.y) / bestD } : { x: 0, y: 0 };
+  return { ...EMPTY_INPUT, move, aimScreen, attackPressed: !far && i % DOJO_ATTACK_EVERY === 0 };
+}
+
+/** 稽古の間を frames ステップ進めた 1 コマ（board = 稽古帳の画面） */
+async function shootDojo(renderer: Renderer, q: URLSearchParams, board: boolean): Promise<void> {
+  const config = defaultDojoConfig();
+  config.enemy = q.get("enemy") ?? config.enemy;
+  config.count = Number(q.get("count") ?? config.count);
+  const behavior = DOJO_BEHAVIORS.find((b) => b === q.get("behavior"));
+  if (behavior !== undefined) config.behavior = behavior;
+  if (board) {
+    renderer.beginFrame();
+    drawDojoBoard(renderer.context, { ui: createDojoBoardUi(), config, rowGap: dojoBoardRowGap(textLineHeight(TEXT.SMALL)) });
+    return;
+  }
+  // 台の絵は PNG の素材（部屋の台座）なので、ゲームと同じく読み込んでから描く
+  renderer.setAtlas(await loadImageAtlas(TILE_SPRITES, SHEETS));
+  const session = createDojo({ profile: createEmptyProfile(), skillProfile: createDefaultSkillProfile(), hitstopScale: 1, config, trialMoveset: null, trialKeystone: null });
+  const frames = Number(q.get("frames") ?? DOJO_DEFAULT_FRAMES);
+  for (let i = 0; i < frames; i++) stepDojo(session, dojoBotInput(session.state, i), FIXED_DT);
+  // stand=<台の key> で、その台の前（東へ 1 マス）に立たせて近い台の案内を見る
+  const stand = DOJO_SPOT_KEYS.find((k) => k === q.get("stand"));
+  if (stand !== undefined) {
+    const at = session.dojo.layout.spots[stand];
+    session.state.player.body.pos = { x: at.x + TILE_SIZE, y: at.y };
+    stepDojo(session, EMPTY_INPUT, FIXED_DT);
+  }
+  const d = session.dojo;
+  renderer.settleMap(session.state);
+  for (let i = 0; i < MANUAL_SETTLE_FRAMES; i++) {
+    renderer.beginFrame();
+    renderer.setWorldDecor((g, st) => drawDojoProps(g, st, d.layout, (key) => renderer.atlasSprite(key)));
+    renderer.render(session.state, null, false);
+    renderer.setWorldDecor(null);
+    drawDojoOverlay(renderer.context, session.state, { meter: dojoMeterView(session), config: d.config, near: d.near, layout: d.layout });
+    if (renderer.playerArtReady(session.state) && i > 30) break;
+    await nextFrame();
+  }
+}
+
 async function main(): Promise<void> {
   const q = new URLSearchParams(window.location.search);
   const scene = q.get("scene") ?? "attire";
@@ -115,6 +190,11 @@ async function main(): Promise<void> {
   await document.fonts.load('16px "DotGothic16"');
   if (scene === "manual") {
     await shootManual(renderer, q);
+    window.__menuShotReady = true;
+    return;
+  }
+  if (scene === "dojo" || scene === "dojo-board") {
+    await shootDojo(renderer, q, scene === "dojo-board");
     window.__menuShotReady = true;
     return;
   }

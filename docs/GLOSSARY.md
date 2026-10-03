@@ -474,6 +474,9 @@ Wave 3 の敵名（`data/enemiesWave3.ts`）:
 | 武器掛け | rack（`FacilityKey` / `HubSpotKey`） | 拠点の設備（最初から建っている）。全武器種を木人で試せる（銃は家系の一番早い器の弾で撃つ）（試し中。拠点を出ると消える）。決定の長押しで素の器を借りる。カードの格子で並べ、下の調整欄で生命・気力・奥義ゲージを試しに増減できる | `system/hub.ts` setTrialWeapon / borrowRackEntry / setHubResource、`ui/rackScreen.ts` rackCards |
 | 借り物 | loaned（`Item.loaned`） | 武器掛けで借りた性質なしの素の器。保存されず、ランが終わると消える。残響で育てたり砕いたりできない | `loot/profile.ts` returnLoaned |
 | ボスの間（拠点の表示名は御堂） | hall（`FacilityKey` / `HubSpotKey`） | 拠点の設備（章ボスか最深の主を 1 体倒すと建つ）。倒したボスに今の装備の写し（借り物を含む）で挑み直す。祝福なし。保存するのは挑戦・撃破の回数と最速・最少の被弾だけ（`roguelike.hub.v1` の `hall`）。部屋の種類の「〜の間」（潮の間・反転の間）・最深の間とは別物 | `system/bossHall.ts`、`meta/hubStore.ts` HallRecord |
+| 稽古の間 | dojo（`HubSpotKey`。`system/dojo.ts`） | 拠点の稽古場の南の端の台から入る検証用の専用ステージ（稽古場が建つと使える。拠点の稽古場の木人と武器掛けはそのまま）。稽古帳で相手・数・深さ・修飾・動き・攻めの速さ・並び・間合い・倒れない・湧き直し・無傷・気力 / 奥義ゲージが尽きない・時の流れを変え、右上の計測の欄に毎秒の傷と内訳を出す。保存しない・撃破数とドロップに数えない。部屋の種類の「〜の間」とは別物 | `system/dojo.ts`、`system/dojoConfig.ts`、`docs/ideas/dojo.md` |
+| 手水鉢 / 稽古帳 / 戻り口 | spring / board / exit（`DojoSpotKey`） | 稽古の間の台。手水鉢は触れるだけで生命・気力・奥義ゲージを満たす（ランの泉とは別物）。稽古帳は設定の画面、戻り口は拠点へ戻る。武器掛けは拠点と同じ画面 | `map/dojoMap.ts` |
+| 動き（本気 / その場で攻める / 追うだけ / 棒立ち）・攻めの速さ・計測 | `DojoBehavior`・`DojoConfig.tempo`・`DojoMeterView` | 稽古帳の行の値と、稽古の間の計測の欄の言葉。計測の内訳は 近接 / 射撃 / スキル / 継続 / 付帯。毎秒の傷は稽古の間だけで出す（装備・ビルドの画面に単一指標を出さない原則の例外） | `system/dojoConfig.ts` |
 | 初期武器 | starterWeapon（`JobDef`） | ジョブを選んで出撃すると渡される武器の素の器。遺物の来歴の節目はこの武器と同じ型の武器での撃破を数える。同じベースを持っていないときだけ | `system/jobs.ts` startJobWeapon |
 | 出撃（長押し） | depart | 拠点で決定キーを長押しすると、前回の支度と依頼のまま探索を始める | `render/hubUi.ts` |
 | ？？？ | `UNKNOWN_NAME` | 図鑑の未発見・起点画面の未解放の起点の表示 | `meta/codex.ts`、`ui/origin.ts` |
