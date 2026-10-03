@@ -785,6 +785,9 @@ export function cancelAttack(state: GameState): void {
   a.timer = 0;
   a.buffered = false;
   a.hitIds.clear();
+  // 抜け斬りの道筋と気力の頭打ちの外しは止めた振りのもの（次の振りまで持ち越さない）
+  a.passFrom = undefined;
+  a.uncappedMana = undefined;
 }
 
 export interface HealOptions {

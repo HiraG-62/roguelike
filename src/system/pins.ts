@@ -6,6 +6,7 @@ import { damageEnemy } from "./combat";
 import { spawnBurst } from "./effects";
 import { gainMorale } from "./morale";
 import { applyStagger } from "./poise";
+import { isAllied } from "./rules";
 
 /**
  * 刺さる飛び物（クナイ・手裏剣。docs/ideas/gun-bases-review.md 0-5・2-9）。刺さる弾（BulletDef.pin）は当たると消えて
@@ -106,7 +107,8 @@ export function detonatePins(state: GameState, damageMul: number): number {
   let count = 0;
   for (const e of state.enemies) {
     const pins = prunePins(state, e);
-    if (pins.length === 0 || e.hp <= 0) continue;
+    // 刺さったまま味方になった敵（従魔・眷属）は爆ぜさせない（刺さりは抜け落ちるまで残す）
+    if (pins.length === 0 || e.hp <= 0 || isAllied(state, e)) continue;
     e.pins = undefined;
     for (const pin of pins) {
       if (e.hp <= 0) break;

@@ -1918,7 +1918,6 @@ export function emitShotRounds(state: GameState, shot: BulletDef, rounds: { coun
   return true;
 }
 
-/** 1 回の弾の角度（扇の回のずれ + 回の中の散らし）。fan が無ければ 1 回ぶん */
 /** 平行に並べる投げ（lineGap）の、進む向きの横へのずらし（px。中央が 0）。扇の投げ・1 本なら undefined */
 function parallelShifts(count: number, lineGap: number | undefined): number[] | undefined {
   if (lineGap === undefined || count <= 1) return undefined;
@@ -1926,6 +1925,7 @@ function parallelShifts(count: number, lineGap: number | undefined): number[] | 
   return Array.from({ length: count }, (_, i) => (i - center) * lineGap);
 }
 
+/** 1 回の弾の角度（扇の回のずれ + 回の中の散らし）。fan が無ければ 1 回ぶん */
 function volleyOffsets(count: number, spreadDeg: number, fan: VolleyOverride["fan"]): number[] {
   const inRound = spreadOffsets(count, spreadDeg);
   if (!fan || fan.count <= 1) return inRound;

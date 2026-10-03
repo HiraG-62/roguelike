@@ -5,6 +5,7 @@ import { PLAYER } from "../data/tuning";
 import { FORMS, type FormDef, type FormKey } from "../data/weaponForms";
 import type { BulletDef } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
+import { overlapsWall } from "./physics";
 import { emitVolley } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
@@ -20,6 +21,8 @@ const BULGE = 14;
 const PAIR_OFFSET = 4;
 const CATCH_RADIUS = 6;
 const SAFETY_SEC = 5;
+/** 壁を探す上限（px） */
+const WALL_SEARCH = 2000;
 
 function tough(e: Enemy): Enemy {
   e.attackCooldown = NO_ATTACK_COOLDOWN;
@@ -126,6 +129,27 @@ describe("弧で飛ぶ 2 枚投げ", () => {
     }
     expect(rings(state).length).toBe(0);
     expect(last && dist(last, state.player.body.pos), "収まったのは今の自分の手元").toBeLessThan(CATCH_RADIUS + 10);
+  });
+
+  it.each([
+    ["行き", false],
+    ["帰り", true],
+  ])("跳ね返されて敵の弾になった輪は、%sの弧の途中でも壁で消える（壁際に止まって残らず、壁も抜けない）", (_label, back) => {
+    const state = arena();
+    const [ring] = throwAt(state, ringShot({ pair: undefined }), 40);
+    const arc = ring?.shot?.arc;
+    expect(ring && arc, "弧の輪").toBeTruthy();
+    if (!ring || !arc) return;
+    // 反射（elites.ts の deflectProjectile）で敵の弾になり、自分から +x の最初の壁へ向かっている
+    const p = state.player.body.pos;
+    let x = p.x;
+    while (!overlapsWall(state, x, p.y, ring.radius) && x < p.x + WALL_SEARCH) x += 1;
+    ring.owner = "enemy";
+    ring.pos = { x: x - 4, y: p.y };
+    ring.vel = { x: 300, y: 0 };
+    arc.back = back;
+    for (let i = 0; i < 3; i++) updateProjectiles(state, STEP);
+    expect(ring.life, "壁で消える").toBeLessThanOrEqual(0);
   });
 });
 

@@ -6,6 +6,7 @@ import { ULTIMATE } from "../data/tuning";
 import { ULTIMATES } from "../data/ultimates";
 import { FORMS } from "../data/weaponForms";
 import { type ButtonKey, MOVESETS, type PinDef } from "../data/weapons";
+import { cancelAttack } from "./combat";
 import { timedAttackSpeedMul } from "./morale";
 import { pinCount, stickPin } from "./pins";
 import { playerMoveset } from "./player";
@@ -231,6 +232,18 @@ describe("抜け斬り（ダッシュ攻撃）", () => {
     expect(one, "1 体で戻る").toBeGreaterThan(0);
     expect(three, "3 体は 1 体の 3 倍近く戻る").toBeGreaterThan(one * 2.5);
   });
+
+  it("途中で止められた抜け斬りの道筋と気力の頭打ちの外しは残らない", () => {
+    const state = arena(5, { moveset: "shuriken" });
+    state.player.dashAttackQueued = true;
+    step(state, withInput({}), FIXED_DT);
+    const a = state.player.attack;
+    expect(a.passFrom, "抜け斬りの道筋").toBeDefined();
+    expect(a.uncappedMana, "頭打ちを外す").toBe(true);
+    cancelAttack(state);
+    expect(a.passFrom, "道筋は消える").toBeUndefined();
+    expect(a.uncappedMana, "頭打ちは戻る").toBeUndefined();
+  });
 });
 
 describe("奥義 3 本", () => {
@@ -315,5 +328,22 @@ describe("奥義 3 本", () => {
 
     endUltimate(state, "manual");
     expect(playerMoveset(state).key, "終わったら手裏剣").toBe("shuriken");
+  });
+
+  it("龍刃が刀の 4 段目の途中で終わっても、すぐ手裏剣の 1 段目から投げられる", () => {
+    const state = ready("shuriken.dragonBlade");
+    expect(tryUltimate(state)).toBe(true);
+    runUntil(state, () => state.hitstop <= 0);
+    const a = state.player.attack;
+    const katanaSteps = MOVESETS.katana.steps.length;
+    expect(katanaSteps, "刀は手裏剣より段が多い").toBeGreaterThan(STAR_STEPS);
+    press(state, "primary");
+    for (let i = 1; i < katanaSteps; i++) chain(state, "primary");
+    expect(a.step, "刀の最後の段を振っている").toBe(katanaSteps - 1);
+    endUltimate(state, "manual");
+    expect(a.step, "連撃の段は頭へ戻る").toBe(0);
+    press(state, "primary");
+    expect(a.phase, "押した次のステップで振り始める").not.toBe("none");
+    expect(a.step, "手裏剣の 1 段目").toBe(0);
   });
 });

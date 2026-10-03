@@ -639,10 +639,22 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
     (def.sustain.onEnd ?? []).forEach((act, i) => withUltimateFx(state, def.key, i, () => runAct(state, def, act, { part: "end", index: i })));
     // 差し替えた段は装備の型では引けないので、振りの途中なら止める（変身の endShape と同じ）
     if (changesMoveset(def.sustain) && state.player.attack.phase !== "none") cancelAttack(state);
+    // 借りた武器種の段の添字・派生は装備の型の段数と合わない（刀 4 段 → 手裏剣 3 段）ので、連撃を頭から始め直す
+    if (def.sustain.lanes) restartChain(state);
     addFloatingText(state, state.player.body.pos, END_TEXT, ULTIMATE.common.endTextColor, END_TEXT_SCALE, END_TEXT_LIFE);
     pushSfx(state, "formShift");
   }
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
+}
+
+/** 連撃の段カウンタと派生の列を頭へ戻す（振りは止め済み） */
+function restartChain(state: GameState): void {
+  const a = state.player.attack;
+  a.step = 0;
+  a.lane = "primary";
+  a.branch = -1;
+  a.pendingBranch = -1;
+  a.inputs.length = 0;
 }
 
 /** 奥義の時間を進める（player.ts の updatePlayer で updateArt の直後）。持続中はゲージを減らし、纏いを出し、尽きたら終える */

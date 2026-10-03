@@ -131,4 +131,14 @@ describe("叩き込みと炸裂", () => {
     expect(hpB - b.hp).toBeCloseTo(STUCK_DAMAGE * 3, 0);
     expect(pinCount(state, a) + pinCount(state, b)).toBe(0);
   });
+
+  it("刺さったまま味方になった敵（従魔）は炸裂で傷つけない", () => {
+    const state = arena();
+    const ally = tough(placeEnemy(state, "boar", 40));
+    stickPin(state, ally, KUNAI, 0, STUCK_DAMAGE);
+    ally.allyUntil = state.time + 10;
+    const hp = ally.hp;
+    expect(detonatePins(state, 3), "爆ぜない").toBe(0);
+    expect(ally.hp, "傷つかない").toBe(hp);
+  });
 });

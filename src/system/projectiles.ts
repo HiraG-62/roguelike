@@ -63,7 +63,8 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
   pr.pos.y += pr.vel.y * dt;
 
   // 周回の弾は自分の周りを回るので壁では消さない（壁際で戦っても輪が残る）。帰りの弧の輪も壁を抜けて手元へ戻る
-  if (!pr.shot?.orbit && !pr.shot?.arc?.back && overlapsShotWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
+  // （跳ね返されて敵の弾になった輪は弧で飛ばないので、普通の弾として壁で消える）
+  if (!pr.shot?.orbit && !playerArc(pr)?.back && overlapsShotWall(state, pr.pos.x, pr.pos.y, pr.radius)) {
     if (hitWallByShot(state, pr, def, prev, dt)) return;
     pr.life = 0;
     spawnBurst(state, pr.pos, pr.color, 4, 60, 0.2, 1.5);
@@ -240,9 +241,14 @@ function slowMine(pr: Projectile, drag: number, dt: number): void {
   if (length(pr.vel) < MINE_REST_SPEED) pr.vel = { x: 0, y: 0 };
 }
 
+/** 自分の弾の弧の飛び方。跳ね返されて敵の弾になった輪（elites.ts の deflectProjectile）は弧を辿らないので undefined */
+function playerArc(pr: Projectile): ShotArc | undefined {
+  return pr.owner === "player" ? pr.shot?.arc : undefined;
+}
+
 /** 壁に当たった弾を残すか。弧の行きの輪はその場で帰りへ折り返す。弾の定義を持つ弾は型ごとの処理（hitWallByDef） */
 function hitWallByShot(state: GameState, pr: Projectile, def: BulletDef | undefined, prev: Vec, dt: number): boolean {
-  const arc = pr.shot?.arc;
+  const arc = playerArc(pr);
   if (arc && !arc.back) {
     pr.pos = prev;
     beginArcBack(state, pr, arc);
