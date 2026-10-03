@@ -111,6 +111,8 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
 /** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（読めていない間は旧い 12px の絵） */
 function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card: RackCard, r: Rect): void {
   if (card.kind === "back") return;
+  // 器のカードは、その器が撃つ弾丸の絵（絵が無ければ武器種の絵）
+  if (card.kind === "base" && card.base !== null && drawBulletIcon(ctx, view, card.base, r)) return;
   const moveset = card.moveset ?? view.equipped;
   if (moveset === null) return;
   const prevAlpha = ctx.globalAlpha;
@@ -120,6 +122,29 @@ function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card:
   if (cell) drawHeldIcon(ctx, cell, r);
   else drawLegacyIcon(ctx, view, moveset, r);
   ctx.globalAlpha = prevAlpha;
+}
+
+/** 器のカードの弾丸アイコンのスプライトの key（data/sprites/bulletIcons.ts） */
+export function bulletIconKey(base: string): string {
+  return `${BULLET_ICON_PREFIX}${base}`;
+}
+
+const BULLET_ICON_PREFIX = "bulletIcon.";
+/** 弾丸アイコンの拡大（論理寸法の 1.5 倍。密度 2 の 1 ドットが背面バッファの 3px で、粒は揃う） */
+const BULLET_ICON_SCALE = 1.5;
+
+/** 器の弾丸アイコンを枠の中央に置く。絵が無ければ false（呼び側が武器種の絵で代わりに描く） */
+function drawBulletIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, base: string, r: Rect): boolean {
+  const sprite = view.lookup(bulletIconKey(base));
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
+  const w = sprite.w * BULLET_ICON_SCALE;
+  const h = sprite.h * BULLET_ICON_SCALE;
+  const prevSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, Math.round(r.x + (r.w - w) / 2), Math.round(r.y + ICON_TOP + (ICON_BOX_H - h) / 2), w, h);
+  ctx.imageSmoothingEnabled = prevSmoothing;
+  return true;
 }
 
 function drawHeldIcon(ctx: CanvasRenderingContext2D, cell: ActorCell, r: Rect): void {
