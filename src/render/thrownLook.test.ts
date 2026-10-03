@@ -135,6 +135,14 @@ describe("投げた武器の角度と大きさ", () => {
     expect(thrownScale(12)).toBeGreaterThan(2);
   });
 
+  it("大手裏剣は弾の大きさで描いた絵なので、連撃の 3 段目（半径 5）は等倍で、大車輪（半径 10）は 2 倍", () => {
+    const big = ULTIMATE_LOOK["shuriken.greatWheel"];
+    expect(big?.sprite).toBe(thrownSpriteKey("bigShuriken"));
+    expect(BULLET_LOOK["cast.bigStar"]).toBe(big);
+    expect(thrownScale(5, big?.baseRadius)).toBe(1);
+    expect(thrownScale(10, big?.baseRadius)).toBe(2);
+  });
+
   it("放物線は両端が始点と終点で、真ん中が持ち上がる", () => {
     const from = { x: 0, y: 0 };
     const to = { x: 100, y: 0 };

@@ -2534,7 +2534,7 @@ export class Renderer {
     const cell = this.actorBank.cell(key, dir, 0);
     if (!cell) return false;
     const pivot = actorAnchor(key, dir, 0, "muzzle") ?? { x: 0, y: 0 };
-    const r = heldThrownRect(cell, pivot, x, y, ACTOR_ART_SCALE, thrownScale(pr.radius));
+    const r = heldThrownRect(cell, pivot, x, y, ACTOR_ART_SCALE, thrownScale(pr.radius, look.baseRadius));
     ctx.drawImage(cell.img, cell.sx, cell.sy, cell.w, cell.h, r.x, r.y, r.w, r.h);
     return true;
   }

@@ -28,6 +28,8 @@ export interface ThrownLook {
    * シートの印 muzzle（投げた物の中心）を弾の位置に合わせ、回す角は方向ごとに焼いたフレームで出す。読めていなければ sprite へ落ちる
    */
   readonly held?: string;
+  /** この半径（px）までは等倍（無ければ LOOK_BASE_RADIUS）。弾の大きさに合わせて大きく描いた絵（大手裏剣）が拡大で粗くならないように */
+  readonly baseRadius?: number;
 }
 
 /** 軽い物（輪・短刀・鉈）の回転 */
@@ -56,7 +58,9 @@ const AXE = spin("axe", SPIN_HEAVY);
 const RING_BLADES: ThrownLook = { ...spin("ringBlades"), steady: true, held: "wpnRingBlades.held" };
 const KUNAI = point("kunai");
 const SHURIKEN = spin("shuriken");
-const BIG_SHURIKEN = spin("bigShuriken");
+/** 大手裏剣の絵（論理 20px）が等倍になる弾の半径。連撃の 3 段目（半径 5）は等倍、大車輪（半径 10）は 2 倍 */
+const BIG_SHURIKEN_BASE_RADIUS = 5;
+const BIG_SHURIKEN: ThrownLook = { ...spin("bigShuriken"), baseRadius: BIG_SHURIKEN_BASE_RADIUS };
 
 /**
  * 弾の key（BulletDef.key。右レーンの弾の段は `art.<段の key>`、銃の家系の左はベースの key）→ 見た目。
@@ -150,9 +154,9 @@ export function thrownAngle(look: ThrownLook, time: number, id: number, vel: Vec
   return dir * (time * look.spin + id * SPIN_PHASE_PER_ID);
 }
 
-/** 弾の半径に合わせた拡大率（小さい弾は等倍で、絵を縮めない） */
-export function thrownScale(radius: number): number {
-  return Math.max(1, radius / LOOK_BASE_RADIUS);
+/** 弾の半径に合わせた拡大率（小さい弾は等倍で、絵を縮めない）。base は絵ごとの等倍の半径（ThrownLook.baseRadius） */
+export function thrownScale(radius: number, base = LOOK_BASE_RADIUS): number {
+  return Math.max(1, radius / base);
 }
 
 /** 放物線の途中の位置（t は 0..1。見た目だけ持ち上げる） */
@@ -179,7 +183,7 @@ export function drawThrownLook(ctx: CanvasRenderingContext2D, atlas: SpriteAtlas
 export function drawThrownProjectile(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas, pr: Projectile, x: number, y: number): boolean {
   const look = projectileLook(pr);
   if (!look) return false;
-  return drawThrownLook(ctx, atlas, look, x, y, thrownAngle(look, state.time, pr.id, pr.vel), thrownScale(pr.radius));
+  return drawThrownLook(ctx, atlas, look, x, y, thrownAngle(look, state.time, pr.id, pr.vel), thrownScale(pr.radius, look.baseRadius));
 }
 
 /**
@@ -190,7 +194,7 @@ export function drawThrownSkillAir(ctx: CanvasRenderingContext2D, state: GameSta
   const moveset = state.stats.moveset;
   for (const s of state.skills.shots) {
     const look = skillShotLook(s.params.skillKey, moveset);
-    if (look) drawThrownLook(ctx, atlas, look, s.pos.x, s.pos.y, thrownAngle(look, state.time, s.id, s.vel), thrownScale(s.radius));
+    if (look) drawThrownLook(ctx, atlas, look, s.pos.x, s.pos.y, thrownAngle(look, state.time, s.id, s.vel), thrownScale(s.radius, look.baseRadius));
   }
   for (const e of state.skills.echoes) drawThrownEcho(ctx, state, atlas, e);
 }

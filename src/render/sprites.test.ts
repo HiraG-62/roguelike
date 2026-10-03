@@ -534,6 +534,8 @@ describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
     // 敵に刺さったクナイ・手裏剣（render/pinsUi.ts が論理寸法で回して置く）
     "pin.kunai",
     "pin.shuriken",
+    // 飛ぶ大手裏剣（render/thrownLook.ts が論理寸法で回して描く）
+    "thrownWeapon.bigShuriken",
   ]);
 
   it("経済の絵はすべて密度 2 で登録されている", () => {
