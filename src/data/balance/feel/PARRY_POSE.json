@@ -1,0 +1,37 @@
+{
+  "_note": "受け流しの体と武器の動き（render/parryMotion.ts）と、受け止めた所に散る火花（render/parrySpark.ts）。見た目だけ。構えの形は武器の絵の meta.stance.parry（scripts/actor/sheets/wpn<武器種>.mjs）。docs/ideas/parry-motion.md",
+  "_fields": {
+    "raiseSec": "押してから受けの構えになり切るまで（秒）",
+    "impactSec": "受け流しが決まってから構えを解き終えるまで（秒）",
+    "settleFrom": "impactSec のうち、受け止めた形のまま止める割合。その後に待機の構えへ戻す",
+    "pushDots": "受け止めた瞬間に手を後ろへ押す量（絵のドット。論理 0.5px）",
+    "tiltDeg": "受け止めた瞬間に武器の先を押し返す角（度）",
+    "jarSec": "押された手と衝撃の体のコマが戻るまで（秒）",
+    "impactFrameMin": "押しの残り（0..1）がこれ以上の間は衝撃の体のコマ",
+    "bodyMin": "受けの構えへ寄せた割合（0..1）がこれ以上の間は受けの体のコマ",
+    "sagDots": "外して構えが崩れたとき、手が下がる量の最大（絵のドット）",
+    "slackHold": "外した硬直のうち、崩れた構えのまま止める割合。その後に待機の構えへ戻す",
+    "spark": "受け止めた所の火花。life = 寿命（秒）/ flashSec = 白い閃きの秒 / flashPx = 閃きの十字の腕の長さ（論理 px）/ count = 火の粉の本数 / spreadDeg = 散る扇の開き / lenMin・lenMax = 火の粉の伸びる距離（論理 px）/ tail = 火の粉の尾の長さ（伸びる距離に対する割合）/ colors = 若い → 古い火の粉の色"
+  },
+  "raiseSec": 0.05,
+  "impactSec": 0.32,
+  "settleFrom": 0.55,
+  "pushDots": 2.5,
+  "tiltDeg": 14,
+  "jarSec": 0.14,
+  "impactFrameMin": 0.3,
+  "bodyMin": 0.4,
+  "sagDots": 3,
+  "slackHold": 0.3,
+  "spark": {
+    "life": 0.24,
+    "flashSec": 0.06,
+    "flashPx": 5,
+    "count": 9,
+    "spreadDeg": 150,
+    "lenMin": 6,
+    "lenMax": 13,
+    "tail": 0.45,
+    "colors": ["#fffbe6", "#ffe07a", "#ffa63d", "#d9662b"]
+  }
+}

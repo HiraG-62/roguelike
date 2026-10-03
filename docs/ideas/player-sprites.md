@@ -47,4 +47,5 @@
 - **腕の長さを越えない**（`playerRig.ts`）: 振りの伸び・突きでも拳は肩から腕の長さ（`ARM_SPAN`）の内（`swingHandReach` / `withinReach`。突きの伸びは体の踏み込みと肩の入れが受け持つ）。両手持ちの添え手は柄を滑らせて届く所を持ち（`slideOffGrip`）、どこも届かなければ手を離して体の脇へ下ろす。体の前の添え手は腕を武器の下に描き、柄を握る拳だけを武器の上に重ね直す
 - **見た目の向き**（`renderMath.ts` の `visualFacing` / `attackFacingLocked` / `turnedAttackDir`）: 予備動作・振りと、戻しのうち振りのエフェクトの尾が残る間（`FX_ATTACK` の `sprite.swingFade` と `slash.fadeTime` の長い方）は振り出した向き（`attack.dir`）で左右・振る向き・エフェクトの反転を決める（途中でカーソルを反対へ動かしても裏返らない）。エフェクトが消えた後の戻しはカーソルの向きへ振り向き、戻しの形も左右に写して構え直す
 - **振りの残像**（`renderer.ts` の `RIG_SWING_GHOSTS`）: 振りの間だけ、少し前の進みの武器を 2 枚薄く重ねる。手にはめる武器は描かない
+- **受け流し**（`docs/ideas/parry-motion.md`）: 体の受けのコマ `parry`（2 枚）と、武器の絵の `meta.stance.parry`（受けの構えの手・向き・受ける所）。時間割は `render/parryMotion.ts`
 - 段ごとに踏み込む足を入れ替えるのは、次の段の溜め・待機との間で足が瞬間移動して見えるので見送り

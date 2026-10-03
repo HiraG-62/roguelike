@@ -216,6 +216,16 @@ const ATTACK_KEYS = {
 };
 export const ATTACK_CLIP_KEYS = Object.keys(ATTACK_KEYS);
 
+/**
+ * 受け流し（docs/ideas/parry-motion.md）: 0 = 受けの構え（足を大きく開いて腰を落とし、上体をわずかに引いて踏ん張る）/
+ * 1 = 受け止めた衝撃（後ろへ押されて深く沈み、後ろ足が滑る）。腕と武器の形は武器の絵の meta.stance.parry
+ */
+export const PARRY_FRAMES = 2;
+const PARRY_KEYS = [
+  { lean: -1, bob: 4, footF: f(8), footB: f(-8), tilt: -0.5, sway: -0.4, breath: 0.6, reach: 0.5 },
+  { lean: -3, bob: 5, footF: f(7), footB: f(-9.5, 0.5), tilt: -1.5, sway: -1, squash: 1, reach: -0.5 },
+];
+
 /** 体のシートの並び（名前・枚数・姿勢）。実行時の render/playerRig.ts の BODY_CLIPS と同じ名前 */
 export const BODY_CLIPS = [
   ...IDLE_STANCE_KEYS.map((k) => ({ name: `idle${capital(k)}`, frames: IDLE_FRAMES, pose: idlePose(k) })),
@@ -225,6 +235,7 @@ export const BODY_CLIPS = [
   { name: "strike", frames: 1, pose: strikePose },
   { name: "hit", frames: 1, pose: hitPose },
   ...ATTACK_CLIP_KEYS.map((k) => ({ name: k, frames: ATTACK_FRAMES, pose: (i) => pose(ATTACK_KEYS[k][i]) })),
+  { name: "parry", frames: PARRY_FRAMES, pose: (i) => pose(PARRY_KEYS[i]) },
 ];
 
 /**

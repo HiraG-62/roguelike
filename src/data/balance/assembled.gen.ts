@@ -542,6 +542,7 @@ import j_feel_MENU_BUDGET from "./feel/MENU_BUDGET.json";
 import j_feel_MAP_LIGHT from "./feel/MAP_LIGHT.json";
 import j_feel_FLOAT_TEXT from "./feel/FLOAT_TEXT.json";
 import j_feel_MANUAL from "./feel/MANUAL.json";
+import j_feel_PARRY_POSE from "./feel/PARRY_POSE.json";
 import j_jobs__index from "./jobs/_index.json";
 import j_jobs_JOB from "./jobs/JOB.json";
 import j_jobs_attributes from "./jobs/attributes.json";
@@ -1527,6 +1528,7 @@ export const feel = {
   "MAP_LIGHT": j_feel_MAP_LIGHT,
   "FLOAT_TEXT": j_feel_FLOAT_TEXT,
   "MANUAL": j_feel_MANUAL,
+  "PARRY_POSE": j_feel_PARRY_POSE,
 };
 
 export const jobs = {
@@ -2660,6 +2662,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "feel/MINIMAP.json",
   "feel/MUSIC.json",
   "feel/NARIMONO.json",
+  "feel/PARRY_POSE.json",
   "feel/SFX_WAVE3.json",
   "feel/SIGN_CHECK.json",
   "feel/TELEGRAPH.json",

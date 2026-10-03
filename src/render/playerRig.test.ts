@@ -12,7 +12,11 @@ import {
   attackClip,
   attackFrame,
   bodyClip,
+  DEFAULT_PARRY,
+  type GuardMotion,
+  guardContact,
   handPixels,
+  parryFromMeta,
   isBackpedal,
   RECOIL_TIME,
   recoilOf,
@@ -447,5 +451,103 @@ describe("playerRig: 術を放つ振り（castOff。書の左の段）", () => {
     expect(rig.front.hand).toEqual(rest(cast));
     expect(rig.castShoulder).toBeUndefined();
     expect(rig.back.behind).toBe(true);
+  });
+});
+
+describe("playerRig: 受け流しの構え（stance.parry）", () => {
+  const full: GuardMotion = { blend: 1, push: 0, tilt: 0, sag: 0 };
+  const sword: Stance = { ...DEFAULT_STANCE, swayDeg: 0, parry: { hand: [8, -1], deg: -50, contact: 20 } };
+  const deg = (d: number): number => (d * Math.PI) / 180;
+
+  it("meta.stance.parry を読み、形が崩れていれば既定の構え", () => {
+    expect(stanceFromMeta({ grip: "one", body: "ready", restDeg: 0, restHand: [1, 2], swayDeg: 1, parry: { hand: [3, 4], deg: -30, contact: 9, off: [1, 1], offDeg: -10 } }).parry).toEqual({
+      hand: [3, 4],
+      deg: -30,
+      contact: 9,
+      off: [1, 1],
+      offDeg: -10,
+    });
+    expect(parryFromMeta({ hand: [3], deg: 0, contact: 1 })).toBeUndefined();
+    expect(parryFromMeta(null)).toBeUndefined();
+  });
+
+  it("構え切ると、主の手は前の肩から受けの位置・武器は受けの向きで、体の前に描く", () => {
+    const r = solveRig({ ...base, stance: sword, guard: full });
+    expect(r.front.hand).toEqual({ x: 11, y: -25 });
+    expect(r.front.angle).toBeCloseTo(deg(-50));
+    expect(r.front.behind).toBe(false);
+  });
+
+  it("寄せる割合 0 は待機の構えのまま、途中は待機と受けの間", () => {
+    const rest = solveRig({ ...base, stance: sword });
+    expect(solveRig({ ...base, stance: sword, guard: { ...full, blend: 0 } }).front).toEqual(rest.front);
+    const half = solveRig({ ...base, stance: sword, guard: { ...full, blend: 0.5 } });
+    expect(half.front.angle).toBeLessThan(rest.front.angle);
+    expect(half.front.angle).toBeGreaterThan(deg(-50));
+  });
+
+  it("受け止めた衝撃で手を後ろへ押し、上を向く刃の先はさらに後ろへ倒れる", () => {
+    const still = solveRig({ ...base, stance: sword, guard: full });
+    const hit = solveRig({ ...base, stance: sword, guard: { ...full, push: 2, tilt: 0.2 } });
+    expect(hit.front.hand.x).toBeCloseTo(still.front.hand.x - 2);
+    expect(hit.front.angle).toBeCloseTo(still.front.angle - 0.2);
+    const down: Stance = { ...sword, parry: { hand: [8, 2], deg: 55, contact: 30 } };
+    expect(solveRig({ ...base, stance: down, guard: { ...full, tilt: 0.2 } }).front.angle).toBeCloseTo(deg(55) + 0.2);
+  });
+
+  it("外して崩れると手が下がる", () => {
+    const still = solveRig({ ...base, stance: sword, guard: full });
+    expect(solveRig({ ...base, stance: sword, guard: { ...full, sag: 3 } }).front.hand.y).toBeCloseTo(still.front.hand.y + 3);
+  });
+
+  it("二刀は後ろの手のもう 1 本を受けの向きで体の前に構える（交差）", () => {
+    const dual: Stance = { ...DEFAULT_STANCE, grip: "dual", body: "light", swayDeg: 0, offHand: [-3, 9], offDeg: 150, parry: { hand: [7, 4], deg: -70, off: [10, 0], offDeg: -18, contact: 16 } };
+    const r = solveRig({ ...base, stance: dual, guard: full });
+    expect(r.back.hand).toEqual({ x: 6, y: -24 });
+    expect(r.back.angle).toBeCloseTo(deg(-18));
+    expect(r.back.behind).toBe(false);
+    expect(r.back.bare).toBe(false);
+  });
+
+  it("片手の武器の off は添える素手（武器を描かない）", () => {
+    const book: Stance = { ...sword, parry: { hand: [9, 1], deg: 0, off: [9, 2], contact: 2 } };
+    const r = solveRig({ ...base, stance: book, guard: full });
+    expect(r.back.bare).toBe(true);
+    expect(r.back.behind).toBe(false);
+  });
+
+  it("両手持ちは添え手を受けの構えの柄の上に引き直す", () => {
+    const two: Stance = { ...DEFAULT_STANCE, grip: "two", swayDeg: 0, parry: { hand: [0, 6], deg: -75, grip: 6, contact: 8 } };
+    const r = solveRig({ ...base, stance: two, offGrip: -6, guard: full });
+    expect(r.back.bare).toBe(true);
+    // 受けの構えの grip（柄の先の側）を握る
+    expect(Math.hypot(r.back.hand.x - r.front.hand.x, r.back.hand.y - r.front.hand.y)).toBeCloseTo(6);
+    expect(r.back.hand.y).toBeLessThan(r.front.hand.y);
+    // 柄の線の上（主の手から武器の向きの直線上）
+    const cross = (r.back.hand.x - r.front.hand.x) * Math.sin(r.front.angle) - (r.back.hand.y - r.front.hand.y) * Math.cos(r.front.angle);
+    expect(Math.abs(cross)).toBeLessThan(1e-6);
+  });
+
+  it("振りの最中（swing）は受けの構えを使わない", () => {
+    const swing = { frame: 0, flipX: false, flipY: false, angle: 0.3, dx: 6, dy: -2, behind: false } as const;
+    const a = solveRig({ ...base, stance: sword, swing });
+    expect(solveRig({ ...base, stance: sword, swing, guard: full })).toEqual(a);
+  });
+
+  it("受け止める所は主の武器の握りから contact だけ先", () => {
+    const r = solveRig({ ...base, stance: sword, guard: full });
+    const c = guardContact(r, sword);
+    expect(Math.hypot(c.x - r.front.hand.x, c.y - r.front.hand.y)).toBeCloseTo(20);
+    expect(guardContact(r, DEFAULT_STANCE)).toEqual({
+      x: r.front.hand.x + Math.cos(r.front.angle) * DEFAULT_PARRY.contact,
+      y: r.front.hand.y + Math.sin(r.front.angle) * DEFAULT_PARRY.contact,
+    });
+  });
+
+  it("受けの構えの体のコマは振っていない間だけ選ぶ", () => {
+    expect(bodyClip({ ...idle, parry: { impact: false } })).toEqual({ clip: "parry", frame: 0 });
+    expect(bodyClip({ ...idle, moving: true, parry: { impact: true } })).toEqual({ clip: "parry", frame: 1 });
+    expect(bodyClip({ ...idle, hit: true, parry: { impact: false } }).clip).toBe("hit");
+    expect(BODY_CLIPS.find((c) => c.name === "parry")?.frames, "生成器と実行時の枚数が揃う").toBe(BODY_CLIP_FRAMES.parry);
   });
 });

@@ -13,7 +13,7 @@ export type IdleStance = "ready" | "heavy" | "light" | "aim";
 export type IdleClip = "idleReady" | "idleHeavy" | "idleLight" | "idleAim";
 /** 攻撃の体のコマ（scripts/actor/rig.mjs の ATTACK_KEYS と同じ名前）。振り下ろし・斬り上げ・叩きつけ・突き・回転 */
 export type AttackClip = "atkSlash" | "atkRise" | "atkSlam" | "atkThrust" | "atkSpin" | "atkIai";
-export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit" | AttackClip;
+export type BodyClip = IdleClip | "walk" | "dash" | "windup" | "strike" | "hit" | AttackClip | "parry";
 
 const IDLE_CLIP: Readonly<Record<IdleStance, IdleClip>> = { ready: "idleReady", heavy: "idleHeavy", light: "idleLight", aim: "idleAim" };
 const IDLE_FRAMES = 8;
@@ -37,6 +37,7 @@ export const BODY_CLIP_FRAMES: Readonly<Record<BodyClip, number>> = {
   atkThrust: ATTACK_FRAMES,
   atkSpin: ATTACK_FRAMES,
   atkIai: ATTACK_FRAMES,
+  parry: 2,
 };
 
 /** 待機の呼吸の 1 巡（秒）と歩きの 1 枚（秒。8 枚で 2 歩） */
@@ -62,6 +63,8 @@ export interface BodyClipInput {
   readonly attack?: AttackClip;
   /** phase の進み（0 → 1） */
   readonly t?: number;
+  /** 受け流しの構え（parryMotion.ts）。impact = 受け止めた衝撃のコマ。振りの最中は使わない */
+  readonly parry?: { readonly impact: boolean };
 }
 
 export interface BodyFrame {
@@ -104,6 +107,7 @@ export function bodyClip(i: BodyClipInput): BodyFrame {
   if (i.hit) return { clip: "hit", frame: 0 };
   if (i.dashing) return { clip: "dash", frame: i.dashProgress < 0.5 ? 0 : 1 };
   if (i.attack && i.phase !== "none") return { clip: i.attack, frame: attackFrame(i.phase, i.t ?? 0) };
+  if (i.parry && i.phase === "none") return { clip: "parry", frame: i.parry.impact ? 1 : 0 };
   if (i.phase === "windup" || (i.phase === "none" && i.holding)) return { clip: "windup", frame: 0 };
   if (i.phase === "active" || i.phase === "recover") return { clip: "strike", frame: 0 };
   if (i.moving) return { clip: "walk", frame: walkFrame(i.walkTime, i.backpedal === true) };
@@ -178,6 +182,53 @@ export interface Stance {
   readonly sheath?: SheathStance;
   /** 右の溜めを、鞘に納めて低く構える姿と、離して鞘から抜き付ける振りで描く（刀の居合）。sheath とあわせて使う */
   readonly iai?: boolean;
+  /** 受け流しの構え（攻撃を受け止める形）。省けば DEFAULT_PARRY */
+  readonly parry?: ParryStance;
+}
+
+/**
+ * 受け流しの構え（docs/ideas/parry-motion.md。武器の絵の meta.stance.parry）。右向きの空間で、照準によらず体の前に構える
+ * （受け流しは全方位なので、向きは左右だけ）
+ */
+export interface ParryStance {
+  /** 主の手（前の肩から、ドット） */
+  readonly hand: readonly [number, number];
+  /** 武器の向き（度。0 = 前、負 = 上、正 = 下） */
+  readonly deg: number;
+  /** 片刃の刃を写しの側へ向ける */
+  readonly mirror?: boolean;
+  /**
+   * 後ろの手（後ろの肩から、ドット）。二刀はもう 1 本を持つ手、それ以外は刃や盾に添える素手（体の前に描く。
+   * 両手持ちでも柄を離して刃の腹に掌を当てる）。省けば今までの後ろの手（両手持ちは添え手を主の手から引く）
+   */
+  readonly off?: readonly [number, number];
+  /** 二刀のもう 1 本の向き（度） */
+  readonly offDeg?: number;
+  /**
+   * 両手持ちの添え手の柄の上の位置（主の手から武器の先へ、ドット。負 = 柄の尻の側）。省けば meta.offGrip。
+   * 柄を立てて受ける長柄は、尻の側だと後ろの肩から届かないので先の側を握る
+   */
+  readonly grip?: number;
+  readonly offMirror?: boolean;
+  /** 二刀のもう 1 本を体の後ろに描く（省けば体の前で交差させる） */
+  readonly offBehind?: boolean;
+  /** 主の武器を体の後ろに描く（省けば体の前） */
+  readonly behind?: boolean;
+  /** 受け止める所（主の武器の握りから先へ、ドット）。火花をここから散らす */
+  readonly contact: number;
+}
+
+/** 受けの構えを持たない武器の既定（片手で刃を前上へ立てる） */
+export const DEFAULT_PARRY: ParryStance = { hand: [7, 1], deg: -55, contact: 12 };
+
+/** 受けの構えの動き（renderer.ts が parryMotion.ts から作る）。blend = 待機の構えから受けの構えへ寄せる割合 */
+export interface GuardMotion {
+  readonly blend: number;
+  /** 受け止めた衝撃で手を後ろへ押す量（ドット）と、武器の先を押し返す角（rad） */
+  readonly push: number;
+  readonly tilt: number;
+  /** 外して構えが崩れ、手が下がる量（ドット） */
+  readonly sag: number;
 }
 
 /** 腰の鞘の置き方 */
@@ -241,6 +292,30 @@ export function stanceFromMeta(raw: unknown): Stance {
     ...(num(r.recoil) !== undefined ? { recoil: num(r.recoil) } : {}),
     ...(sheathFromMeta(r.sheath) ? { sheath: sheathFromMeta(r.sheath) } : {}),
     ...(r.iai === true ? { iai: true } : {}),
+    ...(parryFromMeta(r.parry) ? { parry: parryFromMeta(r.parry) } : {}),
+  };
+}
+
+/** 生成器の meta.stance.parry。形が崩れていれば undefined（既定の受けの構え） */
+export function parryFromMeta(v: unknown): ParryStance | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const r = v as Record<string, unknown>;
+  const deg = num(r.deg);
+  const contact = num(r.contact);
+  if (!isPair(r.hand) || deg === undefined || contact === undefined) return undefined;
+  const offDeg = num(r.offDeg);
+  const grip = num(r.grip);
+  return {
+    hand: r.hand,
+    deg,
+    contact,
+    ...(r.mirror === true ? { mirror: true } : {}),
+    ...(isPair(r.off) ? { off: r.off } : {}),
+    ...(offDeg !== undefined ? { offDeg } : {}),
+    ...(grip !== undefined ? { grip } : {}),
+    ...(r.offMirror === true ? { offMirror: true } : {}),
+    ...(r.offBehind === true ? { offBehind: true } : {}),
+    ...(r.behind === true ? { behind: true } : {}),
   };
 }
 
@@ -347,6 +422,8 @@ export interface RigInput {
   readonly hip?: Pt;
   /** 居合の構え・抜き付けの最中（構えが iai を持つ武器の右の溜め）。省けば今までの振り */
   readonly iai?: IaiMotion;
+  /** 受け流しの構え（振っていない間だけ。swing より後に効く）。省けば今までの構え */
+  readonly guard?: GuardMotion;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -462,6 +539,7 @@ export function solveRig(i: RigInput): RigPose {
 }
 
 function solveHands(i: RigInput): RigPose {
+  if (i.guard && !i.swing) return guardHands(i, i.guard);
   const k = i.restBlend ?? 0;
   if (k > 0 && i.swing) {
     const { iai: _iai, ...rest } = i;
@@ -771,6 +849,63 @@ function iaiBack(i: RigInput): HeldPart {
 /** 空いた後ろの手（体の脇に垂らす。体の後ろに描く） */
 function freeHand(i: RigInput): HeldPart {
   return part({ x: i.shoulderB.x + FREE_HAND.x, y: i.shoulderB.y + FREE_HAND.y }, Math.PI / 2, false, true, true);
+}
+
+// ---------------------------------------------------------------------------
+// 受け流しの構え
+// ---------------------------------------------------------------------------
+
+/**
+ * 受けの構え（docs/ideas/parry-motion.md）。待機の構え（guard を外して解いた形）から、武器の meta.stance.parry の形へ blend だけ寄せる。
+ * 両手持ちは添え手を主の手から引き直し（柄から離れない）、二刀はもう 1 本を、片手は添える素手を寄せる
+ */
+function guardHands(i: RigInput, g: GuardMotion): RigPose {
+  const { guard: _guard, ...rest } = i;
+  const base = solveHands(rest);
+  const ps = i.stance.parry ?? DEFAULT_PARRY;
+  const k = Math.min(1, Math.max(0, g.blend));
+  const main = blendPart(base.front, guardMain(i, ps, g), k);
+  if (i.stance.grip === "two" && i.offGrip !== null && !ps.off) {
+    const grip = ps.grip === undefined ? i.offGrip : i.offGrip + (ps.grip - i.offGrip) * k;
+    return { front: main, back: backPart({ ...rest, offGrip: grip }, main) };
+  }
+  const off = guardOff(i, ps, g);
+  return { front: main, back: off ? blendPart(base.back, off, k) : base.back };
+}
+
+/** 衝撃で手を後ろへ押し、外したら下げる */
+function guardShift(hand: Pt, g: GuardMotion): Pt {
+  return { x: hand.x - g.push, y: hand.y + g.sag };
+}
+
+/** 衝撃で武器の先を押し返す向き: 上を向く刃はさらに上（後ろ）へ、下を向く刃はさらに下へ倒す */
+function guardTilt(angle: number, g: GuardMotion): number {
+  return angle + Math.sign(Math.sin(angle)) * g.tilt;
+}
+
+function guardMain(i: RigInput, ps: ParryStance, g: GuardMotion): HeldPart {
+  const angle = guardTilt(ps.deg * DEG, g);
+  const hand = withinReach(guardShift({ x: i.shoulderF.x + ps.hand[0], y: i.shoulderF.y + ps.hand[1] }, g), i.shoulderF);
+  // 刀（腰に鞘を差す右手の武器）は振りと同じく、左向きでは体の奥
+  const behind = ps.behind === true || (i.stance.sheath !== undefined && !i.facingRight);
+  return part(hand, angle, ps.mirror ?? false, false, behind);
+}
+
+/** 後ろの手。二刀はもう 1 本、片手の武器は添える素手。off が無ければ undefined（今までの後ろの手のまま） */
+function guardOff(i: RigInput, ps: ParryStance, g: GuardMotion): HeldPart | undefined {
+  if (!ps.off) return undefined;
+  const hand = withinReach(guardShift({ x: i.shoulderB.x + ps.off[0], y: i.shoulderB.y + ps.off[1] }, g), i.shoulderB);
+  if (i.stance.grip === "dual") {
+    const angle = guardTilt((ps.offDeg ?? ps.deg) * DEG, g);
+    return part(hand, angle, ps.offMirror ?? false, false, ps.offBehind === true);
+  }
+  return part(hand, 0, false, true, false);
+}
+
+/** 受け止める所（主の武器の握りから contact だけ先。組み立ての空間）。火花を散らす */
+export function guardContact(pose: RigPose, stance: Stance): Pt {
+  const ps = stance.parry ?? DEFAULT_PARRY;
+  return at(pose.front.hand, pose.front.angle, ps.contact);
 }
 
 // ---------------------------------------------------------------------------
