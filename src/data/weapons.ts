@@ -935,7 +935,7 @@ const BRANCH_NAMES: Readonly<Record<string, string>> = {
   trapCircle: "罠陣",
   kickDetonate: "蹴り起爆",
   trapToss: "罠投げ",
-  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  // 武器 Wave 4: 爪 / チェーンアレイ / 扇子（チャクラムは戦輪 ringBlades へ統合した）
   fangRush: "牙駆け",
   lacerationDance: "裂傷舞",
   crossClaw: "十字爪",
@@ -1064,7 +1064,7 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   starFan: "扇投げ",
   starFan2: "扇投げ",
   bigStarToss: "大手裏剣",
-  // 武器 Wave 4: 爪 / チェーンアレイ / チャクラム / 扇子
+  // 武器 Wave 4: 爪 / チェーンアレイ / 扇子（チャクラムは戦輪 ringBlades へ統合した）
   fangBite: "獣噛み",
   rake: "引っ掻き",
   leapBack: "跳び退き",
@@ -1725,7 +1725,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     keywords: kw(["melee", "area", "placed"], [], ["placed"]),
     attack: attack("melee", "arcane"),
   }),
-  // ---- 投擲物（docs/ideas/gun-bases-review.md 0-5・2-9）。刺さる・叩き込み・刺さり崩しの仕組みは段 5-B・6 ----
+  // ---- 投擲物（docs/ideas/gun-bases-review.md 0-5・2-9）。刺さる・叩き込み・刺さり崩し・弧の仕組みは system/pins.ts・system/projectiles.ts ----
   kunai: defineMoveset({
     key: "kunai",
     name: "クナイ",

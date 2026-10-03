@@ -621,7 +621,7 @@ function pressLane(state: GameState, moveset: MovesetDef, button: ButtonKey): vo
 
 /**
  * 右の押下。振っていなければ今の段を出し、振っている最中は先行入力にする。
- * 次の段が弾・手元返しなら recover 中は振りを打ち切ってすぐ出す（先行入力と同じ手触り）
+ * 次の段が弾（volley）なら recover 中は振りを打ち切ってすぐ出す（先行入力と同じ手触り）
  */
 function pressSecondary(state: GameState, moveset: MovesetDef): void {
   const p = state.player;
@@ -1762,7 +1762,7 @@ interface VolleySpec {
 }
 
 /**
- * 今の銃の弾とは別に弾を出す経路（右レーンの投擲・魔弾・乱れ撃ち、短銃の狙い撃ち、派生の弾）が差し替える値。
+ * 今の銃の弾とは別に弾を出す経路（右レーンの投擲・魔弾・乱れ撃ち、派生の弾、砲の詰めの 1 発）が差し替える値。
  * damage / poise は最終値（省略は銃の弾の値）、damageMul / pierceBonus は銃の弾の値に掛ける・足す
  */
 export interface VolleyOverride {

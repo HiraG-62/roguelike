@@ -157,7 +157,7 @@ describe("持続の射撃の差し替え", () => {
 });
 
 describe("武器 Wave 4 の奥義", () => {
-  it("爪・チェーンアレイ・チャクラム・扇子が 3 本ずつ持ち、既定はどれも一撃", () => {
+  it("爪・チェーンアレイ・戦輪・扇子が 3 本ずつ持ち、既定はどれも一撃", () => {
     for (const k of ["claws", "flail", "ringBlades", "fan"] as const) {
       expect(ULTIMATES[k], k).toHaveLength(PER_MOVESET);
       expect(defaultUltimate(k).kind, `${k} の既定`).toBe("instant");

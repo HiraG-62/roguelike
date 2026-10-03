@@ -375,7 +375,7 @@ function laneStepName(step: ActionStepDef, index: number): string {
 }
 
 /**
- * 右レーンの 1 段の式。構えの受け流し・手元返しは威力を持たないので出さない。
+ * 右レーンの 1 段の式。構えの受け流しは威力を持たないので出さない。
  * 構えの離した振り（盾押し）は 1 段目の構えだけが持つ（defineMoveset が 1 段目からだけ派生を作る）
  */
 function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, step: ActionStepDef, index: number): ActionFormulas[] {

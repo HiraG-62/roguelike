@@ -330,7 +330,7 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(state.player.attack.step, "4 段目（杖突き）へ").toBe(3);
   });
 
-  it("弾・手元返しの段の直後は共有の間（laneGap）が明けるまで次の弾の段を押せない", () => {
+  it("弾の段の直後は共有の間（laneGap）が明けるまで次の弾の段を押せない", () => {
     const state = arena(5, { moveset: "wand" });
     play(state, [{ shootHeld: true }, {}, { shootHeld: true }]);
     expect(playerShots(state), "間の中の右は出ない").toHaveLength(1);

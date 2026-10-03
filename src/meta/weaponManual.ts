@@ -196,7 +196,7 @@ function laneCues(m: Readonly<MovesetDef>, index: number): DemoCue[] {
 const FRESH: DemoCue = { kind: "waitUntil", until: "fresh", maxSec: 3 };
 
 /**
- * 手元へ戻す・弾を数える段の前に、弾を飛ばしておく下ごしらえ。銃は撃ち、近接は右の最初の弾の段（チャクラムの周回）、
+ * 弾を数える段の前に、弾を飛ばしておく下ごしらえ。銃は撃ち、近接は右の最初の弾の段（爪・扇子などの弾の技）、
  * 無ければ左の 1 段目
  */
 function shotsPrelude(m: Readonly<MovesetDef>): DemoCue[] {
@@ -307,7 +307,7 @@ function chargeMoves(m: Readonly<MovesetDef>): ManualMove[] {
   return [{ key: "charge", group: "charge", name: "溜め斬り", traits, desc: "左を押し続けて溜め、離すと段に応じた一振り。押してすぐ離せば連撃。", script: { setup: NO_SETUP, cues: [hold("primary", chargeHoldSec(c))] }, expect: "hit" }];
 }
 
-/** 右の段の振り（振り・溜めの振り・構えを離した振り）。弾・狙い・手元返しの段は undefined */
+/** 右の段の振り（振り・溜めの振り・構えを離した振り）。弾（volley）・構えの受け流しの段は undefined */
 function laneSwingStep(s: Readonly<ActionStepDef>): MeleeStepDef | undefined {
   switch (s.kind) {
     case "swing":

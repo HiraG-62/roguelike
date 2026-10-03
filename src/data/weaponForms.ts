@@ -365,7 +365,7 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
-  // ---- 投擲物の型（docs/ideas/gun-bases-review.md 0-5・2-9）。戦意の溜まる出来事は段 5-B・6 で入れる（今は骨） ----
+  // ---- 投擲物の型（docs/ideas/gun-bases-review.md 0-5・2-9） ----
   thrower: defineForm("thrower", {
     name: "戦輪",
     desc: "輪を投げて行き帰りで刻み、強化投げで放つ",

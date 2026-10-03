@@ -8,10 +8,12 @@ import {
   actionStepName,
   type BulletFeature,
   bulletFeatures,
+  firesByHand,
+  isGun,
   movesetCasts,
   shootsPrimary,
 } from "../data/weapons";
-import { type FormDef, type MoraleGain, type RiposteSource, formCutsBullets, formOf } from "../data/weaponForms";
+import { type FormDef, KUNAI_SENBON, type MoraleGain, type RiposteSource, formCutsBullets, formOf } from "../data/weaponForms";
 import { STATUS_LABEL } from "../core/status";
 import { FORM } from "../data/tuning";
 import { ATTR_KEYS, ATTR_LABEL, type AttrKey } from "../loot/types";
@@ -67,7 +69,7 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   alternateShot: "左右の手を替えた射撃",
   pinDriven: "刺さった飛び物の叩き込み",
   pinStagger: "刺さり崩し",
-  roundTrip: "1 回の投げの行きと帰りの両方での命中",
+  roundTrip: "一度の投げの行きと帰りの両方での命中",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };
@@ -150,10 +152,16 @@ function gainText(form: FormDef): string {
   return `${events.join("・")}で溜まり、`;
 }
 
-/** 放出のしかた。短銃の強装填は振り・1 発ではなく弾倉そのものが放出になる */
+/**
+ * 放出のしかた。短銃の強装填は振り・1 発ではなく弾倉そのものが放出になる。
+ * 投擲物は放出に名が付く（苦無の千本・手裏剣の連ね投げ・戦輪の大輪。docs/GLOSSARY.md の投擲物の技の語）
+ */
 function releaseSentence(m: Readonly<MovesetDef>, form: FormDef): string {
-  if (form.morale.release.kind === "nextMagazine") return `${releaseText(m, form)}が強装填になり、全弾が強くなる。`;
-  if (form.morale.release.kind === "timed") return `${releaseText(m, form)}から ${form.morale.release.sec} 秒、投げの間隔が縮む。`;
+  const release = form.morale.release;
+  if (release.kind === "nextMagazine") return `${releaseText(m, form)}が強装填になり、全弾が強くなる。`;
+  if (release.kind === "timed") return `${releaseText(m, form)}から ${release.sec} 秒、投げの間隔が半分になる連ね投げ。`;
+  if (form.key === "dart") return `満ちた後の次の左が千本になり、扇に ${KUNAI_SENBON.count} 本を投げて全部刺さる。`;
+  if (form.key === "thrower") return `${releaseText(m, form)}で放ち、満ちていれば強化投げが貫いて戻る大輪になる。`;
   return `${releaseText(m, form)}で放つ。`;
 }
 
@@ -204,6 +212,9 @@ export function weaponMechanics(m: Readonly<MovesetDef>): string[] {
   if (has((s) => s.cutsBullets === true || formCutsBullets(m, s))) out.push("敵弾を払う");
   if (has((s) => s.invuln !== undefined)) out.push("踏み込みに無敵がある");
   if (movesetCasts(m).length > 0) out.push("振りから弾を放つ");
+  if (has((s) => s.drivePins !== undefined)) out.push("刺さった飛び物を叩き込む");
+  if (has((s) => s.passThrough === true)) out.push("敵をすり抜けながら斬り、斬った敵の数だけ気力が戻る");
+  if (isGun(m)) out.push(firesByHand(m) ? "手ごとの弾倉を持ち、撃ち切った手は込めに入る" : "弾倉を持ち、撃ち切るとリロードが要る");
   if (m.steps2.some((s) => s.kind === "hold" && s.hold.parry !== undefined)) out.push("受け流しの構えがある");
   if (m.steps2.some((s) => s.kind === "hold" && s.hold.guard !== undefined)) out.push("防御の構えがある");
   const features = new Set(allBullets(m).flatMap((b) => bulletFeatures(b)));
@@ -232,7 +243,8 @@ export function featureText(m: Readonly<MovesetDef>): string {
   if (shootsPrimary(m)) return `${desc}${mechanics}`;
   const step = m.steps[0];
   if (step === undefined) return `${desc}${mechanics}`;
-  const reach = `間合いはおよそ${formatMeters(step.reach)}。`;
+  // 手を離れた弾で戦う武器種（手裏剣）は振りに届きが無いので間合いを書かない
+  const reach = step.reach > 0 ? `間合いはおよそ${formatMeters(step.reach)}。` : "";
   const attrs = referencedAttrs(step);
   const attrText = attrs.length > 0 ? `威力は${attrs.map((a) => ATTR_LABEL[a]).join("・")}で伸びる。` : "";
   return `${desc}${reach}${attrText}${mechanics}`;

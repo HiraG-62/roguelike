@@ -1,8 +1,8 @@
 import { type Keybinds, SKILL_ACTIONS, keyLabel, moveKeyLabel } from "../core/input";
 import { padActionLabel, padSkillKeysLabel } from "../core/padBinds";
-import { ACTION, CARRY, DEEP, ECONOMY, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
+import { ACTION, CARRY, DEEP, ECONOMY, FORM, MANA, META, PARRY, POISE, REACH, REFORGE, RESONANCE, STATUS, WEAPON } from "../data/tuning";
 import { FORMS, FORM_KEYS } from "../data/weaponForms";
-import { MOVESETS, MOVESET_KEYS } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type PinDef, movesetCasts } from "../data/weapons";
 import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import { WEAR_TUNING } from "../skills/tuning2";
@@ -69,6 +69,11 @@ function formNames(): string {
   return FORM_KEYS.map((f) => FORMS[f].name).join("・");
 }
 
+/** 手裏剣の刺さり（振りが投げる弾の pin。刺さり崩しの本数と抜ける秒を Tips が読む） */
+function shurikenPin(): Readonly<PinDef> | undefined {
+  return movesetCasts(MOVESETS.shuriken).find((c) => c.throw.bullet.pin !== undefined)?.throw.bullet.pin;
+}
+
 /** 武器の重さの説明（WEAPON.weightClass の数値から） */
 function weightBody(): string {
   const heavy = WEAPON.weightClass.heavy;
@@ -86,7 +91,7 @@ function skillKeys(binds: Keybinds | undefined): string {
 const CONTROL_TIPS: readonly TipDef[] = [
   { key: "move", term: "移動", category: "controls", body: (b) => `${moveKeyLabel(b)} で移動する。マウスの位置が狙う向き。` },
   { key: "dash", term: "ダッシュ", category: "controls", body: (b) => `${k(b, "dash")}。出だしに無敵がある。回数は HUD の点で、時間で戻る。` },
-  { key: "attack1", term: "攻撃 1", category: "controls", body: (b) => `${k(b, "attack")}。武器種ごとの左の連撃。銃の家系なら射撃。` },
+  { key: "attack1", term: "攻撃 1", category: "controls", body: (b) => `${k(b, "attack")}。武器種ごとの左の連撃。銃・投擲物の武器種なら射撃・投げ。` },
   { key: "attack2", term: "攻撃 2", category: "controls", body: (b) => `${k(b, "shoot")}。全武器種に共通の右の連撃。左右の押し方の列でコンボ派生が出る。` },
   { key: "special", term: "奥義", category: "controls", body: (b) => `${k(b, "special")}。奥義ゲージが満ちると出せる。持続の奥義はもう一度 ${k(b, "special")} で終える。武器種ごとの 3 本から装備画面の装束の人影の書付、奥義の頁で選ぶ（拠点のみ）。` },
   { key: "parry", term: "受け流し", category: "controls", body: (b) => `${k(b, "parry")}（パッドは ${padActionLabel("parry")}）。振っていなければいつでも出せる。窓（${PARRY.windowSec} 秒）の間の被弾を無効にして相手を怯ませ、予備動作を終えた攻撃も止められる。外すと ${PARRY.recoverSec} 秒の間、攻撃もダッシュもできない。` },
@@ -144,13 +149,86 @@ const COMBAT_TIPS: readonly TipDef[] = [
     body: "銃は器ごとの弾倉を持ち、引き金を引くたびに 1 減る（散弾の粒・三点の 3 本は 1 回）。派生の弾も撃つ回数ぶん減り、足りなければ残りの分だけ撃つ。二丁拳銃は左右の手で別の弾倉。短銃は込めの途中の窓でリロードか左を押すと早込めで即込め終わり、外すと込めが遅れる（1 回の込めに 1 回）。砲は 1 発ずつ込め、1 発込めた後なら込めを止めて撃てる。満ちた後もリロードを押し続けると詰めが溜まる。",
   },
   {
+    key: "quickReload",
+    term: "早込め",
+    category: "combat",
+    body: (b) => {
+      const q = WEAPON.movesets.sidearm.quickReload;
+      return (
+        `短銃のリロードの拍。込めの進みが ${pct(q.from)}% を過ぎてから ${q.sec} 秒の窓の間に ${k(b, "reload", true)} か ${k(b, "attack", true)} を押すと、込めが即座に終わり戦意が 1 溜まる。窓を外すと込めが ${q.missSec} 秒延びる（1 回の込めに 1 回）。` +
+        `戦意が満ちると、その込めの弾倉が強装填になり、全弾の威力と怯み値が ${FORM.pistol.primed.damageMul} 倍になる。`
+      );
+    },
+  },
+  {
+    key: "pack",
+    term: "詰め",
+    category: "combat",
+    body: (b) => {
+      const levels = FORM.powder.levels.map((l, i) => `${i + 1} 段 = 粒 +${l.pelletsAdd}・威力 ×${l.damageMul}・反動 ${l.recoilPx}px`).join(" / ");
+      return (
+        `砲は弾を 1 発ずつ込め、満ちた後も ${k(b, "reload")} を押し続けると ${WEAPON.movesets.cannon.pack.levelSec} 秒ごとに詰めが 1 段上がる（最大 ${WEAPON.movesets.cannon.pack.max} 段）。詰めている間は撃てず、足もとても遅い。` +
+        `放つと次の 1 発（か零距離砲）が詰めた段の分だけ強くなり、反動で後ろへ跳ぶ（${levels}）。近づく敵は込め棒の突きでしのげて、込めは止まらない。`
+      );
+    },
+  },
+  {
+    key: "pinDrive",
+    term: "叩き込み",
+    category: "combat",
+    body: () => {
+      const pin = WEAPON.bullets.kunai.pin;
+      return (
+        `クナイは貫かずに敵へ刺さって残る（1 体に最大 ${pin.max} 本・${pin.sec} 秒で抜ける）。刺さった敵に近接の斬りを当てると、刺さったクナイを叩き込んで大きな傷になる（逆手斬りと返し斬りは 1 本、叩き込みは全部）。` +
+        `叩き込んだ本数が戦意で、満ちると次の左が千本になり、扇に ${FORM.dart.senbon.count} 本が全部刺さる。刺さったクナイは奥義「爆ぜクナイ」で炸裂する。`
+      );
+    },
+  },
+  {
+    key: "pinStagger",
+    term: "刺さり崩し",
+    category: "combat",
+    body: () => {
+      const pin = shurikenPin();
+      return (
+        `手裏剣は同じ敵に ${pin?.staggerAt ?? "一定の"} 本刺さる（${pin?.sec ?? "数"} 秒で抜ける）と、その敵が怯んで刺さりが消える。崩した回数が戦意で、満ちると次の投げから ${FORM.star.timed.sec} 秒の連ね投げになり、投げの間隔が半分になる。` +
+        "連撃は左右を替えるときだけ進み、同じ手を続けても段はそのまま。"
+      );
+    },
+  },
+  {
+    key: "throughSlash",
+    term: "抜け斬り",
+    category: "combat",
+    body: () =>
+      `手裏剣のダッシュ攻撃。敵をすり抜けながら斬り、斬った敵 1 体ごとに気力が ${WEAPON.movesets.shuriken.dashAttack.manaPerTarget} 戻る。弾では気力が溜まらない手裏剣が、気力を取り戻す手段。`,
+  },
+  {
+    key: "ringThrow",
+    term: "戦輪",
+    category: "combat",
+    body: () => {
+      const g = WEAPON.bullets.fangRings.grind;
+      return (
+        "輪を体の上下から 2 枚、弧でカーソルまで投げて交差させ、弧で手元へ戻す（最大射程あり）。投げている間は手ぶらで、戻るまで次を投げられず、右の輪払いも出せない（受け流しとダッシュは出せる）。" +
+        `行きと帰りの両方で当てた敵 1 体ごとに往復の戦意が 1 溜まり、満ちると右の強化投げが貫いて戻る大輪になる。牙輪は当てた最初の敵に食い込み、${g.sec} 秒のあいだに ${g.hits} 回当たってから戻る。`
+      );
+    },
+  },
+  {
+    key: "rangedResource",
+    term: "遠距離の資源",
+    category: "combat",
+    body: "弾（銃・投擲物・杖や書の魔法）の命中では、気力も奥義ゲージも溜まらない。溜まるのは近接の振りの命中だけ。銃には資源を戻すための近接（右の連撃）があり、手裏剣はダッシュの抜け斬りで気力が戻る。戦意は何で溜めてもよい。",
+  },
+  {
     key: "morale",
     term: "戦意",
     category: "combat",
     body:
       `武器の型ごとのゲージ。気力バーの隣に型ごとの名で出る（${moraleLabels()}）。` +
       "型ごとの出来事（剣は応手、連刃は命中、長柄は先端の命中、長銃は足を止めている間など）で溜まるか、刃斧の傷・鎖の繋ぎ・砲の置いた弾のように今の数がそのまま戦意になる。" +
-      "放出の段（型ごとに違う。武器種タブの各武器に書いてある）を振ると、その一撃が戦意の量だけ強くなる。右の段が放出の型は、右の予告に「（放出）」と付く。" +
+      "放出の段（型ごとに違う。武器指南書の各武器に書いてある）を振ると、その一撃が戦意の量だけ強くなる。右の段が放出の型は、右の予告に「（放出）」と付く。" +
       "バーが点滅している間が放てる量。空振りしても使われる。武器種を持ち替えると空に戻る。",
   },
   {
@@ -163,7 +241,7 @@ const COMBAT_TIPS: readonly TipDef[] = [
     key: "weaponForm",
     term: "武器の型",
     category: "combat",
-    body: `武器種を束ねる ${FORM_KEYS.length} の型（${formNames()}）。型ごとに戦意の溜まり方と放出の段・応手になる出来事・終撃・重さの既定が決まり、共通技の形も型で変わる。同じ型の武器種は同じ戦意を持つ。武器種タブに各武器の型が書いてある。`,
+    body: `武器種を束ねる ${FORM_KEYS.length} の型（${formNames()}）。型ごとに戦意の溜まり方と放出の段・応手になる出来事・終撃・重さの既定が決まり、共通技の形も型で変わる。同じ型の武器種は同じ戦意を持つ。武器指南書に各武器の型が書いてある。`,
   },
   { key: "weaponWeight", term: "武器の重さ", category: "combat", body: weightBody() },
   {
@@ -172,7 +250,7 @@ const COMBAT_TIPS: readonly TipDef[] = [
     category: "combat",
     body: `章の主（5 の倍数の階のボス）を倒すと出る ${REFORGE.offerCount} 択（1 回の探索で ${REFORGE.perRun} 回まで）。武器の型の動きそのものを書き換える。今の型の札が先に並び、合わない型の札は、その型の武器種に持ち替えると効く。その探索の間だけ。`,
   },
-  { key: "energy", term: "奥義ゲージ", category: "combat", body: "攻撃を当てると溜まる。満ちると枠が点滅し、奥義を出せる。持続の奥義の間は色が変わり、減っていく。" },
+  { key: "energy", term: "奥義ゲージ", category: "combat", body: "近接の攻撃を当てると溜まる（弾の命中では溜まらない）。満ちると枠が点滅し、奥義を出せる。持続の奥義の間は色が変わり、減っていく。" },
   { key: "justDodge", term: "見切り", category: "combat", body: "ダッシュの無敵中に攻撃を受けて避けた瞬間。時間がゆっくりになり、奥義ゲージが増え、気力が戻る。" },
   { key: "rightChain", term: "右の連撃", category: "combat", body: "攻撃 2 で出す連撃。段の中身は武器種ごとに違う。" },
   { key: "branch", term: "コンボ派生", category: "combat", body: "左右の押し方の列で差し替わる技。連撃がそこで終わるものもある。ジョブ固有の派生もある。" },
@@ -458,7 +536,7 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "codex", term: "図鑑", category: "hub", body: "見た・起きたものの記録。？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える。" },
   { key: "title", term: "称号", category: "hub", body: "実績と依頼の報酬で得る名前。実績の画面の称号タブで選ぶと名乗れる。効果は持たない。" },
   { key: "altar", term: "社", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
-  { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。銃は同じ武器種でも器ごとに弾の性質（溜め撃ち・三点・追尾など）が違うので、武器種を選んだ後に器を選ぶ。決定の長押しで性質なしの武器を借りて出撃できる。" },
+  { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。最初に近接・銃・投擲物の群を選び、次に武器種を選ぶ。銃と戦輪は同じ武器種でも器ごとに弾の性質（溜め撃ち・三点・食い込みなど）が違うので、武器種の後に器を選ぶ。決定の長押しで性質なしの武器を借りて出撃できる。" },
   {
     key: "carry",
     term: "持ち込み",

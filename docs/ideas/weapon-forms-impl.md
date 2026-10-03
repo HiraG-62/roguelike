@@ -3,13 +3,18 @@
 作成日: 2026-09-30
 前提: `docs/ideas/core-synthesis.md` 9 章の段取り 5。architect の設計をそのまま置く。7 章の「ユーザー確認」の項目は、ユーザーの「進められる限り自走して」の指示を受けて統合役が推奨で決めた（下の表）。後でユーザーが変えたら、ここと該当の段を直す。
 
+> **2026-10-03 の改修（銃と投擲物の見直し。`docs/ideas/gun-bases-review.md`）で、この文書の次の記述は古くなった**（歴史として残す）。
+> - 短銃の弾倉・装填（「撃つと増えて満ちたら装填」の戦意 `MoraleRelease.reload` / `shotFired` / `Player.morale.window`）は消え、弾倉は戦意とは別の `Player.magazine`（`system/magazine.ts`）へ移った。全銃が弾倉を持ち、短銃の戦意は「早込め」、放出は次の弾倉が強装填
+> - 型 13 + 書・鈴は 20 になった。`thrower`（投具）は戦輪の型に、`artillery` は仕掛けだけ（砲は新しい型 `powder`〔装薬〕、擲弾は `shell`）、`pistol` は短銃だけで二丁拳銃は `akimbo`、クナイ = `dart`（苦無）、手裏剣 = `star`
+> - `thrown`（投擲）と `warRing`（旧戦輪）の武器種・手元返しの仕組みは消え、チャクラムは戦輪（ringBlades）に統合した。短銃の狙い撃ちもやめた
+
 ## 決めたこと（統合役、2026-09-30。ユーザーに報告して変えられるようにする）
 
 | 項目 | 決定 | 変えるときのつまみ |
 | --- | --- | --- |
 | 1. 武器種 27 と型 | 27 の武器種は key・ベース・絵・奥義ごと残し、上に型（13 + 書・鈴）を足す。手持ちの遺物は移行なし | — |
 | 2. 流儀 | 得意武器の倍率と弱点を削り、ダッシュの形と気力の源に置き換える（5c）。気力の下地 35% は残す | `JOB.manaBaseMul` |
-| 3. 短銃の装填 | 入れる（弾倉が空で 0.6 秒の装填、窓で右を押すと強装填） | `FORM.pistol.reload.windowSec` を 0 で無効 |
+| 3. 短銃の装填 | 入れる（弾倉が空で 0.6 秒の装填、窓で右を押すと強装填）。**→ 2026-10-03 に全銃の弾倉・リロードと短銃の早込めへ作り直した** | （旧）`FORM.pistol.reload.windowSec` を 0 で無効 |
 | 4. 陰陽師・巫女 | 既定で解放（5d） | `unlockedBy` |
 | 5. 新語 | 2-1 の名前の原則で付け、付ける前に `src/` と GLOSSARY を検索して衝突を避ける | GLOSSARY |
 | 6. 重さの既定から外れる武器種 | 個性として今の値を残す（連接棍・擲弾・仕掛け 中、扇子 軽） | 各 `movesets/*.json` の `weight` |
@@ -121,10 +126,10 @@
 | `bulwark` | 盾 | shield | 重 |
 | `warfan` | 扇 | fan | 軽（暫定。3-2 の表では中） |
 | `rod` | 杖 | wand | 中 |
-| `thrower` | 投具 | ringBlades（周回）・thrown（手元返し）・warRing（払い） | 軽（軽・軽・軽） |
-| `pistol` | 短銃 | sidearm（狙い撃ち）・gunner（二丁） | 軽（軽・軽） |
+| `thrower` | 投具（→ 戦輪） | ringBlades（周回。→ 今は戦輪）・thrown（手元返し。消えた）・warRing（払い。消えた） | 軽（軽・軽・軽） |
+| `pistol` | 短銃 | sidearm（狙い撃ち。やめた）・gunner（二丁。今は型 `akimbo`） | 軽（軽・軽） |
 | `rifle` | 長銃 | longarm（小銃・弩・電磁砲・吹き矢のベース） | 重 |
-| `artillery` | 砲 | cannon（零距離）・grenade（曲射）・trapper（設置） | 重（重・**中**・**中**） |
+| `artillery` | 砲（→ 今は仕掛けだけ） | cannon（零距離。今は型 `powder`）・grenade（曲射。今は型 `shell`）・trapper（設置） | 重（重・**中**・**中**） |
 | `tome` | 書 | tome（新規） | 軽 |
 | `bell` | 鈴 | bell（新規） | 中 |
 
@@ -202,7 +207,7 @@ export interface MoraleDef {
 - 弾の放出（長柄の貫く突き・長銃・投具の往復・砲の起爆）は `VolleyOverride`（`player.ts:1580`）の `damageMul / pierceBonus` に同じ `perUnit` を写す。砲は `detonateOwnMines` を放出として扱い、起爆した弾の数が単位
 - **充溢**: `tickMorale` の末尾で `value >= max` に **なった瞬間**（前ステップ未満）に `noteMoment("brim")`（浮き文字「充溢」、sfx `chargeLevel` を流用）。導出型は「条件が真になった瞬間」
 - 増の口: `PlayerStats.moraleMaxAdd`（既定 0）と `moraleGainMul`（既定 1）を `loot/types.ts` に 2 行、`loot/stats.ts` の表示名（「戦意の上限」「戦意の溜まりやすさ」）。`DAMAGE_TAGS` に `release`（放出の一撃に付く与ダメの増）。`PerCounter` に `{ kind: "morale" }`（「戦意 10 につき」）。性質・祝福で使うのは段取り 7
-- 短銃の弾倉: `MoraleRelease.reload` の型は `Player.morale.window` に装填の残り秒を持ち、`canShootNow`（`player.ts:1553`）が `window > 0` なら撃てない。窓の `primeFrom..primeTo` で右（`pressSecondary`）を押すと `primed = true`、次の弾倉（`max` 発）の弾に `perUnit.damageMul` が乗り、その 1 発目が終撃。**左押しっぱなしの手触りが変わる（ユーザー確認 3）**
+- （旧。今は `system/magazine.ts`）短銃の弾倉: `MoraleRelease.reload` の型は `Player.morale.window` に装填の残り秒を持ち、`canShootNow`（`player.ts:1553`）が `window > 0` なら撃てない。窓の `primeFrom..primeTo` で右（`pressSecondary`）を押すと `primed = true`、次の弾倉（`max` 発）の弾に `perUnit.damageMul` が乗り、その 1 発目が終撃。**左押しっぱなしの手触りが変わる（ユーザー確認 3）**
 
 ### 3-3. 共通の瞬間（`system/moments.ts` 新規）
 | 瞬間 | EventKind | 積む場所 | 判定 |

@@ -181,7 +181,7 @@ export interface Player {
   swingImpact: number;
   /**
    * 右レーン（アクション 2）の振り以外の段（src/system/weaponArts.ts）。
-   * cooldown = 弾・手元返しの段を出した後の共有の間（WEAPON.artDefaults.laneGap）の残り秒、holding / holdTime = 構え・受け流し・狙い撃ちを押している最中とその秒、
+   * cooldown = 弾の段を出した後の共有の間（WEAPON.artDefaults.laneGap）の残り秒、holding / holdTime = 構え・受け流しを押している最中とその秒、
    * recover = 受け流しを外した硬直の残り秒、cooldowns = 右レーンの段（ActionStepDef.key）ごとの再使用の残り秒
    */
   art: { cooldown: number; holding: boolean; holdTime: number; recover: number; cooldowns: Map<string, number> };

@@ -285,7 +285,7 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   tripleCrossbow: "gold",
   mortar: "crimson",
   grenadeLauncher: "crimson",
-  // 武器 Wave 4（爪・チェーンアレイ・チャクラム・扇子の器）
+  // 武器 Wave 4（爪・チェーンアレイ・扇子の器。チャクラムは戦輪へ統合）
   hookClaws: "gold",
   ironClaws: "umbra",
   beastClaws: "crimson",
