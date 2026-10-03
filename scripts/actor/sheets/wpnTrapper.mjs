@@ -58,5 +58,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnTrapper",
   sheets: weaponSheets("wpnTrapper", draw, { size: 48 }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 } },
+  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1, parry: { hand: [2, 6], deg: -20, grip: -6, contact: 10 } } },
 };

@@ -1,6 +1,7 @@
 // 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
 // クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
-// manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ
+// manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ。
+// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）
 // dojo は &enemy=<敵の key>&count=<数>&behavior=<動き>&frames=<ステップ数>&stand=<台の key> で稽古の間（手前の敵へ寄って殴り続ける）、dojo-board は稽古帳
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
@@ -25,9 +26,14 @@ import type { GameState } from "../core/state";
 import { FIXED_DT } from "../core/loop";
 import { MANUAL_KEYS } from "../meta/weaponManual";
 import { stepManualDemo } from "../system/manualDemo";
+import { createManualDemo } from "../system/manualDemo";
+import { fxState } from "../system/effects";
 import { createManualUi, stepManualUi, syncManualDemo } from "../ui/weaponManual";
+import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
+import { FX_ATTACK, PARRY } from "../data/tuning";
+import { isJobKey } from "../data/jobs";
 import { drawWeaponManual } from "../render/weaponManualUi";
-import { TEXT, textLineHeight, wrapText } from "../render/pixelText";
+import { TEXT, drawText, textLineHeight, wrapText } from "../render/pixelText";
 import { EMPTY_INPUT, type FrameInput } from "../core/input";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { createEmptyProfile } from "../loot/types";
@@ -119,6 +125,61 @@ async function shootManual(renderer: Renderer, q: URLSearchParams): Promise<void
   }
 }
 
+/** 受け流しの表の列: 待機 / 受けの構え / 決まった直後 3 コマ（秒）/ 外した硬直の進み / 左向きの受けの構え */
+interface ParryColumn {
+  readonly label: string;
+  readonly window?: number;
+  readonly impactAge?: number;
+  readonly recover?: number;
+  readonly left?: boolean;
+}
+const PARRY_COLUMNS: readonly ParryColumn[] = [
+  { label: "rest" },
+  { label: "guard", window: PARRY.windowSec * 0.4 },
+  { label: "hit0", impactAge: 0.017 },
+  { label: "hit1", impactAge: 0.07 },
+  { label: "hit2", impactAge: 0.2 },
+  { label: "miss", recover: PARRY.recoverSec * 0.6 },
+  { label: "left", window: PARRY.windowSec * 0.4, left: true },
+];
+const PARRY_CELL = 66;
+const PARRY_ZOOM = 2;
+const PARRY_DEFAULT_ROWS = 4;
+/** 体の中心より上を窓の中央にする（武器を上に掲げる構えが切れない） */
+const PARRY_CENTER_LIFT = 5;
+
+/** 受け流しの表。武器種ごとに 1 行、PARRY_COLUMNS を 1 列ずつ */
+async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void> {
+  const list = (q.get("weapons") ?? MOVESET_KEYS.slice(0, PARRY_DEFAULT_ROWS).join(",")).split(",");
+  const keys = list.filter((k): k is MovesetKey => (MOVESET_KEYS as readonly string[]).includes(k));
+  const job = q.get("job") ?? "none";
+  const ctx = renderer.context;
+  renderer.beginFrame();
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 480, 270);
+  for (const [row, key] of keys.entries()) {
+    const session = createManualDemo(key, { setup: {}, cues: [] });
+    const state = session.state;
+    if (isJobKey(job)) state.job = job;
+    state.enemies = [];
+    for (let i = 0; i < MANUAL_SETTLE_FRAMES && !renderer.playerArtReady(state); i++) await nextFrame();
+    for (const [col, c] of PARRY_COLUMNS.entries()) {
+      const p = state.player;
+      p.parry.window = c.window ?? 0;
+      p.parry.recover = c.recover ?? 0;
+      p.facing = { x: c.left === true ? -1 : 1, y: 0 };
+      const fx = fxState(state);
+      fx.marks = fx.marks.filter((m) => m.kind !== "parry");
+      if (c.impactAge !== undefined) fx.marks.push({ kind: "parry", pos: { ...p.body.pos }, age: c.impactAge, life: FX_ATTACK.sprite.parryLife, color: "#fff", value: 0 });
+      const rect = { x: col * PARRY_CELL, y: row * PARRY_CELL, w: PARRY_CELL - 1, h: PARRY_CELL - 1 };
+      renderer.renderDemo(state, rect, { x: p.body.pos.x, y: p.body.pos.y - PARRY_CENTER_LIFT }, PARRY_ZOOM);
+      renderer.beginFrame();
+      drawText(ctx, row === 0 ? `${c.label}` : "", rect.x + 2, rect.y + 2, TEXT.SMALL, "#fff");
+    }
+    drawText(ctx, key, 7 * PARRY_CELL + 2, row * PARRY_CELL + 2, TEXT.SMALL, "#fff");
+  }
+}
+
 const DOJO_DEFAULT_FRAMES = 240;
 /** 稽古の間の撮影で敵へ寄る距離（px）と、攻撃を押す間隔（ステップ） */
 const DOJO_REACH = 26;
@@ -188,6 +249,11 @@ async function main(): Promise<void> {
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("canvas#game がない");
   const renderer = new Renderer(canvas);
   await document.fonts.load('16px "DotGothic16"');
+  if (scene === "parry") {
+    await shootParry(renderer, q);
+    window.__menuShotReady = true;
+    return;
+  }
   if (scene === "manual") {
     await shootManual(renderer, q);
     window.__menuShotReady = true;

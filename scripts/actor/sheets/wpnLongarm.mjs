@@ -70,5 +70,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnLongarm",
   sheets: weaponSheets("wpnLongarm", draw, { size: 96 }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1, recoil: 1.5 } },
+  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1, recoil: 1.5, parry: { hand: [2, 7], deg: -25, grip: -7, contact: 14 } } },
 };

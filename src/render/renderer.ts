@@ -62,11 +62,12 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
 import { equippedSkillKeys } from "../system/runSetup";
-import { EFFECTS, FLOAT_TEXT, FX_ATTACK, TELEGRAPH } from "../data/tuning";
+import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
+  type HoldPose,
   type SwingPhase,
   type WeaponPose,
   WEAPON_TRAIL_WIDTH,
@@ -109,7 +110,10 @@ import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawP
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, guardContact, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ParryMotion, parryMotion } from "./parryMotion";
+import { drawParrySpark } from "./parrySpark";
+import { type BarrierLook, barrierFront, drawParryBarrier } from "./parryBarrier";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
@@ -728,6 +732,10 @@ export class Renderer {
   private rigSwingPivot: Pt | null = null;
   /** 描いた銃の銃口（論理座標）と自分の中心からの距離。弾は銃口を抜けるまで描かない */
   private rigMuzzle: { x: number; y: number; dist: number } | null = null;
+  /** 受け流しが決まった直後の火花（drawRiggedPlayer が受け止めた所を置き、drawPlayer がプレイヤーの上に描く） */
+  private rigParrySpark: ParrySparkAt | null = null;
+  /** 魔法の武器の受け流しの結界（drawRiggedPlayer が置き、drawPlayer がプレイヤーの上に描く） */
+  private rigParryBarrier: BarrierLook | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
   /** 地図（床・壁・穴）の焼き済みチャンク。迷宮は章の様式、拠点は門前町の様式（見た目用の地図 ground）で焼く */
@@ -2195,8 +2203,14 @@ export class Renderer {
 
     this.rigSwingPivot = null;
     this.rigMuzzle = null;
+    this.rigParrySpark = null;
+    this.rigParryBarrier = null;
     const rigged = this.drawRiggedPlayer(state, cx, bottom);
     setPlayerMuzzle(state, this.rigMuzzle);
+    const barrier = this.parryBarrierOfFrame();
+    if (barrier) drawParryBarrier(this.ctx, barrier);
+    const spark = this.parrySparkOfFrame();
+    if (spark) drawParrySpark(this.ctx, spark.x, spark.y, spark.dir, spark.age, spark.seed, spark.colors);
     if (rigged) {
       if (isAttacking(p) && (p.attack.phase === "active" || p.attack.phase === "recover")) this.drawSlash(state, p);
       else this.drawHoldSprite(state, p);
@@ -2316,6 +2330,9 @@ export class Renderer {
     const iai = this.iaiMotion(state, stance, swing);
     const look = this.playerLook(state);
     const facingRight = look.x >= 0;
+    const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
+    const impactAge = latestParryAge(state);
+    const guard = swing.phase === "none" && !dashing ? this.playerParryMotion(state, hold, impactAge) : undefined;
     const clip = bodyClip({
       dashing,
       dashProgress: 1 - p.dashTimer / Math.max(1e-6, dashTime(state.stats)),
@@ -2327,6 +2344,7 @@ export class Renderer {
       backpedal: isBackpedal(p.body.vel, facingRight),
       time: state.time,
       idle: stance.body,
+      ...(guard?.body ? { parry: guard.body } : {}),
       ...(swing.phase !== "none"
         ? {
             attack: attackClip(
@@ -2346,8 +2364,8 @@ export class Renderer {
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
     const hip = actorAnchor(bodyKey, 0, clip.frame, "hip");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
-    const hold = laneHoldPose(moveset.steps2[p.attack.step], p.art.holding);
-    const posed = swing.phase !== "none" || hold !== undefined;
+    // 剣の構えの受け流しは、共通の受け流しと同じ受けの構え（guard）で描く
+    const posed = swing.phase !== "none" || (hold !== undefined && hold !== "parry");
     const rigInput = {
       stance,
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
@@ -2368,6 +2386,7 @@ export class Renderer {
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
       ...(hip ? { hip } : {}),
       ...(iai ? { iai } : {}),
+      ...(guard ? { guard } : {}),
     };
     const rig = solveRig(rigInput);
 
@@ -2418,6 +2437,7 @@ export class Renderer {
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
+    if (guard) this.placeParryFx(guard, stance, rig, shoulderF, shoulderB, toScreen, impactAge, facingRight, state);
     // 銃口の印を持つ武器（銃・杖・投げ物）は、描いた銃口から閃光と弾を出す。術を放つ段（castOff）は突き出した後ろの掌から
     const castPalm = swing.cast ? toScreen(rig.back.hand) : null;
     this.rigMuzzle = castPalm
@@ -2517,6 +2537,59 @@ export class Renderer {
     if (!sheet) return;
     const cell = this.actorBank.cell(key, actorDir(sheath.angle, sheet.dirs), 0);
     if (cell) this.rigCell(cell, sheath.mouth.x, sheath.mouth.y);
+  }
+
+  /** drawRiggedPlayer が置いた今のフレームの火花（narrowing を切るため関数で読む） */
+  private parrySparkOfFrame(): ParrySparkAt | null {
+    return this.rigParrySpark;
+  }
+
+  private parryBarrierOfFrame(): BarrierLook | null {
+    return this.rigParryBarrier;
+  }
+
+  /**
+   * 受け流しの結界と火花を置く。結界を張る武器（stance.parry.barrier）は肩の間に結界を張り、火花は結界の前から結界の色で散らす。
+   * それ以外は武器の受ける所から散らす
+   */
+  private placeParryFx(
+    guard: ParryMotion,
+    stance: Stance,
+    rig: RigPose,
+    shoulderF: Pt,
+    shoulderB: Pt,
+    toScreen: (pt: Pt) => Pt,
+    impactAge: number | null,
+    facingRight: boolean,
+    state: GameState,
+  ): void {
+    const color = stance.parry?.barrier;
+    if (!color) {
+      if (impactAge !== null) this.rigParrySpark = parrySparkAt(rig, stance, shoulderF, toScreen, impactAge, facingRight, state.player.body.pos);
+      return;
+    }
+    const mid = toScreen({ x: (shoulderF.x + shoulderB.x) / 2, y: (shoulderF.y + shoulderB.y) / 2 });
+    const jar = PARRY_POSE.pushDots > 0 ? guard.push / PARRY_POSE.pushDots : 0;
+    const crumble = PARRY_POSE.sagDots > 0 ? (guard.sag / PARRY_POSE.sagDots) * PARRY_POSE.barrier.crumbleMax : 0;
+    this.rigParryBarrier = { ...mid, facingRight, blend: guard.blend, jar, crumble, color, time: state.time };
+    if (impactAge === null) return;
+    const front = barrierFront(facingRight, jar);
+    const pos = state.player.body.pos;
+    const seed = Math.round(pos.x) + Math.round(pos.y) * SPARK_SEED_Y;
+    this.rigParrySpark = { x: mid.x + front.x, y: mid.y + front.y, dir: facingRight ? 0 : Math.PI, age: impactAge, seed, colors: [BARRIER_SPARK_CORE, color] };
+  }
+
+  /**
+   * 受け流しの動き（parryMotion.ts）。共通の受け流しの窓・剣の構えの受け流しを押している間は受けの構え、決まった直後は
+   * 受け止めた衝撃、外した硬直は崩れた構え。振っている・ダッシュ中は呼ばない
+   */
+  private playerParryMotion(state: GameState, hold: HoldPose | undefined, impactAge: number | null): ParryMotion | undefined {
+    const parry = state.player.parry;
+    let raised: number | null = null;
+    if (parry.window > 0) raised = PARRY.windowSec - parry.window;
+    else if (hold === "parry") raised = state.player.art.holdTime;
+    const slack = parry.recover > 0 ? 1 - parry.recover / PARRY.recoverSec : null;
+    return parryMotion({ raised, impactAge, slack });
   }
 
   /**
@@ -3387,4 +3460,51 @@ export class Renderer {
 function swingRamp(state: GameState, step: MeleeStep): FxRampKey {
   const cast = step.cast?.throw.attack?.element ?? "none";
   return rampOfElement(cast !== "none" ? cast : hitElement(state, "melee", false));
+}
+
+/** いちばん新しい受け流しの成功の印（system/parry.ts の parrySucceed が置く）からの秒。無ければ null */
+function latestParryAge(state: GameState): number | null {
+  let age: number | null = null;
+  for (const m of state.effects?.marks ?? []) {
+    if (m.kind === "parry" && (age === null || m.age < age)) age = m.age;
+  }
+  return age;
+}
+
+/** 受け止めた所の火花（論理座標・散る向き・決まってからの秒・ばらつきの種） */
+interface ParrySparkAt {
+  readonly x: number;
+  readonly y: number;
+  readonly dir: number;
+  readonly age: number;
+  readonly seed: number;
+  /** 火の粉の色（若い → 古い）。省けば PARRY_POSE.spark.colors */
+  readonly colors?: readonly string[];
+}
+
+/** 結界の火の粉の若い色（白から結界の色へ移る） */
+const BARRIER_SPARK_CORE = "#ffffff";
+
+/** 火花の種の y の重み（位置を 1 つの数に畳む） */
+const SPARK_SEED_Y = 131;
+
+/**
+ * 受け止めた所（武器の受けの位置）の火花。散る向きは前の肩から受けの位置へ（体の外へ飛ぶ）。
+ * 種はプレイヤーの位置から取る（決まった瞬間の位置ではないが、押されて動く間も散り方が大きく変わらない程度で足りる）
+ */
+function parrySparkAt(
+  rig: RigPose,
+  stance: Stance,
+  shoulderF: Pt,
+  toScreen: (pt: Pt) => Pt,
+  age: number,
+  facingRight: boolean,
+  pos: Pt,
+): ParrySparkAt {
+  const contact = guardContact(rig, stance);
+  const at = toScreen(contact);
+  const dx = (contact.x - shoulderF.x) * (facingRight ? 1 : -1);
+  const dy = contact.y - shoulderF.y;
+  const seed = Math.round(pos.x) + Math.round(pos.y) * SPARK_SEED_Y;
+  return { ...at, dir: Math.atan2(dy, dx), age, seed };
 }

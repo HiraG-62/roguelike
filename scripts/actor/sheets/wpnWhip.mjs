@@ -92,5 +92,5 @@ export const ATLAS = {
     ...weaponSheets("wpnWhip", drawSwing, { size: 48 }).map((sheet) => ({ ...sheet, key: "wpnWhip.swing" })),
   ],
   // rope: 戻しで垂れて巻き戻る縄（実行時の render/whipRope.ts）の革の色（暗・基・明）・先の房の色と、握りから縄の出る所（解いた絵の根元の先）
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 40, restHand: [7, 8], swayDeg: 4 }, rope: { colors: RAWHIDE.slice(0, 3), tip: CLOTH_RED[1], from: 17 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 40, restHand: [7, 8], swayDeg: 4, parry: { hand: [9, -1], deg: -40, off: [10, 2], contact: 5 } }, rope: { colors: RAWHIDE.slice(0, 3), tip: CLOTH_RED[1], from: 17 } },
 };

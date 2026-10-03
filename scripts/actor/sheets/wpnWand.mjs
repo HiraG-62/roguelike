@@ -33,4 +33,4 @@ function draw(frame) {
   frame.anchor("muzzle", ORB_X + ORB_R + 4, 0);
 }
 
-export const ATLAS = { key: "wpnWand", sheets: weaponSheets("wpnWand", draw, { size: 68 }), meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -55, restHand: [7, 6], swayDeg: 3 } } };
+export const ATLAS = { key: "wpnWand", sheets: weaponSheets("wpnWand", draw, { size: 68 }), meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -55, restHand: [7, 6], swayDeg: 3, parry: { hand: [10, 0], deg: -40, off: [11, 2], contact: 14, barrier: "#b48cff" } } } };

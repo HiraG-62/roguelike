@@ -93,5 +93,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnScythe",
   sheets: weaponSheets("wpnScythe", draw, { size: 104, edge: true }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -68, restHand: [7, 8], restMirror: true, swayDeg: 2 } },
+  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -68, restHand: [7, 8], restMirror: true, swayDeg: 2, parry: { hand: [3, 2], deg: -42, mirror: true, contact: 30 } } },
 };

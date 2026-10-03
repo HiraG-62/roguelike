@@ -125,6 +125,8 @@ export const FEEL = BALANCE.feel.FEEL;
 export const TELEGRAPH = BALANCE.feel.TELEGRAPH;
 /** 予備動作の体の溜めと張り。見た目だけ（render/renderer.ts が読む） */
 export const TELEGRAPH_POSE = BALANCE.feel.TELEGRAPH_POSE;
+/** 受け流しの体と武器の動き・受け止めた所の火花。見た目だけ（render/parryMotion.ts・render/parrySpark.ts） */
+export const PARRY_POSE = BALANCE.feel.PARRY_POSE;
 /** 符号表の検査の閾。検査専用（data/signs.test.ts） */
 export const SIGN_CHECK = BALANCE.feel.SIGN_CHECK;
 /** 自分に掛かる攻撃の判定の余裕と、殺気・被弾筋の見た目（system/threat.ts・render/threatCue.ts） */

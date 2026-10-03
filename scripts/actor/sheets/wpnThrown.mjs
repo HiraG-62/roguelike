@@ -55,5 +55,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnThrown",
   sheets: weaponSheets("wpnThrown", draw, { size: 48 }),
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: -20, restHand: [7, 5], swayDeg: 3 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: -20, restHand: [7, 5], swayDeg: 3, parry: { hand: [9, 3], deg: -40, contact: 7 } } },
 };

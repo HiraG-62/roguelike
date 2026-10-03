@@ -73,5 +73,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnHammer",
   sheets: weaponSheets("wpnHammer", draw, { size: 84, edge: true }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -55, restHand: [7, 9], swayDeg: 2, restMirror: true } },
+  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -55, restHand: [7, 9], swayDeg: 2, restMirror: true, parry: { hand: [3, -1], deg: -32, mirror: true, contact: 26 } } },
 };

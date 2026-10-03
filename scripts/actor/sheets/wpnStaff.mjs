@@ -34,4 +34,4 @@ function draw(frame) {
   paint(frame, polygon([[TIP - 8.5, 1.5], [TIP - 7, 1.5], [TIP - 6.8, 5.5], [TIP - 8, 6.5], [TIP - 9.4, 5]], { round: 1.2 }), CLOTH_RED);
 }
 
-export const ATLAS = { key: "wpnStaff", sheets: weaponSheets("wpnStaff", draw, { size: 84 }), meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "ready", restDeg: -14, restHand: [6, 9], swayDeg: 2 } } };
+export const ATLAS = { key: "wpnStaff", sheets: weaponSheets("wpnStaff", draw, { size: 84 }), meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "ready", restDeg: -14, restHand: [6, 9], swayDeg: 2, parry: { hand: [5, -3], deg: -28, contact: 12 } } } };

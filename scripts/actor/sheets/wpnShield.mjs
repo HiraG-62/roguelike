@@ -59,4 +59,4 @@ function draw(frame) {
   for (const s of [-1, 1]) paint(frame, polygon([[FRONT - BOW - DEPTH + 1.5, s * (H - 0.5)], [FRONT - BOW - 0.5, s * (H - 0.5)], [FRONT - BOW - 2, s * (H + 1.6)], [FRONT - BOW - DEPTH + 3, s * (H + 1.6)]], { round: 1 }), STEEL);
 }
 
-export const ATLAS = { key: "wpnShield", sheets: weaponSheets("wpnShield", draw, { size: 48 }), meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 0, restHand: [6, 8], swayDeg: 1.5, braced: true } } };
+export const ATLAS = { key: "wpnShield", sheets: weaponSheets("wpnShield", draw, { size: 48 }), meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 0, restHand: [6, 8], swayDeg: 1.5, braced: true, parry: { hand: [10, 1], deg: -5, off: [11, 3], contact: 11 } } } };

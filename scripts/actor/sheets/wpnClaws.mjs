@@ -72,6 +72,6 @@ export const ATLAS = {
   sheets: weaponSheets("wpnClaws", draw, { size: 48, edge: true }),
   meta: {
     offGrip: null,
-    stance: { grip: "dual", body: "light", worn: true, restFront: true, restDeg: -20, restHand: [7, 5], offHand: [2, 6], offDeg: -10, swayDeg: 5 },
+    stance: { grip: "dual", body: "light", worn: true, restFront: true, restDeg: -20, restHand: [7, 5], offHand: [2, 6], offDeg: -10, swayDeg: 5, parry: { hand: [9, 1], deg: -55, off: [11, 6], offDeg: -80, contact: 11 } },
   },
 };

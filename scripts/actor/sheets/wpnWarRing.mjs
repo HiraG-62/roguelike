@@ -52,5 +52,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnWarRing",
   sheets: weaponSheets("wpnWarRing", draw, { size: 64 }),
-  meta: { offGrip: null, stance: { grip: "one", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "aim", restDeg: 0, restHand: [8, 4], swayDeg: 1, parry: { hand: [9, -3], deg: -20, contact: 22 } } },
 };
