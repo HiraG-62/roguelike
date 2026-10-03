@@ -1,15 +1,15 @@
 import { type Enemy, type GameState, pushSfx } from "../core/state";
 import { GOOD_STATUS_KINDS, NEUTRAL_STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
-import { type Vec, add, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, dist, normalize, scale, sub } from "../core/vec";
 import { STATUS } from "../data/tuning";
 import { healPlayer } from "../system/combat";
-import { addFloatingText, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "../system/effects";
+import { addFloatingText, addHeadLabel, addSkillFx, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withSkillFx } from "../system/effects";
 import { overlapsWall } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { applyStatus, enemiesInRadius, findStatus, hasStatus, removeStatus } from "../system/statusEffects";
 import { SKILL } from "./data";
 import { enemiesInCone, enemiesOnSegment, enemyNear, rayEnd } from "./geom";
-import { skillHit, skillPower } from "./hit";
+import { castElement, skillHit, skillPower } from "./hit";
 import { type ShotSpec, harmfulKinds, spawnFan, spawnShot } from "./shots";
 import { placeGrave, placeKeg, placeSpring, placeTurret } from "./summons";
 import type { ActiveCast, CastParams, ExtraSkillKey } from "./types";
@@ -152,6 +152,7 @@ function castComboChain(state: GameState, ctx: CastCtx): void {
   const time = stages * SKILL.comboChain.gap * ctx.params.timeMul;
   state.skills.active = {
     slot: ctx.slot,
+
     skillKey: "comboChain",
     phase: "main",
     timer: time,
@@ -173,11 +174,15 @@ function castContagion(state: GameState, ctx: CastCtx): void {
   if (!src) return;
   const radius = c.radius * ctx.params.areaMul;
   const effects = src.status.effects.filter((eff) => eff.time > 0 && harmfulKinds(src).includes(eff.kind));
-  spawnRing(state, src.body.pos, radius, COLOR_CONTAGION, RING_LIFE * 2);
+  const element = castElement(ctx.params);
+  withSkillFx(state, "contagion", () => spawnRing(state, src.body.pos, radius, COLOR_CONTAGION, RING_LIFE * 2));
+  addSkillFx(state, "contagion", "cast", src.body.pos, { size: radius, element });
   pushSfx(state, "skillCast");
   for (const e of enemiesInRadius(state, src.body.pos, radius)) {
     if (e.id === src.id) continue;
-    spawnLine(state, src.body.pos, e.body.pos, COLOR_CONTAGION, LINE_LIFE);
+    withSkillFx(state, "contagion", () => spawnLine(state, src.body.pos, e.body.pos, COLOR_CONTAGION, LINE_LIFE));
+    // 写し元 → 写し先へ胞子の筋が渡り、写し先に斑点が咲く
+    addSkillFx(state, "contagion", "act", src.body.pos, { to: e.body.pos, angle: Math.atan2(e.body.pos.y - src.body.pos.y, e.body.pos.x - src.body.pos.x), element });
     for (const eff of effects) {
       const duration = Math.max(c.minDuration, eff.time * c.durationMul * ctx.params.durationMul);
       // 彩痕の potency は色の番号なので効果量を掛けない
@@ -192,7 +197,8 @@ function castContagion(state: GameState, ctx: CastCtx): void {
 function castKindle(state: GameState, ctx: CastCtx): void {
   const k = SKILL.kindle;
   const radius = k.radius * ctx.params.areaMul;
-  spawnRing(state, ctx.target, radius, COLOR_KINDLE, RING_LIFE);
+  withSkillFx(state, "kindle", () => spawnRing(state, ctx.target, radius, COLOR_KINDLE, RING_LIFE));
+  addSkillFx(state, "kindle", "cast", ctx.target, { size: radius, element: castElement(ctx.params) });
   const burning = enemiesInRadius(state, ctx.target, radius).filter((e) => hasStatus(e.status, "burn"));
   for (const e of burning) {
     const burn = findStatus(e.status, "burn");
@@ -208,8 +214,11 @@ function castKindle(state: GameState, ctx: CastCtx): void {
 function kindleBurst(state: GameState, at: Vec, remaining: number, params: CastParams): void {
   const k = SKILL.kindle;
   const radius = k.burstRadius * params.areaMul;
-  spawnBlast(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
-  spawnBurst(state, at, COLOR_KINDLE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "kindle", () => {
+    spawnBlast(state, at, radius, COLOR_KINDLE, RING_LIFE * 2);
+    spawnBurst(state, at, COLOR_KINDLE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, "kindle", "act", at, { size: radius, element: castElement(params) });
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "explode");
   const power = skillPower(state, k.damage, params) + remaining * k.burnRatio * params.damageMul;
@@ -228,7 +237,8 @@ function castIceBreaker(state: GameState, ctx: CastCtx): void {
   const chill = ib.chillStacks + (ctx.params.combo === "frostBreaker" ? ib.comboChill : 0);
   const applies: readonly StatusApply[] = [{ kind: "chill", stacks: chill, duration: STATUS.chill.duration, potency: 0 }];
   const power = skillPower(state, ib.damage, ctx.params);
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_ICE, RING_LIFE);
+  withSkillFx(state, "iceBreaker", () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_ICE, RING_LIFE));
+  addSkillFx(state, "iceBreaker", "act", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: radius, element: castElement(ctx.params) });
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "hitHeavy");
   for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, ib.halfAngle)) {
@@ -242,7 +252,8 @@ function castIceBreaker(state: GameState, ctx: CastCtx): void {
 /** 凍結を砕いた破片: 周りの敵へ小さなダメージと冷気 */
 function iceShards(state: GameState, at: Vec, excludeId: number, params: CastParams, applies: readonly StatusApply[]): void {
   const ib = SKILL.iceBreaker;
-  spawnBurst(state, at, COLOR_ICE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "iceBreaker", () => spawnBurst(state, at, COLOR_ICE, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE));
+  addSkillFx(state, "iceBreaker", "end", at, { size: ib.shardRadius * params.areaMul, element: castElement(params) });
   pushSfx(state, "freeze");
   const power = skillPower(state, ib.shardDamage, params);
   for (const e of enemiesInRadius(state, at, ib.shardRadius * params.areaMul)) {
@@ -258,12 +269,16 @@ function castBloodlet(state: GameState, ctx: CastCtx): void {
   const radius = b.radius * ctx.params.areaMul;
   const power = skillPower(state, b.damage, ctx.params);
   let drained = 0;
-  spawnRing(state, ctx.origin, radius, COLOR_BLOOD, RING_LIFE);
+  const element = castElement(ctx.params);
+  withSkillFx(state, "bloodlet", () => spawnRing(state, ctx.origin, radius, COLOR_BLOOD, RING_LIFE));
+  addSkillFx(state, "bloodlet", "cast", ctx.origin, { size: radius, element });
   for (const e of enemiesInRadius(state, ctx.origin, radius)) {
     const bleed = findStatus(e.status, "bleed");
     if (bleed) {
       drained += bleed.stacks * bleed.potency;
-      spawnLine(state, e.body.pos, ctx.origin, COLOR_BLOOD, LINE_LIFE);
+      withSkillFx(state, "bloodlet", () => spawnLine(state, e.body.pos, ctx.origin, COLOR_BLOOD, LINE_LIFE));
+      // 傷 → 自分へ血の流れ
+      addSkillFx(state, "bloodlet", "act", e.body.pos, { to: ctx.origin, angle: Math.atan2(ctx.origin.y - e.body.pos.y, ctx.origin.x - e.body.pos.x), element });
       removeStatus(state, { kind: "enemy", enemy: e }, "bleed");
     }
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir: sub(e.body.pos, ctx.origin), knockback: b.knockback, stagger: false, from: ctx.origin });
@@ -289,7 +304,9 @@ function castDischarge(state: GameState, ctx: CastCtx): void {
     const stacks = findStatus(e.status, "shock")?.stacks ?? 1;
     const from = { ...e.body.pos };
     removeStatus(state, { kind: "enemy", enemy: e }, "shock");
-    spawnLine(state, from, ctx.origin, COLOR_SHOCK, LINE_LIFE);
+    withSkillFx(state, "discharge", () => spawnLine(state, from, ctx.origin, COLOR_SHOCK, LINE_LIFE));
+    // 感電していた敵 → 自分へ稲妻
+    addSkillFx(state, "discharge", "act", from, { to: ctx.origin, angle: Math.atan2(ctx.origin.y - from.y, ctx.origin.x - from.x), element: castElement(ctx.params) });
     skillHit(state, e, ctx.params, { base: base * (1 + d.perStack * stacks), kind: "ranged", dir: sub(from, ctx.origin), knockback: d.knockback, stagger: true, from: ctx.origin });
     for (const other of enemiesOnSegment(state, from, ctx.origin, d.lineHalfWidth)) {
       if (lineHit.has(other.id)) continue;
@@ -306,17 +323,21 @@ function castVerdict(state: GameState, ctx: CastCtx): void {
   const radius = v.radius * state.stats.meleeReachMul * ctx.params.areaMul;
   const power = skillPower(state, v.damage, ctx.params);
   pushSfx(state, "slash3");
+  const element = castElement(ctx.params);
+  addSkillFx(state, "verdict", "act", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: radius, element });
   for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, v.halfAngle)) {
     const dir = sub(e.body.pos, ctx.origin);
     if (hasStatus(e.status, "silence")) {
       removeStatus(state, { kind: "enemy", enemy: e }, "silence");
       addFloatingText(state, e.body.pos, "処断", COLOR_VERDICT, TEXT_SCALE, TEXT_LIFE, "status");
+      // 沈黙を消した敵に天から光の柱
+      addSkillFx(state, "verdict", "end", e.body.pos, { element });
       skillHit(state, e, ctx.params, { base: power, kind: "melee", dir, knockback: v.knockback, stagger: true, applies: null, from: ctx.origin });
       continue;
     }
     skillHit(state, e, ctx.params, { base: power * v.unsilencedMul, kind: "melee", dir, knockback: 0, stagger: false, poise: v.unsilencedPoise, from: ctx.origin });
   }
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_VERDICT, RING_LIFE);
+  withSkillFx(state, "verdict", () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_VERDICT, RING_LIFE));
 }
 
 // ---- 突き（刺し穿ち・背水の一閃・連環撃） ----
@@ -330,12 +351,17 @@ function castExploit(state: GameState, ctx: CastCtx): void {
   const end = thrustEnd(state, ctx.origin, ctx.dir, x.length, ctx.params);
   const power = skillPower(state, x.damage, ctx.params);
   const shadow = ctx.params.combo === "shadowExploit";
-  spawnLine(state, ctx.origin, end, COLOR_THRUST, LINE_LIFE);
+  const angle = Math.atan2(ctx.dir.y, ctx.dir.x);
+  const element = castElement(ctx.params);
+  withSkillFx(state, "exploit", () => spawnLine(state, ctx.origin, end, COLOR_THRUST, LINE_LIFE));
+  addSkillFx(state, "exploit", "act", ctx.origin, { to: end, angle, size: dist(ctx.origin, end), element });
   pushSfx(state, "slash2");
   for (const e of enemiesOnSegment(state, ctx.origin, end, x.halfWidth)) {
     const vulnerable = hasStatus(e.status, "vulnerable");
     if (vulnerable) removeStatus(state, { kind: "enemy", enemy: e }, "vulnerable");
     const sure = vulnerable || shadow;
+    // 必ず会心になった敵に十字の光
+    if (sure) addSkillFx(state, "exploit", "end", e.body.pos, { angle, element });
     skillHit(state, e, ctx.params, {
       base: power,
       kind: "melee",
@@ -361,7 +387,8 @@ function castLastStand(state: GameState, ctx: CastCtx): void {
   const l = SKILL.lastStand;
   const end = thrustEnd(state, ctx.origin, ctx.dir, l.length, ctx.params);
   const power = skillPower(state, l.damage, ctx.params) * lastStandMul(state);
-  spawnLine(state, ctx.origin, end, COLOR_GRUDGE, LINE_LIFE * 2);
+  withSkillFx(state, "lastStand", () => spawnLine(state, ctx.origin, end, COLOR_GRUDGE, LINE_LIFE * 2));
+  addSkillFx(state, "lastStand", "act", ctx.origin, { to: end, angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: dist(ctx.origin, end), element: castElement(ctx.params) });
   shake(state, SHAKE_LIGHT);
   pushSfx(state, "slash3");
   for (const e of enemiesOnSegment(state, ctx.origin, end, l.halfWidth)) {
@@ -380,7 +407,8 @@ export function comboChainStages(state: GameState, params: Readonly<CastParams>)
 function thrust(state: GameState, origin: Vec, dir: Vec, params: CastParams): void {
   const c = SKILL.comboChain;
   const end = thrustEnd(state, origin, dir, c.length, params);
-  spawnLine(state, origin, end, COLOR_THRUST, LINE_LIFE);
+  withSkillFx(state, "comboChain", () => spawnLine(state, origin, end, COLOR_THRUST, LINE_LIFE));
+  addSkillFx(state, "comboChain", "act", origin, { to: end, angle: Math.atan2(dir.y, dir.x), element: castElement(params) });
   pushSfx(state, "slash1");
   const hits = enemiesOnSegment(state, origin, end, c.halfWidth);
   if (hits.length === 0) {
@@ -409,7 +437,8 @@ function castGrudge(state: GameState, ctx: CastCtx): void {
   const radius = g.radius * state.stats.meleeReachMul * ctx.params.areaMul;
   const power = skillPower(state, g.damage, ctx.params) + hurt * g.hurtMul * ctx.params.damageMul;
   const poise = Math.min(g.maxPoise, g.poise + hurt * g.poisePerHurt);
-  spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_GRUDGE, RING_LIFE * 2);
+  withSkillFx(state, "grudge", () => spawnRing(state, add(ctx.origin, scale(ctx.dir, radius / 2)), radius / 2, COLOR_GRUDGE, RING_LIFE * 2));
+  addSkillFx(state, "grudge", "cast", ctx.origin, { angle: Math.atan2(ctx.dir.y, ctx.dir.x), size: radius, element: castElement(ctx.params) });
   if (hurt > 0) shake(state, SHAKE_HEAVY);
   pushSfx(state, hurt > 0 ? "hitHeavy" : "slash2");
   for (const e of enemiesInCone(state, ctx.origin, ctx.dir, radius, g.halfAngle)) {
@@ -438,10 +467,12 @@ function castBackflow(state: GameState, ctx: CastCtx): void {
   const lost = entry.hp - p.hp;
   if (lost > 0) healPlayer(state, lost * b.healRatio * ctx.params.potencyMul);
   state.skills.history = [];
-  spawnBurst(state, from, COLOR_REWIND, BURST_PARTICLES, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, "backflow", () => spawnBurst(state, from, COLOR_REWIND, BURST_PARTICLES, BURST_SPEED / 2, BURST_LIFE, BURST_SIZE));
   const power = skillPower(state, b.damage, ctx.params);
   const dir = normalize(sub(p.body.pos, from), p.facing);
-  spawnLine(state, from, p.body.pos, COLOR_REWIND, LINE_LIFE * 2);
+  withSkillFx(state, "backflow", () => spawnLine(state, from, p.body.pos, COLOR_REWIND, LINE_LIFE * 2));
+  // pos = 元いた所（逆回りの時計）、to = 戻った先
+  addSkillFx(state, "backflow", "cast", from, { to: p.body.pos, angle: Math.atan2(dir.y, dir.x), element: castElement(ctx.params) });
   for (const e of enemiesOnSegment(state, from, p.body.pos, b.halfWidth * ctx.params.areaMul)) {
     skillHit(state, e, ctx.params, { base: power, kind: "melee", dir, knockback: b.knockback, stagger: false, from });
   }
@@ -457,7 +488,8 @@ function castScarRoar(state: GameState, ctx: CastCtx): void {
   const kinds = Math.max(1, effects.length);
   const radius = s.radius * ctx.params.areaMul;
   const power = skillPower(state, s.damage, ctx.params) * kinds;
-  spawnRing(state, ctx.origin, radius, COLOR_SCAR, RING_LIFE * 2);
+  withSkillFx(state, "scarRoar", () => spawnRing(state, ctx.origin, radius, COLOR_SCAR, RING_LIFE * 2));
+  addSkillFx(state, "scarRoar", "cast", ctx.origin, { size: radius, element: castElement(ctx.params) });
   shake(state, SHAKE_HEAVY);
   pushSfx(state, "explode");
   if (effects.length > 0) addHeadLabel(state, p.body.pos, `傷返し ${effects.length}`, COLOR_SCAR, TEXT_LIFE);
@@ -496,3 +528,4 @@ function updateComboChain(state: GameState, a: ActiveCast, dt: number): void {
   }
   if (a.timer <= 0 && a.hitsDone >= stages) state.skills.active = null;
 }
+

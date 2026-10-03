@@ -1,7 +1,7 @@
 import type { FrameInput } from "../core/input";
 import { castSfxName } from "../audio/sfxNames";
 import { type Enemy, type GameState, allocId, pushLog, pushSfx } from "../core/state";
-import { type Vec, add, length, normalize, scale, sub } from "../core/vec";
+import { type Vec, add, angle, length, normalize, scale, sub } from "../core/vec";
 import { screenToWorld } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { BLOOD_COLOR } from "../data/signs";
@@ -47,7 +47,7 @@ import {
   wearBudCount,
 } from "../skills/data";
 import { type RuneDropSource, rollRuneDrop, rollRuneModifier } from "../skills/generator";
-import { skillHit, skillPower } from "../skills/hit";
+import { castElement, skillHit, skillPower } from "../skills/hit";
 import { saveSkillProfile, stoneInSlot } from "../skills/persistence";
 import { placeMine, playerInFrost, spawnField, spawnWell, updatePlacedSkills } from "../skills/placed";
 import { updateShots } from "../skills/shots";
@@ -85,7 +85,7 @@ import { applyBoonsToStats, boonGrantedModifiers, boonManaCostMul, hasBoon, onBo
 import { refreshResonance, resonanceStatsDiffer } from "./resonance";
 import { FLOW_TURN_TALLY } from "./boonDefs/cycle";
 import { COLOR_JUST, cancelAttack, gainEnergy, healSustained, registerComboHit } from "./combat";
-import { addFloatingText, spawnBurst, spawnLine, spawnRing, addHeadLabel } from "./effects";
+import { addFloatingText, addHeadLabel, addSkillFx, spawnBurst, spawnLine, spawnRing, withSkillFx } from "./effects";
 import { KS, canAffordSkill, hasKeystone, payOverclock, paySkillCost } from "./keystones";
 import { dropSkillStone } from "./loot";
 import { circlesOverlap, moveBody, overlapsWall } from "./physics";
@@ -1143,7 +1143,8 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     state.skills.frenzy = { time, mul: 1 + (b.speedMul - 1) * potency };
     state.skills.lifesteal = { time, mul: b.lifesteal * potency };
     addHeadLabel(state, p.body.pos, "血の契約", COLOR_BLOOD, PARRY_TEXT_LIFE);
-    spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2);
+    withSkillFx(state, "bloodPact", () => spawnBurst(state, p.body.pos, COLOR_BLOOD, 16, 90, 0.4, 2));
+    addSkillFx(state, "bloodPact", "cast", p.body.pos, { element: castElement(params) });
   },
   gravityWell: (state, _slot, params, _dir, target) => spawnWell(state, target, params),
   // 投げ込み（型替え）なら足元ではなく照準地点へ
@@ -1155,7 +1156,8 @@ const CAST: Record<BaseSkillKey, CastFn> = {
     state.skills.haste = { time: h.duration * params.durationMul, mul: 1 + h.moveBonus * potency };
     state.skills.exhaustTimer = 0;
     addHeadLabel(state, p.body.pos, HASTE_TEXT, COLOR_HASTE, PARRY_TEXT_LIFE);
-    spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5);
+    withSkillFx(state, "haste", () => spawnBurst(state, p.body.pos, COLOR_HASTE, 12, 90, 0.35, 1.5));
+    addSkillFx(state, "haste", "cast", p.body.pos, { element: castElement(params) });
   },
   chainHook: (state, slot, params, dir) => startActive(state, slot, "chainHook", params, dir, SKILL.chainHook.extendTime * params.timeMul),
   frostField: (state, _slot, params, _dir, target) => spawnField(state, target, params),
@@ -1167,7 +1169,7 @@ function updateHaste(state: GameState): void {
   const p = state.player;
   p.dashChargesLeft = state.stats.dashCharges;
   p.dashCooldown = 0;
-  if (state.tick % AURA_EVERY_TICKS === 0) spawnBurst(state, p.body.pos, COLOR_HASTE, 1, AURA_SPEED, SPARK_LIFE, SPARK_SIZE);
+  if (state.tick % AURA_EVERY_TICKS === 0) withSkillFx(state, "haste", () => spawnBurst(state, p.body.pos, COLOR_HASTE, 1, AURA_SPEED, SPARK_LIFE, SPARK_SIZE));
 }
 
 /** 発動中スキルの中断（ダッシュ・バースト）。払った資源は戻らない */
@@ -1243,7 +1245,9 @@ function sweepHook(state: GameState, anchor: Vec, dir: Vec, params: CastParams, 
 function hookEnemy(state: GameState, anchor: Vec, dir: Vec, e: Enemy, params: CastParams, pullSelf: boolean): void {
   const h = SKILL.chainHook;
   const p = state.player;
-  spawnLine(state, anchor, e.body.pos, COLOR_HOOK, HOOK_LINE_LIFE);
+  withSkillFx(state, "chainHook", () => spawnLine(state, anchor, e.body.pos, COLOR_HOOK, HOOK_LINE_LIFE));
+  // 鎖は刺さった所（引く前の敵の位置）から手元へ張って縮む
+  addSkillFx(state, "chainHook", "end", anchor, { to: e.body.pos, angle: angle(dir), element: castElement(params) });
   const gap = p.body.radius + e.body.radius + h.landGap;
   if (state.boss?.enemyId === e.id) {
     if (pullSelf) {
@@ -1269,7 +1273,11 @@ function updateHook(state: GameState, a: ActiveCast, dt: number): void {
   a.hitsDone = sw.pulled;
   a.reach = next;
   if (!stopped && a.timer > 0) return;
-  if (a.hitsDone === 0) spawnLine(state, p.body.pos, add(p.body.pos, scale(a.dir, a.reach)), COLOR_HOOK, HOOK_LINE_LIFE);
+  if (a.hitsDone === 0) {
+    const tip = add(p.body.pos, scale(a.dir, a.reach));
+    withSkillFx(state, "chainHook", () => spawnLine(state, p.body.pos, tip, COLOR_HOOK, HOOK_LINE_LIFE));
+    addSkillFx(state, "chainHook", "end", p.body.pos, { to: tip, angle: angle(a.dir), element: castElement(a.params) });
+  }
   pushSfx(state, a.hitsDone > 0 ? "hitHeavy" : "wallHit");
   toRecover(a, SKILL.chainHook.recover);
 }
@@ -1329,12 +1337,13 @@ function parrySuccess(state: GameState, a: ActiveCast): void {
   gainEnergy(state, ENERGY.just);
   registerComboHit(state);
   addHeadLabel(state, p.body.pos, "パリィ！", COLOR_JUST, PARRY_TEXT_LIFE);
-  spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2);
+  withSkillFx(state, "parry", () => spawnBurst(state, p.body.pos, COLOR_JUST, 14, 120, 0.4, 2));
   state.flash = Math.max(state.flash, 0.2);
   pushSfx(state, "parry");
 
   const radius = SKILL.parry.radius * a.params.areaMul;
-  spawnRing(state, p.body.pos, radius, COLOR_JUST, RING_LIFE * 2);
+  withSkillFx(state, "parry", () => spawnRing(state, p.body.pos, radius, COLOR_JUST, RING_LIFE * 2));
+  addSkillFx(state, "parry", "act", p.body.pos, { angle: angle(a.dir), size: radius, element: castElement(a.params) });
   for (const e of enemiesInRadius(state, p.body.pos, radius)) {
     meleeSkillHit(state, e, a.params, skillPower(state, SKILL.parry.damage, a.params), sub(e.body.pos, p.body.pos), SKILL.parry.knockback, true);
   }
@@ -1716,7 +1725,7 @@ function updateFloorStones(state: GameState, dt: number): void {
 /** 血の契約中の赤いオーラ */
 function spawnAura(state: GameState): void {
   if (state.skills.frenzy.time <= 0 || state.tick % AURA_EVERY_TICKS !== 0) return;
-  spawnBurst(state, state.player.body.pos, COLOR_BLOOD, 1, AURA_SPEED, 0.35, 1.5);
+  withSkillFx(state, "bloodPact", () => spawnBurst(state, state.player.body.pos, COLOR_BLOOD, 1, AURA_SPEED, 0.35, 1.5));
 }
 
 /**

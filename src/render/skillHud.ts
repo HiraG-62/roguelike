@@ -138,9 +138,23 @@ const SECONDS_DIGITS = 1;
 const COLOR_FORM_WAIT = "#a080a0";
 
 
+/** スキルの専用の絵（render/fxSkill.ts）が読めているか。読めていればそのスキルの手続きの描画を省く */
+export type SkillSpriteReady = (key: string) => boolean;
+
+const NO_SPRITES: SkillSpriteReady = () => false;
+
+/** 今の描画で専用の絵が読めているスキル（drawSkillGround / drawSkillAir の入口で差し替える） */
+let spriteReady: SkillSpriteReady = NO_SPRITES;
+
+/** このスキルの物は専用の絵（render/fxSkill.ts）が描くので、手続きの描画を飛ばす */
+function drawnBySprite(params: { readonly skillKey: string }): boolean {
+  return spriteReady(params.skillKey);
+}
+
 /** 床に置く物（敵より下）。ワールドの座標系（カメラの translate 済み）で呼ぶ */
-export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady = NO_SPRITES): void {
   drawFloorStones(ctx, state);
+  spriteReady = sprite;
   drawRunes(ctx, state);
   drawFields(ctx, state);
   drawSprings(ctx, state);
@@ -156,11 +170,12 @@ export function drawSkillGround(ctx: CanvasRenderingContext2D, state: GameState)
 }
 
 /** 宙の物と変身・発動中の見た目（自分より上）。ワールドの座標系で呼ぶ */
-export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawSkillAir(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady = NO_SPRITES): void {
+  spriteReady = sprite;
   drawThrown(ctx, state);
   drawShots(ctx, state);
   drawShape(ctx, state);
-  drawActive(ctx, state);
+  drawActive(ctx, state, sprite);
   resetDrawState(ctx);
 }
 
@@ -276,6 +291,7 @@ function drawZone(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 /** 氷結地帯: 水色の円（自分も中では遅くなるので範囲をはっきり見せる） */
 function drawFields(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const f of state.skills.fields) {
+    if (drawnBySprite(f.params)) continue;
     drawZone(ctx, f.pos.x, f.pos.y, fieldRadius(f.params), COLOR_FROST, f.total > 0 ? f.timer / f.total : 0);
   }
 }
@@ -283,6 +299,7 @@ function drawFields(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 引力球: 範囲の円 + 内向きに回る腕 */
 function drawWells(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const w of state.skills.wells) {
+    if (drawnBySprite(w.params)) continue;
     const r = wellRadius(w.params);
     drawZone(ctx, w.pos.x, w.pos.y, r, COLOR_WELL, w.total > 0 ? w.timer / w.total : 0);
     ctx.strokeStyle = COLOR_WELL;
@@ -303,6 +320,7 @@ function drawWells(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 地雷: 本体 + 爆発範囲。起動後は点滅 */
 function drawMines(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const m of state.skills.mines) {
+    if (drawnBySprite(m.params)) continue;
     const x = Math.round(m.pos.x);
     const y = Math.round(m.pos.y);
     const armed = m.arm <= 0;
@@ -358,6 +376,7 @@ function drawThrownBlade(ctx: CanvasRenderingContext2D, e: EchoCast, from: { x: 
 /** スキルの射撃弾（綻び・毒の収穫・技の弾 …） */
 function drawShots(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.shots) {
+    if (drawnBySprite(s.params)) continue;
     // 武器の絵で描く弾は thrownLook が重ねるので、点は描かない（輪の絵の真ん中に点が見えるため）
     if (skillShotLook(s.params.skillKey, state.stats.moveset)) continue;
     ctx.fillStyle = s.color;
@@ -368,6 +387,7 @@ function drawShots(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 爆薬樽: 小さな樽 + 爆発範囲の薄い円 */
 function drawKegs(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const k of state.skills.kegs) {
+    if (drawnBySprite(k.params)) continue;
     const x = Math.round(k.pos.x);
     const y = Math.round(k.pos.y);
     circlePath(ctx, x, y, kegRadius(k.params));
@@ -387,6 +407,7 @@ function drawKegs(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 剣の墓標: 地面に刺さった剣。回転斬りの瞬間は範囲の円を濃く */
 function drawGraves(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const g of state.skills.graves) {
+    if (drawnBySprite(g.params)) continue;
     const x = Math.round(g.pos.x);
     const y = Math.round(g.pos.y);
     circlePath(ctx, x, y, graveRadius(g.params));
@@ -409,6 +430,7 @@ function drawGraves(ctx: CanvasRenderingContext2D, state: GameState): void {
 function drawTurrets(ctx: CanvasRenderingContext2D, state: GameState): void {
   const f = state.player.facing;
   for (const t of state.skills.turrets) {
+    if (drawnBySprite(t.params)) continue;
     const x = Math.round(t.pos.x);
     const y = Math.round(t.pos.y);
     ctx.globalAlpha = ZONE_FADE_MIN + (1 - ZONE_FADE_MIN) * (t.total > 0 ? t.life / t.total : 0);
@@ -426,7 +448,10 @@ function drawTurrets(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 結界杭: 杭と、杭同士を結ぶ線。3 本以上なら内側を薄く塗る（中の敵は脆くなる） */
 function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
   const stakes = state.skills.stakes;
-  if (stakes.length === 0) return;
+  const first = stakes[0];
+  if (!first) return;
+  // 絵があっても、3 本以上の内側の塗り（中の敵が脆くなる範囲）は遊びの情報なので残す。杭と線は絵に任せる
+  const sprite = drawnBySprite(first.params);
   if (stakes.length >= 3) {
     ctx.beginPath();
     stakes.forEach((s, i) => (i === 0 ? ctx.moveTo(s.pos.x, s.pos.y) : ctx.lineTo(s.pos.x, s.pos.y)));
@@ -434,6 +459,10 @@ function drawStakes(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.globalAlpha = STAKE_FILL_ALPHA;
     ctx.fillStyle = COLOR_STAKE;
     ctx.fill();
+  }
+  if (sprite) {
+    ctx.globalAlpha = 1;
+    return;
   }
   ctx.globalAlpha = STAKE_LINE_ALPHA;
   ctx.strokeStyle = COLOR_STAKE;
@@ -483,7 +512,7 @@ function drawTraps(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 変身中: 体に変身の色をかぶせ、輪郭の輪を出す（時間の変身は輪の欠けが残り時間） */
 function drawShape(ctx: CanvasRenderingContext2D, state: GameState): void {
   const shape = state.skills.shape;
-  if (!shape) return;
+  if (!shape || spriteReady(shape.key)) return;
   const p = state.player.body;
   const color = SHAPE_COLOR[shape.key];
   const remain = shapeRemaining(state);
@@ -503,6 +532,7 @@ function drawShape(ctx: CanvasRenderingContext2D, state: GameState): void {
 /** 湧き石: 青い円（この中で近接を当てるとマナが多く戻る） */
 function drawSprings(ctx: CanvasRenderingContext2D, state: GameState): void {
   for (const s of state.skills.springs) {
+    if (drawnBySprite(s.params)) continue;
     drawZone(ctx, s.pos.x, s.pos.y, springRadius(s.params), COLOR_SPRING, s.total > 0 ? s.timer / s.total : 0);
   }
 }
@@ -521,7 +551,7 @@ function drawHookChain(ctx: CanvasRenderingContext2D, x: number, y: number, a: A
   ctx.fillRect(Math.round(tx) - HOOK_HEAD, Math.round(ty) - HOOK_HEAD, HOOK_HEAD * 2, HOOK_HEAD * 2);
 }
 
-function drawActive(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawActive(ctx: CanvasRenderingContext2D, state: GameState, sprite: SkillSpriteReady): void {
   const p = state.player;
   const rs = state.skills;
   const { x, y } = p.body.pos;
@@ -534,7 +564,7 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.globalAlpha = 1;
   }
   // 加速中は回る水色の弧、切れた後の反動（ダッシュ不可）は暗い青の輪
-  if (rs.haste.time > 0) {
+  if (rs.haste.time > 0 && !spriteReady("haste")) {
     const a = state.time * HASTE_SPIN;
     ctx.strokeStyle = COLOR_HASTE;
     ctx.beginPath();
@@ -547,6 +577,8 @@ function drawActive(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
   const a = rs.active;
   if (!a) return;
+  // 発動中の絵があるスキルは絵に任せる
+  if (sprite(a.skillKey)) return;
   drawActiveCast(ctx, state, a);
 }
 

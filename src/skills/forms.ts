@@ -8,13 +8,13 @@ import { type ButtonKey, type MeleeStepDef, type MovesetDef, type MovesetKey, MO
 import { ATTR_KEYS, type AttrRatio, type Scaling } from "../loot/types";
 import { cancelAttack } from "../system/combat";
 import { carryContractPatch } from "../system/contractors";
-import { addFloatingText, shake, spawnBurst, spawnRing, addHeadLabel } from "../system/effects";
+import { addFloatingText, addHeadLabel, addSkillFx, shake, spawnBurst, spawnRing, withSkillFx } from "../system/effects";
 import { canAffordSkill, paySkillCost } from "../system/keystones";
 import { circlesOverlap } from "../system/physics";
 import { applyStatus, enemiesInRadius, hasStatus, removeStatus } from "../system/statusEffects";
 import { endUltimate } from "../system/ultimates";
 import { SKILL } from "./data";
-import { skillPower } from "./hit";
+import { castElement, skillPower } from "./hit";
 import { spawnShot } from "./shots";
 import { FORM_TUNING } from "./tuning2";
 import { SHAPE_TUNING as S } from "./tuning3";
@@ -217,8 +217,11 @@ function startShape(state: GameState, key: Wave3SkillKey, slot: number, params: 
     moveset: buildMoveset(state.stats.moveset, key, params),
   };
   const color = SHAPE_COLOR[key];
-  spawnRing(state, p.body.pos, p.body.radius * 3, color, RING_LIFE);
-  spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, key, () => {
+    spawnRing(state, p.body.pos, p.body.radius * 3, color, RING_LIFE);
+    spawnBurst(state, p.body.pos, color, BURST_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, key, "cast", p.body.pos, { angle: Math.atan2(p.facing.y, p.facing.x), element: castElement(params) });
   addHeadLabel(state, p.body.pos, SKILL_NAME[key], color, TEXT_LIFE);
   pushSfx(state, "formShift");
   if (key === "siegeForm") openFire(state, rs.shape, params);
@@ -292,6 +295,7 @@ export function endShape(state: GameState, cause: ShapeEndCause): void {
   if (shape.key === "pyreForm" && cause === "empty") selfBurn(state);
   // 差し替えた近接の型の段は装備の武器種では引けないので、振りの途中なら止める
   if (shape.moveset && state.player.attack.phase !== "none") cancelAttack(state);
+  addSkillFx(state, shape.key, "end", state.player.body.pos, { element: castElement(shape.params) });
   rs.formRecover = shape.recover;
   addHeadLabel(state, state.player.body.pos, "変身解除", SHAPE_COLOR[shape.key], TEXT_LIFE / 2);
 }
@@ -360,6 +364,21 @@ export function shapeButtonPress(state: GameState, button: ButtonKey): boolean {
   return true;
 }
 
+/** 差し替えた近接の型の振りの絵（acts の細分）。装備の武器種の振りの絵の上に、変身の振りの絵を重ねる */
+const SHAPE_SWING_FX: Readonly<Partial<Record<Wave3SkillKey, string>>> = {
+  wolfForm: "bite",
+  ironForm: "swing",
+};
+
+/** 振りが当たりの区間に入った瞬間（player.ts の updateAttack から）。狼化の噛みつき・鉄塊化の重い振りの絵を積む（演出だけ） */
+export function noteShapeSwing(state: GameState): void {
+  const shape = state.skills.shape;
+  const variant = shape?.moveset ? SHAPE_SWING_FX[shape.key] : undefined;
+  if (!shape || !variant) return;
+  const p = state.player;
+  addSkillFx(state, shape.key, "act", p.body.pos, { angle: Math.atan2(p.attack.dir.y, p.attack.dir.x), element: castElement(shape.params), variant });
+}
+
 /** 近接の命中（player.ts の meleeHitEnemy から）。狼化の噛みつきは出血を付ける */
 export function onShapeMeleeHit(state: GameState, e: Enemy): void {
   const shape = state.skills.shape;
@@ -391,7 +410,8 @@ function howl(state: GameState, shape: ShapeFormState): void {
   for (const e of enemiesInRadius(state, p.body.pos, radius)) {
     applyStatus(state, { kind: "enemy", enemy: e }, { kind: "fear", stacks: 1, duration: w.fearDuration * shape.params.statusDurationMul, potency: 0 }, "player");
   }
-  spawnRing(state, p.body.pos, radius, COLOR_WOLF, RING_LIFE);
+  withSkillFx(state, "wolfForm", () => spawnRing(state, p.body.pos, radius, COLOR_WOLF, RING_LIFE));
+  addSkillFx(state, "wolfForm", "act", p.body.pos, { size: radius, element: castElement(shape.params) });
   pushSfx(state, "wolfHowl");
 }
 
@@ -442,7 +462,8 @@ function fireShell(state: GameState, from: Vec, dir: Vec, params: CastParams): v
   });
   const p = state.player;
   p.knock = add(p.knock, scale(dir, -s.recoil));
-  spawnBurst(state, add(from, scale(dir, p.body.radius)), COLOR_SIEGE, BURST_PARTICLES / 2, BURST_SPEED, BURST_LIFE / 2, BURST_SIZE);
+  withSkillFx(state, "siegeForm", () => spawnBurst(state, add(from, scale(dir, p.body.radius)), COLOR_SIEGE, BURST_PARTICLES / 2, BURST_SPEED, BURST_LIFE / 2, BURST_SIZE));
+  addSkillFx(state, "siegeForm", "act", from, { angle: Math.atan2(dir.y, dir.x), element: castElement(params) });
   shake(state, SHAKE_SHELL);
   pushSfx(state, "siegeCannon");
 }

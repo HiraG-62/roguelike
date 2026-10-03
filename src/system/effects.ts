@@ -1,5 +1,5 @@
 import type { Element } from "../core/element";
-import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type Particle, type Projectile, type ShapeFx, type UltFx, type UltFxPart, pushSfx } from "../core/state";
+import { type DamageKind, type DeathFxKind, type EffectsState, type Enemy, type FloatTextKind, type FxMarkKind, type GameState, type Particle, type Projectile, type ShapeFx, type SkillFxPart, type UltFx, type UltFxPart, pushSfx } from "../core/state";
 import type { ReactionKey, StatusKind } from "../core/status";
 import { type Vec, fromAngle, scale } from "../core/vec";
 import { formatAmount } from "../core/units";
@@ -36,6 +36,7 @@ function createEffectsState(state: GameState): EffectsState {
     deaths: [],
     marks: [],
     ults: [],
+    skills: [],
     lastDropId: -1,
     lastChainTime: -1,
     ghostTimer: 0,
@@ -359,6 +360,51 @@ export function addUltFx(state: GameState, key: string, part: UltFxPart, index: 
   };
   fx.ults.push(ev);
   capList(fx.ults, FX_ATTACK.sprite.maxUltEvents);
+}
+
+const skillShapes = new WeakMap<object, string>();
+
+/** スキルが出した輪・線・粒ならそのスキルの key（スキルの専用スプライトがあるとき、描画側が手続きの描画を省く） */
+export function skillFxOf(obj: ShapeFx | Particle): string | undefined {
+  return skillShapes.get(obj);
+}
+
+/**
+ * スキルの演出（輪・線・粒）を出す処理を囲み、増えた輪・線と粒に印を付ける。命中・撃破の粒まで消さないよう、
+ * 演出を出す呼び出しだけを狭く囲む（奥義の withUltimateFx と違い、行為全体は囲まない）
+ */
+export function withSkillFx<T>(state: GameState, key: string, run: () => T): T {
+  const shapes = new Set<object>(state.shapes);
+  const particles = new Set<object>(state.particles);
+  const out = run();
+  for (const s of state.shapes) if (!shapes.has(s)) skillShapes.set(s, key);
+  for (const p of state.particles) if (!particles.has(p)) skillShapes.set(p, key);
+  return out;
+}
+
+/** スキルの見た目の出来事を積む（寿命と上限は奥義と共通。描く長さは絵ごとの life で決まる） */
+export function addSkillFx(
+  state: GameState,
+  key: string,
+  part: SkillFxPart,
+  pos: Vec,
+  opts: { index?: number; to?: Vec; angle?: number; size?: number; element?: string; variant?: string } = {},
+): void {
+  const fx = fxState(state);
+  fx.skills.push({
+    key,
+    part,
+    index: opts.index ?? 0,
+    pos: { ...pos },
+    to: { ...(opts.to ?? pos) },
+    angle: opts.angle ?? 0,
+    size: opts.size ?? 0,
+    element: opts.element ?? "none",
+    variant: opts.variant ?? "",
+    age: 0,
+    life: FX_ATTACK.sprite.ultEventLife,
+  });
+  capList(fx.skills, FX_ATTACK.sprite.maxUltEvents);
 }
 
 /** 時間で消える演出の印を置く */
@@ -949,6 +995,8 @@ function ageEffects(fx: EffectsState, dt: number): void {
   fx.deaths = fx.deaths.filter((d) => d.age < d.life);
   for (const u of fx.ults) u.age += dt;
   fx.ults = fx.ults.filter((u) => u.age < u.life);
+  for (const e of fx.skills) e.age += dt;
+  fx.skills = fx.skills.filter((e) => e.age < e.life);
 }
 
 export function updateEffects(state: GameState, dt: number): void {
@@ -989,6 +1037,7 @@ export function resetFloorEffects(state: GameState): void {
   fx.deaths = [];
   fx.marks = [];
   fx.ults = [];
+  fx.skills = [];
   fx.dots = [];
 }
 

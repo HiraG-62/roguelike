@@ -1,12 +1,12 @@
 import { type GameState, allocId, pushSfx } from "../core/state";
 import { type Vec, add, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { applyChill, enemiesInRadius } from "../system/statusEffects";
-import { shake, spawnBlast, spawnBurst, spawnLine, spawnRing } from "../system/effects";
+import { addSkillFx, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withSkillFx } from "../system/effects";
 import { circlesOverlap, moveBody } from "../system/physics";
 import { blastMulAt } from "../system/blast";
 import { BOON_LINEAGE } from "../data/tuning";
 import { SKILL, SKILL_DEFS } from "./data";
-import { skillHit, skillPower } from "./hit";
+import { castElement, skillHit, skillPower } from "./hit";
 import { terrainAt } from "../system/terrain";
 import type { CastParams } from "./types";
 import { distToSegment } from "./geom";
@@ -75,7 +75,8 @@ export function playerInFrost(state: GameState): boolean {
 export function spawnWell(state: GameState, target: Vec, params: CastParams): void {
   const total = SKILL.gravityWell.duration * params.durationMul;
   state.skills.wells.push({ pos: { ...target }, timer: total, total, tick: 0, params });
-  spawnRing(state, target, wellRadius(params), COLOR_WELL, RING_LIFE);
+  withSkillFx(state, params.skillKey, () => spawnRing(state, target, wellRadius(params), COLOR_WELL, RING_LIFE));
+  addSkillFx(state, params.skillKey, "cast", target, { size: wellRadius(params), element: castElement(params) });
 }
 
 /** 地雷: 上限を超えたら古いものから不発で消える。照準起点（型替え）は照準地点へ投げ込み、着いた瞬間に爆発する */
@@ -87,6 +88,7 @@ export function placeMine(state: GameState, pos: Vec, params: CastParams): void 
   const rs = state.skills;
   // 起動の遅れは速度（timeMul）、残る時間は持続（durationMul）で変わる
   rs.mines.push({ id: allocId(state), pos: { ...pos }, arm: SKILL.mines.arm * params.timeMul, life: SKILL.mines.life * params.durationMul, params });
+  addSkillFx(state, params.skillKey, "cast", pos, { element: castElement(params) });
   const limit = maxMines(params);
   while (rs.mines.length > limit) {
     const old = rs.mines.shift();
@@ -97,7 +99,8 @@ export function placeMine(state: GameState, pos: Vec, params: CastParams): void 
 export function spawnField(state: GameState, target: Vec, params: CastParams): void {
   const total = SKILL.frostField.duration * params.durationMul;
   state.skills.fields.push({ pos: { ...target }, timer: total, total, tick: 0, params });
-  spawnRing(state, target, fieldRadius(params), COLOR_FROST, RING_LIFE);
+  withSkillFx(state, "frostField", () => spawnRing(state, target, fieldRadius(params), COLOR_FROST, RING_LIFE));
+  addSkillFx(state, "frostField", "cast", target, { size: fieldRadius(params), element: castElement(params) });
   pushSfx(state, "freeze");
 }
 
@@ -181,7 +184,7 @@ function updateWells(state: GameState, dt: number): void {
     w.tick -= dt;
     const radius = wellRadius(w.params);
     pullInto(state, w.pos, radius, g.pull * w.params.potencyMul * dt);
-    if (state.tick % WELL_PARTICLE_EVERY === 0) wellParticle(state, w.pos, radius);
+    if (state.tick % WELL_PARTICLE_EVERY === 0) withSkillFx(state, w.params.skillKey, () => wellParticle(state, w.pos, radius));
     if (w.tick <= 0) {
       w.tick = g.tickEvery;
       const power = skillPower(state, g.tickDamage, w.params);
@@ -223,8 +226,11 @@ function wellParticle(state: GameState, center: Vec, radius: number): void {
 
 function collapseWell(state: GameState, pos: Vec, radius: number, params: CastParams): void {
   const g = SKILL.gravityWell;
-  spawnRing(state, pos, radius, COLOR_WELL, RING_LIFE * 2);
-  spawnBurst(state, pos, COLOR_WELL, COLLAPSE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, params.skillKey, () => {
+    spawnRing(state, pos, radius, COLOR_WELL, RING_LIFE * 2);
+    spawnBurst(state, pos, COLOR_WELL, COLLAPSE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, params.skillKey, "end", pos, { size: radius, element: castElement(params) });
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
   const power = skillPower(state, g.burstDamage, params);
@@ -257,8 +263,11 @@ function updateMines(state: GameState, dt: number): void {
 function explodeMine(state: GameState, pos: Vec, params: CastParams): void {
   const m = SKILL.mines;
   const radius = mineRadius(params);
-  spawnBlast(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
-  spawnBurst(state, pos, COLOR_MINE, MINE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  withSkillFx(state, params.skillKey, () => {
+    spawnBlast(state, pos, radius, COLOR_MINE, RING_LIFE * 2);
+    spawnBurst(state, pos, COLOR_MINE, MINE_PARTICLES, BURST_SPEED, BURST_LIFE, BURST_SIZE);
+  });
+  addSkillFx(state, params.skillKey, "end", pos, { size: radius, element: castElement(params) });
   shake(state, SHAKE_PLACED);
   pushSfx(state, "explode");
   const power = skillPower(state, m.damage, params);
@@ -276,7 +285,7 @@ function updateFields(state: GameState, dt: number): void {
     field.timer -= dt;
     field.tick -= dt;
     const radius = fieldRadius(field.params);
-    if (state.tick % FIELD_PARTICLE_EVERY === 0) wellParticle(state, field.pos, radius * state.rng.next());
+    if (state.tick % FIELD_PARTICLE_EVERY === 0) withSkillFx(state, "frostField", () => wellParticle(state, field.pos, radius * state.rng.next()));
     if (field.tick > 0) continue;
     field.tick = f.tickEvery;
     const slow = Math.min(f.maxSlow, f.slow * field.params.potencyMul);
@@ -286,6 +295,9 @@ function updateFields(state: GameState, dt: number): void {
       applyChill(state, e, slow, f.chillTime);
       skillHit(state, e, field.params, { base: power, kind: "ranged", dir: sub(e.body.pos, field.pos), knockback: 0, stagger: false });
     }
+  }
+  for (const field of rs.fields) {
+    if (field.timer <= 0) addSkillFx(state, "frostField", "end", field.pos, { size: fieldRadius(field.params), element: castElement(field.params) });
   }
   rs.fields = rs.fields.filter((field) => field.timer > 0);
 }
@@ -310,6 +322,7 @@ function updateMires(state: GameState, dt: number): void {
     const power = skillPower(state, m.tickDamage, z.params);
     for (const e of enemiesInRadius(state, z.pos, m.radius * z.params.areaMul)) {
       if (terrainAt(state, e.body.pos.x, e.body.pos.y) !== "mud") continue;
+      addSkillFx(state, "mire", "act", e.body.pos, { element: castElement(z.params) });
       skillHit(state, e, z.params, { base: power, kind: "ranged", dir: { x: 0, y: 0 }, knockback: 0, stagger: false, poise: m.tickPoise, applies: null, from: z.pos });
     }
   }

@@ -4,8 +4,12 @@ import { describe, expect, it } from "vitest";
 import { FX_ATLASES, FX_MOVESET_RAW, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, haloAlpha, lifeFrame, loopFrame, pickDir, rampColors, rampGlow, rampHalo, snapArt, swingFrame } from "./fxSprites";
-import { BULLET_FX, MOVESET_FX, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, swingMotionKeys } from "./fxMotions";
+import { ART_FX_KEY, BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
+import { LEGACY_SKILL_KEYS, SKILL_KEYS } from "../skills/types";
+import { COMMON_ART_KEYS } from "../skills/arts/keys";
+import { ART_ACT_KINDS } from "../skills/arts/types";
 import { ultPiece } from "./fxUltimate";
+import { actPieceOf } from "./fxSkill";
 import { BULLETS } from "../loot/bullets";
 import { BASES, baseFamily } from "../loot/bases";
 import { movesetCasts } from "../data/weapons";
@@ -268,8 +272,8 @@ describe("fxMotions: 弾の絵の表", () => {
     for (const raw of FX_MOVESET_RAW) {
       const bullets = raw && "bullets" in raw ? (raw.bullets as Record<string, unknown>) : {};
       for (const key of Object.keys(bullets)) {
-        expect(BULLETS[key], `${raw?.moveset} の弾 ${key}`).toBeDefined();
-        expect(BULLET_FX.get(key), `${raw?.moveset} の弾 ${key} の行`).toBeDefined();
+        expect(BULLETS[key], `${raw && "moveset" in raw ? raw.moveset : "?"} の弾 ${key}`).toBeDefined();
+        expect(BULLET_FX.get(key), `${raw && "moveset" in raw ? raw.moveset : "?"} の弾 ${key} の行`).toBeDefined();
       }
     }
   });
@@ -317,6 +321,76 @@ describe("fxMotions: 奥義の絵の表", () => {
  * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切ったので空
  */
 const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
+
+describe("fxMotions: スキル石の絵の表", () => {
+  const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
+    const all: (FxSheetKey | undefined)[] = [fx.active, fx.placed, fx.fly, fx.aura].flatMap((l) => [l?.sheet, l?.ground]);
+    for (const p of [fx.cast, fx.act, fx.end, ...Object.values(fx.acts ?? {})]) if (p) all.push(p.sheet, p.ground, p.beam?.sheet, p.tip);
+    return all.filter((k): k is FxSheetKey => k !== undefined);
+  };
+
+  it("表のスキルは実在し、絵はスキル石のアトラス（`skill<形>`）に載る", () => {
+    expect(Object.keys(SKILL_FX).length).toBeGreaterThan(0);
+    for (const [key, fx] of Object.entries(SKILL_FX)) {
+      if (key !== ART_FX_KEY) expect(SKILL_KEYS as readonly string[], key).toContain(key);
+      const sheets = sheetsOf(fx);
+      expect(sheets.length, `${key} に絵がある`).toBeGreaterThan(0);
+      for (const sheet of sheets) expect(FX_SHEETS[sheet].atlas, `${key} ${sheet}`).toMatch(/^skill[A-Z]/);
+      expect(skillAtlas(key), key).toMatch(/^skill[A-Z]/);
+    }
+  });
+
+  it("表の行は壊れていない（生成器の表の行がすべて型付きの表に残る）", () => {
+    for (const raw of FX_MOVESET_RAW) {
+      const skills = raw && "skills" in raw ? (raw.skills as Record<string, Record<string, unknown>>) : {};
+      for (const [key, row] of Object.entries(skills)) {
+        const fx = SKILL_FX[key];
+        expect(fx, key).toBeDefined();
+        for (const part of ["cast", "act", "end", "active", "placed", "fly", "aura"] as const) {
+          if (row[part] !== undefined) expect(fx?.[part], `${key} ${part}`).toBeDefined();
+        }
+        for (const variant of Object.keys((row.acts ?? {}) as Record<string, unknown>)) expect(fx?.acts?.[variant], `${key} acts.${variant}`).toBeDefined();
+      }
+    }
+  });
+
+  it("置いてある間・飛んでいる間・纏いの絵は繰り返しの周期を持つ", () => {
+    for (const [key, fx] of Object.entries(SKILL_FX)) {
+      for (const [part, loop] of [["placed", fx.placed], ["fly", fx.fly], ["aura", fx.aura]] as const) if (loop) expect(loop.period, `${key} ${part}`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("fxMotions: 全スキル石の網羅", () => {
+  it("どのスキル石も専用の絵を持つ（手書きと技の両方）", () => {
+    const missing = [...LEGACY_SKILL_KEYS, ...COMMON_ART_KEYS].filter((key) => !SKILL_FX[key]);
+    expect(missing).toEqual([]);
+  });
+
+  it("汎用の技の絵はどの行為の種類も描け、弾の絵を持つ（武器の型で行為の種類が変わっても絵が出る）", () => {
+    const generic = SKILL_FX[ART_FX_KEY];
+    for (const kind of ART_ACT_KINDS) expect(generic?.acts?.[kind], `@art acts.${kind}`).toBeDefined();
+    expect(generic?.fly, "@art fly").toBeDefined();
+  });
+
+  it("技の行為の絵は 技の細分 → 技の種類 → 汎用の細分 → 汎用の種類 の順に引く", () => {
+    const generic = SKILL_FX[ART_FX_KEY];
+    // 旋風斬りは輪だけを持つ: 輪は自分の絵、扇は汎用の絵
+    expect(actPieceOf("commonWhirl", "ring")).toBe(SKILL_FX.commonWhirl?.acts?.ring);
+    expect(actPieceOf("commonWhirl", "arcWide")).toBe(generic?.acts?.arcWide ?? generic?.acts?.arc);
+    // 手書きのスキルは汎用の絵に落ちない
+    expect(actPieceOf("parry", "ring")).toBeUndefined();
+  });
+
+  it("技の表の acts は行為の種類（と細分）の名前だけを持つ", () => {
+    const kinds: readonly string[] = ART_ACT_KINDS;
+    for (const key of [...COMMON_ART_KEYS, ART_FX_KEY]) {
+      for (const variant of Object.keys(SKILL_FX[key]?.acts ?? {})) {
+        expect(kinds, `${key} acts.${variant}`).toContain(/^[a-z]+/.exec(variant)?.[0] ?? variant);
+      }
+    }
+  });
+});
 
 describe("fxMotions: 全武器種・全奥義の網羅", () => {
   it("どの武器種も専用の絵の表を持つ（手続きの描画に戻らない）", () => {

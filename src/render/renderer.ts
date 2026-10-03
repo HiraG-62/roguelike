@@ -1,6 +1,6 @@
 import { kingSlimeLift, kingSlimePose } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import { type BossState, type EliteKind, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, runOver } from "../core/state";
+import { type BossState, type EliteKind, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, type ShapeFx, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
@@ -60,7 +60,8 @@ import { attackCommitted, isStaggered } from "../system/poise";
 import { hasStatus } from "../system/statusEffects";
 import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatusRow, drawPoiseGauge, statusTint } from "./statusUi";
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
-import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor } from "../system/effects";
+import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
+import { equippedSkillKeys } from "../system/runSetup";
 import { EFFECTS, FLOAT_TEXT, FX_ATTACK, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
@@ -103,12 +104,13 @@ import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, projectileLook } from "./thrownLook";
 import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
+import { drawSkillFxAir, drawSkillFxGround, skillSpritesReady } from "./fxSkill";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
-import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, ultimateAtlas } from "./fxMotions";
+import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
 import { drawFieldPickup } from "./coinUi";
@@ -818,7 +820,7 @@ export class Renderer {
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
     // 装備中の武器種のエフェクトのアトラスだけを持つ（持ち替えたら前の武器種の分を捨てて読み直す）
     const moveset = playerMoveset(state).key;
-    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset)]);
+    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset), ...equippedSkillKeys(state).flatMap(skillAtlases)]);
     this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
     this.track(state);
     const cam = state.camera;
@@ -894,7 +896,9 @@ export class Renderer {
     this.drawPickups(state);
     this.drawFloorItems(state);
     this.drawGroundHazards(state);
-    drawSkillGround(ctx, state);
+    const skillSprite = (key: string): boolean => skillSpritesReady(key, this.fxBank);
+    drawSkillGround(ctx, state, skillSprite);
+    drawSkillFxGround(ctx, state, this.fxBank);
     this.drawLinks(state);
     this.drawEliteChains(state);
     drawRunWorld(ctx, state, this.atlas);
@@ -912,7 +916,8 @@ export class Renderer {
     this.drawProjectiles(state);
     this.drawLasers(state);
     this.drawReaper(state);
-    drawSkillAir(ctx, state);
+    drawSkillAir(ctx, state, skillSprite);
+    drawSkillFxAir(ctx, state, this.fxBank);
     drawThrownSkillAir(ctx, state, this.atlas);
     drawSmokeLayer(ctx, state, -ox, -oy);
     this.drawShapes(state);
@@ -1474,6 +1479,7 @@ export class Renderer {
     drawShapeFx(this.ctx, state.shapes, this.fxSprites.glow, (s) => {
       if (skipTrail && s.swingTrail) return true;
       if (skipUlt && isUltimateFx(s)) return true;
+      if (this.skipSkillFx(s)) return true;
       return isBlastShape(s) && drawBlastSprite(this.ctx, state, s, this.fxBank);
     });
   }
@@ -1484,7 +1490,13 @@ export class Renderer {
     drawParryMarks(this.ctx, state, this.fxBank);
     drawUltimateAir(this.ctx, state, this.fxBank);
     const skipUlt = ultimateSpritesReady(chosenUltimate(state).key, this.fxBank);
-    drawParticleFx(this.ctx, this.particlesAtMuzzle(state.particles), state.time, skipUlt ? isUltimateFx : undefined);
+    drawParticleFx(this.ctx, this.particlesAtMuzzle(state.particles), state.time, (pt) => (skipUlt && isUltimateFx(pt)) || this.skipSkillFx(pt));
+  }
+
+  /** スキルが出した輪・線・粒で、そのスキルの絵が読めているもの（絵に任せて手続きの描画を省く） */
+  private skipSkillFx(obj: ShapeFx | Particle): boolean {
+    const key = skillFxOf(obj);
+    return key !== undefined && skillSpritesReady(key, this.fxBank);
   }
 
   /** 自分の銃口の粒を、描いた銃口（胸の高さの銃の先）からの位置へ付け替える。描いた銃口が無ければそのまま */
