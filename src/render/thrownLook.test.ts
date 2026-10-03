@@ -118,6 +118,15 @@ describe("投げた武器の角度と大きさ", () => {
     expect(thrownAngle(axe, 0.5, 0, { x: 10, y: 0 }), "同じ時刻・同じ弾なら同じ角度").toBe(right);
   });
 
+  it("弧で行って戻る輪（戦輪）は進む向きが左右に入れ替わっても同じ向きに回り続ける", () => {
+    const ring = BULLET_LOOK.ringBlades;
+    if (!ring) throw new Error("表に無い");
+    const out = thrownAngle(ring, 0.5, 3, { x: 10, y: 0 });
+    const back = thrownAngle(ring, 0.5, 3, { x: -10, y: 4 });
+    expect(back, "折り返しで逆回しにならない").toBe(out);
+    expect(thrownAngle(ring, 0.6, 3, { x: -10, y: 4 }), "時間とともに回る").toBeGreaterThan(back);
+  });
+
   it("小さい弾は等倍、大きい弾は半径に合わせて拡大する", () => {
     expect(thrownScale(3)).toBe(1);
     expect(thrownScale(12)).toBeGreaterThan(2);

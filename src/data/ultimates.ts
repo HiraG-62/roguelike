@@ -907,14 +907,26 @@ function orbitVolley(r: Raw, profile: AttackProfile, bullet: string = PLAIN_BULL
   return { kind: "volley", throw: { ...t, bullet: { ...t.bullet, orbit: orbitOf(r), look: RING_LOOK } } };
 }
 
-/** 戦輪の奥義の輪（近投げの弾。行って戻る）。段 5-B で弧と 2 枚の飛び方に差し替わる */
-const RING_TOSS_BULLET = "cast.ringToss";
+/** 戦輪の奥義の輪の弾の型（器の輪刃の弧の弾。どの器を持っていても同じ輪を投げる） */
+const RING_BULLET = "ringBlades";
+
+/**
+ * 戦輪の奥義の輪: 輪刃の弧の弾を借り、数と大きさを差し替える。奥義は 1 枚ずつ（2 枚投げの pair は外す）、
+ * 飛ぶ距離は arcRange（省略は照準の距離）の固定で、どの向きへも同じだけ飛んで弧で戻る
+ */
+function ringVolley(r: Raw, profile: AttackProfile): UltimateAct {
+  const t = throwOf(r, profile, RING_BULLET);
+  const { pair: _pair, ...single } = t.bullet;
+  const range = optNum(r, "arcRange");
+  const arc = single.arc !== undefined && range !== undefined ? { ...single.arc, range } : single.arc;
+  return { kind: "volley", throw: { ...t, bullet: { ...single, ...(arc ? { arc } : {}) } } };
+}
 
 function ringBladesSet(): UltimateSet {
   const m = "ringBlades";
   return [
-    instantDef(m, "headsman", "断頭輪", "巨大な輪を 1 本ゆっくり投げる。すべて貫き、戻りでも当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, RING_TOSS_BULLET)]),
-    instantDef(m, "ringDance", "輪舞", "全周へ輪を 4 本投げる。行って戻り、行きと帰りで当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, RING_TOSS_BULLET)]),
+    instantDef(m, "headsman", "断頭輪", "巨大な輪を 1 本ゆっくり投げる。すべて貫き、戻りでも当たる", RANGED, (n) => [ringVolley(sub(n, "volley"), RANGED)]),
+    instantDef(m, "ringDance", "輪舞", "全周へ輪を 4 本投げる。行って戻り、行きと帰りで当たる", RANGED, (n) => [ringVolley(sub(n, "volley"), RANGED)]),
     sustainDef(m, "ringWaltz", "輪の舞", "持続。振りが速く広くなって 1 回多く当たり、会心しやすい", (n) => ({
       ...sustainCore(n),
       patch: patchOf(n, { trail: "#c0f0ff" }),

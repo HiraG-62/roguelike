@@ -228,25 +228,28 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
     expect(state.player.shootCooldown, "次の 3 発までは待つ").toBeGreaterThan(0);
   });
 
-  it("回転刃（戦輪の輪刃）は寿命の半ばで折り返して手元へ戻り、行きと帰りで同じ敵に当たる", () => {
-    const state = arena(5, { bullet: "ringBlades", moveset: "ringBlades" });
-    const e = tough(placeEnemy(state, "boar", 40));
-    const blade = fireOnce(state)[0];
-    if (!blade) throw new Error("弾が出ていない");
-    let farthest = 0;
-    let hitsOut = 0;
-    for (let i = 0; i < 240 && blade.life > 0; i++) {
-      step(state, withInput({}), FIXED_DT);
-      e.body.pos = { x: state.player.body.pos.x + 40, y: state.player.body.pos.y };
-      e.knock = { x: 0, y: 0 };
-      farthest = Math.max(farthest, blade.pos.x - state.player.body.pos.x);
-      if (!blade.shot?.returning) hitsOut = TOUGH_HP - e.hp;
-    }
-    expect(hitsOut, "行きで当たった").toBeGreaterThan(0);
-    expect(TOUGH_HP - e.hp, "帰りでもう一度当たった").toBeGreaterThan(hitsOut);
-    expect(farthest, "遠くまで飛んだ").toBeGreaterThan(40);
-    expect(blade.life, "手元に戻って消えた").toBeLessThanOrEqual(0);
-    expect(state.projectiles.includes(blade), "配列から消えた").toBe(false);
+  it("回転刃は寿命の半ばで折り返して手元へ戻り、行きと帰りで同じ敵に当たる", () => {
+    // 器の戻る輪は弧へ移したので（system/ringBlades.test.ts）、回転刃（斧の投擲の弾が持つ）は合成の弾で確かめる
+    withSyntheticBullet("test.spinBlade", { pierceBonus: 99, boomerang: { returnAt: 0.5, catchRadius: 4 }, lifeMul: 1.4 }, () => {
+      const state = arena(5, { bullet: "test.spinBlade", moveset: "sidearm" });
+      const e = tough(placeEnemy(state, "boar", 40));
+      const blade = fireOnce(state)[0];
+      if (!blade) throw new Error("弾が出ていない");
+      let farthest = 0;
+      let hitsOut = 0;
+      for (let i = 0; i < 240 && blade.life > 0; i++) {
+        step(state, withInput({}), FIXED_DT);
+        e.body.pos = { x: state.player.body.pos.x + 40, y: state.player.body.pos.y };
+        e.knock = { x: 0, y: 0 };
+        farthest = Math.max(farthest, blade.pos.x - state.player.body.pos.x);
+        if (!blade.shot?.returning) hitsOut = TOUGH_HP - e.hp;
+      }
+      expect(hitsOut, "行きで当たった").toBeGreaterThan(0);
+      expect(TOUGH_HP - e.hp, "帰りでもう一度当たった").toBeGreaterThan(hitsOut);
+      expect(farthest, "遠くまで飛んだ").toBeGreaterThan(40);
+      expect(blade.life, "手元に戻って消えた").toBeLessThanOrEqual(0);
+      expect(state.projectiles.includes(blade), "配列から消えた").toBe(false);
+    });
   });
 
   it("曲射は照準の距離で炸裂し、飛行中は敵に当たらない", () => {

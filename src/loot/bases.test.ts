@@ -11,8 +11,8 @@ const EARLY_WEAPON_LEVEL = 3;
 const EARLY_GUN_LEVEL = 4;
 /** itemLevel 3 の武器ドロップに混ざる武器種の下限 */
 const EARLY_MOVESET_VARIETY = 4;
-/** 器が撃たなくなった弾の性質（投擲・旧戦輪の器を消した。段 5-A）。追尾は杖の詠唱、跳弾は技の弾が持つ */
-const NO_BASE_FEATURES: readonly string[] = ["homing", "ricochet"];
+/** 器が撃たなくなった弾の性質（投擲・旧戦輪の器を消した。段 5-A）。追尾は杖の詠唱、跳弾と回転刃は技の弾が持つ（戦輪の器の戻る輪は弧） */
+const NO_BASE_FEATURES: readonly string[] = ["homing", "ricochet", "boomerang"];
 
 function earliest(match: (b: (typeof BASES)[number]) => boolean): number {
   return Math.min(...BASES.filter(match).map((b) => b.minLevel));
@@ -33,10 +33,8 @@ describe("序盤のベース解禁", () => {
   });
 
   it(`弾の性質ごとに minLevel ${EARLY_GUN_LEVEL} 以下の器がある`, () => {
-    // 弧の弾は戦輪の器が撃つ。器への配線は段 6-C（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
-    const pending: ReadonlySet<string> = new Set(["arc"]);
     for (const f of BULLET_FEATURES) {
-      if (NO_BASE_FEATURES.includes(f) || pending.has(f)) continue;
+      if (NO_BASE_FEATURES.includes(f)) continue;
       expect(earliest((b) => BULLETS[b.key] !== undefined && bulletFeatures(bulletDef(b.key)).includes(f)), `${f} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
     }
   });

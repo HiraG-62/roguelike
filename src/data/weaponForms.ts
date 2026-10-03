@@ -370,7 +370,8 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     name: "戦輪",
     desc: "輪を投げて行き帰りで刻み、強化投げで放つ",
     label: "往復",
-    // 骨: 戦意（行きと帰りの両方で当てた敵）は段 5-B。放出は右の強化投げ
+    // 1 回の投げで行きと帰りの両方で当てた敵 1 体につき +1（system/projectiles.ts の投げの組）。満ちると右の強化投げが大輪（貫いて戻る）
+    gain: [{ kind: "roundTrip", amount: FORM.thrower.gain.roundTrip }],
     release: { kind: "laneStep", keys: ["ringHurl"] },
     keywords: kw(["ranged", "bullet"], ["just"]),
     riposte: ["parry", "justDodge"],

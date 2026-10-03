@@ -531,10 +531,10 @@ describe("銃の家系", () => {
     expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
   });
 
-  it("戦輪は左で回転刃を投げ、右の輪払いは横の敵にも近接で当たり、右 2 段目の近投げは戻る輪を投げる", () => {
+  it("戦輪は左で弧の輪を投げ、右の輪払いは横の敵にも近接で当たり、右 2 段目の近投げは戻る輪を投げる", () => {
     const ring = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
     play(ring, [{ attackHeld: true }]);
-    expect(featuresOf(playerShots(ring)[0]), "左は回転刃").toEqual(["boomerang"]);
+    expect(featuresOf(playerShots(ring)[0]), "左は弧で戻る輪").toEqual(["arc"]);
 
     const state = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
     // 160 度の扇なので、向きから 60 度ずれた敵にも届く
@@ -548,7 +548,7 @@ describe("銃の家系", () => {
     for (let i = 0; i < SETTLE_STEPS && playerShots(toss).length === 0; i++) step(toss, withInput({}), FIXED_DT);
     const thrown = playerShots(toss)[0];
     expect(thrown?.shot?.key, "近投げの弾").toBe("cast.ringToss");
-    expect(featuresOf(thrown), "戻る輪").toEqual(["boomerang"]);
+    expect(featuresOf(thrown), "戻る輪").toEqual(["arc"]);
   });
 
   // 二丁拳銃は派生を持たない（左右の手。system/dualPistols.ts）ので、短銃の左左右（三連）で見る

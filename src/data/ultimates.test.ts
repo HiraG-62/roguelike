@@ -178,11 +178,13 @@ describe("投擲物の奥義（docs/ideas/gun-bases-review.md 0-5・2-9）", () 
     return act?.kind === "volley" ? act.throw.bullet : undefined;
   };
 
-  it("戦輪は断頭輪・輪舞・輪の舞の 3 本。断頭輪と輪舞は近投げの戻る輪を投げる", () => {
+  it("戦輪は断頭輪・輪舞・輪の舞の 3 本。断頭輪と輪舞は器の輪の弧の弾を 1 枚ずつ、固定の距離まで投げる", () => {
     expect(ULTIMATES.ringBlades.map((u) => u.key)).toEqual(["ringBlades.headsman", "ringBlades.ringDance", "ringBlades.ringWaltz"]);
     for (const key of ["ringBlades.headsman", "ringBlades.ringDance"]) {
-      expect(volleyBullet(key)?.key, `${key} の弾の型`).toBe("cast.ringToss");
-      expect(volleyBullet(key)?.boomerang, `${key} は戻る`).toBeDefined();
+      expect(volleyBullet(key)?.key, `${key} の弾の型`).toBe("ringBlades");
+      expect(volleyBullet(key)?.arc?.range, `${key} は固定の距離まで飛んで弧で戻る`).toBeGreaterThan(0);
+      expect(volleyBullet(key)?.pair, `${key} は 1 枚ずつ`).toBeUndefined();
+      expect(volleyBullet(key)?.pierceBonus, `${key} はすべて貫く`).toBeGreaterThanOrEqual(99);
     }
     expect(ultimateDef("ringBlades.ringWaltz")?.kind, "輪の舞は持続").toBe("sustain");
   });

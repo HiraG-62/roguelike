@@ -19,6 +19,7 @@ import { type HandIndex, canFireAny, magazineView } from "../system/magazine";
 import { isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
 import { handsView, nextHandAction } from "../system/dualPistols";
 import { moraleGauge } from "../system/morale";
+import { ringsInFlight } from "../system/projectiles";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, firesByHand, isGun, isThrowingWeapon, shootsPrimary } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
@@ -842,6 +843,9 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     return input;
   }
 
+  // 投げた輪が戻るまでは左も右も出ない（戦輪）ので、押さずに戻りを待つ（受け流し・回避・スキルは上で済んでいる）
+  if (ringsInFlight(state)) return input;
+
   // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・右の連撃でマナを貯める
   const moveset = playerMoveset(state);
   // 二丁拳銃は左右を交互に 1 発ずつ押して拍を刻む（押しっぱなしでは撃たない）
@@ -1006,6 +1010,8 @@ function isRangedStep(s: ActionStepDef): boolean {
 /** bot が右段を押す射程。構え・溜めは射程外からは押さない（undefined） */
 function laneRange(s: ActionStepDef): number | undefined {
   if (isRangedStep(s)) return ART_THROW_RANGE;
+  // 振りが弾を投げる段（当たり判定の大きさが 0）は投げの射程。戦輪の近投げ・強化投げは弧の固定の射程の内側で押す
+  if (s.kind === "swing" && s.step.cast !== undefined && s.step.size === 0) return (s.step.cast.throw.bullet.arc?.range ?? ART_THROW_RANGE) + ART_STRIKE_MARGIN;
   if (s.kind === "swing") return s.step.reach + s.step.size / 2 + ART_STRIKE_MARGIN;
   return undefined;
 }

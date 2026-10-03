@@ -586,7 +586,7 @@ export function bulletFeatures(b: Readonly<BulletNumbers>): BulletFeature[] {
   const out: BulletFeature[] = [];
   if (b.sway) out.push("rapid");
   if (b.pellets > 0) out.push("spread");
-  if (b.pierceBonus > 0 && !b.boomerang) out.push("pierce");
+  if (b.pierceBonus > 0 && !b.boomerang && !b.arc) out.push("pierce");
   if (b.homing) out.push("homing");
   if (b.bounce) out.push("ricochet");
   if (b.charge) out.push("charge");
@@ -1643,13 +1643,15 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   ringBlades: defineMoveset({
     key: "ringBlades",
     name: "戦輪",
-    desc: "左で刃の輪を投げ、行って戻る。右の連撃は輪払い・近投げ・輪払い・強化投げで、近接と投げを織り交ぜる。輪が当たった直後の斬りは怯ませやすい",
+    desc: "左で体の上下から輪を 2 枚、弧でカーソルまで投げて交差させ、弧で戻す。戻るまで次を投げられず右も出せない。右の連撃は輪払い・近投げ・輪払い・強化投げ。輪が当たった直後の斬りは怯ませやすい",
     steps: [],
     dashAttack: reviveStep(W.ringBlades.dashAttack),
     attackMoveMul: W.ringBlades.attackMoveMul,
     weight: reviveWeight(W.ringBlades.weight),
     form: "thrower",
     primary: "shot",
+    // 投げた輪が戻るまでは次を投げられず、右の輪払いも出せない（手ぶら。受け流しとダッシュは出せる）
+    waitForReturn: true,
     steps2: reviveLane(W.ringBlades.steps2),
     branches: reviveBranches(W.ringBlades.branches),
     keywords: kw(["ranged", "melee", "combo", "area"], [], ["bullet", "crit"]),

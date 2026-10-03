@@ -579,17 +579,7 @@ function throwShots(state: GameState, n: number): void {
   for (const pr of playerShots(state)) pr.pos.x += 60;
 }
 
-describe("戦意: 投擲物の型（骨。溜まる出来事は段 6 で入る。クナイ・手裏剣は入った: system/kunai.test.ts・system/shuriken.test.ts）", () => {
-  it("戦輪の型は溜まる出来事を持たず、自分の弾が飛んでいても戦意は 0", () => {
-    for (const moveset of ["ringBlades"] as const) {
-      const state = arena(5, { moveset });
-      expect(formOf(MOVESETS[moveset]).morale.gain, `${moveset} の溜まる出来事`).toEqual([]);
-      throwShots(state, 2);
-      run(state, {});
-      expect(state.player.morale.value, `${moveset} の戦意`).toBe(0);
-    }
-  });
-
+describe("戦意: 投擲物の型（クナイ・手裏剣・戦輪の詳しい検査は system/kunai.test.ts・shuriken.test.ts・ringBlades.test.ts）", () => {
   it("クナイの型（苦無）は叩き込みで溜まり、自分の弾が飛んでいるだけでは戦意は 0", () => {
     const state = arena(5, { moveset: "kunai" });
     expect(formOf(MOVESETS.kunai).morale.gain.map((g) => g.kind)).toEqual(["pinDriven"]);
@@ -598,7 +588,7 @@ describe("戦意: 投擲物の型（骨。溜まる出来事は段 6 で入る�
     expect(state.player.morale.value).toBe(0);
   });
 
-  it("戦輪の型（投具）の放出の段は強化投げ", () => {
+  it("戦輪の型の放出の段は強化投げ", () => {
     expect(formOf(MOVESETS.ringBlades).morale.release).toEqual({ kind: "laneStep", keys: ["ringHurl"] });
   });
 });

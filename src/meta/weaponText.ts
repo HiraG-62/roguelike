@@ -37,13 +37,18 @@ const BULLET_FEATURE_TEXT: Readonly<Record<BulletFeature, string>> = {
   arc: "弧を描いて手元へ戻る",
 };
 
+/** 食い込む弾（BulletDef.grind）の説明 */
+const GRIND_TEXT = "当てた敵に食い込んで回る";
+
 /** 何の性質も持たない弾（data/weapons.ts の bulletFeatures が空）の説明 */
 const PLAIN_BULLET_TEXT = "まっすぐ飛ぶ";
 
 /** 1 つの弾の性質の短い説明（武器掛けの器のカード）。性質が無ければ「まっすぐ飛ぶ」 */
 export function bulletFeatureTexts(b: Readonly<BulletDef>): string[] {
-  const features = bulletFeatures(b);
-  return features.length > 0 ? features.map((f) => BULLET_FEATURE_TEXT[f]) : [PLAIN_BULLET_TEXT];
+  const texts = bulletFeatures(b).map((f) => BULLET_FEATURE_TEXT[f]);
+  // 食い込み（牙輪）は性質の一覧に入らないが、飛び方が大きく違うので器のカードに添える
+  if (b.grind) texts.push(GRIND_TEXT);
+  return texts.length > 0 ? texts : [PLAIN_BULLET_TEXT];
 }
 
 /** 武器の重さの表記（docs/GLOSSARY.md「武器の重さ（軽 / 中 / 重）」） */

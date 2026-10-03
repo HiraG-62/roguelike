@@ -4,6 +4,7 @@ import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/st
 import { ULTIMATES } from "../data/ultimates";
 import { PICKUP } from "../data/tuning";
 import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
+import { ringsInFlight } from "../system/projectiles";
 import { resolveSlot } from "../system/skills";
 import { MOVESETS } from "../data/weapons";
 import type { BoonGrade } from "../system/boonGrade";
@@ -196,6 +197,38 @@ describe("bot の銃の寄り（弾の命中で気力が戻らない。gun-bases
       if (a.phase !== "none" && a.lane === "secondary") right = true;
     }
     expect(right, "右の段を振った").toBe(true);
+  });
+});
+
+describe("bot の戦輪（投げた輪が戻るまで待つ）", () => {
+  function ringFacing(): GameState {
+    const state = facingEnemy(60);
+    state.stats = { ...state.stats, moveset: "ringBlades", bullet: "ringBlades" };
+    return state;
+  }
+
+  it("輪が飛んでいる間は左も右も押さず、戻ったら連撃を出す", () => {
+    const state = ringFacing();
+    const bot = createBotState(6);
+    let thrown = false;
+    let waited = 0;
+    let swung = false;
+    const FRAMES = 60 * 8;
+    for (let i = 0; i < FRAMES && !swung; i++) {
+      const flying = ringsInFlight(state);
+      const input = botInput(state, bot, DT);
+      if (flying && state.player.attack.phase === "none") {
+        thrown = true;
+        waited += 1;
+        // 受け流し・回避の入力を除いて、攻撃の入力は出さない
+        if (!input.dashPressed && !input.parryPressed) expect(input.attackHeld || input.shootHeld, `${i} フレーム目: 戻るまで押さない`).toBe(false);
+      }
+      step(state, input, DT);
+      if (thrown && !ringsInFlight(state) && state.player.attack.phase !== "none") swung = true;
+    }
+    expect(thrown, "輪を投げた").toBe(true);
+    expect(waited, "戻りを待った").toBeGreaterThan(0);
+    expect(swung, "戻ってから振った").toBe(true);
   });
 });
 

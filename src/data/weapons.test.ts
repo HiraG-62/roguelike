@@ -422,10 +422,10 @@ describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）",
     expect(weight?.pull, "分銅は引き寄せる").toBe(true);
   });
 
-  it("弾: 三点は 3 発、回転刃は折り返す、曲射は炸裂の半径を持つ", () => {
+  it("弾: 三点は 3 発、戦輪の輪は弧で飛んで上下 2 枚、曲射は炸裂の半径を持つ", () => {
     expect(bulletDef("burstRifle").burst?.count).toBe(3);
-    expect(bulletDef("ringBlades").boomerang?.returnAt ?? 0).toBeGreaterThan(0);
-    expect(bulletDef("ringBlades").boomerang?.returnAt ?? 1).toBeLessThan(1);
+    expect(bulletDef("ringBlades").arc?.catchRadius ?? 0, "手元で収まる距離").toBeGreaterThan(0);
+    expect(bulletDef("ringBlades").pair?.offset ?? 0, "体の上下から 2 枚").toBeGreaterThan(0);
     expect(bulletDef("mortar").lob?.blastRadius ?? 0).toBeGreaterThan(0);
   });
 });
@@ -667,11 +667,26 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     for (const key of ["ringToss", "ringHurl"]) {
       const s = ring.steps2.find((x) => x.key === key);
       const cast = s?.kind === "swing" ? s.step.cast : undefined;
-      expect(cast?.throw.bullet.boomerang, `${key} は戻る弾を撃つ`).toBeDefined();
+      expect(cast?.throw.bullet.arc?.range ?? 0, `${key} は短い固定の射程の弧で戻る弾を撃つ`).toBeGreaterThan(0);
     }
+    const arcRange = (key: string): number => {
+      const s = ring.steps2.find((x) => x.key === key);
+      return (s?.kind === "swing" ? s.step.cast?.throw.bullet.arc?.range : undefined) ?? 0;
+    };
+    expect(arcRange("ringHurl"), "強化投げは近投げより遠くへ").toBeGreaterThan(arcRange("ringToss"));
+    const pairOf = (key: string): boolean => {
+      const s = ring.steps2.find((x) => x.key === key);
+      return s?.kind === "swing" && s.step.cast?.throw.bullet.pair !== undefined;
+    };
+    expect(pairOf("ringToss"), "近投げは 1 枚").toBe(false);
+    expect(pairOf("ringHurl"), "強化投げは 2 枚").toBe(true);
+    expect(ring.waitForReturn, "戻るまで次を投げられない").toBe(true);
     expect(ring.branches.map((b) => b.key).sort()).toEqual(["doubleSever", "moonCut", "ringDash", "stackedRings"]);
     expect(ring.branches.find((b) => b.key === "stackedRings")?.shots?.from, "重ね輪は器の輪を投げる").toBeUndefined();
-    for (const b of BASES.filter((x) => x.moveset === "ringBlades")) expect(bulletDef(b.key).boomerang, `${b.key} の弾は戻る`).toBeDefined();
+    for (const b of BASES.filter((x) => x.moveset === "ringBlades")) expect(bulletDef(b.key).arc, `${b.key} の弾は弧で戻る`).toBeDefined();
+    expect(bulletDef("fangRings").grind, "牙輪は食い込む").toBeDefined();
+    expect(bulletDef("ringBlades").grind, "輪刃は食い込まない").toBeUndefined();
+    expect(bulletDef("fangRings").lifeMul, "牙輪の射程は輪刃より短い").toBeLessThan(bulletDef("ringBlades").lifeMul);
   });
 
   it("クナイ・手裏剣は投擲物の群。クナイは左で器の弾を投げ、手裏剣は左右とも振りが弾を投げる", () => {

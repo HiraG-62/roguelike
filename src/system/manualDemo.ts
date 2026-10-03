@@ -16,6 +16,7 @@ import { borrowWeapon } from "./hub";
 import { type HandIndex, isMagazineBusy, magazineView, startReload } from "./magazine";
 import { currentForm, moraleMax } from "./morale";
 import { isDashing, latchFrozenInput, playerMoveset } from "./player";
+import { ringsInFlight } from "./projectiles";
 import { createSandboxState, simulateSandbox } from "./sandbox";
 import { DUMMY_KEY } from "./specialRooms";
 
@@ -368,6 +369,8 @@ export function readyForPress(state: GameState, prev: DemoCue | undefined, butto
   if (state.hitstop > 0) return false;
   if (isDashing(p)) return prev?.kind === "dash";
   if (a.charging || a.buffered) return false;
+  // 投げた輪が戻るまでは何を押しても出ない（戦輪）ので、戻ってから押す
+  if (ringsInFlight(state)) return false;
   if (a.pendingBranch >= 0 && a.phase !== "none") return false;
   if (p.art.cooldown > 0 || p.art.recover > 0 || p.parry.recover > 0) return false;
   // 左で撃つ武器種の左（射撃）は振りの最中に押しても派生の列に入らないので、振り終えてから押す

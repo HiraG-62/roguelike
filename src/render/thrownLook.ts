@@ -21,6 +21,8 @@ export interface ThrownLook {
   readonly motion: ThrownMotion;
   /** spin の毎秒の回転（ラジアン） */
   readonly spin: number;
+  /** 回る向きを進む向きで替えない（弧で行って戻る輪。折り返しや縦の弧で左右が入れ替わっても逆回しにならない） */
+  readonly steady?: true;
 }
 
 /** 軽い物（輪・短刀・鉈）の回転 */
@@ -45,7 +47,7 @@ function point(shape: ThrownShape): ThrownLook {
 const KNIFE = point("knife");
 const KNIFE_SPIN = spin("knife");
 const AXE = spin("axe", SPIN_HEAVY);
-const RING_BLADES = spin("ringBlades");
+const RING_BLADES: ThrownLook = { ...spin("ringBlades"), steady: true };
 const KUNAI = point("kunai");
 const SHURIKEN = spin("shuriken");
 const BIG_SHURIKEN = spin("bigShuriken");
@@ -133,12 +135,12 @@ export function skillShotLook(key: string, moveset: MovesetKey): ThrownLook | un
 }
 
 /**
- * 描く角度。spin は時刻で回し（左へ飛ぶものは逆回し）、point は進む向き。
+ * 描く角度。spin は時刻で回し（左へ飛ぶものは逆回し。steady は向きによらず同じ向きに回す）、point は進む向き。
  * 速度 0 の弾（止まった瞬間）は右向き
  */
 export function thrownAngle(look: ThrownLook, time: number, id: number, vel: Vec): number {
   if (look.motion === "point") return vel.x === 0 && vel.y === 0 ? 0 : Math.atan2(vel.y, vel.x);
-  const dir = vel.x < 0 ? -1 : 1;
+  const dir = look.steady === true || vel.x >= 0 ? 1 : -1;
   return dir * (time * look.spin + id * SPIN_PHASE_PER_ID);
 }
 
