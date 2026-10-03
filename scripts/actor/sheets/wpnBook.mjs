@@ -88,5 +88,5 @@ export const ATLAS = {
     // 振りの間だけ使う絵（実行時の renderer.ts が `<武器>.swing` があれば振りの間に替える）
     bookSheet("wpnBook.swing", SWING),
   ],
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 0, restHand: [-3, 9], swayDeg: 2, braced: true } },
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: 0, restHand: [-3, 9], swayDeg: 2, braced: true, parry: { hand: [10, 3], deg: -35, off: [11, 4], contact: 9 } } },
 };

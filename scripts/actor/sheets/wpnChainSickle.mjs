@@ -89,5 +89,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnChainSickle",
   sheets: weaponSheets("wpnChainSickle", draw, { size: 64, edge: true }),
-  meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -65, restHand: [7, 7], restMirror: true, swayDeg: 3 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -65, restHand: [7, 7], restMirror: true, swayDeg: 3, parry: { hand: [9, 0], deg: -15, contact: 7 } } },
 };

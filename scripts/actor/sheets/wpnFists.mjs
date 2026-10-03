@@ -41,6 +41,6 @@ export const ATLAS = {
   sheets: weaponSheets("wpnFists", draw, { size: 32 }),
   meta: {
     offGrip: null,
-    stance: { grip: "dual", body: "light", worn: true, punch: true, offFront: true, restDeg: -50, restHand: [6, 3], offHand: [4, 4], offDeg: -40, swayDeg: 5 },
+    stance: { grip: "dual", body: "light", worn: true, punch: true, offFront: true, restDeg: -50, restHand: [6, 3], offHand: [4, 4], offDeg: -40, swayDeg: 5, parry: { hand: [8, -2], deg: -80, off: [12, 0], offDeg: -70, contact: 3 } },
   },
 };

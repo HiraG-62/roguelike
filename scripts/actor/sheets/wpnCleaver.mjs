@@ -75,5 +75,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnCleaver",
   sheets: weaponSheets("wpnCleaver", draw, { size: 80, edge: true }),
-  meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 38, restHand: [6, 9], restMirror: true, swayDeg: 2 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 38, restHand: [6, 9], restMirror: true, swayDeg: 2, parry: { hand: [9, 2], deg: -72, mirror: true, contact: 14 } } },
 };

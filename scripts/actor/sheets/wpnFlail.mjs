@@ -86,5 +86,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnFlail",
   sheets: weaponSheets("wpnFlail", draw, { size: 96 }),
-  meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 35, restHand: [7, 6], swayDeg: 4 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "heavy", restDeg: 35, restHand: [7, 6], swayDeg: 4, parry: { hand: [9, 2], deg: -72, off: [10, 3], contact: 10 } } },
 };

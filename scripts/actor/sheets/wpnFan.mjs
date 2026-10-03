@@ -113,5 +113,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnFan",
   sheets: weaponSheets("wpnFan", draw, { size: 56, edge: true }),
-  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: -40, restHand: [7, 7], restMirror: true, swayDeg: 5 } },
+  meta: { offGrip: null, stance: { grip: "one", body: "light", restDeg: -40, restHand: [7, 7], restMirror: true, swayDeg: 5, parry: { hand: [10, 4], deg: -10, contact: 10 } } },
 };
