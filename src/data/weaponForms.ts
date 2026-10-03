@@ -378,9 +378,11 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
   }),
   dart: defineForm("dart", {
     name: "苦無",
-    desc: "投げて刺し、右の斬りで叩き込む",
+    desc: "投げて刺し、右の斬りで叩き込んで、満ちた左で千本を放つ",
     label: "叩き込み",
-    // 骨: 戦意（叩き込んだクナイの本数）と放出（千本）は段 5-B・6-A
+    // 叩き込んだクナイの本数で溜まり、満ちた後の次の左が千本（扇に 5 本。全部刺さる。system/player.ts の fireVolley）
+    gain: [{ kind: "pinDriven", amount: FORM.dart.gain.pinDriven }],
+    release: { kind: "nextPrimary" },
     keywords: kw(["ranged", "bullet"], ["melee"]),
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
@@ -500,6 +502,9 @@ export function powderLevelOf(units: number): PowderLevel | undefined {
 
 /** 短銃の強装填の弾倉の倍率（FORM.pistol.primed） */
 export const PISTOL_PRIMED: { readonly damageMul: number; readonly poiseMul: number } = { ...FORM.pistol.primed };
+
+/** 苦無の放出「千本」の形（FORM.dart.senbon）: 扇に count 本投げ、1 体に pinMax 本まで刺さる */
+export const KUNAI_SENBON: { readonly count: number; readonly spreadDeg: number; readonly pinMax: number } = { ...FORM.dart.senbon };
 
 /** 武器種（変身・奥義の差し替え後の型でも key と form は装備のまま）の型 */
 export function formOf(moveset: Pick<MovesetDef, "form">): FormDef {

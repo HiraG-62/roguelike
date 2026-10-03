@@ -27,16 +27,16 @@ const EXPECTED_FEATURES: Readonly<Record<string, readonly BulletFeature[]>> = {
   tripleCrossbow: ["burst"],
   mortar: ["lob"],
   grenadeLauncher: ["lob"],
-  kunai: [],
+  kunai: ["pin"],
   ringBlades: ["boomerang"],
   fangRings: ["boomerang"],
 };
 
 /**
  * 撃つ器が 2 つに満たない弾の性質（投擲・旧戦輪の器を消した。段 5-A）。
- * 連射は短機関銃だけ、追尾は杖の詠唱（闇手）、跳弾は技の弾が持つ
+ * 連射は短機関銃だけ、追尾は杖の詠唱（闇手）、跳弾は技の弾が持つ、刺さる弾の器はクナイだけ（手裏剣の刺さる弾は振りの cast が撃つ）
  */
-const FEW_FEATURE_BASES: Readonly<Partial<Record<BulletFeature, number>>> = { rapid: 1, homing: 0, ricochet: 0 };
+const FEW_FEATURE_BASES: Readonly<Partial<Record<BulletFeature, number>>> = { rapid: 1, homing: 0, ricochet: 0, pin: 1 };
 
 describe("武器ごとの弾", () => {
   const gunBases = BASES.filter(baseHasBullet);
@@ -69,8 +69,8 @@ describe("武器ごとの弾", () => {
   });
 
   it("すべての性質に、それを撃つ器が 2 つ以上ある（撤去で減った性質を除く）", () => {
-    // 刺さる・弧の弾は投擲物の器（クナイ・手裏剣・戦輪）が撃つ。器への配線は段 6（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
-    const pending: ReadonlySet<BulletFeature> = new Set<BulletFeature>(["pin", "arc"]);
+    // 弧の弾は戦輪の器が撃つ。器への配線は段 6-C（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
+    const pending: ReadonlySet<BulletFeature> = new Set<BulletFeature>(["arc"]);
     for (const f of BULLET_FEATURES.filter((x) => !pending.has(x))) {
       const bases = gunBases.filter((b) => bulletFeatures(bulletDef(b.key)).includes(f));
       expect(bases.length, `${f} の器`).toBeGreaterThanOrEqual(FEW_FEATURE_BASES[f] ?? 2);

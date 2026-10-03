@@ -5,7 +5,7 @@ import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "
 import { pushPlayerEvent } from "../core/events";
 import { enemyDef } from "../data/enemies";
 import { FEEL, ULTIMATE } from "../data/tuning";
-import type { LungeAct, NovaAct, PackedShotAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
+import type { LungeAct, NovaAct, PackedShotAct, PinNovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
 import { ultimateDef } from "../data/ultimates";
 import {
   type ActionStepDef,
@@ -34,6 +34,8 @@ import { isAllied } from "./rules";
 import { placeTerrain } from "./terrain";
 import { detonateOwnMines } from "./weaponArts";
 import { endShape } from "../skills/forms";
+import { detonatePins, stickPin } from "./pins";
+import { bulletDef } from "../loot/bullets";
 
 /**
  * 奥義（F。docs/ideas/ougi-and-dual-actions.md 3.2）。奥義ゲージが満タンなら、選んだ奥義を出す。
@@ -223,6 +225,11 @@ function runAct(state: GameState, def: UltimateDef, act: UltimateAct, slot: ActS
       addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runPackedShot(state, def, act);
       return 0;
+    case "pinNova":
+      return runPinNova(state, def, act, slot);
+    case "detonatePins":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
+      return runDetonatePins(state, act.damageMul);
   }
 }
 
@@ -491,6 +498,48 @@ function runPackedShot(state: GameState, def: UltimateDef, act: PackedShotAct): 
     steady: true,
   });
   p.knock = sub(p.knock, scale(p.facing, act.selfKnock));
+}
+
+/** 影縫いの陣が刺すクナイの種類（左の投げのクナイの弾の pin。刺さる本数・秒・叩き込みの倍率はそれに揃える） */
+const KUNAI_BULLET = "kunai";
+/** 影縫いの陣の刺さりの線（自分から刺した敵へ） */
+const PIN_LINE_COLOR = "#e8f0ff";
+
+/**
+ * 周りの敵すべてにクナイを pins 本ずつ刺す（影縫いの陣）。半径は burstRadiusMul、当てた敵へ scaling の傷を 1 回与え、
+ * その威力を刺さったときの威力として刺す（後の叩き込み・炸裂がこの威力を元にする）。倒れた敵・従魔には刺さない
+ */
+function runPinNova(state: GameState, def: UltimateDef, act: PinNovaAct, slot: ActSlot): number {
+  const p = state.player;
+  const pin = bulletDef(KUNAI_BULLET).pin;
+  const radius = act.radius * state.stats.burstRadiusMul;
+  addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing), size: radius });
+  spawnRing(state, p.body.pos, radius, ULTIMATE.common.textColor, RING_LIFE);
+  const spec = hitSpec(state, { scaling: act.scaling, poise: act.poise, poiseRatio: act.poiseRatio, knockback: 0 });
+  let kills = 0;
+  for (const e of state.enemies) {
+    if (e.hp <= 0 || e.hidden || !circlesOverlap(p.body.pos.x, p.body.pos.y, radius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    if (strikeEnemy(state, def, e, spec, p.body.pos)) {
+      kills += 1;
+      continue;
+    }
+    if (isAllied(state, e) || pin === undefined) continue;
+    const dir = angle(sub(e.body.pos, p.body.pos));
+    for (let i = 0; i < act.pins; i++) stickPin(state, e, pin, dir, spec.damage);
+    spawnLine(state, p.body.pos, e.body.pos, PIN_LINE_COLOR, LINE_LIFE);
+  }
+  pushSfx(state, "bulletHitHeavy");
+  return kills;
+}
+
+/**
+ * 刺さっているクナイをすべて炸裂させる（爆ぜクナイ）。刺さったときの威力 × damageMul × 奥義の増（increased.ultimate）を
+ * 1 本ごとに入れる。炸裂で倒した数を返す
+ */
+function runDetonatePins(state: GameState, damageMul: number): number {
+  const carrying = state.enemies.filter((e) => e.hp > 0 && (e.pins?.length ?? 0) > 0);
+  detonatePins(state, damageMul * increasedMul(state.stats.increased, "ultimate"));
+  return carrying.filter((e) => e.hp <= 0).length;
 }
 
 /** 引き寄せ: 半径（burstRadiusMul）内の敵を toDistance まで寄せる（壁の手前で止まる）。single なら最も近い 1 体 */
@@ -803,6 +852,11 @@ export function ultimateFireRateMul(state: GameState): number {
   if (!s) return 1;
   const still = s.stillFireRate !== undefined && length(state.player.body.vel) < STILL_SPEED ? s.stillFireRate : 1;
   return (s.mul.fireRate ?? 1) * still;
+}
+
+/** 持続中の叩き込み（クナイの刺さりを叩き込む追撃）の倍率（無ければ 1。player.ts の meleeHitEnemy から） */
+export function ultimatePinDriveMul(state: GameState): number {
+  return activeSustain(state)?.sustain.pinDriveMul ?? 1;
 }
 
 /**

@@ -269,6 +269,8 @@ const ULTIMATE_ACT_LABEL: Readonly<Record<UltimateAct["kind"] | "aura", string>>
   buff: "強化",
   detonate: "起爆",
   packedShot: "詰めの 1 発",
+  pinNova: "刺さり",
+  detonatePins: "炸裂",
   aura: "まとい",
 };
 
@@ -290,9 +292,13 @@ function actSource(act: UltimateAct): UltimateSource | null {
       return { label, scaling: act.step.scaling, poise: act.step.poise, poiseRatio: act.step.poiseRatio };
     case "volley":
       return { label, scaling: act.throw.scaling, poise: act.throw.poise, poiseRatio: act.throw.poiseRatio };
+    case "pinNova":
+      return { label, scaling: act.scaling, poise: act.poise, poiseRatio: act.poiseRatio };
     case "pull":
     case "buff":
     case "detonate":
+    // 炸裂の威力は刺さったときの威力（刺さった弾の命中）で決まるので、行為の係数としては出さない
+    case "detonatePins":
     // 詰めの 1 発の威力は装備の砲の弾（器）で決まるので、行為の係数としては出さない
     case "packedShot":
       return null;

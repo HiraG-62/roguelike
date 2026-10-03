@@ -375,7 +375,10 @@ function ultimateMoves(key: MovesetKey): ManualMove[] {
     const desc = u.kind === "sustain" ? `${withPeriod(u.desc)}持続の間は通常の攻撃が変わり、もう一度奥義キーで終える。` : withPeriod(u.desc);
     // 左で撃つ武器種の奥義にも至近の行為（零距離乱射・輪舞）があるので、木人は既定の距離に立てる
     const setup = shootsPrimary(m) ? { ultimate: u.key, foeDistance: MANUAL.foeDistance } : { ultimate: u.key };
-    return { key: `ult.${u.key}`, group: "ultimate", name: u.name, traits: u.desc.startsWith(ULTIMATE_KIND_LABEL[u.kind]) ? [] : [ULTIMATE_KIND_LABEL[u.kind]], desc, script: { setup, cues }, expect: "hit" };
+    // 刺さりを炸裂させる奥義（爆ぜクナイ）は、先に投げて木人に刺しておく
+    const prelude = u.kind === "instant" && u.acts.some((a) => a.kind === "detonatePins") ? shotsPrelude(m) : [];
+    const script: DemoScript = prelude.length > 0 ? { setup, prelude, cues } : { setup, cues };
+    return { key: `ult.${u.key}`, group: "ultimate", name: u.name, traits: u.desc.startsWith(ULTIMATE_KIND_LABEL[u.kind]) ? [] : [ULTIMATE_KIND_LABEL[u.kind]], desc, script, expect: "hit" };
   });
 }
 

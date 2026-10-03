@@ -79,9 +79,9 @@ describe("武器の型", () => {
     }
   });
 
-  it("満ちた後の左が放出の型のうち左で撃つ武器種は長銃だけ（射撃の放出は fireVolley が扱う）", () => {
+  it("満ちた後の左が放出の型のうち左で撃つ武器種は長銃と苦無だけ（射撃の放出は fireVolley が扱う。苦無は千本）", () => {
     const gunPrimary = FORM_KEYS.filter((f) => FORMS[f].morale.release.kind === "nextPrimary" && movesetsOfForm(f).some((k) => shootsPrimary(MOVESETS[k])));
-    expect(gunPrimary).toEqual(["rifle"]);
+    expect(gunPrimary).toEqual(["dart", "rifle"]);
   });
 
   it("戦意が動く型（5a の剣・連刃・重打・長銃、銃の短銃・仕掛け・装薬・擲弾、他のレーンが増やす型）は全て上限と放出の最低を持つ", () => {

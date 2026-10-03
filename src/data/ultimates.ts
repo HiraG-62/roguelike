@@ -100,7 +100,9 @@ export type UltimateAct =
   | BuffAct
   /** 床の自分の設置弾を全部起爆（damageMul は起爆する弾の威力の倍率。省略は等倍） */
   | { readonly kind: "detonate"; readonly damageMul?: number }
-  | PackedShotAct;
+  | PackedShotAct
+  | PinNovaAct
+  | DetonatePinsAct;
 
 /**
  * 弾倉の残りを全部詰めた 1 発（砲の全弾発射）。装備の弾に粒を足して威力を掛け、撃って弾倉を 0 にし、反動で下がる。
@@ -112,6 +114,25 @@ export interface PackedShotAct {
   readonly damageMul: number;
   /** 撃った向きと逆へ下がる強さ（px/秒） */
   readonly selfKnock: number;
+}
+
+/**
+ * 周りの敵すべてにクナイを pins 本ずつ刺す（クナイの影縫いの陣）。半径に burstRadiusMul、威力に 奥義の増（increased.ultimate）が掛かる。
+ * 当たった敵に scaling の傷を 1 回与え、その威力を刺さったときの威力として刺す（刺さりの定義はクナイの弾の pin）
+ */
+export interface PinNovaAct {
+  readonly kind: "pinNova";
+  readonly radius: number;
+  readonly pins: number;
+  readonly scaling: Scaling;
+  readonly poise: number;
+  readonly poiseRatio?: AttrRatio;
+}
+
+/** 刺さっている飛び物をすべて炸裂させる（クナイの爆ぜクナイ）。damageMul は刺さったときの威力に掛ける倍率（奥義の増が乗る） */
+export interface DetonatePinsAct {
+  readonly kind: "detonatePins";
+  readonly damageMul: number;
 }
 
 /** 持続中の近接の段の差し替え（system/ultimates.ts の ultimateMoveset が型に畳む） */
@@ -189,6 +210,8 @@ export interface SustainDef {
   readonly shot?: SustainShot;
   /** 近接の命中で付ける状態異常（段に畳む） */
   readonly applies?: readonly StatusApply[];
+  /** 叩き込みの追撃（刺さったときの威力 × 弾の倍率）に掛ける倍率（クナイの暗器。省略は等倍。system/pins.ts の drivePins） */
+  readonly pinDriveMul?: number;
   /** 自分の周りに毎 interval 秒ダメージ（radius は burstRadiusMul が掛かる） */
   readonly aura?: { readonly radius: number; readonly interval: number; readonly scaling: Scaling; readonly poise: number };
   /** 床の自分の設置弾が近くの敵を引き寄せる */
@@ -421,6 +444,14 @@ function packedShot(r: Raw): UltimateAct {
   return { kind: "packedShot", pelletsAdd: num(r, "pelletsAdd"), damageMul: num(r, "damageMul"), selfKnock: num(r, "selfKnock") };
 }
 
+function pinNova(r: Raw): UltimateAct {
+  return { kind: "pinNova", radius: num(r, "radius"), pins: num(r, "pins"), scaling: scalingOf(r), poise: num(r, "poise"), poiseRatio: ratioOf(r) };
+}
+
+function detonatePinsAct(r: Raw): UltimateAct {
+  return { kind: "detonatePins", damageMul: num(r, "damageMul") };
+}
+
 /** 反動（撃った向きと逆へ下がる）。volley の数値ブロックの selfKnock を buff に移す */
 function recoil(r: Raw): BuffAct {
   return { kind: "buff", duration: 0, selfKnock: num(r, "selfKnock") };
@@ -516,6 +547,7 @@ function sustainCore(r: Raw): SustainDef {
     critAdd: optNum(r, "critAdd"),
     vsWindup: optNum(r, "vsWindup"),
     stillFireRate: optNum(r, "stillFireRate"),
+    pinDriveMul: optNum(r, "pinDriveMul"),
   };
 }
 
@@ -564,7 +596,6 @@ const DARK_AREA = attack("area", "hybrid", "dark");
 const ARCANE_LIGHT = attack("ranged", "arcane", "light");
 const ARCANE_AREA = attack("area", "arcane", "light");
 const THUNDER_AREA = attack("area", "physical", "lightning");
-const FIRE_AREA = attack("area", "physical", "fire");
 const THRUST: ShapeKind = "thrust";
 const CIRCLE: ShapeKind = "circle";
 const ARC: ShapeKind = "arc";
@@ -933,22 +964,17 @@ function handbellSet(): UltimateSet {
   ];
 }
 
-// ---- 投擲物（docs/ideas/gun-bases-review.md 2-9）。刺さる弾・刺さり崩しの仕組みは段 5-B・6。それまで既存の行為で仮置きする ----
+// ---- 投擲物（docs/ideas/gun-bases-review.md 2-9）。クナイは段 6-A で本物。手裏剣は段 6-B まで既存の行為で仮置きする ----
 
-/** クナイの奥義の弾（左の 1 本） */
-const KUNAI_BULLET = "kunai";
 /** 手裏剣の奥義の弾（左のまっすぐの 3 本の 1 本） */
 const SHURIKEN_BULLET = "cast.starToss";
 
 function kunaiSet(): UltimateSet {
   const m = "kunai";
   return [
-    // 仮: 刺さる弾が入るまで全周へ 16 本投げる（段 6-A で「周りの敵すべてに 2 本ずつ刺す」へ）
-    instantDef(m, "shadowStitch", "影縫いの陣", "全周へクナイを 16 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, KUNAI_BULLET)]),
-    // 仮: 刺さったクナイの炸裂が入るまで足元の爆発（段 6-A で「刺さっているクナイをすべて炸裂させる」へ）
-    instantDef(m, "blastKunai", "爆ぜクナイ", "足元を爆ぜさせ、周りの敵を大きく怯ませる", FIRE_AREA, (n) => [nova(sub(n, "nova"))]),
-    // 仮: 叩き込みの傷が入るまで投げが 1 本増えて威力が上がる（段 6-A で叩き込みの傷を大きく）
-    sustainDef(m, "hiddenArms", "暗器", "持続。投げが 2 本ずつになり、威力が上がる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
+    instantDef(m, "shadowStitch", "影縫いの陣", "周りの敵すべてにクナイを 2 本ずつ刺す", RANGED, (n) => [pinNova(sub(n, "pinNova"))]),
+    instantDef(m, "blastKunai", "爆ぜクナイ", "刺さっているクナイをすべて炸裂させる", FIRE_RANGED, (n) => [detonatePinsAct(sub(n, "detonatePins"))]),
+    sustainDef(m, "hiddenArms", "暗器", "持続。投げが 2 本ずつになり、叩き込みの傷が大きくなる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 

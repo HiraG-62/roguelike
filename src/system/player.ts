@@ -84,8 +84,8 @@ import {
 } from "./weaponArts";
 import { parryLocksDash, startParry, tickParry } from "./parry";
 import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul, ultimateMoveset, ultimateShot, updateUltimate, endUltimate } from "./ultimates";
-import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
-import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
+import { ultimateOnSwing, ultimateOnSwingHit, ultimatePinDriveMul } from "./ultimates";
+import { KUNAI_SENBON, formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul, timedAttackSpeedMul } from "./morale";
 import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
@@ -270,8 +270,8 @@ export interface MeleeStep {
   knockToward?: MeleeStepDef["knockToward"];
   /** 戦意を使った放出の振り（system/morale.ts。与ダメのタグ release・終撃の判定） */
   release?: boolean;
-  /** 命中した敵の刺さりを叩き込む（MeleeStepDef.drivePins） */
-  drivePins?: boolean;
+  /** 命中した敵の刺さりを叩き込む（MeleeStepDef.drivePins。true = 全部、数 = 古い順にその本数） */
+  drivePins?: true | number;
   /** 抜け斬り（MeleeStepDef.passThrough） */
   passThrough?: boolean;
   /** 斬った敵 1 体ごとの気力（MeleeStepDef.manaPerTarget） */
@@ -395,7 +395,7 @@ function scaleStep(
     cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
     ...(base.knockToward ? { knockToward: base.knockToward } : {}),
     ...(release ? { release: true } : {}),
-    ...(base.drivePins ? { drivePins: true } : {}),
+    ...(base.drivePins !== undefined ? { drivePins: base.drivePins } : {}),
     ...(base.passThrough ? { passThrough: true } : {}),
     ...(base.manaPerTarget !== undefined ? { manaPerTarget: base.manaPerTarget } : {}),
   };
@@ -1514,8 +1514,8 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   onSkillMeleeHit(state, e, p.attack.combo);
   onShapeMeleeHit(state, e);
   applyStepStatus(state, e, step);
-  // 叩き込み（クナイ）: 刺さった飛び物を 1 振り × 1 体に 1 回、全部叩き込む
-  if (step.drivePins && firstOnEnemy && e.hp > 0) drivePins(state, e, p.attack.dir);
+  // 叩き込み（クナイ）: 刺さった飛び物を 1 振り × 1 体に 1 回叩き込む（段が決めた本数。true は全部）
+  if (step.drivePins !== undefined && firstOnEnemy && e.hp > 0) drivePins(state, e, p.attack.dir, { max: step.drivePins === true ? undefined : step.drivePins, mul: ultimatePinDriveMul(state) });
 }
 
 /** 壁際（大地の加護）: 放出の一撃は大きく弾き、壁に当たれば叩きつけにする。吹き飛ばしの倍率（持っていない・放出でなければ 1） */
@@ -1872,8 +1872,10 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   const steady = moments.release ? { steady: true } : {};
   // 装薬は詰めた段ぶん散弾の粒が増える
   const pellets = powder ? { count: s.projectileCount + shot.pellets + powder.pelletsAdd } : {};
-  const override: VolleyOverride = { lane: "primary", ...moments, ...pellets, ...steady };
-  emitVolley(state, shot, level, aim, override);
+  // 千本（苦無の放出）は扇に投げ、刺さりの上限を超えて全部刺さる
+  const senbon = moments.release && formOf(playerMoveset(state)).key === "dart" ? KUNAI_SENBON : undefined;
+  const override: VolleyOverride = { lane: "primary", ...moments, ...pellets, ...steady, ...(senbon ? { fan: { count: senbon.count, spreadDeg: senbon.spreadDeg } } : {}) };
+  emitVolley(state, senbon && shot.pin ? { ...shot, pin: { ...shot.pin, max: senbon.pinMax } } : shot, level, aim, override);
   // 装薬の反動は詰めた段の距離だけ後ろへ跳ぶ（押しの速さは減衰で距離 = 速さ / KNOCK_DECAY。動きの当たりで壁に止まる）
   if (powder) p.knock = add(p.knock, scale(p.facing, -powder.recoilPx * KNOCK_DECAY));
   queueBurst(state, shot, [0], override);

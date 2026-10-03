@@ -1,13 +1,14 @@
 {
   "shadowStitch": {
-    "volley": { "count": 16, "spreadDeg": 22.5, "speedMul": 1.1, "lifeMul": 0.8, "bulletRadius": 3, "pierceBonus": 0, "scaling": { "base": 10, "dex": 1 }, "poise": 10, "poiseRatio": { "dex": 0.3 } }
+    "pinNova": { "radius": 80, "pins": 2, "scaling": { "base": 14, "dex": 1.2 }, "poise": 12, "poiseRatio": { "dex": 0.3 } }
   },
   "blastKunai": {
-    "nova": { "radius": 56, "scaling": { "base": 18, "dex": 1.2, "str": 0.4 }, "poise": 24, "poiseRatio": { "dex": 0.4 }, "knockback": 200 }
+    "detonatePins": { "damageMul": 4 }
   },
   "hiddenArms": {
     "drainPerSec": 12.5, "minSec": 1,
     "mul": { "damage": 1.15 },
-    "shot": { "pelletsAdd": 1 }
+    "shot": { "pelletsAdd": 1 },
+    "pinDriveMul": 1.6
   }
 }

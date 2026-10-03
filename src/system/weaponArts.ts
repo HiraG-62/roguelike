@@ -4,6 +4,7 @@ import { type Vec, angle, length, scale, sub } from "../core/vec";
 import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
+  type BulletDef,
   type ButtonKey,
   type BranchDef,
   type BranchShots,
@@ -339,16 +340,21 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
  */
 function emitBranchShots(state: GameState, shots: BranchShots): void {
   // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
-  const over = { pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
+  const over = { pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane, ...(shots.applies ? { applies: shots.applies } : {}) };
   // 派生の弾も弾倉を撃つ回数ぶん減らし、足りなければ残りの分だけ撃つ（振りは出る。docs/ideas/gun-bases-review.md 0-3）
   const count = branchRounds(state, Math.max(1, shots.count));
   if (count <= 0) return;
   if (shots.from !== "lane") {
-    emitShotRounds(state, currentShot(state.stats), { count, spreadDeg: shots.spreadDeg }, over);
+    emitShotRounds(state, shotWithLife(currentShot(state.stats), shots.lifeMul), { count, spreadDeg: shots.spreadDeg }, over);
     return;
   }
   const t = laneVolley(playerMoveset(state));
   if (t) emitArtVolley(state, t, { ...over, fan: { count, spreadDeg: shots.spreadDeg ?? t.spreadDeg } });
+}
+
+/** 弾の寿命を縮めた弾（足元へ投げる影留め。lifeMul が無ければそのまま） */
+function shotWithLife(shot: BulletDef, lifeMul: number | undefined): BulletDef {
+  return lifeMul === undefined ? shot : { ...shot, lifeMul: shot.lifeMul * lifeMul };
 }
 
 /** 派生の弾で撃てる回数（弾倉から使えた回数。弾倉が働かない武器種はそのまま） */

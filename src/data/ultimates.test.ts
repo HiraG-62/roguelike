@@ -207,6 +207,18 @@ describe("投擲物の奥義（docs/ideas/gun-bases-review.md 0-5・2-9）", () 
     const act = eight?.kind === "instant" ? eight.acts[0] : undefined;
     expect(act?.kind === "volley" ? act.throw.count : 0, "16 本").toBe(16);
     expect(volleyBullet("shuriken.greatWheel")?.orbit, "大車輪は周回").toBeDefined();
-    expect(volleyBullet("kunai.shadowStitch")?.key, "影縫いの陣はクナイを投げる（仮）").toBe("kunai");
+  });
+
+  it("クナイの奥義は影縫いの陣（周りへ 2 本ずつ刺す）・爆ぜクナイ（刺さりを炸裂）・暗器（持続で叩き込みの傷が大きい）", () => {
+    expect(ULTIMATES.kunai.map((u) => u.key)).toEqual(["kunai.shadowStitch", "kunai.blastKunai", "kunai.hiddenArms"]);
+    const stitch = ultimateDef("kunai.shadowStitch");
+    const nova = stitch?.kind === "instant" ? stitch.acts[0] : undefined;
+    expect(nova?.kind, "影縫いの陣").toBe("pinNova");
+    expect(nova?.kind === "pinNova" ? nova.pins : 0, "1 体に 2 本").toBe(2);
+    const blast = ultimateDef("kunai.blastKunai");
+    expect(blast?.kind === "instant" ? blast.acts[0]?.kind : undefined, "爆ぜクナイ").toBe("detonatePins");
+    const hidden = ultimateDef("kunai.hiddenArms");
+    expect(hidden?.kind === "sustain" ? (hidden.sustain.pinDriveMul ?? 1) : 1, "暗器は叩き込みの傷を大きくする").toBeGreaterThan(1);
+    expect(hidden?.kind === "sustain" ? (hidden.sustain.shot?.pelletsAdd ?? 0) : 0, "暗器は投げが 2 本ずつ").toBe(1);
   });
 });

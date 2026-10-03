@@ -33,8 +33,8 @@ describe("序盤のベース解禁", () => {
   });
 
   it(`弾の性質ごとに minLevel ${EARLY_GUN_LEVEL} 以下の器がある`, () => {
-    // 刺さる・弧の弾は投擲物の器が撃つ。器への配線は段 6（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
-    const pending: ReadonlySet<string> = new Set(["pin", "arc"]);
+    // 弧の弾は戦輪の器が撃つ。器への配線は段 6-C（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
+    const pending: ReadonlySet<string> = new Set(["arc"]);
     for (const f of BULLET_FEATURES) {
       if (NO_BASE_FEATURES.includes(f) || pending.has(f)) continue;
       expect(earliest((b) => BULLETS[b.key] !== undefined && bulletFeatures(bulletDef(b.key)).includes(f)), `${f} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);

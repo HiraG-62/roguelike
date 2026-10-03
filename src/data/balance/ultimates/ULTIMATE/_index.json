@@ -53,6 +53,10 @@
     "icd": "統一ルールの内部の再使用 / 命中の衝撃波（hitQuake）の再使用（秒）",
     "hitQuake": "持続中、近接の振りが当たるたびに当てた敵の位置で起こす衝撃波（icd 秒に 1 回）。radius は burstRadiusMul が掛かる（px）、scaling / poise / knockback は nova と同じ意味、hitstop = ヒットストップ（ステップ）、shake = 画面の揺れ",
     "packedShot": "弾倉の残りを全部詰めて撃ち出す 1 発。装備の砲の弾に、粒を pelletsAdd 足し、威力を damageMul 倍し、撃った向きと逆へ selfKnock（px/秒。跳ぶ距離は 14 で割った px 程度。1400 で約 100px）下がる。装薬の詰めの最大段の値と揃える",
+    "pinNova": "周りの敵すべてにクナイを刺す一撃（クナイの影縫いの陣）。radius = 範囲（px。burstRadiusMul が掛かる）、pins = 1 体に刺す本数、scaling / poise / poiseRatio = 刺すときに当てる傷（威力は 奥義の増（increased.ultimate）が掛かり、その威力が刺さったときの威力になる）。刺さりの秒・上限・叩き込みの倍率はクナイの弾の pin",
+    "pins": "1 体に刺すクナイの本数（刺さりの上限を超えたら古い順に抜ける）",
+    "detonatePins": "刺さっている飛び物をすべて炸裂させる一撃（クナイの爆ぜクナイ）。damageMul = 1 本ごとに刺さったときの威力へ掛ける倍率（奥義の増が乗る）。刺さりが無ければ何も起きない",
+    "pinDriveMul": "持続中、叩き込み（近接の命中で刺さったクナイを打ち込む追撃）の威力に掛ける倍率（1 = 等倍）",
     "pointBlank": "持続中、近い敵ほど与ダメが上がる（零距離）。range = 効き始める距離（px。自分から敵の縁まで）、mul = 密着したときの与ダメの倍率（range で 1 へ直線に下がる）"
   },
   "_order": ["common", "defs"]

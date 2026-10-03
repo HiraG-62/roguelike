@@ -138,8 +138,11 @@ export interface MeleeStepDef {
    * 省略は攻撃の向き（pull / throw の段は自分の方 / 背後）
    */
   readonly knockToward?: "ownMine";
-  /** 命中した敵に刺さっている飛び物（Enemy.pins）を全部叩き込む（クナイ。system/pins.ts の drivePins） */
-  readonly drivePins?: true;
+  /**
+   * 命中した敵に刺さっている飛び物（Enemy.pins）を叩き込む（クナイ。system/pins.ts の drivePins）。true = 全部、
+   * 数 = 古い順にその本数だけ（連撃の前の段は 1 本ずつ、叩き込みの段は全部）
+   */
+  readonly drivePins?: true | number;
   /** 踏み込みの道筋で体が重なった敵も斬り、敵を前へ押さず脇へ払う（抜け斬り。手裏剣のダッシュ攻撃） */
   readonly passThrough?: true;
   /** 斬った敵 1 体ごとに戻す気力。MANA.meleeTargetCap の頭打ちを外す（抜け斬り）。省略は mana の通常の回収 */
@@ -287,6 +290,10 @@ export interface BranchShots {
   readonly damageMul: number;
   readonly spreadDeg?: number;
   readonly pierceBonus?: number;
+  /** 弾の寿命の倍率（足元へ投げる影留め。省略は等倍） */
+  readonly lifeMul?: number;
+  /** 命中した敵に付ける状態異常（影留めの足止め。ThrowArtDef.applies と同じ形） */
+  readonly applies?: readonly StatusApply[];
 }
 
 /** コンボ派生: 入力列の末尾が sequence と一致したら、次の振りを step に差し替える */
@@ -744,6 +751,8 @@ function reviveShots(raw: unknown): BranchShots | undefined {
     damageMul: raw.damageMul,
     spreadDeg: optionalNumber(raw.spreadDeg),
     pierceBonus: optionalNumber(raw.pierceBonus),
+    lifeMul: optionalNumber(raw.lifeMul),
+    applies: Array.isArray(raw.applies) ? raw.applies.map(statusApply) : undefined,
   };
 }
 
@@ -1100,7 +1109,7 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
   scatterMines: "前方へ設置弾を扇に 3 つ撒く",
   ringSweep: "手元の輪で周りを広く斬る",
-  kunaiCut: "逆手のクナイで斬る。刺さっている敵に当てると、刺さったクナイを叩き込む",
+  kunaiCut: "逆手のクナイで斬る。刺さっている敵に当てると、刺さったクナイを 1 本叩き込む（最後の段は全部）",
   starFan: "手裏剣を 3 本、扇に投げる",
   fangBite: "踏み込んで噛みつき、出血させる",
   flailWhirl: "押している間、鉄球を回して周りを打ち続ける。離すと勢いのついた一撃",
@@ -1712,7 +1721,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   kunai: defineMoveset({
     key: "kunai",
     name: "クナイ",
-    desc: "左で 1 本ずつ投げる。単発で重く、貫かない。右の連撃は逆手斬り・返し斬り・叩き込み",
+    desc: "左で 1 本ずつ投げる。クナイは敵に刺さって残り、右の連撃（逆手斬り・返し斬り・叩き込み）で叩き込むと大きな傷になる。貫かない",
     steps: [],
     dashAttack: reviveStep(W.kunai.dashAttack),
     attackMoveMul: W.kunai.attackMoveMul,

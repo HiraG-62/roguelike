@@ -77,17 +77,22 @@ function removeKind(e: Enemy, kind: PinKind): void {
 }
 
 /**
- * 叩き込み（近接の命中。MeleeStepDef.drivePins）: 刺さっているものを全部叩き込み、1 本ごとに追撃（刺さったときの威力 × 倍率）を入れる。
+ * 叩き込み（近接の命中。MeleeStepDef.drivePins）: 刺さっているものを古い順に max 本（省略は全部）叩き込み、1 本ごとに追撃
+ * （刺さったときの威力 × 倍率 × mul。mul は持続の奥義「暗器」の pinDriveMul）を入れる。残りは刺さったまま。
  * 追撃は素性なしの追撃（proc）で、命中の起点や気力の回収は起こさない（起点は叩き込んだ振りの命中が持つ）。叩き込んだ本数を返す
  */
-export function drivePins(state: GameState, e: Enemy, dir: Vec): number {
+export function drivePins(state: GameState, e: Enemy, dir: Vec, opts: { max?: number; mul?: number } = {}): number {
+  const max = opts.max ?? Number.POSITIVE_INFINITY;
   const pins = prunePins(state, e);
-  if (pins.length === 0 || e.hp <= 0) return 0;
-  e.pins = undefined;
+  if (pins.length === 0 || e.hp <= 0 || max <= 0) return 0;
+  const driving = pins.slice(0, max);
+  const rest = pins.slice(max);
+  e.pins = rest.length > 0 ? rest : undefined;
+  const mul = opts.mul ?? 1;
   let driven = 0;
-  for (const pin of pins) {
+  for (const pin of driving) {
     if (e.hp <= 0) break;
-    damageEnemy(state, e, Math.round(pin.damage * pin.driveMul), dir, 0, { kind: "proc" });
+    damageEnemy(state, e, Math.round(pin.damage * pin.driveMul * mul), dir, 0, { kind: "proc" });
     driven += 1;
   }
   spawnBurst(state, e.body.pos, DRIVE_FX.color, DRIVE_FX.particles, DRIVE_FX.speed, DRIVE_FX.life, DRIVE_FX.size);
