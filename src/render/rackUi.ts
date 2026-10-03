@@ -30,6 +30,7 @@ import type { Sprite } from "./sprites";
 import { ICON_BOX_H, weaponIconCell, weaponIconSize } from "./weaponIcons";
 import { BULLET_FX, movesetAtlas, rampOfElement } from "./fxMotions";
 import { FX_ART_SCALE, FxSpriteBank, cellOf, sheetDef } from "./fxSprites";
+import type { FxSheetDef } from "../data/fxSheets.gen";
 import { bulletDef } from "../loot/bullets";
 
 export type RackSpriteLookup = (key: string) => Sprite | undefined;
@@ -127,15 +128,15 @@ function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card:
   ctx.globalAlpha = prevAlpha;
 }
 
-/** 器のカードの札（和紙。data/sprites/bulletIcons.ts の rack.paper） */
+/** 器のカードの札（和紙。data/sprites/rackPaper.ts の rack.paper） */
 const PAPER_KEY = "rack.paper";
 /** 札の拡大（論理寸法の 1.5 倍。密度 2 の 1 ドットが背面バッファの 3px） */
 const PAPER_SCALE = 1.5;
 /** 札の内側（耳と縁を除いて弾の絵を収める範囲。論理 px） */
 const PAPER_INSET_X = 3;
 const PAPER_INSET_Y = 3;
-/** 弾の絵の倍率の上限（小さな弾を拡げすぎてドットが粗くならないように） */
-const SHOT_MAX_SCALE = 2;
+/** 弾の絵の倍率の上限（小さな弾は拡げて読めるようにし、拡げすぎてドットが粗くならないように） */
+const SHOT_MAX_SCALE = 3;
 /** 弾の絵の向き（右へ飛ぶ） */
 const SHOT_ANGLE = 0;
 /** 弾の飛ぶ絵は 1 武器種ずつしか並ばないので、開いている家系のアトラスだけを持つ専用の bank */
@@ -160,13 +161,33 @@ function drawBulletIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, mov
   return true;
 }
 
-/** 弾の飛ぶ絵の 1 コマ目を、札の内側に収まる倍率で中央に置く（はみ出す尾は札の内側で切る） */
+/**
+ * 向き 0 のコマのうち、絵の矩形がいちばん大きいコマ（回る輪のように 1 コマ目が欠けて見える絵でも形が読める）。
+ * 同じ大きさなら先のコマ
+ */
+function widestFrame(sheet: FxSheetDef): number {
+  let best = 0;
+  let bestArea = -1;
+  for (let f = 0; f < sheet.frames; f++) {
+    const c = cellOf(sheet, 0, f);
+    const area = c ? c.w * c.h : 0;
+    if (area > bestArea) {
+      best = f;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
+/** 弾の飛ぶ絵のいちばん大きく見えるコマを、札の内側に収まる倍率で中央に置く（はみ出す尾は札の内側で切る） */
 function drawShotOnPaper(ctx: CanvasRenderingContext2D, moveset: MovesetKey, base: string, inner: Rect): void {
   const fx = BULLET_FX.get(base);
   if (!fx) return;
   shotBank.focus([movesetAtlas(moveset)]);
   if (!shotBank.has(fx.fly)) return;
-  const cell = cellOf(sheetDef(fx.fly), 0, 0);
+  const sheet = sheetDef(fx.fly);
+  const frame = widestFrame(sheet);
+  const cell = cellOf(sheet, 0, frame);
   if (!cell) return;
   const cw = cell.w / FX_ART_SCALE;
   const ch = cell.h / FX_ART_SCALE;
@@ -180,7 +201,7 @@ function drawShotOnPaper(ctx: CanvasRenderingContext2D, moveset: MovesetKey, bas
   ctx.beginPath();
   ctx.rect(inner.x, inner.y, inner.w, inner.h);
   ctx.clip();
-  shotBank.draw(ctx, fx.fly, 0, x, y, SHOT_ANGLE, { ramp, scale });
+  shotBank.draw(ctx, fx.fly, frame, x, y, SHOT_ANGLE, { ramp, scale });
   ctx.restore();
 }
 
