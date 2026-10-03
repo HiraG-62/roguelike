@@ -299,6 +299,8 @@ describe("奥義 3 本", () => {
     expect(moveset.steps.length, "左は刀の段").toBe(katana.steps.length);
     expect(moveset.steps2.length, "右も刀の段").toBe(katana.steps2.length);
     expect(moveset.chainAdvance, "交互の連撃でなく普通の連撃").toBeUndefined();
+    expect(moveset.dashAttack?.reach, "ダッシュ攻撃も刀（絵と動きを揃える）").toBe(katana.dashAttack?.reach);
+    expect(moveset.dashAttack?.passThrough, "抜け斬りではない").toBe(katana.dashAttack?.passThrough);
     expect(moveset.steps.every((s) => s.cast === undefined), "左は投げず斬る").toBe(true);
 
     // 発動のヒットストップが明けてから、左を押すと投げずに斬る（敵に当たり、気力が戻る）

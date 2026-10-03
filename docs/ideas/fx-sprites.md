@@ -179,6 +179,7 @@
 - 表は `fx.ultimates`（奥義の key → `{ ramp, cast, acts[], target, ends[], aura, quake, sustain, shots }`）。1 つの絵は `{ sheet, life, base, pivot: pos|to, mirror?, ground? }`。`sustain` は持続中に自分の周りで繰り返す絵、`shots` は行為の番号 → その行為が出した弾の絵（`withUltimateFx` が弾に奥義と番号を結ぶ）
 - 奥義が出した輪・線・粒には印が付き（`withUltimateFx`）、絵が読めていれば手続きの描画を省く。奥義名の浮き文字は残す
 - 配色は奥義の素性の属性、無ければ表の `ramp`（既定は光）
+- 銃と投擲物の見直し（2026-10-03）: クナイ（`kunai` / `kunaiUlt`）・手裏剣（`shuriken` / `shurikenUlt`）のアトラスを描いた。手裏剣の右の段は投げ（cast）だけなので振りの絵は左の 3 段とダッシュだけ。龍刃の間は武器種の key が刀になり、刀の絵を借りる
 
 ## 10. スキル石と技（2026-09-28。2026-10-03 に墨で作り直し）
 

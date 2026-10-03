@@ -763,7 +763,7 @@ export function ultimateMoveset(state: GameState, base: MovesetDef): MovesetDef 
   return merged;
 }
 
-/** 連撃（左・右レーン・派生・溜め）を借りた武器種のものにする。型・戦意・ダッシュ攻撃は装備のまま。key は絵とエフェクトを引くので借りた武器種のもの */
+/** 連撃（左・右レーン・派生・溜め）とダッシュ攻撃を借りた武器種のものにする。型・戦意は装備のまま。key は絵とエフェクトを引くので借りた武器種のもの */
 function borrowLanes(base: MovesetDef, from: MovesetKey): MovesetDef {
   const src = MOVESETS[from];
   return {
@@ -774,6 +774,8 @@ function borrowLanes(base: MovesetDef, from: MovesetKey): MovesetDef {
     branches: src.branches,
     charge: src.charge,
     tip: src.tip,
+    // ダッシュ攻撃も刀のものにする（刀の key で描くので、手裏剣の抜け斬りのままだと動きと絵が食い違う）
+    dashAttack: src.dashAttack,
     chainAdvance: undefined,
     waitForReturn: undefined,
   };
