@@ -235,6 +235,27 @@ export function spendRounds(state: GameState, hand: HandIndex, n: number): numbe
   return spent;
 }
 
+/**
+ * 弾倉の残りを全部使い、使った回数を返す（砲の奥義「全弾発射」。込め・詰めの最中でも残りを使い切る）。
+ * 使い切ったので込め終えてからの 1 発目と詰めの段は消え、込めを始める。弾倉が働かない武器種は 0
+ */
+export function emptyMagazine(state: GameState): number {
+  const def = magazineDefOf(state);
+  if (!def) return 0;
+  const m = syncMagazine(state);
+  let used = 0;
+  for (const hand of handsOf(state)) {
+    const h = handOf(m, hand);
+    used += h.rounds;
+    h.rounds = 0;
+    stopBusy(h);
+    startReload(state, hand);
+  }
+  m.fresh = false;
+  m.packSec = 0;
+  return used;
+}
+
 function stopBusy(h: MagazineHand): void {
   h.reloadLeft = 0;
   h.reloadTotal = 0;

@@ -247,7 +247,7 @@ function shotScalingOf(key: string): Scaling {
   return bulletDef(key).scaling ?? PLAYER.shoot.scaling;
 }
 
-/** 射撃 1 発の威力（弾の damageMul は係数の後に掛かる）と怯み値。key は弾（銃のベースの key）。damageMul は狙い撃ちなどの上乗せ */
+/** 射撃 1 発の威力（弾の damageMul は係数の後に掛かる）と怯み値。key は弾（銃のベースの key）。damageMul は上乗せ */
 export function shotFormulas(stats: Readonly<PlayerStats>, key: string, name: string, damageMul = 1): ActionFormulas {
   const shot = bulletDef(key);
   return {
@@ -268,6 +268,7 @@ const ULTIMATE_ACT_LABEL: Readonly<Record<UltimateAct["kind"] | "aura", string>>
   pull: "引き寄せ",
   buff: "強化",
   detonate: "起爆",
+  packedShot: "詰めの 1 発",
   aura: "まとい",
 };
 
@@ -292,6 +293,8 @@ function actSource(act: UltimateAct): UltimateSource | null {
     case "pull":
     case "buff":
     case "detonate":
+    // 詰めの 1 発の威力は装備の砲の弾（器）で決まるので、行為の係数としては出さない
+    case "packedShot":
       return null;
   }
 }
@@ -369,7 +372,7 @@ function laneStepName(step: ActionStepDef, index: number): string {
  * 右レーンの 1 段の式。構えの受け流し・手元返しは威力を持たないので出さない。
  * 構えの離した振り（盾押し）は 1 段目の構えだけが持つ（defineMoveset が 1 段目からだけ派生を作る）
  */
-function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string, step: ActionStepDef, index: number): ActionFormulas[] {
+function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, step: ActionStepDef, index: number): ActionFormulas[] {
   const name = laneStepName(step, index);
   switch (step.kind) {
     case "swing":
@@ -386,8 +389,6 @@ function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<Movese
     }
     case "charge":
       return [stepFormulas(stats, name, step.charge.step)];
-    case "aim":
-      return [shotFormulas(stats, bullet, name, step.aim.damageMul)];
     case "recall":
       return [];
   }
@@ -406,10 +407,10 @@ function foldAll(action: ActionFormulas): ActionFormulas {
 }
 
 /** 右レーンの段（怯み値は畳む）。同じ名前の段（同じ技の繰り返し）は 1 回だけ */
-function laneFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): ActionFormulas[] {
+function laneFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>): ActionFormulas[] {
   const out: ActionFormulas[] = [];
   moveset.steps2.forEach((step, i) => {
-    for (const a of laneStepFormulas(stats, moveset, bullet, step, i)) {
+    for (const a of laneStepFormulas(stats, moveset, step, i)) {
       if (out.some((o) => o.name === a.name)) continue;
       out.push(foldPoise(a));
     }
@@ -431,7 +432,7 @@ function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetD
   actions.push(...steps);
   if (moveset.charge !== undefined) actions.push(foldPoise(stepFormulas(stats, CHARGE_NAME, moveset.charge.step)));
   actions.push(foldPoise(stepFormulas(stats, DASH_ATTACK_NAME, moveset.dashAttack)));
-  actions.push(...laneFormulas(stats, moveset, bullet));
+  actions.push(...laneFormulas(stats, moveset));
   for (const b of moveset.branches) {
     if (b.art !== undefined) continue;
     actions.push(foldAll(stepFormulas(stats, b.name, b.step)));

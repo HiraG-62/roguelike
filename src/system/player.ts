@@ -75,6 +75,7 @@ import {
   endArtHold,
   finishArtHold,
   isInstantStep,
+  nearestOwnMine,
   onBranchStart,
   onLaneSwingStart,
   startLaneArt,
@@ -261,6 +262,8 @@ export interface MeleeStep {
   cast?: CastDef;
   /** 弾返し・弾斬りが無くても敵弾を消す（MeleeStepDef.cutsBullets） */
   cutsBullets: boolean;
+  /** 命中した敵を飛ばす向き（MeleeStepDef.knockToward） */
+  knockToward?: MeleeStepDef["knockToward"];
   /** 戦意を使った放出の振り（system/morale.ts。与ダメのタグ release・終撃の判定） */
   release?: boolean;
 }
@@ -380,6 +383,7 @@ function scaleStep(
     // 長柄: 放出の突きは貫く穂先の弾を撃ち、穂先を持つ突きは敵弾を払う（data/weaponForms.ts）
     cast: base.cast ?? formReleaseCast(moveset, base, release !== undefined),
     cutsBullets: (base.cutsBullets ?? false) || formCutsBullets(moveset, base),
+    ...(base.knockToward ? { knockToward: base.knockToward } : {}),
     ...(release ? { release: true } : {}),
   };
 }
@@ -1401,7 +1405,7 @@ function meleeHitEnemy(state: GameState, e: Enemy, step: MeleeStep, tip = false)
   p.swingImpact = FEEL.swingImpact;
   if (finisher) pushSfx(state, "finisherHit");
   // 重さの補償の副次（docs/ideas/weapon-forms-impl.md 3-5）: 終撃は重いほど押し、重い武器の終撃は堅守を崩す
-  damageEnemy(state, e, amount, knockDirection(p, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
+  damageEnemy(state, e, amount, knockDirection(state, e, step), step.knockback * (finisher ? weight.finisherKnockbackMul : 1) * slam, {
     poise: counterPoise(step, counter) * tipMul.poise * formMul.poise,
     hitstopSteps: baseHitstop,
     readStart: counter,
@@ -1451,10 +1455,15 @@ function tipMultipliers(step: Readonly<MeleeStep>, tip: boolean): { damage: numb
   return { damage: t.offDamageMul, poise: 1, mana: t.offManaMul };
 }
 
-/** ノックバックの向き。引き寄せ（鎌）は自分の方へ、投げ（拳）は自分の背後へ */
-function knockDirection(p: Player, e: Enemy, step: Readonly<MeleeStep>): Vec {
+/** ノックバックの向き。引き寄せ（鎌）は自分の方へ、投げ（拳）は自分の背後へ、蹴り込み（仕掛け）は一番近い自分の設置弾の方へ */
+function knockDirection(state: GameState, e: Enemy, step: Readonly<MeleeStep>): Vec {
+  const p = state.player;
   if (step.pull) return normalize(sub(p.body.pos, e.body.pos), scale(p.attack.dir, -1));
   if (step.throw) return scale(p.attack.dir, -1);
+  if (step.knockToward === "ownMine") {
+    const mine = nearestOwnMine(state, e.body.pos);
+    if (mine) return normalize(sub(mine, e.body.pos), p.attack.dir);
+  }
   return p.attack.dir;
 }
 

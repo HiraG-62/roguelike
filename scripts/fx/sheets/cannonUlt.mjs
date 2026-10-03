@@ -1041,22 +1041,8 @@ const FX = {
     "cannon.fullSalvo": {
       ramp: "fire",
       cast: { sheet: "cannonUlt.fullSalvoCast", life: 0.4 },
-      acts: [
-        { sheet: "cannonUlt.fullSalvoDetonate", life: 0.55, pivot: "pos" },
-        { sheet: "cannonUlt.fullSalvoVolley", life: 0.6, pivot: "pos" },
-      ],
-      shots: {
-        1: {
-          fly: "cannonUlt.salvoShellFly",
-          period: SALVO_SHELL.period,
-          base: 4,
-          muzzle: "cannonUlt.salvoShellMuzzle",
-          impact: "cannonUlt.salvoShellImpact",
-          blast: "cannonUlt.salvoShellBlast",
-          blastBase: SALVO_BLAST_R / 2,
-          ramp: "fire",
-        },
-      },
+      // 全弾発射は「弾倉の残りを詰めた 1 発」（packedShot）。起爆と曲射は無くなったので絵は 1 つ（詰めの 1 発の専用の絵は段 7）
+      acts: [{ sheet: "cannonUlt.fullSalvoVolley", life: 0.6, pivot: "pos" }],
     },
     "cannon.powderKeg": {
       ramp: "brass",

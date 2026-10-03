@@ -464,7 +464,7 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     chainSickle: "swing",
     hammer: "swing",
     gunner: "volley",
-    sidearm: "aim",
+    sidearm: "swing",
     longarm: "swing",
     cannon: "swing",
     thrown: "recall",

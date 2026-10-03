@@ -100,7 +100,20 @@ export type UltimateAct =
   | PullAct
   | BuffAct
   /** 床の自分の設置弾を全部起爆（damageMul は起爆する弾の威力の倍率。省略は等倍） */
-  | { readonly kind: "detonate"; readonly damageMul?: number };
+  | { readonly kind: "detonate"; readonly damageMul?: number }
+  | PackedShotAct;
+
+/**
+ * 弾倉の残りを全部詰めた 1 発（砲の全弾発射）。装備の弾に粒を足して威力を掛け、撃って弾倉を 0 にし、反動で下がる。
+ * 値は装薬の詰めの最大段（3 段）に揃える
+ */
+export interface PackedShotAct {
+  readonly kind: "packedShot";
+  readonly pelletsAdd: number;
+  readonly damageMul: number;
+  /** 撃った向きと逆へ下がる強さ（px/秒） */
+  readonly selfKnock: number;
+}
 
 /** 持続中の近接の段の差し替え（system/ultimates.ts の ultimateMoveset が型に畳む） */
 export interface SustainPatch {
@@ -405,6 +418,10 @@ function buff(r: Raw): BuffAct {
 
 function detonate(r: Raw): UltimateAct {
   return { kind: "detonate", damageMul: optNum(r, "damageMul") };
+}
+
+function packedShot(r: Raw): UltimateAct {
+  return { kind: "packedShot", pelletsAdd: num(r, "pelletsAdd"), damageMul: num(r, "damageMul"), selfKnock: num(r, "selfKnock") };
 }
 
 /** 反動（撃った向きと逆へ下がる）。volley の数値ブロックの selfKnock を buff に移す */
@@ -783,10 +800,7 @@ function cannonSet(): UltimateSet {
   const m = "cannon";
   return [
     instantDef(m, "grandShell", "大砲撃", "照準の先に大爆発を起こす。近くに敵がいればそこへ落ちる", FIRE_RANGED, (n) => [nova(sub(n, "blast"))]),
-    instantDef(m, "fullSalvo", "全弾発射", "床の設置弾を強めて全部起爆し、前方へ曲射を 5 発撃つ", FIRE_RANGED, (n) => [
-      detonate(sub(n, "detonate")),
-      volley(sub(n, "volley"), FIRE_RANGED, "mortar"),
-    ]),
+    instantDef(m, "fullSalvo", "全弾発射", "弾倉の残りを全部詰めて、3 段の詰めの 1 発を撃ち出す", FIRE_RANGED, (n) => [packedShot(sub(n, "packedShot"))]),
     sustainDef(m, "powderKeg", "火薬庫", "持続。散弾が 1 発増えて速く撃て、近い敵ほど大きな傷を与える", (n) => ({
       ...sustainCore(n),
       shot: shotOf(n),

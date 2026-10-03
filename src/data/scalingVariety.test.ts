@@ -161,11 +161,11 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.longarm.dashAttack.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.longarm.steps2[0].step.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.cannon.dashAttack.scaling": [10, 0.8],
-  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [13, 1],
+  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [11.25, 0.95],
   "weapons.WEAPON.movesets.thrown.dashAttack.scaling": [7.5, 0.6],
   // 振り直しの後に足した銃の家系（値は足した時点のもの）
   "weapons.WEAPON.movesets.grenade.dashAttack.scaling": [8.5, 0.7],
-  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9, 0.8],
+  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9.9, 0.88],
   "weapons.WEAPON.movesets.trapper.dashAttack.scaling": [7.5, 0.7],
   "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling": [10, 0],
   "weapons.WEAPON.movesets.warRing.dashAttack.scaling": [7.5, 0.6],

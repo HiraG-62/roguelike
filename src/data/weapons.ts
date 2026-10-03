@@ -131,6 +131,11 @@ export interface MeleeStepDef {
   readonly cast?: CastDef;
   /** active の間、弾返し・弾斬りが無くても敵弾を消す（扇子の払い） */
   readonly cutsBullets?: boolean;
+  /**
+   * 命中した敵を飛ばす向き。ownMine = 一番近い自分の設置弾の方（無ければ攻撃の向き。仕掛けの罠蹴り）。
+   * 省略は攻撃の向き（pull / throw の段は自分の方 / 背後）
+   */
+  readonly knockToward?: "ownMine";
 }
 
 /** 左の段・派生・ダッシュ攻撃が撃つ弾。name は HUD の「左: 火矢」（CAST_NAMES） */
@@ -171,16 +176,8 @@ export interface StrikeExtras {
   readonly detonateMines?: boolean;
 }
 
-/** 狙い撃ち（短銃）: 押している間溜め、time 秒に届いて離すとベースの弾の型を 1 発、強めて撃つ */
-export interface AimArtDef {
-  readonly moveMul: number;
-  readonly time: number;
-  readonly damageMul: number;
-  readonly pierceBonus: number;
-}
-
 /** 右レーン（アクション 2）の段の種類。docs/ideas/ougi-and-dual-actions.md 4.1 */
-export const ACTION_STEP_KINDS = ["swing", "hold", "volley", "charge", "aim", "recall"] as const;
+export const ACTION_STEP_KINDS = ["swing", "hold", "volley", "charge", "recall"] as const;
 export type ActionStepKind = (typeof ACTION_STEP_KINDS)[number];
 
 /**
@@ -206,7 +203,6 @@ export type ActionStepDef =
   | (ArtBase & { readonly kind: "hold"; readonly hold: HoldArtDef })
   | (ArtBase & { readonly kind: "volley"; readonly throw: ThrowArtDef })
   | (ArtBase & { readonly kind: "charge"; readonly charge: MeleeChargeDef })
-  | (ArtBase & { readonly kind: "aim"; readonly aim: AimArtDef })
   | (ArtBase & { readonly kind: "recall"; readonly recall: RecallArtDef });
 
 /** 右レーン（1 段以上）。steps2[0] を添字の undefined 無しで読めるよう、空を型で禁じる */
@@ -723,8 +719,6 @@ function reviveActionStep(raw: unknown): ActionStepDef {
       return { kind: "volley", key, name, desc, cooldown, throw: reviveThrow(raw.throw, key, name), ...window };
     case "charge":
       return { kind: "charge", key, name, desc, cooldown, charge: reviveCharge(raw.charge), ...window };
-    case "aim":
-      return { kind: "aim", key, name, desc, cooldown, aim: raw.aim as AimArtDef, ...window };
     case "recall":
       return { kind: "recall", key, name, desc, cooldown, recall: raw.recall as RecallArtDef, ...window };
     default:
@@ -938,15 +932,15 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   barrage: "乱れ撃ち",
   gunnerButt: "銃把打ち",
   spinShot: "回転撃ち",
-  aimedShot: "狙い撃ち",
+  daggerCut: "短刀斬り",
   sidearmButt: "銃把打ち",
   muzzleSweep: "銃口払い",
   bayonet: "銃剣突き",
   stockStrike: "銃床打ち",
   bayonetSweep: "銃剣払い",
+  rammerThrust: "込め棒突き",
+  rammerThrust2: "二の突き",
   pointBlank: "零距離砲",
-  barrelBash: "筒殴り",
-  buttSwing: "尻叩き",
   recall: "手元返し",
   throughThrow: "投げ抜け",
   thrownKick: "蹴り",
@@ -1006,9 +1000,9 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   guard: "押している間、前からの被弾を大きく減らし奥義ゲージを溜める。離すと盾押し",
   chainWeight: "分銅を投げて引き寄せ、崩勢にする",
   hammerSweep: "大きく薙ぎ払う",
-  aimedShot: "足を止めて狙い、離すと強く貫く 1 発を撃つ",
+  daggerCut: "空いた手の逆手の短刀で、軽く速く斬る",
   bayonet: "銃剣で踏み込んで突き、押し返す",
-  pointBlank: "至近を吹き飛ばして後ろへ跳ぶ。床の自分の設置弾をすべて起爆する",
+  rammerThrust: "込め棒で突いて、近づいた敵を押し返す。込めている最中にも出せて、込めは止まらない",
   recall: "飛んでいる自分の弾をすべて手元へ向け直す",
   barrage: "全方位へ弾をばら撒く",
   tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
@@ -1411,7 +1405,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   sidearm: defineMoveset({
     key: "sidearm",
     name: "短銃",
-    desc: "左で撃ちながら軽く動ける。右の 1 段目は長押しで狙い撃ち（強い 1 発）",
+    desc: "左で撃ちながら軽く動ける。右は空いた手の逆手の短刀で斬り、銃把と銃口で払う",
     steps: [],
     dashAttack: reviveStep(W.sidearm.dashAttack),
     attackMoveMul: W.sidearm.attackMoveMul,
@@ -1441,7 +1435,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   cannon: defineMoveset({
     key: "cannon",
     name: "砲",
-    desc: "左で撃つ最も重い銃。右の零距離砲は周りを吹き飛ばして自分も跳び、床の設置弾をすべて起爆する",
+    desc: "左で撃つ最も重い銃。右の込め棒の突きは込めの最中にも出せ、零距離砲は周りを吹き飛ばして自分も跳ぶ",
     steps: [],
     dashAttack: reviveStep(W.cannon.dashAttack),
     attackMoveMul: W.cannon.attackMoveMul,
@@ -1486,7 +1480,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   trapper: defineMoveset({
     key: "trapper",
     name: "仕掛け",
-    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らし、3 段目で起爆する",
+    desc: "左で床に設置弾を置き、近づいた敵を巻き込む。右で設置弾を扇に撒き散らし、敵を設置弾の方へ蹴り込み、3 段目で起爆する",
     steps: [],
     dashAttack: reviveStep(W.trapper.dashAttack),
     attackMoveMul: W.trapper.attackMoveMul,

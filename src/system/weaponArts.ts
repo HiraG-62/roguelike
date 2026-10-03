@@ -5,7 +5,6 @@ import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
   type ButtonKey,
-  type AimArtDef,
   type BranchDef,
   type BranchShots,
   type HoldArtDef,
@@ -44,11 +43,10 @@ const FULL_TURN = Math.PI * 2;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
 const FX_SIZE = 2;
-const AIM_READY_PARTICLES = 6;
 /** 手元返しで向け直さない距離（手元に重なっている弾） */
 const RECALL_MIN_DIST = 1;
 
-/** 構え・狙いを押している右レーンの段（段カウンタが指す段）。構えていなければ undefined */
+/** 構えを押している右レーンの段（段カウンタが指す段）。構えていなければ undefined */
 function currentHoldStep(state: GameState): ActionStepDef | undefined {
   if (!state.player.art.holding) return undefined;
   return playerMoveset(state).steps2[state.player.attack.step];
@@ -58,12 +56,6 @@ function currentHoldStep(state: GameState): ActionStepDef | undefined {
 function currentHold(state: GameState): HoldArtDef | undefined {
   const s = currentHoldStep(state);
   return s?.kind === "hold" ? s.hold : undefined;
-}
-
-/** 短銃の狙い撃ち。今の段が狙い撃ちでなければ undefined */
-function currentAim(state: GameState): AimArtDef | undefined {
-  const s = currentHoldStep(state);
-  return s?.kind === "aim" ? s.aim : undefined;
 }
 
 /** 押した瞬間に完結する段（弾・手元返し）。振りの最中の recover を打ち切って出し、共有の間（laneGap）を置く */
@@ -133,8 +125,8 @@ function freeForArt(state: GameState): boolean {
 }
 
 /**
- * 右レーンの振り以外・溜め以外の段（構え・狙い・弾・手元返し）を index 段目として始める（player.ts の右の押下から）。
- * 構え・狙いは離す（窓が閉じる）まで段カウンタを保ち、弾・手元返しはすぐ段を進める。出したら true
+ * 右レーンの振り以外・溜め以外の段（構え・弾・手元返し）を index 段目として始める（player.ts の右の押下から）。
+ * 構えは離す（窓が閉じる）まで段カウンタを保ち、弾・手元返しはすぐ段を進める。出したら true
  */
 export function startLaneArt(state: GameState, s: ActionStepDef, index: number): boolean {
   if (s.kind === "swing" || s.kind === "charge") return false;
@@ -147,10 +139,6 @@ export function startLaneArt(state: GameState, s: ActionStepDef, index: number):
       logButton(p, "secondary");
       // 受け流しは押した瞬間に再使用を立てる（連打で窓を繋げない）。構えは離したときに立てる
       if (s.hold.parry) startCooldown(state, s);
-      return true;
-    case "aim":
-      beginHold(state);
-      logButton(p, "secondary");
       return true;
     case "volley":
       if (!emitArtVolley(state, s.throw, releaseOverride(laneRelease(state, s.key)))) return false;
@@ -177,14 +165,14 @@ function beginHold(state: GameState): void {
   a.holdTime = 0;
 }
 
-/** 構え・狙いを何も出さずに解く（ダッシュ・怯み・武器種の差し替え）。受け流しの窓もここで閉じる（硬直は付けない）。段は進めない */
+/** 構えを何も出さずに解く（ダッシュ・怯み・武器種の差し替え）。受け流しの窓もここで閉じる（硬直は付けない）。段は進めない */
 export function endArtHold(state: GameState): void {
   const a = state.player.art;
   a.holding = false;
   a.holdTime = 0;
 }
 
-/** 構え・狙いを解いて段を進める（押している最中の次の押下・受け流しの成功と窓の終わり）。構えていなければ何もしない */
+/** 構えを解いて段を進める（押している最中の次の押下・受け流しの成功と窓の終わり）。構えていなければ何もしない */
 export function finishArtHold(state: GameState): void {
   if (!state.player.art.holding) return;
   const index = state.player.attack.step;
@@ -209,11 +197,6 @@ export function updateArt(state: GameState, input: FrameInput, dt: number): void
   }
   if (hold) {
     updateGuard(state, hold, input.shootHeld, dt);
-    return;
-  }
-  const aim = currentAim(state);
-  if (aim) {
-    updateAim(state, aim, input.shootHeld, dt);
     return;
   }
   // 武器種が変わって技の種類が変わった（変身・装備変更）
@@ -241,37 +224,13 @@ function updateGuard(state: GameState, hold: HoldArtDef, held: boolean, dt: numb
   if (index !== undefined) startArtBranch(state, index);
 }
 
-/** 狙い撃ち: 押している間溜め、離したら撃つ。time に届いていれば強めた 1 発、届かなければ普通の 1 発 */
-function updateAim(state: GameState, aim: AimArtDef, held: boolean, dt: number): void {
-  const a = state.player.art;
-  if (held) {
-    const before = a.holdTime;
-    a.holdTime += dt;
-    if (before < aim.time && a.holdTime >= aim.time) onAimReady(state);
-    return;
-  }
-  const ready = a.holdTime >= aim.time;
-  const s = currentHoldStep(state);
-  finishArtHold(state);
-  const fired = emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
-  if (fired && s) startCooldown(state, s);
-}
-
-/** 狙いが定まった合図（離すタイミングを目と耳で計れるように） */
-function onAimReady(state: GameState): void {
-  const color = WEAPON.chargeRingColors[1] ?? A.parryColor;
-  spawnBurst(state, state.player.body.pos, color, AIM_READY_PARTICLES, FX_SPEED, FX_LIFE, FX_SIZE);
-  pushSfx(state, "chargeLevel");
-}
-
-/** 構え・狙い・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
+/** 構え・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
 export function artMoveMul(state: GameState): number {
   const parry = parryMoveMul(state);
   if (parry !== 1) return parry;
   if (!state.player.art.holding) return 1;
   const hold = currentHold(state);
-  if (hold) return hold.moveMul;
-  return currentAim(state)?.moveMul ?? 1;
+  return hold?.moveMul ?? 1;
 }
 
 /**
@@ -465,6 +424,20 @@ function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {
   const p = state.player;
   if (extras.selfKnock !== undefined) p.knock = sub(p.knock, scale(p.facing, extras.selfKnock));
   if (extras.detonateMines) detonateOwnMines(state);
+}
+
+/** 床の自分の設置弾（まだ炸裂していない）のうち from に一番近い位置（無ければ undefined。罠蹴りの蹴り込み先）。曲射弾は数えない */
+export function nearestOwnMine(state: GameState, from: Vec): Vec | undefined {
+  let best: Vec | undefined;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const pr of state.projectiles) {
+    if (!isPlacedShot(pr) || !pr.shot || BULLETS[pr.shot.key]?.mine === undefined) continue;
+    const d = length(sub(pr.pos, from));
+    if (d >= bestDist) continue;
+    best = pr.pos;
+    bestDist = d;
+  }
+  return best;
 }
 
 /**

@@ -56,9 +56,9 @@ const BUTTON_LABEL: Readonly<Record<ButtonKey, string>> = { primary: "左", seco
 /** 再使用の残りを出す桁（0.1 秒刻み） */
 const COOLDOWN_DIGITS = 1;
 
-/** 押し続ける段（居合・狙い撃ち・盾の構え）は「長押し」と添える */
+/** 押し続ける段（居合・盾の構え）は「長押し」と添える */
 function artPress(art: ActionStepDef): string {
-  const long = art.kind === "charge" || art.kind === "aim" || (art.kind === "hold" && art.hold.guard);
+  const long = art.kind === "charge" || (art.kind === "hold" && art.hold.guard);
   return long ? `${BUTTON_LABEL.secondary} 長押し` : BUTTON_LABEL.secondary;
 }
 
@@ -119,8 +119,6 @@ function activeChargeGauge(state: GameState, moveset: MovesetDef): ChargeGauge |
   const p = state.player;
   if (p.attack.charging) return chargeGauge(p.attack.chargeTime, meleeChargeOf(moveset)?.levels ?? []);
   if (p.shotCharging) return chargeGauge(p.shotChargeTime, currentShot(state.stats).charge?.levels ?? []);
-  const held = moveset.steps2[p.attack.step];
-  if (p.art.holding && held?.kind === "aim") return chargeGauge(p.art.holdTime, [{ time: held.aim.time }]);
   return undefined;
 }
 

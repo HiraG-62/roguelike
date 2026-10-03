@@ -115,8 +115,6 @@ const FIRE_SEC = 1.2;
 /** 構えを見せる秒（受け流しは短く、構え・扇ぎは長く） */
 const PARRY_HOLD_SEC = 0.25;
 const GUARD_HOLD_SEC = 0.9;
-/** 狙い撃ちの溜めに足す余裕の秒 */
-const AIM_MARGIN_SEC = 0.15;
 /** 持続の奥義を出してから通常の手を見せるまでの秒 */
 const SUSTAIN_LEAD_SEC = 0.5;
 /** 導出の戦意（飛んでいる弾・床の設置弾）を溜める押しっぱなしの秒 */
@@ -161,15 +159,13 @@ export function laneSequence(m: Readonly<MovesetDef>, index: number): ButtonKey[
   return found ?? [...Array.from({ length: index }, () => "primary" as const), "secondary"];
 }
 
-/** 右の段の最後の手（構え・溜め・狙いは長押し） */
+/** 右の段の最後の手（構え・溜めは長押し） */
 function laneFinalCue(s: Readonly<ActionStepDef>): DemoCue {
   switch (s.kind) {
     case "hold":
       return hold("secondary", s.hold.parry ? PARRY_HOLD_SEC : GUARD_HOLD_SEC);
     case "charge":
       return hold("secondary", chargeHoldSec(s.charge));
-    case "aim":
-      return hold("secondary", s.aim.time + AIM_MARGIN_SEC);
     default:
       return tap("secondary");
   }
@@ -261,8 +257,6 @@ function laneTraits(m: Readonly<MovesetDef>, s: Readonly<ActionStepDef>, index: 
       return [`${s.throw.bullet.name} × ${s.throw.count}`, ...cooldownTrait(s.cooldown)];
     case "charge":
       return [`溜め ${s.charge.levels.length} 段`, ...stepTraits(m, s.charge.step, last), ...cooldownTrait(s.cooldown)];
-    case "aim":
-      return [`${s.aim.time} 秒溜めて 1 発`, ...cooldownTrait(s.cooldown)];
     case "recall":
       return ["飛んでいる弾を戻す", ...cooldownTrait(s.cooldown)];
   }

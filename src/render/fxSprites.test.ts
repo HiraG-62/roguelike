@@ -160,13 +160,20 @@ describe("fxSprites: 生成物と一覧の整合", () => {
  * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
  * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
  */
-const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
+const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
+  // 銃の近接の作り直し（段 4-A）: 短銃の短刀斬り・砲の込め棒の突き（絵は段 7）
+  sidearm: ["r:daggerCut"],
+  cannon: ["r:rammerThrust", "r:rammerThrust2"],
+};
 
 /**
  * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
  * 連刃の段数の拡張（5b-F）の旧 key は 2026-09-30 に取り除いたので空
  */
-const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
+const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
+  // 砲の筒殴り・尻叩きは込め棒の突きに替わった（段 4-A）。絵は段 7 で取り除く
+  cannon: ["r:barrelBash", "r:buttSwing"],
+};
 
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {

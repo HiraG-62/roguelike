@@ -583,20 +583,18 @@ describe("固有技の構え（docs/ideas/weapon-redesign.md 3 章）", () => {
     expect(Math.sin(left.angle), "左向きでも刃は上").toBeCloseTo(-1);
   });
 
-  it("盾の構えと狙い撃ちは照準へ腕を伸ばす", () => {
+  it("盾の構えは照準へ腕を伸ばす", () => {
     const aim = Math.PI / 4;
     const plain = pose({ aimHeld: true, aim });
-    for (const hold of ["guard", "aim"] as const) {
-      const p = pose({ hold, aim, aimHeld: true });
-      expect(p.angle).toBeCloseTo(aim);
-      expect(Math.hypot(p.dx, p.dy + 4), hold).toBeGreaterThan(Math.hypot(plain.dx, plain.dy + 4));
-    }
+    const p = pose({ hold: "guard", aim, aimHeld: true });
+    expect(p.angle).toBeCloseTo(aim);
+    expect(Math.hypot(p.dx, p.dy + 4)).toBeGreaterThan(Math.hypot(plain.dx, plain.dy + 4));
   });
 
   it("laneHoldPose は押している最中の構えの種類を選ぶ", () => {
     expect(laneHoldPose(MOVESETS.sword.steps2[0], true)).toBe("parry");
     expect(laneHoldPose(MOVESETS.shield.steps2[0], true)).toBe("guard");
-    expect(laneHoldPose(MOVESETS.sidearm.steps2[0], true)).toBe("aim");
+    expect(laneHoldPose(MOVESETS.sidearm.steps2[0], true), "短銃の右 1 段目は短刀斬りで構えない").toBeUndefined();
     expect(laneHoldPose(MOVESETS.katana.steps2[0], true), "居合は溜めの経路").toBeUndefined();
     expect(laneHoldPose(MOVESETS.sword.steps2[0], false), "押していなければ構えない").toBeUndefined();
     expect(laneHoldPose(MOVESETS.sword.steps2[1], true), "振りの段は構えない").toBeUndefined();

@@ -52,6 +52,7 @@
     "magnitude": "統一ルールの効果量（効果ごとに意味が違う。wave は振りの威力に対する倍率、restoreMana は気力、skillHaste はスキルの再使用を縮める秒）",
     "icd": "統一ルールの内部の再使用 / 命中の衝撃波（hitQuake）の再使用（秒）",
     "hitQuake": "持続中、近接の振りが当たるたびに当てた敵の位置で起こす衝撃波（icd 秒に 1 回）。radius は burstRadiusMul が掛かる（px）、scaling / poise / knockback は nova と同じ意味、hitstop = ヒットストップ（ステップ）、shake = 画面の揺れ",
+    "packedShot": "弾倉の残りを全部詰めて撃ち出す 1 発。装備の砲の弾に、粒を pelletsAdd 足し、威力を damageMul 倍し、撃った向きと逆へ selfKnock（px/秒。跳ぶ距離は 14 で割った px 程度。1400 で約 100px）下がる。装薬の詰めの最大段の値と揃える",
     "pointBlank": "持続中、近い敵ほど与ダメが上がる（零距離）。range = 効き始める距離（px。自分から敵の縁まで）、mul = 密着したときの与ダメの倍率（range で 1 へ直線に下がる）"
   },
   "_order": ["common", "defs"]

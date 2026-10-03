@@ -362,9 +362,9 @@ describe("戦意: 砲（置いた弾と一斉起爆）", () => {
     expect(currentMeleeStep(state)?.release).toBeUndefined();
   });
 
-  it("擲弾の曲射弾も置いた弾で、蹴り飛ばしの段で一斉起爆する。零距離砲・起爆・蹴り飛ばしが放出の段", () => {
+  it("擲弾の曲射弾も置いた弾で、蹴り飛ばしの段で一斉起爆する。起爆・蹴り飛ばしが放出の段（零距離砲は設置弾を起爆しなくなった）", () => {
     const keys = FORMS.artillery.morale.release.kind === "laneStep" ? FORMS.artillery.morale.release.keys : [];
-    expect([...keys].sort(), "砲の放出の段").toEqual(["detonate", "kickAway", "pointBlank"]);
+    expect([...keys].sort(), "砲の放出の段").toEqual(["detonate", "kickAway"]);
     const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
     state.player.shootCooldown = 0;
     run(state, { attackHeld: true });

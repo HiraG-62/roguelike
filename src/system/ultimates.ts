@@ -5,7 +5,7 @@ import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "
 import { pushPlayerEvent } from "../core/events";
 import { enemyDef } from "../data/enemies";
 import { FEEL, ULTIMATE } from "../data/tuning";
-import type { LungeAct, NovaAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
+import type { LungeAct, NovaAct, PackedShotAct, PullAct, BuffAct, SustainDef, SustainPatch, UltimateAct, UltimateDef } from "../data/ultimates";
 import { ultimateDef } from "../data/ultimates";
 import {
   type ActionStepDef,
@@ -27,7 +27,8 @@ import { cancelAttack, damageEnemy, healPlayer, rollOutgoing } from "./combat";
 import { addFloatingText, addUltFx, hitstop, shake, spawnBlast, spawnBurst, spawnLine, spawnRing, withUltimateFx } from "./effects";
 import { gainMana } from "./mana";
 import { boxCircleOverlap, circlesOverlap, moveBody } from "./physics";
-import { emitVolley, spreadOffsets } from "./player";
+import { currentShot, emitVolley, spreadOffsets } from "./player";
+import { emptyMagazine } from "./magazine";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isAllied } from "./rules";
 import { placeTerrain } from "./terrain";
@@ -217,6 +218,10 @@ function runAct(state: GameState, def: UltimateDef, act: UltimateAct, slot: ActS
     case "detonate":
       addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
       runDetonate(state, act.damageMul ?? 1);
+      return 0;
+    case "packedShot":
+      addUltFx(state, def.key, slot.part, slot.index, p.body.pos, { angle: angle(p.facing) });
+      runPackedShot(state, def, act);
       return 0;
   }
 }
@@ -468,6 +473,24 @@ function runVolley(state: GameState, t: ThrowArtDef): void {
     recoil: false,
     sprite: t.sprite,
   });
+}
+
+/**
+ * 弾倉の残りを全部詰めた 1 発（砲の全弾発射）。弾倉は 0 になり（そのまま込めに入る）、装備の砲の弾が粒を足して強く、
+ * 反動で大きく後ろへ下がる。弾倉が空でも撃つ（ゲージは払い済みで、残りが無いことを理由に無駄にしない）
+ */
+function runPackedShot(state: GameState, def: UltimateDef, act: PackedShotAct): void {
+  const p = state.player;
+  const shot = currentShot(state.stats);
+  emptyMagazine(state);
+  emitVolley(state, shot, 0, p.aimDistance, {
+    count: state.stats.projectileCount + shot.pellets + act.pelletsAdd,
+    damageMul: act.damageMul,
+    attack: def.attack,
+    recoil: false,
+    steady: true,
+  });
+  p.knock = sub(p.knock, scale(p.facing, act.selfKnock));
 }
 
 /** 引き寄せ: 半径（burstRadiusMul）内の敵を toDistance まで寄せる（壁の手前で止まる）。single なら最も近い 1 体 */

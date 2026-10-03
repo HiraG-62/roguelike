@@ -75,7 +75,7 @@ const SHOT_CHARGE_HOLD = 0.75;
 /**
  * 右クリック（アクション 2。docs/ideas/ougi-and-dual-actions.md 4.4）: 近接は射程内で左右を混ぜた列（LANE_PATTERNS）を 1 押しずつ出す。
  * 銃の家系と射程外の弾・手元返しの右段は、連撃の始めだけこの秒ごとに右を 1 フレーム押し、連撃の途中は続けて押す。
- * 受け流しは敵の予備動作を見て PARRY_HOLD 秒押す。居合は MELEE_CHARGE_HOLD 秒溜める。盾の構え・狙い撃ちは 1 フレームだけ押す（溜めない。QA の穴として report に注記）
+ * 受け流しは敵の予備動作を見て PARRY_HOLD 秒押す。居合は MELEE_CHARGE_HOLD 秒溜める。盾の構えは 1 フレームだけ押す（溜めない。QA の穴として report に注記）
  */
 const ART_PERIOD = 1.0;
 const P: ButtonKey = "primary";
@@ -949,9 +949,9 @@ function isRangedStep(s: ActionStepDef): boolean {
   return s.kind === "volley" || s.kind === "recall";
 }
 
-/** bot が右段を押す射程。狙い撃ちは溜めずに離す（普通の 1 発）。構え・溜めは射程外からは押さない（undefined） */
+/** bot が右段を押す射程。構え・溜めは射程外からは押さない（undefined） */
 function laneRange(s: ActionStepDef): number | undefined {
-  if (isRangedStep(s) || s.kind === "aim") return ART_THROW_RANGE;
+  if (isRangedStep(s)) return ART_THROW_RANGE;
   if (s.kind === "swing") return s.step.reach + s.step.size / 2 + ART_STRIKE_MARGIN;
   return undefined;
 }
