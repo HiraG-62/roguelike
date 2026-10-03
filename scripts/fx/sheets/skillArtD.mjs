@@ -52,6 +52,11 @@ function polyline(pts, per = 6) {
   return out;
 }
 
+/** 床の滲みの縁の太さ: 広がった後は乾いて細り、最後は途切れた縁だけ残る（はっきりした輪のまま居残らない） */
+function washRim(p, w) {
+  return 0.5 + (w - 0.5) * (1 - smoothstep(0.45, 1, p));
+}
+
 /** 蹴りの墨跳ね（踏み込みの起点。後ろ = -x へ飛ぶ） */
 function kickSpray(frame, f, count, seed, o = {}) {
   splatter(frame, f, count, seed, (i, r) => ({
@@ -73,7 +78,7 @@ const CHARGE = { widthPx: 26, seed: SEED + 100 };
 
 /** 蹴り: 蹄で踏んだ重い墨だまりと、後ろへ掻いた太い二筋 */
 function chargeKick(frame, f) {
-  const p = prog(f, 7);
+  const p = prog(f, 9);
   if (p < 0.7) inkBlot(frame, { x: -2, y: 0, radius: 13 * (1.1 - 0.5 * p), seed: CHARGE.seed + f, coreWidth: 0.3 });
   for (const s of [-1, 1]) {
     brushStroke(frame, { pts: seg(2, s * 9, -34, s * 13), width: 6, grow: smoothstep(0, 0.4, p), fade: smoothstep(0.35, 1, p), dry: 0.7, seed: CHARGE.seed + 10 + s });
@@ -83,7 +88,7 @@ function chargeKick(frame, f) {
 
 /** 通り道（1 区間）: 幅の広い荒い飛白。毛筋の間が大きく、重い体で擦った跡 */
 function chargeTrail(frame, f) {
-  const p = prog(f, 8);
+  const p = prog(f, 9);
   brushStroke(frame, {
     pts: seg(-SEG_HALF, 0, SEG_HALF, 0),
     width: 20 * (1 - 0.35 * p),
@@ -173,7 +178,7 @@ const POUND = { radiusPx: 28, frames: 8, seed: SEED + 300 };
 function poundHit(frame, f) {
   const R = POUND.radiusPx * 2;
   const p = prog(f, POUND.frames);
-  if (p < 0.55) inkBlot(frame, { x: 0, y: 0, radius: 20 * (0.8 + 0.4 * smoothstep(0, 0.2, p)), seed: POUND.seed + f, coreWidth: 0.4 });
+  if (p < 0.55) inkBlot(frame, { x: 0, y: 0, radius: 20 * (0.8 + 0.4 * smoothstep(0, 0.2, p)), seed: POUND.seed + f, coreWidth: 0.15 });
   enso(frame, { radius: R * (0.55 + 0.35 * smoothstep(0, 0.45, p)), a0: -Math.PI * 0.6, sweep: TAU * 0.9, width: 7, grow: smoothstep(0, 0.3, p), fade: smoothstep(0.4, 1, p) * 0.9, dry: 0.5, seed: POUND.seed + 1 });
   splatter(frame, f, 18, POUND.seed + 2, (i, r) => {
     const a = (i / 18) * TAU + r(1) * 0.3;
@@ -186,7 +191,7 @@ function poundHit(frame, f) {
 function poundGround(frame, f) {
   const R = POUND.radiusPx * 2;
   const p = prog(f, POUND.frames);
-  inkWash(frame, { radius: R * 0.6, reach: smoothstep(0, 0.4, p), seed: POUND.seed + 3, rimWidth: 3, rimLevel: 5, tint: 3, density: 0.25 * (1 - p), cell: 6 });
+  inkWash(frame, { radius: R * 0.6, reach: smoothstep(0, 0.4, p), seed: POUND.seed + 3, rimWidth: washRim(p, 3), rimLevel: 5, tint: 3, density: 0.25 * (1 - p), cell: 6 });
   for (let i = 0; i < 6; i++) {
     const r = (k) => hash1(i * 7 + k, POUND.seed + 4);
     let a = (i / 6) * TAU + r(1) * 0.5;
@@ -323,7 +328,7 @@ function leapTrail(frame, f) {
 function slamAir(frame, f) {
   const R = LEAP.slamPx * 2;
   const p = prog(f, 9);
-  if (p < 0.3) inkBlot(frame, { x: 0, y: 0, radius: 22, seed: LEAP.seed + 20 + f, coreWidth: 0.45 });
+  if (p < 0.3) inkBlot(frame, { x: 0, y: 0, radius: 22, seed: LEAP.seed + 20 + f, coreWidth: 0.15 });
   enso(frame, { radius: R * (0.6 + 0.3 * smoothstep(0, 0.35, p)), a0: Math.PI * 0.8, sweep: TAU * 0.95, width: 10 * (1 - 0.35 * p), grow: smoothstep(0, 0.25, p), fade: smoothstep(0.4, 1, p) * 0.9, dry: 0.45, seed: LEAP.seed + 21 });
   splatter(frame, f, 24, LEAP.seed + 22, (i, r) => {
     const a = (i / 24) * TAU + r(1) * 0.25;
@@ -336,7 +341,7 @@ function slamAir(frame, f) {
 function slamGround(frame, f) {
   const R = LEAP.slamPx * 2;
   const p = prog(f, 9);
-  inkWash(frame, { radius: R * 0.5, reach: smoothstep(0, 0.3, p), seed: LEAP.seed + 30, rimWidth: 4, rimLevel: 5, tint: 3, density: 0.3 * (1 - 0.7 * p), cell: 6 });
+  inkWash(frame, { radius: R * 0.5, reach: smoothstep(0, 0.3, p), seed: LEAP.seed + 30, rimWidth: washRim(p, 4), rimLevel: 5, tint: 3, density: 0.3 * (1 - 0.7 * p), cell: 6 });
   for (let i = 0; i < 8; i++) {
     const r = (k) => hash1(i * 11 + k, LEAP.seed + 31);
     let a = (i / 8) * TAU + r(1) * 0.4;
@@ -366,7 +371,7 @@ function diveKick(frame, f) {
 
 /** 転がる通り道（1 区間）: 波打つ一筆（区間の長さが波の 1 周期。並べると続く） */
 function diveTrail(frame, f) {
-  const p = prog(f, 8);
+  const p = prog(f, 6);
   const pts = [];
   for (let i = 0; i <= 24; i++) {
     const x = -SEG_HALF + (2 * SEG_HALF * i) / 24;
@@ -430,7 +435,7 @@ function riposteCounter(frame, f) {
   const ea = -half;
   for (let i = 1; i <= 6; i++) {
     const t = i / 6;
-    pts.push({ x: end.x - Math.cos(ea) * 24 * t - 10 * t, y: end.y - Math.sin(ea) * 24 * t });
+    pts.push({ x: end.x - Math.cos(ea) * 34 * t - 16 * t * t, y: end.y - Math.sin(ea) * 34 * t });
   }
   brushStroke(frame, { pts, width: 8, grow: smoothstep(0, 0.4, p), fade: smoothstep(0.5, 1, p) * 0.9, dry: 0.5, tail: 0.2, sharp: 1, seed: RIPOSTE.seed + 4 });
   splatter(frame, f, 12, RIPOSTE.seed + 5, (i, r) => {
@@ -457,7 +462,7 @@ function hackArc(frame, f) {
     const pts = [];
     for (let i = 0; i <= 24; i++) {
       const t = i / 24;
-      pts.push({ x: R * (0.3 + 0.7 * t) + (hash1(i, HACK.seed + 2) - 0.5) * 3, y: R * (-0.7 + 1.3 * t) + 5 * Math.sin(t * Math.PI) });
+      pts.push({ x: R * (0.2 + 0.85 * t) + (hash1(i, HACK.seed + 2) - 0.5) * 3, y: R * (0.3 - 0.55 * t) + 5 * Math.sin(t * Math.PI) });
     }
     brushStroke(frame, { pts, width: 7, grow: g2, fade: smoothstep(0.55, 1, p) * 0.9, dry: 0.75, seed: HACK.seed + 3 });
   }
@@ -482,7 +487,7 @@ function meteorVanish(frame, f) {
     const a = r(1) * TAU;
     const d = 4 + 12 * p * r(2);
     const rad = (6 + 4 * r(3)) * (1 - smoothstep(0.3, 1, p));
-    if (rad > 1) inkBlot(frame, { x: Math.cos(a) * d, y: Math.sin(a) * d - 18 * p, radius: rad, seed: METEOR.seed + 10 + i, coreWidth: 0.3 });
+    if (rad > 1) inkBlot(frame, { x: Math.cos(a) * d, y: Math.sin(a) * d - 18 * p, radius: rad, seed: METEOR.seed + 10 + i, coreWidth: 0.08 });
   }
   for (const s of [-1, 1]) {
     const pts = [];
@@ -506,7 +511,7 @@ function meteorFall(frame, f) {
   }
   brushStroke(frame, { pts, width: 10, profile: (u) => 0.25 + 0.75 * u * u, grow: g, fade: smoothstep(0.3, 0.85, p), dry: 0.5, seed: METEOR.seed + 30 });
   const head = pts[Math.min(pts.length - 1, Math.round(g * 20))];
-  if (p < 0.45 && head) inkBlot(frame, { x: head.x, y: head.y, radius: 6 + 4 * g, seed: METEOR.seed + 31 + f, coreWidth: 0.5 });
+  if (p < 0.45 && head) inkBlot(frame, { x: head.x, y: head.y, radius: 6 + 4 * g, seed: METEOR.seed + 31 + f, coreWidth: 0.25 });
 }
 
 /** 闇の円（空中）: 円相が中心から外へ広がり、墜ちた所から墨が五方へ放射に跳ねる */
@@ -525,7 +530,7 @@ function burstAir(frame, f) {
 function burstGround(frame, f) {
   const R = METEOR.burstPx * 2;
   const p = prog(f, 9);
-  inkWash(frame, { radius: R, reach: smoothstep(0, 0.55, p), seed: METEOR.seed + 50, rimWidth: 3 + 2 * (1 - p), rimLevel: 5, tint: 6, density: 0.18 * (1 - smoothstep(0.6, 1, p)), cell: 5 });
+  inkWash(frame, { radius: R, reach: smoothstep(0, 0.55, p), seed: METEOR.seed + 50, rimWidth: washRim(p, 4), rimLevel: 5, tint: 6, density: 0.18 * (1 - smoothstep(0.6, 1, p)), cell: 5 });
 }
 
 // ---------------------------------------------------------------------------
@@ -550,7 +555,7 @@ function detonateSign(frame, f) {
 function blastAir(frame, f) {
   const R = DETONATE.blastPx * 2;
   const p = prog(f, 10);
-  if (p < 0.25) inkBlot(frame, { x: 0, y: 0, radius: 28 * (0.8 + p), seed: DETONATE.seed + 10, coreWidth: 0.5 });
+  if (p < 0.25) inkBlot(frame, { x: 0, y: 0, radius: 28 * (0.8 + p), seed: DETONATE.seed + 10, coreWidth: 0.15 });
   enso(frame, { radius: R * (0.5 + 0.38 * smoothstep(0, 0.4, p)), a0: Math.PI * 0.2, sweep: TAU * 0.9, width: 8 * (1 - 0.4 * p), wobble: 0.14, grow: smoothstep(0, 0.3, p), fade: smoothstep(0.35, 1, p) * 0.9, dry: 0.6, seed: DETONATE.seed + 11 });
   splatter(frame, f, 30, DETONATE.seed + 12, (i, r) => {
     const a = r(1) * TAU;
@@ -564,7 +569,7 @@ function blastAir(frame, f) {
 function blastGround(frame, f) {
   const R = DETONATE.blastPx * 2;
   const p = prog(f, 10);
-  inkWash(frame, { radius: R * 0.85, reach: smoothstep(0, 0.3, p), seed: DETONATE.seed + 20, rimWidth: 3, rimLevel: 5, tint: 3, density: 0.3 * (1 - 0.7 * p), cell: 6 });
+  inkWash(frame, { radius: R * 0.85, reach: smoothstep(0, 0.3, p), seed: DETONATE.seed + 20, rimWidth: washRim(p, 3), rimLevel: 5, tint: 3, density: 0.18 * (1 - 0.7 * p), cell: 6 });
   for (let i = 0; i < 12; i++) {
     const r = (k) => hash1(i * 3 + k, DETONATE.seed + 21);
     const a = (i / 12) * TAU + r(1) * 0.3;
@@ -659,13 +664,17 @@ function backArrive(frame, f) {
   brushStroke(frame, { pts, width: 4, grow: smoothstep(0, 0.4, p), fade: smoothstep(0.4, 1, p) * 0.9, dry: 0.5, tail: 0.6, sharp: 1, seed: BACKSTAB.seed + 21 });
 }
 
-/** 背から斬る: 素早く締まった弧と、真ん中を貫く鋭い刺しの一筆 */
+/** 背から斬る: 先に背へ深く刺す鋭い一筆、続けて刺し口から斜めに掻き切る払い（弓に見えないよう弧を左右対称にしない） */
 function backStab(frame, f) {
   const R = BACKSTAB.reachPx * 2;
   const p = prog(f, 7);
-  const half = 50 * (Math.PI / 180);
-  brushStroke(frame, { pts: arcPoints(0, 0, R * 0.72, -half, half * 2, 30, 0.03, BACKSTAB.seed + 30), width: 4.5, grow: smoothstep(0, 0.3, p), fade: smoothstep(0.4, 1, p) * 0.9, dry: 0.5, tail: 0.5, sharp: 1, seed: BACKSTAB.seed + 31 });
-  brushStroke(frame, { pts: seg(6, 0, R * 1.05, 0), width: 5, grow: smoothstep(0.1, 0.4, p), fade: smoothstep(0.45, 1, p) * 0.9, press: 0.08, tail: 0.75, sharp: 1, dry: 0.3, seed: BACKSTAB.seed + 32 });
+  brushStroke(frame, { pts: seg(4, 2, R * 1.05, -1), width: 5.5, grow: smoothstep(0, 0.25, p), fade: smoothstep(0.45, 1, p) * 0.9, press: 0.06, tail: 0.75, sharp: 1, dry: 0.3, seed: BACKSTAB.seed + 32 });
+  const cut = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    cut.push({ x: R * (0.42 + 0.5 * t) - 6 * Math.sin(t * Math.PI), y: R * (-0.5 + 0.95 * t) });
+  }
+  brushStroke(frame, { pts: cut, width: 4.5, grow: smoothstep(0.2, 0.5, p), fade: smoothstep(0.5, 1, p) * 0.9, press: 0.1, dry: 0.55, tail: 0.6, sharp: 1, seed: BACKSTAB.seed + 31 });
   splatter(frame, f, 9, BACKSTAB.seed + 33, (i, r) => ({ x: R, y: (r(1) - 0.5) * 4, vx: 3 + 3 * r(2), vy: (r(3) - 0.5) * 5, size: r(4) > 0.5 ? 1.4 : 0.8, born: 1, life: 5, level: 7 }));
 }
 
@@ -677,13 +686,13 @@ const AWAY = { seed: SEED + 1400 };
 
 /** 打ちの起こり: 手元の小さな墨だまり */
 function strikePress(frame, f) {
-  const p = prog(f, 6);
+  const p = prog(f, 7);
   if (p < 0.7) inkBlot(frame, { x: 3, y: 0, radius: 7 * (1.1 - 0.5 * p), seed: AWAY.seed + 1, coreWidth: 0.35 });
 }
 
 /** 打ち（1 区間）: 稲妻に折れる細い筆（区間の長さで 1 折れ。並べると続く）と、下を通る淡い擦れ */
 function strikeBeam(frame, f) {
-  const p = prog(f, 6);
+  const p = prog(f, 7);
   const h = SEG_HALF;
   const pts = polyline([
     { x: -h, y: 0 },
@@ -698,7 +707,7 @@ function strikeBeam(frame, f) {
 /** 打ち当て: 当たった所の墨だまりと、前へ折れて走る二筋の稲妻の筆 */
 function strikeTip(frame, f) {
   const p = prog(f, 7);
-  if (p < 0.7) inkBlot(frame, { x: 0, y: 0, radius: 8 * (1 + 0.3 * p), seed: AWAY.seed + 20, coreWidth: 0.45 });
+  if (p < 0.7) inkBlot(frame, { x: 0, y: 0, radius: 8 * (1 + 0.3 * p), seed: AWAY.seed + 20, coreWidth: 0.2 });
   for (const s of [-1, 1]) {
     const pts = polyline([
       { x: 4, y: 0 },
@@ -716,7 +725,7 @@ function strikeTip(frame, f) {
 
 /** 跳び退きの蹴り（向き = 跳んだ向き。墨は前 = 敵の側 = -x へ跳ねる） */
 function awayKick(frame, f) {
-  const p = prog(f, 6);
+  const p = prog(f, 7);
   for (const s of [-1, 1]) brushStroke(frame, { pts: seg(2, s * 5, -16, s * 7), width: 3.5, grow: smoothstep(0, 0.35, p), fade: smoothstep(0.3, 1, p), dry: 0.6, seed: AWAY.seed + 30 + s });
   kickSpray(frame, f, 9, AWAY.seed + 32, { spread: 12, speed: 3 });
 }
@@ -839,8 +848,8 @@ export const ATLAS = {
   key: "skillArtD",
   fx: FX,
   sheets: [
-    dir("chargeKick", 7, 112, chargeKick),
-    strip("chargeTrail", 8, 64, chargeTrail),
+    dir("chargeKick", 9, 112, chargeKick),
+    strip("chargeTrail", 9, 64, chargeTrail),
     dir("chargeImpact", 9, 144, chargeImpact),
     flat("cutsStorm", CUTS.frames, 160, cutsStorm),
     flat("poundHit", POUND.frames, 160, poundHit),
@@ -854,7 +863,7 @@ export const ATLAS = {
     flat("slamAir", 9, 208, slamAir),
     flat("slamGround", 9, 200, slamGround),
     dir("diveKick", 6, 96, diveKick),
-    strip("diveTrail", 8, 48, diveTrail),
+    strip("diveTrail", 6, 48, diveTrail),
     dir("diveLand", 6, 64, diveLand),
     dir("diveMuzzle", 6, 96, diveMuzzle),
     dir("diveBullet", 4, 80, diveBullet),
@@ -876,10 +885,10 @@ export const ATLAS = {
     strip("backTrail", 7, 48, backTrail),
     dir("backArrive", 7, 64, backArrive),
     dir("backStab", 7, 160, backStab),
-    dir("strikePress", 6, 48, strikePress),
-    strip("strikeBeam", 6, 48, strikeBeam),
+    dir("strikePress", 7, 48, strikePress),
+    strip("strikeBeam", 7, 48, strikeBeam),
     dir("strikeTip", 7, 96, strikeTip),
-    dir("awayKick", 6, 80, awayKick),
+    dir("awayKick", 7, 80, awayKick),
     strip("awayTrail", 7, 48, awayTrail),
     dir("awayLand", 7, 80, awayLand),
   ],
