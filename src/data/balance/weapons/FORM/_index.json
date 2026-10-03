@@ -1,5 +1,5 @@
 {
-  "_note": "武器の型（docs/ideas/weapon-forms-impl.md 3-1 / 3-2 / 3-4）。27 の武器種の上に置く 17 の型の数値。union・表示名・戦意の溜まる出来事と放出の形は src/data/weaponForms.ts、戦意の処理は src/system/morale.ts。段取り 5a では blade（剣）・flurry（連刃）・crusher（重打）・rifle（長銃）の 4 型だけ戦意が動き、他の型は骨（溜まる出来事を持たない。5b で埋める）。値は設計の初期値で、QA（npm run qa:probe の武器種の表）で動かす。連刃は 5b-F で双剣 6・拳 6・爪 8 段に広げた（stepsMin 6）。銃の型（短銃・長銃・仕掛け・装薬・擲弾）は弾倉（system/magazine.ts）に合わせて作り直した（docs/ideas/gun-bases-review.md 0-4）",
+  "_note": "武器の型（docs/ideas/weapon-forms-impl.md 3-1 / 3-2 / 3-4）。武器種の上に置く型の数値。union・表示名・戦意の溜まる出来事と放出の形は src/data/weaponForms.ts、戦意の処理は src/system/morale.ts。段取り 5a では blade（剣）・flurry（連刃）・crusher（重打）・rifle（長銃）の 4 型だけ戦意が動き、他の型は骨（溜まる出来事を持たない。5b で埋める）。値は設計の初期値で、QA（npm run qa:probe の武器種の表）で動かす。連刃は 5b-F で双剣 6・拳 6・爪 8 段に広げた（stepsMin 6）。銃の型（短銃・長銃・仕掛け・装薬・擲弾）は弾倉（system/magazine.ts）に合わせて作り直した（docs/ideas/gun-bases-review.md 0-4）",
   "_fields": {
     "weight": "型の既定の重さ（light / medium / heavy）。武器種の movesets/<key>.json の weight が違えばそちらが優先（個性。data/weaponForms.test.ts の WEIGHT_OVERRIDES が理由付きで持つ）",
     "stepsMin": "左の連撃の段数の下限（銃の家系は左に段が無いので右レーンの段数）。data/weaponForms.test.ts が検査",
@@ -31,5 +31,5 @@
     "skillCooldownMul": "書: 持っている間のスキルの再使用（CD 型の再使用の秒）の倍率（1 = 等倍）。無詠唱（右 1 段目の放出）は次の気力のスキル 1 回の気力を 0 にする",
     "toll": "鈴: 打ち鳴らし（右 1 段目の放出）。radius の内側の自分の設置物を即発動し、連動体（砲台・墓標）に 1 回撃たせる（px）。buffSec 秒の間、設置物・連動体の命中の威力を buffMul 倍にする（1 = 等倍）。強化の間の左の振り 1 回で extendSec 秒延び、残りは maxSec 秒まで"
   },
-  "_order": ["blade", "flurry", "crusher", "hewer", "polearm", "chain", "bulwark", "warfan", "rod", "thrower", "pistol", "rifle", "artillery", "powder", "shell", "tome", "bell", "akimbo"]
+  "_order": ["blade", "flurry", "crusher", "hewer", "polearm", "chain", "bulwark", "warfan", "rod", "thrower", "dart", "star", "pistol", "rifle", "artillery", "powder", "shell", "tome", "bell", "akimbo"]
 }

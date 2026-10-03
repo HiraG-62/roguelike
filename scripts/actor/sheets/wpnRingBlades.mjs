@@ -59,6 +59,8 @@ function draw(frame) {
   paint(frame, capsule(0.5, -4.5, 0.5, 4.5, 2), CLOTH_TEAL);
   for (let y = -3.5; y <= 3.5; y += 2) paint(frame, capsule(-1.3, y, 2.3, y + 0.6, 0.35), CLOTH_TEAL, { minShade: 0, maxShade: 0, rim: false });
   for (const s of [-1, 1]) paint(frame, capsule(-0.3, s * 5.3, 1.8, s * 5.3, 1.1), GOLD);
+  // 戦輪は左で輪を投げる（投擲物）。投げた輪は輪の中心から出る
+  frame.anchor("muzzle", CX, 0);
 }
 
 export const ATLAS = {

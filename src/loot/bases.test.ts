@@ -11,6 +11,8 @@ const EARLY_WEAPON_LEVEL = 3;
 const EARLY_GUN_LEVEL = 4;
 /** itemLevel 3 の武器ドロップに混ざる武器種の下限 */
 const EARLY_MOVESET_VARIETY = 4;
+/** 器が撃たなくなった弾の性質（投擲・旧戦輪の器を消した。段 5-A）。追尾は杖の詠唱、跳弾は技の弾が持つ */
+const NO_BASE_FEATURES: readonly string[] = ["homing", "ricochet"];
 
 function earliest(match: (b: (typeof BASES)[number]) => boolean): number {
   return Math.min(...BASES.filter(match).map((b) => b.minLevel));
@@ -33,7 +35,8 @@ describe("序盤のベース解禁", () => {
   it(`弾の性質ごとに minLevel ${EARLY_GUN_LEVEL} 以下の器がある`, () => {
     // 刺さる・弧の弾は投擲物の器が撃つ。器への配線は段 6（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
     const pending: ReadonlySet<string> = new Set(["pin", "arc"]);
-    for (const f of BULLET_FEATURES.filter((x) => !pending.has(x))) {
+    for (const f of BULLET_FEATURES) {
+      if (NO_BASE_FEATURES.includes(f) || pending.has(f)) continue;
       expect(earliest((b) => BULLETS[b.key] !== undefined && bulletFeatures(bulletDef(b.key)).includes(f)), `${f} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
     }
   });
@@ -48,11 +51,11 @@ describe("右手ベースの家系（武器の群）", () => {
   it("家系は近接・銃・投擲物の 3 つで、右手以外は持たない", () => {
     const sword = baseDef("longsword");
     const pistol = baseDef("pistol");
-    const knives = baseDef("throwingKnives");
-    if (sword === undefined || pistol === undefined || knives === undefined) throw new Error("ベースが無い");
+    const kunai = baseDef("kunai");
+    if (sword === undefined || pistol === undefined || kunai === undefined) throw new Error("ベースが無い");
     expect(baseFamily(sword), "長剣").toBe("melee");
     expect(baseFamily(pistol), "拳銃").toBe("gun");
-    expect(baseFamily(knives), "投げ短剣").toBe("throwing");
+    expect(baseFamily(kunai), "クナイ").toBe("throwing");
     for (const base of BASES) {
       if (base.moveset === undefined) expect(baseFamily(base), `${base.key} は右手以外`).toBeUndefined();
       else expect(MOVESETS[base.moveset], `${base.key} の武器種`).toBeDefined();

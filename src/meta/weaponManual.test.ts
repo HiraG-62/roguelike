@@ -87,7 +87,7 @@ describe("武器指南書の実演", () => {
 
   it("確かめない技は受け流しの構え・反動を挟む振り・床に残らない弾の放出だけ", () => {
     const skipped = MANUAL_KEYS.flatMap((key) => weaponManualPage(key).moves.filter((m) => m.expect === "none").map((m) => `${key}:${m.key}`));
-    // 剣の受け流し・爪の跳び退き・砲 / 擲弾 / 短銃の反動の振りと、砲の型の放出（床に残る弾を撃たない器）
-    for (const s of skipped) expect(s, s).toMatch(/^(sword:lane\.0|claws:lane\.1|cannon:|grenade:|sidearm:)/);
+    // 剣の受け流し・爪の跳び退き・砲 / 擲弾 / 短銃の反動の振り・クナイの離れ投げ（後ろへ跳んで投げる）と、砲の型の放出（床に残る弾を撃たない器）
+    for (const s of skipped) expect(s, s).toMatch(/^(sword:lane\.0|claws:lane\.1|cannon:|grenade:|sidearm:|kunai:branch\.farThrow$)/);
   });
 });

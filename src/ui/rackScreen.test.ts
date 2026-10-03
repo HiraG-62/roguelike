@@ -69,7 +69,7 @@ describe("武器掛けの群の段", () => {
     expect(rackCards(NO_TRIAL).filter((c) => c.marked).map((c) => c.kind), "装備のまま").toEqual(["clear"]);
     expect(rackCards({ moveset: "spear", base: null }).filter((c) => c.marked).map((c) => c.group), "槍は近接").toEqual(["melee"]);
     expect(rackCards({ moveset: "longarm", base: "rifle" }).filter((c) => c.marked).map((c) => c.group), "長銃は銃").toEqual(["gun"]);
-    expect(rackCards({ moveset: "warRing", base: null }).filter((c) => c.marked).map((c) => c.group), "戦輪は投擲物").toEqual(["throwing"]);
+    expect(rackCards({ moveset: "ringBlades", base: null }).filter((c) => c.marked).map((c) => c.group), "戦輪は投擲物").toEqual(["throwing"]);
   });
 
   it("カードは 480x270 に収まり、中心をクリックするとそのカードを指す", () => {
@@ -222,11 +222,11 @@ describe("武器掛けの器の段", () => {
     const ui = createRackUi();
     openRackGroup(ui, "throwing");
     expect(ui.cursor, "最初の武器種にカーソル").toBe(1);
-    openRackFamily(ui, "warRing");
-    expect([ui.group, ui.family], "器の段").toEqual(["throwing", "warRing"]);
+    openRackFamily(ui, "ringBlades");
+    expect([ui.group, ui.family], "器の段").toEqual(["throwing", "ringBlades"]);
     closeRackLevel(ui);
     expect([ui.group, ui.family], "武器種の段へ").toEqual(["throwing", null]);
-    expect(rackCards(NO_TRIAL, "throwing")[ui.cursor]?.moveset, "戦輪のカード").toBe("warRing");
+    expect(rackCards(NO_TRIAL, "throwing")[ui.cursor]?.moveset, "戦輪のカード").toBe("ringBlades");
     expect(rackCardRect(ui.cursor, ui.scroll), "カーソルのカードが見えている").not.toBeNull();
     closeRackLevel(ui);
     expect([ui.group, ui.family], "群の段へ").toEqual([null, null]);

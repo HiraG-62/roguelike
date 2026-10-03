@@ -389,8 +389,6 @@ function laneStepFormulas(stats: Readonly<PlayerStats>, moveset: Readonly<Movese
     }
     case "charge":
       return [stepFormulas(stats, name, step.charge.step)];
-    case "recall":
-      return [];
   }
 }
 

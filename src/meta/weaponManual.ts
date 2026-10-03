@@ -263,8 +263,6 @@ function laneTraits(m: Readonly<MovesetDef>, s: Readonly<ActionStepDef>, index: 
       return [`${s.throw.bullet.name} × ${s.throw.count}`, ...cooldownTrait(s.cooldown)];
     case "charge":
       return [`溜め ${s.charge.levels.length} 段`, ...stepTraits(m, s.charge.step, last), ...cooldownTrait(s.cooldown)];
-    case "recall":
-      return ["飛んでいる弾を戻す", ...cooldownTrait(s.cooldown)];
   }
 }
 
@@ -336,9 +334,8 @@ function knockedOnTheWay(m: Readonly<MovesetDef>, seq: readonly ButtonKey[]): bo
 
 function laneMoves(m: Readonly<MovesetDef>): ManualMove[] {
   return m.steps2.map((s, i) => {
-    const prelude = s.kind === "recall" ? shotsPrelude(m) : undefined;
     const setup = swingSetup(m, laneSwingStep(s));
-    const script: DemoScript = prelude === undefined ? { setup, cues: laneCues(m, i) } : { setup, prelude, cues: laneCues(m, i) };
+    const script: DemoScript = { setup, cues: laneCues(m, i) };
     // 振らない構え（受け流し・離しても振らない構え）と、反動で下がってから振る段は当たりを確かめない
     const knocked = (s.kind === "swing" && s.extras?.selfKnock !== undefined) || knockedOnTheWay(m, laneSequence(m, i));
     const expect: DemoExpect = (s.kind === "hold" && s.hold.release === undefined) || knocked ? "none" : "hit";
@@ -454,7 +451,7 @@ function moralePrelude(m: Readonly<MovesetDef>): DemoCue[] {
   const form = formOf(m);
   if (!form.morale.derived) return [];
   const kinds = new Set(form.morale.gain.map((g) => g.kind));
-  if (kinds.has("flyingShots") || kinds.has("placedShots")) return shotsPrelude(m);
+  if (kinds.has("placedShots")) return shotsPrelude(m);
   if (kinds.has("pullHit")) return [...pullCues(m), FRESH];
   if (kinds.has("applyStatus")) return [...times(m.steps.length, tap("primary")), FRESH];
   return [];

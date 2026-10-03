@@ -306,6 +306,9 @@ export const ART_TRANSFORMS: Readonly<Record<FormKey, ArtTransform>> = {
   warfan: { acts: warfan, label: () => "突風（敵弾を消す）" },
   rod: { acts: rod, element: "weapon", label: () => "属性を武器に" },
   thrower: { acts: thrower, label: () => "振りを投げに" },
+  // クナイ・手裏剣は投具（戦輪）の写しで始める（数値は ART.TRANSFORM.<型>）
+  dart: { acts: thrower, label: () => "振りを投げに" },
+  star: { acts: thrower, label: () => "振りを投げに" },
   pistol: { acts: pistol, label: () => "振りを弾に" },
   // 二丁は短銃の写し（ART/TRANSFORM/akimbo.json。二丁らしい変形は後で）
   akimbo: { acts: pistol, label: () => "振りを弾に" },

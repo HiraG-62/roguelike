@@ -369,7 +369,10 @@ describe("武器種: 右レーン（アクション 2）の各段", () => {
       const swingIndices = MOVESETS[key].steps2.flatMap((s, i) => (s.kind === "swing" ? [i] : []));
       const lastSwing = MOVESETS[key].steps2.at(-1)?.kind === "volley" ? (swingIndices.at(-1) ?? 0) : MOVESETS[key].steps2.length - 1;
       expect(maxStep, "右レーンの最終段まで進んだ").toBe(lastSwing);
-      expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
+      // 右が全段とも純粋な投げ（当たり判定 0 の振りが弾を投げる。手裏剣）なら、当たるのは弾
+      const allThrows = MOVESETS[key].steps2.every((s) => s.kind === "swing" && s.step.cast !== undefined && s.step.size === 0);
+      if (allThrows) expect(e.hp, "右の投げが当たった").toBeLessThan(TOUGH_HP);
+      else expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
     });
   }
 });

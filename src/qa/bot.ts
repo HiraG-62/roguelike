@@ -989,7 +989,7 @@ function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d:
 }
 
 function isRangedStep(s: ActionStepDef): boolean {
-  return s.kind === "volley" || s.kind === "recall";
+  return s.kind === "volley";
 }
 
 /** bot が右段を押す射程。構え・溜めは射程外からは押さない（undefined） */

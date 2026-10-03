@@ -409,10 +409,10 @@ describe("generateItem: 右手の家系ゲート（剣は撃たず、銃は近�
     expect(sawAnyTrait, "検査対象の性質が生成されたこと").toBe(true);
   });
 
-  it("投擲物（投げ短剣）は family:gun の性質が付き、family:melee の性質は付かない（gun-bases-review 4-3 の 11）", () => {
+  it("投擲物（クナイ）は family:gun の性質が付き、family:melee の性質は付かない（gun-bases-review 4-3 の 11）", () => {
     let sawGunTrait = false;
     for (let seed = 0; seed < SEEDS * 4; seed++) {
-      const item = generateOnBase("throwingKnives", seed);
+      const item = generateOnBase("kunai", seed);
       for (const roll of item.affixes) {
         const family = affixDef(roll.key)?.family;
         expect(family, `seed ${seed}: ${roll.key}`).not.toBe("melee");

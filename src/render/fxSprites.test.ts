@@ -164,6 +164,8 @@ const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> 
   // 銃の近接の作り直し（段 4-A）: 短銃の短刀斬り・砲の込め棒の突き（絵は段 7）
   sidearm: ["r:daggerCut"],
   cannon: ["r:rammerThrust", "r:rammerThrust2"],
+  // チャクラムを戦輪へ統合（段 5-A）: 右の輪払い 2 つ（近投げ・強化投げは弾の絵）。絵は段 7
+  ringBlades: ["r:ringSweep", "r:ringSweep2"],
 };
 
 /**
@@ -173,6 +175,8 @@ const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> 
 const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
   // 砲の筒殴り・尻叩きは込め棒の突きに替わった（段 4-A）。絵は段 7 で取り除く
   cannon: ["r:barrelBash", "r:buttSwing"],
+  // チャクラムの左 4 段と右の輪断ち・二輪断ちは戦輪への統合で消えた（段 5-A）。絵は段 7 で取り除く
+  ringBlades: ["l:0", "l:1", "l:2", "l:3", "r:ringCut", "r:twinRingCut"],
 };
 
 describe("fxMotions: 武器種のモーションの表", () => {
@@ -325,9 +329,10 @@ describe("fxMotions: 奥義の絵の表", () => {
 
 /**
  * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
- * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切ったので空
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切った。
+ * クナイ・手裏剣は段 5-A で足した（絵は段 7）
  */
-const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["kunai", "shuriken"];
 
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {

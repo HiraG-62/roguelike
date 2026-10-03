@@ -232,8 +232,6 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   rapier: "gold",
   staff: "azure",
   scythe: "umbra",
-  throwingKnives: "gold",
-  blowgun: "umbra",
   matchlock: "crimson",
   rags: "jade",
   robe: "azure",
@@ -253,7 +251,6 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   gauntlets: "crimson",
   whip: "gold",
   wand: "azure",
-  ricochetGun: "gold",
   mineLauncher: "crimson",
   // 2026-09 第 2 弾
   katana: "gold",
@@ -267,10 +264,8 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   crystalWand: "gold",
   blunderbuss: "crimson",
   crossbow: "azure",
-  chakram: "azure",
   handCannon: "crimson",
   caltrops: "jade",
-  seekerOrb: "umbra",
   mino: "jade",
   // 2026-09-24 レーン B（新しい武器種・銃の弾の器）
   wakizashi: "gold",
@@ -288,8 +283,6 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   broadCleaver: "crimson",
   burstRifle: "azure",
   tripleCrossbow: "gold",
-  returnChakram: "azure",
-  flyingBlade: "gold",
   mortar: "crimson",
   grenadeLauncher: "crimson",
   // 武器 Wave 4（爪・チェーンアレイ・チャクラム・扇子の器）
@@ -309,6 +302,9 @@ export const BASE_LEAN: Readonly<Record<string, TraitColor>> = {
   grimoire: "umbra",
   kagura: "jade",
   vajraBell: "azure",
+  // 投擲物（クナイ・手裏剣の器）
+  kunai: "umbra",
+  shuriken: "gold",
 };
 export const BASE_LEAN_WEIGHT = 2;
 

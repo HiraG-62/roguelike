@@ -6,7 +6,7 @@ import { BOONS } from "../system/boonDefs";
 import { JOB_BRANCHES } from "./jobs";
 import { PLAYER, ULTIMATE } from "./tuning";
 import { ULTIMATES, type SustainShot, type UltimateAct, type UltimateDef, defaultUltimate, isUltimateKey, sustainRules, ultimateDef } from "./ultimates";
-import { type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature } from "./weapons";
+import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature } from "./weapons";
 
 /** 奥義の定義（docs/ideas/ougi-and-dual-actions.md 3.3）: 本数・名前・行為の並び・数値の対応 */
 
@@ -164,13 +164,49 @@ describe("武器 Wave 4 の奥義", () => {
     }
   });
 
-  it("環の陣は周回する弾を 4 枚出し、大旋風は敵弾を消す", () => {
-    const ring = ultimateDef("ringBlades.ringFormation");
-    const act = ring?.kind === "instant" ? ring.acts[0] : undefined;
-    expect(act?.kind === "volley" ? act.throw.count : 0, "4 枚").toBe(4);
-    expect(act?.kind === "volley" ? act.throw.bullet.orbit : undefined, "周回").toBeDefined();
+  it("大旋風は敵弾を消す", () => {
     const gale = ultimateDef("fan.greatGale");
     const nova = gale?.kind === "instant" ? gale.acts[0] : undefined;
     expect(nova?.kind === "nova" ? nova.clearsBullets : false, "大旋風は敵弾を消す").toBe(true);
+  });
+});
+
+describe("投擲物の奥義（docs/ideas/gun-bases-review.md 0-5・2-9）", () => {
+  const volleyBullet = (key: string): BulletDef | undefined => {
+    const def = ultimateDef(key);
+    const act = def?.kind === "instant" ? def.acts[0] : undefined;
+    return act?.kind === "volley" ? act.throw.bullet : undefined;
+  };
+
+  it("戦輪は断頭輪・輪舞・輪の舞の 3 本。断頭輪と輪舞は近投げの戻る輪を投げる", () => {
+    expect(ULTIMATES.ringBlades.map((u) => u.key)).toEqual(["ringBlades.headsman", "ringBlades.ringDance", "ringBlades.ringWaltz"]);
+    for (const key of ["ringBlades.headsman", "ringBlades.ringDance"]) {
+      expect(volleyBullet(key)?.key, `${key} の弾の型`).toBe("cast.ringToss");
+      expect(volleyBullet(key)?.boomerang, `${key} は戻る`).toBeDefined();
+    }
+    expect(ultimateDef("ringBlades.ringWaltz")?.kind, "輪の舞は持続").toBe("sustain");
+  });
+
+  it("消した奥義（千手・一点集中・早業・円環の理・環の陣・乱輪）は定義に無い", () => {
+    for (const key of ["thrown.thousandHands", "thrown.pinpoint", "thrown.swiftToss", "warRing.circleLaw", "ringBlades.ringFormation", "ringBlades.wildRings"]) {
+      expect(ultimateDef(key), key).toBeUndefined();
+    }
+  });
+
+  it("大投擲は斧の投擲の弾（行って戻る）を投げる（無い key は拳銃の弾へ黙って落ちるので key を固定する）", () => {
+    expect(volleyBullet("axe.greatThrow")?.key).toBe("art.axeThrow");
+    expect(volleyBullet("axe.greatThrow")?.boomerang, "戻る").toBeDefined();
+  });
+
+  it("クナイ・手裏剣は 3 本ずつ（一撃と持続を両方含む）。八方手裏剣は全周へ 16 本、大車輪は周回する", () => {
+    for (const k of ["kunai", "shuriken"] as const) {
+      expect(ULTIMATES[k], k).toHaveLength(PER_MOVESET);
+      expect(ULTIMATES[k].some((u) => u.kind === "sustain"), `${k} に持続`).toBe(true);
+    }
+    const eight = ultimateDef("shuriken.eightfold");
+    const act = eight?.kind === "instant" ? eight.acts[0] : undefined;
+    expect(act?.kind === "volley" ? act.throw.count : 0, "16 本").toBe(16);
+    expect(volleyBullet("shuriken.greatWheel")?.orbit, "大車輪は周回").toBeDefined();
+    expect(volleyBullet("kunai.shadowStitch")?.key, "影縫いの陣はクナイを投げる（仮）").toBe("kunai");
   });
 });

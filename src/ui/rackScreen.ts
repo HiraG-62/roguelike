@@ -67,7 +67,7 @@ export function createRackUi(): RackUi {
 export const RACK_GROUP_NAME: Readonly<Record<WeaponGroup, string>> = { melee: "近接", gun: "銃", throwing: "投擲物" };
 
 /** 群のカードの絵に使う代表の武器種 */
-const RACK_GROUP_ICON: Readonly<Record<WeaponGroup, MovesetKey>> = { melee: "sword", gun: "longarm", throwing: "thrown" };
+const RACK_GROUP_ICON: Readonly<Record<WeaponGroup, MovesetKey>> = { melee: "sword", gun: "longarm", throwing: "ringBlades" };
 
 /** 群の説明（何ができるか。数値・強さは出さない） */
 const RACK_GROUP_DETAIL: Readonly<Record<WeaponGroup, string>> = {

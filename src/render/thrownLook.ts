@@ -45,36 +45,41 @@ function point(shape: ThrownShape): ThrownLook {
 const KNIFE = point("knife");
 const KNIFE_SPIN = spin("knife");
 const AXE = spin("axe", SPIN_HEAVY);
-const WAR_RING = spin("warRing");
 const RING_BLADES = spin("ringBlades");
+const KUNAI = point("kunai");
+const SHURIKEN = spin("shuriken");
+const BIG_SHURIKEN = spin("bigShuriken");
 
 /**
  * 弾の key（BulletDef.key。右レーンの弾の段は `art.<段の key>`、銃の家系の左はベースの key）→ 見た目。
- * 派生の弾（二丁投げ・三本投げ・回し投げ・三連輪 …）も同じ弾の key を撃つのでここで拾える
+ * 派生の弾（二丁投げ・重ね輪・離れ投げ …）も同じ弾の key を撃つのでここで拾える。振りが撃つ弾は `cast.<cast の key>`
  */
 export const BULLET_LOOK: Readonly<Record<string, ThrownLook>> = {
   // 斧の右「投擲」（と派生の二丁投げ）
   "art.axeThrow": AXE,
-  // チャクラムの右 4 段目「投輪」
-  "art.ringLaunch": RING_BLADES,
-  // 戦輪の右「輪投げ」「双輪」
-  "art.ringThrow": WAR_RING,
-  "art.twinRings": WAR_RING,
-  // 投擲の左（投げ短剣）
-  throwingKnives: KNIFE,
-  // 戦輪の左（刃の輪を投げる）
-  chakram: WAR_RING,
-  returnChakram: WAR_RING,
-  flyingBlade: WAR_RING,
+  // 戦輪の左（器の輪刃・牙輪）と、右の近投げ・強化投げ
+  ringBlades: RING_BLADES,
+  fangRings: RING_BLADES,
+  "cast.ringToss": RING_BLADES,
+  "cast.ringHurl": RING_BLADES,
+  // クナイの左
+  kunai: KUNAI,
+  // 手裏剣の左右（3 段目は大手裏剣）
+  "cast.starToss": SHURIKEN,
+  "cast.starToss2": SHURIKEN,
+  "cast.starFan": SHURIKEN,
+  "cast.starFan2": SHURIKEN,
+  "cast.bigStar": BIG_SHURIKEN,
 };
 
-/** 奥義の key（`<武器種>.<id>`）→ 見た目。弾の key より優先する（大投擲は返し輪の弾で斧を投げる） */
+/** 奥義の key（`<武器種>.<id>`）→ 見た目。弾の key より優先する（大投擲は斧の投擲の弾で斧を投げる） */
 export const ULTIMATE_LOOK: Readonly<Record<string, ThrownLook>> = {
   "axe.greatThrow": AXE,
-  "thrown.thousandHands": KNIFE,
-  "thrown.pinpoint": KNIFE,
-  "warRing.ringDance": WAR_RING,
-  "warRing.headsman": WAR_RING,
+  "ringBlades.headsman": RING_BLADES,
+  "ringBlades.ringDance": RING_BLADES,
+  "kunai.shadowStitch": KUNAI,
+  "shuriken.eightfold": SHURIKEN,
+  "shuriken.greatWheel": BIG_SHURIKEN,
 };
 
 /** 技・スキル石の key（CastParams.skillKey）→ 見た目。武器種に依らず同じ絵を飛ばすもの。技の弾（state.skills.shots）に使う */
@@ -104,8 +109,8 @@ export const MOVESET_THROWN_LOOK: Readonly<Partial<Record<MovesetKey, ThrownLook
   flail: spin("ironBall", SPIN_HEAVY),
   twinBlades: KNIFE_SPIN,
   cleaver: spin("cleaver"),
-  thrown: KNIFE_SPIN,
-  warRing: WAR_RING,
+  kunai: KUNAI,
+  shuriken: SHURIKEN,
 };
 
 /** 型替え符「照準起点」で近接が飛ばす刃 */

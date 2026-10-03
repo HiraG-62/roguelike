@@ -463,18 +463,19 @@ const SWING_SFX: Readonly<Record<MovesetKey, SfxName>> = {
   sidearm: "swingSidearm",
   longarm: "swingLongarm",
   cannon: "swingCannon",
-  thrown: "swingThrown",
   grenade: "swingGrenade",
   trapper: "swingTrapper",
-  warRing: "swingWarRing",
-  // 武器 Wave 4: 既存の振り音を流用（爪 = 双剣、チェーンアレイ = 戦鎚、チャクラム = 剣、扇子 = 鞭）
+  // 武器 Wave 4: 既存の振り音を流用（爪 = 双剣、チェーンアレイ = 戦鎚、扇子 = 鞭）。戦輪は輪の風切り
   claws: "swingTwinBlades",
   flail: "swingHammer",
-  ringBlades: "swingSword",
+  ringBlades: "swingWarRing",
   fan: "swingWhip",
   // 段取り 5d: 既存の振り音を流用（書 = 杖、手鈴 = 棍）
   book: "swingWand",
   handbell: "swingStaff",
+  // 投擲物: 投げ刃の風切り
+  kunai: "swingThrown",
+  shuriken: "swingThrown",
 };
 
 export function swingSfxName(moveset: MovesetKey): SfxName {
@@ -506,16 +507,16 @@ const HIT_FAMILY: Readonly<Record<MovesetKey, HitFamily>> = {
   sidearm: "pierce",
   longarm: "pierce",
   cannon: "blunt",
-  thrown: "slash",
   grenade: "blunt",
   trapper: "slash",
-  warRing: "slash",
   claws: "slash",
   flail: "blunt",
   ringBlades: "slash",
   fan: "blunt",
   book: "slash",
   handbell: "blunt",
+  kunai: "pierce",
+  shuriken: "slash",
 };
 
 export function hitFamily(moveset: MovesetKey): HitFamily {

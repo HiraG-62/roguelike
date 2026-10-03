@@ -69,9 +69,8 @@ const CHARACTERS: Readonly<Record<MovesetKey, WeaponCharacter>> = {
   axe: slash({ pitch: 0.8, tail: 0.7, low: 1.9, wet: 1.6, ring: 0.5, za: 1.3 }),
   chainSickle: slash({ pitch: 1.05, tail: 0.8, low: 0.8, wet: 1, ring: 1.3, za: 1, ringRatios: CHAIN_RING }),
   claws: slash({ pitch: 1.1, tail: 0.45, low: 0.7, wet: 1.3, ring: 0.2, za: 0.7, bursts: 3 }),
-  thrown: slash({ pitch: 1.2, tail: 0.5, low: 0.5, wet: 0.8, ring: 0.8, za: 0.8 }),
+  shuriken: slash({ pitch: 1.3, tail: 0.45, low: 0.4, wet: 0.7, ring: 1, za: 0.8, bursts: 2 }),
   trapper: slash({ pitch: 1.05, tail: 0.6, low: 0.8, wet: 1, ring: 0.6, za: 1 }),
-  warRing: slash({ pitch: 1.1, tail: 1, low: 0.8, wet: 0.8, ring: 2, za: 0.9, ringRatios: CHAIN_RING }),
   ringBlades: slash({ pitch: 1.2, tail: 1.1, low: 0.6, wet: 0.7, ring: 2.2, za: 0.8, ringRatios: CHAIN_RING }),
   // 書は頁から走る文字の刃（docs/ideas/tome-rework.md）。紙の軽く乾いた切れで、金属は鳴らさない
   book: slash({ pitch: 1.3, tail: 0.5, low: 0.4, wet: 0.5, ring: 0.1, za: 0.7 }),
@@ -92,6 +91,8 @@ const CHARACTERS: Readonly<Record<MovesetKey, WeaponCharacter>> = {
   gunner: shift("pierce", 1.05, 0.9, 0.9, 0.9),
   sidearm: shift("pierce", 1.1, 0.85, 0.9, 0.8),
   longarm: shift("pierce", 0.95, 1, 0.95, 1),
+  // クナイは細い刃の刺突（短銃より高く短い）
+  kunai: shift("pierce", 1.2, 0.75, 0.85, 0.7),
   // 鞭打
   whip: shift("lash", 1, 1, 1, 1),
 };

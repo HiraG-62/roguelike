@@ -21,12 +21,11 @@ const PLAIN = kw(["ranged", "bullet"]);
 const RAPID = kw(["ranged", "bullet", "combo"], [], ["crit"]);
 const SPREAD = kw(["ranged", "bullet", "stagger"], [], ["melee", "dash"]);
 const PIERCE = kw(["ranged", "bullet", "stagger"], [], ["area"]);
-const HOMING = kw(["ranged", "bullet"], [], ["dash"]);
-const RICOCHET = kw(["ranged", "bullet", "wall"]);
 const CHARGE = kw(["ranged", "bullet", "stagger"], ["still"]);
 const MINE = kw(["ranged", "placed", "explode", "area"]);
 const BOOMERANG = kw(["ranged", "bullet", "area"], [], ["still"]);
 const LOB = kw(["ranged", "explode", "area"], ["still"]);
+const HEAVY_THROW = kw(["ranged", "bullet", "stagger"], [], ["melee"]);
 
 /** 弾を持つベース（baseHasBullet）ごとの弾の語と素性。キーは BASES の key（weapons.json の bullets と同じ集合。balance.test が検査する） */
 const BULLET_PROFILES: Readonly<Record<string, BulletProfile>> = {
@@ -35,7 +34,6 @@ const BULLET_PROFILES: Readonly<Record<string, BulletProfile>> = {
   pistol: { keywords: PLAIN, attack: PHYSICAL },
   revolver: { keywords: PLAIN, attack: PHYSICAL },
   smg: { keywords: RAPID, attack: PHYSICAL },
-  throwingKnives: { keywords: RAPID, attack: PHYSICAL },
   burstRifle: { keywords: RAPID, attack: PHYSICAL },
   tripleCrossbow: { keywords: RAPID, attack: PHYSICAL },
   shotgun: { keywords: SPREAD, attack: PHYSICAL },
@@ -43,18 +41,16 @@ const BULLET_PROFILES: Readonly<Record<string, BulletProfile>> = {
   rifle: { keywords: PIERCE, attack: PHYSICAL },
   railgun: { keywords: PIERCE, attack: PHYSICAL },
   crossbow: { keywords: PIERCE, attack: PHYSICAL },
-  blowgun: { keywords: HOMING, attack: attack("ranged", "physical", "poison") },
-  seekerOrb: { keywords: HOMING, attack: attack("ranged", "physical", "poison") },
-  ricochetGun: { keywords: RICOCHET, attack: PHYSICAL },
-  chakram: { keywords: RICOCHET, attack: PHYSICAL },
   matchlock: { keywords: CHARGE, attack: attack("ranged", "physical", "fire") },
   handCannon: { keywords: CHARGE, attack: attack("ranged", "physical", "fire") },
   mineLauncher: { keywords: MINE, attack: attack("ranged", "physical", "fire") },
   caltrops: { keywords: MINE, attack: attack("ranged", "physical", "fire") },
-  returnChakram: { keywords: BOOMERANG, attack: PHYSICAL },
-  flyingBlade: { keywords: BOOMERANG, attack: PHYSICAL },
   mortar: { keywords: LOB, attack: PHYSICAL },
   grenadeLauncher: { keywords: LOB, attack: PHYSICAL },
+  // 投擲物（左で投げる器）。クナイは単発で重い、戦輪の器は行って戻る
+  kunai: { keywords: HEAVY_THROW, attack: PHYSICAL },
+  ringBlades: { keywords: BOOMERANG, attack: PHYSICAL },
+  fangRings: { keywords: BOOMERANG, attack: PHYSICAL },
 };
 
 /** 弾を持つベースの弾の語と素性のキー一覧（テスト用） */
@@ -64,7 +60,7 @@ const RAW = WEAPON.bullets as Readonly<Record<string, unknown>>;
 
 /**
  * 器が自分の弾を持つか: 近接でない群（銃・投擲物）で、左で撃つ武器種の器。
- * 戦輪（ringBlades）の器は今は左で振るので弾を持たない（段 5-A で左で投げるようになったら持つ）
+ * 手裏剣は左右とも振りが撃つ弾（cast）なので器は弾を持たない
  */
 export function baseHasBullet(base: BaseItemDef): boolean {
   const family = baseFamily(base);

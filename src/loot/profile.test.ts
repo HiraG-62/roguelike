@@ -3,6 +3,7 @@ import { STASH_CAPACITY } from "../data/tuning";
 import {
   HISTORY_LIMIT,
   PROFILE_KEY,
+  REMOVED_BASE_KEYS,
   addToStash,
   equipItem,
   loadProfile,
@@ -18,6 +19,7 @@ import {
 } from "./profile";
 import { ULTIMATES, defaultUltimate } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
+import { baseDef } from "./bases";
 import { migrateItem } from "./migrate";
 import { createEmptyProfile } from "./types";
 import type { Item, RunHistoryEntry } from "./types";
@@ -349,6 +351,33 @@ describe("旧セーブの weapon / gun スロット（docs/ideas/weapon-redesign
     saveProfile(once, storage);
     const twice = loadProfile(storage);
     expect(twice, "書き戻すと新形式のまま冪等").toEqual(once);
+  });
+});
+
+describe("消した器の遺物（docs/ideas/gun-bases-review.md 0-1。移行は作らない）", () => {
+  it("消した器（投擲・旧戦輪の 7 つ）はベースの表に無い", () => {
+    expect(REMOVED_BASE_KEYS.size).toBe(7);
+    for (const key of REMOVED_BASE_KEYS) expect(baseDef(key), key).toBeUndefined();
+  });
+
+  it("消した器の遺物は装備からも倉庫からも読み込みで捨て、他の遺物は残す", () => {
+    const storage = new MemoryStorage();
+    const raw = {
+      version: 1,
+      equipment: {
+        mainHand: makeItem({ id: "old-ring", baseKey: "returnChakram" }),
+        armor: null,
+        boots: null,
+        ring: null,
+        amulet: null,
+      },
+      stash: [makeItem({ id: "old-knives", baseKey: "throwingKnives" }), makeItem({ id: "kept", baseKey: "kunai" })],
+      meta: { runs: 0, bestDepth: 0, totalKills: 0, bestScore: 0 },
+    };
+    storage.setItem(PROFILE_KEY, JSON.stringify(raw));
+    const loaded = loadProfile(storage);
+    expect(loaded.equipment.mainHand, "装備の消した器は外れる").toBeNull();
+    expect(loaded.stash.map((it) => it.id), "倉庫の消した器は捨てる").toEqual(["kept"]);
   });
 });
 

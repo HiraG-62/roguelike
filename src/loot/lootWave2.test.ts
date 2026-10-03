@@ -63,10 +63,8 @@ const NEW_BASES = [
   "crystalWand",
   "blunderbuss",
   "crossbow",
-  "chakram",
   "handCannon",
   "caltrops",
-  "seekerOrb",
   "mino",
 ] as const;
 
@@ -194,7 +192,7 @@ describe("第 2 弾の性質（段取り 7d に残ったもの）", () => {
 // ---------------------------------------------------------------------------
 
 describe("第 2 弾のベース（10 種以上）", () => {
-  it("implicit が実在し、色の傾きを持ち、武器種・銃の弾ごとに 2 つ以上の器がある", () => {
+  it("implicit が実在し、色の傾きを持ち、武器種・銃の弾ごとに 2 つ以上の器がある（器ごとに別の武器種のクナイ・手裏剣は 1 つ）", () => {
     expect(NEW_BASES.length).toBeGreaterThanOrEqual(10);
     for (const key of NEW_BASES) {
       const base = baseDef(key);
@@ -202,7 +200,9 @@ describe("第 2 弾のベース（10 種以上）", () => {
       expect(BASE_LEAN[key], key).toBeDefined();
       if (base?.implicitKey !== undefined) expect(implicitDef(base.implicitKey), key).toBeDefined();
     }
-    for (const m of MOVESET_KEYS) expect(BASES.filter((b) => b.moveset === m).length, m).toBeGreaterThanOrEqual(2);
+    // 投擲物は器ごとに別の武器種にした（docs/ideas/gun-bases-review.md 0-1）ので、クナイ・手裏剣は器が 1 つ
+    const single: readonly string[] = ["kunai", "shuriken"];
+    for (const m of MOVESET_KEYS) expect(BASES.filter((b) => b.moveset === m).length, m).toBeGreaterThanOrEqual(single.includes(m) ? 1 : 2);
   });
 
   it("implicit が個性を持つ（斬馬刀は溜め、小鎌は闇の変換、喇叭銃は散弾の間合い）", () => {

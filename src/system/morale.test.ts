@@ -5,14 +5,13 @@ import { updateEnemies } from "./enemies";
 import { beginSwingMorale } from "./morale";
 import { releaseTerrainRadiusBonus } from "./morale";
 import { currentShot, emitVolley } from "./player";
-import { updateProjectiles } from "./projectiles";
 import { emitArtVolley } from "./weaponArts";
 import type { GameEvent } from "../core/events";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { FORM, PARRY, WEAPON } from "../data/tuning";
-import { FORMS } from "../data/weaponForms";
+import { FORMS, formOf } from "../data/weaponForms";
 import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { damagePlayer, rollOutgoing } from "./combat";
 import { gainMorale, moraleGauge, moraleMax, placedShotCount } from "./morale";
@@ -580,118 +579,19 @@ function throwShots(state: GameState, n: number): void {
   for (const pr of playerShots(state)) pr.pos.x += 60;
 }
 
-describe("戦意: 投具（飛んでいる数）", () => {
-  const thrown = { moveset: "thrown" as const };
-
-  it("飛んでいる自分の弾の数が戦意になり、満ちると充溢する（導出）", () => {
-    const state = arena(5, thrown);
-    throwShots(state, FORM.thrower.max);
-    const events = run(state, {});
-    expect(state.player.morale.value, "飛んでいる数").toBe(FORM.thrower.max);
-    expect(kinds(events, "onBrim"), "満ちた瞬間に充溢").toHaveLength(1);
-    gainMorale(state, "meleeHit");
-    expect(state.player.morale.value, "出来事では溜め込まない").toBe(FORM.thrower.max);
-    state.projectiles.length = 0;
-    run(state, {});
-    expect(state.player.morale.value, "弾が無くなれば 0").toBe(0);
+describe("戦意: 投擲物の型（骨。溜まる出来事は段 5-B・6）", () => {
+  it("戦輪・クナイ・手裏剣の型は溜まる出来事を持たず、自分の弾が飛んでいても戦意は 0", () => {
+    for (const moveset of ["ringBlades", "kunai", "shuriken"] as const) {
+      const state = arena(5, { moveset });
+      expect(formOf(MOVESETS[moveset]).morale.gain, `${moveset} の溜まる出来事`).toEqual([]);
+      throwShots(state, 2);
+      run(state, {});
+      expect(state.player.morale.value, `${moveset} の戦意`).toBe(0);
+    }
   });
 
-  it("手元返しが放出になり、戻りの弾は飛んでいた数だけ強い放出の弾になる", () => {
-    const state = arena(5, thrown);
-    throwShots(state, 2);
-    run(state, {});
-    const recall = MOVESETS.thrown.steps2[0];
-    if (recall?.kind !== "recall") throw new Error("投擲の右 1 段目は手元返し");
-    const before = playerShots(state).map((pr) => pr.damage);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")[0]?.amount, "飛んでいた数が放出の量").toBe(2);
-    const returned = playerShots(state);
-    expect(returned, "戻した弾").toHaveLength(2);
-    returned.forEach((pr, i) => {
-      expect(pr.damage / (before[i] ?? 1), "戻りの威力").toBeCloseTo(recall.recall.returnDamageMul * (1 + FORM.thrower.perUnit.damageMul * 2));
-      expect(pr.release, "放出の弾（終撃）").toEqual({ finisher: true, crit: false });
-    });
-  });
-
-  it("飛んでいる弾が無ければ手元返しは放出にならない", () => {
-    const state = arena(5, thrown);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")).toHaveLength(0);
-  });
-
-  it("輪刃の投げ放ち（右の最終段）は回っている輪の数だけ強い放出の弾になる", () => {
-    const state = arena(5, { moveset: "ringBlades" });
-    const launch = MOVESETS.ringBlades.steps2.length - 1;
-    expect(MOVESETS.ringBlades.steps2[launch]?.key).toBe("ringLaunch");
-    const plainState = arena(5, { moveset: "ringBlades" });
-    readyLaneStep(plainState, launch);
-    run(plainState, { shootHeld: true });
-    const plain = playerShots(plainState)[0];
-    if (!plain) throw new Error("普通の投げ放ちが出ない");
-
-    run(state, { shootHeld: true });
-    expect(playerShots(state), "輪が 1 つ回っている").toHaveLength(1);
-    state.player.art.cooldown = 0;
-    readyLaneStep(state, launch);
-    const events = run(state, { shootHeld: false }).concat(run(state, { shootHeld: true }));
-    expect(kinds(events, "onRelease")[0]?.amount, "回っている輪の数").toBe(1);
-    const launched = playerShots(state).find((pr) => pr.release !== undefined);
-    if (!launched) throw new Error("放出の輪が出ない");
-    expect(launched.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.thrower.perUnit.damageMul);
-  });
-
-  it("戦輪の払い（右 1 段目）は飛んでいる輪の数だけ強い放出の振りになる", () => {
-    const state = arena(5, { moveset: "warRing" });
-    throwShots(state, 2);
-    run(state, {});
-    const events = run(state, { shootHeld: true });
-    expect(MOVESETS.warRing.steps2[0]?.key).toBe("ringSweep");
-    expect(kinds(events, "onRelease")[0]?.amount, "飛んでいる数").toBe(2);
-    const now = currentMeleeStep(state);
-    const plain = plainStepOf(state);
-    if (!now || !plain) throw new Error("払いの振りが無い");
-    expect(now.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.thrower.perUnit.damageMul * 2);
-  });
-
-  /** 戻りの弾（手元返しで戻している弾）と敵弾を重ねて置き、1 ステップ進める */
-  function overlapReturning(state: GameState): Projectile {
-    throwShots(state, 1);
-    const mine = playerShots(state)[0];
-    if (!mine) throw new Error("自分の弾が無い");
-    mine.shot ??= { key: "" };
-    mine.shot.returning = true;
-    // 動かさず敵弾に重ねたまま 1 ステップ進める
-    mine.vel = { x: 0, y: 0 };
-    const enemyShot: Projectile = {
-      id: 9002,
-      owner: "enemy",
-      pos: { ...mine.pos },
-      vel: { x: 0, y: 0 },
-      radius: 3,
-      damage: 5,
-      life: 5,
-      color: "#ff0000",
-      kind: "ranged",
-      hitIds: new Set(),
-      pierceLeft: 0,
-    };
-    state.projectiles.push(enemyShot);
-    updateProjectiles(state, FIXED_DT);
-    return enemyShot;
-  }
-
-  it("戻りの弾が敵弾を消すと応手（recallCut）になる", () => {
-    const state = arena(5, thrown);
-    const enemyShot = overlapReturning(state);
-    expect(enemyShot.life, "敵弾が消えた").toBeLessThanOrEqual(0);
-    expect(kinds(state.events, "onRiposte").map((ev) => ev.tag)).toEqual(["recallCut"]);
-  });
-
-  it("投具でない武器の戻りの弾は敵弾を消さない", () => {
-    const state = arena(5);
-    const enemyShot = overlapReturning(state);
-    expect(enemyShot.life, "敵弾は残る").toBeGreaterThan(0);
-    expect(kinds(state.events, "onRiposte")).toHaveLength(0);
+  it("戦輪の型（投具）の放出の段は強化投げ", () => {
+    expect(formOf(MOVESETS.ringBlades).morale.release).toEqual({ kind: "laneStep", keys: ["ringHurl"] });
   });
 });
 

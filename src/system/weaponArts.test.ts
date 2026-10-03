@@ -3,7 +3,7 @@ import { step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { FORM, PLAYER, WEAPON } from "../data/tuning";
+import { PLAYER, WEAPON } from "../data/tuning";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { ACTION_STEP_KINDS, type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
@@ -252,39 +252,6 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     const before = state.projectiles.length;
     play(state, [{ shootHeld: true }, {}]);
     expect(state.projectiles.length, "再使用中は投げない").toBeLessThanOrEqual(before);
-  });
-
-  it("手元返しで自分の弾が反転し、戻りは強く当たる", () => {
-    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
-    play(state, [{ attackHeld: true }, ...idle(5)]);
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("弾が出ていない");
-    expect(shot.vel.x, "前へ飛んでいる").toBeGreaterThan(0);
-    const damage = shot.damage;
-    play(state, [{ shootHeld: true }]);
-    expect(shot.vel.x, "手元へ向いた").toBeLessThan(0);
-    // 手元返しは投具の放出（飛んでいた 1 発ぶんの戦意が戻りの威力に乗る）
-    expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul * (1 + FORM.thrower.perUnit.damageMul));
-  });
-
-  it("呼び戻した弾は近くの敵へ曲がる", () => {
-    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
-    play(state, [{ attackHeld: true }, ...idle(5)]);
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("弾が出ていない");
-    const recall = laneStepOf("thrown", 0, "recall").recall;
-    if (!recall.homing) throw new Error("投擲の手元返しに追尾が無い");
-    // 弾と手元の間の真横（手元へ戻る直線から外れた所）に敵を置く
-    const p = state.player.body.pos;
-    const e = tough(placeEnemy(state, "golem", 0));
-    e.body.pos = { x: (shot.pos.x + p.x) / 2, y: p.y + recall.homing.range / 3 };
-    play(state, [{ shootHeld: true }]);
-    expect(shot.shot?.recallHoming, "戻りの弾に追尾が写った").toEqual(recall.homing);
-    const toEnemy = e.body.pos.y - shot.pos.y;
-    const vy0 = shot.vel.y;
-    play(state, idle(10));
-    expect(Math.sign(shot.vel.y), "敵のいる側へ曲がった").toBe(Math.sign(toEnemy));
-    expect(Math.abs(shot.vel.y), "向きが変わった").toBeGreaterThan(Math.abs(vy0));
   });
 
   it("擲弾の派生の曲射はカーソルの距離で落ちる", () => {
@@ -564,17 +531,24 @@ describe("銃の家系", () => {
     expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
   });
 
-  it("戦輪は左で回転刃を投げ、右の輪払いは背中側の敵にも近接で当たる", () => {
-    const ring = arena(5, { moveset: "warRing", bullet: "returnChakram" });
+  it("戦輪は左で回転刃を投げ、右の輪払いは横の敵にも近接で当たり、右 2 段目の近投げは戻る輪を投げる", () => {
+    const ring = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
     play(ring, [{ attackHeld: true }]);
     expect(featuresOf(playerShots(ring)[0]), "左は回転刃").toEqual(["boomerang"]);
 
-    const state = arena(5, { moveset: "warRing", bullet: "returnChakram" });
-    // 220 度の扇なので、向きから 100 度ずれた敵にも届く
-    const side = tough(placeEnemy(state, "boar", -4, 18));
+    const state = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
+    // 160 度の扇なので、向きから 60 度ずれた敵にも届く
+    const side = tough(placeEnemy(state, "boar", 8, 14));
     play(state, [{ shootHeld: true }, ...idle(20)]);
     expect(state.player.meleeHitCount, "輪払いが当たった").toBeGreaterThan(0);
     expect(side.hp).toBeLessThan(TOUGH_HP);
+
+    const toss = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
+    expect(driveRight(toss, "ringToss"), "近投げまで進む").toBe(true);
+    for (let i = 0; i < SETTLE_STEPS && playerShots(toss).length === 0; i++) step(toss, withInput({}), FIXED_DT);
+    const thrown = playerShots(toss)[0];
+    expect(thrown?.shot?.key, "近投げの弾").toBe("cast.ringToss");
+    expect(featuresOf(thrown), "戻る輪").toEqual(["boomerang"]);
   });
 
   // 二丁拳銃は派生を持たない（左右の手。system/dualPistols.ts）ので、短銃の左左右（三連）で見る

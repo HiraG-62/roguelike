@@ -737,6 +737,8 @@ import j_skills_ART_TRANSFORM_bulwark from "./skills/ART/TRANSFORM/bulwark.json"
 import j_skills_ART_TRANSFORM_warfan from "./skills/ART/TRANSFORM/warfan.json";
 import j_skills_ART_TRANSFORM_rod from "./skills/ART/TRANSFORM/rod.json";
 import j_skills_ART_TRANSFORM_thrower from "./skills/ART/TRANSFORM/thrower.json";
+import j_skills_ART_TRANSFORM_dart from "./skills/ART/TRANSFORM/dart.json";
+import j_skills_ART_TRANSFORM_star from "./skills/ART/TRANSFORM/star.json";
 import j_skills_ART_TRANSFORM_pistol from "./skills/ART/TRANSFORM/pistol.json";
 import j_skills_ART_TRANSFORM_rifle from "./skills/ART/TRANSFORM/rifle.json";
 import j_skills_ART_TRANSFORM_artillery from "./skills/ART/TRANSFORM/artillery.json";
@@ -767,16 +769,16 @@ import j_ultimates_ULTIMATE_defs_gunner from "./ultimates/ULTIMATE/defs/gunner.j
 import j_ultimates_ULTIMATE_defs_sidearm from "./ultimates/ULTIMATE/defs/sidearm.json";
 import j_ultimates_ULTIMATE_defs_longarm from "./ultimates/ULTIMATE/defs/longarm.json";
 import j_ultimates_ULTIMATE_defs_cannon from "./ultimates/ULTIMATE/defs/cannon.json";
-import j_ultimates_ULTIMATE_defs_thrown from "./ultimates/ULTIMATE/defs/thrown.json";
 import j_ultimates_ULTIMATE_defs_grenade from "./ultimates/ULTIMATE/defs/grenade.json";
 import j_ultimates_ULTIMATE_defs_trapper from "./ultimates/ULTIMATE/defs/trapper.json";
-import j_ultimates_ULTIMATE_defs_warRing from "./ultimates/ULTIMATE/defs/warRing.json";
 import j_ultimates_ULTIMATE_defs_claws from "./ultimates/ULTIMATE/defs/claws.json";
 import j_ultimates_ULTIMATE_defs_flail from "./ultimates/ULTIMATE/defs/flail.json";
 import j_ultimates_ULTIMATE_defs_ringBlades from "./ultimates/ULTIMATE/defs/ringBlades.json";
 import j_ultimates_ULTIMATE_defs_fan from "./ultimates/ULTIMATE/defs/fan.json";
 import j_ultimates_ULTIMATE_defs_book from "./ultimates/ULTIMATE/defs/book.json";
 import j_ultimates_ULTIMATE_defs_handbell from "./ultimates/ULTIMATE/defs/handbell.json";
+import j_ultimates_ULTIMATE_defs_kunai from "./ultimates/ULTIMATE/defs/kunai.json";
+import j_ultimates_ULTIMATE_defs_shuriken from "./ultimates/ULTIMATE/defs/shuriken.json";
 import j_weapons__index from "./weapons/_index.json";
 import j_weapons_WEAPON__index from "./weapons/WEAPON/_index.json";
 import j_weapons_WEAPON_movesets_sword from "./weapons/WEAPON/movesets/sword.json";
@@ -798,16 +800,16 @@ import j_weapons_WEAPON_movesets_gunner from "./weapons/WEAPON/movesets/gunner.j
 import j_weapons_WEAPON_movesets_sidearm from "./weapons/WEAPON/movesets/sidearm.json";
 import j_weapons_WEAPON_movesets_longarm from "./weapons/WEAPON/movesets/longarm.json";
 import j_weapons_WEAPON_movesets_cannon from "./weapons/WEAPON/movesets/cannon.json";
-import j_weapons_WEAPON_movesets_thrown from "./weapons/WEAPON/movesets/thrown.json";
 import j_weapons_WEAPON_movesets_grenade from "./weapons/WEAPON/movesets/grenade.json";
 import j_weapons_WEAPON_movesets_trapper from "./weapons/WEAPON/movesets/trapper.json";
-import j_weapons_WEAPON_movesets_warRing from "./weapons/WEAPON/movesets/warRing.json";
 import j_weapons_WEAPON_movesets_claws from "./weapons/WEAPON/movesets/claws.json";
 import j_weapons_WEAPON_movesets_flail from "./weapons/WEAPON/movesets/flail.json";
 import j_weapons_WEAPON_movesets_ringBlades from "./weapons/WEAPON/movesets/ringBlades.json";
 import j_weapons_WEAPON_movesets_fan from "./weapons/WEAPON/movesets/fan.json";
 import j_weapons_WEAPON_movesets_book from "./weapons/WEAPON/movesets/book.json";
 import j_weapons_WEAPON_movesets_handbell from "./weapons/WEAPON/movesets/handbell.json";
+import j_weapons_WEAPON_movesets_kunai from "./weapons/WEAPON/movesets/kunai.json";
+import j_weapons_WEAPON_movesets_shuriken from "./weapons/WEAPON/movesets/shuriken.json";
 import j_weapons_WEAPON_artDefaults from "./weapons/WEAPON/artDefaults.json";
 import j_weapons_WEAPON_movesetRules from "./weapons/WEAPON/movesetRules.json";
 import j_weapons_WEAPON_jobBranches from "./weapons/WEAPON/jobBranches.json";
@@ -827,6 +829,8 @@ import j_weapons_FORM_bulwark from "./weapons/FORM/bulwark.json";
 import j_weapons_FORM_warfan from "./weapons/FORM/warfan.json";
 import j_weapons_FORM_rod from "./weapons/FORM/rod.json";
 import j_weapons_FORM_thrower from "./weapons/FORM/thrower.json";
+import j_weapons_FORM_dart from "./weapons/FORM/dart.json";
+import j_weapons_FORM_star from "./weapons/FORM/star.json";
 import j_weapons_FORM_pistol from "./weapons/FORM/pistol.json";
 import j_weapons_FORM_rifle from "./weapons/FORM/rifle.json";
 import j_weapons_FORM_artillery from "./weapons/FORM/artillery.json";
@@ -1776,6 +1780,8 @@ export const skills = {
       "warfan": j_skills_ART_TRANSFORM_warfan,
       "rod": j_skills_ART_TRANSFORM_rod,
       "thrower": j_skills_ART_TRANSFORM_thrower,
+      "dart": j_skills_ART_TRANSFORM_dart,
+      "star": j_skills_ART_TRANSFORM_star,
       "pistol": j_skills_ART_TRANSFORM_pistol,
       "rifle": j_skills_ART_TRANSFORM_rifle,
       "artillery": j_skills_ART_TRANSFORM_artillery,
@@ -1813,16 +1819,16 @@ export const ultimates = {
       "sidearm": j_ultimates_ULTIMATE_defs_sidearm,
       "longarm": j_ultimates_ULTIMATE_defs_longarm,
       "cannon": j_ultimates_ULTIMATE_defs_cannon,
-      "thrown": j_ultimates_ULTIMATE_defs_thrown,
       "grenade": j_ultimates_ULTIMATE_defs_grenade,
       "trapper": j_ultimates_ULTIMATE_defs_trapper,
-      "warRing": j_ultimates_ULTIMATE_defs_warRing,
       "claws": j_ultimates_ULTIMATE_defs_claws,
       "flail": j_ultimates_ULTIMATE_defs_flail,
       "ringBlades": j_ultimates_ULTIMATE_defs_ringBlades,
       "fan": j_ultimates_ULTIMATE_defs_fan,
       "book": j_ultimates_ULTIMATE_defs_book,
       "handbell": j_ultimates_ULTIMATE_defs_handbell,
+      "kunai": j_ultimates_ULTIMATE_defs_kunai,
+      "shuriken": j_ultimates_ULTIMATE_defs_shuriken,
     },
   },
 };
@@ -1857,16 +1863,16 @@ export const weapons = {
       "sidearm": j_weapons_WEAPON_movesets_sidearm,
       "longarm": j_weapons_WEAPON_movesets_longarm,
       "cannon": j_weapons_WEAPON_movesets_cannon,
-      "thrown": j_weapons_WEAPON_movesets_thrown,
       "grenade": j_weapons_WEAPON_movesets_grenade,
       "trapper": j_weapons_WEAPON_movesets_trapper,
-      "warRing": j_weapons_WEAPON_movesets_warRing,
       "claws": j_weapons_WEAPON_movesets_claws,
       "flail": j_weapons_WEAPON_movesets_flail,
       "ringBlades": j_weapons_WEAPON_movesets_ringBlades,
       "fan": j_weapons_WEAPON_movesets_fan,
       "book": j_weapons_WEAPON_movesets_book,
       "handbell": j_weapons_WEAPON_movesets_handbell,
+      "kunai": j_weapons_WEAPON_movesets_kunai,
+      "shuriken": j_weapons_WEAPON_movesets_shuriken,
     },
     "artDefaults": j_weapons_WEAPON_artDefaults,
     "movesetRules": j_weapons_WEAPON_movesetRules,
@@ -1891,6 +1897,8 @@ export const weapons = {
     "warfan": j_weapons_FORM_warfan,
     "rod": j_weapons_FORM_rod,
     "thrower": j_weapons_FORM_thrower,
+    "dart": j_weapons_FORM_dart,
+    "star": j_weapons_FORM_star,
     "pistol": j_weapons_FORM_pistol,
     "rifle": j_weapons_FORM_rifle,
     "artillery": j_weapons_FORM_artillery,
@@ -2819,6 +2827,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/ART/TRANSFORM/bulwark.json",
   "skills/ART/TRANSFORM/chain.json",
   "skills/ART/TRANSFORM/crusher.json",
+  "skills/ART/TRANSFORM/dart.json",
   "skills/ART/TRANSFORM/flurry.json",
   "skills/ART/TRANSFORM/hewer.json",
   "skills/ART/TRANSFORM/pistol.json",
@@ -2827,6 +2836,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/ART/TRANSFORM/rifle.json",
   "skills/ART/TRANSFORM/rod.json",
   "skills/ART/TRANSFORM/shell.json",
+  "skills/ART/TRANSFORM/star.json",
   "skills/ART/TRANSFORM/thrower.json",
   "skills/ART/TRANSFORM/warfan.json",
   "skills/ART/_index.json",
@@ -2904,19 +2914,19 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/ULTIMATE/defs/hammer.json",
   "ultimates/ULTIMATE/defs/handbell.json",
   "ultimates/ULTIMATE/defs/katana.json",
+  "ultimates/ULTIMATE/defs/kunai.json",
   "ultimates/ULTIMATE/defs/longarm.json",
   "ultimates/ULTIMATE/defs/ringBlades.json",
   "ultimates/ULTIMATE/defs/scythe.json",
   "ultimates/ULTIMATE/defs/shield.json",
+  "ultimates/ULTIMATE/defs/shuriken.json",
   "ultimates/ULTIMATE/defs/sidearm.json",
   "ultimates/ULTIMATE/defs/spear.json",
   "ultimates/ULTIMATE/defs/staff.json",
   "ultimates/ULTIMATE/defs/sword.json",
-  "ultimates/ULTIMATE/defs/thrown.json",
   "ultimates/ULTIMATE/defs/trapper.json",
   "ultimates/ULTIMATE/defs/twinBlades.json",
   "ultimates/ULTIMATE/defs/wand.json",
-  "ultimates/ULTIMATE/defs/warRing.json",
   "ultimates/ULTIMATE/defs/whip.json",
   "ultimates/_index.json",
   "weapons/ACTION_DASH_ATTACK.json",
@@ -2928,6 +2938,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/FORM/bulwark.json",
   "weapons/FORM/chain.json",
   "weapons/FORM/crusher.json",
+  "weapons/FORM/dart.json",
   "weapons/FORM/flurry.json",
   "weapons/FORM/hewer.json",
   "weapons/FORM/pistol.json",
@@ -2936,6 +2947,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/FORM/rifle.json",
   "weapons/FORM/rod.json",
   "weapons/FORM/shell.json",
+  "weapons/FORM/star.json",
   "weapons/FORM/thrower.json",
   "weapons/FORM/tome.json",
   "weapons/FORM/warfan.json",
@@ -2978,19 +2990,19 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/WEAPON/movesets/hammer.json",
   "weapons/WEAPON/movesets/handbell.json",
   "weapons/WEAPON/movesets/katana.json",
+  "weapons/WEAPON/movesets/kunai.json",
   "weapons/WEAPON/movesets/longarm.json",
   "weapons/WEAPON/movesets/ringBlades.json",
   "weapons/WEAPON/movesets/scythe.json",
   "weapons/WEAPON/movesets/shield.json",
+  "weapons/WEAPON/movesets/shuriken.json",
   "weapons/WEAPON/movesets/sidearm.json",
   "weapons/WEAPON/movesets/spear.json",
   "weapons/WEAPON/movesets/staff.json",
   "weapons/WEAPON/movesets/sword.json",
-  "weapons/WEAPON/movesets/thrown.json",
   "weapons/WEAPON/movesets/trapper.json",
   "weapons/WEAPON/movesets/twinBlades.json",
   "weapons/WEAPON/movesets/wand.json",
-  "weapons/WEAPON/movesets/warRing.json",
   "weapons/WEAPON/movesets/whip.json",
   "weapons/WEAPON/unarmed.json",
   "weapons/WEAPON/weightClass.json",

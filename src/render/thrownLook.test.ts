@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Projectile } from "../core/state";
 import { SPRITES } from "../data/sprites";
 import { THROWN_SHAPES, thrownSpriteKey, unheldFrame } from "../data/sprites/weapons";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, movesetCasts } from "../data/weapons";
 import { ULTIMATES } from "../data/ultimates";
 import { BASES } from "../loot/bases";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
@@ -46,18 +46,18 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     expect(projectileLook(pr)?.motion).toBe("spin");
   });
 
-  it("投げ短剣の左の弾は短刀の絵で、切っ先を進む向きへ向ける", () => {
+  it("クナイの左の弾はクナイの絵で、切っ先を進む向きへ向ける", () => {
     const pr = shot("player");
-    markShotBullet(pr, "throwingKnives");
-    expect(projectileLook(pr)?.sprite).toBe(thrownSpriteKey("knife"));
+    markShotBullet(pr, "kunai");
+    expect(projectileLook(pr)?.sprite).toBe(thrownSpriteKey("kunai"));
     expect(projectileLook(pr)?.motion).toBe("point");
   });
 
-  it("奥義の弾は弾の key より奥義の表を優先する（大投擲は返し輪の弾で斧を投げる）", () => {
+  it("奥義の弾は弾の key より奥義の表を優先する（戦輪の近投げの弾でも、大投擲の弾なら斧の絵）", () => {
     const state = arena();
     const pr = shot("player");
-    markShotBullet(pr, "returnChakram");
-    expect(projectileLook(pr)?.sprite, "奥義でなければ輪").toBe(thrownSpriteKey("warRing"));
+    markShotBullet(pr, "cast.ringToss");
+    expect(projectileLook(pr)?.sprite, "奥義でなければ輪").toBe(thrownSpriteKey("ringBlades"));
     withUltimateFx(state, "axe.greatThrow", 0, () => state.projectiles.push(pr));
     expect(projectileLook(pr)?.sprite, "大投擲なら斧").toBe(thrownSpriteKey("axe"));
   });
@@ -95,6 +95,7 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     const bulletKeys = new Set<string>([
       ...BASES.map((b) => b.key),
       ...MOVESET_KEYS.flatMap((m) => MOVESETS[m].steps2.flatMap((s) => (s.kind === "volley" ? [`art.${s.key}`] : []))),
+      ...MOVESET_KEYS.flatMap((m) => movesetCasts(MOVESETS[m]).map((c) => c.throw.bullet.key)),
     ]);
     for (const key of Object.keys(BULLET_LOOK)) expect(bulletKeys.has(key), `弾 ${key}`).toBe(true);
     const ultKeys = new Set(MOVESET_KEYS.flatMap((m) => ULTIMATES[m].map((u) => u.key)));
@@ -158,14 +159,12 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "skill:commonBomb": "照準地点に即座に爆ぜる輪で、飛ぶ弾が無い",
   // 敵を投げる近接
   "moveset:fists": "敵を背後へ投げる近接の振り",
-  "branch:grabToss": "敵を投げる近接の振り",
   "step2:grabThrow": "敵を投げる近接の振り",
-  "step2:throughThrow": "突き抜ける近接の振り",
   "step2:chainWeight": "鎖の先の分銅を伸ばす近接の振り（振りの絵は武器種のエフェクトが持つ）",
   // 飛ぶのが武器でない（設置弾）
   "branch:trapToss": "設置弾を 1 つ置く派生で、飛ぶのは設置弾",
   // 持続の奥義（投げた物そのものの見た目は弾の key で決まる）
-  "ult:thrown.swiftToss": "持続の奥義。飛ぶ弾の見た目は武器の弾の表が決める",
+  "ult:kunai.hiddenArms": "持続の奥義。飛ぶ弾の見た目は武器の弾の表が決める",
 };
 
 /** 描画は表ではなく別の経路で持つもの（thrownLook.ts の THROWN_ECHO_LOOK。照準起点の近接が飛ばす刃） */
@@ -199,6 +198,19 @@ function laneBulletCovered(m: MovesetKey): boolean {
   return MOVESETS[m].steps2.some((s) => s.kind === "volley" && BULLET_LOOK[`art.${s.key}`] !== undefined);
 }
 
+/** 振りが撃つ弾（cast。手裏剣の左右・戦輪の近投げ）のうち、武器の絵を持つものがあるか */
+function castBulletCovered(m: MovesetKey): boolean {
+  return movesetCasts(MOVESETS[m]).some((c) => BULLET_LOOK[c.throw.bullet.key] !== undefined);
+}
+
+/** 右の段の弾: 弾の段（`art.<key>`）か、振りの段が撃つ cast の弾 */
+function step2Covered(key: string): boolean {
+  if (BULLET_LOOK[`art.${key}`] !== undefined) return true;
+  return MOVESET_KEYS.some((m) =>
+    MOVESETS[m].steps2.some((s) => s.key === key && s.kind === "swing" && s.step.cast !== undefined && BULLET_LOOK[s.step.cast.throw.bullet.key] !== undefined),
+  );
+}
+
 function covered(id: string): boolean {
   if (DRAWN_ELSEWHERE.has(id)) return true;
   const [kind, key = ""] = id.split(/:(.*)/s);
@@ -208,9 +220,9 @@ function covered(id: string): boolean {
     case "ult":
       return ULTIMATE_LOOK[key] !== undefined;
     case "step2":
-      return BULLET_LOOK[`art.${key}`] !== undefined;
+      return step2Covered(key);
     case "moveset":
-      return movesetBulletCovered(key as MovesetKey) || laneBulletCovered(key as MovesetKey);
+      return movesetBulletCovered(key as MovesetKey) || laneBulletCovered(key as MovesetKey) || castBulletCovered(key as MovesetKey);
     case "branch":
       return branchCovered(key);
     default:

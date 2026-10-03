@@ -32,7 +32,7 @@ import { emptyMagazine } from "./magazine";
 import { applyStatus, hasStatus } from "./statusEffects";
 import { isAllied } from "./rules";
 import { placeTerrain } from "./terrain";
-import { detonateOwnMines, recallShots } from "./weaponArts";
+import { detonateOwnMines } from "./weaponArts";
 import { endShape } from "../skills/forms";
 
 /**
@@ -596,26 +596,17 @@ export function endUltimate(state: GameState, _reason: UltimateEndReason): void 
   pushPlayerEvent(state, "onBurst", "burst", { amount: kills });
 }
 
-/** 奥義の時間を進める（player.ts の updatePlayer で updateArt の直後）。持続中はゲージを減らし、纏い・手元返しを出し、尽きたら終える */
+/** 奥義の時間を進める（player.ts の updatePlayer で updateArt の直後）。持続中はゲージを減らし、纏いを出し、尽きたら終える */
 export function updateUltimate(state: GameState, dt: number): void {
   const def = activeSustain(state);
   if (!def) return;
   const p = state.player;
-  const before = p.ultimate.elapsed;
   p.ultimate.elapsed += dt;
   p.energy = Math.max(0, p.energy - def.sustain.drainPerSec * dt);
   p.ultimate.quakeCooldown = Math.max(0, p.ultimate.quakeCooldown - dt);
   tickAura(state, def, dt);
-  const recall = def.sustain.recall;
-  if (recall && crossed(before, p.ultimate.elapsed, recall.interval)) recallShots(state, recall);
   if (def.sustain.minePull) pullToMines(state, def.sustain.minePull, dt);
   if (p.energy <= 0 && p.ultimate.elapsed >= def.sustain.minSec) endUltimate(state, "drained");
-}
-
-/** 経過が interval の倍数をまたいだか（決定的な周期。乱数も実時間も使わない） */
-function crossed(before: number, after: number, interval: number): boolean {
-  if (interval <= 0) return false;
-  return Math.floor(after / interval) > Math.floor(before / interval);
 }
 
 /** 纏い: interval 秒ごとに周り（burstRadiusMul）の敵へ当てる */
@@ -789,7 +780,7 @@ function scaleRatio(r: AttrRatio | undefined, mul: number): AttrRatio | undefine
   return out;
 }
 
-/** 持続中の射撃の弾（key はそのまま。周回（円環の理）のほかは弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
+/** 持続中の射撃の弾（key はそのまま。周回のほかは弾の挙動は変えず数だけ差し替える）。player.ts の fireVolley から */
 export function ultimateShot(state: GameState, shot: BulletDef): BulletDef {
   const mod = activeSustain(state)?.sustain.shot;
   if (!mod) return shot;

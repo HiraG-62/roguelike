@@ -22,6 +22,8 @@ export const FORM_KEYS = [
   "warfan",
   "rod",
   "thrower",
+  "dart",
+  "star",
   "pistol",
   "akimbo",
   "rifle",
@@ -34,7 +36,7 @@ export const FORM_KEYS = [
 export type FormKey = (typeof FORM_KEYS)[number];
 
 /** 応手になる出来事（system/moments.ts の noteRiposte に渡す） */
-export type RiposteSource = "parry" | "counter" | "justDodge" | "guardBlock" | "bulletCut" | "iai" | "pullInterrupt" | "recallCut" | "chargeEndure";
+export type RiposteSource = "parry" | "counter" | "justDodge" | "guardBlock" | "bulletCut" | "iai" | "pullInterrupt" | "chargeEndure";
 
 /** 終撃になる出来事。lastStep（連撃の最終段・フィニッシュ派生）は全型 */
 export type FinisherSource = "lastStep" | "maxCharge" | "release" | "detonate";
@@ -62,8 +64,6 @@ export type MoraleGain =
   | { kind: "bulletCut"; amount: number }
   /** この連撃で出た詠唱・魔弾の数（杖。導出） */
   | { kind: "cast" }
-  /** 自分の飛んでいる弾の数（投具。導出） */
-  | { kind: "flyingShots" }
   /** 早込めが決まった（短銃。system/magazine.ts の tryQuickReload） */
   | { kind: "quickReload"; amount: number }
   /** 前の押下と違う手で撃った 1 発（二丁の拍。system/dualPistols.ts。同じ手が続くと 0 へ途切れる） */
@@ -365,16 +365,33 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
+  // ---- 投擲物の型（docs/ideas/gun-bases-review.md 0-5・2-9）。戦意の溜まる出来事は段 5-B・6 で入れる（今は骨） ----
   thrower: defineForm("thrower", {
-    name: "投具",
-    desc: "投げて飛ばし、戻りの刃で刻む",
-    label: "飛んでいる数",
-    // 飛んでいる自分の弾の数（導出）。手元返し（投擲）・輪刃の投げ放ち・戦輪の払いが放出
-    gain: [{ kind: "flyingShots" }],
-    release: { kind: "laneStep", keys: ["recall", "ringLaunch", "ringSweep"] },
-    derived: true,
+    name: "戦輪",
+    desc: "輪を投げて行き帰りで刻み、強化投げで放つ",
+    label: "往復",
+    // 骨: 戦意（行きと帰りの両方で当てた敵）は段 5-B。放出は右の強化投げ
+    release: { kind: "laneStep", keys: ["ringHurl"] },
     keywords: kw(["ranged", "bullet"], ["just"]),
-    riposte: ["parry", "recallCut", "justDodge"],
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  dart: defineForm("dart", {
+    name: "苦無",
+    desc: "投げて刺し、右の斬りで叩き込む",
+    label: "叩き込み",
+    // 骨: 戦意（叩き込んだクナイの本数）と放出（千本）は段 5-B・6-A
+    keywords: kw(["ranged", "bullet"], ["melee"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  star: defineForm("star", {
+    name: "手裏剣",
+    desc: "手数で刺し、刺さった数で崩す",
+    label: "崩し",
+    // 骨: 戦意（刺さりで怯ませた回数）と放出（連ね投げ）は段 5-B・6-B
+    keywords: kw(["ranged", "combo"], ["dash"]),
+    riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
   // ---- 銃の型（docs/ideas/gun-bases-review.md 0-4。弾倉は system/magazine.ts） ----

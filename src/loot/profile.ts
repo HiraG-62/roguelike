@@ -178,13 +178,28 @@ function sanitizeInnate(v: unknown): AffixRoll[] | undefined {
   return v.map(sanitizeRoll).filter((r): r is AffixRoll => r !== null);
 }
 
-/** Item として最低限成立しているかを検証し、新形式へ移行して返す。壊れていたら null */
+/**
+ * 消した器（docs/ideas/gun-bases-review.md 0-1。投擲・旧戦輪の器を武器種ごと消した）。
+ * 開発段階なので移行は作らず、この器の遺物は読み込みで捨てる
+ */
+export const REMOVED_BASE_KEYS: ReadonlySet<string> = new Set([
+  "throwingKnives",
+  "blowgun",
+  "ricochetGun",
+  "seekerOrb",
+  "chakram",
+  "returnChakram",
+  "flyingBlade",
+]);
+
+/** Item として最低限成立しているかを検証し、新形式へ移行して返す。壊れていたら・消した器なら null */
 function sanitizeItem(v: unknown): Item | null {
   if (!isRecord(v)) return null;
   const { id, seed, baseKey, slot, rarity, itemLevel, name, implicit, affixes, foundDepth, foundAt } = v;
   if (typeof id !== "string" || id.length === 0) return null;
   if (typeof seed !== "number") return null;
   if (typeof baseKey !== "string" || baseKey.length === 0) return null;
+  if (REMOVED_BASE_KEYS.has(baseKey)) return null;
   // 旧セーブの weapon / gun スロットは右手（mainHand）へ読み替える（冪等: 新形式にも通る）
   const normalizedSlot = normalizeSlot(slot);
   if (normalizedSlot === null) return null;

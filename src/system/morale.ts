@@ -195,9 +195,8 @@ function derivedValue(state: GameState, form: FormDef): number {
   // 刃斧は近くの敵の傷の最大スタック、鎖は繋いだ敵の数（system/formMarks.ts）
   if (hasGain(form, "applyStatus")) return Math.min(woundPeak(state), moraleMax(state));
   if (hasGain(form, "pullHit")) return Math.min(linkedCount(state), moraleMax(state));
-  // 杖の術式は連撃の入力数、投具は飛んでいる自分の弾の数（どちらも上限で頭打ち）
+  // 杖の術式は連撃の入力数（上限で頭打ち）
   if (hasGain(form, "cast")) return Math.min(state.player.attack.inputs.length, moraleMax(state));
-  if (hasGain(form, "flyingShots")) return Math.min(flyingShotCount(state), moraleMax(state));
   if (hasGain(form, "placedShots")) return Math.min(placedShotCount(state), moraleMax(state));
   if (!hasGain(form, "chargeLevel")) return 0;
   const a = state.player.attack;
@@ -472,31 +471,6 @@ function branchUnits(state: GameState, moveset: MovesetDef, spec: ReleaseSwingSp
   const hands = moveset.branches[spec.branch]?.sequence.length ?? 0;
   const units = Math.min(hands, moraleMax(state));
   return units >= moraleReleaseMin(state) ? units : 0;
-}
-
-/** 飛んでいる自分の武器の弾か（床に据えた設置弾・山なりの曲射は飛んでいるとは数えない） */
-function isFlyingShot(pr: Projectile): boolean {
-  if (pr.owner !== "player" || pr.life <= 0 || pr.lane === undefined) return false;
-  const def = pr.shot ? BULLETS[pr.shot.key] : undefined;
-  return def === undefined || (def.mine === undefined && def.lob === undefined);
-}
-
-/** 投具の戦意: 飛んでいる自分の武器の弾（戻る弾・周回弾・投げた弾）の数 */
-function flyingShotCount(state: GameState): number {
-  return state.projectiles.reduce((n, pr) => n + (isFlyingShot(pr) ? 1 : 0), 0);
-}
-
-/**
- * 右レーンの弾を出す段・手元返しが放出か（投具。振りの段は beginSwing が判定する）。
- * 飛んでいる弾の数を単位に、今から出す弾（戻す弾）への倍率を返す。放出でなければ undefined。導出の型なので消費しない
- */
-export function laneStepRelease(state: GameState, key: string | undefined): ShotRelease | undefined {
-  const form = currentForm(state);
-  const release = form.morale.release;
-  if (key === undefined || release.kind !== "laneStep" || !release.keys.includes(key) || !hasGain(form, "flyingShots")) return undefined;
-  const units = derivedValue(state, form);
-  if (units <= 0 || units < moraleReleaseMin(state)) return undefined;
-  return shotReleaseOf(form, units);
 }
 
 /** 今の振りが放出のとき、その振りが撃つ弾（杖の詠唱の魔弾）に写す倍率。放出の振りでなければ undefined */

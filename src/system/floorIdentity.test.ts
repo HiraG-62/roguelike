@@ -17,6 +17,7 @@ import { buildFloor } from "./floor";
  *   / 2026-10-02 スキル石の絵の出来事 `EffectsState.skills` を state に足した（state の形だけが変わった）
  *   / 2026-10-03 三点の続き `Player.shotBurst` を `{ queue, side }` にした（state の形だけが変わった。旧い形に写すと変更前の指紋と一致を確かめた）
  *   / 2026-10-03 銃の弾倉 `Player.magazine` を足し、戦意の `window`（旧短銃の装填の窓）を外した（state の形だけが変わった。旧い形に写すと変更前の指紋と一致を確かめた）
+ *   / 2026-10-03 投擲・戦輪の武器種と器 7 つを消し、クナイ・手裏剣を足した（器の候補が変わり、落ちる装備の器と続く乱数だけが変わる。1 階目の指紋は一致）
  */
 
 const SEEDS = [11, 202] as const;
@@ -84,14 +85,14 @@ const EXPECTED: Readonly<Record<string, string>> = {
   "cavern:202:24": "f56e940b0708abfa/307fc9cded389585",
   "river:11:2": "7fd92fe0f6b155c9/44cdf2a0f850055c",
   "river:11:8": "6dccc63b70396367/5ef65e76421e4c20",
-  "river:11:24": "e63bd2db9b8e6640/7c8698f6339cdb34",
+  "river:11:24": "e63bd2db9b8e6640/6484e0f010c13569",
   "river:202:2": "663fb7f251c43704/b3e2c2384e4918a7",
   "river:202:8": "025216c4ed397033/5ee77342ef810030",
   "river:202:24": "dccfee210efe2ac1/874d092805812945",
   "ring:11:2": "b91ee89a027592bc/f3dc369981444049",
   "ring:11:8": "64f1a0631e37bba1/460f7f3b04cff72b",
   "ring:11:24": "58c7befeb9d49467/5b82abb320fe8ca0",
-  "ring:202:2": "c2e8671974ec6a49/ebcd28b848d87c6c",
+  "ring:202:2": "c2e8671974ec6a49/2a6def58f95baefe",
   "ring:202:8": "1b2ebeba4eb30fd1/bd2845db2486ccb4",
   "ring:202:24": "5975b995966c4adc/5e5ca12a4dfb1fb4",
   "court:11:2": "a091eb1ddc6c5c6d/56589fe06995dd76",
@@ -102,7 +103,7 @@ const EXPECTED: Readonly<Record<string, string>> = {
   "court:202:24": "8edf23d5d0a16138/8aebdc40ff2d2ec2",
   "drunk:11:2": "3c3f609b5a1342b7/0c6e723e04e4ff5b",
   "drunk:11:8": "5005503b32f98635/4611b99aa2e78c2a",
-  "drunk:11:24": "fed7c9a12d24dc45/ac180ba33d460742",
+  "drunk:11:24": "fed7c9a12d24dc45/6dc2912140ddc1f6",
   "drunk:202:2": "8043831eabf7d538/e726e5dcf38b74da",
   "drunk:202:8": "f31eaa21d85f6de0/5c9d8cf6fd157613",
   "drunk:202:24": "a6bb0552e9f4d2aa/a1f928d75a7387af",
@@ -114,8 +115,8 @@ const EXPECTED: Readonly<Record<string, string>> = {
   "isle:202:24": "dd635687dade353c/944d25bd38dcc529",
   "terrace:11:2": "805b457de1d016d0/e6564f08e7cd1da8",
   "terrace:11:8": "08d02f58e9caf893/efda1e3c6a85f86c",
-  "terrace:11:24": "ef2f1539afd4cd85/1c1f1f04002ef3da",
-  "terrace:202:2": "bb42183c87d7119a/f4dfa08f7d78bd71",
+  "terrace:11:24": "ef2f1539afd4cd85/06f0b42418eb9901",
+  "terrace:202:2": "bb42183c87d7119a/3e4ce25b6c24c116",
   "terrace:202:8": "83d5acfeb5c44083/d5e46260397b8b3f",
   "terrace:202:24": "ac5df544362b616f/ac3ef90f1150b5d7",
   "prefab:11:2": "89384e5b442a9a0a/068f66a3875e7fe1",

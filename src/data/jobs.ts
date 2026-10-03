@@ -463,7 +463,7 @@ export function jobBranch(job: JobKey): BranchDef | undefined {
 const LEGACY_FAVORED: Readonly<Record<JobKey, readonly MovesetKey[]>> = {
   none: [],
   swordsman: ["sword", "greatsword", "katana"],
-  hunter: ["longarm", "thrown", "whip"],
+  hunter: ["longarm", "kunai", "whip"],
   brawler: ["fists", "cleaver", "staff"],
   shieldBearer: ["sword", "cleaver", "staff"],
   hexer: ["scythe", "wand"],

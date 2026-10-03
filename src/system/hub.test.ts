@@ -287,7 +287,7 @@ describe("武器掛け", () => {
   it("銃の家系を試すと、借りるときと同じ器の弾で撃ち、外すと装備の弾に戻る", () => {
     const session = hub();
     const { state } = session;
-    const expected = { grenade: "lob", trapper: "mine", warRing: "boomerang" } as const;
+    const expected = { grenade: "lob", trapper: "mine", ringBlades: "boomerang" } as const;
     for (const [moveset, feature] of Object.entries(expected)) {
       setTrialWeapon(session, moveset as keyof typeof expected);
       expect(bulletFeatures(currentBullet(state.stats)), `${moveset} の弾`).toContain(feature);

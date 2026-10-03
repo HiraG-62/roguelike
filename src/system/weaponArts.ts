@@ -1,6 +1,6 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
-import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
+import type { Enemy, GameState } from "../core/state";
+import { type Vec, angle, length, scale, sub } from "../core/vec";
 import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
@@ -8,7 +8,6 @@ import {
   type BranchDef,
   type BranchShots,
   type HoldArtDef,
-  type RecallArtDef,
   type StrikeExtras,
   type SwingActionStep,
   type ThrowArtDef,
@@ -23,16 +22,15 @@ import { cancelAttack, gainEnergy } from "./combat";
 import { spawnBurst } from "./effects";
 import { nextFireHand, spendRounds } from "./magazine";
 import { currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
-import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
-import { noteRelease, noteRiposte } from "./moments";
+import { type ShotRelease, gainMorale, isPlacedShot, swingShotRelease } from "./morale";
+import { noteRiposte } from "./moments";
 import { onManaSource } from "./manaSources";
 import { attackCommitted } from "./poise";
 import { parryLocksActions, parryMoveMul, parrySucceed, tryWindowParry } from "./parry";
 import { BULLETS } from "../loot/bullets";
 
 /**
- * 右レーン（アクション 2。docs/ideas/ougi-and-dual-actions.md 4 章）の振り以外の段: hold（受け流し・構え）/ volley（弾を出す）/
- * recall（弾を戻す）/ aim（短銃の狙い撃ち）と、段の key ごとの再使用・受け流しを外した硬直・派生の弾と付随効果。
+ * 右レーン（アクション 2。docs/ideas/ougi-and-dual-actions.md 4 章）の振り以外の段: hold（受け流し・構え）/ volley（弾を出す）と、段の key ごとの再使用・受け流しを外した硬直・派生の弾と付随効果。
  * 振りの段と刀の居合（近接の溜め）は player.ts の連撃・溜めの経路をそのまま使う。
  * 振り以外の段は押した瞬間に始まり、終わったら左右共有の段カウンタ（AttackState.step）を 1 つ進める
  */
@@ -43,8 +41,6 @@ const FULL_TURN = Math.PI * 2;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
 const FX_SIZE = 2;
-/** 手元返しで向け直さない距離（手元に重なっている弾） */
-const RECALL_MIN_DIST = 1;
 
 /** 構えを押している右レーンの段（段カウンタが指す段）。構えていなければ undefined */
 function currentHoldStep(state: GameState): ActionStepDef | undefined {
@@ -58,16 +54,16 @@ function currentHold(state: GameState): HoldArtDef | undefined {
   return s?.kind === "hold" ? s.hold : undefined;
 }
 
-/** 押した瞬間に完結する段（弾・手元返し）。振りの最中の recover を打ち切って出し、共有の間（laneGap）を置く */
+/** 押した瞬間に完結する段（弾）。振りの最中の recover を打ち切って出し、共有の間（laneGap）を置く */
 export function isInstantStep(s: ActionStepDef): boolean {
-  return s.kind === "volley" || s.kind === "recall";
+  return s.kind === "volley";
 }
 
 function stepKey(s: ActionStepDef): string | undefined {
   return s.key === undefined || s.key === "" ? undefined : s.key;
 }
 
-/** 右レーンの段の再使用の残り秒（段の key ごと。弾・手元返しの段は共有の間も見る） */
+/** 右レーンの段の再使用の残り秒（段の key ごと。弾の段は共有の間も見る） */
 export function actionCooldownLeft(state: GameState, s: ActionStepDef): number {
   const key = stepKey(s);
   const own = key === undefined ? 0 : (state.player.art.cooldowns.get(key) ?? 0);
@@ -125,8 +121,8 @@ function freeForArt(state: GameState): boolean {
 }
 
 /**
- * 右レーンの振り以外・溜め以外の段（構え・弾・手元返し）を index 段目として始める（player.ts の右の押下から）。
- * 構えは離す（窓が閉じる）まで段カウンタを保ち、弾・手元返しはすぐ段を進める。出したら true
+ * 右レーンの振り以外・溜め以外の段（構え・弾）を index 段目として始める（player.ts の右の押下から）。
+ * 構えは離す（窓が閉じる）まで段カウンタを保ち、弾はすぐ段を進める。出したら true
  */
 export function startLaneArt(state: GameState, s: ActionStepDef, index: number): boolean {
   if (s.kind === "swing" || s.kind === "charge") return false;
@@ -141,12 +137,7 @@ export function startLaneArt(state: GameState, s: ActionStepDef, index: number):
       if (s.hold.parry) startCooldown(state, s);
       return true;
     case "volley":
-      if (!emitArtVolley(state, s.throw, releaseOverride(laneRelease(state, s.key)))) return false;
-      logButton(p, "secondary");
-      finishInstant(state, s, index);
-      return true;
-    case "recall":
-      recallShots(state, s.recall, laneRelease(state, s.key));
+      if (!emitArtVolley(state, s.throw)) return false;
       logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
@@ -304,13 +295,6 @@ function releaseOverride(r: ShotRelease | undefined): ArtVolleyOverride {
   return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, release: { finisher: r.finisher, crit: r.crit } };
 }
 
-/** 右レーンの弾を出す段・手元返しが放出（投具）なら、飛んでいる数を単位に放出を出して弾への倍率を返す */
-function laneRelease(state: GameState, key: string | undefined): ShotRelease | undefined {
-  const r = laneStepRelease(state, key);
-  if (r) noteRelease(state, r.units);
-  return r;
-}
-
 /** 振りの詠唱（cast）の魔弾の差し替え。放出の振り（杖の 3 手の派生）が撃つ魔弾は放出の弾にする（player.ts の updateAttack） */
 export function castOverride(state: GameState, lane: ButtonKey): ArtVolleyOverride {
   return { lane, ...releaseOverride(swingShotRelease(state)) };
@@ -335,53 +319,6 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     release: over.release,
     ...(over.fan ? { fan: over.fan } : {}),
   });
-}
-
-/**
- * 手元返し: 飛んでいる自分の弾（床に据えた設置弾・山なりの曲射を除く）をすべて手元へ向け直す。
- * 戻りの弾は威力 returnDamageMul 倍で、当てた敵を忘れてもう一度当たる。向け直した数を返す
- */
-export function recallShots(state: GameState, recall: RecallArtDef, release?: ShotRelease): number {
-  const hand = state.player.body.pos;
-  let count = 0;
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "player" || pr.life <= 0 || isGrounded(pr.shot?.key)) continue;
-    const toHand = sub(hand, pr.pos);
-    const d = length(toHand);
-    if (d < RECALL_MIN_DIST) continue;
-    const speed = Math.max(A.recallMinSpeed, length(pr.vel)) * recall.speedMul;
-    pr.vel = scale(normalize(toHand), speed);
-    // 放出（投具の戻す段）なら戻りの弾は飛んでいた数だけ強く、放出の弾（終撃）になる
-    pr.damage *= recall.returnDamageMul * (release?.mul.damageMul ?? 1);
-    if (release) {
-      pr.release = { finisher: release.finisher, crit: release.crit };
-      pr.firedAt = state.time;
-    }
-    pr.hitIds.clear();
-    // 手元に届くまでは消えない。回転刃は戻りの扱いにして手元で収める
-    pr.life = Math.max(pr.life, d / speed);
-    markRecalled(pr, recall);
-    count += 1;
-  }
-  if (count > 0) pushSfx(state, "reflect");
-  return count;
-}
-
-/**
- * 戻りの印を付ける。追尾のある手元返しは作業領域に旋回を写す（projectiles.ts の steerShot が近くの敵へ曲げる）。
- * 挙動の性質を持たない弾は作業領域が無いので、key 空の作業領域を足して旋回だけ持たせる
- */
-function markRecalled(pr: Projectile, recall: RecallArtDef): void {
-  if (!pr.shot && !recall.homing) return;
-  pr.shot ??= { key: "" };
-  pr.shot.returning = true;
-  if (recall.homing) pr.shot.recallHoming = { ...recall.homing };
-}
-
-function isGrounded(key: string | undefined): boolean {
-  if (key === undefined) return false;
-  const def = BULLETS[key];
-  return def !== undefined && (def.mine !== undefined || def.lob !== undefined);
 }
 
 /** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す */

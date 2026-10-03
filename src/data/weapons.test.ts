@@ -46,8 +46,11 @@ const FLURRY_STEPS = { twinBlades: 6, fists: 6, claws: 8 } as const;
 /** 名前付き派生（構えを離した振りを除く）の本数と入力数（docs/ideas/ougi-and-dual-actions.md 4.3） */
 const MIN_BRANCHES = 4;
 const MIN_BRANCH_INPUTS = 3;
-/** 銃の家系の右レーンの段数 */
-const GUN_LANE_STEPS = 3;
+/**
+ * 名前付き派生が 4 本に満たない武器種（docs/ideas/gun-bases-review.md 4-3 の 4）。
+ * 手裏剣は左右とも投げで、左右を混ぜるほど本数が増える連撃そのものが派生の役を持つので 0 本。クナイは影留め・離れ投げの 2 本
+ */
+const FEW_BRANCHES: Readonly<Partial<Record<MovesetKey, number>>> = { kunai: 2, shuriken: 0, gunner: 0 };
 /** 左右の同じ段番号の秒間威力（基礎値）の比の許容（右は重い・広い寄りなので目安から ±40%） */
 const LANE_DPS_TOLERANCE = 0.4;
 /**
@@ -64,8 +67,8 @@ const atBase = (s: Parameters<typeof scaled>[1]): number => scaled(DEFAULT_STATS
  * 速い武器は当てやすいぶん 1 撃が軽く、遅い武器は 1 撃が重く終撃が跳ね上がる
  */
 const TEMPO_TIERS: readonly { name: string; windup0: number; keys: readonly MovesetKey[] }[] = [
-  { name: "最速", windup0: 0.06, keys: ["fists", "claws"] },
-  { name: "速", windup0: 0.08, keys: ["twinBlades", "chainSickle", "katana", "ringBlades", "fan"] },
+  { name: "最速", windup0: 0.06, keys: ["fists", "claws", "shuriken"] },
+  { name: "速", windup0: 0.08, keys: ["twinBlades", "chainSickle", "katana", "fan"] },
   { name: "中", windup0: 0.12, keys: ["sword", "spear", "staff", "whip", "handbell", "book", "wand", "shield"] },
   { name: "重", windup0: 0.2, keys: ["scythe", "axe", "cleaver", "flail"] },
   { name: "最重", windup0: 0.36, keys: ["greatsword", "hammer"] },
@@ -118,7 +121,7 @@ describe("武器種の定義", () => {
       const def = MOVESETS[key];
       const named = namedBranches(key);
       // 二丁拳銃は派生を持たない（左右を交互に撃つ拍と、同じ手を続けた技が入力を使い切る。docs/ideas/gun-bases-review.md 4-3 の 4）
-      if (key !== "gunner") expect(named.length, `${key} の名前付き派生`).toBeGreaterThanOrEqual(MIN_BRANCHES);
+      expect(named.length, `${key} の名前付き派生`).toBeGreaterThanOrEqual(FEW_BRANCHES[key] ?? MIN_BRANCHES);
       const sequences = new Set<string>();
       for (const b of def.branches) {
         expect(b.name.length, `${key}.${b.key} の表示名`).toBeGreaterThan(0);
@@ -155,11 +158,23 @@ describe("武器種の定義", () => {
     expect(i === undefined ? undefined : twin.branches[i]?.key, "左左左右は左左右より長い列が先").toBe("crossing");
   });
 
-  it("左で振る武器種は steps2 が steps と同じ長さ、左で撃つ武器種は 3 段", () => {
+  it("左で振る武器種は steps2 が steps と同じ長さ、左で撃つ武器種は型の段数の幅（戦輪は 4 段）", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
-      expect(def.steps2.length, `${key} の右レーンの段数`).toBe(shootsPrimary(def) ? GUN_LANE_STEPS : def.steps.length);
+      if (!shootsPrimary(def)) {
+        expect(def.steps2.length, `${key} の右レーンの段数`).toBe(def.steps.length);
+        continue;
+      }
+      // 二丁は右の手の連撃 2 段に空の手の銃把打ちを足した 3 段（左の手の連撃の段数と型の幅は 2）
+      if (def.primary === "hands") {
+        expect(def.steps2.length, `${key} の右レーンの段数`).toBe(def.steps.length + 1);
+        continue;
+      }
+      const { min, max } = formOf(def).steps;
+      expect(def.steps2.length, `${key} の右レーンの段数（型 ${def.form} の下限 ${min}）`).toBeGreaterThanOrEqual(min);
+      expect(def.steps2.length, `${key} の右レーンの段数（型 ${def.form} の上限 ${max}）`).toBeLessThanOrEqual(max);
     }
+    expect(MOVESETS.ringBlades.steps2.length, "戦輪は 4 段").toBe(4);
   });
 
   it("右レーンの段は key と名前が登録済みで、弾の段の弾は武器種をまたいで重ならない", () => {
@@ -236,9 +251,9 @@ describe("武器種の定義", () => {
         expect(step.active, `${key} の active`).toBeGreaterThan(0);
         expect(step.recover, `${key} の recover`).toBeGreaterThan(0);
         expect(atBase(step.scaling), `${key} の威力`).toBeGreaterThan(0);
-        expect(step.poise, `${key} の怯み値`).toBeGreaterThan(0);
-        // 当たり判定の大きさ 0 は純粋な詠唱（書の左。弾だけが当たる）。形の検査は判定を持つ段だけ
+        // 当たり判定の大きさ 0 は純粋な詠唱・投げ（書の左・手裏剣・戦輪の近投げ。弾だけが当たる）。怯み値と形の検査は判定を持つ段だけ
         if (step.cast !== undefined && step.size === 0) continue;
+        expect(step.poise, `${key} の怯み値`).toBeGreaterThan(0);
         expect(step.size, `${key} の大きさ`).toBeGreaterThan(0);
         if (step.shape.kind === "arc") expect(step.shape.deg, `${key} の扇の角度`).toBeGreaterThan(0);
         if (step.shape.kind !== "circle") expect(step.reach, `${key} のリーチ`).toBeGreaterThan(0);
@@ -409,8 +424,8 @@ describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）",
 
   it("弾: 三点は 3 発、回転刃は折り返す、曲射は炸裂の半径を持つ", () => {
     expect(bulletDef("burstRifle").burst?.count).toBe(3);
-    expect(bulletDef("returnChakram").boomerang?.returnAt ?? 0).toBeGreaterThan(0);
-    expect(bulletDef("returnChakram").boomerang?.returnAt ?? 1).toBeLessThan(1);
+    expect(bulletDef("ringBlades").boomerang?.returnAt ?? 0).toBeGreaterThan(0);
+    expect(bulletDef("ringBlades").boomerang?.returnAt ?? 1).toBeLessThan(1);
     expect(bulletDef("mortar").lob?.blastRadius ?? 0).toBeGreaterThan(0);
   });
 });
@@ -471,16 +486,16 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     sidearm: "swing",
     longarm: "swing",
     cannon: "swing",
-    thrown: "recall",
     grenade: "swing",
     trapper: "volley",
-    warRing: "swing",
     claws: "swing",
     flail: "charge",
-    ringBlades: "volley",
+    ringBlades: "swing",
     fan: "hold",
     book: "swing",
     handbell: "swing",
+    kunai: "swing",
+    shuriken: "swing",
   };
 
   it("すべての武器種が右 1 段目の技を持ち、名前が登録済みで種類が設計どおり", () => {
@@ -531,10 +546,11 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
 
   it("isGun は銃の群だけ。左で撃つかは shootsPrimary で別に判定する", () => {
     for (const key of MOVESET_KEYS) expect(isGun(MOVESETS[key]), key).toBe(weaponGroup(MOVESETS[key]) === "gun");
-    expect(isGun(MOVESETS.thrown), "投擲は銃ではない").toBe(false);
-    expect(shootsPrimary(MOVESETS.thrown), "投擲は左で撃つ").toBe(true);
-    expect(isGun(MOVESETS.ringBlades), "チャクラムは銃ではない").toBe(false);
-    expect(shootsPrimary(MOVESETS.ringBlades), "チャクラムは左で振る").toBe(false);
+    expect(isGun(MOVESETS.kunai), "クナイは銃ではない").toBe(false);
+    expect(shootsPrimary(MOVESETS.kunai), "クナイは左で投げる").toBe(true);
+    expect(isGun(MOVESETS.ringBlades), "戦輪は銃ではない").toBe(false);
+    expect(shootsPrimary(MOVESETS.ringBlades), "戦輪は左で投げる").toBe(true);
+    expect(shootsPrimary(MOVESETS.shuriken), "手裏剣は左も振りが撃つ弾（器の弾を撃たない）").toBe(false);
     for (const key of GUN_MOVESETS) expect(shootsPrimary(MOVESETS[key]), `${key} は左で撃つ`).toBe(true);
   });
 
@@ -613,10 +629,10 @@ describe("右レーン（steps2）の補助関数（docs/ideas/ougi-and-dual-act
 describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）", () => {
   const WAVE4 = ["claws", "flail", "ringBlades", "fan"] as const;
 
-  it("4 武器種が登録され、どれも左で振り固有効果を持ち、器（ベース）が 2 つ以上ある", () => {
+  it("4 武器種が登録され、どれも固有効果を持ち、器（ベース）が 2 つ以上ある。戦輪（チャクラムを統合）だけ左で投げる", () => {
     for (const key of WAVE4) {
       expect(MOVESET_KEYS, key).toContain(key);
-      expect(shootsPrimary(MOVESETS[key]), `${key} は左で振る`).toBe(false);
+      expect(shootsPrimary(MOVESETS[key]), `${key} は左で振る（戦輪は投げる）`).toBe(key === "ringBlades");
       expect(movesetRules(key).length, `${key} の固有効果`).toBeGreaterThan(0);
       const bases = BASES.filter((b) => b.moveset === key);
       expect(bases.length, `${key} の器`).toBeGreaterThanOrEqual(2);
@@ -642,14 +658,32 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     expect(meleeChargeOf(flail)?.spinning?.interval ?? 0, "回しの周期").toBeGreaterThan(0);
   });
 
-  it("チャクラムの右 1 段目は周回の弾、4 段目は戻る弾、派生の重ね輪は周回の弾をもう 1 枚出す", () => {
+  it("戦輪は投擲物の群で左で投げ、右は輪払い・近投げ・輪払い・強化投げ。近投げと強化投げは戻る弾を撃ち、派生 4 本を残す", () => {
     const ring = MOVESETS.ringBlades;
-    const first = ring.steps2[0];
-    expect(first.kind === "volley" ? first.throw.bullet.orbit : undefined, "周回").toBeDefined();
-    const launch = ring.steps2[3];
-    expect(launch?.kind === "volley" ? launch.throw.bullet.boomerang : undefined, "投輪は戻る").toBeDefined();
-    expect(ring.branches.find((b) => b.key === "stackedRings")?.shots?.from, "重ね輪は右レーンの弾").toBe("lane");
-    expect(usesProjectiles(ring), "チャクラムは弾を出す").toBe(true);
+    expect(ring.name).toBe("戦輪");
+    expect(weaponGroup(ring), "投擲物の群").toBe("throwing");
+    expect(ring.steps, "左に振りの段は無い").toEqual([]);
+    expect(ring.steps2.map((s) => s.key)).toEqual(["ringSweep", "ringToss", "ringSweep2", "ringHurl"]);
+    for (const key of ["ringToss", "ringHurl"]) {
+      const s = ring.steps2.find((x) => x.key === key);
+      const cast = s?.kind === "swing" ? s.step.cast : undefined;
+      expect(cast?.throw.bullet.boomerang, `${key} は戻る弾を撃つ`).toBeDefined();
+    }
+    expect(ring.branches.map((b) => b.key).sort()).toEqual(["doubleSever", "moonCut", "ringDash", "stackedRings"]);
+    expect(ring.branches.find((b) => b.key === "stackedRings")?.shots?.from, "重ね輪は器の輪を投げる").toBeUndefined();
+    for (const b of BASES.filter((x) => x.moveset === "ringBlades")) expect(bulletDef(b.key).boomerang, `${b.key} の弾は戻る`).toBeDefined();
+  });
+
+  it("クナイ・手裏剣は投擲物の群。クナイは左で器の弾を投げ、手裏剣は左右とも振りが弾を投げる", () => {
+    expect(THROWING_MOVESETS, "投擲物の群").toEqual(["ringBlades", "kunai", "shuriken"]);
+    expect(MOVESETS.kunai.steps2.map((s) => s.key)).toEqual(["kunaiCut", "kunaiReturn", "kunaiDrive"]);
+    expect(MOVESETS.kunai.form).toBe("dart");
+    expect(bulletDef("kunai").pierceBonus, "クナイは貫かない").toBe(0);
+    const shuriken = MOVESETS.shuriken;
+    expect(shuriken.form).toBe("star");
+    expect(shuriken.steps.map((s) => s.cast?.throw.count), "左は 3 本 → 4 本 → 大手裏剣").toEqual([3, 4, 1]);
+    expect(shuriken.steps2.map((s) => (s.kind === "swing" ? s.step.cast?.throw.count : undefined)), "右は扇に 3 本 → 4 本 → 大手裏剣").toEqual([3, 4, 1]);
+    for (const key of ["kunai", "shuriken"] as const) expect(BASES.filter((b) => b.moveset === key).map((b) => b.key), `${key} の器`).toEqual([key]);
   });
 
   it("扇子の右 1 段目は構えで、離した突風・左 4 段目・颪は敵弾を払う", () => {

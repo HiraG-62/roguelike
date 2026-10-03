@@ -1030,8 +1030,11 @@ describe("QA simulation (縮小版スモーク)", () => {
 // 階の型ごとのスモーク（docs/ideas/map-gen-impl.md 2-6「QA bot」）
 // ---------------------------------------------------------------------------
 
-/** 型ごとに回す seed。深度 1 は章の休符で主がいないので、bot は交戦しながら階段へ歩くだけで着く */
-const LAYOUT_SMOKE_SEEDS: readonly number[] = [11_000, 11_001];
+/**
+ * 型ごとに回す seed。深度 1 は章の休符で主がいないので、bot は交戦しながら階段へ歩くだけで着く。
+ * 11_001 は投擲物の見直しで持つ武器種が砲になり、島の型で bot が倒れるので 11_006 に替えた（砲の bot は段 8-C で見る）
+ */
+const LAYOUT_SMOKE_SEEDS: readonly number[] = [11_000, 11_006];
 /** 1 本の step の上限（ゲーム内 150 秒）。広い型でも階段までの歩きと道中の陣で足りる */
 const LAYOUT_SMOKE_MAX_STEPS = 9_000;
 const LAYOUT_SMOKE_PROFILE: ProfileKind = "dominantLoadout";

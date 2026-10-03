@@ -75,7 +75,16 @@ function shotDeg(state: GameState, pr: Projectile): number {
 describe("遠距離の資源: 自分の弾が当たっても気力も奥義ゲージも増えない", () => {
   const cases: { name: string; stats: Partial<PlayerStats>; fire: (state: GameState) => void }[] = [
     { name: "銃（短銃の拳銃）", stats: { moveset: "sidearm", bullet: "pistol" }, fire: (s) => press(s, { attackPressed: true, attackHeld: true }) },
-    { name: "投擲（投げ短剣）", stats: { moveset: "thrown", bullet: "throwingKnives" }, fire: (s) => press(s, { attackPressed: true, attackHeld: true }) },
+    { name: "投擲物（クナイ）", stats: { moveset: "kunai", bullet: "kunai" }, fire: (s) => press(s, { attackPressed: true, attackHeld: true }) },
+    { name: "投擲物（戦輪の輪刃）", stats: { moveset: "ringBlades", bullet: "ringBlades" }, fire: (s) => press(s, { attackPressed: true, attackHeld: true }) },
+    {
+      name: "振りが投げる弾（手裏剣の左）",
+      stats: { moveset: "shuriken" },
+      fire: (s) => {
+        press(s, { attackPressed: true });
+        for (let i = 0; i < SWING_STEPS && playerShots(s).length === 0; i++) press(s);
+      },
+    },
     { name: "右レーンの弾（斧の投擲）", stats: { moveset: "axe" }, fire: (s) => press(s, { shootHeld: true }) },
     {
       name: "杖の魔弾（左の振りの詠唱）",

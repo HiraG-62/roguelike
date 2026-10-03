@@ -316,7 +316,6 @@ function ratioPct(ratio: number): number {
 /** ベースの implicit の固定値（ロールしない側） */
 const MACHETE_BURN_DPS = 3;
 const MATCHLOCK_BURN_DPS = 4;
-const BLOWGUN_POISON_PCT = 25;
 const FANG_BLEED_POTENCY = 1.5;
 /** 出血が 1 回刻まれる移動距離（表示用。m に直す） */
 const BLEED_STEP = formatMeters(STATUS.bleed.distance);
@@ -2293,16 +2292,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     },
   },
   {
-    key: "implicit.throwingKnives",
-    label: "連射速度 +{v}%、会心率 +3%、射撃ダメージ -15%",
-    range: { min: 15, max: 25 },
-    apply: (s, v) => {
-      s.fireRateMul += pct(v);
-      s.critChance += pct(3);
-      s.increased.ranged -= pct(15);
-    },
-  },
-  {
     key: "implicit.matchlock",
     label: "炎上確率 +{v}%（炎上 4 ダメージ/秒）、連射速度 -30%",
     range: { min: 45, max: 60 },
@@ -2310,16 +2299,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
       s.burnChance += pct(v);
       s.burnDps += MATCHLOCK_BURN_DPS;
       s.fireRateMul -= pct(30);
-    },
-  },
-  {
-    key: "implicit.blowgun",
-    label: "射撃命中時 25% で毒、状態異常の効果量 +{v}%、射撃ダメージ -35%",
-    range: { min: 15, max: 25 },
-    apply: (s, v) => {
-      pushProc(s, statusProc("poison", BLOWGUN_POISON_PCT, STATUS.poison.duration, STATUS.poison.hpRatioPerSec, "ranged"));
-      s.statusPotencyMul += pct(v);
-      s.increased.ranged -= pct(35);
     },
   },
   {
@@ -2600,14 +2579,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     },
   },
   {
-    key: "implicit.chakram",
-    label: "弾速 +{v}%",
-    range: { min: 15, max: 22 },
-    apply: (s, v) => {
-      s.projectileSpeedMul += pct(v);
-    },
-  },
-  {
     key: "implicit.handCannon",
     label: "近接・射撃の{v}%を炎属性に変換",
     range: { min: 20, max: 30 },
@@ -2622,14 +2593,6 @@ export const IMPLICITS: readonly ImplicitDef[] = [
     range: { min: 12, max: 18 },
     apply: (s, v) => {
       s.traits.enemyOnTerrainMul += pct(v);
-    },
-  },
-  {
-    key: "implicit.seekerOrb",
-    label: "状態異常の効果量 +{v}%",
-    range: { min: 10, max: 15 },
-    apply: (s, v) => {
-      s.statusPotencyMul += pct(v);
     },
   },
   {

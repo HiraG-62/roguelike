@@ -677,7 +677,7 @@ const CANNON_DIAG: Frame = [
   ".kk.........",
 ];
 
-// ---- 投擲: 指に掛けた円月輪（真ん中が抜けた輪） ----
+// ---- 投擲物（クナイ・手裏剣）の持ち手の仮: 指に掛けた輪（真ん中が抜けた輪）。手に持つ絵は段 7 で描き分ける ----
 const THROWN_SIDE: Frame = [
   "............",
   "............",
@@ -764,36 +764,6 @@ const TRAPPER_DIAG: Frame = [
   ".ksssSKk....",
   "kttsSKk.....",
   "kTTkkk......",
-  ".kk.........",
-];
-
-// ---- 戦輪: 刃の外周と真鍮の内輪を持つ大きな輪（投擲の円月輪より大きく、歯が立つ） ----
-const WAR_RING_SIDE: Frame = [
-  "........k...",
-  "....kkkk1k..",
-  "...k111sssk.",
-  "..k11yyyyssk",
-  "..k1ykkkkYSk",
-  ".kk1yk..kYSk",
-  "ktt1yk..kYSk",
-  "kTT1ykkkkYSk",
-  ".kkssYYYYSSk",
-  "...ksSSSSSSk",
-  "....kkkkkkSk",
-  "..........k.",
-];
-const WAR_RING_DIAG: Frame = [
-  ".....kkk.k..",
-  "...kk111ksk.",
-  "..k111yyssk.",
-  "..k1yykyysk.",
-  ".k11yk.kYSSk",
-  ".k1yk...kYSk",
-  ".k11yk.kYSSk",
-  "..ksyYkYYSk.",
-  ".kkssSYSSSSk",
-  "kttssSSSkkk.",
-  "kTTkkkkk....",
   ".kk.........",
 ];
 
@@ -1019,16 +989,16 @@ const HELD: Readonly<Record<MovesetKey, SpriteFrames>> = {
   sidearm: held(GUN_SIDE, GUN_DIAG),
   longarm: held(LONGARM_SIDE, LONGARM_DIAG),
   cannon: held(CANNON_SIDE, CANNON_DIAG),
-  thrown: held(THROWN_SIDE, THROWN_DIAG),
   grenade: held(GRENADE_SIDE, GRENADE_DIAG),
   trapper: held(TRAPPER_SIDE, TRAPPER_DIAG),
-  warRing: held(WAR_RING_SIDE, WAR_RING_DIAG),
   claws: held(CLAWS_SIDE, CLAWS_DIAG),
   flail: held(FLAIL_SIDE, FLAIL_DIAG),
   ringBlades: held(RING_BLADES_SIDE, RING_BLADES_DIAG),
   fan: edged(FAN_SIDE, FAN_DIAG),
   book: held(BOOK_SIDE, BOOK_DIAG, BOOK_UP),
   handbell: held(HANDBELL_SIDE, HANDBELL_DIAG),
+  kunai: held(THROWN_SIDE, THROWN_DIAG),
+  shuriken: held(THROWN_SIDE, THROWN_DIAG),
 };
 
 // -----------------------------------------------------------------------------
@@ -1045,8 +1015,10 @@ export const THROWN_SHAPES = [
   "spear",
   "iceSpear",
   "cleaver",
-  "warRing",
   "ringBlades",
+  "kunai",
+  "shuriken",
+  "bigShuriken",
   "weight",
   "ironBall",
   "bola",
@@ -1110,6 +1082,32 @@ const THROWN_KNIFE: Frame = [
   "...kkkkkk..",
 ];
 
+/** クナイ（右向き）: 尻の輪・木の握り・菱形の刃（仮。段 7 で描き直す） */
+const THROWN_KUNAI: Frame = [
+  "kk.........",
+  "k.kkkkkkk..",
+  "kkUY11sssk.",
+  "..kYSSSSSSk",
+  "...kkkkkk..",
+];
+
+/** 手裏剣: 4 方へ尖る星形、真ん中が抜ける（仮。段 7 で描き直す） */
+const THROWN_SHURIKEN: Frame = [
+  "...k...",
+  "..k1k..",
+  "kkk1skk",
+  "k1s.sSk",
+  "kksSskk",
+  "..kSk..",
+  "...k...",
+];
+
+/** 大手裏剣: 手裏剣を 2 倍に引き伸ばしたもの（仮） */
+const THROWN_BIG_SHURIKEN: Frame = THROWN_SHURIKEN.flatMap((row) => {
+  const wide = [...row].map((c) => c + c).join("");
+  return [wide, wide];
+});
+
 /** 分銅（鎖鎌の先の重り）: 上に鎖を通す輪 */
 const THROWN_WEIGHT: Frame = [
   "..kk..",
@@ -1154,8 +1152,10 @@ const THROWN_FRAMES: Readonly<Record<ThrownShape, Frame>> = {
   spear: unheldFrame(SPEAR_SIDE),
   iceSpear: recolorFrame(unheldFrame(SPEAR_SIDE), ICE_SWAP),
   cleaver: unheldFrame(CLEAVER_SIDE),
-  warRing: unheldFrame(WAR_RING_SIDE),
   ringBlades: unheldFrame(RING_BLADES_SIDE),
+  kunai: THROWN_KUNAI,
+  shuriken: THROWN_SHURIKEN,
+  bigShuriken: THROWN_BIG_SHURIKEN,
   weight: THROWN_WEIGHT,
   ironBall: THROWN_IRON_BALL,
   bola: THROWN_BOLA,

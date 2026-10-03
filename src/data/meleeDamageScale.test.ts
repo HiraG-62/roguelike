@@ -103,7 +103,8 @@ describe("近接の段の威力の係数（meleeDamageScale）", () => {
 describe("銃の弾の係数", () => {
   it("すべての銃の弾が scaling を持ち、基礎値で 4.3・係数の合計は 0.3 以上（設置弾は 0）", () => {
     const keys = Object.keys(WEAPON.bullets);
-    expect(keys.length, "弾の種類").toBeGreaterThanOrEqual(25);
+    // 投擲・旧戦輪の器 7 つを消し、クナイ・戦輪の器 3 つに弾を持たせた（段 5-A）
+    expect(keys.length, "弾の種類").toBeGreaterThanOrEqual(21);
     for (const key of keys) {
       const s = BULLETS[key]?.scaling;
       if (!s) throw new Error(`${key} に scaling が無い`);

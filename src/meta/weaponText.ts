@@ -78,8 +78,6 @@ function derivedGainText(g: MoraleGain): string | undefined {
       return "繋いだ敵の数";
     case "cast":
       return "連撃で重ねた手の数";
-    case "flyingShots":
-      return "飛んでいる自分の弾の数";
     case "placedShots":
       return "床に置いた自分の弾の数";
     default:
@@ -99,7 +97,6 @@ const RIPOSTE_TEXT: Readonly<Record<RiposteSource, string>> = {
   bulletCut: "敵弾払い",
   iai: "居合の出端",
   pullInterrupt: "予備動作中の敵の引き寄せ",
-  recallCut: "戻りの弾での敵弾消し",
   chargeEndure: "溜め中の被弾",
 };
 
@@ -204,7 +201,6 @@ export function weaponMechanics(m: Readonly<MovesetDef>): string[] {
   if (movesetCasts(m).length > 0) out.push("振りから弾を放つ");
   if (m.steps2.some((s) => s.kind === "hold" && s.hold.parry !== undefined)) out.push("受け流しの構えがある");
   if (m.steps2.some((s) => s.kind === "hold" && s.hold.guard !== undefined)) out.push("防御の構えがある");
-  if (m.steps2.some((s) => s.kind === "recall")) out.push("飛んでいる弾を手元へ戻せる");
   const features = new Set(allBullets(m).flatMap((b) => bulletFeatures(b)));
   for (const f of features) out.push(BULLET_FEATURE_TEXT[f]);
   return out;

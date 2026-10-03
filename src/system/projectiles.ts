@@ -1,7 +1,7 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { ACTION, FEEL } from "../data/tuning";
-import { type ArcDef, type BulletDef, type OrbitDef, type RecallHomingDef, type ShotArc, type ShotRuntime, type ShotTrip, MOVESETS } from "../data/weapons";
+import { type ArcDef, type BulletDef, type OrbitDef, type ShotArc, type ShotRuntime, type ShotTrip, MOVESETS } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
@@ -10,8 +10,7 @@ import { isAllied } from "./rules";
 import { merchantSheltered } from "./merchantAi";
 import { bossOnAnswer } from "./boss";
 import { fireDebana } from "./debana";
-import { noteRiposte } from "./moments";
-import { currentForm, gainMorale, noteBlast } from "./morale";
+import { gainMorale, noteBlast } from "./morale";
 import { stickPin } from "./pins";
 import { circlesOverlap, overlapsShotWall } from "./physics";
 import { yellowAt } from "./readTiming";
@@ -78,7 +77,6 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
     if (def?.mine) updateMine(state, pr, def);
     else if (def?.lob) updateLob(state, pr, def);
     else hitEnemies(state, pr);
-    if (pr.shot?.returning) cutEnemyShotsByRecall(state, pr);
     if (def?.boomerang) catchBoomerang(state, pr, def);
     if (pr.shot?.arc) settleArc(state, pr, pr.shot.arc);
   } else {
@@ -86,25 +84,9 @@ function stepProjectile(state: GameState, pr: Projectile, dt: number): void {
   }
 }
 
-/** 戻りの弾（手元返し・回転刃の帰り）が触れた敵弾を消して応手（recallCut）にする。応手を持つ型（投具）だけ消す */
-function cutEnemyShotsByRecall(state: GameState, pr: Projectile): void {
-  if (pr.life <= 0 || !currentForm(state).riposte.includes("recallCut")) return;
-  for (const enemyShot of state.projectiles) {
-    if (enemyShot.owner !== "enemy" || enemyShot.life <= 0) continue;
-    if (!circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, enemyShot.pos.x, enemyShot.pos.y, enemyShot.radius)) continue;
-    enemyShot.life = 0;
-    spawnBurst(state, enemyShot.pos, enemyShot.color, 4, 60, 0.2, 1.5);
-    noteRiposte(
-      state,
-      "recallCut",
-      state.enemies.find((e) => e.id === enemyShot.sourceId),
-    );
-  }
-}
-
 /**
  * 弾が消えた位置に地形を残す（BulletDef.leaves の写し）。命中・壁・炸裂・寿命切れのどれでも置き、
- * 手元へ戻った弾（回転刃の帰り・手元返し）は自分の足元になるので置かない
+ * 手元へ戻った弾（回転刃の帰り）は自分の足元になるので置かない
  */
 function leaveTerrain(state: GameState, pr: Projectile): void {
   const rt = pr.shot;
@@ -131,17 +113,13 @@ function shotDefOf(pr: Projectile): BulletDef | undefined {
 }
 
 /**
- * 飛んでいる間の型ごとの動き。周回（持続の奥義）と手元返しの戻りの追尾は作業領域が持つので弾の定義より先に見る。
+ * 飛んでいる間の型ごとの動き。周回（持続の奥義）は作業領域が持つので弾の定義より先に見る。
  * それ以外は弾の定義（追尾の旋回・設置弾の減速・回転刃の折り返し）
  */
 function steerShot(state: GameState, pr: Projectile, def: BulletDef | undefined, dt: number): void {
   if (pr.owner !== "player") return;
   if (pr.shot?.orbit) {
     steerOrbit(state, pr, pr.shot, pr.shot.orbit, dt);
-    return;
-  }
-  if (pr.shot?.recallHoming) {
-    steerRecall(state, pr, pr.shot.recallHoming, dt);
     return;
   }
   if (pr.shot?.arc) {
@@ -182,24 +160,6 @@ function countLap(pr: Projectile, rt: ShotRuntime, turn: number): void {
   const after = before + Math.abs(turn);
   rt.orbitTravel = after;
   if (Math.floor(after / FULL_TURN) > Math.floor(before / FULL_TURN)) pr.hitIds.clear();
-}
-
-/**
- * 手元返しの戻りの追尾: range 内の近くの敵（まだ当てていない）へ曲がり、いなければ手元へ曲がって手元で収まる。
- * 速さは変えない
- */
-function steerRecall(state: GameState, pr: Projectile, homing: RecallHomingDef, dt: number): void {
-  const enemy = nearestEnemy(state, pr.pos, homing.range, pr.hitIds);
-  if (enemy) {
-    turnToward(pr, enemy, homing.turnRate, dt);
-    return;
-  }
-  const hand = state.player.body;
-  if (circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, hand.pos.x, hand.pos.y, hand.radius)) {
-    pr.life = 0;
-    return;
-  }
-  turnToward(pr, hand.pos, homing.turnRate, dt);
 }
 
 /**

@@ -446,16 +446,16 @@ export const WEAPON_TRAIL_WIDTH: Readonly<Record<MovesetKey, number>> = {
   sidearm: 1,
   longarm: 2,
   cannon: 3,
-  thrown: 1,
   grenade: 3,
   trapper: 2,
-  warRing: 2,
   claws: 1,
   flail: 3,
   ringBlades: 2,
   fan: 2,
   book: 1,
   handbell: 2,
+  kunai: 1,
+  shuriken: 1,
 };
 
 // ---------------------------------------------------------------------------

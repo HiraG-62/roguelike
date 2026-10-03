@@ -14,27 +14,29 @@ const EXPECTED_FEATURES: Readonly<Record<string, readonly BulletFeature[]>> = {
   twinPistols: [],
   twinRevolvers: [],
   smg: ["rapid"],
-  throwingKnives: ["rapid"],
   shotgun: ["spread"],
   blunderbuss: ["spread"],
   rifle: ["pierce"],
   railgun: ["pierce"],
   crossbow: ["pierce"],
-  blowgun: ["homing"],
-  seekerOrb: ["homing"],
-  ricochetGun: ["ricochet"],
-  chakram: ["ricochet"],
   matchlock: ["charge"],
   handCannon: ["charge"],
   mineLauncher: ["mine"],
   caltrops: ["mine"],
   burstRifle: ["burst"],
   tripleCrossbow: ["burst"],
-  returnChakram: ["boomerang"],
-  flyingBlade: ["boomerang"],
   mortar: ["lob"],
   grenadeLauncher: ["lob"],
+  kunai: [],
+  ringBlades: ["boomerang"],
+  fangRings: ["boomerang"],
 };
+
+/**
+ * 撃つ器が 2 つに満たない弾の性質（投擲・旧戦輪の器を消した。段 5-A）。
+ * 連射は短機関銃だけ、追尾は杖の詠唱（闇手）、跳弾は技の弾が持つ
+ */
+const FEW_FEATURE_BASES: Readonly<Partial<Record<BulletFeature, number>>> = { rapid: 1, homing: 0, ricochet: 0 };
 
 describe("武器ごとの弾", () => {
   const gunBases = BASES.filter(baseHasBullet);
@@ -66,12 +68,12 @@ describe("武器ごとの弾", () => {
     }
   });
 
-  it("すべての性質に、それを撃つ器が 2 つ以上ある", () => {
+  it("すべての性質に、それを撃つ器が 2 つ以上ある（撤去で減った性質を除く）", () => {
     // 刺さる・弧の弾は投擲物の器（クナイ・手裏剣・戦輪）が撃つ。器への配線は段 6（docs/ideas/gun-bases-review.md 4 章）で、それまでは除く
     const pending: ReadonlySet<BulletFeature> = new Set<BulletFeature>(["pin", "arc"]);
     for (const f of BULLET_FEATURES.filter((x) => !pending.has(x))) {
       const bases = gunBases.filter((b) => bulletFeatures(bulletDef(b.key)).includes(f));
-      expect(bases.length, `${f} の器`).toBeGreaterThanOrEqual(2);
+      expect(bases.length, `${f} の器`).toBeGreaterThanOrEqual(FEW_FEATURE_BASES[f] ?? 2);
     }
   });
 
@@ -95,7 +97,7 @@ describe("武器ごとの弾", () => {
 
   it("弾を出す固有技は技自身の弾を持ち、同じ表から key で引ける", () => {
     const throws = Object.values(MOVESETS).filter((m) => m.steps2[0].kind === "volley");
-    expect(throws.length, "投擲・魔弾・乱れ撃ち・撒き散らし").toBeGreaterThanOrEqual(4);
+    expect(throws.length, "魔弾・乱れ撃ち・撒き散らしなど").toBeGreaterThanOrEqual(3);
     for (const m of throws) {
       const art = m.steps2[0];
       if (art.kind !== "volley") continue;
