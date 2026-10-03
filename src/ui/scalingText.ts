@@ -1,6 +1,6 @@
 import { STATUS_LABEL } from "../core/status";
 import { PLAYER } from "../data/tuning";
-import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, isGun, movesetLabel } from "../data/weapons";
+import { type ActionStepDef, DEFAULT_MOVESET, MOVESETS, type MeleeStepDef, type MovesetDef, actionStepName, movesetLabel, shootsPrimary } from "../data/weapons";
 import { type UltimateAct, type UltimateDef, defaultUltimate } from "../data/ultimates";
 import { bulletDef, bulletOfBase } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
@@ -424,10 +424,10 @@ interface MovesetActions {
 }
 
 function movesetActions(stats: Readonly<PlayerStats>, moveset: Readonly<MovesetDef>, bullet: string): MovesetActions {
-  // 怯み値の式は 1 段目（銃の家系は射撃も）だけに出す。係数の形は武器種の中でほぼ同じなので、残りは値で足りる
+  // 怯み値の式は 1 段目（左で撃つ武器種は射撃も）だけに出す。係数の形は武器種の中でほぼ同じなので、残りは値で足りる
   const steps = comboStepFormulas(stats, moveset.steps).map((a, i) => (i === 0 ? a : foldPoise(a)));
   const actions: ActionFormulas[] = [];
-  if (isGun(moveset)) actions.push(shotFormulas(stats, bullet, SHOT_PREFIX));
+  if (shootsPrimary(moveset)) actions.push(shotFormulas(stats, bullet, SHOT_PREFIX));
   actions.push(...steps);
   if (moveset.charge !== undefined) actions.push(foldPoise(stepFormulas(stats, CHARGE_NAME, moveset.charge.step)));
   actions.push(foldPoise(stepFormulas(stats, DASH_ATTACK_NAME, moveset.dashAttack)));

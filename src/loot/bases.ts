@@ -1,5 +1,5 @@
 import { BALANCE } from "../data/balance";
-import { GUN_MOVESETS, type MovesetKey } from "../data/weapons";
+import { type MovesetKey, type WeaponGroup, weaponGroup } from "../data/weapons";
 import type { Slot } from "./types";
 
 /** ベースごとの minLevel / marginBonus（数値のみ）。src/data/balance/loot/ の "bases" */
@@ -180,10 +180,10 @@ export function basesForSlot(slot: Slot, itemLevel: number): BaseItemDef[] {
 }
 
 /**
- * 右手ベースの家系（docs/ideas/weapon-redesign.md 4 章）。moveset が GUN_MOVESETS に入るかで判定する。
+ * 右手ベースの家系 = 武器種の群（docs/ideas/gun-bases-review.md 0-1。近接 / 銃 / 投擲物）。
  * moveset を持たないベース（右手以外）は undefined
  */
-export function baseFamily(base: BaseItemDef): "melee" | "gun" | undefined {
+export function baseFamily(base: BaseItemDef): WeaponGroup | undefined {
   if (base.moveset === undefined) return undefined;
-  return (GUN_MOVESETS as readonly MovesetKey[]).includes(base.moveset) ? "gun" : "melee";
+  return weaponGroup({ key: base.moveset });
 }

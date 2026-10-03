@@ -10,8 +10,8 @@ import { COMMON_ART_KEYS } from "../skills/arts/keys";
 import { ART_ACT_KINDS } from "../skills/arts/types";
 import { ultPiece } from "./fxUltimate";
 import { actPieceOf } from "./fxSkill";
-import { BULLETS } from "../loot/bullets";
-import { BASES, baseFamily } from "../loot/bases";
+import { BULLETS, baseHasBullet } from "../loot/bullets";
+import { BASES } from "../loot/bases";
 import { movesetCasts } from "../data/weapons";
 import { ULTIMATES, ultimateDef } from "../data/ultimates";
 import { MOVESET_KEYS } from "../data/weapons";
@@ -258,10 +258,10 @@ describe("fxMotions: 武器種のモーションの表", () => {
   });
 });
 
-/** 武器種が撃つ弾の key（銃のベースの弾・右の弾の段・振りの cast） */
+/** 武器種が撃つ弾の key（弾を持つベースの弾・右の弾の段・振りの cast） */
 function movesetBulletKeys(moveset: MovesetKey): string[] {
   const def = MOVESETS[moveset];
-  const bases = BASES.filter((b) => b.moveset === moveset && baseFamily(b) === "gun").map((b) => b.key);
+  const bases = BASES.filter((b) => b.moveset === moveset && baseHasBullet(b)).map((b) => b.key);
   const volleys = def.steps2.flatMap((s) => (s.kind === "volley" ? [s.throw.bullet.key] : []));
   const casts = movesetCasts(def).map((c) => c.throw.bullet.key);
   return [...new Set([...bases, ...volleys, ...casts])];

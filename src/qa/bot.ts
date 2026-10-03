@@ -17,7 +17,7 @@ import { isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
-import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun } from "../data/weapons";
+import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun, shootsPrimary } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
@@ -43,7 +43,7 @@ import { statsBulletHas } from "../loot/bullets";
  * 直進 + 壁回避の簡易 steering のままにしている。
  */
 
-/** この距離未満なら近接コンボに専念する（遠ければ近づく。射撃は銃の家系だけ） */
+/** この距離未満なら近接コンボに専念する（遠ければ近づく。射撃は左で撃つ武器種だけ。銃は気力が足りない間この距離で右の近接を振る） */
 export const MELEE_RANGE = 30;
 /** 敵の windup / strike をこの距離以内で検知したら回避を検討する */
 const DANGER_RANGE = 55;
@@ -831,15 +831,34 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 
   // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・右の連撃でマナを貯める
   const moveset = playerMoveset(state);
-  // 射撃は銃の家系だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）
-  if (!isGun(moveset) && d < MELEE_RANGE) {
+  const shoots = shootsPrimary(moveset);
+  // 射撃は左で撃つ武器種だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）
+  if (!shoots && d < MELEE_RANGE) {
     pressMixedLane(state, bot, moveset, input);
     return input;
   }
-  // 銃は左で撃ち続けながら、射程内なら右の連撃も押す
-  if (isGun(moveset)) input.attackHeld = shootHeldFor(state);
+  // 銃は弾の命中で気力が戻らない（docs/ideas/gun-bases-review.md 0-2）。気力が足りない間は寄って右の近接で戻す
+  if (d < MELEE_RANGE && gunNeedsMana(state, moveset)) {
+    pressRightLane(state, bot, moveset, d, input, false);
+    return input;
+  }
+  // 左で撃つ武器種は撃ち続けながら、射程内なら右の連撃も押す
+  if (shoots) input.attackHeld = shootHeldFor(state);
   pressRightLane(state, bot, moveset, d, input);
   return input;
+}
+
+/** 銃で、装着中の気力のスキルがあり、そのどれにも気力が足りないか（足りなければ近接で気力を戻しに寄る） */
+export function gunNeedsMana(state: GameState, moveset: MovesetDef): boolean {
+  if (!isGun(moveset)) return false;
+  let hasManaSkill = false;
+  for (let i = 0; i < SKILL_SLOT_COUNT; i++) {
+    const resolved = resolveSlot(state, i);
+    if (resolved?.def.resource !== "mana") continue;
+    if (canAffordSkill(state, resolved.cost)) return false;
+    hasManaSkill = true;
+  }
+  return hasManaSkill;
 }
 
 /** 奥義を押すか: 持続中でなく、ゲージが満タンで、敵が ULTIMATE_RANGE 以内 */
@@ -900,10 +919,10 @@ function pressMixedLane(state: GameState, bot: BotState, moveset: MovesetDef, in
 }
 
 /**
- * 銃の家系と、近接の射程外で次の右段が弾・手元返しのとき: 右段の射程内なら右を 1 フレーム押す。
- * 連撃の始め（1 段目）は ART_PERIOD 秒ごと、連撃の途中は振りが先行入力を受ける時点で続けて押す。押したら true
+ * 左で撃つ武器種と、近接の射程外で次の右段が弾・手元返しのとき: 右段の射程内なら右を 1 フレーム押す。
+ * 連撃の始め（1 段目）は ART_PERIOD 秒ごと（paced が false なら待たない）、連撃の途中は振りが先行入力を受ける時点で続けて押す。押したら true
  */
-function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput): boolean {
+function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d: number, input: FrameInput, paced = true): boolean {
   const p = state.player;
   const a = p.attack;
   if (p.secondaryWasHeld || a.buffered || a.pendingBranch >= 0 || a.phase === "windup" || p.art.holding) return false;
@@ -912,8 +931,8 @@ function pressRightLane(state: GameState, bot: BotState, moveset: MovesetDef, d:
   if (index === undefined || s === undefined || actionCooldownLeft(state, s) > 0) return false;
   const range = laneRange(s);
   if (range === undefined || d > range) return false;
-  if (index === 0 && bot.artTimer > 0) return false;
-  if (!isGun(moveset) && !isRangedStep(s)) return false;
+  if (paced && index === 0 && bot.artTimer > 0) return false;
+  if (!shootsPrimary(moveset) && !isRangedStep(s)) return false;
   bot.artTimer = ART_PERIOD;
   input.shootHeld = true;
   return true;

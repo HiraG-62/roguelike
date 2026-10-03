@@ -5,7 +5,7 @@ import { formatMeters } from "../core/units";
 import { type Vec, dist, isZero, normalize, scale } from "../core/vec";
 import { type DashForm, JOBS } from "../data/jobs";
 import { BOON, DASH_FORM, PLAYER } from "../data/tuning";
-import { isGun, laneLength } from "../data/weapons";
+import { laneLength, shootsPrimary } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
 import { scaled } from "./attributes";
 import { cancelAttack } from "./combat";
@@ -50,10 +50,10 @@ export function dashIgnoresSwingLock(state: Readonly<GameState>): boolean {
 
 /**
  * 詰め足は取り消した振りの続きの段へ戻る（ダッシュ中に押した左をダッシュ攻撃にしない。player.ts の releaseDashAttack）。
- * 銃の家系の左は連撃ではなく射撃なので、ダッシュ中の押下は従来どおり反転撃ち
+ * 左で撃つ武器種の左は連撃ではなく射撃なので、ダッシュ中の押下は従来どおり反転撃ち
  */
 export function dashKeepsChain(state: GameState): boolean {
-  return dashFormOf(state) === "step" && !isGun(playerMoveset(state));
+  return dashFormOf(state) === "step" && !shootsPrimary(playerMoveset(state));
 }
 
 /** 影潜りで潜っている間は攻撃・派生を出せない（player.ts の readActions） */

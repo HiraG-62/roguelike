@@ -5,7 +5,7 @@ import { type Vec, add, normalize, scale, sub } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { MANUAL } from "../data/tuning";
-import { type ButtonKey, type MovesetKey, isGun } from "../data/weapons";
+import { type ButtonKey, type MovesetKey, shootsPrimary } from "../data/weapons";
 import { chooseUltimate } from "../loot/profile";
 import { createEmptyProfile } from "../loot/types";
 import { type DemoArena, buildDemoArena } from "../map/demoArena";
@@ -345,8 +345,8 @@ export function readyForPress(state: GameState, prev: DemoCue | undefined, butto
   if (a.charging || a.buffered) return false;
   if (a.pendingBranch >= 0 && a.phase !== "none") return false;
   if (p.art.cooldown > 0 || p.art.recover > 0 || p.parry.recover > 0) return false;
-  // 銃の家系の左（射撃）は振りの最中に押しても派生の列に入らないので、振り終えてから押す
-  if (button === "primary" && isGun(playerMoveset(state))) return a.phase === "none";
+  // 左で撃つ武器種の左（射撃）は振りの最中に押しても派生の列に入らないので、振り終えてから押す
+  if (button === "primary" && shootsPrimary(playerMoveset(state))) return a.phase === "none";
   return a.phase === "none" || a.phase === "recover";
 }
 

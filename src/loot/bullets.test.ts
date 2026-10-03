@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { profileKeywords } from "../core/keywords";
 import { PLAYER } from "../data/tuning";
-import { BULLET_FEATURES, type BulletFeature, GUN_MOVESETS, MOVESETS, bulletFeatures } from "../data/weapons";
-import { BASES, baseFamily } from "./bases";
-import { BULLETS, DEFAULT_BULLET, bulletDef, bulletOfBase } from "./bullets";
+import { BULLET_FEATURES, type BulletFeature, MOVESETS, MOVESET_KEYS, bulletFeatures, shootsPrimary } from "../data/weapons";
+import { BASES } from "./bases";
+import { BULLETS, DEFAULT_BULLET, baseHasBullet, bulletDef, bulletOfBase } from "./bullets";
 
 /** 弾は武器（銃のベース）ごとに持つ。共有の「射撃の型」は無い */
 
@@ -37,9 +37,9 @@ const EXPECTED_FEATURES: Readonly<Record<string, readonly BulletFeature[]>> = {
 };
 
 describe("武器ごとの弾", () => {
-  const gunBases = BASES.filter((b) => baseFamily(b) === "gun");
+  const gunBases = BASES.filter(baseHasBullet);
 
-  it("銃の家系のベースはすべて自分の弾を持ち、名前はベース名", () => {
+  it("弾を持つベース（銃・左で撃つ投擲物）はすべて自分の弾を持ち、名前はベース名", () => {
     for (const base of gunBases) {
       const bullet = BULLETS[base.key];
       expect(bullet, `${base.key} の弾`).toBeDefined();
@@ -50,9 +50,9 @@ describe("武器ごとの弾", () => {
     }
   });
 
-  it("近接のベースは弾を持たず、右手の弾は既定になる", () => {
+  it("弾を持たないベース（近接・左で振る武器種）は弾が無く、右手の弾は既定になる", () => {
     for (const base of BASES) {
-      if (baseFamily(base) === "gun") continue;
+      if (baseHasBullet(base)) continue;
       expect(BULLETS[base.key], `${base.key} は弾を持たない`).toBeUndefined();
     }
     expect(bulletOfBase("longsword"), "剣は既定の弾").toBe(DEFAULT_BULLET);
@@ -105,8 +105,8 @@ describe("武器ごとの弾", () => {
     expect(MOVESETS.trapper.steps2[0].kind === "volley" && bulletFeatures(MOVESETS.trapper.steps2[0].throw.bullet), "撒き散らしは設置弾").toEqual(["mine"]);
   });
 
-  it("銃の家系はどれも一番早い器が撃てる弾を持つ（拠点で試すときの弾）", () => {
-    for (const key of GUN_MOVESETS) {
+  it("左で撃つ武器種はどれも一番早い器が撃てる弾を持つ（拠点で試すときの弾）", () => {
+    for (const key of MOVESET_KEYS.filter((k) => shootsPrimary(MOVESETS[k]))) {
       expect(gunBases.some((b) => b.moveset === key), key).toBe(true);
     }
   });

@@ -3,7 +3,7 @@ import type { GameState, Player, Projectile } from "../core/state";
 import { isZero } from "../core/vec";
 import { FORM } from "../data/tuning";
 import { type FormDef, type MoraleGain, type MoraleRelease, type ReleasePerUnit, formOfKey } from "../data/weaponForms";
-import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, isGun, meleeChargeOf } from "../data/weapons";
+import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { hasReach } from "../loot/reach";
 import { gatherLinked, linkedCount, woundPeak } from "./formMarks";
@@ -239,7 +239,7 @@ function isReleaseSwing(form: FormDef, moveset: MovesetDef, spec: ReleaseSwingSp
     }
     case "nextPrimary":
       // 近接（長柄）は満ちた後の最初の「突き」の段だけ（薙ぎ・回しでは穂先を放たない）
-      return primed && !isGun(moveset) && spec.lane === "primary" && spec.branch < 0 && !spec.dashStrike && spec.chargeLevel === 0 && moveset.steps[spec.step]?.shape.kind === "thrust";
+      return primed && !shootsPrimary(moveset) && spec.lane === "primary" && spec.branch < 0 && !spec.dashStrike && spec.chargeLevel === 0 && moveset.steps[spec.step]?.shape.kind === "thrust";
     case "branch":
       return branch !== undefined && branch.sequence.length >= 3;
     case "release":

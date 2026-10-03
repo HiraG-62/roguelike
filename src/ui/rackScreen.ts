@@ -1,13 +1,13 @@
 /**
  * 武器掛けの画面（DOM 非依存）。武器種をカードの格子で並べ、右の欄で試し打ち用の資源（生命・気力・奥義ゲージ）を調整する。
- * 銃の家系は器ごとに弾の性質が違うので 2 段にする（武器種のカード → その家系の器のカード。例: 長銃 → 小銃）。
+ * 銃・投擲物は器ごとに弾の性質が違うので 2 段にする（武器種のカード → その武器種の器のカード。例: 長銃 → 小銃）。
  * 状態と当たり判定と入力の解釈だけを持ち、試す・借りる・資源を書くのは main.ts が system/hub.ts を呼んで行う。
  * 描画は src/render/rackUi.ts（読むだけ）
  */
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
-import { bulletDef, gunBasesOf } from "../loot/bullets";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, isRangedWeapon } from "../data/weapons";
+import { baseHasBullet, bulletDef, rangedBasesOf } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { bulletFeatureTexts } from "../meta/weaponText";
 // system/hub は型だけ読む（値を読むとテストで system の初期化順の輪に入る）
@@ -15,7 +15,7 @@ import type { HubResource } from "../system/hub";
 
 /**
  * カードの種類。clear = 装備のまま（試用を外す）/ moveset = 近接の武器種（決定で試す）/
- * family = 銃の家系（決定で器の段を開く）/ base = 銃の器（決定で試す）/ back = 器の段から武器種の段へ戻る
+ * family = 銃・投擲物の武器種（決定で器の段を開く）/ base = その器（決定で試す）/ back = 器の段から武器種の段へ戻る
  */
 export type RackCardKind = "clear" | "moveset" | "family" | "base" | "back";
 
@@ -70,9 +70,11 @@ export function rackMovesetDetail(key: MovesetKey): string {
   return `${def.desc}。${branchText}`.trim();
 }
 
-/** 器の説明（その器の弾の性質。数値は出さない） */
+/** 器の説明（その器の弾の性質。数値は出さない）。弾を持たない器（今は戦輪）は武器種の説明 */
 export function rackBaseDetail(baseKey: string): string {
-  const name = baseDef(baseKey)?.name ?? baseKey;
+  const base = baseDef(baseKey);
+  if (base?.moveset !== undefined && !baseHasBullet(base)) return rackMovesetDetail(base.moveset);
+  const name = base?.name ?? baseKey;
   return `${name}の弾: ${bulletFeatureTexts(bulletDef(baseKey)).join("・")}。`;
 }
 
@@ -101,13 +103,13 @@ export function rackCards(trial: Readonly<RackTrial>, family: MovesetKey | null 
 function movesetCards(trial: Readonly<RackTrial>): RackCard[] {
   const clear: RackCard = { kind: "clear", moveset: null, base: null, name: RACK_CLEAR_NAME, marked: trial.moveset === null };
   const cards = MOVESET_KEYS.map(
-    (k): RackCard => ({ kind: isGun(MOVESETS[k]) ? "family" : "moveset", moveset: k, base: null, name: MOVESETS[k].name, marked: trial.moveset === k }),
+    (k): RackCard => ({ kind: isRangedWeapon(MOVESETS[k]) ? "family" : "moveset", moveset: k, base: null, name: MOVESETS[k].name, marked: trial.moveset === k }),
   );
   return [clear, ...cards];
 }
 
 function familyCards(trial: Readonly<RackTrial>, family: MovesetKey): RackCard[] {
-  const bases = gunBasesOf(family);
+  const bases = rangedBasesOf(family);
   // 器を指定せずに試しているときは、試しに使っている一番早く出る器に印を付ける
   const markedBase = trial.moveset === family ? (trial.base ?? bases[0]?.key ?? null) : null;
   const back: RackCard = { kind: "back", moveset: null, base: null, name: RACK_BACK_NAME, marked: false };

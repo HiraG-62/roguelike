@@ -8,8 +8,8 @@ import {
   actionStepName,
   type BulletFeature,
   bulletFeatures,
-  isGun,
   movesetCasts,
+  shootsPrimary,
 } from "../data/weapons";
 import { type FormDef, type MoraleGain, type RiposteSource, formCutsBullets, formOf } from "../data/weaponForms";
 import { STATUS_LABEL } from "../core/status";
@@ -106,7 +106,7 @@ function releaseText(m: Readonly<MovesetDef>, form: FormDef): string {
     case "branch":
       return "3 手の派生";
     case "nextPrimary":
-      return isGun(m) ? "満ちた後の 1 発" : "満ちた後の最初の突き";
+      return shootsPrimary(m) ? "満ちた後の 1 発" : "満ちた後の最初の突き";
     case "maxCharge":
       return "最大段の溜め攻撃";
     case "release":
@@ -210,7 +210,7 @@ export function featureText(m: Readonly<MovesetDef>): string {
   const mechanics = weaponMechanics(m)
     .map(withPeriod)
     .join("");
-  if (isGun(m)) return `${desc}${mechanics}`;
+  if (shootsPrimary(m)) return `${desc}${mechanics}`;
   const step = m.steps[0];
   if (step === undefined) return `${desc}${mechanics}`;
   const reach = `間合いはおよそ${formatMeters(step.reach)}。`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BULLET_FEATURES, GUN_MOVESETS, MOVESET_KEYS, bulletFeatures } from "../data/weapons";
-import { BASES, basesForSlot } from "./bases";
+import { BULLET_FEATURES, MOVESETS, MOVESET_KEYS, bulletFeatures, shootsPrimary } from "../data/weapons";
+import { BASES, baseDef, baseFamily, basesForSlot } from "./bases";
 import { BULLETS, bulletDef } from "./bullets";
 
 /** 序盤のベース解禁（docs/ideas/combat-feel-design.md A-2）: 1 ランの浅い階でも武器種・銃の弾に触れられる */
@@ -17,15 +17,15 @@ function earliest(match: (b: (typeof BASES)[number]) => boolean): number {
 }
 
 describe("序盤のベース解禁", () => {
-  it(`すべての近接武器種に minLevel ${EARLY_WEAPON_LEVEL} 以下のベースがある`, () => {
+  it(`左で振る武器種のすべてに minLevel ${EARLY_WEAPON_LEVEL} 以下のベースがある`, () => {
     for (const key of MOVESET_KEYS) {
-      if ((GUN_MOVESETS as readonly string[]).includes(key)) continue;
+      if (shootsPrimary(MOVESETS[key])) continue;
       expect(earliest((b) => b.slot === "mainHand" && b.moveset === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_WEAPON_LEVEL);
     }
   });
 
-  it(`すべての銃の家系に minLevel ${EARLY_GUN_LEVEL} 以下のベースがある`, () => {
-    for (const key of GUN_MOVESETS) {
+  it(`左で撃つ武器種のすべてに minLevel ${EARLY_GUN_LEVEL} 以下のベースがある`, () => {
+    for (const key of MOVESET_KEYS.filter((k) => shootsPrimary(MOVESETS[k]))) {
       expect(earliest((b) => b.slot === "mainHand" && b.moveset === key), `${key} の一番早い器`).toBeLessThanOrEqual(EARLY_GUN_LEVEL);
     }
   });
@@ -39,5 +39,21 @@ describe("序盤のベース解禁", () => {
   it(`basesForSlot("mainHand", ${EARLY_WEAPON_LEVEL}) に ${EARLY_MOVESET_VARIETY} 種類以上の武器種が含まれる`, () => {
     const movesets = new Set(basesForSlot("mainHand", EARLY_WEAPON_LEVEL).map((b) => b.moveset));
     expect(movesets.size).toBeGreaterThanOrEqual(EARLY_MOVESET_VARIETY);
+  });
+});
+
+describe("右手ベースの家系（武器の群）", () => {
+  it("家系は近接・銃・投擲物の 3 つで、右手以外は持たない", () => {
+    const sword = baseDef("longsword");
+    const pistol = baseDef("pistol");
+    const knives = baseDef("throwingKnives");
+    if (sword === undefined || pistol === undefined || knives === undefined) throw new Error("ベースが無い");
+    expect(baseFamily(sword), "長剣").toBe("melee");
+    expect(baseFamily(pistol), "拳銃").toBe("gun");
+    expect(baseFamily(knives), "投げ短剣").toBe("throwing");
+    for (const base of BASES) {
+      if (base.moveset === undefined) expect(baseFamily(base), `${base.key} は右手以外`).toBeUndefined();
+      else expect(MOVESETS[base.moveset], `${base.key} の武器種`).toBeDefined();
+    }
   });
 });

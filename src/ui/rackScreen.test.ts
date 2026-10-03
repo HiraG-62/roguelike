@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUN_MOVESETS, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, isRangedWeapon } from "../data/weapons";
 import {
   RACK_ADJUST_ROWS,
   RACK_LAYOUT,
@@ -22,7 +22,7 @@ import {
   rackCardBorrowable,
   stepRack,
 } from "./rackScreen";
-import { gunBasesOf } from "../loot/bullets";
+import { rangedBasesOf } from "../loot/bullets";
 
 const NO_TRIAL: RackTrial = { moveset: null, base: null };
 
@@ -126,10 +126,10 @@ describe("武器掛けの格子の移動", () => {
 });
 
 describe("武器掛けの銃の器の段", () => {
-  it("銃の家系はすべて家系のカードで、決定は器の段を開く", () => {
+  it("銃・投擲物はすべて家系のカードで、決定は器の段を開く", () => {
     const cards = rackCards(NO_TRIAL);
-    const guns = cards.filter((c) => c.moveset !== null && isGun(MOVESETS[c.moveset]));
-    expect(guns.length, "銃の家系がある").toBe(GUN_MOVESETS.length);
+    const guns = cards.filter((c) => c.moveset !== null && isRangedWeapon(MOVESETS[c.moveset]));
+    expect(guns.length, "銃・投擲物の武器種がある").toBe(MOVESET_KEYS.filter((k) => isRangedWeapon(MOVESETS[k])).length);
     expect(guns.every((c) => c.kind === "family"), "家系のカード").toBe(true);
     const ui = createRackUi();
     ui.cursor = cards.findIndex((c) => c.moveset === "longarm");
@@ -141,7 +141,7 @@ describe("武器掛けの銃の器の段", () => {
     const cards = rackCards(NO_TRIAL, "longarm");
     expect(cards[0]?.kind, "先頭は戻る").toBe("back");
     const bases = cards.slice(1);
-    expect(bases.map((c) => c.base), "器").toEqual(gunBasesOf("longarm").map((b) => b.key));
+    expect(bases.map((c) => c.base), "器").toEqual(rangedBasesOf("longarm").map((b) => b.key));
     expect(bases.map((c) => c.base).sort(), "長銃の器すべて").toEqual(["crossbow", "handCannon", "matchlock", "railgun", "rifle", "tripleCrossbow"]);
     expect(bases.every((c) => c.kind === "base" && c.moveset === "longarm" && rackCardBorrowable(c)), "器は借りられる").toBe(true);
     const ui = createRackUi();
@@ -157,7 +157,7 @@ describe("武器掛けの銃の器の段", () => {
   it("試している器に印が付き、器を指定していなければ一番早く出る器に付く", () => {
     const marked = (trial: RackTrial): (string | null)[] => rackCards(trial, "longarm").filter((c) => c.marked).map((c) => c.base);
     expect(marked({ moveset: "longarm", base: "rifle" }), "小銃").toEqual(["rifle"]);
-    expect(marked({ moveset: "longarm", base: null }), "指定なし").toEqual([gunBasesOf("longarm")[0]?.key]);
+    expect(marked({ moveset: "longarm", base: null }), "指定なし").toEqual([rangedBasesOf("longarm")[0]?.key]);
     expect(marked({ moveset: "sidearm", base: "pistol" }), "別の家系").toEqual([]);
     expect(rackCards({ moveset: "longarm", base: "rifle" }).filter((c) => c.marked).map((c) => c.moveset), "武器種の段は家系に印").toEqual(["longarm"]);
   });

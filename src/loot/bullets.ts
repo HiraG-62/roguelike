@@ -1,12 +1,12 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { WEAPON } from "../data/tuning";
-import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, type MovesetKey, hasBulletFeature, isGun, movesetCasts, reviveBullet } from "../data/weapons";
+import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, type MovesetKey, hasBulletFeature, isRangedWeapon, movesetCasts, reviveBullet, shootsPrimary } from "../data/weapons";
 import { BASES, type BaseItemDef, baseDef, baseFamily } from "./bases";
 import type { PlayerStats } from "./types";
 
 /**
- * 銃のベースが撃つ弾（射撃の型の共有表は廃止し、弾は武器そのものが持つ）。
+ * 銃・投擲物のベースが撃つ弾（射撃の型の共有表は廃止し、弾は武器そのものが持つ）。
  * 数値は src/data/balance/weapons/ の WEAPON.bullets.<ベースの key>、語と素性（union 文字列）はここの表。
  * 弾を出す固有技（斧の投擲・魔弾・乱れ撃ち・撒き散らし）の弾は技の定義が持ち、ここで同じ表に並べて key で引けるようにする
  */
@@ -28,7 +28,7 @@ const MINE = kw(["ranged", "placed", "explode", "area"]);
 const BOOMERANG = kw(["ranged", "bullet", "area"], [], ["still"]);
 const LOB = kw(["ranged", "explode", "area"], ["still"]);
 
-/** 銃のベースごとの弾の語と素性。キーは BASES の key（weapons.json の bullets と同じ集合。balance.test が検査する） */
+/** 弾を持つベース（baseHasBullet）ごとの弾の語と素性。キーは BASES の key（weapons.json の bullets と同じ集合。balance.test が検査する） */
 const BULLET_PROFILES: Readonly<Record<string, BulletProfile>> = {
   twinPistols: { keywords: PLAIN, attack: PHYSICAL },
   twinRevolvers: { keywords: PLAIN, attack: PHYSICAL },
@@ -57,17 +57,27 @@ const BULLET_PROFILES: Readonly<Record<string, BulletProfile>> = {
   grenadeLauncher: { keywords: LOB, attack: PHYSICAL },
 };
 
-/** 銃のベースの弾の語と素性のキー一覧（テスト用） */
+/** 弾を持つベースの弾の語と素性のキー一覧（テスト用） */
 export const BULLET_PROFILE_KEYS: readonly string[] = Object.keys(BULLET_PROFILES);
 
 const RAW = WEAPON.bullets as Readonly<Record<string, unknown>>;
 
+/**
+ * 器が自分の弾を持つか: 近接でない群（銃・投擲物）で、左で撃つ武器種の器。
+ * 戦輪（ringBlades）の器は今は左で振るので弾を持たない（段 5-A で左で投げるようになったら持つ）
+ */
+export function baseHasBullet(base: BaseItemDef): boolean {
+  const family = baseFamily(base);
+  if (family === undefined || family === "melee" || base.moveset === undefined) return false;
+  return shootsPrimary(MOVESETS[base.moveset]);
+}
+
 function baseBullets(): BulletDef[] {
   const out: BulletDef[] = [];
   for (const base of BASES) {
-    if (baseFamily(base) !== "gun") continue;
+    if (!baseHasBullet(base)) continue;
     const profile = BULLET_PROFILES[base.key];
-    if (!profile) throw new Error(`銃のベース ${base.key} に弾の語と素性が無い`);
+    if (!profile) throw new Error(`弾を持つベース ${base.key} に弾の語と素性が無い`);
     out.push(reviveBullet(RAW[base.key], base.key, base.name, profile.keywords, profile.attack));
   }
   return out;
@@ -85,7 +95,7 @@ function artBullets(): BulletDef[] {
   return out;
 }
 
-/** すべての弾（銃のベース + 弾を出す固有技）。キーは BulletDef.key */
+/** すべての弾（弾を持つベース + 弾を出す固有技）。キーは BulletDef.key */
 export const BULLETS: Readonly<Record<string, BulletDef>> = Object.fromEntries([...baseBullets(), ...artBullets()].map((b) => [b.key, b]));
 
 /** 銃を持たないときの弾（近接の武器種は左で撃たないので、射撃の既定の素性を引くときだけ使う） */
@@ -98,11 +108,11 @@ export function bulletDef(key: string): BulletDef {
 }
 
 /**
- * 銃の家系の弾の器（右手のベース）。一番早く出る順（同じ深さはベースの表の順）。近接の武器種は空。
- * 同じ家系でも器ごとに弾の性質（溜め撃ち・三点・追尾…）が違うので、拠点の武器掛けは器を選ばせる
+ * 銃・投擲物の武器種の器（右手のベース）。一番早く出る順（同じ深さはベースの表の順）。近接の武器種は空。
+ * 同じ武器種でも器ごとに弾の性質（溜め撃ち・三点・追尾…）が違うので、拠点の武器掛けは器を選ばせる
  */
-export function gunBasesOf(moveset: MovesetKey): BaseItemDef[] {
-  if (!isGun(MOVESETS[moveset])) return [];
+export function rangedBasesOf(moveset: MovesetKey): BaseItemDef[] {
+  if (!isRangedWeapon(MOVESETS[moveset])) return [];
   const bases = BASES.filter((b) => b.slot === "mainHand" && b.moveset === moveset);
   return bases
     .map((b, i) => ({ b, i }))
@@ -110,7 +120,7 @@ export function gunBasesOf(moveset: MovesetKey): BaseItemDef[] {
     .map((x) => x.b);
 }
 
-/** 右手のベースの弾。銃でなければ既定 */
+/** 右手のベースの弾。弾を持つ器でなければ既定 */
 export function bulletOfBase(baseKey: string | undefined): string {
   if (baseKey === undefined) return DEFAULT_BULLET;
   const base = baseDef(baseKey);

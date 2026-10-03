@@ -16,8 +16,8 @@ import {
   type MovesetDef,
   type MovesetKey,
   actionStepName,
-  isGun,
   matchBranch,
+  shootsPrimary,
 } from "../data/weapons";
 import type { DemoCue, DemoExpect, DemoScript } from "../system/manualDemo";
 import { featureText, formText } from "./weaponText";
@@ -154,10 +154,10 @@ function avoidsBranches(m: Readonly<MovesetDef>, seq: readonly ButtonKey[]): boo
 
 /**
  * 右の index 段目に届く押し方。段カウンタは左右で共有するので、index 手の後に右を押す。
- * 近接は「左 × index → 右」を先に試し、派生に当たれば右の多い順に探す。銃の家系の左（射撃）は段を進めないので右だけで数える
+ * 近接は「左 × index → 右」を先に試し、派生に当たれば右の多い順に探す。左で撃つ武器種の左（射撃）は段を進めないので右だけで数える
  */
 export function laneSequence(m: Readonly<MovesetDef>, index: number): ButtonKey[] {
-  if (isGun(m)) return Array.from({ length: index + 1 }, () => "secondary" as const);
+  if (shootsPrimary(m)) return Array.from({ length: index + 1 }, () => "secondary" as const);
   const fits = sequencesOf(index + 1).filter((s) => s[index] === "secondary" && avoidsBranches(m, s));
   // 反動で下がる段（爪の跳び退き）を途中に挟まない列を先に選ぶ（下がると続く振りが届かない）
   const found = fits.find((s) => !knockedOnTheWay(m, s)) ?? fits[0];
@@ -194,7 +194,7 @@ const FRESH: DemoCue = { kind: "waitUntil", until: "fresh", maxSec: 3 };
  * 無ければ左の 1 段目
  */
 function shotsPrelude(m: Readonly<MovesetDef>): DemoCue[] {
-  if (isGun(m)) return [hold("primary", BUILD_FIRE_SEC), FRESH];
+  if (shootsPrimary(m)) return [hold("primary", BUILD_FIRE_SEC), FRESH];
   const volley = m.steps2.findIndex((s) => s.kind === "volley");
   return volley >= 0 ? [...laneCues(m, volley), FRESH] : [tap("primary"), FRESH];
 }
@@ -284,7 +284,7 @@ function branchTraits(m: Readonly<MovesetDef>, b: Readonly<BranchDef>): string[]
 // ---------------------------------------------------------------------------
 
 function chainMove(m: Readonly<MovesetDef>): ManualMove {
-  if (isGun(m)) {
+  if (shootsPrimary(m)) {
     return { key: "fire", group: "chain", name: "射撃", traits: ["押している間"], desc: "左を押している間、装備の銃の弾を撃つ。", script: { setup: NO_SETUP, cues: [hold("primary", FIRE_SEC)] }, expect: "hit" };
   }
   const n = m.steps.length;
@@ -314,16 +314,16 @@ function laneSwingStep(s: Readonly<ActionStepDef>): MeleeStepDef | undefined {
   }
 }
 
-/** 振りを見せる技の木人の距離。近接の武器種は左の段の距離と振りの届きの近い方、銃の家系は振りの届き */
+/** 振りを見せる技の木人の距離。近接の武器種は左の段の距離と振りの届きの近い方、左で撃つ武器種は振りの届き */
 function swingSetup(m: Readonly<MovesetDef>, step: Readonly<MeleeStepDef> | undefined): { foeDistance?: number } {
   if (step === undefined || step.size <= 0) return NO_SETUP;
   const own = reachDistance(reachOf(step));
-  return { foeDistance: isGun(m) ? own : Math.min(own, foeDistanceFor(m)) };
+  return { foeDistance: shootsPrimary(m) ? own : Math.min(own, foeDistanceFor(m)) };
 }
 
 /**
  * 最後の手より前に、反動で自分が下がる右の段（砲・擲弾の筒の振り）を挟む列か。下がった分だけ木人から離れ、
- * 続く振りは届かない（実演では当たりを確かめない）。段カウンタは左右共有で、銃の家系の左（射撃）は進めない
+ * 続く振りは届かない（実演では当たりを確かめない）。段カウンタは左右共有で、左で撃つ武器種の左（射撃）は進めない
  */
 function knockedOnTheWay(m: Readonly<MovesetDef>, seq: readonly ButtonKey[]): boolean {
   let step = 0;
@@ -332,7 +332,7 @@ function knockedOnTheWay(m: Readonly<MovesetDef>, seq: readonly ButtonKey[]): bo
       const s = m.steps2[step];
       if (s?.kind === "swing" && s.extras?.selfKnock !== undefined) return true;
       step += 1;
-    } else if (!isGun(m)) step += 1;
+    } else if (!shootsPrimary(m)) step += 1;
   }
   return false;
 }
@@ -360,13 +360,13 @@ function branchMoves(m: Readonly<MovesetDef>): ManualMove[] {
       traits: branchTraits(m, b),
       desc: b.next === undefined ? "連撃はここで終わる。" : `続けて ${b.next + 1} 段目から連撃を続けられる。`,
       script: { setup: swingSetup(m, b.step), cues: b.sequence.map(tap) },
-      // 銃の家系の筒・銃把の振りは届きが短く、反動で下がった後の振りは届かない（近接の武器種は踏み込みで届く）
-      expect: b.extras?.selfKnock !== undefined || (isGun(m) && knockedOnTheWay(m, b.sequence)) ? ("none" as const) : ("hit" as const),
+      // 左で撃つ武器種の筒・銃把の振りは届きが短く、反動で下がった後の振りは届かない（近接の武器種は踏み込みで届く）
+      expect: b.extras?.selfKnock !== undefined || (shootsPrimary(m) && knockedOnTheWay(m, b.sequence)) ? ("none" as const) : ("hit" as const),
     }));
 }
 
 function dashMove(m: Readonly<MovesetDef>): ManualMove {
-  const desc = isGun(m) ? "ダッシュ中に左を押すと、抜けた先で振り返って撃つ。" : "ダッシュ中に左を押すと、ダッシュの終わりに振る。";
+  const desc = shootsPrimary(m) ? "ダッシュ中に左を押すと、抜けた先で振り返って撃つ。" : "ダッシュ中に左を押すと、ダッシュの終わりに振る。";
   return { key: "dash", group: "dash", name: "ダッシュ攻撃", traits: stepTraits(m, m.dashAttack, false), desc, script: { setup: { foeDistance: MANUAL.dashFoeDistance }, cues: [{ kind: "dash" }, tap("primary")] }, expect: "hit" };
 }
 
@@ -374,11 +374,11 @@ function ultimateMoves(key: MovesetKey): ManualMove[] {
   const m = MOVESETS[key];
   return ULTIMATES[key].map((u) => {
     // 持続の奥義の間に振って見せる通常の手は札にしない（入力は「奥義 → 奥義で終える」）
-    const follow: DemoCue[] = isGun(m) ? [{ kind: "hold", button: "primary", sec: FIRE_SEC, hidden: true }] : times(Math.max(1, m.steps.length), { kind: "tap", button: "primary", hidden: true });
+    const follow: DemoCue[] = shootsPrimary(m) ? [{ kind: "hold", button: "primary", sec: FIRE_SEC, hidden: true }] : times(Math.max(1, m.steps.length), { kind: "tap", button: "primary", hidden: true });
     const cues: DemoCue[] = u.kind === "sustain" ? [{ kind: "special" }, wait(SUSTAIN_LEAD_SEC), ...follow, { kind: "special" }] : [{ kind: "special" }];
     const desc = u.kind === "sustain" ? `${withPeriod(u.desc)}持続の間は通常の攻撃が変わり、もう一度奥義キーで終える。` : withPeriod(u.desc);
-    // 銃の家系の奥義にも至近の行為（零距離乱射・輪舞）があるので、木人は既定の距離に立てる
-    const setup = isGun(m) ? { ultimate: u.key, foeDistance: MANUAL.foeDistance } : { ultimate: u.key };
+    // 左で撃つ武器種の奥義にも至近の行為（零距離乱射・輪舞）があるので、木人は既定の距離に立てる
+    const setup = shootsPrimary(m) ? { ultimate: u.key, foeDistance: MANUAL.foeDistance } : { ultimate: u.key };
     return { key: `ult.${u.key}`, group: "ultimate", name: u.name, traits: u.desc.startsWith(ULTIMATE_KIND_LABEL[u.kind]) ? [] : [ULTIMATE_KIND_LABEL[u.kind]], desc, script: { setup, cues }, expect: "hit" };
   });
 }
@@ -448,7 +448,7 @@ function releaseShown(m: Readonly<MovesetDef>): boolean {
   return BULLETS[bulletOfBase(base?.key)]?.mine !== undefined;
 }
 
-/** 左の最初の突きの段（長柄の放出は満ちた後の最初の突き。銃の家系は 1 発目で 0） */
+/** 左の最初の突きの段（長柄の放出は満ちた後の最初の突き。左で撃つ武器種は 1 発目で 0） */
 function firstThrust(m: Readonly<MovesetDef>): number {
   const i = m.steps.findIndex((s) => s.shape.kind === "thrust");
   return i < 0 ? 0 : i;
@@ -471,16 +471,16 @@ function moraleMove(m: Readonly<MovesetDef>): ManualMove[] {
 
 function summaryOf(m: Readonly<MovesetDef>): string {
   const form = formOf(m);
-  const left = isGun(m) ? "左で射撃" : m.primary === "charge" ? `左は ${m.steps.length} 段の連撃と溜め` : `左は ${m.steps.length} 段の連撃`;
+  const left = shootsPrimary(m) ? "左で射撃" : m.primary === "charge" ? `左は ${m.steps.length} 段の連撃と溜め` : `左は ${m.steps.length} 段の連撃`;
   return `型 ${form.name}・重さ ${WEIGHT_LABEL[m.weight]}・${left}・右は ${m.steps2.length} 段`;
 }
 
 /**
- * 武器種の木人までの距離（px）。銃の家系は離し、近接は左の段の一番短い届きの内側（体の半径ぶん入る）に立てて、
+ * 武器種の木人までの距離（px）。左で撃つ武器種は離し、近接は左の段の一番短い届きの内側（体の半径ぶん入る）に立てて、
  * どの段も木人に当たるようにする
  */
 export function foeDistanceFor(m: Readonly<MovesetDef>): number {
-  if (isGun(m)) return MANUAL.gunFoeDistance;
+  if (shootsPrimary(m)) return MANUAL.gunFoeDistance;
   const reaches = m.steps.map(reachOf);
   return reachDistance(reaches.length > 0 ? Math.min(...reaches) : MANUAL.foeDistance);
 }

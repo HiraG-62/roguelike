@@ -4,6 +4,8 @@ import type { GameState, HiddenRoom, Merchant, Ware, WareKind } from "../core/st
 import { ULTIMATES } from "../data/ultimates";
 import { PICKUP } from "../data/tuning";
 import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
+import { resolveSlot } from "../system/skills";
+import { MOVESETS } from "../data/weapons";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
 import {
@@ -13,6 +15,7 @@ import {
   chooseTargetRoomIndex,
   createBotState,
   crossesPit,
+  gunNeedsMana,
   nearestEngagedEnemy,
   pickBoonIndex,
   shouldDrinkFlask,
@@ -147,6 +150,52 @@ describe("bot の左右の連撃", () => {
     }
     expect(right, "右の段を振った").toBe(true);
     expect(branch, "名前付き派生を踏んだ").toBe(true);
+  });
+});
+
+describe("bot の銃の寄り（弾の命中で気力が戻らない。gun-bases-review 0-2）", () => {
+  /** 敵に寄った間合い（MELEE_RANGE 30px より内） */
+  const CLOSE_DX = 20;
+
+  function gunFacing(): GameState {
+    const state = facingEnemy(CLOSE_DX);
+    state.stats = { ...state.stats, moveset: "cannon" };
+    return state;
+  }
+
+  /** 気力を払うスキルの装着枠（無ければテストの前提が崩れている） */
+  function manaSlot(state: GameState): number {
+    const i = [0, 1, 2, 3].find((k) => resolveSlot(state, k)?.def.resource === "mana");
+    if (i === undefined) throw new Error("気力のスキルが装着されていない");
+    return i;
+  }
+
+  it("銃で気力が足りなければ気力が要ると見る。足りていれば・近接の武器種なら見ない", () => {
+    const state = gunFacing();
+    manaSlot(state);
+    state.player.mana = 0;
+    expect(gunNeedsMana(state, MOVESETS.cannon), "気力 0 の砲").toBe(true);
+    state.player.mana = state.stats.maxMana;
+    expect(gunNeedsMana(state, MOVESETS.cannon), "気力が満ちた砲").toBe(false);
+    state.player.mana = 0;
+    expect(gunNeedsMana(state, MOVESETS.sword), "剣は銃の寄りをしない").toBe(false);
+  });
+
+  it("気力が足りない銃は近接の射程で左を撃たず、右の近接を振る", () => {
+    const state = gunFacing();
+    manaSlot(state);
+    const bot = createBotState(4);
+    let right = false;
+    const FRAMES = 60 * 3;
+    for (let i = 0; i < FRAMES && !right; i++) {
+      state.player.mana = 0;
+      const input = botInput(state, bot, DT);
+      expect(input.attackHeld, `${i} フレーム目: 左を押さない`).toBe(false);
+      step(state, input, DT);
+      const a = state.player.attack;
+      if (a.phase !== "none" && a.lane === "secondary") right = true;
+    }
+    expect(right, "右の段を振った").toBe(true);
   });
 });
 

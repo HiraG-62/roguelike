@@ -2,7 +2,7 @@ import type { GameState } from "../core/state";
 import { createRng, hashSeed, type Rng } from "../core/rng";
 import { ENEMIES } from "../data/enemies";
 import { BUD } from "../data/tuning";
-import { affixDef, slotAllows } from "./affixes";
+import { type AffixFamily, affixDef, affixFamilyOf, slotAllows } from "./affixes";
 import { baseDef, baseFamily } from "./bases";
 import { OPPOSITE_COLOR } from "./colors";
 import { fluxClassOf } from "./flux";
@@ -273,7 +273,7 @@ export function makeBudOffer(item: Item, def: MilestoneDef): BudOffer | null {
     origin: "bud",
   };
   const base = baseDef(item.baseKey);
-  const family = base === undefined ? undefined : baseFamily(base);
+  const family = base === undefined ? undefined : affixFamilyOf(baseFamily(base));
   const along = rollAwakening(rng, def, used, opts, item.slot, family) ?? rollTraitOfColor(rng, item.slot, def.color, used, opts, family);
   if (along === undefined) return null;
   used.add(along.key);
@@ -292,7 +292,7 @@ function rollAwakening(
   used: ReadonlySet<string>,
   opts: TraitRollOptions,
   slot: Item["slot"],
-  family: "melee" | "gun" | undefined,
+  family: AffixFamily | undefined,
 ): AffixRoll | undefined {
   if (def.awakening === undefined || used.has(def.awakening)) return undefined;
   const trait = affixDef(def.awakening);

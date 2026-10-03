@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FORM } from "./tuning";
 import { FORMS, FORM_KEYS, type FormKey, formOf, movesetsOfForm } from "./weaponForms";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun, meleeChargeOf } from "./weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, meleeChargeOf, shootsPrimary } from "./weapons";
 
 /**
  * 武器の型（docs/ideas/weapon-forms-impl.md 3-1・3-10 の 4）。全武器種が型を持ち、型の放出の段が実在し、
@@ -81,8 +81,8 @@ describe("武器の型", () => {
     }
   });
 
-  it("満ちた後の左が放出の型のうち銃の家系は長銃だけ（射撃の放出は fireVolley が扱う）", () => {
-    const gunPrimary = FORM_KEYS.filter((f) => FORMS[f].morale.release.kind === "nextPrimary" && movesetsOfForm(f).some((k) => isGun(MOVESETS[k])));
+  it("満ちた後の左が放出の型のうち左で撃つ武器種は長銃だけ（射撃の放出は fireVolley が扱う）", () => {
+    const gunPrimary = FORM_KEYS.filter((f) => FORMS[f].morale.release.kind === "nextPrimary" && movesetsOfForm(f).some((k) => shootsPrimary(MOVESETS[k])));
     expect(gunPrimary).toEqual(["rifle"]);
   });
 

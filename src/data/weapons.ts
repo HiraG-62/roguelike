@@ -10,7 +10,7 @@ import type { FormKey } from "./weaponForms";
 
 /**
  * 武器種（通常攻撃の型・左右のアクションの連撃と派生）と弾（BulletDef）の型。docs/COMBAT_DESIGN.md「武器種」/ docs/ideas/weapon-redesign.md。
- * 右手のベースが moveset を決め、銃の家系（GUN_MOVESETS）のベースは自分の弾も持つ（src/loot/bullets.ts）。
+ * 右手のベースが moveset を決め、近接でない群（isRangedWeapon）のベースは自分の弾も持つ（src/loot/bullets.ts）。
  * 数値は src/data/tuning.ts の WEAPON。ここは形の型・表示名・語（kw）をまとめる
  */
 
@@ -1402,13 +1402,6 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     branches: reviveBranches(W.gunner.branches),
     keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
     attack: attack("ranged", "physical"),
-    rules: [
-      movesetRule("gunner", 0, {
-        when: "onRangedHit",
-        then: { kind: "energy", magnitude: R.gunnerHitEnergy },
-        icd: R.gunnerHitIcd,
-      }),
-    ],
   }),
   sidearm: defineMoveset({
     key: "sidearm",
@@ -1704,22 +1697,28 @@ export function shootsPrimary(moveset: Pick<MovesetDef, "primary">): boolean {
   return moveset.primary === "shot";
 }
 
-/** 銃の家系（左で撃つ武器種）。祝福の loadout・性質の家系条件が読む */
-export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner", "grenade", "trapper", "warRing"];
+/** 銃の群の武器種（MOVESET_KEYS の順）。器の家系・性質の家系条件・テストが読む */
+export const GUN_MOVESETS: readonly MovesetKey[] = MOVESET_KEYS.filter((k) => WEAPON_GROUP_OF[k] === "gun");
+
+/** 投擲物の群の武器種（MOVESET_KEYS の順） */
+export const THROWING_MOVESETS: readonly MovesetKey[] = MOVESET_KEYS.filter((k) => WEAPON_GROUP_OF[k] === "throwing");
 
 /** 武器種の固有効果の Rule（今の武器種のものだけ。定義が無ければ空） */
 export function movesetRules(key: MovesetKey): readonly Rule[] {
   return MOVESETS[key]?.rules ?? [];
 }
 
-/** 銃の家系か（左で撃つ。近接の段を持たない） */
-export function isGun(moveset: MovesetDef): boolean {
-  return moveset.primary === "shot";
+/**
+ * 銃の群か（弾倉・銃の決まりが掛かる）。左で撃つかは shootsPrimary で別に見る
+ * （投擲物にも左で撃つ武器種があり、二丁拳銃のように左で撃たない銃も来る）
+ */
+export function isGun(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) === "gun";
 }
 
-/** 弾を出す武器種か（銃の家系、右レーンに弾を出す段がある、または振りが cast を持つ）。祝福の「射撃」タグの生死判定 */
+/** 弾を出す武器種か（左で撃つ、右レーンに弾を出す段がある、または振りが cast を持つ）。祝福の「射撃」タグの生死判定 */
 export function usesProjectiles(moveset: MovesetDef): boolean {
-  return isGun(moveset) || moveset.steps2.some((s) => s.kind === "volley") || movesetCasts(moveset).length > 0;
+  return shootsPrimary(moveset) || moveset.steps2.some((s) => s.kind === "volley") || movesetCasts(moveset).length > 0;
 }
 
 /** レーンの段数（左 = steps、右 = steps2） */

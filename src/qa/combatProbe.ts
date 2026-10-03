@@ -5,7 +5,7 @@ import type { Enemy, GameState } from "../core/state";
 import { dist, normalize, sub, type Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
-import { MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
+import { MOVESET_KEYS, type MovesetKey, shootsPrimary } from "../data/weapons";
 import { BASES } from "../loot/bases";
 import { bulletOfBase } from "../loot/bullets";
 import { computeStats } from "../loot/stats";
@@ -163,8 +163,8 @@ export function botInput(state: GameState, bot: ProbeBot): FrameInput {
       return frameInput({ dashPressed: true, move: escape, aimScreen: null });
     }
   }
-  // 銃の家系は押しっぱなしで撃つ（player.ts shotButtonHeld）。近接は今までどおり押すだけ（溜めない）
-  const held = isGun(playerMoveset(state));
+  // 左で撃つ武器種は押しっぱなしで撃つ（player.ts shotButtonHeld）。近接は今までどおり押すだけ（溜めない）
+  const held = shootsPrimary(playerMoveset(state));
   return frameInput({ attackPressed: true, attackHeld: held, aimScreen: null, move: d > BOT_REACH ? toward : NO_MOVE });
 }
 

@@ -42,7 +42,7 @@
     "chargeRingStep": "溜めの環の段ごとの広がり（px。描画）",
     "trailLife": "振りの残像の線が残る秒",
     "artDefaults": "右レーンの段の共通値。parryInvuln は受け流した後の無敵（秒）、parryParticles / guardParticles は粒の数、recallMinSpeed は手元返しの最低速度（px/秒）、detonateLife は起爆させる設置弾の残り寿命、laneGap は弾・手元返しの段の後の間（秒）",
-    "movesetRules": "武器種の固有効果（統一ルール）の数値。Pct は %、Sec は秒、Icd は内部の再使用（秒）、Poise は怯み値、Ratio は倍率、Energy は奥義ゲージ",
+    "movesetRules": "武器種の固有効果（統一ルール）の数値。Pct は %、Sec は秒、Icd は内部の再使用（秒）、Poise は怯み値、Ratio は倍率",
     "cooldownMul": "射撃間隔の倍率（大きいほど遅い）",
     "damageMul": "1 発の威力の倍率",
     "speedMul": "弾速の倍率",

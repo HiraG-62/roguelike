@@ -38,7 +38,7 @@ import { DUMMY_KEY } from "./specialRooms";
 import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
 import { MOVESET_KEYS, bulletFeatures } from "../data/weapons";
-import { DEFAULT_BULLET, currentBullet, gunBasesOf } from "../loot/bullets";
+import { DEFAULT_BULLET, currentBullet, rangedBasesOf } from "../loot/bullets";
 
 const ALL: ReadonlySet<HubSpotKey> = new Set(HUB_SPOT_KEYS);
 /** 持続の奥義の始めのヒットストップを越えるための余りのフレーム */
@@ -312,7 +312,7 @@ describe("武器掛け", () => {
     idle(session, 1);
     expect(state.stats.bullet, "作り直し後も小銃").toBe("rifle");
     setTrialWeapon(session, "longarm", "sword");
-    expect(state.stats.bullet, "家系の器でなければ一番早く出る器").toBe(gunBasesOf("longarm")[0]?.key);
+    expect(state.stats.bullet, "家系の器でなければ一番早く出る器").toBe(rangedBasesOf("longarm")[0]?.key);
     setTrialWeapon(session, null, "rifle");
     expect(session.hub.trialBase, "装備のままでは器を持たない").toBeNull();
   });

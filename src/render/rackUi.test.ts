@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SPRITES } from "../data/sprites";
 import { spriteDots } from "../data/sprites/dots";
-import { BASES, baseFamily } from "../loot/bases";
+import { BASES } from "../loot/bases";
+import { baseHasBullet } from "../loot/bullets";
 import { BULLET_FX } from "./fxMotions";
 
 describe("武器掛けの器のカードの絵", () => {
@@ -10,8 +11,8 @@ describe("武器掛けの器のカードの絵", () => {
     expect(spriteDots("rack.paper"), "密度").toBe(2);
   });
 
-  it("銃の器はすべて札に重ねる弾の飛ぶ絵を持つ", () => {
-    const missing = BASES.filter((b) => baseFamily(b) === "gun" && BULLET_FX.get(b.key) === undefined).map((b) => b.key);
+  it("弾を持つ器はすべて札に重ねる弾の飛ぶ絵を持つ", () => {
+    const missing = BASES.filter((b) => baseHasBullet(b) && BULLET_FX.get(b.key) === undefined).map((b) => b.key);
     expect(missing, "弾の絵の無い器").toEqual([]);
   });
 });

@@ -8,10 +8,10 @@ import {
   actionStepName,
   branchHints,
   chargeLevelAt,
-  isGun,
   laneLength,
   meleeChargeOf,
   movesetLabel,
+  shootsPrimary,
 } from "../data/weapons";
 import { FEEL, WEAPON } from "../data/tuning";
 import { currentForm, moraleGauge } from "../system/morale";
@@ -62,10 +62,10 @@ function artPress(art: ActionStepDef): string {
   return long ? `${BUTTON_LABEL.secondary} 長押し` : BUTTON_LABEL.secondary;
 }
 
-/** 左の案内（溜めの武器種・溜め撃ちの弾は「長押し」、銃の家系は射撃、近接は段の番号） */
+/** 左の案内（溜めの武器種・溜め撃ちの弾は「長押し」、左で撃つ武器種は射撃、近接は段の番号） */
 function primaryHint(moveset: MovesetDef, shot: BulletDef, index: number): string {
   if (moveset.primary === "charge") return `${BUTTON_LABEL.primary} 長押し: 溜め`;
-  if (isGun(moveset)) return shot.charge ? `${BUTTON_LABEL.primary} 長押し: 溜め撃ち` : `${BUTTON_LABEL.primary}: 射撃`;
+  if (shootsPrimary(moveset)) return shot.charge ? `${BUTTON_LABEL.primary} 長押し: 溜め撃ち` : `${BUTTON_LABEL.primary}: 射撃`;
   const step = Math.min(index, laneLength(moveset, "primary") - 1);
   // 弾を撃つ段（杖の詠唱）は段の番号ではなく魔法の名前を出す
   const cast = moveset.steps[step]?.cast;

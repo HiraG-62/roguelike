@@ -5,8 +5,8 @@ import { dist } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { HUB } from "../data/tuning";
 import { enemyDef } from "../data/enemies";
-import { MOVESETS, type MovesetKey, isGun } from "../data/weapons";
-import { bulletOfBase, gunBasesOf } from "../loot/bullets";
+import { MOVESETS, type MovesetKey, isRangedWeapon } from "../data/weapons";
+import { bulletOfBase, rangedBasesOf } from "../loot/bullets";
 import { KEYSTONES } from "../loot/affixes";
 import { BASES, type BaseItemDef } from "../loot/bases";
 import { generateItem } from "../loot/generator";
@@ -219,8 +219,8 @@ export function trialKeystoneKeys(): string[] {
 // -----------------------------------------------------------------------------
 
 /**
- * 武器掛けの 1 行が指すもの。銃の家系（GUN_MOVESETS）も武器種として並ぶ。
- * base は銃の家系で選んだ弾の器（ベースの key）。省略は家系の一番早く出る器
+ * 武器掛けの 1 行が指すもの。銃・投擲物（isRangedWeapon）も武器種として並ぶ。
+ * base は銃・投擲物で選んだ弾の器（ベースの key）。省略は家系の一番早く出る器
  */
 export type RackEntry = { kind: "moveset"; key: MovesetKey; base?: string };
 
@@ -249,15 +249,15 @@ function enforceTrialWeapon(session: HubSession): void {
 
 /** 試す・借りる器。base がその武器種の器でなければ家系の一番早く出る器 */
 function rackBase(moveset: MovesetKey, base: string | null | undefined): BaseItemDef | undefined {
-  const picked = base == null ? undefined : gunBasesOf(moveset).find((b) => b.key === base);
+  const picked = base == null ? undefined : rangedBasesOf(moveset).find((b) => b.key === base);
   return picked ?? earliestBase("mainHand", (b) => b.moveset === moveset);
 }
 
 /** stats の写しの moveset と bullet を試す武器種へ差し直す（null なら何もしない。毎ステップ呼んでよい） */
 export function enforceTrialMoveset(state: GameState, moveset: MovesetKey | null, base: string | null = null): void {
   if (moveset === null) return;
-  // 銃の家系は選んだ器（省略は借りるときと同じ一番早く出る器）の弾で撃つ（装備の武器の弾のままにしない）
-  const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(rackBase(moveset, base)?.key) : state.stats.bullet;
+  // 銃・投擲物は選んだ器（省略は借りるときと同じ一番早く出る器）の弾で撃つ（装備の武器の弾のままにしない）
+  const bullet = isRangedWeapon(MOVESETS[moveset]) ? bulletOfBase(rackBase(moveset, base)?.key) : state.stats.bullet;
   if (state.stats.moveset === moveset && state.stats.bullet === bullet && !state.stats.unarmed) return;
   const prev = state.stats;
   // 素手の威力の倍は試す武器種には掛けない（素手のまま武器掛けで試したとき）
@@ -333,10 +333,10 @@ export function equippedMoveset(profile: Profile): MovesetKey {
   return computeStats(profile.equipment).moveset;
 }
 
-/** 表示名（「大剣」。銃の家系で器を選んでいれば「長銃（小銃）」） */
+/** 表示名（「大剣」。銃・投擲物は器を添えて「長銃（小銃）」） */
 export function rackEntryName(entry: RackEntry): string {
   const name = MOVESETS[entry.key].name;
-  if (!isGun(MOVESETS[entry.key])) return name;
+  if (!isRangedWeapon(MOVESETS[entry.key])) return name;
   const base = rackBase(entry.key, entry.base);
   return base === undefined ? name : `${name}（${base.name}）`;
 }
