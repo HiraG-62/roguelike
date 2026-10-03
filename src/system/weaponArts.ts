@@ -22,7 +22,7 @@ import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
 import { spawnBurst } from "./effects";
 import { nextFireHand, spendRounds } from "./magazine";
-import { currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
+import { type VolleyOverride, currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, queueArtBurst, startArtBranch } from "./player";
 import { type ShotRelease, gainMorale, isPlacedShot, swingShotRelease } from "./morale";
 import { noteRiposte } from "./moments";
 import { onManaSource } from "./manaSources";
@@ -308,7 +308,7 @@ export function castOverride(state: GameState, lane: ButtonKey): ArtVolleyOverri
  * 射撃扱い（射撃の性質・onRangedHit が乗る）。出したら true
  */
 export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyOverride = {}): boolean {
-  return emitVolley(state, t.bullet, 0, state.player.aimDistance, {
+  const override: VolleyOverride = {
     damage: scaled(state.stats, t.scaling) * (over.damageMul ?? 1),
     poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,
     count: over.count ?? t.count,
@@ -318,12 +318,15 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     recoil: false,
     sprite: t.sprite,
     applies: t.applies,
-    ...(t.lineGap !== undefined ? { lineGap: t.lineGap } : {}),
     lane: over.lane ?? "secondary",
     release: over.release,
     ...(over.radiusMul !== undefined ? { radiusMul: over.radiusMul } : {}),
     ...(over.fan ? { fan: over.fan } : {}),
-  });
+  };
+  if (!emitVolley(state, t.bullet, 0, state.player.aimDistance, override)) return false;
+  // 連射の弾（手裏剣の左の 3 連射）は続きを同じ向きへ間を置いて投げる
+  queueArtBurst(state, t.bullet, override);
+  return true;
 }
 
 /** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す */
