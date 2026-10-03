@@ -89,7 +89,7 @@ import { clampHitstopScale } from "../ui/settings";
  * 43: 起床の見直し（気付く距離・音・起こす輪を縮め、輪の中心を今気付いた者に・後詰は群勢の合図で）
  * 44: 銃の弾倉とリロード（入力 reloadPressed / reloadHeld・Player.magazine・短銃の旧「弾倉」戦意の撤去）
  */
-export const REPLAY_VERSION = 44;
+export const REPLAY_VERSION = 45;
 
 // ---------------------------------------------------------------------------
 // データ型
