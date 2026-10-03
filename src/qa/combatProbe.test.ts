@@ -3,6 +3,7 @@ import {
   buildProbeReport,
   buildWeaponSection,
   FULL_PROBE_CONFIG,
+  probeBasesOf,
   probeMetrics,
   runDuel,
   runProbe,
@@ -13,6 +14,7 @@ import {
   type WeaponProbeRow,
 } from "./combatProbe";
 import { MOVESET_KEYS } from "../data/weapons";
+import { rangedBasesOf } from "../loot/bullets";
 
 // @types/node が無いため process の型は自前で最小限だけ宣言する
 declare const process: { env: Record<string, string | undefined> };
@@ -49,7 +51,8 @@ describe("連打計測（縮小版）", () => {
     );
     expect(result.power, "深度ごとの地力の行").toHaveLength(cfg.depths.length);
     const w = cfg.weaponProbe;
-    expect(result.weapons, "武器種 × 敵 × 深度").toHaveLength(cfg.weapons.length * w.enemies.length * w.depths.length);
+    const variants = cfg.weapons.reduce((n, m) => n + probeBasesOf(m).length, 0);
+    expect(result.weapons, "（武器種 + 銃・投擲物は器）× 敵 × 深度").toHaveLength(variants * w.enemies.length * w.depths.length);
   });
 
   it("どの行の数も有限で、NaN が無い", () => {
@@ -132,8 +135,45 @@ describe("武器種 × 敵の計測", () => {
 
   it("縮小版の武器種の行は有限で、武器種の指定順に並ぶ", () => {
     const rows = runWeaponProbe(SMOKE_PROBE_CONFIG);
-    expect(rows.map((r) => r.moveset)).toEqual(SMOKE_PROBE_CONFIG.weapons.flatMap((m) => Array<string>(SMOKE_PROBE_CONFIG.weaponProbe.enemies.length * SMOKE_PROBE_CONFIG.weaponProbe.depths.length).fill(m)));
+    const perVariant = SMOKE_PROBE_CONFIG.weaponProbe.enemies.length * SMOKE_PROBE_CONFIG.weaponProbe.depths.length;
+    expect(rows.map((r) => r.moveset)).toEqual(
+      SMOKE_PROBE_CONFIG.weapons.flatMap((m) => Array<string>(probeBasesOf(m).length * perVariant).fill(m)),
+    );
     for (const r of rows) expect(finiteCounts(r.counts), `${r.moveset} の生の数`).toBe(true);
+  });
+
+  it("銃・投擲物は器ごとに行を作り、近接は器なしの 1 行だけ", () => {
+    for (const m of MOVESET_KEYS) {
+      const bases = rangedBasesOf(m).map((b) => b.key);
+      expect(probeBasesOf(m), `${m} の器`).toEqual(bases.length === 0 ? [null] : bases);
+    }
+    expect(probeBasesOf("longarm").length, "長銃は器が複数").toBeGreaterThan(1);
+    expect(probeBasesOf("sword"), "剣は器で変わらない").toEqual([null]);
+  });
+
+  it("器を替えると撃つ弾が替わり、同じ器と seed なら同じ結果になる", () => {
+    const first = probeBasesOf("longarm")[0] ?? "";
+    const last = probeBasesOf("longarm").at(-1) ?? "";
+    expect(last, "最初と最後は別の器").not.toBe(first);
+    const a = runDuel(1, "slime", "mashDodge", 8, 1, { moveset: "longarm", base: first });
+    const b = runDuel(1, "slime", "mashDodge", 8, 1, { moveset: "longarm", base: last });
+    expect(b, "器が違えば生の数が変わる").not.toEqual(a);
+    expect(runDuel(1, "slime", "mashDodge", 8, 1, { moveset: "longarm", base: first }), "同じ器・seed").toEqual(a);
+  });
+
+  it("溜め撃ちの器は最大段で離して撃ち、曲射の器は敵の位置を指して当てる（押しっぱなし・照準なしでは撃てない・当たらない）", () => {
+    const seconds = 20;
+    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "longarm", base: "matchlock" }).kills, "火縄銃").toBeGreaterThanOrEqual(5);
+    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "grenade", base: "mortar" }).kills, "曲射筒").toBeGreaterThanOrEqual(5);
+  });
+
+  it("表に器の列を出し、銃は器ごとに行を分け、近接は - にする", () => {
+    const cfg = { ...SMOKE_PROBE_CONFIG, weapons: ["sword", "sidearm"] as const };
+    const rows = runWeaponProbe({ ...cfg, weaponProbe: { ...cfg.weaponProbe, seconds: 2 } });
+    const md = buildWeaponSection(cfg, rows).join("\n");
+    expect(md, "器の列").toContain("| 武器種 | 器 |");
+    expect(md.split("\n").some((l) => l.startsWith("| sword | - |")), "近接は器 -").toBe(true);
+    for (const b of probeBasesOf("sidearm")) expect(md, `短銃の器 ${b}`).toContain(`| sidearm | ${b} |`);
   });
 
   it("中央値の比を出し、目標の幅の外は * を付けて表に出す", () => {
@@ -143,9 +183,9 @@ describe("武器種 × 敵の計測", () => {
       retreats: 0, punishShrunkSeconds: 0, punishSteps: 0, maxRedTelegraphs: 0, holdSeconds: 0,
     });
     const rows: WeaponProbeRow[] = [
-      { moveset: "sword", enemy: "slime", depth: 1, counts: counts(30, 10) },
-      { moveset: "axe", enemy: "slime", depth: 1, counts: counts(30, 10) },
-      { moveset: "hammer", enemy: "slime", depth: 1, counts: counts(10, 20) },
+      { moveset: "sword", base: null, enemy: "slime", depth: 1, counts: counts(30, 10) },
+      { moveset: "axe", base: null, enemy: "slime", depth: 1, counts: counts(30, 10) },
+      { moveset: "hammer", base: null, enemy: "slime", depth: 1, counts: counts(10, 20) },
     ];
     const med = weaponMedians(rows).get("slime@1");
     expect(med?.secondsPerKill, "撃破秒 2 / 2 / 6 の中央値").toBeCloseTo(2, 5);
@@ -228,7 +268,7 @@ describe("連打計測（重い版, SIM_PROBE=1）", () => {
   );
 
   it.runIf(PROBE_WEAPONS)(
-    "武器種 27 × 敵 3 × 深度 2 × seed 3 を測って表にする",
+    "武器種（銃・投擲物は器ごと）× 敵 3 × 深度 2 × seed 3 を測って表にする",
     () => {
       const cfg = FULL_PROBE_CONFIG;
       const rows = runWeaponProbe(cfg);

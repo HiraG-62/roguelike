@@ -471,7 +471,8 @@ describe("設定画面の項目", () => {
 });
 
 describe("キー設定画面のレイアウトと当たり判定", () => {
-  const ROW_GAP = 12;
+  /** render/titleUi.ts の KEYBINDS_MIN_ROW_GAP（最小の行間） */
+  const ROW_GAP = 11;
   const WIDE_GAP = 20;
 
   it("行は変更可能なアクション + 既定に戻す + 閉じる", () => {

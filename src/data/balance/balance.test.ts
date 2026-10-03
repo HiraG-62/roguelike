@@ -14,8 +14,8 @@ import { DASH_FORM_KEYS, JOB_KEYS } from "../jobs";
 import { ACTION, PLAYER } from "../tuning";
 import { MOVESET_KEYS } from "../weapons";
 import { AFFIXES, CONVERSION_AFFIXES, INNATE_LINE_DEFS } from "../../loot/affixes";
-import { BASES, baseFamily } from "../../loot/bases";
-import { BULLET_PROFILE_KEYS } from "../../loot/bullets";
+import { BASES } from "../../loot/bases";
+import { BULLET_PROFILE_KEYS, baseHasBullet } from "../../loot/bullets";
 import {
   BALANCE_SOURCE_FILES,
   boons as boonsJson,
@@ -121,8 +121,8 @@ describe("武器種のキー集合(段 5)", () => {
     expect(diffKeySets("weapons.movesets", Object.keys(weaponsJson.WEAPON.movesets), MOVESET_KEYS)).toEqual([]);
   });
 
-  it("weapons の bullets のキー集合が銃のベース（弾の語と素性の表）と一致する", () => {
-    const gunBases = BASES.filter((b) => baseFamily(b) === "gun").map((b) => b.key);
+  it("weapons の bullets のキー集合が弾を持つベース（弾の語と素性の表）と一致する", () => {
+    const gunBases = BASES.filter(baseHasBullet).map((b) => b.key);
     expect(diffKeySets("weapons.bullets", Object.keys(weaponsJson.WEAPON.bullets), gunBases)).toEqual([]);
     expect(diffKeySets("BULLET_PROFILES", BULLET_PROFILE_KEYS, gunBases)).toEqual([]);
   });

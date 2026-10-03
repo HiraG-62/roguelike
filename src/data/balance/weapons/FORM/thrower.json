@@ -2,11 +2,12 @@
   "weight": "light",
   "stepsMin": 3,
   "stepsMax": 4,
-  "max": 3,
-  "releaseMin": 1,
+  "max": 4,
+  "releaseMin": 4,
   "consumeUnits": 0,
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "perUnit": {"damageMul": 0.3, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0}
+  "gain": {"roundTrip": 1},
+  "perUnit": {"damageMul": 0.3, "poiseMul": 0.3, "reachMul": 0.15, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 25}
 }

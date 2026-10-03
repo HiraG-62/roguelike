@@ -27,6 +27,7 @@ import {
   createHub,
   fillHubResources,
   hubResourceRatio,
+  rackEntryName,
   setHubResource,
   setTrialKeystone,
   setTrialWeapon,
@@ -37,7 +38,7 @@ import { DUMMY_KEY } from "./specialRooms";
 import { applyStats } from "./player";
 import { withInput } from "./testHelpers";
 import { MOVESET_KEYS, bulletFeatures } from "../data/weapons";
-import { DEFAULT_BULLET, currentBullet } from "../loot/bullets";
+import { DEFAULT_BULLET, currentBullet, rangedBasesOf } from "../loot/bullets";
 
 const ALL: ReadonlySet<HubSpotKey> = new Set(HUB_SPOT_KEYS);
 /** 持続の奥義の始めのヒットストップを越えるための余りのフレーム */
@@ -286,7 +287,7 @@ describe("武器掛け", () => {
   it("銃の家系を試すと、借りるときと同じ器の弾で撃ち、外すと装備の弾に戻る", () => {
     const session = hub();
     const { state } = session;
-    const expected = { grenade: "lob", trapper: "mine", warRing: "boomerang" } as const;
+    const expected = { grenade: "lob", trapper: "mine", ringBlades: "arc" } as const;
     for (const [moveset, feature] of Object.entries(expected)) {
       setTrialWeapon(session, moveset as keyof typeof expected);
       expect(bulletFeatures(currentBullet(state.stats)), `${moveset} の弾`).toContain(feature);
@@ -299,6 +300,26 @@ describe("武器掛け", () => {
     expect(state.stats.bullet, "近接は装備の弾のまま").toBe(DEFAULT_BULLET);
     setTrialWeapon(session, null);
     expect(state.stats.bullet, "装備の剣の弾に戻る").toBe(DEFAULT_BULLET);
+  });
+
+  it("銃の家系は選んだ器の弾で試し、作り直し後も保ち、外すと器の指定も消える", () => {
+    const session = hub();
+    const { state } = session;
+    setTrialWeapon(session, "longarm", "rifle");
+    expect(state.stats.bullet, "小銃の弾").toBe("rifle");
+    expect(currentBullet(state.stats).charge, "小銃は溜めない").toBeUndefined();
+    applyStats(state, computeStats(state.profile.equipment));
+    idle(session, 1);
+    expect(state.stats.bullet, "作り直し後も小銃").toBe("rifle");
+    setTrialWeapon(session, "longarm", "sword");
+    expect(state.stats.bullet, "家系の器でなければ一番早く出る器").toBe(rangedBasesOf("longarm")[0]?.key);
+    setTrialWeapon(session, null, "rifle");
+    expect(session.hub.trialBase, "装備のままでは器を持たない").toBeNull();
+  });
+
+  it("表示名は銃の家系なら器を添える", () => {
+    expect(rackEntryName({ kind: "moveset", key: "greatsword" }), "近接").toBe("大剣");
+    expect(rackEntryName({ kind: "moveset", key: "longarm", base: "rifle" }), "長銃の小銃").toBe("長銃（小銃）");
   });
 
   it("装備画面を経由して applyStats が走っても試し中の武器種が保たれる", () => {
@@ -360,6 +381,13 @@ describe("武器掛け", () => {
     expect(loan?.slot, "右手").toBe("mainHand");
     expect(computeStats(profile.equipment).moveset, "銃の家系になる").toBe("longarm");
     expect(bulletFeatures(currentBullet(computeStats(profile.equipment))), "そのベースの弾（溜め撃ち）").toEqual(["charge"]);
+  });
+
+  it("銃の家系は選んだ器を借りる", () => {
+    const profile = createEmptyProfile();
+    const loan = borrowWeapon(profile, "longarm", 0, "railgun");
+    expect(loan?.baseKey, "電磁砲").toBe("railgun");
+    expect(computeStats(profile.equipment).bullet, "電磁砲の弾").toBe("railgun");
   });
 
   it("borrowRackEntry は借りた武器種の「試す」を外し、stats を装備から作り直す", () => {

@@ -3,9 +3,8 @@ import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
 import { ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
-import { currentBullet } from "../loot/bullets";
 import { DEFAULT_TRAIT_STATS, type TriggeredEffect } from "../loot/types";
-import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, shotHitEnergy, tickHpRegen } from "./combat";
+import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, tickHpRegen } from "./combat";
 import { updateEnemies } from "./enemies";
 import { KS, payOverclock, payOverclockShoot } from "./keystones";
 import { applyStats, dashTime, meleeStep } from "./player";
@@ -600,19 +599,14 @@ describe("奥義ゲージの溜まり方（ENERGY）", () => {
     expect(gains[1], "攻撃速度 2 倍でも 1 命中の量は同じ").toBeCloseTo(expected, 5);
   });
 
-  it("射撃の命中で奥義ゲージが溜まる", () => {
+  it("射撃の命中では奥義ゲージが溜まらない（遠距離の攻撃は資源を戻さない。2026-10-03 に射撃の割合を撤去）", () => {
     const state = arena(5, { moveset: "sidearm" });
     const e = placeEnemy(state, "boar", 30);
     e.hp = 5000;
     step(state, withInput({ attackHeld: true }), FIXED_DT);
-    const shot = state.projectiles.find((pr) => pr.owner === "player");
-    const bullet = currentBullet(state.stats);
-    const expected = shotHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, state.stats.projectileCount + bullet.pellets);
-    expect(shot?.energy, "弾が溜める量を持つ").toBeCloseTo(expected, 5);
-    for (let i = 0; i < 30 && state.player.energy === 0; i++) updateProjectiles(state, FIXED_DT);
+    for (let i = 0; i < 30 && e.hp === 5000; i++) updateProjectiles(state, FIXED_DT);
     expect(e.hp, "当たっている").toBeLessThan(5000);
-    expect(state.player.energy, "射撃の命中で溜まる").toBeCloseTo(expected, 5);
-    expect(expected, "近接より低い割合").toBeLessThan(meleeHitEnergy(PLAYER.shoot.cooldown * bullet.cooldownMul, 1) + 1e-9);
+    expect(state.player.energy, "射撃の命中の奥義ゲージ").toBe(0);
   });
 });
 

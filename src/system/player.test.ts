@@ -8,7 +8,7 @@ import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
-import { type ButtonKey, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { type ButtonKey, MOVESETS, MOVESET_KEYS, shootsPrimary } from "../data/weapons";
 import { FORMS } from "../data/weaponForms";
 import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
@@ -323,6 +323,16 @@ function meleePress(): Partial<FrameInput> {
   return { attackPressed: true };
 }
 
+/**
+ * 交互の連撃（chainAdvance: alternate。手裏剣）は同じ手では段が進まないので、振っている最中は今の手と逆の手を押す。
+ * first は振っていないときに押す手。左は押した瞬間、右は押しっぱなしの差で取る
+ */
+function pressFor(state: GameState, first: "primary" | "secondary"): Partial<FrameInput> {
+  const a = state.player.attack;
+  const hand = MOVESETS[state.stats.moveset].chainAdvance !== "alternate" || a.phase === "none" ? first : a.lane === "primary" ? "secondary" : "primary";
+  return hand === "primary" ? meleePress() : { shootHeld: !state.player.secondaryWasHeld };
+}
+
 /** 連撃ボタンを押し続けてコンボを最終段まで振り切る。敵は毎フレーム自分の正面 FRONT_DIST へ戻す（踏み込みで前に出るため） */
 function runCombo(state: GameState, e: Enemy): number {
   const last = MOVESETS[state.stats.moveset].steps.length - 1;
@@ -331,7 +341,7 @@ function runCombo(state: GameState, e: Enemy): number {
     const p = state.player.body.pos;
     e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
     e.knock = { x: 0, y: 0 };
-    step(state, withInput(meleePress()), FIXED_DT);
+    step(state, withInput(pressFor(state, "primary")), FIXED_DT);
     maxStep = Math.max(maxStep, state.player.attack.step);
     if (maxStep === last && state.player.attack.phase === "none") break;
   }
@@ -349,7 +359,8 @@ function runRightLane(state: GameState, e: Enemy): number {
     const p = state.player.body.pos;
     e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
     e.knock = { x: 0, y: 0 };
-    step(state, withInput({ shootHeld: i % 2 === 0 }), FIXED_DT);
+    const alternate = MOVESETS[state.stats.moveset].chainAdvance === "alternate";
+    step(state, withInput(alternate ? pressFor(state, "secondary") : { shootHeld: i % 2 === 0 }), FIXED_DT);
     const a = state.player.attack;
     if (a.phase !== "none" && a.lane === "secondary" && a.branch < 0) maxStep = Math.max(maxStep, a.step);
     if (maxStep === last && a.phase === "none") break;
@@ -360,7 +371,7 @@ function runRightLane(state: GameState, e: Enemy): number {
 describe("武器種: 右レーン（アクション 2）の各段", () => {
   for (const key of MOVESET_KEYS) {
     // 杖の右レーンは振りの無い弾の段だけ（wandMagic.test.ts が見る）
-    if (isGun(MOVESETS[key]) || key === "wand") continue;
+    if (shootsPrimary(MOVESETS[key]) || key === "wand") continue;
     it(`${MOVESETS[key].name}（${key}）: 右を押し続けると右レーンの最終段まで振り、正面の敵に当たる`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
@@ -369,15 +380,18 @@ describe("武器種: 右レーン（アクション 2）の各段", () => {
       const swingIndices = MOVESETS[key].steps2.flatMap((s, i) => (s.kind === "swing" ? [i] : []));
       const lastSwing = MOVESETS[key].steps2.at(-1)?.kind === "volley" ? (swingIndices.at(-1) ?? 0) : MOVESETS[key].steps2.length - 1;
       expect(maxStep, "右レーンの最終段まで進んだ").toBe(lastSwing);
-      expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
+      // 右が全段とも純粋な投げ（当たり判定 0 の振りが弾を投げる。手裏剣）なら、当たるのは弾
+      const allThrows = MOVESETS[key].steps2.every((s) => s.kind === "swing" && s.step.cast !== undefined && s.step.size === 0);
+      if (allThrows) expect(e.hp, "右の投げが当たった").toBeLessThan(TOUGH_HP);
+      else expect(state.player.meleeHitCount, "右の振りが当たった").toBeGreaterThan(0);
     });
   }
 });
 
 describe("武器種: 各段が当たる", () => {
   for (const key of MOVESET_KEYS) {
-    // 銃の家系は近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
-    if (isGun(MOVESETS[key])) continue;
+    // 左で撃つ武器種は左に近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
+    if (shootsPrimary(MOVESETS[key])) continue;
     it(`${MOVESETS[key].name}（${key}）: 押し続けると最終段まで振り、全段が正面の敵に当たる（多段ヒットは回数ぶん）`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
@@ -875,24 +889,24 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     expect(meleeChargeLevel(state), "0.68 秒で 1 段").toBe(1);
   });
 
-  it("二丁拳銃は左で撃ち、銃口が左右交互になる。右は乱れ撃ち", () => {
+  it("二丁拳銃は左クリックで左手、右クリックで右手の銃口から 1 発ずつ撃ち、押しっぱなしでは撃ち続けない", () => {
     const left = arena(5, { moveset: "gunner" });
     step(left, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     expect(playerShotCount(left), "左で撃った").toBe(1);
     expect(left.player.attack.phase, "近接は振らない").toBe("none");
-
-    const right = arena(5, { moveset: "gunner" });
-    step(right, withInput({ shootHeld: true }), FIXED_DT);
-    expect(playerShotCount(right), "右は乱れ撃ち（全周に 8 発）").toBe(8);
+    const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;
+    for (let i = 0; i <= cooldownSteps; i++) step(left, withInput({ attackHeld: true }), FIXED_DT);
+    expect(playerShotCount(left), "押しっぱなしでは撃ち続けない").toBe(1);
 
     const both = arena(5, { moveset: "gunner" });
-    const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;
-    for (let i = 0; i <= cooldownSteps; i++) step(both, withInput({ attackHeld: true }), FIXED_DT);
+    step(both, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 0; i < 6; i++) step(both, withInput({}), FIXED_DT);
+    step(both, withInput({ shootHeld: true }), FIXED_DT);
     const shots = both.projectiles.filter((pr) => pr.owner === "player");
-    expect(shots.length, "2 発撃った").toBe(2);
+    expect(shots.length, "左右で 2 発撃った").toBe(2);
     const [a, b] = shots;
     if (!a || !b) throw new Error("弾が足りない");
-    expect(Math.sign(a.pos.y - both.player.body.pos.y), "1 発目と 2 発目は逆の銃口").not.toBe(Math.sign(b.pos.y - both.player.body.pos.y));
+    expect(Math.sign(a.pos.y - both.player.body.pos.y), "左手と右手は逆の銃口").not.toBe(Math.sign(b.pos.y - both.player.body.pos.y));
   });
 
   it("二丁拳銃はダッシュ中の押下で反転撃ち（ダッシュ攻撃）を出す", () => {

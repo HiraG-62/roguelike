@@ -62,8 +62,10 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
 import { equippedSkillKeys } from "../system/runSetup";
+import { ringsInFlight } from "../system/projectiles";
+import { drawPins } from "./pinsUi";
 import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
-import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
+import { type HitShape, MOVESETS, lobHeight, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
@@ -72,6 +74,7 @@ import {
   type WeaponPose,
   WEAPON_TRAIL_WIDTH,
   laneHoldPose,
+  activeLaneStepKey,
   offhandOffset,
   phaseProgress,
   playerBodyPose,
@@ -96,6 +99,7 @@ import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawJinHud, drawLeaderMark } from "./jinUi";
 import { drawJinzu } from "./jinzuUi";
 import { drawMoraleHud } from "./moraleHud";
+import { drawMagazineHud } from "./magazineHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { TelegraphLayer } from "./telegraphLayer";
@@ -108,9 +112,9 @@ import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxU
 import { drawSkillFxAir, drawSkillFxGround, skillSpritesReady } from "./fxSkill";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
 import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
-import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta } from "./actorSprites";
+import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta, weaponStepArt } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
-import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, guardContact, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
+import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, guardContact, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta, SWING_ART_UNTIL, stepArtInUse } from "./playerRig";
 import { type ParryMotion, parryMotion } from "./parryMotion";
 import { drawParrySpark } from "./parrySpark";
 import { type BarrierLook, barrierFront, drawParryBarrier } from "./parryBarrier";
@@ -534,8 +538,6 @@ const RIG_ARM_BEHIND_X = 3;
 /** 鞭の縄の先の房（ドット） */
 const ROPE_TASSEL_W = 3;
 const ROPE_TASSEL_H = 2;
-/** 振りの間の絵を使う、構え直しの割合の上限（これを越えたら待機の絵へ戻す） */
-const SWING_ART_UNTIL = 0.5;
 /** 反動 1・強さ 1 のときに体ごと後ろへ揺らす距離（論理 px。丸めるので強い銃だけ動く） */
 const RIG_RECOIL_JOLT = 0.8;
 /** 振りの残像（遅れ = 振りの進みの差、濃さ）。古いものから描く */
@@ -848,6 +850,7 @@ export class Renderer {
       hud: () => {
         this.drawHud(state, hud);
         drawSkillSlots(ctx, state, hud);
+        drawMagazineHud(ctx, state, ox, oy);
       },
       hudOverlay: () => drawChainHud(ctx, state, hud),
       transition: () => this.drawTransitionLayer(state),
@@ -920,6 +923,7 @@ export class Renderer {
     const town = this.hubView;
     if (town) this.townLayer.drawBack(ctx, state, town);
     this.drawEnemies(state);
+    drawPins(ctx, state, this.atlas);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
     drawPlayerAuras(ctx, state);
@@ -2305,7 +2309,7 @@ export class Renderer {
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
       facingRight: look.x >= 0,
-      aimHeld: moveset.primary === "shot",
+      aimHeld: shootsPrimary(moveset),
       edge: WEAPON_EDGE[moveset.key],
       hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
       sign: screenSwingSign(swing.step, look.x >= 0, swing.pose, swing.heavy),
@@ -2364,6 +2368,10 @@ export class Renderer {
     const shoulderB = actorAnchor(bodyKey, 0, clip.frame, "shoulderB");
     const hip = actorAnchor(bodyKey, 0, clip.frame, "hip");
     if (!bodyCell || !shoulderF || !shoulderB) return false;
+    // 段ごとの持ち替えの絵（meta.stepArt。短銃の逆手の短刀・砲の込め棒）。後ろの手の絵（off）は振りの間ずっと後ろの手が振り、
+    // 前の手の絵（main）は構え直しの半ばで元の武器へ戻す
+    const restBlend = hold === undefined ? restBlendOf(swing.phase, swing.t) : 0;
+    const stepArt = stepArtInUse(weaponStepArt(weapon, activeLaneStepKey(moveset.steps2, p.attack, isAttacking(p), p.dashStrike)), swing.phase, restBlend);
     // 剣の構えの受け流しは、共通の受け流しと同じ受けの構え（guard）で描く
     const posed = swing.phase !== "none" || (hold !== undefined && hold !== "parry");
     const rigInput = {
@@ -2371,7 +2379,7 @@ export class Renderer {
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
       aim: Math.atan2(look.y, look.x),
-      aimHeld: moveset.primary === "shot",
+      aimHeld: shootsPrimary(moveset),
       facingRight,
       shoulderF,
       shoulderB,
@@ -2379,14 +2387,16 @@ export class Renderer {
       offGrip: weaponOffGrip(weapon),
       aimOrigin: { x: 0, y: (p.body.pos.y - PLAYER_SHOT_LIFT - bottom) * ACTOR_ART_SCALE },
       barrelY: actorAnchor(`${weapon}.held`, 0, 0, "muzzle")?.y ?? 0,
-      restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
+      restBlend,
       unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
       castOff: swing.cast,
-      kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
+      kick: shootsPrimary(moveset) ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
       ...(hip ? { hip } : {}),
       ...(iai ? { iai } : {}),
       ...(guard ? { guard } : {}),
+      emptyHanded: ringsInFlight(state),
+      ...(stepArt?.hand === "off" ? { offStep: true } : {}),
     };
     const rig = solveRig(rigInput);
 
@@ -2400,7 +2410,7 @@ export class Renderer {
         const pastT = Math.max(0, swing.t - lag);
         const past = solveRig({ ...rigInput, swing: this.heldWeaponPose(state, { ...swing, t: pastT }), ...(iai ? { iai: { ...iai, t: pastT } } : {}) });
         g.globalAlpha = alpha;
-        this.rigWeapon(weapon, dualOff ? past.back : past.front, true);
+        this.rigWeapon(weapon, dualOff || stepArt?.hand === "off" ? past.back : past.front, true, stepArt?.key);
       }
       g.globalAlpha = 1;
     }
@@ -2412,11 +2422,14 @@ export class Renderer {
       if (worn) this.rigWeapon(weapon, part);
     };
     // 振りの間の絵（鞭は束を解いて、エフェクトのしなる線を鞭そのものに見せる）。構え直しの半ばで元の絵へ戻す
-    const swingArt = (swing.phase === "active" || swing.phase === "recover") && (rigInput.restBlend ?? 0) < SWING_ART_UNTIL;
+    const swingArt = (swing.phase === "active" || swing.phase === "recover") && restBlend < SWING_ART_UNTIL && stepArt === undefined;
     const heldWeapon = (part: HeldPart): void => {
       // 鞘に納めた刀は鞘と一緒に描く（rigSheath）
       if (part === rig.front && rig.sheath?.sheathed === true) return;
-      if (!worn) this.rigWeapon(weapon, part, swingArt && part === rig.front);
+      if (worn) return;
+      // 持ち替えの絵は、その手（off = 後ろ / main = 前）だけ。前の手が銃のままなら銃を描く
+      if (stepArt && part === (stepArt.hand === "off" ? rig.back : rig.front)) this.rigWeapon(weapon, part, false, stepArt.key);
+      else this.rigWeapon(weapon, part, swingArt && part === rig.front);
     };
     const sheath = (): void => {
       if (rig.sheath) this.rigSheath(weapon, rig.sheath, rig.front);
@@ -2516,17 +2529,22 @@ export class Renderer {
   }
 
   /**
-   * 手に持つ武器の絵を置く。swingArt なら振りの間の絵（`<武器>.swing`。鞭の解いた柄など）があればそれを使う
+   * 手に持つ武器の絵を置く。swingArt なら振りの間の絵（`<武器>.swing`。鞭の解いた柄など）があればそれを使う。
+   * artKey があれば段の持ち替えの絵（meta.stepArt のシート）をそのまま使う（写しの絵 `<artKey>M` があれば写す側で）
    */
-  private rigWeapon(weapon: string, part: HeldPart, swingArt = false): void {
+  private rigWeapon(weapon: string, part: HeldPart, swingArt = false, artKey?: string): void {
     if (part.bare) return;
-    const mirrored = `${weapon}.heldM`;
-    const swingKey = `${weapon}.swing`;
-    const key = swingArt && actorSheet(swingKey) ? swingKey : part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
+    const key = artKey === undefined ? this.heldSheetKey(weapon, part, swingArt) : part.mirror && actorSheet(`${artKey}M`) ? `${artKey}M` : artKey;
     const sheet = actorSheet(key);
     if (!sheet) return;
     const cell = this.actorBank.cell(key, actorDir(part.angle, sheet.dirs), 0);
     if (cell) this.rigCell(cell, part.hand.x, part.hand.y);
+  }
+
+  private heldSheetKey(weapon: string, part: HeldPart, swingArt: boolean): string {
+    const swingKey = `${weapon}.swing`;
+    if (swingArt && actorSheet(swingKey)) return swingKey;
+    return part.mirror && actorSheet(`${weapon}.heldM`) ? `${weapon}.heldM` : `${weapon}.held`;
   }
 
   /** 腰の鞘（`<武器>.sheath`）を鯉口に原点を合わせて置く。納めている間は先に刀（刃を上にした写し）を描き、刀身を鞘で覆う */

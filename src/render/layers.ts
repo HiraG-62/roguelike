@@ -57,7 +57,7 @@ export const LAYER_CONTENTS: Readonly<Record<RenderLayer, readonly string[]>> = 
     "drawTexts",
   ],
   worldOverlay: ["darkness", "drawRunOverlay", "drawOverlays", "drawScreenMarks", "drawBossLetterbox"],
-  hud: ["drawHud", "drawSkillSlots"],
+  hud: ["drawHud", "drawSkillSlots", "drawMagazineHud"],
   hudOverlay: ["drawChainHud"],
   transition: ["drawFloorWipe", "drawFloorCard"],
   popup: ["drawBoonHud", "drawDropFocus", "drawBoonChoice", "drawReforgeChoice", "drawDeath"],

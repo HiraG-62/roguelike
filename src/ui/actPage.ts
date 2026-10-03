@@ -2,7 +2,7 @@ import type { BoonAction } from "../core/build";
 import { KEYWORD_DEFS, type Keyword } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { SLOT_LABEL } from "./inventoryLayout";
-import { isGun } from "../data/weapons";
+import { shootsPrimary } from "../data/weapons";
 import type { Item } from "../loot/types";
 import { BOON_ACTIONS, BOON_ACTION_LABEL, BOONS, type BoonKey, LINEAGE_LABEL } from "../system/boonDefs";
 import { gracesOf, graceSlotsOf } from "../system/boons";
@@ -43,12 +43,12 @@ export const ACTION_KEYWORD: Readonly<Record<BoonAction, Keyword>> = {
   ultimate: "energy",
 };
 
-/** 銃の家系の左・右の系統 */
+/** 左で撃つ武器種の左・右の系統 */
 const GUN_KEYWORD: Keyword = "ranged";
 
 /** 今の武器種を踏まえた、行動の系統 */
 export function actionKeyword(state: Readonly<GameState>, action: BoonAction): Keyword {
-  if ((action === "primary" || action === "secondary") && isGun(playerMoveset(state))) return GUN_KEYWORD;
+  if ((action === "primary" || action === "secondary") && shootsPrimary(playerMoveset(state))) return GUN_KEYWORD;
   return ACTION_KEYWORD[action];
 }
 

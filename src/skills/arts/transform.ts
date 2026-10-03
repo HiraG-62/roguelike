@@ -261,7 +261,7 @@ const rifle: ArtActsTransform = (acts, n) =>
     return heavy;
   });
 
-/** 砲: 扇・自分の周りの円・弾を照準地点への砲撃（少し遅れて落ちる円）に */
+/** 仕掛け・装薬・擲弾: 扇・自分の周りの円・弾を照準地点への砲撃（少し遅れて落ちる円）に（装薬・擲弾は仕掛けの写しで始め、数値は型ごと） */
 const artillery: ArtActsTransform = (acts, n) =>
   acts.map((a) => {
     const heavy = mulDamage(a, need(n, "damageMul"));
@@ -306,9 +306,16 @@ export const ART_TRANSFORMS: Readonly<Record<FormKey, ArtTransform>> = {
   warfan: { acts: warfan, label: () => "突風（敵弾を消す）" },
   rod: { acts: rod, element: "weapon", label: () => "属性を武器に" },
   thrower: { acts: thrower, label: () => "振りを投げに" },
+  // クナイ・手裏剣は投具（戦輪）の写しで始める（数値は ART.TRANSFORM.<型>）
+  dart: { acts: thrower, label: () => "振りを投げに" },
+  star: { acts: thrower, label: () => "振りを投げに" },
   pistol: { acts: pistol, label: () => "振りを弾に" },
+  // 二丁は短銃の写し（ART/TRANSFORM/akimbo.json。二丁らしい変形は後で）
+  akimbo: { acts: pistol, label: () => "振りを弾に" },
   rifle: { acts: rifle, label: () => "振りを貫く 1 発に" },
   artillery: { acts: artillery, label: () => "照準地点へ砲撃" },
+  powder: { acts: artillery, label: () => "照準地点へ砲撃" },
+  shell: { acts: artillery, label: () => "照準地点へ砲撃" },
   // 書は行為を変えず、再使用の倍率（system/tomeBell.ts の formSkillCooldownMul）を表示に出す
   tome: { acts: same, label: () => `再使用 ×${fmt(FORM.tome.skillCooldownMul)}` },
   bell: { acts: bell, label: () => "鳴り返し" },

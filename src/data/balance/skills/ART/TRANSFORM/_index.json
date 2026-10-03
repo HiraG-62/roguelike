@@ -51,9 +51,14 @@
     "warfan",
     "rod",
     "thrower",
+    "dart",
+    "star",
     "pistol",
     "rifle",
     "artillery",
-    "bell"
+    "powder",
+    "shell",
+    "bell",
+    "akimbo"
   ]
 }

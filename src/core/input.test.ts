@@ -256,13 +256,28 @@ describe("既定のキー設定", () => {
     expect(binds.attack, "重ならないアクションの変更は残る").toEqual(["KeyJ", "Mouse0"]);
   });
 
-  it("アイテム情報表示の切替（toggleDropInfo）は既定で T、他のアクションと衝突しない", () => {
-    expect(DEFAULT_KEYBINDS.toggleDropInfo).toEqual(["KeyT"]);
+  it("アイテム情報表示の切替（toggleDropInfo）は既定で Y、他のアクションと衝突しない（T はリロードへ譲った）", () => {
+    expect(DEFAULT_KEYBINDS.toggleDropInfo).toEqual(["KeyY"]);
     expect((REBINDABLE_ACTIONS as readonly string[]).includes("toggleDropInfo"), "変更可能").toBe(true);
+    const owners = (Object.keys(DEFAULT_KEYBINDS) as (keyof typeof DEFAULT_KEYBINDS)[]).filter((action) =>
+      DEFAULT_KEYBINDS[action].includes("KeyY"),
+    );
+    expect(owners, "KeyY を持つのは toggleDropInfo だけ").toEqual(["toggleDropInfo"]);
+  });
+
+  it("リロード（reload）は既定で T、他のアクションと衝突せず、キー設定画面で変更できる", () => {
+    expect(DEFAULT_KEYBINDS.reload).toEqual(["KeyT"]);
+    expect((REBINDABLE_ACTIONS as readonly string[]).includes("reload"), "変更可能").toBe(true);
     const owners = (Object.keys(DEFAULT_KEYBINDS) as (keyof typeof DEFAULT_KEYBINDS)[]).filter((action) =>
       DEFAULT_KEYBINDS[action].includes("KeyT"),
     );
-    expect(owners, "KeyT を持つのは toggleDropInfo だけ").toEqual(["toggleDropInfo"]);
+    expect(owners, "KeyT を持つのは reload だけ").toEqual(["reload"]);
+  });
+
+  it("旧い保存データ（アイテム情報が T）は、リロードの既定と重ならないよう両方が既定へ戻る", () => {
+    const binds = sanitizeKeybinds({ toggleDropInfo: ["KeyT"] });
+    expect(binds.reload, "リロードは T").toEqual(["KeyT"]);
+    expect(binds.toggleDropInfo, "アイテム情報は Y").toEqual(["KeyY"]);
   });
 
   it("瓶（flask）は既定で B と 5、他のアクションと衝突せず、キー設定画面で変更できる", () => {

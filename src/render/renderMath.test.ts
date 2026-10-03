@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type WeaponPoseInput,
   laneHoldPose,
+  activeLaneStepKey,
   edgeNormal,
   edgeView,
   offhandOffset,
@@ -583,24 +584,41 @@ describe("固有技の構え（docs/ideas/weapon-redesign.md 3 章）", () => {
     expect(Math.sin(left.angle), "左向きでも刃は上").toBeCloseTo(-1);
   });
 
-  it("盾の構えと狙い撃ちは照準へ腕を伸ばす", () => {
+  it("盾の構えは照準へ腕を伸ばす", () => {
     const aim = Math.PI / 4;
     const plain = pose({ aimHeld: true, aim });
-    for (const hold of ["guard", "aim"] as const) {
-      const p = pose({ hold, aim, aimHeld: true });
-      expect(p.angle).toBeCloseTo(aim);
-      expect(Math.hypot(p.dx, p.dy + 4), hold).toBeGreaterThan(Math.hypot(plain.dx, plain.dy + 4));
-    }
+    const p = pose({ hold: "guard", aim, aimHeld: true });
+    expect(p.angle).toBeCloseTo(aim);
+    expect(Math.hypot(p.dx, p.dy + 4)).toBeGreaterThan(Math.hypot(plain.dx, plain.dy + 4));
   });
 
   it("laneHoldPose は押している最中の構えの種類を選ぶ", () => {
     expect(laneHoldPose(MOVESETS.sword.steps2[0], true)).toBe("parry");
     expect(laneHoldPose(MOVESETS.shield.steps2[0], true)).toBe("guard");
-    expect(laneHoldPose(MOVESETS.sidearm.steps2[0], true)).toBe("aim");
+    expect(laneHoldPose(MOVESETS.sidearm.steps2[0], true), "短銃の右 1 段目は短刀斬りで構えない").toBeUndefined();
     expect(laneHoldPose(MOVESETS.katana.steps2[0], true), "居合は溜めの経路").toBeUndefined();
     expect(laneHoldPose(MOVESETS.sword.steps2[0], false), "押していなければ構えない").toBeUndefined();
     expect(laneHoldPose(MOVESETS.sword.steps2[1], true), "振りの段は構えない").toBeUndefined();
     expect(laneHoldPose(undefined, true), "段が無ければ構えない").toBeUndefined();
+  });
+});
+
+describe("今の振りの右レーンの段の key（段ごとの持ち替えの絵の引き元）", () => {
+  const a = { lane: "secondary", step: 0, branch: -1, chargeLevel: 0, charging: false };
+
+  it("右レーンの振りの段なら、その段の key を返す", () => {
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, a, true, false)).toBe("daggerCut");
+    expect(activeLaneStepKey(MOVESETS.cannon.steps2, { ...a, step: 1 }, true, false)).toBe("rammerThrust2");
+  });
+
+  it("振っていない・左・派生・溜め・ダッシュ攻撃では返さない", () => {
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, a, false, false), "振っていない").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, lane: "primary" }, true, false), "左").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, branch: 0 }, true, false), "派生").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, chargeLevel: 1 }, true, false), "溜め攻撃").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, charging: true }, true, false), "溜め中").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, a, true, true), "ダッシュ攻撃").toBeUndefined();
+    expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, step: 99 }, true, false), "段が無い").toBeUndefined();
   });
 });
 

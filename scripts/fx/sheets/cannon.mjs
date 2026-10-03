@@ -4,7 +4,7 @@
 // 大筒は「至近で散弾を叩き込む重い銃」。片手銃（細い針の閃光・細い曳光）と見分けがつくように:
 //   - 閃光は横に広い扇（銃口が太い）。撃つたびに大きな煙の塊が前へ膨らむ
 //   - 弾は 1 粒ずつ出る散弾なので、曳光は短く太い鉛玉（散弾銃）/ 不揃いに回る礫（喇叭銃）
-//   - 近接は刃を持たない重い打撃: 至近撃ちの円い爆風・筒の突き・銃床と砲身の振り回し。白い刃の縁は描かない
+//   - 近接は刃を持たない重い打撃: 至近撃ちの円い爆風・込め棒の突き・砲身の振り回し。白い刃の縁は描かない
 //
 // 部品:
 //   扇の閃光（fanFlash）: 銃口から前へ開く太い針の束 + 根元の扇形の塊。散弾銃の閃光・至近撃ちの爆炎
@@ -711,123 +711,79 @@ function dash(frame, f) {
 }
 
 /**
- * 筒殴り（box reach 16 / size 28、原点 = 当たりの中心 = 自分から 32 ドット先）:
- * 太い筒を真っ直ぐ突き出す。筒の太さの帯が前へ伸び、先の口（縦に長い楕円の輪。中は暗い）がそのまま敵を打つ。
- * 当たった瞬間に口の前で平たい衝撃と前へ潰れる弧、欠片が前へ飛ぶ
+ * 込め棒の突き（thrust reach 26 / size 10、原点 = 自分）: 槊杖をまっすぐ突き出す。刃の光条（尖ったレンズ）ではなく、
+ * 細い棒の帯が前へ伸び、先は込め棒の頭の平たい面（縦の短い帯）がそのまま敵を押す。当たった瞬間に頭の前で平たい衝撃と
+ * 前へ潰れる弧、筒の中の煤（段 2〜3 の煙の小さな塊）が頭から前へ吹き出す。spec.twice なら 2 回押し込む（二の突き）
  */
-function barrelBash(frame, f) {
-  const A = 3;
-  const N = 8;
+function rammer(frame, f, spec) {
+  const { reach, frames: N, active: A, seed } = spec;
   const k = f < A ? 0 : (f - A + 1) / (N - A + 1);
   const p = f < A ? easeSwing((f + 1) / A) : 1;
-  const tip = -12 + 20 * p - k * 5;
-  const back = -34 + k * 12;
-  const H = 8;
-  if (k < 0.85) {
+  // 二の突きは頭が一度戻ってからもう一段押し込む（2 回目の押しが本命）
+  const second = spec.twice && f >= A - 1 ? Math.min(1, (f - A + 2) / 2) : 0;
+  const tip = 14 + (reach - 14) * p + second * 6 - k * 4;
+  const back = 6 + k * (tip - 14) * 0.7;
+  const H = spec.head;
+  if (k < 0.9) {
+    // 棒: 太さ 3 ドットの帯。芯の 1 列だけ明るく、後ろほど薄い（塗りつぶしの面にしない）
     paint(
       frame,
       (x, y) => {
-        if (x < back || x > tip - 1) return -1;
+        if (x < back || x > tip - 3) return -1;
         const ay = Math.abs(y);
-        if (ay > H) return -1;
+        if (ay > 1.9) return -1;
         const u = (x - back) / Math.max(1, tip - back);
-        if (!survives(x, y, k * 1.05 + (1 - u) * 0.3, u, 4211)) return -1;
-        // 帯の上下の縁（筒の輪郭）だけ段 4〜5 の線。中は後ろほど薄い筋（塗りつぶしの面にしない）
-        if (ay > H - 1.4) return clamp01((0.35 + 0.35 * u) * (1 - k * 0.4));
-        const grain = 0.7 + 0.45 * hash1(Math.floor((y + 20) / 2), 4212);
-        return clamp01(u ** 1.4 * 0.42 * grain * (1 - k * 0.4));
+        if (!survives(x, y, k * 1.05 + (1 - u) * 0.12, u, seed)) return -1;
+        return clamp01((ay < 0.7 ? 0.7 : 0.48) * (0.5 + 0.5 * u) * (1 - k * 0.4));
       },
-      { bounds: { x0: back - 1, y0: -H - 1, x1: tip + 1, y1: H + 1 } },
+      { bounds: { x0: back - 1, y0: -3, x1: tip + 1, y1: 3 } },
     );
-    // 筒の口: 縦に長い楕円の輪。縁は段 6、中は段 2 の暗い穴
+    // 頭の平たい面: 縦の短い帯（太さ 4）。前の縁だけ段 6、後ろは段 4
     paint(
       frame,
       (x, y) => {
-        const e = Math.hypot((x - tip) / 3.2, y / (H + 0.5));
-        if (e > 1) return -1;
-        // 口の輪も帯と一緒に崩れる（輪だけ最後まで残ると浮いて見える）
-        if (!survives(x, y, k * 1.3, 0.3, 4217)) return -1;
-        if (e > 0.62) return clamp01((0.78 - (1 - e) * 0.2) * (1 - k * 0.45));
-        return 0.14;
+        if (x < tip - 4 || x > tip || Math.abs(y) > H) return -1;
+        if (!survives(x, y, k * 1.2, 0.4, seed + 1)) return -1;
+        return clamp01((tip - x < 1.4 ? 0.82 : 0.5) * (1 - k * 0.45));
       },
-      { bounds: { x0: tip - 4, y0: -H - 2, x1: tip + 4, y1: H + 2 } },
+      { bounds: { x0: tip - 5, y0: -H - 1, x1: tip + 1, y1: H + 1 } },
     );
   }
-  // 速度線: 筒の上下の外側を後ろへ
+  // 速度線: 棒の上下の外側を後ろへ（帯の内側に重ねない）
   if (k < 0.8) {
     for (let i = 0; i < 4; i++) {
       const side = i % 2 === 0 ? -1 : 1;
-      const y = side * (H + 4 + Math.floor(i / 2) * 4);
-      const x1 = tip - 6 - hash1(i, 4213) * 6 - k * 10;
-      streakLine(frame, { ax: x1 - 16 - hash1(i, 4214) * 10, ay: y, bx: x1, by: y, bright: 0.5 * (1 - k) });
+      const y = side * (H + 3 + Math.floor(i / 2) * 4);
+      const x1 = tip - 8 - hash1(i, seed + 2) * 8 - k * 12;
+      streakLine(frame, { ax: x1 - 18 - hash1(i, seed + 3) * 12, ay: y, bx: x1, by: y, bright: 0.5 * (1 - k) });
     }
   }
-  if (f === A - 1) {
-    // 当たった瞬間: 口の前に縦の平たい衝撃（筒の口の形のまま押し潰れる）
-    lens(frame, { ax: tip + 3, ay: -16, bx: tip + 3, by: 16, T: 5, bias: 0, bright: 0.9 });
-    sparkle(frame, tip + 3, 0, 3);
+  const hits = spec.twice ? [A - 2, A] : [A - 1];
+  for (const [j, hf] of hits.entries()) {
+    if (f === hf) {
+      // 押した瞬間: 頭の前に縦の平たい衝撃（頭の面の形のまま押し潰れる）
+      lens(frame, { ax: tip + 3, ay: -H - 6 - j * 3, bx: tip + 3, by: H + 6 + j * 3, T: 4 + j, bias: 0, bright: 0.9 });
+      sparkle(frame, tip + 2, 0, j === hits.length - 1 ? 3 : 2);
+    }
+    const age = f - hf;
+    if (age >= 1 && age <= 4) frontArc(frame, { ox: tip + 1 + age * 2, radius: 6 + age * (4 + j), width: 2.6 - age * 0.3, squash: 0.45, spread: 75 * DEG, erosion: Math.min(0.9, age * 0.2), bright: 0.75 - age * 0.1, seed: seed + 4 + j });
   }
-  if (f >= A - 1) {
-    const age = f - (A - 1);
-    if (age >= 1 && age <= 4) frontArc(frame, { ox: tip + 2 + age * 2, radius: 8 + age * 5, width: 3 - age * 0.3, squash: 0.45, spread: 80 * DEG, erosion: Math.min(0.9, age * 0.2), bright: 0.78 - age * 0.1, seed: 4215 });
-    shards(frame, age, 10, 4216, (i, rnd) => {
-      const a = (rnd(1) - 0.5) * 1.6;
-      const sp = 3 + rnd(2) * 3.5;
-      return { x: tip + 3, y: (rnd(3) - 0.5) * 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 3 + Math.floor(rnd(4) * 2), size: 2, drag: 0.8 };
+  // 煤: 頭から前へ吹き出す小さな煙の塊（段 2〜3）。押し終わってから広がって消える
+  const last = hits[hits.length - 1] ?? A - 1;
+  if (f >= last) {
+    const age = (f - last) / Math.max(1, N - last);
+    smokeCloud(frame, { cx: tip, cy: 0, a: 0, count: spec.twice ? 5 : 3, dist: 5, r: 3.4, age, spread: 50 * DEG, drift: 12, seed: seed + 10 });
+    shards(frame, f - last, spec.twice ? 10 : 7, seed + 20, (i, rnd) => {
+      const a = (rnd(1) - 0.5) * 1.5;
+      const sp = 2.5 + rnd(2) * 3;
+      return { x: tip + 2, y: (rnd(3) - 0.5) * H * 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 2 + Math.floor(rnd(4) * 3), size: rnd(5) > 0.5 ? 2 : 1, drag: 0.82 };
     });
   }
 }
 
-/**
- * 尻叩き（arc 180° reach 26、原点 = 自分）: 銃床を半周振り回す。刃の三日月ではなく、先が四角く切れた厚い帯
- * （銃床の尻の面が先頭）で、縁を白くしない。帯の外縁は段 6 まで、先頭の面の外側から砂粒が接線へ弾ける
- */
-function buttSwing(frame, f) {
-  const A = 4;
-  const N = 9;
-  const R = 54;
-  const T = 20;
-  const k = f < A ? 0 : (f - A + 1) / (N - A + 1);
-  const p = f < A ? easeSwing((f + 1) / A) : 1;
-  const from = -100 * DEG;
-  const sweep = 190 * DEG;
-  const head = from + sweep * p + k * 10 * DEG;
-  const span = 120 * DEG * (0.35 + 0.65 * p) * (1 - k * 0.5);
-  paint(
-    frame,
-    (x, y) => {
-      const r = Math.hypot(x, y);
-      if (r > R || r < R - T - 1) return -1;
-      let s = head - Math.atan2(y, x);
-      s = ((s % TAU) + TAU) % TAU;
-      if (s > span) return -1;
-      const u = s / span;
-      // 先頭 1 割は四角い面（太さ一定）、その後ろは尾へ細る
-      const w = u < 0.1 ? T : T * ((1 - u) / 0.9) ** 1.1;
-      const q = (R - r) / w;
-      if (q < 0 || q > 1) return -1;
-      if (!survives(x, y, k * 1.05 + u * 0.2, (1 - q) * (1 - u), 4311)) return -1;
-      // 先頭の面（進む向きの縁 2 ドット）は段 6 の線で「尻の面」を見せる
-      if (s * r < 2.2 && k < 0.5) return 0.74;
-      const band = Math.floor((R - r) / 2.2);
-      const grain = q > 0.15 ? 0.72 + 0.4 * hash1(band, 4312) : 1;
-      return clamp01((1 - q) ** 0.8 * (0.76 - 0.42 * u) * grain * (1 - k * 0.35));
-    },
-    { bounds: { x0: -R - 2, y0: -R - 2, x1: R + 2, y1: R + 2 } },
-  );
-  // 先頭の面の外側から弾ける砂粒（振り切ったところで多く）
-  if (f >= 2) {
-    const a0 = from + sweep * easeSwing(Math.min(1, (Math.min(f, A - 1) + 1) / A));
-    shards(frame, f - 2, 9, 4313, (i, rnd) => {
-      const out = 0.25 + 0.5 * rnd(1);
-      const sp = 3 + rnd(2) * 3;
-      const vx = (-Math.sin(a0) * (1 - out) + Math.cos(a0) * out) * sp;
-      const vy = (Math.cos(a0) * (1 - out) + Math.sin(a0) * out) * sp;
-      const rr = R - 2 - rnd(3) * 10;
-      return { x: Math.cos(a0) * rr, y: Math.sin(a0) * rr, vx, vy, life: 2 + Math.floor(rnd(4) * 3), size: rnd(5) > 0.4 ? 2 : 1, drag: 0.82 };
-    });
-  }
-}
+/** 込め棒突き（thrust reach 26）と二の突き（reach 27・強い。2 回押し込む） */
+const RAMMER = { reach: 54, frames: 8, active: 3, head: 4, seed: 4211 };
+const RAMMER2 = { reach: 56, frames: 9, active: 4, head: 5, seed: 4311, twice: true };
 
 /**
  * 砲身振り（circle size 50、原点 = 自分）: 長い砲身ごと 1 周振り回す。先頭は自分から外縁まで伸びる放射状の棒（砲身）で、
@@ -1110,8 +1066,8 @@ const FX = {
   motions: {
     dash: { sheet: "cannon.dash", pivot: "self", base: 44, measure: "size" },
     "r:pointBlank": { sheet: "cannon.pointBlank", pivot: "self", base: 44, measure: "size" },
-    "r:barrelBash": { sheet: "cannon.barrelBash", pivot: "anchor", base: 16, measure: "reach" },
-    "r:buttSwing": { sheet: "cannon.buttSwing", pivot: "self", base: 26, measure: "reach" },
+    "r:rammerThrust": { sheet: "cannon.rammer", pivot: "self", base: 26, measure: "reach" },
+    "r:rammerThrust2": { sheet: "cannon.rammer2", pivot: "self", base: 27, measure: "reach" },
     "branch:loadedShot": { sheet: "cannon.loadedShot", pivot: "self", base: 20, measure: "size" },
     "branch:barrelSwing": { sheet: "cannon.barrelSwing", pivot: "self", base: 50, measure: "size" },
     "branch:contactShot": { sheet: "cannon.contactShot", pivot: "anchor", base: 12, measure: "reach" },
@@ -1128,8 +1084,8 @@ export const ATLAS = {
   sheets: [
     { key: "cannon.dash", dirs: WIDE_DIRS, frames: 8, active: 3, size: 136, draw: dash },
     { key: "cannon.pointBlank", dirs: WIDE_DIRS, frames: 9, active: 3, size: 148, draw: pointBlank },
-    { key: "cannon.barrelBash", dirs: DIRS, frames: 8, active: 3, size: 104, draw: barrelBash },
-    { key: "cannon.buttSwing", dirs: WIDE_DIRS, frames: 9, active: 4, size: 124, draw: buttSwing },
+    { key: "cannon.rammer", dirs: DIRS, frames: RAMMER.frames, active: RAMMER.active, size: 144, draw: (frame, f) => rammer(frame, f, RAMMER) },
+    { key: "cannon.rammer2", dirs: DIRS, frames: RAMMER2.frames, active: RAMMER2.active, size: 152, draw: (frame, f) => rammer(frame, f, RAMMER2) },
     { key: "cannon.loadedShot", dirs: DIRS, frames: 8, active: 3, size: 88, draw: loadedShot },
     { key: "cannon.barrelSwing", dirs: WIDE_DIRS, frames: 9, active: 4, size: 124, draw: barrelSwing },
     { key: "cannon.contactShot", dirs: DIRS, frames: 8, active: 3, size: 112, draw: contactShot },

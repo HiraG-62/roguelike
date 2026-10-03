@@ -198,8 +198,8 @@ export interface ParryStance {
   /** 片刃の刃を写しの側へ向ける */
   readonly mirror?: boolean;
   /**
-   * 後ろの手（後ろの肩から、ドット）。二刀はもう 1 本を持つ手、それ以外は刃や盾に添える素手（体の前に描く。
-   * 両手持ちでも柄を離して刃の腹に掌を当てる）。省けば今までの後ろの手（両手持ちは添え手を主の手から引く）
+   * 後ろの手（後ろの肩から、ドット）。二刀はもう 1 本を持つ手、それ以外は刃や盾に添える素手（両手持ちでも柄を離して
+   * 刃の腹に掌を当てる）。奥の腕なので体の後ろに描く。省けば今までの後ろの手（両手持ちは添え手を主の手から引く）
    */
   readonly off?: readonly [number, number];
   /** 二刀のもう 1 本の向き（度） */
@@ -210,8 +210,6 @@ export interface ParryStance {
    */
   readonly grip?: number;
   readonly offMirror?: boolean;
-  /** 二刀のもう 1 本を体の後ろに描く（省けば体の前で交差させる） */
-  readonly offBehind?: boolean;
   /** 主の武器を体の後ろに描く（省けば体の前） */
   readonly behind?: boolean;
   /** 受け止める所（主の武器の握りから先へ、ドット）。火花をここから散らす（結界を張る武器は結界の前が受ける所） */
@@ -316,7 +314,6 @@ export function parryFromMeta(v: unknown): ParryStance | undefined {
     ...(offDeg !== undefined ? { offDeg } : {}),
     ...(grip !== undefined ? { grip } : {}),
     ...(r.offMirror === true ? { offMirror: true } : {}),
-    ...(r.offBehind === true ? { offBehind: true } : {}),
     ...(r.behind === true ? { behind: true } : {}),
     ...(typeof r.barrier === "string" ? { barrier: r.barrier } : {}),
   };
@@ -427,6 +424,13 @@ export interface RigInput {
   readonly iai?: IaiMotion;
   /** 受け流しの構え（振っていない間だけ。swing より後に効く）。省けば今までの構え */
   readonly guard?: GuardMotion;
+  /** 投げた輪が戻るまで手ぶら（戦輪。system/projectiles.ts の ringsInFlight）。腕の構えはそのまま、手に持つ絵だけ描かない */
+  readonly emptyHanded?: boolean;
+  /**
+   * 段の絵（meta.stepArt の hand が off）を後ろの手で振る間（短銃の逆手の短刀）。前の手は振らずに今の武器の構え（撃つ構え）のまま、
+   * 後ろの手が swing の姿勢で振る。後ろの手を素手にしない。省けば今までの振り
+   */
+  readonly offStep?: boolean;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -452,6 +456,24 @@ const ARM_SPAN = 10.5;
 const CAST_UP_DEG = -15;
 /** 術を放つ後ろの手を下げる下限（度。正 = 下） */
 const CAST_DOWN_DEG = 50;
+/**
+ * 後ろの手が段の絵を振る間の手（offStep）。前の手は振りを無視して待機・構えのまま（銃を持ち続ける）。
+ * 後ろの手は二刀の後ろの手と同じく後ろの肩から振りの向きへ出し、戻しの後半で待機の後ろの手（添え手・垂らした手）へ寄せる
+ * （寄せ切る前に絵を持たせたまま柄の位置へ滑らせない。半分を越えたら素手にする）
+ */
+function offStepHands(i: RigInput, swing: WeaponPose): RigPose {
+  const { iai: _iai, ...rest } = i;
+  const idle: RigInput = { ...rest, swing: undefined };
+  const front = mainPart(idle);
+  const restBack = backPart(idle, front);
+  const angle = toRigAngle(swing.angle, i.facingRight);
+  const swung = part(at(i.shoulderB, angle, swingHandReach(swing)), angle, rigSwingSign(i) > 0, false, true);
+  const k = i.restBlend ?? 0;
+  if (k <= 0) return { front, back: swung };
+  const back = blendPart(swung, restBack, k);
+  return { front, back: k >= 0.5 ? { ...back, bare: restBack.bare } : back };
+}
+
 /** 術を放つ後ろの腕の付け根を、後ろの肩から前の肩へ寄せる割合（体の捻り） */
 const CAST_TWIST = 0.8;
 /** 片手の武器の間、空いた後ろの手を垂らす位置（後ろの肩から） */
@@ -478,6 +500,18 @@ function sway(time: number, deg: number): number {
 /** 振りの向きの符号（組み立ての空間で時計回りなら +1）。左向きでは写すので逆 */
 function rigSwingSign(i: Pick<RigInput, "sign" | "step" | "facingRight">): number {
   return (i.sign ?? swingSign(i.step)) * (i.facingRight ? 1 : -1);
+}
+
+/** 振りの間の絵（`<武器>.swing`・段の持ち替えの前の手の絵）を使う、構え直しの割合の上限（これを越えたら待機の絵へ戻す） */
+export const SWING_ART_UNTIL = 0.5;
+
+/**
+ * 今描く段の持ち替えの絵。振りの間だけで、終われば（振っていない）元の武器に戻る。
+ * 後ろの手の絵（off）は振りの間ずっと後ろの手が振る（戻しの半ばで素手になるのは offStepHands）。前の手の絵（main）は構え直しの半ばで元の武器へ戻す
+ */
+export function stepArtInUse<T extends { readonly hand: "main" | "off" }>(art: T | undefined, phase: "none" | "windup" | "active" | "recover", restBlend: number): T | undefined {
+  if (!art || phase === "none") return undefined;
+  return art.hand === "off" || restBlend < SWING_ART_UNTIL ? art : undefined;
 }
 
 /** 撃った反動: 戻るまでの秒と、1 のときに銃を引く距離（ドット）・銃口を跳ね上げる角 */
@@ -536,13 +570,15 @@ function blendPart(from: HeldPart, to: HeldPart, k: number): HeldPart {
 
 /** 手と武器の位置を決める */
 export function solveRig(i: RigInput): RigPose {
-  const pose = solveHands(i);
+  const held = solveHands(i);
+  const pose = i.emptyHanded === true ? { ...held, front: { ...held.front, bare: true }, back: { ...held.back, bare: true } } : held;
   const sheath = sheathPart(i);
   return sheath ? { ...pose, sheath } : pose;
 }
 
 function solveHands(i: RigInput): RigPose {
   if (i.guard && !i.swing) return guardHands(i, i.guard);
+  if (i.offStep && i.swing) return offStepHands(i, i.swing);
   const k = i.restBlend ?? 0;
   if (k > 0 && i.swing) {
     const { iai: _iai, ...rest } = i;
@@ -860,7 +896,8 @@ function freeHand(i: RigInput): HeldPart {
 
 /**
  * 受けの構え（docs/ideas/parry-motion.md）。待機の構え（guard を外して解いた形）から、武器の meta.stance.parry の形へ blend だけ寄せる。
- * 両手持ちは添え手を主の手から引き直し（柄から離れない）、二刀はもう 1 本を、片手は添える素手を寄せる
+ * 両手持ちは添え手を主の手から引き直し（柄から離れない）、二刀はもう 1 本を、片手は添える素手を寄せる。
+ * 奥の手（後ろの肩の腕）は構えの間ずっと体の後ろに描く（体の前に描くと、奥の腕が胴や顔の前を横切って前後が逆に見える）
  */
 function guardHands(i: RigInput, g: GuardMotion): RigPose {
   const { guard: _guard, ...rest } = i;
@@ -870,7 +907,7 @@ function guardHands(i: RigInput, g: GuardMotion): RigPose {
   const main = blendPart(base.front, guardMain(i, ps, g), k);
   if (i.stance.grip === "two" && i.offGrip !== null && !ps.off) {
     const grip = ps.grip === undefined ? i.offGrip : i.offGrip + (ps.grip - i.offGrip) * k;
-    return { front: main, back: backPart({ ...rest, offGrip: grip }, main) };
+    return { front: main, back: { ...backPart({ ...rest, offGrip: grip }, main), behind: true } };
   }
   const off = guardOff(i, ps, g);
   return { front: main, back: off ? blendPart(base.back, off, k) : base.back };
@@ -900,9 +937,9 @@ function guardOff(i: RigInput, ps: ParryStance, g: GuardMotion): HeldPart | unde
   const hand = withinReach(guardShift({ x: i.shoulderB.x + ps.off[0], y: i.shoulderB.y + ps.off[1] }, g), i.shoulderB);
   if (i.stance.grip === "dual") {
     const angle = guardTilt((ps.offDeg ?? ps.deg) * DEG, g);
-    return part(hand, angle, ps.offMirror ?? false, false, ps.offBehind === true);
+    return part(hand, angle, ps.offMirror ?? false, false, true);
   }
-  return part(hand, 0, false, true, false);
+  return part(hand, 0, false, true, true);
 }
 
 /** 受け止める所（主の武器の握りから contact だけ先。組み立ての空間）。火花を散らす */

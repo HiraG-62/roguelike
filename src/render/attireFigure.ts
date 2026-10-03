@@ -1,5 +1,6 @@
 import { RENDER_SCALE } from "../core/view";
 import type { GameState } from "../core/state";
+import { shootsPrimary } from "../data/weapons";
 import { playerMoveset } from "../system/player";
 import { ACTOR_ART_SCALE, ActorSpriteBank, type ActorCell, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponStanceMeta } from "./actorSprites";
 import { MENU_INK, px } from "./crestDraw";
@@ -253,7 +254,7 @@ export function drawAttireFigure(ctx: CanvasRenderingContext2D, state: Readonly<
     swing: undefined,
     step: 0,
     aim: IDLE_AIM,
-    aimHeld: moveset.primary === "shot",
+    aimHeld: shootsPrimary(moveset),
     facingRight: true,
     shoulderF,
     shoulderB,

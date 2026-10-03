@@ -59,10 +59,12 @@ function draw(frame) {
   paint(frame, capsule(0.5, -4.5, 0.5, 4.5, 2), CLOTH_TEAL);
   for (let y = -3.5; y <= 3.5; y += 2) paint(frame, capsule(-1.3, y, 2.3, y + 0.6, 0.35), CLOTH_TEAL, { minShade: 0, maxShade: 0, rim: false });
   for (const s of [-1, 1]) paint(frame, capsule(-0.3, s * 5.3, 1.8, s * 5.3, 1.1), GOLD);
+  // 戦輪は左で輪を投げる（投擲物）。投げた輪は輪の中心から出る
+  frame.anchor("muzzle", CX, 0);
 }
 
 export const ATLAS = {
   key: "wpnRingBlades",
   sheets: weaponSheets("wpnRingBlades", draw, { size: 64 }),
-  meta: { offGrip: null, stance: { grip: "dual", body: "light", restDeg: -15, restHand: [7, 8], offHand: [-3, 9], offDeg: 160, swayDeg: 4, parry: { hand: [9, 2], deg: -25, off: [10, 5], offDeg: 25, offBehind: true, contact: 20 } } },
+  meta: { offGrip: null, stance: { grip: "dual", body: "light", restDeg: -15, restHand: [7, 8], offHand: [-3, 9], offDeg: 160, swayDeg: 4, parry: { hand: [9, 2], deg: -25, off: [10, 5], offDeg: 25, contact: 20 } } },
 };

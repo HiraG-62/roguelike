@@ -1,5 +1,6 @@
 {
   "attackMoveMul": 0.5,
+  "reloadMoveMul": 0.6,
   "weight": "heavy",
   "dashAttack": {"windup":0.04,"active":0.12,"recover":0.24,"scaling":{"base":5,"str":0.5,"vit":0.3},"poiseRatio":{"str":0.18,"vit":0.18},"poise":12,"reach":24,"size":24,"knockback":240,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":160},"hitstop":3,"shake":1.5,"trail":"#e0d0b0"},
   "steps2": [

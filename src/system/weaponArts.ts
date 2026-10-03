@@ -1,15 +1,14 @@
 import type { FrameInput } from "../core/input";
-import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
-import { type Vec, angle, length, normalize, scale, sub } from "../core/vec";
+import type { Enemy, GameState } from "../core/state";
+import { type Vec, angle, length, scale, sub } from "../core/vec";
 import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
+  type BulletDef,
   type ButtonKey,
-  type AimArtDef,
   type BranchDef,
   type BranchShots,
   type HoldArtDef,
-  type RecallArtDef,
   type StrikeExtras,
   type SwingActionStep,
   type ThrowArtDef,
@@ -22,17 +21,17 @@ import {
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
 import { spawnBurst } from "./effects";
-import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
-import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
-import { noteRelease, noteRiposte } from "./moments";
+import { nextFireHand, spendRounds } from "./magazine";
+import { currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
+import { type ShotRelease, gainMorale, isPlacedShot, swingShotRelease } from "./morale";
+import { noteRiposte } from "./moments";
 import { onManaSource } from "./manaSources";
 import { attackCommitted } from "./poise";
 import { parryLocksActions, parryMoveMul, parrySucceed, tryWindowParry } from "./parry";
 import { BULLETS } from "../loot/bullets";
 
 /**
- * 右レーン（アクション 2。docs/ideas/ougi-and-dual-actions.md 4 章）の振り以外の段: hold（受け流し・構え）/ volley（弾を出す）/
- * recall（弾を戻す）/ aim（短銃の狙い撃ち）と、段の key ごとの再使用・受け流しを外した硬直・派生の弾と付随効果。
+ * 右レーン（アクション 2。docs/ideas/ougi-and-dual-actions.md 4 章）の振り以外の段: hold（受け流し・構え）/ volley（弾を出す）と、段の key ごとの再使用・受け流しを外した硬直・派生の弾と付随効果。
  * 振りの段と刀の居合（近接の溜め）は player.ts の連撃・溜めの経路をそのまま使う。
  * 振り以外の段は押した瞬間に始まり、終わったら左右共有の段カウンタ（AttackState.step）を 1 つ進める
  */
@@ -43,11 +42,8 @@ const FULL_TURN = Math.PI * 2;
 const FX_SPEED = 120;
 const FX_LIFE = 0.3;
 const FX_SIZE = 2;
-const AIM_READY_PARTICLES = 6;
-/** 手元返しで向け直さない距離（手元に重なっている弾） */
-const RECALL_MIN_DIST = 1;
 
-/** 構え・狙いを押している右レーンの段（段カウンタが指す段）。構えていなければ undefined */
+/** 構えを押している右レーンの段（段カウンタが指す段）。構えていなければ undefined */
 function currentHoldStep(state: GameState): ActionStepDef | undefined {
   if (!state.player.art.holding) return undefined;
   return playerMoveset(state).steps2[state.player.attack.step];
@@ -59,22 +55,16 @@ function currentHold(state: GameState): HoldArtDef | undefined {
   return s?.kind === "hold" ? s.hold : undefined;
 }
 
-/** 短銃の狙い撃ち。今の段が狙い撃ちでなければ undefined */
-function currentAim(state: GameState): AimArtDef | undefined {
-  const s = currentHoldStep(state);
-  return s?.kind === "aim" ? s.aim : undefined;
-}
-
-/** 押した瞬間に完結する段（弾・手元返し）。振りの最中の recover を打ち切って出し、共有の間（laneGap）を置く */
+/** 押した瞬間に完結する段（弾）。振りの最中の recover を打ち切って出し、共有の間（laneGap）を置く */
 export function isInstantStep(s: ActionStepDef): boolean {
-  return s.kind === "volley" || s.kind === "recall";
+  return s.kind === "volley";
 }
 
 function stepKey(s: ActionStepDef): string | undefined {
   return s.key === undefined || s.key === "" ? undefined : s.key;
 }
 
-/** 右レーンの段の再使用の残り秒（段の key ごと。弾・手元返しの段は共有の間も見る） */
+/** 右レーンの段の再使用の残り秒（段の key ごと。弾の段は共有の間も見る） */
 export function actionCooldownLeft(state: GameState, s: ActionStepDef): number {
   const key = stepKey(s);
   const own = key === undefined ? 0 : (state.player.art.cooldowns.get(key) ?? 0);
@@ -132,8 +122,8 @@ function freeForArt(state: GameState): boolean {
 }
 
 /**
- * 右レーンの振り以外・溜め以外の段（構え・狙い・弾・手元返し）を index 段目として始める（player.ts の右の押下から）。
- * 構え・狙いは離す（窓が閉じる）まで段カウンタを保ち、弾・手元返しはすぐ段を進める。出したら true
+ * 右レーンの振り以外・溜め以外の段（構え・弾）を index 段目として始める（player.ts の右の押下から）。
+ * 構えは離す（窓が閉じる）まで段カウンタを保ち、弾はすぐ段を進める。出したら true
  */
 export function startLaneArt(state: GameState, s: ActionStepDef, index: number): boolean {
   if (s.kind === "swing" || s.kind === "charge") return false;
@@ -147,17 +137,8 @@ export function startLaneArt(state: GameState, s: ActionStepDef, index: number):
       // 受け流しは押した瞬間に再使用を立てる（連打で窓を繋げない）。構えは離したときに立てる
       if (s.hold.parry) startCooldown(state, s);
       return true;
-    case "aim":
-      beginHold(state);
-      logButton(p, "secondary");
-      return true;
     case "volley":
-      if (!emitArtVolley(state, s.throw, releaseOverride(laneRelease(state, s.key)))) return false;
-      logButton(p, "secondary");
-      finishInstant(state, s, index);
-      return true;
-    case "recall":
-      recallShots(state, s.recall, laneRelease(state, s.key));
+      if (!emitArtVolley(state, s.throw)) return false;
       logButton(p, "secondary");
       finishInstant(state, s, index);
       return true;
@@ -176,14 +157,14 @@ function beginHold(state: GameState): void {
   a.holdTime = 0;
 }
 
-/** 構え・狙いを何も出さずに解く（ダッシュ・怯み・武器種の差し替え）。受け流しの窓もここで閉じる（硬直は付けない）。段は進めない */
+/** 構えを何も出さずに解く（ダッシュ・怯み・武器種の差し替え）。受け流しの窓もここで閉じる（硬直は付けない）。段は進めない */
 export function endArtHold(state: GameState): void {
   const a = state.player.art;
   a.holding = false;
   a.holdTime = 0;
 }
 
-/** 構え・狙いを解いて段を進める（押している最中の次の押下・受け流しの成功と窓の終わり）。構えていなければ何もしない */
+/** 構えを解いて段を進める（押している最中の次の押下・受け流しの成功と窓の終わり）。構えていなければ何もしない */
 export function finishArtHold(state: GameState): void {
   if (!state.player.art.holding) return;
   const index = state.player.attack.step;
@@ -208,11 +189,6 @@ export function updateArt(state: GameState, input: FrameInput, dt: number): void
   }
   if (hold) {
     updateGuard(state, hold, input.shootHeld, dt);
-    return;
-  }
-  const aim = currentAim(state);
-  if (aim) {
-    updateAim(state, aim, input.shootHeld, dt);
     return;
   }
   // 武器種が変わって技の種類が変わった（変身・装備変更）
@@ -240,37 +216,13 @@ function updateGuard(state: GameState, hold: HoldArtDef, held: boolean, dt: numb
   if (index !== undefined) startArtBranch(state, index);
 }
 
-/** 狙い撃ち: 押している間溜め、離したら撃つ。time に届いていれば強めた 1 発、届かなければ普通の 1 発 */
-function updateAim(state: GameState, aim: AimArtDef, held: boolean, dt: number): void {
-  const a = state.player.art;
-  if (held) {
-    const before = a.holdTime;
-    a.holdTime += dt;
-    if (before < aim.time && a.holdTime >= aim.time) onAimReady(state);
-    return;
-  }
-  const ready = a.holdTime >= aim.time;
-  const s = currentHoldStep(state);
-  finishArtHold(state);
-  const fired = emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, ready ? { count: 1, damageMul: aim.damageMul, pierceBonus: aim.pierceBonus } : { count: 1 });
-  if (fired && s) startCooldown(state, s);
-}
-
-/** 狙いが定まった合図（離すタイミングを目と耳で計れるように） */
-function onAimReady(state: GameState): void {
-  const color = WEAPON.chargeRingColors[1] ?? A.parryColor;
-  spawnBurst(state, state.player.body.pos, color, AIM_READY_PARTICLES, FX_SPEED, FX_LIFE, FX_SIZE);
-  pushSfx(state, "chargeLevel");
-}
-
-/** 構え・狙い・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
+/** 構え・共通の受け流し中の移動速度倍率（どれでもなければ 1） */
 export function artMoveMul(state: GameState): number {
   const parry = parryMoveMul(state);
   if (parry !== 1) return parry;
   if (!state.player.art.holding) return 1;
   const hold = currentHold(state);
-  if (hold) return hold.moveMul;
-  return currentAim(state)?.moveMul ?? 1;
+  return hold?.moveMul ?? 1;
 }
 
 /**
@@ -324,29 +276,26 @@ function inFront(origin: Vec, facing: Vec, from: Vec, arcDeg: number): boolean {
   return Math.abs(diff) <= (arcDeg * DEG_TO_RAD) / 2;
 }
 
-/** 弾を出す段の数の差し替え（派生の shots が弾数・扇・貫通・威力の倍率を変える） */
+/** 弾を出す段の数の差し替え（派生の shots が回数・扇・貫通・威力の倍率を変える） */
 export interface ArtVolleyOverride {
   count?: number;
   spreadDeg?: number;
+  /** 段の 1 回を count 回、spreadDeg（度）ずつ扇にずらして同時に出す（派生の弾。省略は 1 回） */
+  fan?: { count: number; spreadDeg: number };
   pierceBonus?: number;
   damageMul?: number;
   /** 撃ったレーン（双撃の判定。省略は右 = 右レーンの弾の段） */
   lane?: ButtonKey;
   /** 放出の弾（終撃・会心。Projectile.release へ写す） */
   release?: { finisher: boolean; crit: boolean };
+  /** 弾の半径に掛ける（放出の倍率 reachMul。戦輪の大輪は半径が増え、当たりも絵も大きくなる） */
+  radiusMul?: number;
 }
 
 /** 放出の倍率（戦意）を弾の差し替えに写す。放出でなければ空 */
 function releaseOverride(r: ShotRelease | undefined): ArtVolleyOverride {
   if (!r) return {};
-  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, release: { finisher: r.finisher, crit: r.crit } };
-}
-
-/** 右レーンの弾を出す段・手元返しが放出（投具）なら、飛んでいる数を単位に放出を出して弾への倍率を返す */
-function laneRelease(state: GameState, key: string | undefined): ShotRelease | undefined {
-  const r = laneStepRelease(state, key);
-  if (r) noteRelease(state, r.units);
-  return r;
+  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, radiusMul: r.mul.reachMul, release: { finisher: r.finisher, crit: r.crit } };
 }
 
 /** 振りの詠唱（cast）の魔弾の差し替え。放出の振り（杖の 3 手の派生）が撃つ魔弾は放出の弾にする（player.ts の updateAttack） */
@@ -369,57 +318,12 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     recoil: false,
     sprite: t.sprite,
     applies: t.applies,
+    ...(t.lineGap !== undefined ? { lineGap: t.lineGap } : {}),
     lane: over.lane ?? "secondary",
     release: over.release,
-    shotMana: t.mana,
+    ...(over.radiusMul !== undefined ? { radiusMul: over.radiusMul } : {}),
+    ...(over.fan ? { fan: over.fan } : {}),
   });
-}
-
-/**
- * 手元返し: 飛んでいる自分の弾（床に据えた設置弾・山なりの曲射を除く）をすべて手元へ向け直す。
- * 戻りの弾は威力 returnDamageMul 倍で、当てた敵を忘れてもう一度当たる。向け直した数を返す
- */
-export function recallShots(state: GameState, recall: RecallArtDef, release?: ShotRelease): number {
-  const hand = state.player.body.pos;
-  let count = 0;
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "player" || pr.life <= 0 || isGrounded(pr.shot?.key)) continue;
-    const toHand = sub(hand, pr.pos);
-    const d = length(toHand);
-    if (d < RECALL_MIN_DIST) continue;
-    const speed = Math.max(A.recallMinSpeed, length(pr.vel)) * recall.speedMul;
-    pr.vel = scale(normalize(toHand), speed);
-    // 放出（投具の戻す段）なら戻りの弾は飛んでいた数だけ強く、放出の弾（終撃）になる
-    pr.damage *= recall.returnDamageMul * (release?.mul.damageMul ?? 1);
-    if (release) {
-      pr.release = { finisher: release.finisher, crit: release.crit };
-      pr.firedAt = state.time;
-    }
-    pr.hitIds.clear();
-    // 手元に届くまでは消えない。回転刃は戻りの扱いにして手元で収める
-    pr.life = Math.max(pr.life, d / speed);
-    markRecalled(pr, recall);
-    count += 1;
-  }
-  if (count > 0) pushSfx(state, "reflect");
-  return count;
-}
-
-/**
- * 戻りの印を付ける。追尾のある手元返しは作業領域に旋回を写す（projectiles.ts の steerShot が近くの敵へ曲げる）。
- * 挙動の性質を持たない弾は作業領域が無いので、key 空の作業領域を足して旋回だけ持たせる
- */
-function markRecalled(pr: Projectile, recall: RecallArtDef): void {
-  if (!pr.shot && !recall.homing) return;
-  pr.shot ??= { key: "" };
-  pr.shot.returning = true;
-  if (recall.homing) pr.shot.recallHoming = { ...recall.homing };
-}
-
-function isGrounded(key: string | undefined): boolean {
-  if (key === undefined) return false;
-  const def = BULLETS[key];
-  return def !== undefined && (def.mine !== undefined || def.lob !== undefined);
 }
 
 /** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す */
@@ -434,22 +338,53 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
   if (branch.shots) emitBranchShots(state, branch.shots);
 }
 
-/** 派生の弾。from が lane なら右レーンの弾の段の弾、省略は装備の銃の弾（射撃として当たる） */
+/**
+ * 派生の弾（docs/ideas/gun-bases-review.md 0-3 の A 案）。count は「普段の 1 回を何回撃つか」で、回ごとに扇へ spreadDeg ずつずらす。
+ * 省略は装備の銃の弾の 1 回（1 + 装備の弾数 + 散弾の粒、三点の器は回の向きごとに三点の続き）、from が lane なら右レーンの弾の段の 1 回
+ */
 function emitBranchShots(state: GameState, shots: BranchShots): void {
   // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
-  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
+  const over = { pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane, ...(shots.applies ? { applies: shots.applies } : {}) };
+  // 派生の弾も弾倉を撃つ回数ぶん減らし、足りなければ残りの分だけ撃つ（振りは出る。docs/ideas/gun-bases-review.md 0-3）
+  const count = branchRounds(state, Math.max(1, shots.count));
+  if (count <= 0) return;
   if (shots.from !== "lane") {
-    emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, over);
+    emitShotRounds(state, shotWithLife(currentShot(state.stats), shots.lifeMul), { count, spreadDeg: shots.spreadDeg }, over);
     return;
   }
   const t = laneVolley(playerMoveset(state));
-  if (t) emitArtVolley(state, t, over);
+  if (t) emitArtVolley(state, t, { ...over, fan: { count, spreadDeg: shots.spreadDeg ?? t.spreadDeg } });
+}
+
+/** 弾の寿命を縮めた弾（足元へ投げる影留め。lifeMul が無ければそのまま） */
+function shotWithLife(shot: BulletDef, lifeMul: number | undefined): BulletDef {
+  return lifeMul === undefined ? shot : { ...shot, lifeMul: shot.lifeMul * lifeMul };
+}
+
+/** 派生の弾で撃てる回数（弾倉から使えた回数。弾倉が働かない武器種はそのまま） */
+function branchRounds(state: GameState, count: number): number {
+  const hand = nextFireHand(state);
+  return hand === undefined ? 0 : spendRounds(state, hand, count);
 }
 
 function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {
   const p = state.player;
   if (extras.selfKnock !== undefined) p.knock = sub(p.knock, scale(p.facing, extras.selfKnock));
   if (extras.detonateMines) detonateOwnMines(state);
+}
+
+/** 床の自分の設置弾（まだ炸裂していない）のうち from に一番近い位置（無ければ undefined。罠蹴りの蹴り込み先）。曲射弾は数えない */
+export function nearestOwnMine(state: GameState, from: Vec): Vec | undefined {
+  let best: Vec | undefined;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const pr of state.projectiles) {
+    if (!isPlacedShot(pr) || !pr.shot || BULLETS[pr.shot.key]?.mine === undefined) continue;
+    const d = length(sub(pr.pos, from));
+    if (d >= bestDist) continue;
+    best = pr.pos;
+    bestDist = d;
+  }
+  return best;
 }
 
 /**

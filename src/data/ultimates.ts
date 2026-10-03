@@ -12,7 +12,6 @@ import {
   type MeleeStepDef,
   type MovesetKey,
   type OrbitDef,
-  type RecallHomingDef,
   type ThrowArtDef,
   BURST_ATTACK,
   MOVESETS,
@@ -100,7 +99,41 @@ export type UltimateAct =
   | PullAct
   | BuffAct
   /** 床の自分の設置弾を全部起爆（damageMul は起爆する弾の威力の倍率。省略は等倍） */
-  | { readonly kind: "detonate"; readonly damageMul?: number };
+  | { readonly kind: "detonate"; readonly damageMul?: number }
+  | PackedShotAct
+  | PinNovaAct
+  | DetonatePinsAct;
+
+/**
+ * 弾倉の残りを全部詰めた 1 発（砲の全弾発射）。装備の弾に粒を足して威力を掛け、撃って弾倉を 0 にし、反動で下がる。
+ * 値は装薬の詰めの最大段（3 段）に揃える
+ */
+export interface PackedShotAct {
+  readonly kind: "packedShot";
+  readonly pelletsAdd: number;
+  readonly damageMul: number;
+  /** 撃った向きと逆へ下がる強さ（px/秒） */
+  readonly selfKnock: number;
+}
+
+/**
+ * 周りの敵すべてにクナイを pins 本ずつ刺す（クナイの影縫いの陣）。半径に burstRadiusMul、威力に 奥義の増（increased.ultimate）が掛かる。
+ * 当たった敵に scaling の傷を 1 回与え、その威力を刺さったときの威力として刺す（刺さりの定義はクナイの弾の pin）
+ */
+export interface PinNovaAct {
+  readonly kind: "pinNova";
+  readonly radius: number;
+  readonly pins: number;
+  readonly scaling: Scaling;
+  readonly poise: number;
+  readonly poiseRatio?: AttrRatio;
+}
+
+/** 刺さっている飛び物をすべて炸裂させる（クナイの爆ぜクナイ）。damageMul は刺さったときの威力に掛ける倍率（奥義の増が乗る） */
+export interface DetonatePinsAct {
+  readonly kind: "detonatePins";
+  readonly damageMul: number;
+}
 
 /** 持続中の近接の段の差し替え（system/ultimates.ts の ultimateMoveset が型に畳む） */
 export interface SustainPatch {
@@ -132,7 +165,7 @@ export interface SustainShot {
   /** 設置弾の信管の秒の倍率 */
   readonly fuseMul?: number;
   readonly bounceAdd?: number;
-  /** 撃った弾が自分の周りを回り続ける（円環の理） */
+  /** 撃った弾が自分の周りを回り続ける（今は使い手が無い。手裏剣の大車輪は一撃の行為 volley の弾に付ける） */
   readonly orbit?: OrbitDef;
 }
 
@@ -174,13 +207,18 @@ export interface SustainDef {
   /** 立ち止まっているときの射撃の速さの倍率 */
   readonly stillFireRate?: number;
   readonly patch?: SustainPatch;
+  /**
+   * 持続中、連撃（左・右レーン・派生・溜め）を別の武器種の振りに差し替える（手裏剣の龍刃が刀を抜く）。
+   * 型・戦意・ダッシュ攻撃は装備のまま、振りの絵とエフェクトは借りた武器種のもの
+   */
+  readonly lanes?: { readonly moveset: MovesetKey };
   readonly shot?: SustainShot;
   /** 近接の命中で付ける状態異常（段に畳む） */
   readonly applies?: readonly StatusApply[];
+  /** 叩き込みの追撃（刺さったときの威力 × 弾の倍率）に掛ける倍率（クナイの暗器。省略は等倍。system/pins.ts の drivePins） */
+  readonly pinDriveMul?: number;
   /** 自分の周りに毎 interval 秒ダメージ（radius は burstRadiusMul が掛かる） */
   readonly aura?: { readonly radius: number; readonly interval: number; readonly scaling: Scaling; readonly poise: number };
-  /** interval 秒ごとに飛んでいる自分の弾を手元へ戻す */
-  readonly recall?: { readonly interval: number; readonly returnDamageMul: number; readonly speedMul: number; readonly homing?: RecallHomingDef };
   /** 床の自分の設置弾が近くの敵を引き寄せる */
   readonly minePull?: { readonly radius: number; readonly speed: number };
   /** 左の振りを始めるたびに体の前から照準方向へ撃つ弾（射撃扱い。威力は係数表そのまま、奥義の増（increased.ultimate） は掛けない） */
@@ -407,6 +445,18 @@ function detonate(r: Raw): UltimateAct {
   return { kind: "detonate", damageMul: optNum(r, "damageMul") };
 }
 
+function packedShot(r: Raw): UltimateAct {
+  return { kind: "packedShot", pelletsAdd: num(r, "pelletsAdd"), damageMul: num(r, "damageMul"), selfKnock: num(r, "selfKnock") };
+}
+
+function pinNova(r: Raw): UltimateAct {
+  return { kind: "pinNova", radius: num(r, "radius"), pins: num(r, "pins"), scaling: scalingOf(r), poise: num(r, "poise"), poiseRatio: ratioOf(r) };
+}
+
+function detonatePinsAct(r: Raw): UltimateAct {
+  return { kind: "detonatePins", damageMul: num(r, "damageMul") };
+}
+
 /** 反動（撃った向きと逆へ下がる）。volley の数値ブロックの selfKnock を buff に移す */
 function recoil(r: Raw): BuffAct {
   return { kind: "buff", duration: 0, selfKnock: num(r, "selfKnock") };
@@ -502,6 +552,7 @@ function sustainCore(r: Raw): SustainDef {
     critAdd: optNum(r, "critAdd"),
     vsWindup: optNum(r, "vsWindup"),
     stillFireRate: optNum(r, "stillFireRate"),
+    pinDriveMul: optNum(r, "pinDriveMul"),
   };
 }
 
@@ -699,11 +750,14 @@ function katanaSet(): UltimateSet {
   ];
 }
 
+/** 大投擲の弾（斧の右の投擲の弾。行って戻る）。bulletDef は無い key を拳銃の弾へ黙って落とすので、実在する key を指す */
+const AXE_THROW_BULLET = "art.axeThrow";
+
 function axeSet(): UltimateSet {
   const m = "axe";
   return [
     instantDef(m, "bloodFeast", "血祭り", "周囲を叩き割り、深く出血させる", AREA, (n) => [nova(sub(n, "nova"), { applies: [applyOf("bleed", sub(n, "bleed"))] })]),
-    instantDef(m, "greatThrow", "大投擲", "斧を 3 本扇に投げる。行って戻り、行きと帰りで斬る", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "returnChakram", "weapon.axe")]),
+    instantDef(m, "greatThrow", "大投擲", "斧を 3 本扇に投げる。行って戻り、行きと帰りで斬る", RANGED, (n) => [volley(sub(n, "volley"), RANGED, AXE_THROW_BULLET, "weapon.axe")]),
     sustainDef(m, "madAxe", "狂斧", "持続。振りが出血させ、出血した敵への威力が上がる", (n) => ({
       ...sustainCore(n),
       applies: [applyOf("bleed", sub(n, "bleed"))],
@@ -783,25 +837,12 @@ function cannonSet(): UltimateSet {
   const m = "cannon";
   return [
     instantDef(m, "grandShell", "大砲撃", "照準の先に大爆発を起こす。近くに敵がいればそこへ落ちる", FIRE_RANGED, (n) => [nova(sub(n, "blast"))]),
-    instantDef(m, "fullSalvo", "全弾発射", "床の設置弾を強めて全部起爆し、前方へ曲射を 5 発撃つ", FIRE_RANGED, (n) => [
-      detonate(sub(n, "detonate")),
-      volley(sub(n, "volley"), FIRE_RANGED, "mortar"),
-    ]),
+    instantDef(m, "fullSalvo", "全弾発射", "弾倉の残りを全部詰めて、3 段の詰めの 1 発を撃ち出す", FIRE_RANGED, (n) => [packedShot(sub(n, "packedShot"))]),
     sustainDef(m, "powderKeg", "火薬庫", "持続。散弾が 1 発増えて速く撃て、近い敵ほど大きな傷を与える", (n) => ({
       ...sustainCore(n),
       shot: shotOf(n),
       pointBlank: pointBlankOf(n),
     })),
-  ];
-}
-
-function thrownSet(): UltimateSet {
-  const m = "thrown";
-  return [
-    instantDef(m, "thousandHands", "千手", "前方の広い扇へ 12 本を投げ放つ", RANGED, (n) => [volley(sub(n, "volley"), RANGED)]),
-    instantDef(m, "pinpoint", "一点集中", "敵を追う刃を 8 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "seekerOrb")]),
-    // 旧「手返しの理」（一定間隔で飛んでいる弾を呼び戻す）は弾の向きが読めなかったので、投げる手数と弾筋で強くなる持続に差し替えた
-    sustainDef(m, "swiftToss", "早業", "持続。投げ物が 1 本増えて速く投げられ、まっすぐ速く飛んで 1 体多く貫く", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 
@@ -825,15 +866,6 @@ function trapperSet(): UltimateSet {
       const pullBlock = sub(n, "minePull");
       return { ...sustainCore(n), shot: shotOf(n), minePull: { radius: num(pullBlock, "radius"), speed: num(pullBlock, "speed") } };
     }),
-  ];
-}
-
-function warRingSet(): UltimateSet {
-  const m = "warRing";
-  return [
-    instantDef(m, "ringDance", "輪舞", "全周へ輪を 4 本投げる。行って戻り、行きと帰りで当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "returnChakram")]),
-    instantDef(m, "headsman", "断頭輪", "巨大な輪を 1 本ゆっくり投げる。すべて貫き、戻りでも当たる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, "returnChakram")]),
-    sustainDef(m, "circleLaw", "円環の理", "持続。撃った輪が自分の周りを回り続け、1 周ごとに同じ敵へもう一度当たる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
   ];
 }
 
@@ -869,17 +901,32 @@ function flailSet(): UltimateSet {
 
 const RING_LOOK = { color: "#c0f0ff", trail: "#80c0ff" } as const;
 
-/** 周回の輪（弾の挙動は拳銃の素の弾を借り、周回と見た目だけ足す） */
-function orbitVolley(r: Raw, profile: AttackProfile): UltimateAct {
-  const t = throwOf(r, profile, PLAIN_BULLET);
+/** 周回の弾（弾の挙動は bullet の弾を借り、周回と見た目だけ足す） */
+function orbitVolley(r: Raw, profile: AttackProfile, bullet: string = PLAIN_BULLET): UltimateAct {
+  const t = throwOf(r, profile, bullet);
   return { kind: "volley", throw: { ...t, bullet: { ...t.bullet, orbit: orbitOf(r), look: RING_LOOK } } };
+}
+
+/** 戦輪の奥義の輪の弾の型（器の輪刃の弧の弾。どの器を持っていても同じ輪を投げる） */
+const RING_BULLET = "ringBlades";
+
+/**
+ * 戦輪の奥義の輪: 輪刃の弧の弾を借り、数と大きさを差し替える。奥義は 1 枚ずつ（2 枚投げの pair は外す）、
+ * 飛ぶ距離は arcRange（省略は照準の距離）の固定で、どの向きへも同じだけ飛んで弧で戻る
+ */
+function ringVolley(r: Raw, profile: AttackProfile): UltimateAct {
+  const t = throwOf(r, profile, RING_BULLET);
+  const { pair: _pair, ...single } = t.bullet;
+  const range = optNum(r, "arcRange");
+  const arc = single.arc !== undefined && range !== undefined ? { ...single.arc, range } : single.arc;
+  return { kind: "volley", throw: { ...t, bullet: { ...single, ...(arc ? { arc } : {}) } } };
 }
 
 function ringBladesSet(): UltimateSet {
   const m = "ringBlades";
   return [
-    instantDef(m, "ringFormation", "環の陣", "刃の輪を 4 枚、自分の周りに回らせる。回っている間、近くの敵に何度も当たる", RANGED, (n) => [orbitVolley(sub(n, "volley"), RANGED)]),
-    instantDef(m, "wildRings", "乱輪", "周囲へ輪を乱れ飛ばし、近くの敵に何度も当てる", AREA, (n) => [nova(sub(n, "nova"))]),
+    instantDef(m, "headsman", "断頭輪", "巨大な輪を 1 本ゆっくり投げる。すべて貫き、戻りでも当たる", RANGED, (n) => [ringVolley(sub(n, "volley"), RANGED)]),
+    instantDef(m, "ringDance", "輪舞", "全周へ輪を 4 本投げる。行って戻り、行きと帰りで当たる", RANGED, (n) => [ringVolley(sub(n, "volley"), RANGED)]),
     sustainDef(m, "ringWaltz", "輪の舞", "持続。振りが速く広くなって 1 回多く当たり、会心しやすい", (n) => ({
       ...sustainCore(n),
       patch: patchOf(n, { trail: "#c0f0ff" }),
@@ -934,6 +981,31 @@ function handbellSet(): UltimateSet {
   ];
 }
 
+// ---- 投擲物（docs/ideas/gun-bases-review.md 2-9） ----
+
+/** 手裏剣の奥義の弾（左のまっすぐの 3 本の 1 本。刺さる） */
+const SHURIKEN_BULLET = "cast.starToss";
+/** 手裏剣の奥義の大きい弾（大手裏剣。大車輪が自分の周りを回す） */
+const BIG_SHURIKEN_BULLET = "cast.bigStar";
+
+function kunaiSet(): UltimateSet {
+  const m = "kunai";
+  return [
+    instantDef(m, "shadowStitch", "影縫いの陣", "周りの敵すべてにクナイを 2 本ずつ刺す", RANGED, (n) => [pinNova(sub(n, "pinNova"))]),
+    instantDef(m, "blastKunai", "爆ぜクナイ", "刺さっているクナイをすべて炸裂させる", FIRE_RANGED, (n) => [detonatePinsAct(sub(n, "detonatePins"))]),
+    sustainDef(m, "hiddenArms", "暗器", "持続。投げが 2 本ずつになり、叩き込みの傷が大きくなる", (n) => ({ ...sustainCore(n), shot: shotOf(n) })),
+  ];
+}
+
+function shurikenSet(): UltimateSet {
+  const m = "shuriken";
+  return [
+    instantDef(m, "eightfold", "八方手裏剣", "全周へ手裏剣を 16 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, SHURIKEN_BULLET)]),
+    instantDef(m, "greatWheel", "大車輪", "巨大な手裏剣が自分の周りを 2 周し、近くの敵に何度も当たる", RANGED, (n) => [orbitVolley(sub(n, "volley"), RANGED, BIG_SHURIKEN_BULLET)]),
+    sustainDef(m, "dragonBlade", "龍刃", "持続。刀を抜いて左右とも斬りになり、振りが速く強くなる。斬りで気力が戻る", (n) => ({ ...sustainCore(n), lanes: { moveset: "katana" } })),
+  ];
+}
+
 const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   sword: swordSet,
   greatsword: greatswordSet,
@@ -954,16 +1026,16 @@ const SET_BUILDERS: Readonly<Record<MovesetKey, () => UltimateSet>> = {
   sidearm: sidearmSet,
   longarm: longarmSet,
   cannon: cannonSet,
-  thrown: thrownSet,
   grenade: grenadeSet,
   trapper: trapperSet,
-  warRing: warRingSet,
   claws: clawsSet,
   flail: flailSet,
   ringBlades: ringBladesSet,
   fan: fanSet,
   book: bookSet,
   handbell: handbellSet,
+  kunai: kunaiSet,
+  shuriken: shurikenSet,
 };
 
 export const ULTIMATES: Readonly<Record<MovesetKey, UltimateSet>> = Object.fromEntries(MOVESET_KEYS.map((k) => [k, SET_BUILDERS[k]()])) as Record<

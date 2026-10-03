@@ -3,10 +3,10 @@ import { step } from "../core/game";
 import type { FrameInput } from "../core/input";
 import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState, Projectile } from "../core/state";
-import { FORM, PLAYER, WEAPON } from "../data/tuning";
+import { PLAYER, WEAPON } from "../data/tuning";
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
+import { ACTION_STEP_KINDS, type ActionStepDef, type MovesetKey, GUN_MOVESETS, MOVESETS, actionCooldown, bulletFeatures } from "../data/weapons";
 import { botInput, createBotState } from "../qa/bot";
 import { SKILL } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
@@ -16,7 +16,8 @@ import { createSkillRunState, updateSkills } from "./skills";
 import { hasStatus } from "./statusEffects";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { actionCooldownLeft, onBranchStart } from "./weaponArts";
-import { bulletDef } from "../loot/bullets";
+import { BULLETS, bulletDef } from "../loot/bullets";
+import { startReload, tickMagazine } from "./magazine";
 
 /**
  * 右クリック = アクション 2（右レーン。docs/ideas/ougi-and-dual-actions.md 4 章 / system/weaponArts.ts）と銃の家系。
@@ -82,6 +83,26 @@ function laneKey(state: GameState): string | undefined {
   const a = state.player.attack;
   if (a.lane !== "secondary" || a.branch >= 0 || a.phase === "none") return undefined;
   return playerMoveset(state).steps2[a.step]?.key;
+}
+
+/** 床に止まった自分の設置弾（プレイヤーからの相対位置 at） */
+function restingMine(state: GameState, at: Vec): Projectile {
+  const p = state.player.body.pos;
+  return {
+    id: state.nextId++,
+    owner: "player",
+    pos: { x: p.x + at.x, y: p.y + at.y },
+    vel: { x: 0, y: 0 },
+    radius: 3,
+    damage: 1,
+    life: 5,
+    color: "#ffb040",
+    kind: "ranged",
+    hitIds: new Set(),
+    pierceLeft: 0,
+    poise: 0,
+    shot: { key: "mineLauncher", bouncesLeft: undefined },
+  };
 }
 
 function laneStepOf<K extends ActionStepDef["kind"]>(key: MovesetKey, index: number, kind: K): Extract<ActionStepDef, { kind: K }> {
@@ -233,39 +254,6 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(state.projectiles.length, "再使用中は投げない").toBeLessThanOrEqual(before);
   });
 
-  it("手元返しで自分の弾が反転し、戻りは強く当たる", () => {
-    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
-    play(state, [{ attackHeld: true }, ...idle(5)]);
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("弾が出ていない");
-    expect(shot.vel.x, "前へ飛んでいる").toBeGreaterThan(0);
-    const damage = shot.damage;
-    play(state, [{ shootHeld: true }]);
-    expect(shot.vel.x, "手元へ向いた").toBeLessThan(0);
-    // 手元返しは投具の放出（飛んでいた 1 発ぶんの戦意が戻りの威力に乗る）
-    expect(shot.damage).toBeCloseTo(damage * laneStepOf("thrown", 0, "recall").recall.returnDamageMul * (1 + FORM.thrower.perUnit.damageMul));
-  });
-
-  it("呼び戻した弾は近くの敵へ曲がる", () => {
-    const state = arena(5, { moveset: "thrown", bullet: "pistol" });
-    play(state, [{ attackHeld: true }, ...idle(5)]);
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("弾が出ていない");
-    const recall = laneStepOf("thrown", 0, "recall").recall;
-    if (!recall.homing) throw new Error("投擲の手元返しに追尾が無い");
-    // 弾と手元の間の真横（手元へ戻る直線から外れた所）に敵を置く
-    const p = state.player.body.pos;
-    const e = tough(placeEnemy(state, "golem", 0));
-    e.body.pos = { x: (shot.pos.x + p.x) / 2, y: p.y + recall.homing.range / 3 };
-    play(state, [{ shootHeld: true }]);
-    expect(shot.shot?.recallHoming, "戻りの弾に追尾が写った").toEqual(recall.homing);
-    const toEnemy = e.body.pos.y - shot.pos.y;
-    const vy0 = shot.vel.y;
-    play(state, idle(10));
-    expect(Math.sign(shot.vel.y), "敵のいる側へ曲がった").toBe(Math.sign(toEnemy));
-    expect(Math.abs(shot.vel.y), "向きが変わった").toBeGreaterThan(Math.abs(vy0));
-  });
-
   it("擲弾の派生の曲射はカーソルの距離で落ちる", () => {
     const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
     const aimAt = 60;
@@ -342,7 +330,7 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(state.player.attack.step, "4 段目（杖突き）へ").toBe(3);
   });
 
-  it("弾・手元返しの段の直後は共有の間（laneGap）が明けるまで次の弾の段を押せない", () => {
+  it("弾の段の直後は共有の間（laneGap）が明けるまで次の弾の段を押せない", () => {
     const state = arena(5, { moveset: "wand" });
     play(state, [{ shootHeld: true }, {}, { shootHeld: true }]);
     expect(playerShots(state), "間の中の右は出ない").toHaveLength(1);
@@ -356,33 +344,87 @@ describe("右レーンの 1 段目（旧固有技）", () => {
     expect(state.player.invulnTimer, "踏み込み中は無敵").toBeGreaterThan(0);
   });
 
-  it("砲の零距離砲は自分が後ろへ跳び、床の自分の設置弾をすべて起爆する", () => {
+  it("砲の右レーンは込め棒の突き → 突き → 零距離砲で、零距離砲は設置弾を起爆せず強い反動で跳ぶ", () => {
+    expect(MOVESETS.cannon.steps2.map((s) => s.key), "右の 3 段").toEqual(["rammerThrust", "rammerThrust2", "pointBlank"]);
+    expect(MOVESETS.cannon.steps2.map((s) => s.name), "表示名").toEqual(["込め棒突き", "二の突き", "零距離砲"]);
+    const [thrust, thrust2, blank] = MOVESETS.cannon.steps2.map((s) => (s.kind === "swing" ? s : undefined));
+    expect(thrust?.step.shape.kind, "込め棒は突き").toBe("thrust");
+    expect(thrust2?.step.shape.kind, "二の突きも突き").toBe("thrust");
+    expect(blank?.extras?.detonateMines, "零距離砲は起爆しない").toBeUndefined();
+    expect(blank?.extras?.selfKnock ?? 0, "反動は強い").toBeGreaterThan(500);
+
     const state = arena(5, { moveset: "cannon", bullet: "mineLauncher" });
     play(state, [{ attackHeld: true }, ...idle(20)]);
     const mine = playerShots(state)[0];
     if (!mine) throw new Error("設置弾が出ていない");
     state.player.facing = { x: 1, y: 0 };
+    // 段カウンタは左右共有。3 段目まで進めた状態（入力の窓が開いている）で右を押す
+    state.player.attack.step = 2;
+    state.player.attack.inputTimer = WEAPON.chainWindow;
     play(state, [{ shootHeld: true }]);
     expect(laneKey(state)).toBe("pointBlank");
-    expect(state.player.knock.x, "後ろへ押された").toBeLessThan(0);
+    expect(state.player.knock.x, "後ろへ押された").toBeLessThan(-(thrust?.extras?.selfKnock ?? 0));
     play(state, idle(2));
-    expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
+    expect(mine.shot?.detonated, "設置弾は炸裂しない").not.toBe(true);
   });
 
-  it("短銃の狙い撃ち: 溜めて離すと強く貫く 1 発、溜めずに離すと普通の 1 発", () => {
-    const aim = laneStepOf("sidearm", 0, "aim").aim;
-    const tap = arena(5, { moveset: "sidearm" });
-    play(tap, [{ shootHeld: true }, {}]);
-    const weak = playerShots(tap);
-    expect(weak, "1 発").toHaveLength(1);
-    expect(tap.player.attack.step, "離したら段が進む").toBe(1);
+  it("込め棒の突きは込めの最中も出せ、込めは止まらない", () => {
+    const state = arena(5, { moveset: "cannon", bullet: "shotgun" });
+    tickMagazine(state, withInput({}), 0);
+    const hand = state.player.magazine.hands[0];
+    hand.rounds = 0;
+    startReload(state, 0);
+    const before = hand.reloadLeft;
+    const e = tough(placeEnemy(state, "boar", 14));
+    play(state, [{ shootHeld: true }]);
+    expect(laneKey(state), "込め棒の突きが出る").toBe("rammerThrust");
+    play(state, idle(20));
+    expect(e.hp, "突きが当たった").toBeLessThan(TOUGH_HP);
+    expect(state.player.magazine.hands[0].reloadLeft + state.player.magazine.hands[0].rounds, "込めは進んだ（1 発込めたか残りが減った）").not.toBe(before);
+    play(state, idle(stepsFor(BULLETS.shotgun?.magazine?.perRoundSec ?? 0.4) * 2));
+    expect(state.player.magazine.hands[0].rounds, "突きの最中も 1 発ずつ込め続ける").toBeGreaterThanOrEqual(2);
+  });
 
-    const charged = arena(5, { moveset: "sidearm" });
-    play(charged, [...holdRight(stepsFor(aim.time) + 2), {}]);
-    const strong = playerShots(charged);
-    expect(strong, "1 発").toHaveLength(1);
-    expect(strong[0]?.damage ?? 0, "威力が上がる").toBeCloseTo((weak[0]?.damage ?? 0) * aim.damageMul);
-    expect(strong[0]?.pierceLeft, "貫通が増える").toBe((weak[0]?.pierceLeft ?? 0) + aim.pierceBonus);
+  it("短銃の右 1 段目は短刀の斬りで、狙い撃ちの段は無い", () => {
+    const lane = MOVESETS.sidearm.steps2;
+    expect(lane.map((s) => s.key), "右レーン").toEqual(["daggerCut", "sidearmButt", "muzzleSweep"]);
+    expect(lane[0]?.kind, "1 段目は振り").toBe("swing");
+    expect(lane[0]?.name).toBe("短刀斬り");
+    expect((ACTION_STEP_KINDS as readonly string[]).includes("aim"), "aim の段の種類は撤去").toBe(false);
+
+    const state = arena(5, { moveset: "sidearm" });
+    const e = tough(placeEnemy(state, "boar", 14));
+    play(state, [{ shootHeld: true }]);
+    expect(laneKey(state), "短刀斬りが出る").toBe("daggerCut");
+    expect(state.player.art.holding, "構え・狙いにならない").toBe(false);
+    play(state, idle(20));
+    expect(e.hp, "斬りが当たった").toBeLessThan(TOUGH_HP);
+    expect(playerShots(state), "右は撃たない").toHaveLength(0);
+  });
+
+  it("罠蹴りは一番近い自分の設置弾の方へ敵を飛ばし、設置弾が無ければ前へ飛ばす", () => {
+    expect(laneStepOf("trapper", 1, "swing").step.knockToward, "段の定義").toBe("ownMine");
+
+    /** 設置弾を 1 つ置いて止め、敵を蹴った直後の敵の飛ぶ向きを返す */
+    function kickKnock(mines: readonly Vec[]): Vec {
+      const state = arena(5, { moveset: "trapper", bullet: "mineLauncher" });
+      state.player.facing = { x: 1, y: 0 };
+      for (const at of mines) state.projectiles.push(restingMine(state, at));
+      const e = tough(placeEnemy(state, "golem", 14));
+      state.player.attack.step = 1;
+      state.player.attack.inputTimer = WEAPON.chainWindow;
+      play(state, [{ shootHeld: true }]);
+      for (let i = 0; i < SETTLE_STEPS && state.player.meleeHitCount === 0; i++) step(state, withInput({}), FIXED_DT);
+      expect(state.player.meleeHitCount, "蹴りが当たった").toBeGreaterThan(0);
+      return { ...e.knock };
+    }
+
+    const down = kickKnock([{ x: 14, y: 90 }, { x: 14, y: -300 }]);
+    expect(down.y, "近い設置弾（下）の方へ").toBeGreaterThan(Math.abs(down.x));
+    const up = kickKnock([{ x: 14, y: 300 }, { x: 14, y: -90 }]);
+    expect(up.y, "近い設置弾（上）の方へ").toBeLessThan(-Math.abs(up.x));
+    const none = kickKnock([]);
+    expect(none.x, "設置弾が無ければ前へ").toBeGreaterThan(Math.abs(none.y));
   });
 
   it("変身中の右は変身が引き受ける（遠吠え）", () => {
@@ -489,27 +531,35 @@ describe("銃の家系", () => {
     expect(mine.shot?.detonated, "設置弾が炸裂した").toBe(true);
   });
 
-  it("戦輪は左で回転刃を投げ、右の輪払いは背中側の敵にも近接で当たる", () => {
-    const ring = arena(5, { moveset: "warRing", bullet: "returnChakram" });
+  it("戦輪は左で弧の輪を投げ、右の輪払いは横の敵にも近接で当たり、右 2 段目の近投げは戻る輪を投げる", () => {
+    const ring = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
     play(ring, [{ attackHeld: true }]);
-    expect(featuresOf(playerShots(ring)[0]), "左は回転刃").toEqual(["boomerang"]);
+    expect(featuresOf(playerShots(ring)[0]), "左は弧で戻る輪").toEqual(["arc"]);
 
-    const state = arena(5, { moveset: "warRing", bullet: "returnChakram" });
-    // 220 度の扇なので、向きから 100 度ずれた敵にも届く
-    const side = tough(placeEnemy(state, "boar", -4, 18));
+    const state = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
+    // 160 度の扇なので、向きから 60 度ずれた敵にも届く
+    const side = tough(placeEnemy(state, "boar", 8, 14));
     play(state, [{ shootHeld: true }, ...idle(20)]);
     expect(state.player.meleeHitCount, "輪払いが当たった").toBeGreaterThan(0);
     expect(side.hp).toBeLessThan(TOUGH_HP);
+
+    const toss = arena(5, { moveset: "ringBlades", bullet: "ringBlades" });
+    expect(driveRight(toss, "ringToss"), "近投げまで進む").toBe(true);
+    for (let i = 0; i < SETTLE_STEPS && playerShots(toss).length === 0; i++) step(toss, withInput({}), FIXED_DT);
+    const thrown = playerShots(toss)[0];
+    expect(thrown?.shot?.key, "近投げの弾").toBe("cast.ringToss");
+    expect(featuresOf(thrown), "戻る輪").toEqual(["arc"]);
   });
 
-  it("銃の家系の派生は装備の弾を出す（二丁拳銃の左左右 = 二連）", () => {
-    const state = arena(5, { moveset: "gunner", bullet: "pistol" });
+  // 二丁拳銃は派生を持たない（左右の手。system/dualPistols.ts）ので、短銃の左左右（三連）で見る
+  it("銃の家系の派生は装備の弾を出す（短銃の左左右 = 三連）", () => {
+    const state = arena(5, { moveset: "sidearm", bullet: "pistol" });
     const cooldown = stepsFor(0.6);
     play(state, [{ attackPressed: true }, {}, { attackPressed: true }, {}, { shootHeld: true }]);
     for (let i = 0; i < SETTLE_STEPS && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
-    expect(branchKey(state)).toBe("twinShot");
+    expect(branchKey(state)).toBe("tripleShot");
     const shots = playerShots(state).filter((pr) => pr.shot === undefined);
-    expect(shots.length, "装備の弾（短銃の弾）を 2 発").toBe(2);
+    expect(shots.length, "装備の弾（短銃の弾）を 3 発").toBe(3);
     play(state, idle(cooldown));
   });
 });

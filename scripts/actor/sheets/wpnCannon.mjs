@@ -1,5 +1,8 @@
 // 砲（肩に担ぐ重い大筒。両手で持ち、添え手は筒の下の前の握り meta.offGrip）: 黒鉄の太い筒に真鍮の帯を締め、
 // 先は喇叭のように開いた口、尻は丸い砲尾の玉。担ぐ所に革を巻く。握りの下に木の銃把。銃口の位置を印で渡す
+//
+// 込め棒（槊杖。`wpnCannon.rammer`。右の段「込め棒突き」「二の突き」で持ち替える）: 原点 = 握り、+x = 突く先。
+// 木の長い棒の先に黒鉄の太い頭（筒の口に合う円柱）と真鍮の口金、尻に黒鉄の石突き。握りの所に革を巻く
 import { capsule, ellipse, paint, polygon, px, union } from "../paint.mjs";
 import { DARK_STEEL, GOLD, LEATHER, WOOD, weaponSheets } from "../weapon.mjs";
 
@@ -61,8 +64,35 @@ function draw(frame) {
   frame.anchor("muzzle", MOUTH_X + 0.6, TUBE_Y);
 }
 
+/** 込め棒の尻・頭の付け根・先 */
+const RAM_BACK = -9;
+const RAM_HEAD = 27;
+const RAM_TIP = 33;
+const RAM_R = 1.1;
+const RAM_HEAD_R = 2.9;
+
+function drawRammer(frame) {
+  // 木の棒
+  paint(frame, capsule(RAM_BACK, 0, RAM_HEAD, 0, RAM_R), WOOD);
+  // 握りの革巻き
+  paint(frame, capsule(-2.8, 0, 3.4, 0, RAM_R + 0.5), LEATHER);
+  for (let x = -2; x < 3; x += 1.8) paint(frame, polygon([[x, -RAM_R - 0.5], [x + 0.7, -RAM_R - 0.5], [x + 0.2, RAM_R + 0.5], [x - 0.5, RAM_R + 0.5]]), LEATHER, { maxShade: 0, rim: false });
+  // 尻の石突き
+  paint(frame, capsule(RAM_BACK - 1.4, 0, RAM_BACK + 0.6, 0, RAM_R + 0.5), IRON);
+  // 頭: 真鍮の口金と黒鉄の円柱（先の面は平ら）
+  paint(frame, capsule(RAM_HEAD - 1.6, 0, RAM_HEAD, 0, RAM_R + 0.9), GOLD);
+  paint(frame, polygon([[RAM_HEAD, -RAM_HEAD_R], [RAM_TIP, -RAM_HEAD_R], [RAM_TIP, RAM_HEAD_R], [RAM_HEAD, RAM_HEAD_R]], { round: 1.4 }), IRON, { bias: 0.08 });
+  // 頭の帯（筒の口で擦れた明るい筋）
+  paint(frame, capsule(RAM_TIP - 1.6, -RAM_HEAD_R + 0.6, RAM_TIP - 1.6, RAM_HEAD_R - 0.6, 0.5), IRON, { minShade: 2, maxShade: 3, rim: false });
+}
+
 export const ATLAS = {
   key: "wpnCannon",
-  sheets: weaponSheets("wpnCannon", draw, { size: 72 }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: 0, restHand: [8, 4], swayDeg: 1, recoil: 1.8, parry: { hand: [2, 6], deg: -25, grip: -6, contact: 15 } } },
+  sheets: [...weaponSheets("wpnCannon", draw, { size: 72 }), ...weaponSheets("wpnCannon", drawRammer, { size: 80 }).map((s) => ({ ...s, key: "wpnCannon.rammer" }))],
+  meta: {
+    // 右の段の間だけ持ち替える絵（シートの接尾辞と、持つ手。main = 主の手。砲は後ろの手で抱える）
+    stepArt: { rammerThrust: { sheet: "rammer", hand: "main" }, rammerThrust2: { sheet: "rammer", hand: "main" } },
+    offGrip: OFF_GRIP,
+    stance: { grip: "two", body: "heavy", restDeg: 0, restHand: [8, 4], swayDeg: 1, recoil: 1.8, parry: { hand: [2, 6], deg: -25, grip: -6, contact: 15 } },
+  },
 };

@@ -105,7 +105,9 @@ describe("流儀ごとの源", () => {
   it("剣士: 応手と終撃で湧く。見習いは湧かない", () => {
     const state = jobArena("swordsman");
     expect(gained(state, () => noteRiposte(state, "justDodge")), "応手").toBeCloseTo(MANA_SOURCE.swordsman.riposte);
-    expect(gained(state, () => noteFinisherMana(state, "ranged")), "終撃").toBeCloseTo(MANA_SOURCE.swordsman.finisher);
+    expect(gained(state, () => noteFinisherMana(state, "melee")), "終撃").toBeCloseTo(MANA_SOURCE.swordsman.finisher);
+    // 遠距離の攻撃は資源を戻さない（docs/ideas/gun-bases-review.md 0-2）: 長銃の満ちた 1 発などの弾の終撃では湧かない
+    expect(gained(state, () => noteFinisherMana(state, "ranged")), "弾の終撃").toBe(0);
     const plain = jobArena("none");
     expect(gained(plain, () => noteRiposte(plain, "justDodge")), "見習いの応手").toBe(0);
   });
@@ -119,14 +121,31 @@ describe("流儀ごとの源", () => {
     expect(got, "応手の分が乗る").toBeGreaterThanOrEqual(MANA_SOURCE.swordsman.riposte);
   });
 
-  it("狩人: 遠い射撃の命中ほど多く湧き、近い命中では湧かない", () => {
+  it("狩人: ダッシュ攻撃の命中で湧き、遠い弾の命中・普通の振りの命中では湧かない", () => {
     const state = jobArena("hunter");
     const far = passive(placeEnemy(state, "golem", FAR));
-    const near = passive(placeEnemy(state, "golem", NEAR));
-    const src = MANA_SOURCE.hunter;
-    const meters = (FAR - src.minDistance) / 10;
-    expect(gained(state, () => damageEnemy(state, far, HIT, { x: 1, y: 0 }, 0, { kind: "ranged" })), "遠い命中").toBeCloseTo(src.perMeter * meters);
-    expect(gained(state, () => damageEnemy(state, near, HIT, { x: 1, y: 0 }, 0, { kind: "ranged" })), "近い命中").toBe(0);
+    expect(gained(state, () => noteMeleeHitMana(state, false, true)), "ダッシュ攻撃の命中").toBeCloseTo(MANA_SOURCE.hunter.dashHit);
+    expect(gained(state, () => noteMeleeHitMana(state, false, false)), "普通の振りの命中").toBe(0);
+    expect(gained(state, () => damageEnemy(state, far, HIT, { x: 1, y: 0 }, 0, { kind: "ranged" })), "遠い弾の命中").toBe(0);
+  });
+
+  it("狩人の気力はダッシュ攻撃の命中で戻る（弩のダッシュ中の左 → 終わりの反転撃ち）", () => {
+    const state = jobArena("hunter");
+    state.stats = { ...state.stats, moveset: "longarm" };
+    const p = state.player;
+    press(state, { dashPressed: true, move: { x: 1, y: 0 } });
+    press(state, { attackPressed: true });
+    expect(p.dashAttackQueued, "ダッシュ中の左はダッシュ攻撃の予約").toBe(true);
+    for (let i = 0; i < MAX_DASH_STEPS && isDashing(p); i++) press(state, {});
+    // ダッシュを終えた位置の正面に的を置く（ダッシュの距離に依らない）
+    const e = toughEnemy(state);
+    e.body.pos = { x: p.body.pos.x + p.facing.x * NEAR, y: p.body.pos.y + p.facing.y * NEAR };
+    const got = gained(state, () => {
+      for (let i = 0; i < SWING_STEPS && !p.attack.hitIds.has(e.id); i++) press(state, {});
+    });
+    expect(p.dashStrike, "ダッシュ攻撃の振り").toBe(true);
+    expect(p.attack.hitIds.has(e.id), "ダッシュ攻撃が当たった").toBe(true);
+    expect(got, "ダッシュ攻撃の命中の源").toBeGreaterThanOrEqual(MANA_SOURCE.hunter.dashHit);
   });
 
   it("拳闘士: 近接の命中でコンボ数に比例し、上限で頭打ち", () => {

@@ -36,6 +36,9 @@ const BEYOND_BLADE: Partial<Record<MovesetKey, readonly string[]>> = {
   flail: ["r:3", "branch:dragCrush"],
   wand: ["branch:vortex"],
   katana: ["r:0.charge"],
+  // クナイは逆手に持つので、手に持つ絵の刃は武器の向き（+x）に直交して下がり、+x の幅では刃先を測れない。
+  // 振りの絵と届く距離は技の配線（段 6）が固まってから段 7-B で合わせて見直す
+  kunai: ["*"],
 };
 
 interface LabeledStep {

@@ -30,6 +30,8 @@ import fx_handbell from "./fx/handbell.gen.json";
 import fx_handbellUlt from "./fx/handbellUlt.gen.json";
 import fx_katana from "./fx/katana.gen.json";
 import fx_katanaUlt from "./fx/katanaUlt.gen.json";
+import fx_kunai from "./fx/kunai.gen.json";
+import fx_kunaiUlt from "./fx/kunaiUlt.gen.json";
 import fx_longarm from "./fx/longarm.gen.json";
 import fx_longarmUlt from "./fx/longarmUlt.gen.json";
 import fx_ringBlades from "./fx/ringBlades.gen.json";
@@ -38,6 +40,8 @@ import fx_scythe from "./fx/scythe.gen.json";
 import fx_scytheUlt from "./fx/scytheUlt.gen.json";
 import fx_shield from "./fx/shield.gen.json";
 import fx_shieldUlt from "./fx/shieldUlt.gen.json";
+import fx_shuriken from "./fx/shuriken.gen.json";
+import fx_shurikenUlt from "./fx/shurikenUlt.gen.json";
 import fx_sidearm from "./fx/sidearm.gen.json";
 import fx_sidearmUlt from "./fx/sidearmUlt.gen.json";
 import fx_skillArt from "./fx/skillArt.gen.json";
@@ -57,16 +61,12 @@ import fx_staff from "./fx/staff.gen.json";
 import fx_staffUlt from "./fx/staffUlt.gen.json";
 import fx_sword from "./fx/sword.gen.json";
 import fx_swordUlt from "./fx/swordUlt.gen.json";
-import fx_thrown from "./fx/thrown.gen.json";
-import fx_thrownUlt from "./fx/thrownUlt.gen.json";
 import fx_trapper from "./fx/trapper.gen.json";
 import fx_trapperUlt from "./fx/trapperUlt.gen.json";
 import fx_twinBlades from "./fx/twinBlades.gen.json";
 import fx_twinBladesUlt from "./fx/twinBladesUlt.gen.json";
 import fx_wand from "./fx/wand.gen.json";
 import fx_wandUlt from "./fx/wandUlt.gen.json";
-import fx_warRing from "./fx/warRing.gen.json";
-import fx_warRingUlt from "./fx/warRingUlt.gen.json";
 import fx_whip from "./fx/whip.gen.json";
 import fx_whipUlt from "./fx/whipUlt.gen.json";
 
@@ -102,6 +102,8 @@ export const FX_ATLASES = {
   handbellUlt: { url: "assets/fx/handbellUlt.png", width: fx_handbellUlt.width, height: fx_handbellUlt.height },
   katana: { url: "assets/fx/katana.png", width: fx_katana.width, height: fx_katana.height },
   katanaUlt: { url: "assets/fx/katanaUlt.png", width: fx_katanaUlt.width, height: fx_katanaUlt.height },
+  kunai: { url: "assets/fx/kunai.png", width: fx_kunai.width, height: fx_kunai.height },
+  kunaiUlt: { url: "assets/fx/kunaiUlt.png", width: fx_kunaiUlt.width, height: fx_kunaiUlt.height },
   longarm: { url: "assets/fx/longarm.png", width: fx_longarm.width, height: fx_longarm.height },
   longarmUlt: { url: "assets/fx/longarmUlt.png", width: fx_longarmUlt.width, height: fx_longarmUlt.height },
   ringBlades: { url: "assets/fx/ringBlades.png", width: fx_ringBlades.width, height: fx_ringBlades.height },
@@ -110,6 +112,8 @@ export const FX_ATLASES = {
   scytheUlt: { url: "assets/fx/scytheUlt.png", width: fx_scytheUlt.width, height: fx_scytheUlt.height },
   shield: { url: "assets/fx/shield.png", width: fx_shield.width, height: fx_shield.height },
   shieldUlt: { url: "assets/fx/shieldUlt.png", width: fx_shieldUlt.width, height: fx_shieldUlt.height },
+  shuriken: { url: "assets/fx/shuriken.png", width: fx_shuriken.width, height: fx_shuriken.height },
+  shurikenUlt: { url: "assets/fx/shurikenUlt.png", width: fx_shurikenUlt.width, height: fx_shurikenUlt.height },
   sidearm: { url: "assets/fx/sidearm.png", width: fx_sidearm.width, height: fx_sidearm.height },
   sidearmUlt: { url: "assets/fx/sidearmUlt.png", width: fx_sidearmUlt.width, height: fx_sidearmUlt.height },
   skillArt: { url: "assets/fx/skillArt.png", width: fx_skillArt.width, height: fx_skillArt.height },
@@ -129,16 +133,12 @@ export const FX_ATLASES = {
   staffUlt: { url: "assets/fx/staffUlt.png", width: fx_staffUlt.width, height: fx_staffUlt.height },
   sword: { url: "assets/fx/sword.png", width: fx_sword.width, height: fx_sword.height },
   swordUlt: { url: "assets/fx/swordUlt.png", width: fx_swordUlt.width, height: fx_swordUlt.height },
-  thrown: { url: "assets/fx/thrown.png", width: fx_thrown.width, height: fx_thrown.height },
-  thrownUlt: { url: "assets/fx/thrownUlt.png", width: fx_thrownUlt.width, height: fx_thrownUlt.height },
   trapper: { url: "assets/fx/trapper.png", width: fx_trapper.width, height: fx_trapper.height },
   trapperUlt: { url: "assets/fx/trapperUlt.png", width: fx_trapperUlt.width, height: fx_trapperUlt.height },
   twinBlades: { url: "assets/fx/twinBlades.png", width: fx_twinBlades.width, height: fx_twinBlades.height },
   twinBladesUlt: { url: "assets/fx/twinBladesUlt.png", width: fx_twinBladesUlt.width, height: fx_twinBladesUlt.height },
   wand: { url: "assets/fx/wand.png", width: fx_wand.width, height: fx_wand.height },
   wandUlt: { url: "assets/fx/wandUlt.png", width: fx_wandUlt.width, height: fx_wandUlt.height },
-  warRing: { url: "assets/fx/warRing.png", width: fx_warRing.width, height: fx_warRing.height },
-  warRingUlt: { url: "assets/fx/warRingUlt.png", width: fx_warRingUlt.width, height: fx_warRingUlt.height },
   whip: { url: "assets/fx/whip.png", width: fx_whip.width, height: fx_whip.height },
   whipUlt: { url: "assets/fx/whipUlt.png", width: fx_whipUlt.width, height: fx_whipUlt.height },
 } as const;
@@ -191,6 +191,8 @@ export const FX_SHEETS = {
   ...fx_handbellUlt.sheets,
   ...fx_katana.sheets,
   ...fx_katanaUlt.sheets,
+  ...fx_kunai.sheets,
+  ...fx_kunaiUlt.sheets,
   ...fx_longarm.sheets,
   ...fx_longarmUlt.sheets,
   ...fx_ringBlades.sheets,
@@ -199,6 +201,8 @@ export const FX_SHEETS = {
   ...fx_scytheUlt.sheets,
   ...fx_shield.sheets,
   ...fx_shieldUlt.sheets,
+  ...fx_shuriken.sheets,
+  ...fx_shurikenUlt.sheets,
   ...fx_sidearm.sheets,
   ...fx_sidearmUlt.sheets,
   ...fx_skillArt.sheets,
@@ -218,16 +222,12 @@ export const FX_SHEETS = {
   ...fx_staffUlt.sheets,
   ...fx_sword.sheets,
   ...fx_swordUlt.sheets,
-  ...fx_thrown.sheets,
-  ...fx_thrownUlt.sheets,
   ...fx_trapper.sheets,
   ...fx_trapperUlt.sheets,
   ...fx_twinBlades.sheets,
   ...fx_twinBladesUlt.sheets,
   ...fx_wand.sheets,
   ...fx_wandUlt.sheets,
-  ...fx_warRing.sheets,
-  ...fx_warRingUlt.sheets,
   ...fx_whip.sheets,
   ...fx_whipUlt.sheets,
 } satisfies Record<string, FxSheetDef>;
@@ -235,4 +235,4 @@ export const FX_SHEETS = {
 export type FxSheetKey = keyof typeof FX_SHEETS;
 
 /** アトラスごとの武器種のモーションの表（検査と型付けは render/fxMotions.ts） */
-export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_book.fx, fx_bookUlt.fx, fx_cannon.fx, fx_cannonUlt.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fanUlt.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_greatswordUlt.fx, fx_grenade.fx, fx_grenadeUlt.fx, fx_gunner.fx, fx_gunnerUlt.fx, fx_hammer.fx, fx_hammerUlt.fx, fx_handbell.fx, fx_handbellUlt.fx, fx_katana.fx, fx_katanaUlt.fx, fx_longarm.fx, fx_longarmUlt.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_sidearm.fx, fx_sidearmUlt.fx, fx_skillArt.fx, fx_skillArtA.fx, fx_skillArtB.fx, fx_skillArtC.fx, fx_skillArtD.fx, fx_skillBase.fx, fx_skillExtraA.fx, fx_skillExtraB.fx, fx_skillForm.fx, fx_skillPlaced.fx, fx_skillWave2.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_thrown.fx, fx_thrownUlt.fx, fx_trapper.fx, fx_trapperUlt.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_warRing.fx, fx_warRingUlt.fx, fx_whip.fx, fx_whipUlt.fx] as const;
+export const FX_MOVESET_RAW = [fx_axe.fx, fx_axeUlt.fx, fx_book.fx, fx_bookUlt.fx, fx_cannon.fx, fx_cannonUlt.fx, fx_chainSickle.fx, fx_chainSickleUlt.fx, fx_claws.fx, fx_clawsUlt.fx, fx_cleaver.fx, fx_cleaverUlt.fx, fx_fan.fx, fx_fanUlt.fx, fx_fists.fx, fx_fistsUlt.fx, fx_flail.fx, fx_flailUlt.fx, fx_greatsword.fx, fx_greatswordUlt.fx, fx_grenade.fx, fx_grenadeUlt.fx, fx_gunner.fx, fx_gunnerUlt.fx, fx_hammer.fx, fx_hammerUlt.fx, fx_handbell.fx, fx_handbellUlt.fx, fx_katana.fx, fx_katanaUlt.fx, fx_kunai.fx, fx_kunaiUlt.fx, fx_longarm.fx, fx_longarmUlt.fx, fx_ringBlades.fx, fx_ringBladesUlt.fx, fx_scythe.fx, fx_scytheUlt.fx, fx_shield.fx, fx_shieldUlt.fx, fx_shuriken.fx, fx_shurikenUlt.fx, fx_sidearm.fx, fx_sidearmUlt.fx, fx_skillArt.fx, fx_skillArtA.fx, fx_skillArtB.fx, fx_skillArtC.fx, fx_skillArtD.fx, fx_skillBase.fx, fx_skillExtraA.fx, fx_skillExtraB.fx, fx_skillForm.fx, fx_skillPlaced.fx, fx_skillWave2.fx, fx_spear.fx, fx_spearUlt.fx, fx_staff.fx, fx_staffUlt.fx, fx_sword.fx, fx_swordUlt.fx, fx_trapper.fx, fx_trapperUlt.fx, fx_twinBlades.fx, fx_twinBladesUlt.fx, fx_wand.fx, fx_wandUlt.fx, fx_whip.fx, fx_whipUlt.fx] as const;

@@ -1,7 +1,7 @@
 // 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
 // クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
 // manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ。
-// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）
+// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）。&cols=seq で途中のコマ・&cols=lr で左右の見比べ、&zoom=2 で拡大
 // dojo は &enemy=<敵の key>&count=<数>&behavior=<動き>&frames=<ステップ数>&stand=<台の key> で稽古の間（手前の敵へ寄って殴り続ける）、dojo-board は稽古帳
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
@@ -29,7 +29,7 @@ import { stepManualDemo } from "../system/manualDemo";
 import { createManualDemo } from "../system/manualDemo";
 import { fxState } from "../system/effects";
 import { createManualUi, stepManualUi, syncManualDemo } from "../ui/weaponManual";
-import { MOVESET_KEYS, type MovesetKey } from "../data/weapons";
+import { MOVESET_KEYS, type MovesetKey, WEAPON_GROUPS } from "../data/weapons";
 import { FX_ATTACK, PARRY } from "../data/tuning";
 import { isJobKey } from "../data/jobs";
 import { drawWeaponManual } from "../render/weaponManualUi";
@@ -44,6 +44,8 @@ import { createDojoBoardUi, dojoBoardRowGap } from "../ui/dojoBoard";
 import { DOJO_SPOT_KEYS } from "../map/dojoMap";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { SHEETS, TILE_SPRITES } from "../data/tiles";
+import { drawRackScreen } from "../render/rackUi";
+import { createRackUi, openRackFamily, openRackGroup, rackCards, rackTitle } from "../ui/rackScreen";
 import { TILE_SIZE } from "../map/grid";
 import { drawDojoBoard, drawDojoOverlay, drawDojoProps } from "../render/dojoUi";
 
@@ -142,6 +144,22 @@ const PARRY_COLUMNS: readonly ParryColumn[] = [
   { label: "miss", recover: PARRY.recoverSec * 0.6 },
   { label: "left", window: PARRY.windowSec * 0.4, left: true },
 ];
+/** &cols=seq で並べる途中のコマ（構えを上げる途中・決まった後の戻り・外した崩れ） */
+const PARRY_SEQ_COLUMNS: readonly ParryColumn[] = [
+  { label: "r.01", window: PARRY.windowSec - 0.01 },
+  { label: "r.03", window: PARRY.windowSec - 0.03 },
+  { label: "h.15", impactAge: 0.15 },
+  { label: "h.22", impactAge: 0.22 },
+  { label: "h.27", impactAge: 0.27 },
+  { label: "m.7", recover: PARRY.recoverSec * 0.3 },
+  { label: "m.85", recover: PARRY.recoverSec * 0.15 },
+];
+/** &cols=lr で並べる右向き・左向きの受けの構え（拡大して左右の前後を見比べる） */
+const PARRY_LR_COLUMNS: readonly ParryColumn[] = [
+  { label: "guard", window: PARRY.windowSec * 0.4 },
+  { label: "left", window: PARRY.windowSec * 0.4, left: true },
+  { label: "l.r03", window: PARRY.windowSec - 0.03, left: true },
+];
 const PARRY_CELL = 66;
 const PARRY_ZOOM = 2;
 const PARRY_DEFAULT_ROWS = 4;
@@ -153,6 +171,9 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
   const list = (q.get("weapons") ?? MOVESET_KEYS.slice(0, PARRY_DEFAULT_ROWS).join(",")).split(",");
   const keys = list.filter((k): k is MovesetKey => (MOVESET_KEYS as readonly string[]).includes(k));
   const job = q.get("job") ?? "none";
+  // &zoom=2 で 2 倍に拡大（マスも 2 倍。7 列に収まらない分は切れる）
+  const scale = Number(q.get("zoom") ?? 1);
+  const cell = PARRY_CELL * scale;
   const ctx = renderer.context;
   renderer.beginFrame();
   ctx.fillStyle = "#000";
@@ -163,7 +184,9 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
     if (isJobKey(job)) state.job = job;
     state.enemies = [];
     for (let i = 0; i < MANUAL_SETTLE_FRAMES && !renderer.playerArtReady(state); i++) await nextFrame();
-    for (const [col, c] of PARRY_COLUMNS.entries()) {
+    const cols = q.get("cols");
+    const columns = cols === "seq" ? PARRY_SEQ_COLUMNS : cols === "lr" ? PARRY_LR_COLUMNS : PARRY_COLUMNS;
+    for (const [col, c] of columns.entries()) {
       const p = state.player;
       p.parry.window = c.window ?? 0;
       p.parry.recover = c.recover ?? 0;
@@ -171,12 +194,12 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
       const fx = fxState(state);
       fx.marks = fx.marks.filter((m) => m.kind !== "parry");
       if (c.impactAge !== undefined) fx.marks.push({ kind: "parry", pos: { ...p.body.pos }, age: c.impactAge, life: FX_ATTACK.sprite.parryLife, color: "#fff", value: 0 });
-      const rect = { x: col * PARRY_CELL, y: row * PARRY_CELL, w: PARRY_CELL - 1, h: PARRY_CELL - 1 };
-      renderer.renderDemo(state, rect, { x: p.body.pos.x, y: p.body.pos.y - PARRY_CENTER_LIFT }, PARRY_ZOOM);
+      const rect = { x: col * cell, y: row * cell, w: cell - 1, h: cell - 1 };
+      renderer.renderDemo(state, rect, { x: p.body.pos.x, y: p.body.pos.y - PARRY_CENTER_LIFT }, PARRY_ZOOM * scale);
       renderer.beginFrame();
       drawText(ctx, row === 0 ? `${c.label}` : "", rect.x + 2, rect.y + 2, TEXT.SMALL, "#fff");
     }
-    drawText(ctx, key, 7 * PARRY_CELL + 2, row * PARRY_CELL + 2, TEXT.SMALL, "#fff");
+    drawText(ctx, key, 7 * cell + 2, row * cell + 2, TEXT.SMALL, "#fff");
   }
 }
 
@@ -219,7 +242,7 @@ async function shootDojo(renderer: Renderer, q: URLSearchParams, board: boolean)
   }
   // 台の絵は PNG の素材（部屋の台座）なので、ゲームと同じく読み込んでから描く
   renderer.setAtlas(await loadImageAtlas(TILE_SPRITES, SHEETS));
-  const session = createDojo({ profile: createEmptyProfile(), skillProfile: createDefaultSkillProfile(), hitstopScale: 1, config, trialMoveset: null, trialKeystone: null });
+  const session = createDojo({ profile: createEmptyProfile(), skillProfile: createDefaultSkillProfile(), hitstopScale: 1, config, trialMoveset: null, trialBase: null, trialKeystone: null });
   const frames = Number(q.get("frames") ?? DOJO_DEFAULT_FRAMES);
   for (let i = 0; i < frames; i++) stepDojo(session, dojoBotInput(session.state, i), FIXED_DT);
   // stand=<台の key> で、その台の前（東へ 1 マス）に立たせて近い台の案内を見る
@@ -242,6 +265,29 @@ async function shootDojo(renderer: Renderer, q: URLSearchParams, board: boolean)
   }
 }
 
+/** 武器掛けの絵（武器種の手に持つ絵）が読み込まれるのを待つコマ数 */
+const RACK_SETTLE_FRAMES = 60;
+
+/** 武器掛けの画面（group=<群> で武器種の段、family=<武器種> で器の段、moveset=<武器種> で試用中の武器種（family があれば既定）、trial=<器の key> で試用中の器、cursor=<添字>） */
+async function shootRack(renderer: Renderer, q: URLSearchParams): Promise<void> {
+  const ui = createRackUi();
+  const group = WEAPON_GROUPS.find((g) => g === q.get("group"));
+  if (group !== undefined) openRackGroup(ui, group);
+  const family = MOVESET_KEYS.find((k) => k === q.get("family"));
+  if (family !== undefined) openRackFamily(ui, family);
+  const cursor = q.get("cursor");
+  if (cursor !== null) ui.cursor = Number(cursor);
+  const trialBase = q.get("trial");
+  const trialMoveset = MOVESET_KEYS.find((k) => k === q.get("moveset")) ?? family ?? null;
+  const cards = rackCards({ moveset: trialMoveset, base: trialBase }, ui.group, ui.family);
+  const resources = { hp: 1, mana: 1, energy: 0.5 };
+  for (let i = 0; i < RACK_SETTLE_FRAMES; i++) {
+    renderer.beginFrame();
+    drawRackScreen(renderer.context, { title: rackTitle(ui), hint: "", ui, cards, resources, equipped: "sword", borrowHold: 0, lookup: (key) => renderer.atlasSprite(key) });
+    await nextFrame();
+  }
+}
+
 async function main(): Promise<void> {
   const q = new URLSearchParams(window.location.search);
   const scene = q.get("scene") ?? "attire";
@@ -251,6 +297,11 @@ async function main(): Promise<void> {
   await document.fonts.load('16px "DotGothic16"');
   if (scene === "parry") {
     await shootParry(renderer, q);
+    window.__menuShotReady = true;
+    return;
+  }
+  if (scene === "rack") {
+    await shootRack(renderer, q);
     window.__menuShotReady = true;
     return;
   }

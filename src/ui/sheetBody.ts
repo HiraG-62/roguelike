@@ -4,7 +4,7 @@ import { formatMeters } from "../core/units";
 import { JOBS } from "../data/jobs";
 import { PLAYER } from "../data/tuning";
 import { ULTIMATES, type UltimateDef, type UltimateKind } from "../data/ultimates";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, shootsPrimary } from "../data/weapons";
 import { chooseUltimate, saveProfile, ultimateChoice } from "../loot/profile";
 import { computeStats } from "../loot/stats";
 import { ATTR_KEYS, LOOT_SLOTS, type AttrKey, type PlayerStats, createEmptyEquipment } from "../loot/types";
@@ -199,9 +199,9 @@ export interface ModifierSection {
   rows: FormulaChunk[][];
 }
 
-/** 今の右手の攻撃（銃は射撃、ほかは近接）に掛かる増と倍。基礎の値の後に掛かるので計算式には含まれない */
+/** 今の右手の攻撃（左で撃つ武器種は射撃、ほかは近接）に掛かる増と倍。基礎の値の後に掛かるので計算式には含まれない */
 export function bodyModifierSection(state: Readonly<GameState>): ModifierSection {
-  const attack: AttackTag = isGun(MOVESETS[state.stats.moveset]) ? "ranged" : "melee";
+  const attack: AttackTag = shootsPrimary(MOVESETS[state.stats.moveset]) ? "ranged" : "melee";
   return { attack, head: ATTACK_HEAD[attack], rows: modifierRows(state.stats, attack) };
 }
 

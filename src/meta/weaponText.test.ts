@@ -37,7 +37,8 @@ describe("武器の型の文", () => {
       const form = formOf(m);
       const body = formText(m);
       expect(body, `${key} の型`).toContain(`型は${form.name}`);
-      expect(body, `${key} の戦意`).toContain(`戦意「${m.moraleLabel ?? form.morale.label}」`);
+      // 骨の型（溜まる出来事を持たない。段 3 まで短銃）は戦意を書かない
+      if (form.morale.gain.length > 0) expect(body, `${key} の戦意`).toContain(`戦意「${m.moraleLabel ?? form.morale.label}」`);
       expect(body, `${key} の応手`).toContain("応手は");
     }
   });

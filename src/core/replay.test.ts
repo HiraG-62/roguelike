@@ -191,6 +191,8 @@ describe("encodeInputs / decodeInputs", () => {
       interactPressed: true,
       parryPressed: true,
       flaskPressed: true,
+      reloadPressed: true,
+      reloadHeld: true,
       wheel: -3,
     });
     expect(decodeInputs(encodeInputs([all]))).toEqual([all]);
@@ -222,6 +224,21 @@ describe("encodeInputs / decodeInputs", () => {
     expect(decoded[0]?.parryPressed, "parryPressed が立った").toBe(false);
     expect(decoded[0]?.interactPressed, "interactPressed が立った").toBe(false);
     expect(decoded[1]?.flaskPressed, "押していないフレームは false").toBe(false);
+  });
+
+  it("リロードのビットは他のボタンと混ざらず、押していないフレームでは 0 のまま（REPLAY_VERSION 44）", () => {
+    const pressed = withInput({ reloadPressed: true });
+    const held = withInput({ reloadHeld: true });
+    const decoded = decodeInputs(encodeInputs([pressed, held, withInput({})]));
+    expect(decoded[0]?.reloadPressed, "reloadPressed が落ちた").toBe(true);
+    expect(decoded[0]?.reloadHeld, "reloadHeld が立った").toBe(false);
+    expect(decoded[0]?.flaskPressed, "flaskPressed が立った").toBe(false);
+    expect(decoded[0]?.attackPressed, "attackPressed が立った").toBe(false);
+    expect(decoded[1]?.reloadHeld, "reloadHeld が落ちた").toBe(true);
+    expect(decoded[1]?.reloadPressed, "reloadPressed が立った").toBe(false);
+    expect(decoded[1]?.shootHeld, "shootHeld が立った").toBe(false);
+    expect(decoded[2]?.reloadPressed || decoded[2]?.reloadHeld, "押していないフレームは false").toBe(false);
+    expect(REPLAY_VERSION, "リロードの入力を足した版").toBeGreaterThanOrEqual(44);
   });
 
   it("壊れた文字列は例外", () => {

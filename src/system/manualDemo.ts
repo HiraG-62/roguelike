@@ -5,7 +5,7 @@ import { type Vec, add, normalize, scale, sub } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { enemyDef } from "../data/enemies";
 import { MANUAL } from "../data/tuning";
-import { type ButtonKey, type MovesetKey, isGun } from "../data/weapons";
+import { type ButtonKey, type MovesetKey, shootsPrimary } from "../data/weapons";
 import { chooseUltimate } from "../loot/profile";
 import { createEmptyProfile } from "../loot/types";
 import { type DemoArena, buildDemoArena } from "../map/demoArena";
@@ -13,8 +13,10 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { updateCamera } from "./camera";
 import { createEnemy } from "./enemies";
 import { borrowWeapon } from "./hub";
-import { currentForm, isReloading, moraleMax } from "./morale";
+import { type HandIndex, isMagazineBusy, magazineView, startReload } from "./magazine";
+import { currentForm, moraleMax } from "./morale";
 import { isDashing, latchFrozenInput, playerMoveset } from "./player";
+import { ringsInFlight } from "./projectiles";
 import { createSandboxState, simulateSandbox } from "./sandbox";
 import { DUMMY_KEY } from "./specialRooms";
 
@@ -27,9 +29,9 @@ import { DUMMY_KEY } from "./specialRooms";
 
 /** 入力の後に待つ条件（台本の waitUntil / holdUntil） */
 export type DemoCondition =
-  /** 撃ち切って装填中（短銃の戦意） */
+  /** 銃の弾倉を込めている最中（system/magazine.ts） */
   | "reloading"
-  /** 装填の拍（強装填を押せる窓）に入った */
+  /** 込めの進みが早込めの窓に入った（短銃） */
   | "reloadPrime"
   /** 振り・溜め・構え・持続の奥義がすべて終わった */
   | "idle"
@@ -42,6 +44,8 @@ export type DemoCue =
   | { readonly kind: "tap"; readonly button: ButtonKey; readonly hidden?: boolean }
   /** sec 秒押し続けて離す（溜め・構え・射撃） */
   | { readonly kind: "hold"; readonly button: ButtonKey; readonly sec: number; readonly hidden?: boolean }
+  /** 左右を同じステップで押して離す（二丁拳銃の撃ち尽くし） */
+  | { readonly kind: "both" }
   /** 条件を満たすまで押し続けて離す */
   | { readonly kind: "holdUntil"; readonly button: ButtonKey; readonly until: DemoCondition; readonly maxSec: number }
   /** 木人の方へダッシュ */
@@ -59,6 +63,8 @@ export interface DemoSetup {
   readonly ultimate?: string;
   /** 木人までの距離（px。省略は MANUAL.foeDistance） */
   readonly foeDistance?: number;
+  /** この手の弾倉を空にして込め始めておく（二丁拳銃の弾切れの手の銃把打ち） */
+  readonly emptyHand?: HandIndex;
 }
 
 export interface DemoScript {
@@ -124,6 +130,11 @@ function buildDemoState(moveset: MovesetKey, script: DemoScript, arena: DemoAren
   p.facing = { x: 1, y: 0 };
   if (ult !== undefined) p.energy = p.maxEnergy;
   if (script.setup.moraleFull === true && !currentForm(state).morale.derived) p.morale.value = moraleMax(state);
+  const empty = script.setup.emptyHand;
+  if (empty !== undefined) {
+    p.magazine.hands[empty].rounds = 0;
+    startReload(state, empty);
+  }
   return state;
 }
 
@@ -289,6 +300,8 @@ function cueInput(session: DemoSession, cue: DemoCue, prev: DemoCue | undefined,
       return pressInput(session, cue.button, prev, base, dt, () => false);
     case "hold":
       return pressInput(session, cue.button, prev, base, dt, () => d.held < cue.sec);
+    case "both":
+      return pressBothInput(session, prev, base);
     case "holdUntil":
       return pressInput(session, cue.button, prev, base, dt, () => !conditionMet(state, cue.until) && d.held < cue.maxSec);
   }
@@ -312,6 +325,19 @@ function pressInput(session: DemoSession, button: ButtonKey, prev: DemoCue | und
     if (keep()) return withButton(base, button, false);
     d.stage = 2;
     return base;
+  }
+  advance(d);
+  return base;
+}
+
+/** 左右を同じステップで押す手（両方を押せるまで待ち → 押す → 1 ステップ離してから次の手へ） */
+function pressBothInput(session: DemoSession, prev: DemoCue | undefined, base: FrameInput): FrameInput {
+  const { state, driver: d } = session;
+  if (d.stage === 0) {
+    const ready = (readyForPress(state, prev, "primary") && readyForPress(state, prev, "secondary")) || d.timer >= MANUAL.readyTimeoutSec;
+    if (!ready) return base;
+    d.stage = 2;
+    return { ...base, attackPressed: true, attackHeld: true, shootHeld: true };
   }
   advance(d);
   return base;
@@ -343,10 +369,12 @@ export function readyForPress(state: GameState, prev: DemoCue | undefined, butto
   if (state.hitstop > 0) return false;
   if (isDashing(p)) return prev?.kind === "dash";
   if (a.charging || a.buffered) return false;
+  // 投げた輪が戻るまでは何を押しても出ない（戦輪）ので、戻ってから押す
+  if (ringsInFlight(state)) return false;
   if (a.pendingBranch >= 0 && a.phase !== "none") return false;
   if (p.art.cooldown > 0 || p.art.recover > 0 || p.parry.recover > 0) return false;
-  // 銃の家系の左（射撃）は振りの最中に押しても派生の列に入らないので、振り終えてから押す
-  if (button === "primary" && isGun(playerMoveset(state))) return a.phase === "none";
+  // 左で撃つ武器種の左（射撃）は振りの最中に押しても派生の列に入らないので、振り終えてから押す
+  if (button === "primary" && shootsPrimary(playerMoveset(state))) return a.phase === "none";
   return a.phase === "none" || a.phase === "recover";
 }
 
@@ -354,7 +382,7 @@ function conditionMet(state: GameState, cond: DemoCondition): boolean {
   const p = state.player;
   switch (cond) {
     case "reloading":
-      return isReloading(state);
+      return isMagazineBusy(state);
     case "reloadPrime":
       return reloadPrimeOpen(state);
     case "idle":
@@ -364,12 +392,12 @@ function conditionMet(state: GameState, cond: DemoCondition): boolean {
   }
 }
 
-/** 装填の窓のうち、強装填を押せる拍（FORM.pistol.reload の primeFrom〜primeTo）に入ったか */
+/** 込めの進みが早込めの窓（movesets/sidearm.json の quickReload）に入ったか */
 function reloadPrimeOpen(state: GameState): boolean {
-  const release = currentForm(state).morale.release;
-  if (release.kind !== "reload" || !isReloading(state)) return false;
-  const elapsed = release.windowSec - state.player.morale.window;
-  return elapsed >= release.primeFrom && elapsed <= release.primeTo;
+  const view = magazineView(state);
+  const hand = view.hands[0];
+  if (!view.quickWindow || !hand?.busy) return false;
+  return hand.progress >= view.quickWindow.from && hand.progress <= view.quickWindow.to;
 }
 
 // ---------------------------------------------------------------------------

@@ -106,6 +106,7 @@ const ACTION_LABEL: Record<RebindableAction, string> = {
   shoot: "攻撃 2（右）",
   special: "奥義",
   parry: "受け流し",
+  reload: "リロード",
   inventory: "装備画面",
   skill1: "スキル 1",
   skill2: "スキル 2",
@@ -642,7 +643,7 @@ function isPadAction(action: RebindableAction): action is PadAction {
 export function keybindsRowGap(): number {
   return Math.max(KEYBINDS_MIN_ROW_GAP, textLineHeight(TEXT.SMALL));
 }
-const KEYBINDS_MIN_ROW_GAP = 12;
+const KEYBINDS_MIN_ROW_GAP = 11;
 
 function drawKeybindCells(
   ctx: CanvasRenderingContext2D,

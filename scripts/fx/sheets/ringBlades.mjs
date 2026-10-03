@@ -1,10 +1,11 @@
-// チャクラム（moveset "ringBlades"）のエフェクト。docs/ideas/fx-sprites.md。手本は sword.mjs
+// 戦輪（moveset "ringBlades"。チャクラムを統合）のエフェクト。docs/ideas/fx-sprites.md。手本は sword.mjs
 // 単位は絵のドット（論理 0.5px）。当たり判定の数値（src/data/balance/weapons/WEAPON/movesets/ringBlades.json）× 2 が目安
+// 左は輪を投げる（弾の絵 = 下の「弾」の節）。右は輪払い（近接）→ 近投げ → 輪払い（回り）→ 強化投げ。近投げ・強化投げは弾の絵
 //
 // 剣と見分けるための決まり: 斬線は「細い帯 + 外周の刃の刻み（のこぎりの歯）」で描き、三日月の面にしない。
 // 帯の先頭には回転する小さな輪（歯の付いた円）を置き、円と回転を常に見せる
 import { easeSwing, ring, shards, sparkle, streakLine } from "../shapes.mjs";
-import { clamp01, hash1, paint, valueNoise } from "../raster.mjs";
+import { clamp01, dot, hash1, paint, valueNoise, wrapAngle } from "../raster.mjs";
 import { DEG, DIRS, WIDE_DIRS } from "../motifs.mjs";
 
 const TAU = Math.PI * 2;
@@ -170,15 +171,11 @@ function tangentSparks(frame, age, count, seed, o) {
 }
 
 // -----------------------------------------------------------------------------
-// 弧の斬撃（左 1・2・4 段）: 輪が弧を転がって通った刻みの帯 + 先頭の回転する輪
+// 輪払い（右 1 段）: 輪が弧を転がって通った刻みの帯 + 先頭の回転する輪
 // -----------------------------------------------------------------------------
 
-/** 左 1 段（arc 160° reach 22）: 細い帯と細かい歯 */
-const L0 = { R: 50, T: 7, tooth: 3, pitch: 7, sweep: 160, tilt: 0, frames: 8, active: 4, tailLen: 0.85, wheelR: 8, teeth: 6, sparks: 7, seed: 1101 };
-/** 左 2 段（返し。描画側が上下反転）: 少し外を低く通し、歯を粗く、輪を大きく */
-const L1 = { R: 54, T: 7, tooth: 4, pitch: 10, sweep: 160, tilt: 10, frames: 8, active: 4, tailLen: 0.95, wheelR: 8, teeth: 5, sparks: 8, seed: 1202 };
-/** 左 4 段（arc 220° reach 26・重い）: 太い帯・大きな歯と輪・火花を多く */
-const L3 = { R: 60, T: 10, tooth: 5, pitch: 11, sweep: 220, tilt: 0, frames: 9, active: 4, tailLen: 0.9, wheelR: 10, teeth: 7, sparks: 14, seed: 1303, heavy: true };
+/** 輪払い（arc 160° reach 21.5）: 細い帯と細かい歯 */
+const SWEEP = { R: 50, T: 7, tooth: 3, pitch: 7, sweep: 160, tilt: 0, frames: 8, active: 4, tailLen: 0.85, wheelR: 8, teeth: 6, sparks: 7, seed: 1101 };
 
 function arcRoll(frame, f, spec) {
   const sweep = spec.sweep * DEG;
@@ -252,10 +249,11 @@ function orbit(frame, f, spec) {
   }
 }
 
-/** 左 3 段（circle size 46・2 段）: 1 枚の輪が自分の周りを 1 周強。2 回の当たりに合わせて光る（2 周にすると 1 枚ごとに輪が飛んで見える） */
-const SPIN = { R: 44, T: 6, tooth: 3, pitch: 8, start: -150, laps: 1.25, trail: 220, wheels: 1, wheelR: 8, teeth: 6, frames: 9, active: 5, flashes: [1, 3], sparks: 10, seed: 1404 };
-/** 右: 二輪断ち（circle size 50・2 段）: 向かい合う 2 枚の輪が 1 周。2 枚それぞれの当たりで光る */
-const TWIN = { R: 48, T: 7, tooth: 4, pitch: 9, start: -90, laps: 1, trail: 140, wheels: 2, wheelR: 8, teeth: 5, frames: 9, active: 5, flashes: [1, 3], sparks: 7, seed: 1505 };
+/**
+ * 右 3 段の輪払い（circle size 43・2 段）: 両手の 2 枚の輪が向かい合って自分の周りを 1 周。2 回の当たりに合わせて光る。
+ * ダッシュ（閉じたのこぎりの円）と違い、2 枚の帯は閉じずに尾を引く
+ */
+const SWEEP2 = { R: 42, T: 7, tooth: 4, pitch: 9, start: -90, laps: 1, trail: 140, wheels: 2, wheelR: 8, teeth: 5, frames: 9, active: 5, flashes: [1, 3], sparks: 7, seed: 1505 };
 
 /**
  * ダッシュ攻撃（circle size 48）: 輪が 1 周して閉じた「のこぎりの円」になり、歯が回りながら広がって崩れる。
@@ -349,14 +347,9 @@ function shortArc(frame, f, s) {
   }
 }
 
-/** 右: 輪断ち（box reach 18 / size 26）: 後ろに中心を置いた円弧が、前方の当たりの中心を上から下へ払う */
-function ringCut(frame, f) {
-  shortArc(frame, f, { cx: -30, cy: 0, R: 40, T: 7, a0: -58 * DEG, a1: 58 * DEG, A: 4, N: 8, hx: 10, hy: 0, seed: 1801 });
-}
-
 /**
  * 派生: 重ね輪（box reach 18 / size 26）: 両手の 2 枚の輪が上と下から同時に弧を描き、当たりの中心で重なる（挟み込み）。
- * 1 回の当たりなので時間差は付けず、2 枚が 1 点で合わさる瞬間を光らせる。輪断ち（上から下への 1 本）と形で見分ける
+ * 1 回の当たりなので時間差は付けず、2 枚が 1 点で合わさる瞬間を光らせる。1 枚で払う輪払いと形で見分ける
  */
 function stackedRings(frame, f) {
   const s = { cx: -30, cy: 0, R: 40, T: 6, a0: -75 * DEG, a1: 0, A: 4, N: 8, hx: 10, hy: 0, seed: 1901, wheelR: 7, teeth: 5, hitF: 3 };
@@ -494,6 +487,223 @@ function hit(frame, f, heavy) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 弾: 左で投げる輪（器の輪刃・牙輪）と、右の近投げ・強化投げの輪。
+// 本体は描画側（render/thrownLook.ts）が戦輪の武器の絵を回して重ねるが、武器掛けの器の札にはこの絵だけが出るので、
+// fly にも輪の本体を描く（武器の絵の下に墨の滲みとして収まる大きさ）。尾は輪の後ろ半分の刻みの残像と、外周を回る風の光
+// -----------------------------------------------------------------------------
+
+/**
+ * 牙輪の本体: 中心 (cx, cy)、細い輪（外径 r・太さ rw）から、後ろ（回転の逆）へ反った太い牙が fangs 枚出る。
+ * 牙は根元が太く先へ細り、進む側の縁だけ明るい。輪の内側は抜く。squash で縦に潰す（尽きて倒れる）
+ */
+function fangRing(frame, cx, cy, o) {
+  const { r, rot } = o;
+  const rw = o.rw ?? 2;
+  const n = o.fangs ?? 3;
+  const L = o.fangLen ?? 5;
+  const bw = o.fangW ?? 2.6;
+  const curve = o.curve ?? 1;
+  const bright = o.bright ?? 1;
+  const erosion = o.erosion ?? 0;
+  const seed = o.seed ?? 31;
+  const squash = o.squash ?? 1;
+  const outer = r + L + 1;
+  paint(
+    frame,
+    (x, y) => {
+      const dx = x - cx;
+      const dy = (y - cy) / squash;
+      const d = Math.hypot(dx, dy);
+      if (d > outer || d < r - rw - 0.3) return -1;
+      const a = Math.atan2(dy, dx);
+      const lit = 0.5 + 0.5 * Math.cos(a + 0.9);
+      if (d <= r) {
+        const q = (r - d) / rw;
+        if (!keep(x, y, erosion, 1 - q, seed)) return -1;
+        if (r - d < 1.1 && lit > 0.55 && erosion < 0.5) return clamp01(bright);
+        return clamp01((0.5 + 0.28 * lit) * (1 - 0.35 * q) * bright * (1 - erosion * 0.4));
+      }
+      const t = (d - r) / L;
+      if (t > 1) return -1;
+      for (let k = 0; k < n; k++) {
+        const phi = rot + (k * TAU) / n - curve * Math.pow(t, 1.4);
+        const along = wrapAngle(a - phi) * d;
+        const half = bw * Math.pow(1 - t, 0.9) + 0.35;
+        if (Math.abs(along) > half) continue;
+        if (!keep(x, y, erosion, 1 - t, seed + k)) return -1;
+        if (along > half - 1.1 && t < 0.8 && erosion < 0.5) return clamp01(0.95 * bright);
+        return clamp01((0.5 + 0.22 * (along / half) + 0.15 * lit) * (1 - 0.3 * t) * bright * (1 - erosion * 0.4));
+      }
+      return -1;
+    },
+    { bounds: { x0: cx - outer - 1, y0: cy - outer * squash - 1, x1: cx + outer + 1, y1: cy + outer * squash + 1 }, samples: 4 },
+  );
+}
+
+/** 飛ぶ輪のコマ数（1 巡で歯 1 枚ぶん回る） */
+const FLY_FRAMES = 6;
+
+/**
+ * 弾の数値。kind = 本体の形（saw = のこぎりの歯の輪 / fang = 牙の付いた輪）、r = 輪の外径、tail = 尾の長さ、
+ * period = 1 巡の秒、base = 弾の半径（論理 px。絵を描いた大きさ）
+ */
+const SHOTS = {
+  // 輪刃: 歯の細かいのこぎりの輪。尾は刻みの残像が 2 つ
+  ringBlades: { kind: "saw", r: 6, teeth: 6, tail: 22, period: 0.1, base: 3, seed: 2301 },
+  // 牙輪: 細い輪に後ろへ反った太い牙 3 本。尾は牙の先が描く渦の筋
+  fangRings: { kind: "fang", r: 4.5, fangs: 3, fangLen: 5, tail: 18, period: 0.12, base: 3, seed: 2401 },
+  // 近投げ: 輪刃と同じ輪を短く
+  ringToss: { kind: "saw", r: 6, teeth: 6, tail: 16, period: 0.1, base: 3, seed: 2501 },
+  // 強化投げ: 大きく重い輪。尾は長く、刻みの残像が 3 つ
+  ringHurl: { kind: "saw", r: 8, teeth: 7, tail: 28, period: 0.12, base: 4, seed: 2601 },
+};
+
+/** 本体の外径（歯・牙の先まで） */
+function bodySize(g) {
+  return g.kind === "fang" ? g.r + g.fangLen : g.r + Math.max(1.5, g.r * 0.35);
+}
+
+/** 本体を描く。rot は回転、fade（0..1）で崩れる */
+function shotBody(frame, x, y, g, rot, o = {}) {
+  const erosion = o.erosion ?? 0;
+  const bright = o.bright ?? 1;
+  if (g.kind === "fang") {
+    fangRing(frame, x, y, { r: g.r, rw: 1.8, rot, fangs: g.fangs, fangLen: g.fangLen, erosion, bright, squash: o.squash ?? 1, seed: g.seed + 1 });
+    return;
+  }
+  wheel(frame, x, y, { r: g.r, rot, teeth: g.teeth, erosion, bright, seed: g.seed + 1 });
+}
+
+/** 回転の風の光: 本体の外周（半径 R）を回る 2 本の短い弧（向かい合わせ）。先頭ほど明るい 1px の線 */
+function spinBlur(frame, f, R, seed, bright = 0.55) {
+  const rot = (f / FLY_FRAMES) * Math.PI + hash1(0, seed) * TAU;
+  const len = 70 * DEG;
+  paint(
+    frame,
+    (x, y) => {
+      if (Math.abs(Math.hypot(x, y) - R) > 0.6) return -1;
+      const a = Math.atan2(y, x);
+      for (let k = 0; k < 2; k++) {
+        const s0 = cwFrom(rot + k * Math.PI, a);
+        if (s0 <= len) return bright * (1 - 0.65 * (s0 / len));
+      }
+      return -1;
+    },
+    { bounds: { x0: -R - 2, y0: -R - 2, x1: R + 2, y1: R + 2 }, dither: 0, samples: 2 },
+  );
+}
+
+/** 牙輪の尾: 牙の先が描く渦の筋（上下 2 本、後ろへ行くほど外へ開いて薄れる） */
+function fangWake(frame, f, g) {
+  const R = bodySize(g);
+  for (const side of [-1, 1]) {
+    paint(
+      frame,
+      (x, y) => {
+        if (x > -g.r || x < -g.tail - R) return -1;
+        const u = (-g.r - x) / (g.tail + R - g.r);
+        const yc = side * (R * 0.7 + 3 * u + Math.sin(u * 6 + f) * 0.8);
+        const hw = 1.3 * (1 - u) + 0.3;
+        if (Math.abs(y - yc) > hw) return -1;
+        return clamp01(0.62 * (1 - u) ** 1.2);
+      },
+      { bounds: { x0: -g.tail - R - 2, y0: -R - 6, x1: 0, y1: R + 6 } },
+    );
+  }
+}
+
+/**
+ * 飛んでいる輪: 原点 = 弾の中心、+x = 進む向き。尾（刻みの残像 / 牙の渦）と外周の風の光、真ん中に本体。
+ * 本体はコマごとに歯 1 枚ぶんずつ回す
+ */
+function shotFly(frame, f, g) {
+  const R = bodySize(g);
+  if (g.kind === "fang") fangWake(frame, f, g);
+  else {
+    const ghosts = g.tail > 24 ? 3 : 2;
+    for (let i = 1; i <= ghosts; i++) {
+      toothedArc(frame, { ox: -i * (g.tail / (ghosts + 0.5)), oy: 0, R: g.r + 1, T: 1.6, head: -Math.PI / 2, span: Math.PI, tooth: 2, pitch: 5, bright: 0.6 - i * 0.13, erosion: 0.1 * i, seed: g.seed + 10 + i, edgeReach: 0 });
+    }
+  }
+  spinBlur(frame, f, R + 2, g.seed + 2);
+  const step = TAU / (g.kind === "fang" ? g.fangs : g.teeth);
+  shotBody(frame, 0, 0, g, (f / FLY_FRAMES) * step);
+}
+
+/** 手から放つ風切り: 原点 = 弾が出た位置、+x = 投げた向き。手首の返しの小さな刻みの弧と、手元の閃き */
+function shotMuzzle(frame, f, g) {
+  const N = 5;
+  const k = f / (N - 1);
+  const R = 6 + bodySize(g);
+  toothedArc(frame, { ox: -R + 4, oy: 0, R, T: 3 * (1 - k * 0.5), head: (40 + f * 12) * DEG, span: (90 - f * 10) * DEG, tooth: 2, pitch: 6, erosion: k * 0.85, bright: 1 - k * 0.3, seed: g.seed + 20 });
+  if (f <= 1) sparkle(frame, 3, 0, f === 0 ? 3 : 2);
+  if (f >= 1) tangentSparks(frame, f - 1, 4, g.seed + 21, { ox: -R + 4, radius: R, from: 0.2, to: 0.9, speed: 3 });
+}
+
+/** 着弾（壁で弾かれて戻る）: 金属が噛み合う形。後ろの扇へ短い針が弾け、輪の縁が面に沿って擦れる */
+function shotImpact(frame, f, g) {
+  const s = bodySize(g) / 9;
+  if (f <= 1) {
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI + (i / (n - 1) - 0.5) * 2.4;
+      const r1 = (7 + 4 * hash1(i, g.seed + 31)) * s * (f === 0 ? 0.8 : 1) + 2;
+      streakLine(frame, { ax: Math.cos(a) * 2, ay: Math.sin(a) * 2, bx: Math.cos(a) * r1, by: Math.sin(a) * r1, width: 1.4, bright: 0.95 });
+    }
+    sparkle(frame, 0, 0, f === 0 ? 3 : 4);
+  }
+  if (f >= 1 && f <= 3) toothedArc(frame, { ox: -g.r, oy: 0, R: g.r, T: 1.6, head: 70 * DEG, span: 140 * DEG, tooth: 2, pitch: 5, erosion: (f - 1) * 0.35, bright: 0.7, seed: g.seed + 32, edgeReach: 0 });
+  tangentSparks(frame, f, 8, g.seed + 33, { radius: 3 * s + 1, from: Math.PI / 2, to: (3 * Math.PI) / 2, speed: 3.5 * s + 1 });
+}
+
+/** 尽きた（射程の端・受け止め損ね）: dirs 1。回転が落ちた輪が倒れ（縦に潰れ）、少し落ちながら欠けて消える */
+function shotFizzle(frame, f, g) {
+  const N = 7;
+  const k = f / (N - 1);
+  const rot = 0.3 + (1 - (1 - k) ** 2) * 1.2;
+  if (f < N - 1) {
+    if (g.kind === "fang") shotBody(frame, 0, f * 0.8, g, rot, { erosion: Math.min(0.92, k * 1.05), bright: 1 - 0.35 * k, squash: 1 - 0.65 * k });
+    else wheel(frame, 0, f * 0.8, { r: g.r * (1 - 0.3 * k), rot, teeth: g.teeth, erosion: Math.min(0.92, k * 1.05), bright: 1 - 0.35 * k, seed: g.seed + 51 });
+  }
+  if (f >= 3) {
+    for (let i = 0; i < 4; i++) {
+      if (hash1(i + f * 5, g.seed + 52) < (f - 3) / (N - 2)) continue;
+      dot(frame, (hash1(i, g.seed + 53) - 0.5) * bodySize(g) * 2, f * 0.8 + 2 + hash1(i, g.seed + 54) * 2, 3);
+    }
+  }
+}
+
+/** 弾の名前 → 弾の key（cast.ringToss の「.」はシートの key に使わない） */
+const BULLET_KEY = { ringBlades: "ringBlades", fangRings: "fangRings", ringToss: "cast.ringToss", ringHurl: "cast.ringHurl" };
+const SHOT_KEYS = Object.keys(BULLET_KEY);
+
+function shotSheets(name) {
+  const g = SHOTS[name];
+  const S = bodySize(g);
+  return [
+    { key: `ringBlades.${name}Fly`, dirs: DIRS, frames: FLY_FRAMES, active: 0, size: Math.ceil(g.tail + S * 2 + 8) * 2, draw: (frame, f) => shotFly(frame, f, g) },
+    { key: `ringBlades.${name}Muzzle`, dirs: DIRS, frames: 5, active: 0, size: 72, draw: (frame, f) => shotMuzzle(frame, f, g) },
+    { key: `ringBlades.${name}Impact`, dirs: DIRS, frames: 6, active: 0, size: 64, draw: (frame, f) => shotImpact(frame, f, g) },
+    { key: `ringBlades.${name}Fizzle`, dirs: 1, frames: 7, active: 0, size: Math.ceil(S + 10) * 2, draw: (frame, f) => shotFizzle(frame, f, g) },
+  ];
+}
+
+/** 弾の表の 1 行（鋼の刃なので配色は steel。敵を裂いた命中は近接と同じ刻みの切り口） */
+function bulletRow(name) {
+  const g = SHOTS[name];
+  return {
+    fly: `ringBlades.${name}Fly`,
+    period: g.period,
+    base: g.base,
+    muzzle: `ringBlades.${name}Muzzle`,
+    impact: `ringBlades.${name}Impact`,
+    hit: "ringBlades.hit",
+    fizzle: `ringBlades.${name}Fizzle`,
+    ramp: "steel",
+  };
+}
+
 /**
  * 武器種のモーション → シート（render/fxMotions.ts が読む）。
  * pivot: self = 自分の中心、anchor = 当たり判定の中心。base は絵を描いたときの当たり判定の大きさ（measure の値。論理 px）
@@ -501,13 +711,9 @@ function hit(frame, f, heavy) {
 const FX = {
   moveset: "ringBlades",
   motions: {
-    "l:0": { sheet: "ringBlades.l1", pivot: "self", base: 22, measure: "reach" },
-    "l:1": { sheet: "ringBlades.l2", pivot: "self", base: 22, measure: "reach" },
-    "l:2": { sheet: "ringBlades.spin", pivot: "self", base: 46, measure: "size" },
-    "l:3": { sheet: "ringBlades.l4", pivot: "self", base: 26, measure: "reach" },
     dash: { sheet: "ringBlades.dash", pivot: "self", base: 48, measure: "size" },
-    "r:ringCut": { sheet: "ringBlades.ringCut", pivot: "anchor", base: 18, measure: "reach" },
-    "r:twinRingCut": { sheet: "ringBlades.twin", pivot: "self", base: 50, measure: "size" },
+    "r:ringSweep": { sheet: "ringBlades.sweep", pivot: "self", base: 21.5, measure: "reach" },
+    "r:ringSweep2": { sheet: "ringBlades.sweep2", pivot: "self", base: 43, measure: "size" },
     "branch:moonCut": { sheet: "ringBlades.moon", pivot: "self", base: 30, measure: "reach" },
     "branch:stackedRings": { sheet: "ringBlades.stacked", pivot: "anchor", base: 18, measure: "reach" },
     "branch:ringDash": { sheet: "ringBlades.ringDash", pivot: "self", base: 30, measure: "reach" },
@@ -515,24 +721,22 @@ const FX = {
   },
   hit: "ringBlades.hit",
   hitHeavy: "ringBlades.hitHeavy",
+  bullets: Object.fromEntries(SHOT_KEYS.map((name) => [BULLET_KEY[name], bulletRow(name)])),
 };
 
 export const ATLAS = {
   key: "ringBlades",
   fx: FX,
   sheets: [
-    arcRollSheet("ringBlades.l1", L0),
-    arcRollSheet("ringBlades.l2", L1),
-    arcRollSheet("ringBlades.l4", L3),
-    { key: "ringBlades.spin", dirs: WIDE_DIRS, frames: SPIN.frames, active: SPIN.active, size: 136, draw: (frame, f) => orbit(frame, f, SPIN) },
-    { key: "ringBlades.twin", dirs: WIDE_DIRS, frames: TWIN.frames, active: TWIN.active, size: 144, draw: (frame, f) => orbit(frame, f, TWIN) },
+    arcRollSheet("ringBlades.sweep", SWEEP),
+    { key: "ringBlades.sweep2", dirs: WIDE_DIRS, frames: SWEEP2.frames, active: SWEEP2.active, size: 128, draw: (frame, f) => orbit(frame, f, SWEEP2) },
     { key: "ringBlades.dash", dirs: WIDE_DIRS, frames: 8, active: 4, size: 140, draw: dashSaw },
     { key: "ringBlades.moon", dirs: WIDE_DIRS, frames: 10, active: 6, size: 176, draw: moonCut },
-    { key: "ringBlades.ringCut", dirs: DIRS, frames: 8, active: 4, size: 128, draw: ringCut },
     { key: "ringBlades.stacked", dirs: DIRS, frames: 8, active: 4, size: 128, draw: stackedRings },
     { key: "ringBlades.sever", dirs: DIRS, frames: 9, active: 5, size: 136, draw: doubleSever },
     { key: "ringBlades.ringDash", dirs: DIRS, frames: 8, active: 4, size: 176, draw: ringDash },
     { key: "ringBlades.hit", dirs: DIRS, frames: 6, active: 0, size: 72, draw: (frame, f) => hit(frame, f, false) },
     { key: "ringBlades.hitHeavy", dirs: DIRS, frames: 7, active: 0, size: 104, draw: (frame, f) => hit(frame, f, true) },
+    ...SHOT_KEYS.flatMap(shotSheets),
   ],
 };

@@ -12,7 +12,7 @@
 //   煙（smoke）: 画面に揃えて上へ昇る細い煙（dirs 1）。段 2〜3 の薄い筋で、白を使わない
 import { easeSwing, lens, ring, shards, sparkle, streakLine } from "../shapes.mjs";
 import { clamp01, dot, hash1, paint, valueNoise } from "../raster.mjs";
-import { DEG, DIRS, WIDE_DIRS } from "../motifs.mjs";
+import { DEG, DIRS, WIDE_DIRS, arcSlash, workSize } from "../motifs.mjs";
 
 const TAU = Math.PI * 2;
 /** 細長い曳光は 24 方向だと角のずれが目立つので 32 方向で描く（fx-brief2） */
@@ -603,6 +603,28 @@ function muzzleSweep(frame, f) {
 }
 
 /**
+ * 短刀斬り（arc 100° reach 17、原点 = 自分）: 空いた手の逆手の短刀で、体の近くを小さく速く払う。
+ * 剣の三日月より細く短い弧で、頭の側に逆手の切っ先が跳ねる短い直線の閃き（弧の外側へ接線に抜ける）を足して、
+ * 「手首で返す小刀」に見せる。銃の近接（銃把・蹴り・銃口払い）の鈍い塊と違い、ここだけ刃の白い縁を持つ
+ */
+const DAGGER = { R: 40, T: 11, sweep: 105, tilt: 4, frames: 7, active: 3, tailLen: 0.75, overshoot: 0.05, erodeFrom: 0.05, lines: 0, shards: 5, shardSpeed: 3.5, glint: 3, seed: 1601, streak: 0.5 };
+
+function daggerCut(frame, f) {
+  arcSlash(frame, f, DAGGER);
+  const A = DAGGER.active;
+  if (f < A - 1 || f > A) return;
+  // 切っ先の跳ね: 弧の頭の少し外から接線（時計回りの進む向き）へ抜ける細い 1 本
+  const head = (DAGGER.sweep / 2 + DAGGER.tilt) * DEG;
+  const r = DAGGER.R + 1;
+  const hx = Math.cos(head) * r;
+  const hy = Math.sin(head) * r;
+  const tx = -Math.sin(head);
+  const ty = Math.cos(head);
+  const len = f === A - 1 ? 10 : 7;
+  streakLine(frame, { ax: hx - tx * 3, ay: hy - ty * 3, bx: hx + tx * len, by: hy + ty * len, width: 1.2, bright: f === A - 1 ? 0.95 : 0.6 });
+}
+
+/**
  * 蹴り離し（box reach 12 / size 20、原点 = 当たりの中心）: 前へ突き出す厚い空気の塊（縁を白くしない）と、
  * 足裏の当たる面で潰れて広がる輪、後ろへ流れる風の筋。刃ではなく押し出す力
  */
@@ -904,6 +926,7 @@ const FX = {
   moveset: "sidearm",
   motions: {
     dash: { sheet: "sidearm.dash", pivot: "self", base: 36, measure: "size" },
+    "r:daggerCut": { sheet: "sidearm.dagger", pivot: "self", base: 17, measure: "reach" },
     "r:sidearmButt": { sheet: "sidearm.butt", pivot: "anchor", base: 12, measure: "reach" },
     "r:muzzleSweep": { sheet: "sidearm.sweep", pivot: "self", base: 36, measure: "size" },
     "branch:tripleShot": { sheet: "sidearm.triple", pivot: "self", base: 20, measure: "size" },
@@ -921,6 +944,7 @@ export const ATLAS = {
   fx: FX,
   sheets: [
     { key: "sidearm.dash", dirs: WIDE_DIRS, frames: 8, active: 3, size: 112, draw: dash },
+    { key: "sidearm.dagger", dirs: DIRS, frames: DAGGER.frames, active: DAGGER.active, size: workSize(DAGGER), draw: daggerCut },
     { key: "sidearm.butt", dirs: DIRS, frames: 8, active: 3, size: 96, draw: butt },
     { key: "sidearm.sweep", dirs: WIDE_DIRS, frames: 8, active: 4, size: 104, draw: muzzleSweep },
     { key: "sidearm.triple", dirs: DIRS, frames: 8, active: 3, size: 80, draw: tripleShot },
