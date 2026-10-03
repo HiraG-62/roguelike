@@ -35,6 +35,15 @@ const BULLET_FEATURE_TEXT: Readonly<Record<BulletFeature, string>> = {
   lob: "曲射になる",
 };
 
+/** 何の性質も持たない弾（data/weapons.ts の bulletFeatures が空）の説明 */
+const PLAIN_BULLET_TEXT = "まっすぐ飛ぶ";
+
+/** 1 つの弾の性質の短い説明（武器掛けの器のカード）。性質が無ければ「まっすぐ飛ぶ」 */
+export function bulletFeatureTexts(b: Readonly<BulletDef>): string[] {
+  const features = bulletFeatures(b);
+  return features.length > 0 ? features.map((f) => BULLET_FEATURE_TEXT[f]) : [PLAIN_BULLET_TEXT];
+}
+
 /** 武器の重さの表記（docs/GLOSSARY.md「武器の重さ（軽 / 中 / 重）」） */
 const WEIGHT_TEXT: Readonly<Record<MovesetDef["weight"], string>> = { light: "軽", medium: "中", heavy: "重" };
 

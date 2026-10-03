@@ -1,8 +1,8 @@
 import { type AttackProfile, attack } from "../core/element";
 import { type KeywordProfile, kw } from "../core/keywords";
 import { WEAPON } from "../data/tuning";
-import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, hasBulletFeature, movesetCasts, reviveBullet } from "../data/weapons";
-import { BASES, baseDef, baseFamily } from "./bases";
+import { type BulletDef, type BulletFeature, MOVESETS, MOVESET_KEYS, type MovesetKey, hasBulletFeature, isGun, movesetCasts, reviveBullet } from "../data/weapons";
+import { BASES, type BaseItemDef, baseDef, baseFamily } from "./bases";
 import type { PlayerStats } from "./types";
 
 /**
@@ -95,6 +95,19 @@ export function bulletDef(key: string): BulletDef {
   const def = BULLETS[key] ?? BULLETS[DEFAULT_BULLET];
   if (!def) throw new Error(`既定の弾 ${DEFAULT_BULLET} が無い`);
   return def;
+}
+
+/**
+ * 銃の家系の弾の器（右手のベース）。一番早く出る順（同じ深さはベースの表の順）。近接の武器種は空。
+ * 同じ家系でも器ごとに弾の性質（溜め撃ち・三点・追尾…）が違うので、拠点の武器掛けは器を選ばせる
+ */
+export function gunBasesOf(moveset: MovesetKey): BaseItemDef[] {
+  if (!isGun(MOVESETS[moveset])) return [];
+  const bases = BASES.filter((b) => b.slot === "mainHand" && b.moveset === moveset);
+  return bases
+    .map((b, i) => ({ b, i }))
+    .sort((x, y) => x.b.minLevel - y.b.minLevel || x.i - y.i)
+    .map((x) => x.b);
 }
 
 /** 右手のベースの弾。銃でなければ既定 */

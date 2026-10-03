@@ -44,6 +44,8 @@ import { createDojoBoardUi, dojoBoardRowGap } from "../ui/dojoBoard";
 import { DOJO_SPOT_KEYS } from "../map/dojoMap";
 import { loadImageAtlas } from "../render/imageAtlas";
 import { SHEETS, TILE_SPRITES } from "../data/tiles";
+import { drawRackScreen } from "../render/rackUi";
+import { createRackUi, openRackFamily, rackCards } from "../ui/rackScreen";
 import { TILE_SIZE } from "../map/grid";
 import { drawDojoBoard, drawDojoOverlay, drawDojoProps } from "../render/dojoUi";
 
@@ -219,7 +221,7 @@ async function shootDojo(renderer: Renderer, q: URLSearchParams, board: boolean)
   }
   // 台の絵は PNG の素材（部屋の台座）なので、ゲームと同じく読み込んでから描く
   renderer.setAtlas(await loadImageAtlas(TILE_SPRITES, SHEETS));
-  const session = createDojo({ profile: createEmptyProfile(), skillProfile: createDefaultSkillProfile(), hitstopScale: 1, config, trialMoveset: null, trialKeystone: null });
+  const session = createDojo({ profile: createEmptyProfile(), skillProfile: createDefaultSkillProfile(), hitstopScale: 1, config, trialMoveset: null, trialBase: null, trialKeystone: null });
   const frames = Number(q.get("frames") ?? DOJO_DEFAULT_FRAMES);
   for (let i = 0; i < frames; i++) stepDojo(session, dojoBotInput(session.state, i), FIXED_DT);
   // stand=<台の key> で、その台の前（東へ 1 マス）に立たせて近い台の案内を見る
@@ -242,6 +244,26 @@ async function shootDojo(renderer: Renderer, q: URLSearchParams, board: boolean)
   }
 }
 
+/** 武器掛けの絵（武器種の手に持つ絵）が読み込まれるのを待つコマ数 */
+const RACK_SETTLE_FRAMES = 60;
+
+/** 武器掛けの画面（family=<銃の家系> で器の段、trial=<器の key> で試用中の印、cursor=<添字>） */
+async function shootRack(renderer: Renderer, q: URLSearchParams): Promise<void> {
+  const ui = createRackUi();
+  const family = MOVESET_KEYS.find((k) => k === q.get("family"));
+  if (family !== undefined) openRackFamily(ui, family);
+  const cursor = q.get("cursor");
+  if (cursor !== null) ui.cursor = Number(cursor);
+  const trialBase = q.get("trial");
+  const cards = rackCards({ moveset: family ?? null, base: trialBase }, ui.family);
+  const resources = { hp: 1, mana: 1, energy: 0.5 };
+  for (let i = 0; i < RACK_SETTLE_FRAMES; i++) {
+    renderer.beginFrame();
+    drawRackScreen(renderer.context, { title: "武器掛け", hint: "", ui, cards, resources, equipped: "sword", borrowHold: 0, lookup: (key) => renderer.atlasSprite(key) });
+    await nextFrame();
+  }
+}
+
 async function main(): Promise<void> {
   const q = new URLSearchParams(window.location.search);
   const scene = q.get("scene") ?? "attire";
@@ -251,6 +273,11 @@ async function main(): Promise<void> {
   await document.fonts.load('16px "DotGothic16"');
   if (scene === "parry") {
     await shootParry(renderer, q);
+    window.__menuShotReady = true;
+    return;
+  }
+  if (scene === "rack") {
+    await shootRack(renderer, q);
     window.__menuShotReady = true;
     return;
   }

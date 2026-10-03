@@ -42,6 +42,8 @@ export interface DojoRun {
   /** DOJO.interactRadius 以内で一番近い台（rack / board / exit） */
   near: DojoOpenSpotKey | null;
   trialMoveset: MovesetKey | null;
+  /** 銃の家系を試すときの弾の器（拠点の HubRun.trialBase と同じ） */
+  trialBase: string | null;
   trialKeystone: string | null;
   meter: DojoMeter;
   /** 稽古の間が湧かせた敵の id（倒れない敵の作り直しの対象。召喚・取り巻きは入らない） */
@@ -65,6 +67,7 @@ export interface DojoCreateOptions {
   hitstopScale: number;
   config: DojoConfig;
   trialMoveset: MovesetKey | null;
+  trialBase: string | null;
   trialKeystone: string | null;
 }
 
@@ -104,6 +107,7 @@ export function createDojo(opts: DojoCreateOptions): DojoSession {
     config: opts.config,
     near: null,
     trialMoveset: opts.trialMoveset,
+    trialBase: opts.trialBase,
     trialKeystone: opts.trialKeystone,
     meter: createDojoMeter(),
     spawned: [],
@@ -128,7 +132,7 @@ function applyDepth(session: DojoSession): void {
     refreshRunStats(state);
     return;
   }
-  applyTrialMoveset(state, dojo.trialMoveset);
+  applyTrialMoveset(state, dojo.trialMoveset, dojo.trialBase);
 }
 
 // -----------------------------------------------------------------------------
@@ -146,7 +150,7 @@ interface StepSnapshot {
 export function stepDojo(session: DojoSession, input: FrameInput, dt: number): DojoAction {
   const { state, dojo } = session;
   if (state.paused) return NONE;
-  enforceTrialMoveset(state, dojo.trialMoveset);
+  enforceTrialMoveset(state, dojo.trialMoveset, dojo.trialBase);
   if (state.hitstop > 0) {
     state.hitstop -= 1;
     updateCamera(state, dt, VIEW_W, VIEW_H);
@@ -447,10 +451,11 @@ export function restoreDojoPlayer(session: DojoSession): void {
   fillResourcesOf(session.state);
 }
 
-/** 武器掛けで試す武器種を替える（null で装備のものに戻す） */
-export function setDojoTrialWeapon(session: DojoSession, moveset: MovesetKey | null): void {
+/** 武器掛けで試す武器種を替える（null で装備のものに戻す）。base は銃の家系の弾の器 */
+export function setDojoTrialWeapon(session: DojoSession, moveset: MovesetKey | null, base: string | null = null): void {
   session.dojo.trialMoveset = moveset;
-  applyTrialMoveset(session.state, moveset);
+  session.dojo.trialBase = moveset === null ? null : base;
+  applyTrialMoveset(session.state, moveset, session.dojo.trialBase);
 }
 
 export function dojoMeterView(session: DojoSession): DojoMeterView {

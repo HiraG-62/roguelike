@@ -445,7 +445,7 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "codex", term: "図鑑", category: "hub", body: "見た・起きたものの記録。？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える。" },
   { key: "title", term: "称号", category: "hub", body: "実績と依頼の報酬で得る名前。実績の画面の称号タブで選ぶと名乗れる。効果は持たない。" },
   { key: "altar", term: "社", category: "hub", body: "誓約を 1 つ選んで試せる。試している誓約は拠点を出ると消える。" },
-  { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。決定の長押しで性質なしの武器を借りて出撃できる。" },
+  { key: "rack", term: "武器掛け", category: "hub", body: "全武器種を木人で試せる。銃は同じ武器種でも器ごとに弾の性質（溜め撃ち・三点・追尾など）が違うので、武器種を選んだ後に器を選ぶ。決定の長押しで性質なしの武器を借りて出撃できる。" },
   {
     key: "carry",
     term: "持ち込み",

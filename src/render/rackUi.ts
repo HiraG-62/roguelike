@@ -16,6 +16,7 @@ import {
   rackAdjustButtonRect,
   rackAdjustGaugeRect,
   rackAdjustRowRect,
+  rackCardBorrowable,
   rackCardDetail,
   rackCardRect,
   rackCursorAdjust,
@@ -101,7 +102,7 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
   const m = TEXT.SMALL;
   const name = truncateText(card.name, r.w - CARD_TEXT_PAD * 2, m);
   drawText(ctx, name, r.x + r.w / 2, r.y + r.h - CARD_TEXT_PAD - HOLD_H, m, card.marked ? COLOR_MARK : COLOR_TEXT, "center", "bottom");
-  if (cursor && view.borrowHold > 0 && card.moveset !== null) {
+  if (cursor && view.borrowHold > 0 && rackCardBorrowable(card)) {
     const w = Math.round((r.w - 2) * Math.min(1, view.borrowHold));
     fillRectPx(ctx, { x: r.x + 1, y: r.y + r.h - 1 - HOLD_H, w, h: HOLD_H }, COLOR_HOLD);
   }
@@ -109,11 +110,12 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
 
 /** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（読めていない間は旧い 12px の絵） */
 function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card: RackCard, r: Rect): void {
+  if (card.kind === "back") return;
   const moveset = card.moveset ?? view.equipped;
   if (moveset === null) return;
   const prevAlpha = ctx.globalAlpha;
   // 「装備のまま」は装備中の武器の絵を薄く出して、武器種のカードと見分ける
-  if (card.moveset === null) ctx.globalAlpha = 0.5;
+  if (card.kind === "clear") ctx.globalAlpha = 0.5;
   const cell = weaponIconCell(moveset);
   if (cell) drawHeldIcon(ctx, cell, r);
   else drawLegacyIcon(ctx, view, moveset, r);
