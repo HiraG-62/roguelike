@@ -577,14 +577,15 @@ describe("銃の家系", () => {
     expect(side.hp).toBeLessThan(TOUGH_HP);
   });
 
-  it("銃の家系の派生は装備の弾を出す（二丁拳銃の左左右 = 二連）", () => {
-    const state = arena(5, { moveset: "gunner", bullet: "pistol" });
+  // 二丁拳銃は派生を持たない（左右の手。system/dualPistols.ts）ので、短銃の左左右（三連）で見る
+  it("銃の家系の派生は装備の弾を出す（短銃の左左右 = 三連）", () => {
+    const state = arena(5, { moveset: "sidearm", bullet: "pistol" });
     const cooldown = stepsFor(0.6);
     play(state, [{ attackPressed: true }, {}, { attackPressed: true }, {}, { shootHeld: true }]);
     for (let i = 0; i < SETTLE_STEPS && state.player.attack.branch < 0; i++) step(state, withInput({}), FIXED_DT);
-    expect(branchKey(state)).toBe("twinShot");
+    expect(branchKey(state)).toBe("tripleShot");
     const shots = playerShots(state).filter((pr) => pr.shot === undefined);
-    expect(shots.length, "装備の弾（短銃の弾）を 2 発").toBe(2);
+    expect(shots.length, "装備の弾（短銃の弾）を 3 発").toBe(3);
     play(state, idle(cooldown));
   });
 });

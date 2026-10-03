@@ -13,7 +13,7 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { updateCamera } from "./camera";
 import { createEnemy } from "./enemies";
 import { borrowWeapon } from "./hub";
-import { isMagazineBusy, magazineView } from "./magazine";
+import { type HandIndex, isMagazineBusy, magazineView, startReload } from "./magazine";
 import { currentForm, moraleMax } from "./morale";
 import { isDashing, latchFrozenInput, playerMoveset } from "./player";
 import { createSandboxState, simulateSandbox } from "./sandbox";
@@ -43,6 +43,8 @@ export type DemoCue =
   | { readonly kind: "tap"; readonly button: ButtonKey; readonly hidden?: boolean }
   /** sec 秒押し続けて離す（溜め・構え・射撃） */
   | { readonly kind: "hold"; readonly button: ButtonKey; readonly sec: number; readonly hidden?: boolean }
+  /** 左右を同じステップで押して離す（二丁拳銃の撃ち尽くし） */
+  | { readonly kind: "both" }
   /** 条件を満たすまで押し続けて離す */
   | { readonly kind: "holdUntil"; readonly button: ButtonKey; readonly until: DemoCondition; readonly maxSec: number }
   /** 木人の方へダッシュ */
@@ -60,6 +62,8 @@ export interface DemoSetup {
   readonly ultimate?: string;
   /** 木人までの距離（px。省略は MANUAL.foeDistance） */
   readonly foeDistance?: number;
+  /** この手の弾倉を空にして込め始めておく（二丁拳銃の弾切れの手の銃把打ち） */
+  readonly emptyHand?: HandIndex;
 }
 
 export interface DemoScript {
@@ -125,6 +129,11 @@ function buildDemoState(moveset: MovesetKey, script: DemoScript, arena: DemoAren
   p.facing = { x: 1, y: 0 };
   if (ult !== undefined) p.energy = p.maxEnergy;
   if (script.setup.moraleFull === true && !currentForm(state).morale.derived) p.morale.value = moraleMax(state);
+  const empty = script.setup.emptyHand;
+  if (empty !== undefined) {
+    p.magazine.hands[empty].rounds = 0;
+    startReload(state, empty);
+  }
   return state;
 }
 
@@ -290,6 +299,8 @@ function cueInput(session: DemoSession, cue: DemoCue, prev: DemoCue | undefined,
       return pressInput(session, cue.button, prev, base, dt, () => false);
     case "hold":
       return pressInput(session, cue.button, prev, base, dt, () => d.held < cue.sec);
+    case "both":
+      return pressBothInput(session, prev, base);
     case "holdUntil":
       return pressInput(session, cue.button, prev, base, dt, () => !conditionMet(state, cue.until) && d.held < cue.maxSec);
   }
@@ -313,6 +324,19 @@ function pressInput(session: DemoSession, button: ButtonKey, prev: DemoCue | und
     if (keep()) return withButton(base, button, false);
     d.stage = 2;
     return base;
+  }
+  advance(d);
+  return base;
+}
+
+/** 左右を同じステップで押す手（両方を押せるまで待ち → 押す → 1 ステップ離してから次の手へ） */
+function pressBothInput(session: DemoSession, prev: DemoCue | undefined, base: FrameInput): FrameInput {
+  const { state, driver: d } = session;
+  if (d.stage === 0) {
+    const ready = (readyForPress(state, prev, "primary") && readyForPress(state, prev, "secondary")) || d.timer >= MANUAL.readyTimeoutSec;
+    if (!ready) return base;
+    d.stage = 2;
+    return { ...base, attackPressed: true, attackHeld: true, shootHeld: true };
   }
   advance(d);
   return base;

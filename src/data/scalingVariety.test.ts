@@ -156,7 +156,6 @@ const PINNED: Readonly<Record<string, readonly [number, number]>> = {
   "weapons.WEAPON.movesets.hammer.steps2[0].step.scaling": [20.465, 1.835],
   "weapons.WEAPON.movesets.hammer.branches.groundBreaker.step.scaling": [83.61, 7.496],
   "weapons.WEAPON.movesets.gunner.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.gunner.steps2[0].throw.scaling": [3.9, 0.3],
   "weapons.WEAPON.movesets.sidearm.dashAttack.scaling": [8, 0.8],
   "weapons.WEAPON.movesets.longarm.dashAttack.scaling": [9, 0.8],
   "weapons.WEAPON.movesets.longarm.steps2[0].step.scaling": [9, 0.8],
@@ -297,6 +296,9 @@ const TOME_BELL_TABLE = /^weapons\.WEAPON\.movesets\.(book|handbell)\./;
  */
 const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
 
+/** 二丁拳銃の左手を続けた技（段 4-B の蹴り・回し蹴り。docs/ideas/gun-bases-review.md 0-4）。振り直しの後に足した行動 */
+const GUNNER_HANDS_TABLE = /^weapons\.WEAPON\.movesets\.gunner\.steps\[\d+\]\.scaling$/;
+
 /** 陰陽師・巫女（段取り 5d-O）のジョブ固有の派生の係数表。振り直しの後に足した行動 */
 const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
 
@@ -381,6 +383,7 @@ describe("振り直しで基礎値の値は変わらない", () => {
       if (TOME_BELL_TABLE.test(path)) continue;
       if (FLURRY_EXTRA_TABLE.test(path)) continue;
       if (NEW_JOB_BRANCH_TABLE.test(path)) continue;
+      if (GUNNER_HANDS_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);

@@ -150,9 +150,10 @@ export type ButtonKey = "primary" | "secondary";
 
 /**
  * 左クリックの役割。melee = 押すたびに連撃の次の段 / charge = 長押しで溜め、離して振る（大剣・戦鎚。tap は連撃）/
- * shot = 押している間、ベースの弾を撃つ（銃の家系だけ）
+ * shot = 押している間、ベースの弾を撃つ（銃の家系だけ）/
+ * hands = 左右のクリックがそれぞれ左手・右手の銃で、1 クリック 1 発（二丁拳銃。system/dualPistols.ts が左右とも引き受ける）
  */
-export type PrimaryKind = "melee" | "charge" | "shot";
+export type PrimaryKind = "melee" | "charge" | "shot" | "hands";
 
 interface ArtBase {
   /** "parry" など。名前は STEP2_NAMES（BRANCH_NAMES と同じ流儀）。再使用はこの key ごとに数える */
@@ -929,10 +930,10 @@ export const STEP2_NAMES: Readonly<Record<string, string>> = {
   hammerDown: "振り下ろし",
   hammerSide: "横殴り",
   earthSlam: "大地叩き",
-  barrage: "乱れ撃ち",
   gunnerButt: "銃把打ち",
   spinShot: "回転撃ち",
   daggerCut: "短刀斬り",
+  emptyHandStrike: "銃把打ち",
   sidearmButt: "銃把打ち",
   muzzleSweep: "銃口払い",
   bayonet: "銃剣突き",
@@ -1004,7 +1005,8 @@ const STEP2_DESC: Readonly<Record<string, string>> = {
   bayonet: "銃剣で踏み込んで突き、押し返す",
   rammerThrust: "込め棒で突いて、近づいた敵を押し返す。込めている最中にも出せて、込めは止まらない",
   recall: "飛んでいる自分の弾をすべて手元へ向け直す",
-  barrage: "全方位へ弾をばら撒く",
+  gunnerButt: "銃把で殴って怯ませる",
+  emptyHandStrike: "弾倉が空で込めている手で殴る。込めは止まらない",
   tubeBash: "筒で殴って敵を押し返し、自分も後ろへ下がる",
   scatterMines: "前方へ設置弾を扇に 3 つ撒く",
   ringSweep: "手元の輪で周りを広く斬る",
@@ -1390,15 +1392,17 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   gunner: defineMoveset({
     key: "gunner",
     name: "二丁拳銃",
-    desc: "左で撃ち、左右の銃口を交互に使う。右の連撃は乱れ撃ち・銃把打ち・回転撃ち。ダッシュの終わりに反転撃ち",
-    steps: [],
+    desc: "左右のクリックで左手・右手の銃を 1 発ずつ撃ち、交互に撃つと拍が溜まる。同じ手を続けると左は蹴り技、右は銃把打ちと回転撃ち。左右をほぼ同時に押すと両手の弾倉を撃ち尽くす",
+    // 左の段 = 左手を続けた 2・3 回目（蹴り・回し蹴り）。右の段 = 右手を続けた 2・3 回目（銃把打ち・回転撃ち）と弾切れの手の銃把打ち
+    steps: reviveSteps(W.gunner.steps),
     dashAttack: reviveStep(W.gunner.dashAttack),
     attackMoveMul: W.gunner.attackMoveMul,
     weight: reviveWeight(W.gunner.weight),
-    form: "pistol",
-    primary: "shot",
+    form: "akimbo",
+    primary: "hands",
     steps2: reviveLane(W.gunner.steps2),
-    branches: reviveBranches(W.gunner.branches),
+    // 派生は持たない（左右を交互に撃つ拍と、同じ手を続けた技が入力を使い切る）
+    branches: [],
     keywords: kw(["ranged", "bullet", "combo"], [], ["energy", "dash"]),
     attack: attack("ranged", "physical"),
   }),
@@ -1691,9 +1695,17 @@ export function isRangedWeapon(moveset: Pick<MovesetDef, "key">): boolean {
   return weaponGroup(moveset) !== "melee";
 }
 
-/** 左の押しっぱなしで器の弾を撃つ武器種か（群とは別。銃でも左で撃たない型がある） */
+/**
+ * 左で器の弾を撃つ武器種か（群とは別。銃でも左で撃たない型がある）。shot は押しっぱなしで撃ち続け、
+ * hands（二丁拳銃）は左右のクリックで 1 発ずつ（押しっぱなしの射撃は firesByHand で外す）
+ */
 export function shootsPrimary(moveset: Pick<MovesetDef, "primary">): boolean {
-  return moveset.primary === "shot";
+  return moveset.primary === "shot" || moveset.primary === "hands";
+}
+
+/** 左右のクリックがそれぞれの手の銃の 1 発になる武器種か（二丁拳銃。system/dualPistols.ts） */
+export function firesByHand(moveset: Pick<MovesetDef, "primary">): boolean {
+  return moveset.primary === "hands";
 }
 
 /** 銃の群の武器種（MOVESET_KEYS の順）。器の家系・性質の家系条件・テストが読む */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chargeGauge, comboPips, controlHint, formatBranchHints, hudHintText, releaseStepKeys } from "./comboUi";
+import { chargeGauge, comboPips, controlHint, formatBranchHints, handChainLabel, handsHintText, hudHintText, releaseStepKeys } from "./comboUi";
 import { FORMS, movesetsOfForm } from "../data/weaponForms";
 import { MOVESETS } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
@@ -112,5 +112,18 @@ describe("chargeGauge（溜めの目盛り）", () => {
 
   it("段が無ければ目盛りを出さない", () => {
     expect(chargeGauge(1, [])).toBeUndefined();
+  });
+});
+
+describe("二丁拳銃の手の表示（system/dualPistols.ts）", () => {
+  it("続けている手の札は左右の手、連続が切れていれば空", () => {
+    expect(handChainLabel({ lastHand: 0, count: 2, sinceLast: 0.1 })).toBe("左");
+    expect(handChainLabel({ lastHand: 1, count: 1, sinceLast: 0.1 })).toBe("右");
+    expect(handChainLabel({ lastHand: undefined, count: 0, sinceLast: Number.POSITIVE_INFINITY })).toBe("");
+  });
+
+  it("案内は左右それぞれ今押すと出るものと拍（端数は切り捨て）", () => {
+    expect(handsHintText("kick", "shot", "拍", 3.4)).toBe("左: 蹴り / 右: 射撃 / 拍 3");
+    expect(handsHintText("empty", "spin", "拍", 0)).toBe("左: 銃把打ち / 右: 回転撃ち / 拍 0");
   });
 });

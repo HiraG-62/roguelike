@@ -57,6 +57,7 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   quickReload: "早込め",
   pack: "詰め",
   blastHit: "敵を巻き込んだ炸裂",
+  alternateShot: "左右の手を替えた射撃",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };
@@ -120,6 +121,8 @@ function releaseText(m: Readonly<MovesetDef>, form: FormDef): string {
       return "最大段の溜め攻撃";
     case "release":
       return "構えを離した振り";
+    case "bothHands":
+      return "左右の同時押しの撃ち尽くし";
   }
 }
 

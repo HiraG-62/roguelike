@@ -743,6 +743,7 @@ import j_skills_ART_TRANSFORM_artillery from "./skills/ART/TRANSFORM/artillery.j
 import j_skills_ART_TRANSFORM_powder from "./skills/ART/TRANSFORM/powder.json";
 import j_skills_ART_TRANSFORM_shell from "./skills/ART/TRANSFORM/shell.json";
 import j_skills_ART_TRANSFORM_bell from "./skills/ART/TRANSFORM/bell.json";
+import j_skills_ART_TRANSFORM_akimbo from "./skills/ART/TRANSFORM/akimbo.json";
 import j_skills_STONE_TUNING from "./skills/STONE_TUNING.json";
 import j_ultimates__index from "./ultimates/_index.json";
 import j_ultimates_ULTIMATE__index from "./ultimates/ULTIMATE/_index.json";
@@ -833,6 +834,7 @@ import j_weapons_FORM_powder from "./weapons/FORM/powder.json";
 import j_weapons_FORM_shell from "./weapons/FORM/shell.json";
 import j_weapons_FORM_tome from "./weapons/FORM/tome.json";
 import j_weapons_FORM_bell from "./weapons/FORM/bell.json";
+import j_weapons_FORM_akimbo from "./weapons/FORM/akimbo.json";
 import j_weapons_MOMENT from "./weapons/MOMENT.json";
 import j_weapons_REFORGE__index from "./weapons/REFORGE/_index.json";
 import j_weapons_REFORGE_blade from "./weapons/REFORGE/blade.json";
@@ -1780,6 +1782,7 @@ export const skills = {
       "powder": j_skills_ART_TRANSFORM_powder,
       "shell": j_skills_ART_TRANSFORM_shell,
       "bell": j_skills_ART_TRANSFORM_bell,
+      "akimbo": j_skills_ART_TRANSFORM_akimbo,
     },
   },
   "STONE_TUNING": j_skills_STONE_TUNING,
@@ -1895,6 +1898,7 @@ export const weapons = {
     "shell": j_weapons_FORM_shell,
     "tome": j_weapons_FORM_tome,
     "bell": j_weapons_FORM_bell,
+    "akimbo": j_weapons_FORM_akimbo,
   },
   "MOMENT": j_weapons_MOMENT,
   "REFORGE": {
@@ -2809,6 +2813,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "loot/affixCurves/wedge.json",
   "loot/bases.json",
   "skills/ART/TRANSFORM/_index.json",
+  "skills/ART/TRANSFORM/akimbo.json",
   "skills/ART/TRANSFORM/artillery.json",
   "skills/ART/TRANSFORM/bell.json",
   "skills/ART/TRANSFORM/bulwark.json",
@@ -2916,6 +2921,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "ultimates/_index.json",
   "weapons/ACTION_DASH_ATTACK.json",
   "weapons/FORM/_index.json",
+  "weapons/FORM/akimbo.json",
   "weapons/FORM/artillery.json",
   "weapons/FORM/bell.json",
   "weapons/FORM/blade.json",

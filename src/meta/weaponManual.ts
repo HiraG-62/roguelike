@@ -16,9 +16,11 @@ import {
   type MovesetDef,
   type MovesetKey,
   actionStepName,
+  firesByHand,
   matchBranch,
   shootsPrimary,
 } from "../data/weapons";
+import { HAND_ACTION_NAME } from "../system/dualPistols";
 import type { DemoCue, DemoExpect, DemoScript } from "../system/manualDemo";
 import { featureText, formText } from "./weaponText";
 
@@ -76,6 +78,8 @@ export interface ManualToken {
 }
 
 const BUTTON_LABEL: Readonly<Record<ButtonKey, string>> = { primary: "左", secondary: "右" };
+/** 左右の同時押しの札 */
+const BOTH_LABEL = "左右同時";
 const WEIGHT_LABEL: Readonly<Record<MovesetDef["weight"], string>> = { light: "軽", medium: "中", heavy: "重" };
 const ULTIMATE_KIND_LABEL: Readonly<Record<UltimateDef["kind"], string>> = { instant: "一撃", sustain: "持続" };
 
@@ -88,6 +92,8 @@ export function cueToken(cue: DemoCue): ManualToken | null {
       return cue.hidden === true ? null : { label: BUTTON_LABEL[cue.button], long: true };
     case "holdUntil":
       return { label: BUTTON_LABEL[cue.button], long: true };
+    case "both":
+      return { label: BOTH_LABEL, long: false };
     case "dash":
       return { label: "ダッシュ", long: false };
     case "special":
@@ -365,13 +371,78 @@ function ultimateMoves(key: MovesetKey): ManualMove[] {
   const m = MOVESETS[key];
   return ULTIMATES[key].map((u) => {
     // 持続の奥義の間に振って見せる通常の手は札にしない（入力は「奥義 → 奥義で終える」）
-    const follow: DemoCue[] = shootsPrimary(m) ? [{ kind: "hold", button: "primary", sec: FIRE_SEC, hidden: true }] : times(Math.max(1, m.steps.length), { kind: "tap", button: "primary", hidden: true });
+    const follow: DemoCue[] = firesByHand(m)
+      ? HAND_FOLLOW
+      : shootsPrimary(m) ? [{ kind: "hold", button: "primary", sec: FIRE_SEC, hidden: true }] : times(Math.max(1, m.steps.length), { kind: "tap", button: "primary", hidden: true });
     const cues: DemoCue[] = u.kind === "sustain" ? [{ kind: "special" }, wait(SUSTAIN_LEAD_SEC), ...follow, { kind: "special" }] : [{ kind: "special" }];
     const desc = u.kind === "sustain" ? `${withPeriod(u.desc)}持続の間は通常の攻撃が変わり、もう一度奥義キーで終える。` : withPeriod(u.desc);
     // 左で撃つ武器種の奥義にも至近の行為（零距離乱射・輪舞）があるので、木人は既定の距離に立てる
     const setup = shootsPrimary(m) ? { ultimate: u.key, foeDistance: MANUAL.foeDistance } : { ultimate: u.key };
     return { key: `ult.${u.key}`, group: "ultimate", name: u.name, traits: u.desc.startsWith(ULTIMATE_KIND_LABEL[u.kind]) ? [] : [ULTIMATE_KIND_LABEL[u.kind]], desc, script: { setup, cues }, expect: "hit" };
   });
+}
+
+// ---------------------------------------------------------------------------
+// 二丁拳銃の手（system/dualPistols.ts）
+// ---------------------------------------------------------------------------
+
+/**
+ * 手と手の間に置く待ち（秒）。左右を続けて押す手が撃ち尽くしの猶予（movesets/gunner.json の hands.bothHandsSec）に
+ * 入らないよう、猶予より長く空ける
+ */
+const HAND_GAP_SEC = 0.12;
+const handGap = wait(HAND_GAP_SEC);
+
+/** 手を順に押す（手の間は待ちを挟む） */
+function handTaps(buttons: readonly ButtonKey[], hidden = false): DemoCue[] {
+  return buttons.flatMap((b, i) => {
+    const t: DemoCue = hidden ? { kind: "tap", button: b, hidden: true } : tap(b);
+    return i === 0 ? [t] : [handGap, t];
+  });
+}
+
+/** 持続の奥義の間に見せる手（左右を交互に撃つ） */
+const HAND_FOLLOW: DemoCue[] = handTaps(["primary", "secondary", "primary", "secondary"], true);
+
+/** 左手・右手の射撃と、同じ手を続けた技の 1 つ（振りを見せる手の木人の距離は振りの届き） */
+function handMove(
+  m: Readonly<MovesetDef>,
+  key: string,
+  name: string,
+  traits: readonly string[],
+  desc: string,
+  buttons: readonly ButtonKey[],
+  step?: Readonly<MeleeStepDef>,
+): ManualMove {
+  return { key, group: "chain", name, traits, desc, script: { setup: swingSetup(m, step), cues: handTaps(buttons) }, expect: "hit" };
+}
+
+/**
+ * 二丁拳銃の手の技の一覧: 射撃（左右交互）・左を続けた蹴り / 回し蹴り（左の段）・右を続けた銃把打ち / 回転撃ち と
+ * 弾切れの手の銃把打ち（右の段。key は lane.<添字> で右の段の数と揃える）
+ */
+function handChainMoves(m: Readonly<MovesetDef>): ManualMove[] {
+  const L = "primary" as const;
+  const R = "secondary" as const;
+  const kick = m.steps[0];
+  const roundKick = m.steps[1];
+  const fire = handMove(m, "fire", HAND_ACTION_NAME.shot, ["1 クリック 1 発", "交互で拍"], "左を押すと左手、右を押すと右手の銃を 1 発撃つ。左右を交互に撃つと拍が溜まり、同じ手が続くと途切れる。", [L, R, L, R]);
+  const left = [
+    ...(kick ? [handMove(m, "kick", HAND_ACTION_NAME.kick, stepTraits(m, kick, false), "左を続けて 2 回押すと蹴る。", [L, L], kick)] : []),
+    ...(roundKick ? [handMove(m, "roundKick", HAND_ACTION_NAME.roundKick, stepTraits(m, roundKick, true), "左を続けて 3 回押すと回し蹴り。", [L, L, L], roundKick)] : []),
+  ];
+  return [fire, ...left, ...m.steps2.map((s, i) => handLaneMove(m, s, i))];
+}
+
+/** 右の段（右を続けた 2・3 回目と、弾切れの手の銃把打ち） */
+function handLaneMove(m: Readonly<MovesetDef>, s: Readonly<ActionStepDef>, index: number): ManualMove {
+  const R = "secondary" as const;
+  const base = { key: `lane.${index}`, group: "branch" as const, name: actionStepName(s, index), traits: laneTraits(m, s, index), desc: s.desc ?? "", expect: "hit" as const };
+  const setup = swingSetup(m, laneSwingStep(s));
+  // 弾切れの手の銃把打ちは右手を空にして込めている間に押す
+  if (s.key === "emptyHandStrike") return { ...base, script: { setup: { ...setup, emptyHand: 1 }, cues: [tap(R)] } };
+  // 右の連続は 2 回目が右の 1 段目、3 回目が 2 段目
+  return { ...base, script: { setup, cues: handTaps(Array.from({ length: index + 2 }, () => R)) } };
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +493,8 @@ function releaseCues(m: Readonly<MovesetDef>): DemoCue[] | null {
     }
     case "release":
       return [hold("secondary", GUARD_HOLD_SEC)];
+    case "bothHands":
+      return [{ kind: "both" }];
   }
 }
 
@@ -469,6 +542,7 @@ function moraleMove(m: Readonly<MovesetDef>): ManualMove[] {
 
 function summaryOf(m: Readonly<MovesetDef>): string {
   const form = formOf(m);
+  if (firesByHand(m)) return `型 ${form.name}・重さ ${WEIGHT_LABEL[m.weight]}・左右のクリックで左手・右手の射撃`;
   const left = shootsPrimary(m) ? "左で射撃" : m.primary === "charge" ? `左は ${m.steps.length} 段の連撃と溜め` : `左は ${m.steps.length} 段の連撃`;
   return `型 ${form.name}・重さ ${WEIGHT_LABEL[m.weight]}・${left}・右は ${m.steps2.length} 段`;
 }
@@ -502,7 +576,8 @@ export function weaponManualPage(key: MovesetKey): ManualPage {
     { heading: "型と戦意", body: formText(m) },
   ];
   const distance = foeDistanceFor(m);
-  const moves = [chainMove(m), ...chargeMoves(m), ...laneMoves(m), ...branchMoves(m), dashMove(m), ...moraleMove(m), ...ultimateMoves(key)].map((mv) => withFoeDistance(mv, distance));
+  const head = firesByHand(m) ? handChainMoves(m) : [chainMove(m), ...chargeMoves(m), ...laneMoves(m)];
+  const moves = [...head, ...branchMoves(m), dashMove(m), ...moraleMove(m), ...ultimateMoves(key)].map((mv) => withFoeDistance(mv, distance));
   return { key, name: m.name, summary: summaryOf(m), sections, moves };
 }
 

@@ -63,7 +63,7 @@ import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDe
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
 import { equippedSkillKeys } from "../system/runSetup";
 import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
-import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
+import { type HitShape, MOVESETS, lobHeight, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
@@ -2307,7 +2307,7 @@ export class Renderer {
       aim: Math.atan2(aimVec.y, aimVec.x),
       step: swing.step,
       facingRight: look.x >= 0,
-      aimHeld: moveset.primary === "shot",
+      aimHeld: shootsPrimary(moveset),
       edge: WEAPON_EDGE[moveset.key],
       hold: laneHoldPose(moveset.steps2[p.attack.step], p.art.holding),
       sign: screenSwingSign(swing.step, look.x >= 0, swing.pose, swing.heavy),
@@ -2373,7 +2373,7 @@ export class Renderer {
       swing: posed ? this.heldWeaponPose(state, swing) : undefined,
       step: swing.step,
       aim: Math.atan2(look.y, look.x),
-      aimHeld: moveset.primary === "shot",
+      aimHeld: shootsPrimary(moveset),
       facingRight,
       shoulderF,
       shoulderB,
@@ -2384,7 +2384,7 @@ export class Renderer {
       restBlend: hold === undefined ? restBlendOf(swing.phase, swing.t) : 0,
       unrotated: (actorSheet(`${weapon}.held`)?.dirs ?? 0) <= 1,
       castOff: swing.cast,
-      kick: moveset.primary === "shot" ? recoilOf(playerShotAge(state)) : 0,
+      kick: shootsPrimary(moveset) ? recoilOf(playerShotAge(state)) : 0,
       sign: screenSwingSign(swing.step, facingRight, swing.pose, swing.heavy),
       ...(hip ? { hip } : {}),
       ...(iai ? { iai } : {}),

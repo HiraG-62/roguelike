@@ -30,7 +30,7 @@ const PER_FORM = 2;
  * docs/ideas/gun-bases-review.md 4-3 の 3）。投具は牽引・双刃（手元返し・投げ放ちが消える）、仕掛けは連爆を装薬へ移した残り、
  * 装薬は連爆だけ、擲弾はまだ無い
  */
-const UNDER_FILLED: Readonly<Partial<Record<FormKey, number>>> = { thrower: 0, artillery: 1, powder: 1, shell: 0 };
+const UNDER_FILLED: Readonly<Partial<Record<FormKey, number>>> = { thrower: 0, artillery: 1, powder: 1, shell: 0, akimbo: 0 };
 const INPUT_WAIT = REFORGE.inputDelay + FIXED_DT;
 const EPS = 1e-6;
 /** 放出の粒が届いて炸裂するまで待つステップ */

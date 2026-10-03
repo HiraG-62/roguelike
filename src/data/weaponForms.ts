@@ -23,6 +23,7 @@ export const FORM_KEYS = [
   "rod",
   "thrower",
   "pistol",
+  "akimbo",
   "rifle",
   "artillery",
   "powder",
@@ -65,6 +66,8 @@ export type MoraleGain =
   | { kind: "flyingShots" }
   /** 早込めが決まった（短銃。system/magazine.ts の tryQuickReload） */
   | { kind: "quickReload"; amount: number }
+  /** 前の押下と違う手で撃った 1 発（二丁の拍。system/dualPistols.ts。同じ手が続くと 0 へ途切れる） */
+  | { kind: "alternateShot"; amount: number }
   /** 砲の詰めの段が 1 つ上がった（装薬。system/magazine.ts の tickPack） */
   | { kind: "pack"; amount: number }
   /** 敵を 1 体以上巻き込んだ自分の炸裂（擲弾。system/projectiles.ts の detonateMine → system/morale.ts の noteBlast） */
@@ -99,7 +102,9 @@ export type MoraleRelease =
   /** 最大段の溜め攻撃が放出（重打） */
   | { kind: "maxCharge" }
   /** 構えを離した振りが放出（盾押し） */
-  | { kind: "release" };
+  | { kind: "release" }
+  /** 左右をほぼ同時に押した撃ち尽くしが放出（二丁拳銃。system/dualPistols.ts。0 でも撃てて段ぶん強い） */
+  | { kind: "bothHands" };
 
 /** 放出の戦意 1 あたりの上乗せ（FORM.<型>.perUnit） */
 export interface ReleasePerUnit {
@@ -371,6 +376,17 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     release: { kind: "nextMagazine" },
     // 応手は受け流しと零距離の見切り（見切りの範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
     keywords: kw(["ranged", "bullet"], ["just"]),
+    riposte: ["parry", "justDodge"],
+    finisher: ["lastStep", "release"],
+  }),
+  // 二丁拳銃: 左右の手を交互に撃つ拍で溜まり、左右をほぼ同時に押す撃ち尽くしが放出（system/dualPistols.ts）
+  akimbo: defineForm("akimbo", {
+    name: "二丁",
+    desc: "左右の手を交互に撃って拍を刻み、両手の弾倉を撃ち尽くす",
+    label: "拍",
+    gain: [{ kind: "alternateShot", amount: FORM.akimbo.gain.alternateShot }],
+    release: { kind: "bothHands" },
+    keywords: kw(["ranged", "bullet"], ["combo"]),
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],
   }),

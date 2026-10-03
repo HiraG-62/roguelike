@@ -875,24 +875,24 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     expect(meleeChargeLevel(state), "0.68 秒で 1 段").toBe(1);
   });
 
-  it("二丁拳銃は左で撃ち、銃口が左右交互になる。右は乱れ撃ち", () => {
+  it("二丁拳銃は左クリックで左手、右クリックで右手の銃口から 1 発ずつ撃ち、押しっぱなしでは撃ち続けない", () => {
     const left = arena(5, { moveset: "gunner" });
     step(left, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     expect(playerShotCount(left), "左で撃った").toBe(1);
     expect(left.player.attack.phase, "近接は振らない").toBe("none");
-
-    const right = arena(5, { moveset: "gunner" });
-    step(right, withInput({ shootHeld: true }), FIXED_DT);
-    expect(playerShotCount(right), "右は乱れ撃ち（全周に 8 発）").toBe(8);
+    const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;
+    for (let i = 0; i <= cooldownSteps; i++) step(left, withInput({ attackHeld: true }), FIXED_DT);
+    expect(playerShotCount(left), "押しっぱなしでは撃ち続けない").toBe(1);
 
     const both = arena(5, { moveset: "gunner" });
-    const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;
-    for (let i = 0; i <= cooldownSteps; i++) step(both, withInput({ attackHeld: true }), FIXED_DT);
+    step(both, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
+    for (let i = 0; i < 6; i++) step(both, withInput({}), FIXED_DT);
+    step(both, withInput({ shootHeld: true }), FIXED_DT);
     const shots = both.projectiles.filter((pr) => pr.owner === "player");
-    expect(shots.length, "2 発撃った").toBe(2);
+    expect(shots.length, "左右で 2 発撃った").toBe(2);
     const [a, b] = shots;
     if (!a || !b) throw new Error("弾が足りない");
-    expect(Math.sign(a.pos.y - both.player.body.pos.y), "1 発目と 2 発目は逆の銃口").not.toBe(Math.sign(b.pos.y - both.player.body.pos.y));
+    expect(Math.sign(a.pos.y - both.player.body.pos.y), "左手と右手は逆の銃口").not.toBe(Math.sign(b.pos.y - both.player.body.pos.y));
   });
 
   it("二丁拳銃はダッシュ中の押下で反転撃ち（ダッシュ攻撃）を出す", () => {

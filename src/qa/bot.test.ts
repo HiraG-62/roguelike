@@ -544,3 +544,25 @@ describe("bot の刻印符の自動装着", () => {
     expect(state.skills.hand, "手持ちのまま").toEqual(["focus"]);
   });
 });
+
+describe("bot の二丁拳銃（左右の手。system/dualPistols.ts）", () => {
+  it("左右を交互に 1 発ずつ押して拍を溜め、両手の弾で撃つ", () => {
+    const state = facingEnemy(80);
+    state.stats = { ...state.stats, moveset: "gunner", bullet: "twinPistols" };
+    const bot = createBotState(6);
+    const lanes = new Set<string>();
+    let beat = 0;
+    const FRAMES = 60 * 3;
+    for (let i = 0; i < FRAMES; i++) {
+      // スキルではなく手で撃たせる
+      state.player.mana = 0;
+      const input = botInput(state, bot, DT);
+      expect(input.attackHeld && !input.attackPressed, `${i} フレーム目: 押しっぱなしにしない`).toBe(false);
+      step(state, input, DT);
+      for (const pr of state.projectiles) if (pr.owner === "player" && pr.lane) lanes.add(pr.lane);
+      beat = Math.max(beat, state.player.morale.value);
+    }
+    expect([...lanes].sort(), "左手と右手の両方で撃った").toEqual(["primary", "secondary"]);
+    expect(beat, "交互に撃って拍が溜まった").toBeGreaterThanOrEqual(2);
+  });
+});

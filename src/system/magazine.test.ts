@@ -344,11 +344,18 @@ describe("短銃: 早込め", () => {
 describe("二丁拳銃: 左右別の弾倉", () => {
   const gunner = { moveset: "gunner" as const, bullet: "twinPistols" };
 
-  it("撃つたびに手を替え、左右の弾倉をそれぞれ減らす", () => {
+  /** 右クリックで右手を 1 回撃つ（左とは撃ち尽くしの猶予より空けてから） */
+  function fireRight(state: GameState): void {
+    press(state, {}, stepsFor(0.1));
+    press(state, { shootHeld: true });
+    press(state);
+  }
+
+  it("左クリックは左手、右クリックは右手の弾倉を減らす", () => {
     const state = gunArena(gunner);
     const cap = capacityOf("twinPistols");
     fire(state);
-    fire(state);
+    fireRight(state);
     const [left, right] = state.player.magazine.hands;
     expect(left.rounds, "手 0").toBe(cap - 1);
     expect(right.rounds, "手 1").toBe(cap - 1);
@@ -362,7 +369,7 @@ describe("二丁拳銃: 左右別の弾倉", () => {
     expect(canFireHand(state, 0), "込めている手は撃てない").toBe(false);
     expect(canFireHand(state, 1), "もう片手は撃てる").toBe(true);
     const right = state.player.magazine.hands[1].rounds;
-    fire(state);
+    fireRight(state);
     expect(playerShots(state).length, "撃てた").toBeGreaterThan(0);
     expect(state.player.magazine.hands[1].rounds, "撃ったのは手 1").toBe(right - 1);
   });
@@ -370,7 +377,7 @@ describe("二丁拳銃: 左右別の弾倉", () => {
   it("リロードは満ちていない両手を込める", () => {
     const state = gunArena(gunner);
     fire(state);
-    fire(state);
+    fireRight(state);
     press(state, { reloadPressed: true });
     expect(state.player.magazine.hands.every((h) => h.reloadLeft > 0), "両手とも込める").toBe(true);
   });

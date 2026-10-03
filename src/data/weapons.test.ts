@@ -24,6 +24,7 @@ import {
   laneSwing,
   chargeButton,
   chargeLevelAt,
+  firesByHand,
   isGun,
   isRangedWeapon,
   isThrowingWeapon,
@@ -116,7 +117,8 @@ describe("武器種の定義", () => {
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       const named = namedBranches(key);
-      expect(named.length, `${key} の名前付き派生`).toBeGreaterThanOrEqual(MIN_BRANCHES);
+      // 二丁拳銃は派生を持たない（左右を交互に撃つ拍と、同じ手を続けた技が入力を使い切る。docs/ideas/gun-bases-review.md 4-3 の 4）
+      if (key !== "gunner") expect(named.length, `${key} の名前付き派生`).toBeGreaterThanOrEqual(MIN_BRANCHES);
       const sequences = new Set<string>();
       for (const b of def.branches) {
         expect(b.name.length, `${key}.${b.key} の表示名`).toBeGreaterThan(0);
@@ -366,14 +368,16 @@ describe("武器種の拡張（docs/ideas/combat-feel-design.md レーン B）",
     }
   });
 
-  it("ボタンの役割: 刀は右が居合、戦鎚は左が溜め、二丁拳銃は左だけで撃つ", () => {
+  it("ボタンの役割: 刀は右が居合、戦鎚は左が溜め、二丁拳銃は左右の手で撃つ", () => {
     expect(chargeButton(MOVESETS.katana), "刀の溜めは右").toBe("secondary");
     expect(MOVESETS.katana.primary, "刀の連撃は左").toBe("melee");
     expect(chargeButton(MOVESETS.hammer), "戦鎚の溜めは左").toBe("primary");
     expect(chargeButton(MOVESETS.greatsword), "大剣の溜めは左のまま").toBe("primary");
     expect(chargeButton(MOVESETS.sword), "剣は溜めを持たない").toBeUndefined();
     expect(shootsPrimary(MOVESETS.gunner), "二丁拳銃は左で撃つ").toBe(true);
-    expect(MOVESETS.gunner.primary, "二丁拳銃は近接の連撃ボタンを持たない").toBe("shot");
+    expect(MOVESETS.gunner.primary, "二丁拳銃は左右のクリックが左手・右手の銃").toBe("hands");
+    expect(firesByHand(MOVESETS.gunner), "二丁拳銃は手で撃つ").toBe(true);
+    expect(firesByHand(MOVESETS.sidearm), "短銃は押しっぱなしで撃つ").toBe(false);
     expect(shootsPrimary(MOVESETS.sword), "剣は撃たない").toBe(false);
   });
 
@@ -463,7 +467,7 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     shield: "hold",
     chainSickle: "swing",
     hammer: "swing",
-    gunner: "volley",
+    gunner: "swing",
     sidearm: "swing",
     longarm: "swing",
     cannon: "swing",

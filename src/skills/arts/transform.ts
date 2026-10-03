@@ -307,6 +307,8 @@ export const ART_TRANSFORMS: Readonly<Record<FormKey, ArtTransform>> = {
   rod: { acts: rod, element: "weapon", label: () => "属性を武器に" },
   thrower: { acts: thrower, label: () => "振りを投げに" },
   pistol: { acts: pistol, label: () => "振りを弾に" },
+  // 二丁は短銃の写し（ART/TRANSFORM/akimbo.json。二丁らしい変形は後で）
+  akimbo: { acts: pistol, label: () => "振りを弾に" },
   rifle: { acts: rifle, label: () => "振りを貫く 1 発に" },
   artillery: { acts: artillery, label: () => "照準地点へ砲撃" },
   powder: { acts: artillery, label: () => "照準地点へ砲撃" },

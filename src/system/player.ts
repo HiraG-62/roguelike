@@ -24,6 +24,7 @@ import {
   matchBranch,
   meleeChargeOf,
   shootsPrimary,
+  firesByHand,
   withExtraBranch,
 } from "../data/weapons";
 import type { AttackProfile } from "../core/element";
@@ -88,7 +89,8 @@ import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
 import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
 import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
-import { canFireAny, createMagazineFor, nextFireHand, pressTrigger, reloadMoveMul, spendRounds, tickMagazine } from "./magazine";
+import { type HandIndex, canFireAny, createMagazineFor, nextFireHand, pressTrigger, reloadMoveMul, spendRounds, tickMagazine } from "./magazine";
+import { pressHand, tickDualPistols } from "./dualPistols";
 import { relicBlocksSwing, relicStride, tickNamedRelics } from "./namedRelics";
 import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
 import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
@@ -474,7 +476,11 @@ function readActions(state: GameState, input: FrameInput): void {
   releaseFrozenInput(state);
   if (input.dashPressed && !skillLocksDash(state) && !parryLocksDash(state)) tryDash(state, input);
   if (input.parryPressed) startParry(state);
-  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) readAttackButtons(state, input);
+  if (!skillLocksAttack(state) && !artLocksActions(state) && !dashLocksActions(state)) {
+    readAttackButtons(state, input);
+    // 二丁拳銃の覚えておいた押下（振りの最中・手の間に押した分）を出せるようになったら出す
+    tickDualPistols(state);
+  }
   // 奥義は常にスキルをキャンセルできる
   if (input.specialPressed && tryUltimate(state)) cancelSkills(state);
 }
@@ -533,6 +539,11 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
   if (shapeButtonPress(state, button)) return;
   const p = state.player;
   const moveset = playerMoveset(state);
+  // 二丁拳銃は左右とも手の銃（左 = 左手、右 = 右手）。連続・同時押し・弾切れの手は system/dualPistols.ts が決める
+  if (firesByHand(moveset)) {
+    pressHand(state, button === "primary" ? 0 : 1);
+    return;
+  }
   // 込めの最中の短銃の左は早込め（押下を使う）。撃てない引き金は空撃ちの音
   if (button === "primary" && shootsPrimary(moveset) && pressTrigger(state)) return;
   // 振っている最中に派生を予約済みなら、その派生が出るまで次の押下は受けない（予約の上書きで列と技がずれないように）
@@ -644,10 +655,11 @@ function buttonHeld(input: FrameInput, button: ButtonKey | undefined): boolean {
   return false;
 }
 
-/** 射撃の押しっぱなし。左で撃つ武器種の左だけ（近接の武器種は撃たない） */
+/** 射撃の押しっぱなし。左で撃つ武器種の左だけ（近接の武器種は撃たない。二丁拳銃は 1 クリック 1 発なので押しっぱなしで撃たない） */
 function shotButtonHeld(state: GameState, input: FrameInput): boolean {
   if (shapeLocksShot(state)) return false;
-  return shootsPrimary(playerMoveset(state)) && input.attackHeld;
+  const moveset = playerMoveset(state);
+  return shootsPrimary(moveset) && !firesByHand(moveset) && input.attackHeld;
 }
 
 /** 実際に出た段のボタンを派生の入力列に積む。長さは chainMaxInputs まで */
@@ -917,6 +929,15 @@ function tryAttack(state: GameState, charge = false): void {
   if (a.phase !== "recover" && a.phase !== "active") return;
   a.buffered = true;
   a.bufferedLane = "primary";
+}
+
+/**
+ * 二丁拳銃の手の技（蹴り・回し蹴り・銃把打ち）を lane の index 段目として振る（system/dualPistols.ts）。
+ * 段は共有の段カウンタではなく手の連続で決まるので、終撃かは呼び手が渡す（祝福の「常に最終段」は掛けない）
+ */
+export function startHandSwing(state: GameState, lane: ButtonKey, index: number, finisher: boolean): void {
+  if (isDashing(state.player)) return;
+  beginSwing(state, { step: index, dashStrike: false, chargeLevel: 0, branch: -1, combo: finisher ? FINISHER_COMBO : 0, lane });
 }
 
 /** 次の段を振る。logAs は派生の列に積むボタン（省略は振りのレーン） */
@@ -1698,6 +1719,8 @@ export interface VolleyOverride {
   fan?: { count: number; spreadDeg: number };
   /** 揺れ（BulletDef.sway）を掛けない。放出の弾（release を持つ弾と、その三点の続き）は狙ったとおりに飛ぶ（P7） */
   steady?: boolean;
+  /** 撃った手（二丁拳銃。その手の銃口から出す。省略は撃つたびに左右を入れ替える） */
+  hand?: HandIndex;
 }
 
 function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): VolleySpec {
@@ -1769,7 +1792,7 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   const fresh = p.magazine.fresh;
   if (hand === undefined || spendRounds(state, hand, 1) <= 0) return;
   const shot = ultimateShot(state, currentShot(s));
-  p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
+  p.shootCooldown = shotInterval(state, shot);
   // 放出の 1 発（長銃の満ちた 1 発・装薬の詰めた 1 発）と短銃の強装填の弾倉。放出の弾には揺れを掛けない（P7）
   const { powder, ...moments } = startShotMoments(state, { level, chargeLevels: shot.charge?.levels.length ?? 0, fresh });
   const steady = moments.release ? { steady: true } : {};
@@ -1780,6 +1803,26 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   // 装薬の反動は詰めた段の距離だけ後ろへ跳ぶ（押しの速さは減衰で距離 = 速さ / KNOCK_DECAY。動きの当たりで壁に止まる）
   if (powder) p.knock = add(p.knock, scale(p.facing, -powder.recoilPx * KNOCK_DECAY));
   queueBurst(state, shot, [0], override);
+}
+
+/** 射撃 1 回の後の再使用の秒（連射の速さ・血の契約・持続の奥義を掛ける） */
+function shotInterval(state: GameState, shot: BulletDef): number {
+  const s = state.stats;
+  return (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
+}
+
+/**
+ * 二丁拳銃の手 1 本の 1 発（system/dualPistols.ts）。その手の弾倉から 1 発使い、その手の銃口から撃つ。
+ * 撃つ間（再使用）は手ごとに持つ（もう片方の手はすぐ撃てる）。撃てたら true
+ */
+export function fireHandVolley(state: GameState, hand: HandIndex): boolean {
+  if (spendRounds(state, hand, 1) <= 0) return false;
+  const shot = ultimateShot(state, currentShot(state.stats));
+  state.player.magazine.hands[hand].cooldown = shotInterval(state, shot);
+  const override: VolleyOverride = { lane: hand === 0 ? "primary" : "secondary", hand };
+  emitVolley(state, shot, 0, state.player.aimDistance, override);
+  queueBurst(state, shot, [0], override);
+  return true;
 }
 
 /**
@@ -1801,12 +1844,15 @@ function volleyOffsets(count: number, spreadDeg: number, fan: VolleyOverride["fa
   return spreadOffsets(fan.count, fan.spreadDeg).flatMap((round) => inRound.map((offset) => round + offset));
 }
 
-/** 銃口の位置。二丁拳銃は撃つたびに左右の銃口を入れ替える */
-function muzzleAt(state: GameState, dir: Vec): Vec {
+/**
+ * 銃口の位置。二丁拳銃は撃った手（hand）の銃口で、手が無ければ撃つたびに左右を入れ替える。
+ * 左右のずれは向きの右手側が正（render/renderMath.ts の offhandOffset と同じ）なので、左手は負の側
+ */
+function muzzleAt(state: GameState, dir: Vec, hand?: HandIndex): Vec {
   const p = state.player;
   const front = add(p.body.pos, scale(dir, p.body.radius + 2));
   if (playerMoveset(state).key !== "gunner") return front;
-  const side = p.shotBurst.side;
+  const side = hand === undefined ? p.shotBurst.side : hand === 0 ? -1 : 1;
   p.shotBurst.side = -side;
   return add(front, scale({ x: -dir.y, y: dir.x }, WEAPON.movesets.gunner.muzzleOffset * side));
 }
@@ -1821,7 +1867,7 @@ function shotIsPointBlank(state: GameState, muzzle: Vec): boolean {
 export function emitVolley(state: GameState, shot: BulletDef, level: number, aim?: number, override: VolleyOverride = {}): boolean {
   const p = state.player;
   const dir = { ...p.facing };
-  const muzzle = muzzleAt(state, dir);
+  const muzzle = muzzleAt(state, dir, override.hand);
   // 放出の弾には揺れを掛けない（P7。docs/ideas/gun-bases-review.md 0-3）
   const sway = override.steady || override.release ? 0 : swayOffset(state, shot);
   const baseAngle = angle(dir) + (override.angleOffset ?? 0) + sway;

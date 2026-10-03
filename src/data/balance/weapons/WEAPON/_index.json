@@ -41,6 +41,7 @@
     "tip": "先端判定。ratio は先端の割合（0..1。突きは帯の先、sweep の薙ぎ・回しは外周）、damageMul / poiseMul / manaMul は先端の倍率、offDamageMul / offManaMul は根元の倍率、sweep は突きに加えて薙ぎ（arc）・回し（circle）の段も外周を先端に数える（真偽。省略は突きだけ）。長柄の戦意と槍兵の気力は先端の命中で溜まる",
     "dashAttack": "ダッシュ攻撃の振り（項目は段と同じ）",
     "muzzleOffset": "二丁拳銃の銃口の左右のずれ（px）",
+    "hands": "二丁拳銃の左右の手（system/dualPistols.ts）。chainSec = 同じ手の押下をこの秒の内に続けると連続（2 回目・3 回目の技）に数える / bufferSec = 振りの最中・手の間の押下を覚えておく秒 / bothHandsSec = 先に押した手の 1 発からこの秒の内にもう片方を押すと撃ち尽くし / unload = 撃ち尽くし（spreadDeg は弾倉の 1 発ごとの扇の間隔の度、damageMul は 1 発の威力の倍率で拍の放出の倍率をさらに掛ける、selfKnock は撃った後に自分が下がる速さ px/秒）。回転撃ち（steps2 の spinShot）の throw.count は右手の弾倉の 1 発あたりの弾数で、右手の残りぶんを全周へ等間隔に撒く（spreadDeg は使わない）",
     "chargeRingRadius": "溜めの環の半径（px。描画）",
     "chargeRingStep": "溜めの環の段ごとの広がり（px。描画）",
     "trailLife": "振りの残像の線が残る秒",

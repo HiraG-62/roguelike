@@ -269,6 +269,9 @@ function isReleaseSwing(form: FormDef, moveset: MovesetDef, spec: ReleaseSwingSp
       return branch !== undefined && branch.sequence.length >= 3;
     case "release":
       return branch?.art === "release";
+    case "bothHands":
+      // 撃ち尽くしは振りではなく左右の同時押し（system/dualPistols.ts の consumeBothHandsRelease）
+      return false;
   }
 }
 
@@ -396,6 +399,27 @@ export function expirePrimedMagazine(state: GameState): void {
 export function primedShotOf(state: GameState, fresh: boolean): PrimedShot | undefined {
   if (!state.player.magazine.primed || currentForm(state).morale.release.kind !== "nextMagazine") return undefined;
   return { damageMul: PISTOL_PRIMED.damageMul, poiseMul: PISTOL_PRIMED.poiseMul, first: fresh, finisher: releaseIsFinisher(state) };
+}
+
+/**
+ * 戦意を 0 へ途切れさせる（二丁の拍: 同じ手が続いた。system/dualPistols.ts）。今の型が kind の出来事で溜まる型のときだけ
+ */
+export function breakMoraleStreak(state: GameState, kind: MoraleGain["kind"]): void {
+  if (!hasGain(currentForm(state), kind)) return;
+  const m = state.player.morale;
+  m.value = 0;
+  m.full = false;
+  m.primed = false;
+}
+
+/**
+ * 撃ち尽くし（二丁拳銃の左右の同時押し。system/dualPistols.ts）。放出が bothHands の型なら溜めた戦意をすべて使い、
+ * その量の倍率を返す（0 でも撃てるので units 0・倍率 1 で返す）。型が違えば undefined
+ */
+export function consumeBothHandsRelease(state: GameState): ShotRelease | undefined {
+  const form = currentForm(state);
+  if (form.morale.release.kind !== "bothHands") return undefined;
+  return shotReleaseOf(form, consume(state));
 }
 
 /** 重打の溜め中の堅さ（combat.ts の damagePlayer が被ダメと押しに掛ける）。溜めていなければ undefined */

@@ -15,10 +15,12 @@ import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
-import { canFireAny } from "../system/magazine";
-import { nextLaneIndex, playerMoveset } from "../system/player";
+import { type HandIndex, canFireAny, magazineView } from "../system/magazine";
+import { isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
+import { handsView, nextHandAction } from "../system/dualPistols";
+import { moraleGauge } from "../system/morale";
 import { actionCooldownLeft } from "../system/weaponArts";
-import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun, shootsPrimary } from "../data/weapons";
+import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, firesByHand, isGun, shootsPrimary } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
@@ -96,6 +98,11 @@ const PARRY_HOLD = 0.2;
 const PARRY_CHANCE = 0.5;
 /** 投げる技を撃つ距離の上限（px） */
 const ART_THROW_RANGE = 160;
+/**
+ * 二丁拳銃の手と手の間（秒）。撃ち尽くしの猶予（movesets/gunner.json の hands.bothHandsSec）より長く空けて、
+ * 交互に押しても撃ち尽くしにならないようにする
+ */
+const HAND_PRESS_GAP = 0.12;
 /** 1 振りの技の射程に足す接近余地（px） */
 const ART_STRIKE_MARGIN = 6;
 /**
@@ -832,6 +839,11 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
 
   // スキルが撃てない（マナ不足・GCD・CD 中・未装備）ときは通常攻撃・射撃・右の連撃でマナを貯める
   const moveset = playerMoveset(state);
+  // 二丁拳銃は左右を交互に 1 発ずつ押して拍を刻む（押しっぱなしでは撃たない）
+  if (firesByHand(moveset)) {
+    pressHands(state, input, d);
+    return input;
+  }
   const shoots = shootsPrimary(moveset);
   // 射撃は左で撃つ武器種だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）
   if (!shoots && d < MELEE_RANGE) {
@@ -848,6 +860,37 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   if (shoots) input.attackHeld = shootHeldFor(state);
   pressRightLane(state, bot, moveset, d, input);
   return input;
+}
+
+/**
+ * 二丁拳銃: 前と違う手を 1 回押す（交互の拍）。拍が満ちて両手に弾があれば左右を同じフレームで押して撃ち尽くす。
+ * 次の手が弾切れで込めているときは、近接の射程なら押して銃把打ち、射程外なら込め終わるのを待つ
+ */
+function pressHands(state: GameState, input: FrameInput, d: number): void {
+  const p = state.player;
+  if (isAttacking(p) || p.secondaryWasHeld) return;
+  const view = handsView(state);
+  if (view.sinceLast < HAND_PRESS_GAP) return;
+  const gauge = moraleGauge(state);
+  if (gauge.max > 0 && gauge.value >= gauge.max && d < ART_THROW_RANGE && bothHandsLoaded(state)) {
+    input.attackPressed = true;
+    input.attackHeld = true;
+    input.shootHeld = true;
+    return;
+  }
+  const next: HandIndex = view.lastHand === 0 ? 1 : 0;
+  if (nextHandAction(state, next) === "empty" && d >= MELEE_RANGE) return;
+  if (next === 0) {
+    input.attackPressed = true;
+    input.attackHeld = true;
+    return;
+  }
+  input.shootHeld = true;
+}
+
+/** 両手とも込めておらず弾がある */
+function bothHandsLoaded(state: GameState): boolean {
+  return magazineView(state).hands.every((h) => !h.busy && h.rounds > 0);
 }
 
 /** 銃で、装着中の気力のスキルがあり、そのどれにも気力が足りないか（足りなければ近接で気力を戻しに寄る） */
