@@ -173,7 +173,7 @@ import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./
 import { type TownLook, townLook } from "./meta/townLook";
 import { drawHubOverlay } from "./render/hubUi";
 import { drawRackScreen } from "./render/rackUi";
-import { MOVESETS, type MovesetKey } from "./data/weapons";
+import type { MovesetKey, WeaponGroup } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import {
   type RackAction,
@@ -181,12 +181,14 @@ import {
   type RackInput,
   type RackTrial,
   type RackUi,
-  closeRackFamily,
+  closeRackLevel,
   createRackUi,
   openRackFamily,
+  openRackGroup,
   rackCardBorrowable,
   rackCards,
   rackCursorCard,
+  rackTitle,
   stepRack,
 } from "./ui/rackScreen";
 import {
@@ -1154,8 +1156,7 @@ function drawHallFight(ctx: CanvasRenderingContext2D, fight: HallFight): void {
   else drawHallResult(ctx, fight.result, hallResultHint());
 }
 
-const RACK_TITLE = "武器掛け";
-// 銃の家系のカードの決定は器の段を開き、器の段の Esc は武器種の段へ戻る（案内の幅を増やさないため同じ文で言う）
+// 群・器の複数ある武器種のカードの決定は次の段を開き、Esc は 1 段ずつ戻る（案内の幅を増やさないため同じ文で言う）
 const RACK_HINT = "矢印 選ぶ　Enter / クリック 試す　Enter 長押し 借りる　↓で調整欄（←→ 増減）　Esc 戻る";
 /** 武器掛けで決定キーを押し続けている秒（HUB.rackBorrowHold で借りる） */
 let rackHold = 0;
@@ -1207,7 +1208,7 @@ function dojoRackHost(session: DojoSession): RackHost {
 }
 
 function refreshRackCards(host: RackHost): void {
-  rackCardList = rackCards(host.trial(), rackUi.family);
+  rackCardList = rackCards(host.trial(), rackUi.group, rackUi.family);
   rackEquipped = equippedMoveset(host.state.profile);
 }
 
@@ -1239,9 +1240,9 @@ function gridMenuInput(frame: FrameInput, arrowX: number, arrowY: number): RackI
 function updateRackFrame(host: RackHost, frame: FrameInput, escape: boolean, arrowX: number, arrowY: number, dt: number): void {
   if (escape) {
     sfx.play("uiClose");
-    // 器の段では武器種の段へ戻るだけ（画面は閉じない）
-    if (rackUi.family !== null) {
-      switchRackLevel(host, null);
+    // 武器種・器の段では 1 段上へ戻るだけ（画面は閉じない）
+    if (rackUi.group !== null) {
+      switchRackLevel(host, { kind: "close" });
       return;
     }
     rackHost = null;
@@ -1260,13 +1261,16 @@ function updateRackFrame(host: RackHost, frame: FrameInput, escape: boolean, arr
   refreshRackCards(host);
 }
 
+type RackLevelMove = { kind: "close" } | { kind: "group"; group: WeaponGroup } | { kind: "family"; moveset: MovesetKey };
+
 /**
- * 武器種の段と銃の家系の器の段を行き来する（family が null で武器種の段）。
- * 開いた決定の押しっぱなしがそのまま器の借りる長押しにならないよう、一度離すまで長押しを数えない
+ * 群・武器種・器の 3 段を行き来する。
+ * 開いた決定の押しっぱなしがそのまま借りる長押しにならないよう、一度離すまで長押しを数えない
  */
-function switchRackLevel(host: RackHost, family: MovesetKey | null): void {
-  if (family === null) closeRackFamily(rackUi);
-  else openRackFamily(rackUi, family);
+function switchRackLevel(host: RackHost, move: RackLevelMove): void {
+  if (move.kind === "close") closeRackLevel(rackUi);
+  else if (move.kind === "group") openRackGroup(rackUi, move.group);
+  else openRackFamily(rackUi, move.moveset);
   refreshRackCards(host);
   rackHold = 0;
   resetHoldLatch(rackLatch);
@@ -1282,10 +1286,12 @@ function applyRackAction(host: RackHost, action: RackAction): void {
   if (action.kind === "try") {
     host.setTrial(action.moveset, action.base);
     refreshRackCards(host);
+  } else if (action.kind === "openGroup") {
+    switchRackLevel(host, { kind: "group", group: action.group });
   } else if (action.kind === "open") {
-    switchRackLevel(host, action.moveset);
+    switchRackLevel(host, { kind: "family", moveset: action.moveset });
   } else if (action.kind === "back") {
-    switchRackLevel(host, null);
+    switchRackLevel(host, { kind: "close" });
   } else if (action.kind === "adjust") {
     setResourceOf(host.state, action.resource, resourceRatioOf(host.state, action.resource) + action.delta);
   } else {
@@ -1298,7 +1304,7 @@ function drawRackFrame(ctx: CanvasRenderingContext2D, host: RackHost): void {
   const s = host.state;
   const resources = { hp: resourceRatioOf(s, "hp"), mana: resourceRatioOf(s, "mana"), energy: resourceRatioOf(s, "energy") };
   drawRackScreen(ctx, {
-    title: rackUi.family === null ? RACK_TITLE : `${RACK_TITLE}　${MOVESETS[rackUi.family].name}`,
+    title: rackTitle(rackUi),
     hint: RACK_HINT,
     ui: rackUi,
     cards: rackCardList,

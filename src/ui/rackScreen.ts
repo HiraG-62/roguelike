@@ -1,12 +1,13 @@
 /**
  * 武器掛けの画面（DOM 非依存）。武器種をカードの格子で並べ、右の欄で試し打ち用の資源（生命・気力・奥義ゲージ）を調整する。
- * 銃・投擲物は器ごとに弾の性質が違うので 2 段にする（武器種のカード → その武器種の器のカード。例: 長銃 → 小銃）。
+ * 3 段: 群（近接・銃・投擲物）→ 武器種 → 器（銃・投擲物の弾の性質。例: 銃 → 長銃 → 小銃）。
+ * 器が 1 つしかない武器種は器の段を開かず、その器で試す（データから決まる）。
  * 状態と当たり判定と入力の解釈だけを持ち、試す・借りる・資源を書くのは main.ts が system/hub.ts を呼んで行う。
  * 描画は src/render/rackUi.ts（読むだけ）
  */
 import type { Vec } from "../core/vec";
 import { VIEW_H, VIEW_W } from "../core/view";
-import { MOVESETS, MOVESET_KEYS, type MovesetKey, isRangedWeapon } from "../data/weapons";
+import { MOVESETS, MOVESET_KEYS, type MovesetKey, WEAPON_GROUPS, type WeaponGroup, isRangedWeapon, weaponGroup } from "../data/weapons";
 import { baseHasBullet, bulletDef, rangedBasesOf } from "../loot/bullets";
 import { baseDef } from "../loot/bases";
 import { bulletFeatureTexts } from "../meta/weaponText";
@@ -14,19 +15,22 @@ import { bulletFeatureTexts } from "../meta/weaponText";
 import type { HubResource } from "../system/hub";
 
 /**
- * カードの種類。clear = 装備のまま（試用を外す）/ moveset = 近接の武器種（決定で試す）/
- * family = 銃・投擲物の武器種（決定で器の段を開く）/ base = その器（決定で試す）/ back = 器の段から武器種の段へ戻る
+ * カードの種類。clear = 装備のまま（試用を外す）/ group = 群（決定で武器種の段を開く）/
+ * moveset = 武器種（決定で試す。近接と、器が 1 つだけの銃・投擲物）/
+ * family = 器が 2 つ以上ある銃・投擲物の武器種（決定で器の段を開く）/ base = その器（決定で試す）/ back = 1 段上へ戻る
  */
-export type RackCardKind = "clear" | "moveset" | "family" | "base" | "back";
+export type RackCardKind = "clear" | "group" | "moveset" | "family" | "base" | "back";
 
 export interface RackCard {
   kind: RackCardKind;
-  /** 絵と説明に使う武器種（clear・back は null） */
+  /** 絵と説明に使う武器種（clear・back は null。group は群の代表の武器種） */
   moveset: MovesetKey | null;
-  /** 器の key（base のカードだけ。他は null） */
+  /** 群のカードだけ。他は null */
+  group: WeaponGroup | null;
+  /** 器の key（base と、器が 1 つだけの moveset のカード。他は null） */
   base: string | null;
   name: string;
-  /** 試用中（family は家系のどれかの器を試している） */
+  /** 試用中（group は群のどれかの武器種を、family は家系のどれかの器を試している） */
   marked: boolean;
 }
 
@@ -49,18 +53,42 @@ export interface RackUi {
   cursor: number;
   scroll: number;
   lastCard: number;
-  /** 開いている銃の家系（器の段を出している）。null = 武器種の段 */
+  /** 開いている群（武器種の段か器の段を出している）。null = 群の段 */
+  group: WeaponGroup | null;
+  /** 開いている武器種（器の段を出している）。null = 群の段か武器種の段 */
   family: MovesetKey | null;
 }
 
 export function createRackUi(): RackUi {
-  return { cursor: 0, scroll: 0, lastCard: 0, family: null };
+  return { cursor: 0, scroll: 0, lastCard: 0, group: null, family: null };
 }
+
+/** 群の表示名（docs/GLOSSARY.md） */
+export const RACK_GROUP_NAME: Readonly<Record<WeaponGroup, string>> = { melee: "近接", gun: "銃", throwing: "投擲物" };
+
+/** 群のカードの絵に使う代表の武器種 */
+const RACK_GROUP_ICON: Readonly<Record<WeaponGroup, MovesetKey>> = { melee: "sword", gun: "longarm", throwing: "thrown" };
+
+/** 群の説明（何ができるか。数値・強さは出さない） */
+const RACK_GROUP_DETAIL: Readonly<Record<WeaponGroup, string>> = {
+  melee: "間合いに入って振るう武器。連撃と派生を持つ。",
+  gun: "弾を撃つ武器。器ごとに弾の性質が違う。",
+  throwing: "投げて当てる武器。器ごとに飛び方が違う。",
+};
 
 export const RACK_CLEAR_NAME = "装備のまま";
 export const RACK_CLEAR_DETAIL = "装備中の右手の武器";
 export const RACK_BACK_NAME = "戻る";
-export const RACK_BACK_DETAIL = "武器種の一覧へ戻る";
+export const RACK_BACK_DETAIL = "一つ前の一覧へ戻る";
+const RACK_TITLE = "武器掛け";
+
+/** 画面の題（開いた段に応じて「武器掛け　銃　長銃」） */
+export function rackTitle(ui: Readonly<Pick<RackUi, "group" | "family">>): string {
+  const parts = [RACK_TITLE];
+  if (ui.group !== null) parts.push(RACK_GROUP_NAME[ui.group]);
+  if (ui.family !== null) parts.push(MOVESETS[ui.family].name);
+  return parts.join("　");
+}
 
 /** 武器種の説明（派生の名前を添える。試す・借りるの仕組みは Tips ノート） */
 export function rackMovesetDetail(key: MovesetKey): string {
@@ -86,59 +114,96 @@ export function rackCardDetail(card: RackCard): string {
       return RACK_BACK_DETAIL;
     case "base":
       return card.base === null ? "" : rackBaseDetail(card.base);
+    case "group":
+      return card.group === null ? "" : RACK_GROUP_DETAIL[card.group];
     case "moveset":
     case "family":
       return card.moveset === null ? "" : rackMovesetDetail(card.moveset);
   }
 }
 
-/**
- * 今の段のカード。武器種の段は「装備のまま」+ 全武器種（銃の家系を含む。MOVESET_KEYS の順で自動で並ぶ）、
- * 器の段は「戻る」+ その家系の器（一番早く出る順）
- */
-export function rackCards(trial: Readonly<RackTrial>, family: MovesetKey | null = null): RackCard[] {
-  return family === null ? movesetCards(trial) : familyCards(trial, family);
+/** 器の段を開く武器種か（器が 2 つ以上ある銃・投擲物。1 つだけならその器で試す） */
+export function rackOpensBases(moveset: MovesetKey): boolean {
+  return isRangedWeapon(MOVESETS[moveset]) && rangedBasesOf(moveset).length > 1;
 }
 
-function movesetCards(trial: Readonly<RackTrial>): RackCard[] {
-  const clear: RackCard = { kind: "clear", moveset: null, base: null, name: RACK_CLEAR_NAME, marked: trial.moveset === null };
-  const cards = MOVESET_KEYS.map(
-    (k): RackCard => ({ kind: isRangedWeapon(MOVESETS[k]) ? "family" : "moveset", moveset: k, base: null, name: MOVESETS[k].name, marked: trial.moveset === k }),
+/**
+ * 今の段のカード。群の段は「装備のまま」+ 群 3 枚、武器種の段は「戻る」+ その群の武器種（MOVESET_KEYS の順）、
+ * 器の段は「戻る」+ その武器種の器（一番早く出る順）
+ */
+export function rackCards(trial: Readonly<RackTrial>, group: WeaponGroup | null = null, family: MovesetKey | null = null): RackCard[] {
+  if (family !== null) return baseCards(trial, family);
+  return group === null ? groupCards(trial) : movesetCards(trial, group);
+}
+
+function backCard(): RackCard {
+  return { kind: "back", moveset: null, group: null, base: null, name: RACK_BACK_NAME, marked: false };
+}
+
+function groupCards(trial: Readonly<RackTrial>): RackCard[] {
+  const clear: RackCard = { kind: "clear", moveset: null, group: null, base: null, name: RACK_CLEAR_NAME, marked: trial.moveset === null };
+  const trialGroup = trial.moveset === null ? null : weaponGroup(MOVESETS[trial.moveset]);
+  const cards = WEAPON_GROUPS.map(
+    (g): RackCard => ({ kind: "group", moveset: RACK_GROUP_ICON[g], group: g, base: null, name: RACK_GROUP_NAME[g], marked: trialGroup === g }),
   );
   return [clear, ...cards];
 }
 
-function familyCards(trial: Readonly<RackTrial>, family: MovesetKey): RackCard[] {
+function movesetCards(trial: Readonly<RackTrial>, group: WeaponGroup): RackCard[] {
+  const keys = MOVESET_KEYS.filter((k) => weaponGroup(MOVESETS[k]) === group);
+  const cards = keys.map((k): RackCard => {
+    const kind: RackCardKind = rackOpensBases(k) ? "family" : "moveset";
+    // 器が 1 つだけの武器種は、その器を指定して試す（借りるときも同じ器）
+    const base = kind === "moveset" && isRangedWeapon(MOVESETS[k]) ? (rangedBasesOf(k)[0]?.key ?? null) : null;
+    return { kind, moveset: k, group: null, base, name: MOVESETS[k].name, marked: trial.moveset === k };
+  });
+  return [backCard(), ...cards];
+}
+
+function baseCards(trial: Readonly<RackTrial>, family: MovesetKey): RackCard[] {
   const bases = rangedBasesOf(family);
   // 器を指定せずに試しているときは、試しに使っている一番早く出る器に印を付ける
   const markedBase = trial.moveset === family ? (trial.base ?? bases[0]?.key ?? null) : null;
-  const back: RackCard = { kind: "back", moveset: null, base: null, name: RACK_BACK_NAME, marked: false };
-  const cards = bases.map((b): RackCard => ({ kind: "base", moveset: family, base: b.key, name: b.name, marked: b.key === markedBase }));
-  return [back, ...cards];
+  const cards = bases.map((b): RackCard => ({ kind: "base", moveset: family, group: null, base: b.key, name: b.name, marked: b.key === markedBase }));
+  return [backCard(), ...cards];
 }
 
-/** 武器種の段のカードの並びでの、その武器種のカードの添字（先頭は「装備のまま」） */
-function movesetCardIndex(moveset: MovesetKey): number {
-  return MOVESET_KEYS.indexOf(moveset) + 1;
-}
+const NO_TRIAL: RackTrial = { moveset: null, base: null };
 
-/** 銃の家系の器の段を開く（カーソルは最初の器） */
-export function openRackFamily(ui: RackUi, family: MovesetKey): void {
-  ui.family = family;
-  ui.cursor = 1;
-  ui.lastCard = 1;
+/** 段を開いた・閉じたあとのカーソル（`cursor` のカード）と表示の先頭を合わせる */
+function placeCursor(ui: RackUi, cursor: number): void {
+  ui.cursor = cursor;
+  ui.lastCard = cursor;
   ui.scroll = 0;
+  scrollToCursor(ui, rackCards(NO_TRIAL, ui.group, ui.family).length);
 }
 
-/** 器の段を閉じて武器種の段へ戻る（カーソルは開いた家系のカード） */
-export function closeRackFamily(ui: RackUi): void {
-  const family = ui.family;
-  if (family === null) return;
+/** 群の段から武器種の段を開く（カーソルは最初の武器種） */
+export function openRackGroup(ui: RackUi, group: WeaponGroup): void {
+  ui.group = group;
   ui.family = null;
-  ui.cursor = movesetCardIndex(family);
-  ui.lastCard = ui.cursor;
-  ui.scroll = 0;
-  scrollToCursor(ui, MOVESET_KEYS.length + 1);
+  placeCursor(ui, 1);
+}
+
+/** 武器種の段から器の段を開く（カーソルは最初の器）。群は武器種のものに合わせる */
+export function openRackFamily(ui: RackUi, family: MovesetKey): void {
+  ui.group = weaponGroup(MOVESETS[family]);
+  ui.family = family;
+  placeCursor(ui, 1);
+}
+
+/** 1 段上へ戻る（カーソルは開いた元のカード）。群の段なら何もしない */
+export function closeRackLevel(ui: RackUi): void {
+  if (ui.family !== null) {
+    const family = ui.family;
+    ui.family = null;
+    placeCursor(ui, rackCards(NO_TRIAL, ui.group).findIndex((c) => c.moveset === family));
+    return;
+  }
+  const group = ui.group;
+  if (group === null) return;
+  ui.group = null;
+  placeCursor(ui, rackCards(NO_TRIAL).findIndex((c) => c.group === group));
 }
 
 export interface Rect {
@@ -279,11 +344,13 @@ export interface RackInput {
 export type RackAction =
   | { kind: "none" }
   | { kind: "moved" }
-  /** moveset が null = 装備のままに戻す。base は銃の家系の器 */
+  /** moveset が null = 装備のままに戻す。base は銃・投擲物の器 */
   | { kind: "try"; moveset: MovesetKey | null; base: string | null }
-  /** 銃の家系の器の段を開く */
+  /** 群の武器種の段を開く */
+  | { kind: "openGroup"; group: WeaponGroup }
+  /** 銃・投擲物の武器種の器の段を開く */
   | { kind: "open"; moveset: MovesetKey }
-  /** 器の段から武器種の段へ戻る */
+  /** 1 段上へ戻る */
   | { kind: "back" }
   | { kind: "adjust"; resource: HubResource; delta: number }
   | { kind: "fill" };
@@ -298,6 +365,8 @@ export function rackCardAction(card: Readonly<RackCard>): RackAction {
       return { kind: "try", moveset: null, base: null };
     case "back":
       return { kind: "back" };
+    case "group":
+      return card.group === null ? NONE : { kind: "openGroup", group: card.group };
     case "family":
       return card.moveset === null ? NONE : { kind: "open", moveset: card.moveset };
     case "moveset":
@@ -306,7 +375,7 @@ export function rackCardAction(card: Readonly<RackCard>): RackAction {
   }
 }
 
-/** 長押しで借りられるカードか（近接の武器種と銃の器。家系のカードは器を選んでから借りる） */
+/** 長押しで借りられるカードか（近接と器 1 つの武器種、器のカード。群と器が複数ある武器種のカードは借りない） */
 export function rackCardBorrowable(card: Readonly<RackCard> | null): boolean {
   return card !== null && card.moveset !== null && (card.kind === "moveset" || card.kind === "base");
 }
