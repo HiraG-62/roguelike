@@ -1,7 +1,7 @@
 // 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
 // クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
 // manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ。
-// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）
+// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）。&cols=seq で途中のコマ
 // dojo は &enemy=<敵の key>&count=<数>&behavior=<動き>&frames=<ステップ数>&stand=<台の key> で稽古の間（手前の敵へ寄って殴り続ける）、dojo-board は稽古帳
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
@@ -142,6 +142,16 @@ const PARRY_COLUMNS: readonly ParryColumn[] = [
   { label: "miss", recover: PARRY.recoverSec * 0.6 },
   { label: "left", window: PARRY.windowSec * 0.4, left: true },
 ];
+/** &cols=seq で並べる途中のコマ（構えを上げる途中・決まった後の戻り・外した崩れ） */
+const PARRY_SEQ_COLUMNS: readonly ParryColumn[] = [
+  { label: "r.01", window: PARRY.windowSec - 0.01 },
+  { label: "r.03", window: PARRY.windowSec - 0.03 },
+  { label: "h.15", impactAge: 0.15 },
+  { label: "h.22", impactAge: 0.22 },
+  { label: "h.27", impactAge: 0.27 },
+  { label: "m.7", recover: PARRY.recoverSec * 0.3 },
+  { label: "m.85", recover: PARRY.recoverSec * 0.15 },
+];
 const PARRY_CELL = 66;
 const PARRY_ZOOM = 2;
 const PARRY_DEFAULT_ROWS = 4;
@@ -163,7 +173,8 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
     if (isJobKey(job)) state.job = job;
     state.enemies = [];
     for (let i = 0; i < MANUAL_SETTLE_FRAMES && !renderer.playerArtReady(state); i++) await nextFrame();
-    for (const [col, c] of PARRY_COLUMNS.entries()) {
+    const columns = q.get("cols") === "seq" ? PARRY_SEQ_COLUMNS : PARRY_COLUMNS;
+    for (const [col, c] of columns.entries()) {
       const p = state.player;
       p.parry.window = c.window ?? 0;
       p.parry.recover = c.recover ?? 0;

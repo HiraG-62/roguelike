@@ -198,8 +198,8 @@ export interface ParryStance {
   /** 片刃の刃を写しの側へ向ける */
   readonly mirror?: boolean;
   /**
-   * 後ろの手（後ろの肩から、ドット）。二刀はもう 1 本を持つ手、それ以外は刃や盾に添える素手（体の前に描く。
-   * 両手持ちでも柄を離して刃の腹に掌を当てる）。省けば今までの後ろの手（両手持ちは添え手を主の手から引く）
+   * 後ろの手（後ろの肩から、ドット）。二刀はもう 1 本を持つ手、それ以外は刃や盾に添える素手（両手持ちでも柄を離して
+   * 刃の腹に掌を当てる）。奥の腕なので体の後ろに描く。省けば今までの後ろの手（両手持ちは添え手を主の手から引く）
    */
   readonly off?: readonly [number, number];
   /** 二刀のもう 1 本の向き（度） */
@@ -210,8 +210,6 @@ export interface ParryStance {
    */
   readonly grip?: number;
   readonly offMirror?: boolean;
-  /** 二刀のもう 1 本を体の後ろに描く（省けば体の前で交差させる） */
-  readonly offBehind?: boolean;
   /** 主の武器を体の後ろに描く（省けば体の前） */
   readonly behind?: boolean;
   /** 受け止める所（主の武器の握りから先へ、ドット）。火花をここから散らす（結界を張る武器は結界の前が受ける所） */
@@ -316,7 +314,6 @@ export function parryFromMeta(v: unknown): ParryStance | undefined {
     ...(offDeg !== undefined ? { offDeg } : {}),
     ...(grip !== undefined ? { grip } : {}),
     ...(r.offMirror === true ? { offMirror: true } : {}),
-    ...(r.offBehind === true ? { offBehind: true } : {}),
     ...(r.behind === true ? { behind: true } : {}),
     ...(typeof r.barrier === "string" ? { barrier: r.barrier } : {}),
   };
@@ -860,7 +857,8 @@ function freeHand(i: RigInput): HeldPart {
 
 /**
  * 受けの構え（docs/ideas/parry-motion.md）。待機の構え（guard を外して解いた形）から、武器の meta.stance.parry の形へ blend だけ寄せる。
- * 両手持ちは添え手を主の手から引き直し（柄から離れない）、二刀はもう 1 本を、片手は添える素手を寄せる
+ * 両手持ちは添え手を主の手から引き直し（柄から離れない）、二刀はもう 1 本を、片手は添える素手を寄せる。
+ * 奥の手（後ろの肩の腕）は構えの間ずっと体の後ろに描く（体の前に描くと、奥の腕が胴や顔の前を横切って前後が逆に見える）
  */
 function guardHands(i: RigInput, g: GuardMotion): RigPose {
   const { guard: _guard, ...rest } = i;
@@ -870,7 +868,7 @@ function guardHands(i: RigInput, g: GuardMotion): RigPose {
   const main = blendPart(base.front, guardMain(i, ps, g), k);
   if (i.stance.grip === "two" && i.offGrip !== null && !ps.off) {
     const grip = ps.grip === undefined ? i.offGrip : i.offGrip + (ps.grip - i.offGrip) * k;
-    return { front: main, back: backPart({ ...rest, offGrip: grip }, main) };
+    return { front: main, back: { ...backPart({ ...rest, offGrip: grip }, main), behind: true } };
   }
   const off = guardOff(i, ps, g);
   return { front: main, back: off ? blendPart(base.back, off, k) : base.back };
@@ -900,9 +898,9 @@ function guardOff(i: RigInput, ps: ParryStance, g: GuardMotion): HeldPart | unde
   const hand = withinReach(guardShift({ x: i.shoulderB.x + ps.off[0], y: i.shoulderB.y + ps.off[1] }, g), i.shoulderB);
   if (i.stance.grip === "dual") {
     const angle = guardTilt((ps.offDeg ?? ps.deg) * DEG, g);
-    return part(hand, angle, ps.offMirror ?? false, false, ps.offBehind === true);
+    return part(hand, angle, ps.offMirror ?? false, false, true);
   }
-  return part(hand, 0, false, true, false);
+  return part(hand, 0, false, true, true);
 }
 
 /** 受け止める所（主の武器の握りから contact だけ先。組み立ての空間）。火花を散らす */
