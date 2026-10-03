@@ -16,6 +16,7 @@ import { FORMS } from "../data/weaponForms";
 import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { damagePlayer, rollOutgoing } from "./combat";
 import { gainMorale, moraleGauge, moraleMax, placedShotCount } from "./morale";
+import { startReload } from "./magazine";
 import { applyStats, currentMeleeStep, meleeStep, playerMoveset, updatePlayer } from "./player";
 import { detonateOwnMines } from "./weaponArts";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -229,7 +230,10 @@ describe("戦意: 長銃（狙い）", () => {
     if (!normal) throw new Error("普通の 1 発が出ない");
     state.projectiles.length = 0;
     state.player.shootCooldown = 0;
+    // 溜めでない器の放出はリロード後の 1 発目だけ（関門は system/gunMorale.test.ts）。込め直しながら狙いを満たす
+    startReload(state, 0);
     run(state, {}, stepsFor(FORM.rifle.max / FORM.rifle.gain.still) + 1);
+    expect(state.player.magazine.fresh, "込め直した").toBe(true);
     expect(state.player.morale.primed).toBe(true);
     const events = run(state, { attackHeld: true });
     const shot = playerShots(state)[0];
@@ -302,7 +306,7 @@ describe("戦意: 短銃（応手）", () => {
   });
 });
 
-describe("戦意: 砲（置いた弾と一斉起爆）", () => {
+describe("戦意: 仕掛け（置いた弾と一斉起爆）", () => {
   const trapper = { moveset: "trapper" as const, bullet: "mineLauncher" };
   const DETONATE_LIFE_MAX = 0.001;
   const DETONATE_STEP = MOVESETS.trapper.steps2.findIndex((s) => s.key === "detonate");
@@ -362,18 +366,9 @@ describe("戦意: 砲（置いた弾と一斉起爆）", () => {
     expect(currentMeleeStep(state)?.release).toBeUndefined();
   });
 
-  it("擲弾の曲射弾も置いた弾で、蹴り飛ばしの段で一斉起爆する。起爆・蹴り飛ばしが放出の段（零距離砲は設置弾を起爆しなくなった）", () => {
+  it("仕掛けだけの型で、放出の段は起爆だけ（砲は装薬、擲弾は擲弾の型。system/gunMorale.test.ts）", () => {
     const keys = FORMS.artillery.morale.release.kind === "laneStep" ? FORMS.artillery.morale.release.keys : [];
-    expect([...keys].sort(), "砲の放出の段").toEqual(["detonate", "kickAway"]);
-    const state = arena(5, { moveset: "grenade", bullet: "grenadeLauncher" });
-    state.player.shootCooldown = 0;
-    run(state, { attackHeld: true });
-    run(state, {});
-    expect(state.player.morale.value, "曲射弾が置いた弾").toBeGreaterThanOrEqual(1);
-    const kick = MOVESETS.grenade.steps2.findIndex((s) => s.key === "kickAway");
-    readyLaneStep(state, kick);
-    const events = run(state, { shootHeld: true });
-    expect(kinds(events, "onRelease")[0]?.amount, "曲射弾を起爆した数").toBeGreaterThanOrEqual(1);
+    expect([...keys], "仕掛けの放出の段").toEqual(["detonate"]);
   });
 });
 

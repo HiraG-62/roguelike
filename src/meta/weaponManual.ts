@@ -128,7 +128,7 @@ function times(n: number, cue: DemoCue): DemoCue[] {
   return Array.from({ length: n }, () => cue);
 }
 
-function chargeHoldSec(charge: Readonly<MeleeChargeDef>): number {
+function chargeHoldSec(charge: { readonly levels: readonly Pick<MeleeChargeDef["levels"][number], "time">[] }): number {
   const last = charge.levels[charge.levels.length - 1]?.time ?? 0;
   return last * CHARGE_MARGIN_MUL + CHARGE_MARGIN_SEC;
 }
@@ -410,7 +410,11 @@ function releaseCues(m: Readonly<MovesetDef>): DemoCue[] | null {
       return b === undefined ? null : b.sequence.map(tap);
     }
     case "nextPrimary":
-      return times(firstThrust(m) + 1, tap("primary"));
+      return r.gate === "rifle" ? rifleReleaseCues(m) : times(firstThrust(m) + 1, tap("primary"));
+    case "nextMagazine":
+    case "nextShot":
+      // 短銃の強装填の 1 発目・装薬の詰めた次の 1 発（実演は込め終えた弾倉で始まる）
+      return [tap("primary")];
     case "maxCharge": {
       const lane = m.steps2.findIndex((s) => s.kind === "charge");
       if (m.primary === "charge" && m.charge) return [hold("primary", chargeHoldSec(m.charge))];
@@ -427,8 +431,19 @@ function releaseCues(m: Readonly<MovesetDef>): DemoCue[] | null {
  */
 function releaseShown(m: Readonly<MovesetDef>): boolean {
   if (!formOf(m).morale.gain.some((g) => g.kind === "placedShots")) return true;
+  return BULLETS[demoBulletKey(m)]?.mine !== undefined;
+}
+
+/** 実演が借りる器（武器種の一番早い器）の弾の key */
+function demoBulletKey(m: Readonly<MovesetDef>): string {
   const base = BASES.filter((b) => b.slot === "mainHand" && b.moveset === m.key).sort((a, b) => a.minLevel - b.minLevel)[0];
-  return BULLETS[bulletOfBase(base?.key)]?.mine !== undefined;
+  return bulletOfBase(base?.key);
+}
+
+/** 長銃の放出の手: 溜めの器は最大段まで溜めて離し、溜めでない器はリロード後の 1 発目（実演は込め終えた弾倉で始まる） */
+function rifleReleaseCues(m: Readonly<MovesetDef>): DemoCue[] {
+  const charge = BULLETS[demoBulletKey(m)]?.charge;
+  return charge ? [hold("primary", chargeHoldSec(charge))] : [tap("primary")];
 }
 
 /** 左の最初の突きの段（長柄の放出は満ちた後の最初の突き。左で撃つ武器種は 1 発目で 0） */

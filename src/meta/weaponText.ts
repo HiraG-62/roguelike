@@ -56,6 +56,7 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   bulletCut: "敵弾払い",
   quickReload: "早込め",
   pack: "詰め",
+  blastHit: "敵を巻き込んだ炸裂",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };
@@ -107,7 +108,14 @@ function releaseText(m: Readonly<MovesetDef>, form: FormDef): string {
     case "branch":
       return "3 手の派生";
     case "nextPrimary":
-      return shootsPrimary(m) ? "満ちた後の 1 発" : "満ちた後の最初の突き";
+      if (!shootsPrimary(m)) return "満ちた後の最初の突き";
+      return r.gate === "rifle" ? "満ちた後の、最大段の溜め撃ちかリロード後の 1 発目" : "満ちた後の 1 発";
+    case "nextMagazine":
+      return "満ちたその込めの弾倉";
+    case "nextShot": {
+      const names = m.steps2.flatMap((s, i) => (s.key !== undefined && r.keys.includes(s.key) ? [`右の${actionStepName(s, i)}`] : []));
+      return ["左の次の 1 発", ...names].join("か");
+    }
     case "maxCharge":
       return "最大段の溜め攻撃";
     case "release":
@@ -130,8 +138,9 @@ function gainText(form: FormDef): string {
   return `${events.join("・")}で溜まり、`;
 }
 
-/** 放出のしかた */
+/** 放出のしかた。短銃の強装填は振り・1 発ではなく弾倉そのものが放出になる */
 function releaseSentence(m: Readonly<MovesetDef>, form: FormDef): string {
+  if (form.morale.release.kind === "nextMagazine") return `${releaseText(m, form)}が強装填になり、全弾が強くなる。`;
   return `${releaseText(m, form)}で放つ。`;
 }
 

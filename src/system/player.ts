@@ -1675,6 +1675,8 @@ export interface VolleyOverride {
   damage?: number;
   poise?: number;
   damageMul?: number;
+  /** 銃の弾の怯み値に掛ける（短銃の強装填・装薬の詰め） */
+  poiseMul?: number;
   pierceBonus?: number;
   count?: number;
   spreadDeg?: number;
@@ -1705,7 +1707,7 @@ function volleySpec(state: GameState, shot: BulletDef, level: number, aim?: numb
   const speed = PLAYER.shoot.speed * shot.speedMul * s.projectileSpeedMul;
   return {
     damage: override.damage ?? shotDamage(s) * damageMul,
-    poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul,
+    poise: override.poise ?? shotPoise(s, shot, charged?.poiseMul ?? shot.poiseMul) * s.poiseDamageMul * (override.poiseMul ?? 1),
     radius: charged?.radius ?? shot.radius,
     pierce: s.pierce + shot.pierceBonus + (charged?.pierceBonus ?? 0) + (override.pierceBonus ?? 0),
     speed,
@@ -1763,14 +1765,20 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   const s = state.stats;
   // 引き金 1 回で弾倉を 1 減らす（散弾の粒・三点の続きは数えない）。二丁拳銃は撃てる手の銃口から
   const hand = nextFireHand(state);
+  // リロード後の 1 発目か（撃つと消えるので撃つ前に読む。長銃の関門・短銃の強装填の 1 発目）
+  const fresh = p.magazine.fresh;
   if (hand === undefined || spendRounds(state, hand, 1) <= 0) return;
   const shot = ultimateShot(state, currentShot(s));
   p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
-  // 満ちた後の 1 発（長銃）は戦意を使った放出の弾。放出の倍率が乗った弾には揺れを掛けない（P7）
-  const moments = startShotMoments(state);
-  const steady = moments.damageMul !== undefined ? { steady: true } : {};
-  const override: VolleyOverride = { lane: "primary", ...moments, ...steady };
+  // 放出の 1 発（長銃の満ちた 1 発・装薬の詰めた 1 発）と短銃の強装填の弾倉。放出の弾には揺れを掛けない（P7）
+  const { powder, ...moments } = startShotMoments(state, { level, chargeLevels: shot.charge?.levels.length ?? 0, fresh });
+  const steady = moments.release ? { steady: true } : {};
+  // 装薬は詰めた段ぶん散弾の粒が増える
+  const pellets = powder ? { count: s.projectileCount + shot.pellets + powder.pelletsAdd } : {};
+  const override: VolleyOverride = { lane: "primary", ...moments, ...pellets, ...steady };
   emitVolley(state, shot, level, aim, override);
+  // 装薬の反動は詰めた段の距離だけ後ろへ跳ぶ（押しの速さは減衰で距離 = 速さ / KNOCK_DECAY。動きの当たりで壁に止まる）
+  if (powder) p.knock = add(p.knock, scale(p.facing, -powder.recoilPx * KNOCK_DECAY));
   queueBurst(state, shot, [0], override);
 }
 

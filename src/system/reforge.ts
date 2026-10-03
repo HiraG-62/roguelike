@@ -1,7 +1,7 @@
 import type { FrameInput } from "../core/input";
 import type { Rule } from "../core/rules";
 import { type Enemy, type GameState, type Projectile, pushLog, pushSfx } from "../core/state";
-import { type Vec, add, dist, normalize, scale, sub } from "../core/vec";
+import { type Vec, dist, normalize, scale, sub } from "../core/vec";
 import { REFORGE_KEYS, REFORGES, type ReforgeFlag, type ReforgeKey, hasReforgeFlag, isOfferable, reforgeRulesOf } from "../data/reforges";
 import { REFORGE } from "../data/tuning";
 import { type FormKey, formOfKey } from "../data/weaponForms";
@@ -135,7 +135,7 @@ export function tickReforges(state: GameState): void {
 
 /**
  * 疾駆: 込めの最中にダッシュすると、その場で込め終わる（system/magazine.ts）。primes なら早込めが決まったことにもする
- * （戦意への反映は型の早込めの出来事。段 3）
+ * （短銃の戦意「早込め」が溜まり、満ちればその込めの弾倉が強装填）
  */
 function dashReload(state: GameState): void {
   if (state.player.dashTimer <= 0 || !finishReloadNow(state)) return;
@@ -175,29 +175,4 @@ function clingMines(state: GameState): void {
 /** 騎射: 動いている間に狙いが溜まる速さ（止まっているときの速さに掛ける倍率）。改鋳が無ければ 0（動くと減る） */
 export function movingAimGainMul(state: GameState): number {
   return hasFlag(state, "aimWhileMoving") ? REFORGE.rifle.rifleStride.movingGainMul : 0;
-}
-
-/** 飛んでいる自分の武器の弾（床の設置弾・山なりの曲射は除く） */
-function isFlyingOwnShot(pr: Projectile): boolean {
-  if (pr.owner !== "player" || pr.life <= 0 || pr.lane === undefined) return false;
-  const def = pr.shot ? BULLETS[pr.shot.key] : undefined;
-  return def === undefined || (def.mine === undefined && def.lob === undefined);
-}
-
-/** 牽引: 投具の放出（呼び戻し・投げ放ち）で、いちばん遠くを飛ぶ自分の刃の方へ引き寄せられる */
-export function pullTowardShots(state: GameState): void {
-  if (!hasFlag(state, "pullToShots")) return;
-  const r = REFORGE.thrower.throwerPull;
-  const p = state.player;
-  let far: Projectile | undefined;
-  let farDist = r.minDistance;
-  for (const pr of state.projectiles) {
-    if (!isFlyingOwnShot(pr)) continue;
-    const d = dist(p.body.pos, pr.pos);
-    if (d <= farDist) continue;
-    far = pr;
-    farDist = d;
-  }
-  if (!far) return;
-  p.knock = add(p.knock, scale(normalize(sub(far.pos, p.body.pos)), r.pullSpeed));
 }

@@ -12,13 +12,18 @@ import { onFormSwing } from "./tomeBell";
 import { breakTwinSerpent } from "./namedRelics";
 import { tryAutoCast } from "./skills";
 import {
+  type PrimedShot,
   type ReleaseMul,
   type ReleaseSwingSpec,
+  type ShotTrigger,
   beginSwingMorale,
   consumeShotRelease,
   currentForm,
+  expirePrimedMagazine,
   gainMorale,
   moraleMax,
+  primeMagazine,
+  primedShotOf,
   swingReleaseMul,
   tickMorale,
 } from "./morale";
@@ -42,7 +47,7 @@ export function createMoment(): MomentState {
 }
 
 /**
- * 自分の状態になる瞬間（充溢・装填・強装填）だけ、頭上に小さく出す。
+ * 自分の状態になる瞬間（充溢・強装填）だけ、頭上に小さく出す（装填は旧短銃の文言で、今は出す経路が無い）。
  * 先制・放出・双撃は音とイベントで足りるので文字にしない（戦闘中の文字を増やさないため）
  */
 const SHOWN_MOMENTS: ReadonlySet<MomentTextKey> = new Set<MomentTextKey>(["brim", "reload", "primed"]);
@@ -53,10 +58,19 @@ function showMoment(state: GameState, pos: Vec, key: MomentTextKey): void {
   addHeadLabel(state, pos, MOMENT_TEXT[key], look.color, look.life);
 }
 
-/** 毎ステップ（player.ts の updatePlayer）。戦意を進めて満ちた瞬間に充溢を出し、先制の構えを戻す */
+/** 毎ステップ（player.ts の updatePlayer）。戦意を進めて満ちた瞬間に充溢を出し、短銃の強装填を進め、先制の構えを戻す */
 export function tickFormState(state: GameState, input: FrameInput, dt: number): void {
   if (tickMorale(state, input, dt)) noteBrim(state);
+  expirePrimedMagazine(state);
+  notePrimed(state, primeMagazine(state, state.player.magazine.fresh));
   tickMoments(state, dt);
+}
+
+/** 短銃の弾倉が強装填になった（戦意を使った放出）。units 0 なら何もしない */
+function notePrimed(state: GameState, units: number): void {
+  if (units <= 0) return;
+  noteRelease(state, units);
+  showMoment(state, state.player.body.pos, "primed");
 }
 
 /** 先制: 交戦の外に firstStrikeIdleSec いたら次の一撃を先制にする */
@@ -106,17 +120,35 @@ export function startSwingMoments(state: GameState, moveset: MovesetDef, spec: R
 /** 左の射撃の放出（player.ts の fireVolley）が弾に写す値。放出でなければ空 */
 export interface ShotReleaseOverride {
   damageMul?: number;
+  poiseMul?: number;
   pierceBonus?: number;
   release?: { finisher: boolean; crit: boolean };
+  /** 装薬の詰めの放出: 散弾の粒に足す数と、撃った向きの逆へ跳ぶ距離（px） */
+  powder?: { pelletsAdd: number; recoilPx: number };
 }
 
-export function startShotMoments(state: GameState): ShotReleaseOverride {
-  const r = consumeShotRelease(state);
+/**
+ * 左の射撃 1 回の放出（長銃の満ちた 1 発・装薬の詰めた 1 発）と、短銃の強装填の弾倉の 1 発。
+ * trigger.fresh は撃つ前の弾倉の「リロード後の 1 発目」
+ */
+export function startShotMoments(state: GameState, trigger: ShotTrigger): ShotReleaseOverride {
+  // 早込めで満ちた同じステップの 1 発目も強装填にする（毎ステップの tickFormState は射撃より前に回る）
+  notePrimed(state, primeMagazine(state, trigger.fresh));
+  const primed = primedShotOf(state, trigger.fresh);
+  if (primed) return primedShotOverride(primed);
+  const r = consumeShotRelease(state, trigger);
   if (!r) return {};
   noteRelease(state, r.units);
   // units 0 の放出（威力の上乗せだけ）は放出の弾にしない
   const release = r.units > 0 ? { release: { finisher: r.finisher, crit: r.crit } } : {};
-  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, ...release };
+  const powder = r.powder ? { poiseMul: r.mul.poiseMul, powder: { pelletsAdd: r.powder.pelletsAdd, recoilPx: r.powder.recoilPx } } : {};
+  return { damageMul: r.mul.damageMul, pierceBonus: r.mul.pierceAdd, ...release, ...powder };
+}
+
+/** 強装填の弾倉の 1 発: 全弾が威力・怯み値の倍率を持ち、1 発目だけが放出の弾（終撃。改鋳「雷管」の起点） */
+function primedShotOverride(primed: PrimedShot): ShotReleaseOverride {
+  const release = primed.first ? { release: { finisher: primed.finisher, crit: false } } : {};
+  return { damageMul: primed.damageMul, poiseMul: primed.poiseMul, ...release };
 }
 
 /**

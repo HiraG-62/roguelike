@@ -54,6 +54,8 @@
     "pistol",
     "rifle",
     "artillery",
+    "powder",
+    "shell",
     "bell"
   ]
 }

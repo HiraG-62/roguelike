@@ -11,7 +11,7 @@ import { merchantSheltered } from "./merchantAi";
 import { bossOnAnswer } from "./boss";
 import { fireDebana } from "./debana";
 import { noteRiposte } from "./moments";
-import { currentForm } from "./morale";
+import { currentForm, noteBlast } from "./morale";
 import { circlesOverlap, overlapsShotWall } from "./physics";
 import { yellowAt } from "./readTiming";
 import { blastMulAt } from "./blast";
@@ -321,9 +321,11 @@ function updateMine(state: GameState, pr: Projectile, def: BulletDef): void {
 function detonateMine(state: GameState, pr: Projectile, blastRadius: number): void {
   if (pr.shot) pr.shot.detonated = true;
   pr.life = 0;
+  let hits = 0;
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.hidden || isAllied(state, e)) continue;
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
+    hits += 1;
     const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
     // 設置弾・曲射の炸裂は直撃（擲弾）扱いで bulletHitHeavy
@@ -340,6 +342,8 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   markBlastShot(spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE), pr);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
   pushSfx(state, "explode");
+  // 敵を巻き込んだ自分の炸裂だけ擲弾の戦意「炸裂」に数える
+  if (pr.owner === "player") noteBlast(state, hits);
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */

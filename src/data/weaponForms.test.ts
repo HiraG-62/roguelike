@@ -11,8 +11,6 @@ import { MOVESETS, MOVESET_KEYS, type MovesetKey, meleeChargeOf, shootsPrimary }
 /** 型の既定の重さから外れる武器種（個性として今の重さを残す。docs/ideas/weapon-forms-impl.md「決めたこと」6） */
 const WEIGHT_OVERRIDES: Readonly<Partial<Record<MovesetKey, string>>> = {
   flail: "連接棍は回しの溜めで振り回すので重打の中でも中（重いと回しの間ずっと足が遅い）",
-  grenade: "擲弾は曲射を置いて下がる砲なので中（重いと置いた後に逃げられない）",
-  trapper: "仕掛けは設置弾を撒いて誘う砲なので中（重いと撒く間に囲まれる）",
 };
 
 /** 段数: 近接は左の連撃、銃の家系は左に段が無いので右レーン */
@@ -60,10 +58,10 @@ describe("武器の型", () => {
     }
   });
 
-  it("右レーンの段が放出の型は、束ねた武器種ごとに放出の段の key を右レーンに持つ", () => {
+  it("右レーンの段が放出の型（装薬の零距離砲を含む）は、束ねた武器種ごとに放出の段の key を右レーンに持つ", () => {
     for (const form of FORM_KEYS) {
       const release = FORMS[form].morale.release;
-      if (release.kind !== "laneStep") continue;
+      if (release.kind !== "laneStep" && release.kind !== "nextShot") continue;
       for (const key of movesetsOfForm(form)) {
         const keys = MOVESETS[key].steps2.map((s) => s.key);
         expect(
@@ -86,10 +84,8 @@ describe("武器の型", () => {
     expect(gunPrimary).toEqual(["rifle"]);
   });
 
-  it("戦意が動く型（5a の剣・連刃・重打・長銃、5b-E の短銃・砲、他のレーンが増やす型）は全て上限と放出の最低を持つ", () => {
-    // 短銃は弾倉を銃の共通の仕組み（system/magazine.ts）へ移したので、段 3 で早込めの戦意を作り直すまで骨の型
-    expect(activeForms(), "溜まる出来事を持つ型").toEqual(expect.arrayContaining(["blade", "crusher", "flurry", "rifle", "artillery"]));
-    expect(FORMS.pistol.morale.gain, "短銃は骨の型（段 3 まで）").toEqual([]);
+  it("戦意が動く型（5a の剣・連刃・重打・長銃、銃の短銃・仕掛け・装薬・擲弾、他のレーンが増やす型）は全て上限と放出の最低を持つ", () => {
+    expect(activeForms(), "溜まる出来事を持つ型").toEqual(expect.arrayContaining(["blade", "crusher", "flurry", "rifle", "pistol", "artillery", "powder", "shell"]));
     for (const form of activeForms()) {
       const n = FORMS[form].morale.numbers;
       expect(n.max, `${form} の上限`).toBeGreaterThan(0);

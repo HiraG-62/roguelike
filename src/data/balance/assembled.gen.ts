@@ -740,6 +740,8 @@ import j_skills_ART_TRANSFORM_thrower from "./skills/ART/TRANSFORM/thrower.json"
 import j_skills_ART_TRANSFORM_pistol from "./skills/ART/TRANSFORM/pistol.json";
 import j_skills_ART_TRANSFORM_rifle from "./skills/ART/TRANSFORM/rifle.json";
 import j_skills_ART_TRANSFORM_artillery from "./skills/ART/TRANSFORM/artillery.json";
+import j_skills_ART_TRANSFORM_powder from "./skills/ART/TRANSFORM/powder.json";
+import j_skills_ART_TRANSFORM_shell from "./skills/ART/TRANSFORM/shell.json";
 import j_skills_ART_TRANSFORM_bell from "./skills/ART/TRANSFORM/bell.json";
 import j_skills_STONE_TUNING from "./skills/STONE_TUNING.json";
 import j_ultimates__index from "./ultimates/_index.json";
@@ -827,6 +829,8 @@ import j_weapons_FORM_thrower from "./weapons/FORM/thrower.json";
 import j_weapons_FORM_pistol from "./weapons/FORM/pistol.json";
 import j_weapons_FORM_rifle from "./weapons/FORM/rifle.json";
 import j_weapons_FORM_artillery from "./weapons/FORM/artillery.json";
+import j_weapons_FORM_powder from "./weapons/FORM/powder.json";
+import j_weapons_FORM_shell from "./weapons/FORM/shell.json";
 import j_weapons_FORM_tome from "./weapons/FORM/tome.json";
 import j_weapons_FORM_bell from "./weapons/FORM/bell.json";
 import j_weapons_MOMENT from "./weapons/MOMENT.json";
@@ -840,10 +844,10 @@ import j_weapons_REFORGE_chain from "./weapons/REFORGE/chain.json";
 import j_weapons_REFORGE_bulwark from "./weapons/REFORGE/bulwark.json";
 import j_weapons_REFORGE_warfan from "./weapons/REFORGE/warfan.json";
 import j_weapons_REFORGE_rod from "./weapons/REFORGE/rod.json";
-import j_weapons_REFORGE_thrower from "./weapons/REFORGE/thrower.json";
 import j_weapons_REFORGE_pistol from "./weapons/REFORGE/pistol.json";
 import j_weapons_REFORGE_rifle from "./weapons/REFORGE/rifle.json";
 import j_weapons_REFORGE_artillery from "./weapons/REFORGE/artillery.json";
+import j_weapons_REFORGE_powder from "./weapons/REFORGE/powder.json";
 import j_weapons_REFORGE_tome from "./weapons/REFORGE/tome.json";
 import j_weapons_REFORGE_bell from "./weapons/REFORGE/bell.json";
 import j_world__index from "./world/_index.json";
@@ -1773,6 +1777,8 @@ export const skills = {
       "pistol": j_skills_ART_TRANSFORM_pistol,
       "rifle": j_skills_ART_TRANSFORM_rifle,
       "artillery": j_skills_ART_TRANSFORM_artillery,
+      "powder": j_skills_ART_TRANSFORM_powder,
+      "shell": j_skills_ART_TRANSFORM_shell,
       "bell": j_skills_ART_TRANSFORM_bell,
     },
   },
@@ -1885,6 +1891,8 @@ export const weapons = {
     "pistol": j_weapons_FORM_pistol,
     "rifle": j_weapons_FORM_rifle,
     "artillery": j_weapons_FORM_artillery,
+    "powder": j_weapons_FORM_powder,
+    "shell": j_weapons_FORM_shell,
     "tome": j_weapons_FORM_tome,
     "bell": j_weapons_FORM_bell,
   },
@@ -1905,10 +1913,10 @@ export const weapons = {
     "bulwark": j_weapons_REFORGE_bulwark,
     "warfan": j_weapons_REFORGE_warfan,
     "rod": j_weapons_REFORGE_rod,
-    "thrower": j_weapons_REFORGE_thrower,
     "pistol": j_weapons_REFORGE_pistol,
     "rifle": j_weapons_REFORGE_rifle,
     "artillery": j_weapons_REFORGE_artillery,
+    "powder": j_weapons_REFORGE_powder,
     "tome": j_weapons_REFORGE_tome,
     "bell": j_weapons_REFORGE_bell,
   },
@@ -2810,8 +2818,10 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "skills/ART/TRANSFORM/hewer.json",
   "skills/ART/TRANSFORM/pistol.json",
   "skills/ART/TRANSFORM/polearm.json",
+  "skills/ART/TRANSFORM/powder.json",
   "skills/ART/TRANSFORM/rifle.json",
   "skills/ART/TRANSFORM/rod.json",
+  "skills/ART/TRANSFORM/shell.json",
   "skills/ART/TRANSFORM/thrower.json",
   "skills/ART/TRANSFORM/warfan.json",
   "skills/ART/_index.json",
@@ -2916,8 +2926,10 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/FORM/hewer.json",
   "weapons/FORM/pistol.json",
   "weapons/FORM/polearm.json",
+  "weapons/FORM/powder.json",
   "weapons/FORM/rifle.json",
   "weapons/FORM/rod.json",
+  "weapons/FORM/shell.json",
   "weapons/FORM/thrower.json",
   "weapons/FORM/tome.json",
   "weapons/FORM/warfan.json",
@@ -2934,9 +2946,9 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "weapons/REFORGE/hewer.json",
   "weapons/REFORGE/pistol.json",
   "weapons/REFORGE/polearm.json",
+  "weapons/REFORGE/powder.json",
   "weapons/REFORGE/rifle.json",
   "weapons/REFORGE/rod.json",
-  "weapons/REFORGE/thrower.json",
   "weapons/REFORGE/tome.json",
   "weapons/REFORGE/warfan.json",
   "weapons/WEAPON/_index.json",
