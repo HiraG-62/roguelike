@@ -134,7 +134,7 @@ function comboThrust(frame, f) {
   const grow = smoothstep(0, 0.35, p);
   const fade = smoothstep(0.45, 1, p) * 0.9;
   // 一突き: 起筆で押し、穂先へ鋭く払う一文字
-  brushStroke(frame, { pts: [{ x: 4, y: 0 }, { x: L + 4, y: 0 }], width: 2.4, grow, fade, dry: 0.45, press: 0.06, tail: 0.4, seed: CHAIN.seed });
+  brushStroke(frame, { pts: [{ x: 4, y: 0 }, { x: L + 4, y: 0 }], width: 3.2, grow, fade, dry: 0.45, press: 0.06, tail: 0.4, seed: CHAIN.seed });
   // 鎖の環: 突きを追って順に書かれる。表向きの環（輪）と横向きの環（細い楕円）が交互につながる
   const links = 5;
   for (let i = 0; i < links; i++) {
@@ -176,7 +176,7 @@ function grudgeWave(frame, f) {
   // 返す: 前の扇へ大きな弧の一筆
   const g = smoothstep(0.35, 0.6, p);
   const fade = smoothstep(0.65, 1, p) * 0.9;
-  if (g > 0) brushStroke(frame, { pts: arcPoints(0, 0, R * 0.82, -H, H * 2, 32, 0.03, GRUDGE.seed + 2), width: 9, grow: g, fade, dry: 0.5, press: 0.1, tail: 0.4, seed: GRUDGE.seed + 3 });
+  if (g > 0) brushStroke(frame, { pts: arcPoints(0, 0, R * 0.78, -H, H * 2, 32, 0.03, GRUDGE.seed + 2), width: 5, grow: g, fade, dry: 0.5, press: 0.1, tail: 0.4, seed: GRUDGE.seed + 3 });
   // 牙: 根元が太く外へ尖る払いが 4 本（弧から外へ突き出す）
   const fangs = [-0.62, -0.2, 0.2, 0.62];
   fangs.forEach((t, i) => {
@@ -185,8 +185,9 @@ function grudgeWave(frame, f) {
     if (fg <= 0) return;
     const a = t * H;
     const bend = (i % 2 === 0 ? 1 : -1) * 0.06;
-    const pts = [0.74, 0.86, 0.96, 1.06].map((k, j) => ({ x: Math.cos(a + bend * j) * R * k, y: Math.sin(a + bend * j) * R * k }));
-    brushStroke(frame, { pts, width: 8, grow: fg, fade, dry: 0.35, press: 0.02, tail: 0.95, sharp: 1, seed: GRUDGE.seed + 10 + i });
+    // 牙: 弧の内側から外へ、根元が太く先が尖る。弧と重なる所は短くし、外へ突き出た所で形が読めるようにする
+    const pts = [0.72, 0.84, 0.96, 1.1].map((k, j) => ({ x: Math.cos(a + bend * j) * R * k, y: Math.sin(a + bend * j) * R * k }));
+    brushStroke(frame, { pts, width: 4.5, grow: fg, fade, dry: 0.3, press: 0.02, tail: 1, sharp: 1, seed: GRUDGE.seed + 10 + i });
   });
   splatter(frame, f - 4, 14, GRUDGE.seed + 20, (i, r) => {
     const a = (r(1) - 0.5) * 2 * H;
@@ -202,7 +203,7 @@ function grudgeGround(frame, f) {
   const p = prog(f, GRUDGE.frames);
   // 足元の擦れから始まり、返すと扇の先まで広がる
   const reach = 0.2 + 0.8 * smoothstep(0.35, 0.65, p);
-  const density = 0.5 * (1 - smoothstep(0.6, 1, p));
+  const density = 0.28 * (1 - smoothstep(0.6, 1, p)) + 0.04;
   thinFill(
     frame,
     (x, y) => {
@@ -211,7 +212,7 @@ function grudgeGround(frame, f) {
       return Math.abs(Math.atan2(y, x)) < H;
     },
     { x0: 0, y0: -R, x1: R, y1: R },
-    { density, level: 2, seed: GRUDGE.seed + 40, cell: 7 },
+    { density, level: 2, seed: GRUDGE.seed + 40, cell: 3 },
   );
 }
 
@@ -556,10 +557,10 @@ const STAB_FRAMES = 7;
 function graveStab(frame, f) {
   const p = prog(f, STAB_FRAMES);
   const fall = smoothstep(0, 0.4, p);
-  const oy = -70 * (1 - fall);
+  const oy = -46 * (1 - fall);
   drawSword(frame, oy);
   if (fall < 1) {
-    for (const x of [-4, 0, 4]) brushStroke(frame, { pts: [{ x, y: oy - 40 }, { x, y: oy - 40 - 30 * (1 - fall) }], width: 1.2, dry: 0.6, fade: 0.3, press: 0.05, tail: 0.6, seed: GRAVE.seed + 40 + x });
+    for (const x of [-4, 0, 4]) brushStroke(frame, { pts: [{ x, y: oy - 38 }, { x, y: oy - 38 - 24 * (1 - fall) }], width: 1.2, dry: 0.6, fade: 0.3, press: 0.05, tail: 0.6, seed: GRAVE.seed + 40 + x });
   }
   if (p > 0.4) {
     const q = smoothstep(0.4, 1, p);
@@ -808,7 +809,7 @@ export const ATLAS = {
   fx: FX,
   sheets: [
     sheet("comboThrust", DIRS, CHAIN.frames, 200, comboThrust),
-    sheet("grudgeWave", DIRS, GRUDGE.frames, size(GRUDGE.radiusPx, 16), grudgeWave),
+    sheet("grudgeWave", DIRS, GRUDGE.frames, size(GRUDGE.radiusPx, 24), grudgeWave),
     sheet("grudgeGround", DIRS, GRUDGE.frames, size(GRUDGE.radiusPx, 4), grudgeGround),
     sheet("backflowFade", 1, BACK.frames, 72, backflowFade),
     { ...sheet("backflowTrail", 1, BACK.frames, 40, backflowTrail), ink: false },

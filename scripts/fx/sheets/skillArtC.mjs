@@ -347,24 +347,24 @@ function firePress(frame, f) {
   burstSplatter(frame, f, 8, FIREWALL.seed + 5, { cx: 6, speed: [1.5, 3.5], life: 5, big: 1.2 });
 }
 
-/** 炎の帯（区間）: 根の一文字の上に、両側へ揺らぐ炎の舌（コマで揺れが進む） */
+/** 炎の帯（区間）: 根の一文字の上に、両側へ高く揺らぐ炎の舌（コマで揺れが進む）。区間ごとに 3 本で壁の厚みを出す */
 function fireBeam(frame, f) {
   const p = prog(f, FIREWALL.frames);
   const half = FIREWALL.stepPx + 0.6;
-  const fade = smoothstep(0.55, 1, p) * 0.85;
-  const grow = smoothstep(0, 0.3, p);
-  brushStroke(frame, { pts: [{ x: -half, y: 0 }, { x: half, y: 0 }], width: 4, profile: () => 1, flat: true, dry: 0, fade: fade * 0.9, coreWidth: 0.25, breakLen: 14, seed: FIREWALL.seed + 10 });
+  const fade = smoothstep(0.6, 1, p) * 0.85;
+  const grow = smoothstep(0, 0.2, p);
+  brushStroke(frame, { pts: [{ x: -half, y: 0 }, { x: half, y: 0 }], width: 5, profile: () => 1, flat: true, dry: 0, fade: fade * 0.9, coreWidth: 0.2, breakLen: 14, seed: FIREWALL.seed + 10 });
   const flick = f * 1.1;
-  // 区間に舌 2 本（上下に 1 本ずつ）と短い舌 1 本。長さはコマで伸び縮み（燃え立つ）
-  flameTongue(frame, -5, -1, (21 + 6 * Math.sin(flick)) * grow, flick, 6, fade, grow, FIREWALL.seed + 11);
-  flameTongue(frame, 5, 1, (19 + 6 * Math.sin(flick + 2)) * grow, flick + 1.5, 6, fade, grow, FIREWALL.seed + 12);
-  flameTongue(frame, 1, f % 2 === 0 ? 1 : -1, (10 + 4 * Math.sin(flick + 4)) * grow, flick + 3, 4, Math.min(1, fade * 1.2), grow, FIREWALL.seed + 13);
+  // 上下に大きな舌を 1 本ずつと、間に短い舌。長さはコマで伸び縮み（燃え立つ）。壁の幅（±20 ドット）を越えて立ち昇る
+  flameTongue(frame, -6, -1, (30 + 7 * Math.sin(flick)) * grow, flick, 7, fade, grow, FIREWALL.seed + 11);
+  flameTongue(frame, 4, 1, (27 + 7 * Math.sin(flick + 2)) * grow, flick + 1.5, 7, fade, grow, FIREWALL.seed + 12);
+  flameTongue(frame, 1, f % 2 === 0 ? -1 : 1, (16 + 5 * Math.sin(flick + 4)) * grow, flick + 3, 5, Math.min(1, fade * 1.2), grow, FIREWALL.seed + 13);
   // 火の粉（差し色の小さな粒）
   for (let i = 0; i < 2; i++) {
     const r = (k) => hash1(i * 7 + f * 31 + k, FIREWALL.seed + 14);
     if (r(5) < fade) continue;
     const side = r(1) > 0.5 ? 1 : -1;
-    paint(frame, (x, y) => (Math.hypot(x - (r(2) - 0.5) * 18, y - side * (24 + 8 * r(3))) < 1 ? lv(7) : -1), { bounds: { x0: -12, y0: -36, x1: 12, y1: 36 }, dither: 0 });
+    paint(frame, (x, y) => (Math.hypot(x - (r(2) - 0.5) * 18, y - side * (32 + 8 * r(3))) < 1 ? lv(7) : -1), { bounds: { x0: -12, y0: -44, x1: 12, y1: 44 }, dither: 0 });
   }
 }
 
@@ -420,7 +420,7 @@ function shoveBeam(frame, f) {
     profile: () => 1,
     flat: true,
     dry: 0,
-    fade: 0.2 + 0.7 * smoothstep(0.15, 1, p),
+    fade: 0.32 + 0.6 * smoothstep(0.15, 1, p),
     pitch: 2,
     breakLen: 10,
     coreWidth: 0.12,
@@ -857,7 +857,7 @@ export const ATLAS = {
     { key: "skillArtC.quakeBeam", dirs: 1, frames: QUAKE.frames, active: 0, size: 80, ink: false, draw: quakeBeam },
     { key: "skillArtC.quakeTip", dirs: DIRS, frames: QUAKE.frames, active: 0, size: 112, draw: quakeTip },
     { key: "skillArtC.firePress", dirs: DIRS, frames: FIREWALL.frames, active: 0, size: 80, draw: firePress },
-    { key: "skillArtC.fireBeam", dirs: 1, frames: FIREWALL.frames, active: 0, size: 88, ink: false, draw: fireBeam },
+    { key: "skillArtC.fireBeam", dirs: 1, frames: FIREWALL.frames, active: 0, size: 100, ink: false, draw: fireBeam },
     { key: "skillArtC.fireTip", dirs: DIRS, frames: FIREWALL.frames, active: 0, size: 112, draw: fireTip },
     { key: "skillArtC.shovePress", dirs: DIRS, frames: SHOVE.frames, active: 0, size: 80, draw: shovePress },
     { key: "skillArtC.shoveBeam", dirs: 1, frames: SHOVE.frames, active: 0, size: 80, ink: false, draw: shoveBeam },
