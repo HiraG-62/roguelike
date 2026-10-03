@@ -63,5 +63,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnHandbell",
   sheets: weaponSheets("wpnHandbell", draw, { size: 80 }),
-  meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -68, restHand: [6, 5], swayDeg: 5, parry: { hand: [10, 1], deg: -66, off: [10, 4], contact: 12 } } },
+  meta: { offGrip: null, stance: { grip: "one", body: "ready", restDeg: -68, restHand: [6, 5], swayDeg: 5, parry: { hand: [10, -1], deg: -50, off: [11, 3], contact: 12, barrier: "#ffe08a" } } },
 };

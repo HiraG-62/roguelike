@@ -26,13 +26,12 @@ export interface SparkStreak {
 
 /**
  * 火の粉の線（純関数。テストする）。dir = 散る向きの中心（rad）、age = 決まってからの秒、seed = ばらつきの種。
- * 頭は速く伸びて減速し、尾は後から追いかけて縮む。色は古くなるほど橙へ
+ * 頭は速く伸びて減速し、尾は後から追いかけて縮む。色は colors を若い → 古いの順に移る（既定は白 → 橙）
  */
-export function sparkStreaks(dir: number, age: number, seed: number): SparkStreak[] {
+export function sparkStreaks(dir: number, age: number, seed: number, colors: readonly string[] = PARRY_POSE.spark.colors): SparkStreak[] {
   const s = PARRY_POSE.spark;
   const u = age / s.life;
   if (!(u >= 0) || u >= 1) return [];
-  const colors = s.colors;
   const color = colors[Math.min(colors.length - 1, Math.floor(u * colors.length))] ?? "#fff";
   const head = easeOutCubic(u);
   const tail = Math.max(0, head - s.tail * (1 - u));
@@ -66,15 +65,15 @@ function dotLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: numb
 }
 
 /** 受け止めた所 (x, y) に、dir の向きへ散る火花を描く */
-export function drawParrySpark(ctx: CanvasRenderingContext2D, x: number, y: number, dir: number, age: number, seed: number): void {
-  const streaks = sparkStreaks(dir, age, seed);
+export function drawParrySpark(ctx: CanvasRenderingContext2D, x: number, y: number, dir: number, age: number, seed: number, colors?: readonly string[]): void {
+  const streaks = sparkStreaks(dir, age, seed, colors);
   for (const st of streaks) {
     ctx.fillStyle = st.color;
     dotLine(ctx, x + st.x0, y + st.y0, x + st.x1, y + st.y1);
   }
   const flash = sparkFlash(age);
   if (flash <= 0) return;
-  ctx.fillStyle = PARRY_POSE.spark.colors[0] ?? "#fff";
+  ctx.fillStyle = (colors ?? PARRY_POSE.spark.colors)[0] ?? "#fff";
   dotLine(ctx, x - flash, y, x + flash, y);
   dotLine(ctx, x, y - flash, x, y + flash);
   const d = flash * FLASH_DIAG;

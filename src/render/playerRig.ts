@@ -214,8 +214,10 @@ export interface ParryStance {
   readonly offBehind?: boolean;
   /** 主の武器を体の後ろに描く（省けば体の前） */
   readonly behind?: boolean;
-  /** 受け止める所（主の武器の握りから先へ、ドット）。火花をここから散らす */
+  /** 受け止める所（主の武器の握りから先へ、ドット）。火花をここから散らす（結界を張る武器は結界の前が受ける所） */
   readonly contact: number;
+  /** 武器で受けず、体の前に結界を張る（魔法の武器。値は結界の色）。描くのは parryBarrier.ts */
+  readonly barrier?: string;
 }
 
 /** 受けの構えを持たない武器の既定（片手で刃を前上へ立てる） */
@@ -316,6 +318,7 @@ export function parryFromMeta(v: unknown): ParryStance | undefined {
     ...(r.offMirror === true ? { offMirror: true } : {}),
     ...(r.offBehind === true ? { offBehind: true } : {}),
     ...(r.behind === true ? { behind: true } : {}),
+    ...(typeof r.barrier === "string" ? { barrier: r.barrier } : {}),
   };
 }
 

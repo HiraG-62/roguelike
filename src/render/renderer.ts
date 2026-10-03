@@ -62,7 +62,7 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
 import { equippedSkillKeys } from "../system/runSetup";
-import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, TELEGRAPH } from "../data/tuning";
+import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
@@ -113,6 +113,7 @@ import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, guardContact, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta } from "./playerRig";
 import { type ParryMotion, parryMotion } from "./parryMotion";
 import { drawParrySpark } from "./parrySpark";
+import { type BarrierLook, barrierFront, drawParryBarrier } from "./parryBarrier";
 import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
@@ -730,6 +731,8 @@ export class Renderer {
   private rigMuzzle: { x: number; y: number; dist: number } | null = null;
   /** 受け流しが決まった直後の火花（drawRiggedPlayer が受け止めた所を置き、drawPlayer がプレイヤーの上に描く） */
   private rigParrySpark: ParrySparkAt | null = null;
+  /** 魔法の武器の受け流しの結界（drawRiggedPlayer が置き、drawPlayer がプレイヤーの上に描く） */
+  private rigParryBarrier: BarrierLook | null = null;
   /** 階段の光は隣のタイルに被るので、タイル描画の後にまとめて描く */
   private readonly stairsBuf: number[] = [];
   /** 地図（床・壁・穴）の焼き済みチャンク。迷宮は章の様式、拠点は門前町の様式（見た目用の地図 ground）で焼く */
@@ -2190,10 +2193,13 @@ export class Renderer {
     this.rigSwingPivot = null;
     this.rigMuzzle = null;
     this.rigParrySpark = null;
+    this.rigParryBarrier = null;
     const rigged = this.drawRiggedPlayer(state, cx, bottom);
     setPlayerMuzzle(state, this.rigMuzzle);
+    const barrier = this.parryBarrierOfFrame();
+    if (barrier) drawParryBarrier(this.ctx, barrier);
     const spark = this.parrySparkOfFrame();
-    if (spark) drawParrySpark(this.ctx, spark.x, spark.y, spark.dir, spark.age, spark.seed);
+    if (spark) drawParrySpark(this.ctx, spark.x, spark.y, spark.dir, spark.age, spark.seed, spark.colors);
     if (rigged) {
       if (isAttacking(p) && (p.attack.phase === "active" || p.attack.phase === "recover")) this.drawSlash(state, p);
       else this.drawHoldSprite(state, p);
@@ -2420,8 +2426,8 @@ export class Renderer {
 
     const toScreen = (pt: Pt): Pt => ({ x: cx + ((facingRight ? 1 : -1) * pt.x) / ACTOR_ART_SCALE, y: bottom + pt.y / ACTOR_ART_SCALE });
     if (posed) this.rigSwingPivot = toScreen(stance.grip === "dual" && swingSign(swing.step) < 0 ? shoulderB : shoulderF);
+    if (guard) this.placeParryFx(guard, stance, rig, shoulderF, shoulderB, toScreen, impactAge, facingRight, state);
     // 銃口の印を持つ武器（銃・杖・投げ物）は、描いた銃口から閃光と弾を出す。術を放つ段（castOff）は突き出した後ろの掌から
-    if (guard && impactAge !== null) this.rigParrySpark = parrySparkAt(rig, stance, shoulderF, toScreen, impactAge, facingRight, p.body.pos);
     const castPalm = swing.cast ? toScreen(rig.back.hand) : null;
     this.rigMuzzle = castPalm
       ? { ...castPalm, dist: Math.hypot(castPalm.x - p.body.pos.x, castPalm.y + PLAYER_SHOT_LIFT - p.body.pos.y) }
@@ -2525,6 +2531,41 @@ export class Renderer {
   /** drawRiggedPlayer が置いた今のフレームの火花（narrowing を切るため関数で読む） */
   private parrySparkOfFrame(): ParrySparkAt | null {
     return this.rigParrySpark;
+  }
+
+  private parryBarrierOfFrame(): BarrierLook | null {
+    return this.rigParryBarrier;
+  }
+
+  /**
+   * 受け流しの結界と火花を置く。結界を張る武器（stance.parry.barrier）は肩の間に結界を張り、火花は結界の前から結界の色で散らす。
+   * それ以外は武器の受ける所から散らす
+   */
+  private placeParryFx(
+    guard: ParryMotion,
+    stance: Stance,
+    rig: RigPose,
+    shoulderF: Pt,
+    shoulderB: Pt,
+    toScreen: (pt: Pt) => Pt,
+    impactAge: number | null,
+    facingRight: boolean,
+    state: GameState,
+  ): void {
+    const color = stance.parry?.barrier;
+    if (!color) {
+      if (impactAge !== null) this.rigParrySpark = parrySparkAt(rig, stance, shoulderF, toScreen, impactAge, facingRight, state.player.body.pos);
+      return;
+    }
+    const mid = toScreen({ x: (shoulderF.x + shoulderB.x) / 2, y: (shoulderF.y + shoulderB.y) / 2 });
+    const jar = PARRY_POSE.pushDots > 0 ? guard.push / PARRY_POSE.pushDots : 0;
+    const crumble = PARRY_POSE.sagDots > 0 ? (guard.sag / PARRY_POSE.sagDots) * PARRY_POSE.barrier.crumbleMax : 0;
+    this.rigParryBarrier = { ...mid, facingRight, blend: guard.blend, jar, crumble, color, time: state.time };
+    if (impactAge === null) return;
+    const front = barrierFront(facingRight, jar);
+    const pos = state.player.body.pos;
+    const seed = Math.round(pos.x) + Math.round(pos.y) * SPARK_SEED_Y;
+    this.rigParrySpark = { x: mid.x + front.x, y: mid.y + front.y, dir: facingRight ? 0 : Math.PI, age: impactAge, seed, colors: [BARRIER_SPARK_CORE, color] };
   }
 
   /**
@@ -3426,7 +3467,12 @@ interface ParrySparkAt {
   readonly dir: number;
   readonly age: number;
   readonly seed: number;
+  /** 火の粉の色（若い → 古い）。省けば PARRY_POSE.spark.colors */
+  readonly colors?: readonly string[];
 }
+
+/** 結界の火の粉の若い色（白から結界の色へ移る） */
+const BARRIER_SPARK_CORE = "#ffffff";
 
 /** 火花の種の y の重み（位置を 1 つの数に畳む） */
 const SPARK_SEED_Y = 131;

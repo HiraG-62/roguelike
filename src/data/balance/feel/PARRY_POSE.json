@@ -11,7 +11,8 @@
     "bodyMin": "受けの構えへ寄せた割合（0..1）がこれ以上の間は受けの体のコマ",
     "sagDots": "外して構えが崩れたとき、手が下がる量の最大（絵のドット）",
     "slackHold": "外した硬直のうち、崩れた構えのまま止める割合。その後に待機の構えへ戻す",
-    "spark": "受け止めた所の火花。life = 寿命（秒）/ flashSec = 白い閃きの秒 / flashPx = 閃きの十字の腕の長さ（論理 px）/ count = 火の粉の本数 / spreadDeg = 散る扇の開き / lenMin・lenMax = 火の粉の伸びる距離（論理 px）/ tail = 火の粉の尾の長さ（伸びる距離に対する割合）/ colors = 若い → 古い火の粉の色"
+    "spark": "受け止めた所の火花。life = 寿命（秒）/ flashSec = 白い閃きの秒 / flashPx = 閃きの十字の腕の長さ（論理 px）/ count = 火の粉の本数 / spreadDeg = 散る扇の開き / lenMin・lenMax = 火の粉の伸びる距離（論理 px）/ tail = 火の粉の尾の長さ（伸びる距離に対する割合）/ colors = 若い → 古い火の粉の色",
+    "barrier": "魔法の武器（杖・書・手鈴。武器の絵の meta.stance.parry.barrier）が体の前に張る結界。radius = 肩から結界までの距離（論理 px）/ halfDeg = 結界の弧の半分の開き（度）/ depthPx = 結界の帯の厚み（論理 px。内側ほど薄い）/ edgeAlpha・fillAlpha = 縁と帯の濃さ / shimmerSec = 縁を走る光の 1 巡（秒）/ popPx = 受け止めた瞬間に結界が前へ膨らむ量（論理 px）"
   },
   "raiseSec": 0.05,
   "impactSec": 0.32,
@@ -32,6 +33,21 @@
     "lenMin": 6,
     "lenMax": 13,
     "tail": 0.45,
-    "colors": ["#fffbe6", "#ffe07a", "#ffa63d", "#d9662b"]
+    "colors": [
+      "#fffbe6",
+      "#ffe07a",
+      "#ffa63d",
+      "#d9662b"
+    ]
+  },
+  "barrier": {
+    "radius": 14,
+    "halfDeg": 58,
+    "depthPx": 3,
+    "edgeAlpha": 0.95,
+    "fillAlpha": 0.3,
+    "shimmerSec": 0.45,
+    "popPx": 2,
+    "crumbleMax": 0.6
   }
 }

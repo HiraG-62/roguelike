@@ -111,6 +111,6 @@ export const ATLAS = {
   meta: {
     offGrip: OFF_GRIP,
     // sheath: 鯉口の位置（腰から、ドット）・鞘の向き（度）・納めた刀の握りから鯉口まで（ドット）。iai: 右の溜めを納刀の構えと抜き付けで描く
-    stance: { grip: "two", body: "ready", restDeg: -22, restHand: [8, 7], swayDeg: 2, restMirror: true, restFront: true, sheath: [4, -2, 172, MOUTH_X], iai: true, parry: { hand: [4, 2], deg: -55, mirror: true, contact: 16 } },
+    stance: { grip: "two", body: "ready", restDeg: -22, restHand: [8, 7], swayDeg: 2, restMirror: true, restFront: true, sheath: [4, -2, 172, MOUTH_X], iai: true, parry: { hand: [5, 3], deg: -40, mirror: true, contact: 16 } },
   },
 };

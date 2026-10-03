@@ -468,6 +468,7 @@ describe("playerRig: 受け流しの構え（stance.parry）", () => {
       offDeg: -10,
     });
     expect(parryFromMeta({ hand: [3], deg: 0, contact: 1 })).toBeUndefined();
+    expect(parryFromMeta({ hand: [3, 4], deg: 0, contact: 1, barrier: "#abc" })?.barrier, "結界の色").toBe("#abc");
     expect(parryFromMeta(null)).toBeUndefined();
   });
 
