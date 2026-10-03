@@ -240,8 +240,6 @@ export interface ThrowArtDef {
   readonly sprite?: string;
   /** 命中・炸裂した敵に付ける状態異常（MeleeStepDef.applies と同じ形。付与元は player） */
   readonly applies?: readonly StatusApply[];
-  /** 弾 1 発の命中ごとに戻る気力（Projectile.shotMana）。省略は射撃の既定（MANA.onShot）。左の詠唱が近接の段の気力を引き継ぐのに使う */
-  readonly mana?: number;
 }
 
 /** 自分の弾を手元へ戻す。戻りの弾は威力 returnDamageMul 倍。homing があれば戻りの弾は range 内の近くの敵へ曲がる（毎秒 turnRate ラジアンまで） */
@@ -699,8 +697,7 @@ function reviveThrowAs(raw: unknown, bulletKey: string, name: string, profile: V
   const bullet = reviveBullet(raw.bullet, bulletKey, name, ART_BULLET_KEYWORDS, look.attack);
   const t = raw as unknown as Omit<ThrowArtDef, "bullet" | "attack" | "sprite" | "applies">;
   const applies = Array.isArray(raw.applies) ? { applies: raw.applies.map(statusApply) } : {};
-  const mana = optionalNumber(raw.mana);
-  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies, ...(mana === undefined ? {} : { mana }) };
+  return { scaling: t.scaling, poise: t.poise, poiseRatio: t.poiseRatio, count: t.count, spreadDeg: t.spreadDeg, bullet, attack: look.attack, sprite: look.sprite, ...applies };
 }
 
 /** JSON の右レーンの 1 段（kind は union 文字列なので照合して絞る。未知の kind は読み込み時に落とす） */

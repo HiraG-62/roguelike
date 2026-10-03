@@ -1,15 +1,12 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, fromAngle, length, normalize, scale, sub } from "../core/vec";
-import { ACTION, FEEL, MANA } from "../data/tuning";
+import { ACTION, FEEL } from "../data/tuning";
 import type { BulletDef, OrbitDef, RecallHomingDef, ShotRuntime } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { isAllied } from "./rules";
-import { attackManaMul } from "./keystones";
-import { gainWeaponMana } from "./mana";
-import { attackHitManaMul } from "./manaSources";
 import { merchantSheltered } from "./merchantAi";
 import { bossOnAnswer } from "./boss";
 import { fireDebana } from "./debana";
@@ -34,8 +31,11 @@ const FULL_TURN = Math.PI * 2;
 /** 周回の弾が撃った位置から周回の半径・位相へ寄る速さ（毎秒の指数。大きいほど早く輪に乗る） */
 const ORBIT_EASE = 8;
 
+/**
+ * 自分の弾の命中・炸裂では気力も奥義ゲージも増やさない（遠距離の攻撃は資源を戻さない。docs/ideas/gun-bases-review.md 0-2）。
+ * 銃・投擲・魔弾・右レーン・奥義・設置弾のどれも同じ。資源は近接の振りの命中（player.ts の meleeHitEnemy）で戻す
+ */
 export function updateProjectiles(state: GameState, dt: number): void {
-  groupNewVolley(state);
   for (const pr of state.projectiles) {
     if (pr.life <= 0) continue;
     stepProjectile(state, pr, dt);
@@ -326,7 +326,6 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
     if (!circlesOverlap(pr.pos.x, pr.pos.y, blastRadius, e.body.pos.x, e.body.pos.y, e.body.radius)) continue;
     const mul = blastMulAt(pr.pos, blastRadius, e.body.pos, e.body.radius);
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
-    gainShotMana(state, pr);
     // 設置弾・曲射の炸裂は直撃（擲弾）扱いで bulletHitHeavy
     damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul * mul, {
       hitstopSteps: MINE_HITSTOP,
@@ -334,7 +333,6 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
       crit: out.crit,
       poise: (pr.poise ?? 0) * mul,
       impact: { family: "blunt", weight: "heavy" },
-      energy: pr.energy,
     });
     applyShotStatus(state, pr, e);
   }
@@ -342,31 +340,6 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
   markBlastShot(spawnBlast(state, pr.pos, blastRadius, pr.color, MINE_FX_LIFE), pr);
   spawnBurst(state, pr.pos, pr.color, MINE_PARTICLES, 120, 0.3, 2);
   pushSfx(state, "explode");
-}
-
-/**
- * 前回の更新から増えたプレイヤーの射撃弾を 1 回の射撃としてまとめる。
- * 射撃は 1 フレームに 1 回までなので、未分類の弾はすべて同じ射撃で出たもの
- */
-function groupNewVolley(state: GameState): void {
-  let volley: { manaHits: number } | null = null;
-  for (const pr of state.projectiles) {
-    if (pr.owner !== "player" || pr.kind !== "ranged" || pr.volley) continue;
-    volley ??= { manaHits: 0 };
-    pr.volley = volley;
-  }
-}
-
-/** 射撃弾の命中 1 体ごとにマナを回収する。1 回の射撃で MANA.shotVolleyCap 回まで */
-function gainShotMana(state: GameState, pr: Projectile, debana = false): void {
-  if (pr.kind !== "ranged") return;
-  const volley = pr.volley ?? { manaHits: 0 };
-  pr.volley = volley;
-  if (volley.manaHits >= MANA.shotVolleyCap) return;
-  volley.manaHits += 1;
-  // 静寂の誓い（ks_silentVow）では通常攻撃の命中でマナが戻らない
-  // 流儀の下地（見習いは 1、他は JOB.manaBaseMul。system/manaSources.ts）
-  gainWeaponMana(state, (pr.shotMana ?? MANA.onShot) * (debana ? MANA.onCounterMul : 1) * attackHitManaMul(state), attackManaMul(state));
 }
 
 /** 貫通: 当てた敵は hitIds に積み、pierceLeft が尽きたら消える */
@@ -382,7 +355,6 @@ function hitEnemies(state: GameState, pr: Projectile): void {
     const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
     const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
     const amount = debana ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
-    gainShotMana(state, pr, debana);
     // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
     const heavy = shotDefOf(pr)?.charge !== undefined;
     const pos = { ...e.body.pos };
@@ -395,7 +367,6 @@ function hitEnemies(state: GameState, pr: Projectile): void {
       readStart: debana,
       counterStop: debana,
       impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
-      energy: pr.energy,
       // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
       finisher: pr.release?.finisher,
       release: pr.release !== undefined,

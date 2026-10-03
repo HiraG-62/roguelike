@@ -22,7 +22,7 @@ import {
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
 import { spawnBurst } from "./effects";
-import { currentShot, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
+import { currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
 import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
 import { noteRelease, noteRiposte } from "./moments";
 import { onManaSource } from "./manaSources";
@@ -324,10 +324,12 @@ function inFront(origin: Vec, facing: Vec, from: Vec, arcDeg: number): boolean {
   return Math.abs(diff) <= (arcDeg * DEG_TO_RAD) / 2;
 }
 
-/** 弾を出す段の数の差し替え（派生の shots が弾数・扇・貫通・威力の倍率を変える） */
+/** 弾を出す段の数の差し替え（派生の shots が回数・扇・貫通・威力の倍率を変える） */
 export interface ArtVolleyOverride {
   count?: number;
   spreadDeg?: number;
+  /** 段の 1 回を count 回、spreadDeg（度）ずつ扇にずらして同時に出す（派生の弾。省略は 1 回） */
+  fan?: { count: number; spreadDeg: number };
   pierceBonus?: number;
   damageMul?: number;
   /** 撃ったレーン（双撃の判定。省略は右 = 右レーンの弾の段） */
@@ -371,7 +373,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     applies: t.applies,
     lane: over.lane ?? "secondary",
     release: over.release,
-    shotMana: t.mana,
+    ...(over.fan ? { fan: over.fan } : {}),
   });
 }
 
@@ -434,16 +436,19 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
   if (branch.shots) emitBranchShots(state, branch.shots);
 }
 
-/** 派生の弾。from が lane なら右レーンの弾の段の弾、省略は装備の銃の弾（射撃として当たる） */
+/**
+ * 派生の弾（docs/ideas/gun-bases-review.md 0-3 の A 案）。count は「普段の 1 回を何回撃つか」で、回ごとに扇へ spreadDeg ずつずらす。
+ * 省略は装備の銃の弾の 1 回（1 + 装備の弾数 + 散弾の粒、三点の器は回の向きごとに三点の続き）、from が lane なら右レーンの弾の段の 1 回
+ */
 function emitBranchShots(state: GameState, shots: BranchShots): void {
   // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
-  const over = { count: shots.count, spreadDeg: shots.spreadDeg, pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
+  const over = { pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
   if (shots.from !== "lane") {
-    emitVolley(state, currentShot(state.stats), 0, state.player.aimDistance, over);
+    emitShotRounds(state, currentShot(state.stats), { count: shots.count, spreadDeg: shots.spreadDeg }, over);
     return;
   }
   const t = laneVolley(playerMoveset(state));
-  if (t) emitArtVolley(state, t, over);
+  if (t) emitArtVolley(state, t, { ...over, fan: { count: Math.max(1, shots.count), spreadDeg: shots.spreadDeg ?? t.spreadDeg } });
 }
 
 function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {

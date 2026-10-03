@@ -1,7 +1,5 @@
 import type { StatusEffect, StatusKind } from "../core/status";
 import type { DamageKind, Enemy, GameState } from "../core/state";
-import { formatMeters, pxToMeters } from "../core/units";
-import { dist } from "../core/vec";
 import { JOBS, type ManaSource, type ManaSourceKind } from "../data/jobs";
 import { MANA } from "../data/tuning";
 import { attackManaMul } from "./keystones";
@@ -11,8 +9,9 @@ import type { StatusTarget } from "./statusEffects";
 
 /**
  * 流儀の気力の源（docs/ideas/weapon-forms-impl.md 3-7）。定義は data/jobs.ts の JobDef.mana、数値は MANA_SOURCE。
- * 各フック（近接・射撃の命中、応手、終撃、背面・遠い命中、受け止め、継続ダメージの刻み、反応、スキルの命中、加護の発火）から
- * 1 行で呼ばれ、今のジョブがその源を持っていれば気力を足す。持っていなければ何もしない
+ * 各フック（近接の命中・ダッシュ攻撃の命中、応手、終撃、背面の命中、受け止め、継続ダメージの刻み、反応、スキルの命中、加護の発火）から
+ * 1 行で呼ばれ、今のジョブがその源を持っていれば気力を足す。持っていなければ何もしない。
+ * 自分の弾（Projectile）の命中では湧かない（遠距離の攻撃は資源を戻さない。docs/ideas/gun-bases-review.md 0-2）
  */
 
 type SourceOf<K extends ManaSourceKind> = Extract<ManaSource, { kind: K }>;
@@ -29,19 +28,17 @@ export function manaSourceOf<K extends ManaSourceKind>(state: Readonly<GameState
   return JOBS[state.job].mana.find((s): s is SourceOf<K> => s.kind === kind);
 }
 
-/** 通常攻撃（近接・射撃）の命中の回収に掛ける流儀の倍率。見習いは 1、他は JOB.manaBaseMul の下地 */
+/** 通常攻撃（近接の振り）の命中の回収に掛ける流儀の倍率。見習いは 1、他は JOB.manaBaseMul の下地 */
 export function attackHitManaMul(state: Readonly<GameState>): number {
   return manaSourceOf(state, "attackHit")?.mul ?? 0;
 }
 
-/** 源 1 回ぶんの量。value は種類ごとの量（距離 px・コンボ数・受けたダメージ・秒。回数の源は倍数） */
+/** 源 1 回ぶんの量。value は種類ごとの量（コンボ数・受けたダメージ・秒。回数の源は倍数） */
 function amountOf(source: ManaSource, value: number): number {
   switch (source.kind) {
     case "attackHit":
       // 通常攻撃は回収の倍率（attackHitManaMul）として掛けるので、ここでは足さない
       return 0;
-    case "rangedHitFar":
-      return source.perMeter * Math.max(0, pxToMeters(value - source.minDistance));
     case "comboHit":
       return source.perCombo * Math.min(value, source.comboCap);
     case "guardBlock":
@@ -71,23 +68,32 @@ function overMeleeCap(state: Readonly<GameState>): boolean {
   return state.player.attack.hitIds.size > MANA.meleeTargetCap;
 }
 
-/** 近接の振りの命中（player.ts の meleeHitEnemy）: コンボの命中・先端の命中 */
-export function noteMeleeHitMana(state: GameState, tip: boolean): void {
+/**
+ * 自分の弾（Projectile）の命中か。自分の命中で kind が "ranged" になるのは弾だけ（近接の振りは武器のジャンルが ranged の銃剣でも
+ * kind "melee"、スキルは skill が立つ）。遠距離の攻撃は気力の源を湧かせない
+ */
+function isShotHit(kind: DamageKind, skill: boolean): boolean {
+  return kind === "ranged" && !skill;
+}
+
+/** 近接の振りの命中（player.ts の meleeHitEnemy）: コンボの命中・先端の命中・ダッシュ攻撃の命中 */
+export function noteMeleeHitMana(state: GameState, tip: boolean, dashStrike = false): void {
   if (overMeleeCap(state)) return;
   onManaSource(state, "comboHit", state.combo.count, true);
   if (tip) onManaSource(state, "tipHit", 1, true);
+  if (dashStrike) onManaSource(state, "dashHit", 1, true);
 }
 
-/** 命中（combat.ts の damageEnemy）: 背面の命中・遠い命中。継続ダメージ・素性なしの追撃は数えない */
+/** 命中（combat.ts の damageEnemy）: 背面の命中。継続ダメージ・素性なしの追撃・弾の命中は数えない */
 export function noteHitMana(state: GameState, enemy: Enemy, kind: DamageKind, skill: boolean, silent: boolean): void {
-  if (silent || kind === "proc") return;
+  if (silent || kind === "proc" || isShotHit(kind, skill)) return;
   const capped = !skill && overMeleeCap(state);
   if (kind === "melee" && !capped && isBehind(state, enemy)) onManaSource(state, "backstab", 1, !skill);
-  if (kind === "ranged") onManaSource(state, "rangedHitFar", dist(state.player.body.pos, enemy.body.pos), !skill);
 }
 
-/** 終撃の命中（moments.ts の noteHitMoments）。近接の振りは数える敵の上限まで */
-export function noteFinisherMana(state: GameState, kind: DamageKind): void {
+/** 終撃の命中（moments.ts の noteHitMoments）。近接の振りは数える敵の上限まで、弾の終撃（長銃の満ちた 1 発など）では湧かない */
+export function noteFinisherMana(state: GameState, kind: DamageKind, skill = false): void {
+  if (isShotHit(kind, skill)) return;
   if (kind === "melee" && overMeleeCap(state)) return;
   onManaSource(state, "finisher");
 }
@@ -127,8 +133,8 @@ export function manaSourceText(source: ManaSource): string {
       return `応手で +${num(source.amount)}`;
     case "finisher":
       return `終撃の命中で +${num(source.amount)}`;
-    case "rangedHitFar":
-      return `${formatMeters(source.minDistance)} より遠い命中で 1m ごとに +${num(source.perMeter)}`;
+    case "dashHit":
+      return `ダッシュ攻撃の命中で +${num(source.amount)}`;
     case "comboHit":
       return `近接の命中でコンボ 1 につき +${num(source.perCombo)}、${source.comboCap} コンボまで`;
     case "guardBlock":

@@ -47,14 +47,15 @@ export const DASH_FORM_NAMES: Readonly<Record<DashForm, string>> = {
 
 /**
  * 気力の源（src/system/manaSources.ts）。流儀ごとに気力がどこから湧くか。
- * attackHit は通常攻撃の命中の回収（MANA.onMelee / onShot）に掛ける倍率。見習いは 1、他は JOB.manaBaseMul の下地。
+ * attackHit は通常攻撃の命中の回収（近接の振りの MANA.onMelee。自分の弾の命中では戻らない）に掛ける倍率。見習いは 1、他は JOB.manaBaseMul の下地。
+ * dashHit（狩人）はダッシュ攻撃の命中。遠距離の命中では気力が湧かないので、狩人も近接の一撃で取り戻す（docs/ideas/gun-bases-review.md 4-3）。
  * minionHit（陰陽師。skills/hit.ts の SkillHitSpec.minion）・boonFired（巫女。system/rules.ts の加護の発火）
  */
 export type ManaSource =
   | { readonly kind: "attackHit"; readonly mul: number }
   | { readonly kind: "riposte"; readonly amount: number }
   | { readonly kind: "finisher"; readonly amount: number }
-  | { readonly kind: "rangedHitFar"; readonly perMeter: number; readonly minDistance: number }
+  | { readonly kind: "dashHit"; readonly amount: number }
   | { readonly kind: "comboHit"; readonly perCombo: number; readonly comboCap: number }
   | { readonly kind: "guardBlock"; readonly perDamage: number }
   | { readonly kind: "statusTick"; readonly perSec: number }
@@ -167,7 +168,7 @@ export const JOBS: Readonly<Record<JobKey, JobDef>> = {
     desc: "予告が下絵の敵を射撃・遠距離スキルで怯ませ、精鋭を脆弱にする。",
     attributes: JOB_ATTRIBUTES.hunter,
     dash: "leap",
-    mana: [BASE_ATTACK_MANA, { kind: "rangedHitFar", perMeter: MS.hunter.perMeter, minDistance: MS.hunter.minDistance }],
+    mana: [BASE_ATTACK_MANA, { kind: "dashHit", amount: MS.hunter.dashHit }],
     rules: [
       jobRule("hunter", 0, `予告が下絵の敵を射撃・遠距離スキルで撃つと怯み値 ${JOB.hunterWindupPoise} を上乗せする。`, {
         when: "onRangedHit",

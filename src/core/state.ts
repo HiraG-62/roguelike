@@ -18,7 +18,8 @@ import type { ExitReward } from "../system/exits";
 import type { RunEventState } from "../system/runEvents";
 import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
-import type { ButtonKey, ShotRuntime } from "../data/weapons";
+import type { BulletDef, ButtonKey, ShotRuntime } from "../data/weapons";
+import type { VolleyOverride } from "../system/player";
 import type { JobKey } from "../data/jobs";
 import type { FormationKey, JinzuPathKind } from "../data/formations";
 import type { CodexRun } from "../meta/codex";
@@ -168,10 +169,10 @@ export interface Player {
   /** 照準（カーソル）までの距離 px。曲射の落下点に使う。マウス照準が無ければ undefined（射程いっぱい）。applyAim が毎ステップ更新 */
   aimDistance?: number;
   /**
-   * 三点撃ち（burst を持つ弾）の残り弾数と次の弾までの秒、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
-   * docs/ideas/combat-feel-design.md B-1 / B-2
+   * 三点撃ち（burst を持つ弾）の続きの予約（向きごとに 1 つ。派生の弾は回の数だけ積む）と、二丁拳銃の銃口の左右（1 / -1。撃つたびに入れ替える）。
+   * docs/ideas/combat-feel-design.md B-1 / B-2、docs/ideas/gun-bases-review.md 0-3（P4）
    */
-  shotBurst: { left: number; timer: number; side: number };
+  shotBurst: { queue: BurstEntry[]; side: number };
   /** 近接命中の直後、攻撃方向へ一瞬伸びる残り秒（FEEL.swingImpact。docs/ideas/combat-feel-design.md D-5） */
   swingImpact: number;
   /**
@@ -589,16 +590,12 @@ export interface Projectile {
   sourceId?: number;
   /** プレイヤー弾の最終の怯み値（poiseDamageMul 込み）。命中時に HitOptions.poise へ渡す。未指定は 0 */
   poise?: number;
-  /** 同じ射撃で出た弾の共有カウンタ（マナ回収の上限 MANA.shotVolleyCap 用）。projectiles.ts が付ける */
-  volley?: { manaHits: number };
   /** 銃の弾の作業領域（跳弾の残り・設置弾。src/data/weapons.ts）。無ければ単発と同じ */
   shot?: ShotRuntime;
   /** この弾自身の攻撃素性（投擲の技など）。未指定なら今の銃の弾（stats.bullet）から引く */
   attack?: AttackProfile;
   /** 弾の代わりに武器の絵を回して描く（斧の投擲など。ThrowArtDef.sprite）。未指定は既定の弾の絵 */
   sprite?: string;
-  /** 命中で溜まる奥義ゲージ（銃の射撃だけ。system/combat.ts の shotHitEnergy）。未指定は溜めない */
-  energy?: number;
   /** 命中・炸裂で敵に付ける状態異常（ThrowArtDef.applies。付与元は player）。未指定は付けない */
   applies?: readonly StatusApply[];
   /** 撃ったレーン（双撃の判定。system/moments.ts）。未指定 = レーンに属さない弾（スキルなど） */
@@ -609,8 +606,18 @@ export interface Projectile {
   firedAt?: number;
   /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */
   pointBlank?: boolean;
-  /** 命中ごとに戻る気力（ThrowArtDef.mana。左の詠唱が近接の段の気力を引き継ぐ）。未指定は MANA.onShot */
-  shotMana?: number;
+}
+
+/**
+ * 三点の続き（1 つの向きぶん）。1 本目と同じ射撃として、撃った弾（持続の奥義の差し替え済み）と放出の倍率を持ち越す。
+ * angle は向き（facing）からのずれ（ラジアン。派生の扇の回ごとの角度、普段の射撃は 0）。left は残りの本数、timer は次の 1 本までの秒
+ */
+export interface BurstEntry {
+  shot: BulletDef;
+  angle: number;
+  override: VolleyOverride;
+  left: number;
+  timer: number;
 }
 
 /** リング（衝撃波）と線（連鎖雷）の演出 */

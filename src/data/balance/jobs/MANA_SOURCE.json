@@ -2,8 +2,7 @@
   "_fields": {
     "riposte": "応手（受け流し・カウンター・見切りなど、武器の型が応手に数える出来事）1 回で戻る気力",
     "finisher": "終撃の命中 1 回で戻る気力（近接の 1 振りで数えるのは MANA.meleeTargetCap 体まで）",
-    "perMeter": "遠い命中: minDistance を超えた距離 1m ごとに戻る気力（射撃・遠距離スキルの命中 1 回ごと）",
-    "minDistance": "遠い命中: これより遠い命中だけ数える。px（10px = 1m）",
+    "dashHit": "ダッシュ攻撃の命中 1 回で戻る気力（1 振りで数えるのは MANA.meleeTargetCap 体まで）",
     "perCombo": "コンボの命中: 近接の命中 1 回で、今のコンボ数 × この値の気力（comboCap で頭打ち）",
     "comboCap": "コンボの命中: 数えるコンボ数の上限",
     "perDamage": "受け止め: 盾の構え・不退で受けた被ダメージ（軽減前）1 につき戻る気力",
@@ -16,7 +15,7 @@
     "boonFired": "祝福の加護（Rule）が 1 回発動するごとに戻る気力"
   },
   "swordsman": { "riposte": 15, "finisher": 8 },
-  "hunter": { "perMeter": 0.4, "minDistance": 40 },
+  "hunter": { "dashHit": 6 },
   "brawler": { "perCombo": 0.25, "comboCap": 12 },
   "shieldBearer": { "perDamage": 0.15 },
   "hexer": { "perSec": 1.2 },

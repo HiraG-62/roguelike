@@ -6,7 +6,7 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
-import { FORM, MANA, STATUS, WEAPON } from "../data/tuning";
+import { FORM, STATUS, WEAPON } from "../data/tuning";
 import { MOVESETS } from "../data/weapons";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { skillHit } from "../skills/hit";
@@ -448,18 +448,16 @@ describe("書（墨印）", () => {
     expect([front, back].map((e) => statusStacks(e.status, "inkMark")), "3 段目は並ぶ敵を貫く").toEqual([1, 1]);
   });
 
-  it("左の字の命中で段の気力（movesets/book.json の字の mana に武器の回収の素の倍率を掛けた量）が戻る", () => {
-    const state = arena(5, { moveset: "book" });
+  it("左の字（魔弾）の命中では気力も奥義ゲージも戻らない（遠距離の攻撃は資源を戻さない。2026-10-03 に字の気力を撤去）", () => {
+    const state = arena(5, { moveset: "book", manaRegen: 0 });
     const e = near(state, 30);
-    const unit = attackHitManaMul(state) * state.stats.manaGainMul * MANA.attackGainScale;
-    expect(unit, "通常攻撃の気力の倍率が立っている").toBeGreaterThan(0);
+    expect(attackHitManaMul(state), "通常攻撃の気力の倍率は立っている（近接の振りなら戻る）").toBeGreaterThan(0);
     state.player.mana = 0;
+    state.player.energy = 0;
     const gains = chainLeft(state, 3, e);
     expect(gains, "3 段が 1 回ずつ命中").toHaveLength(3);
-    MOVESETS.book.steps.map((st) => st.cast?.throw.mana ?? st.mana).forEach((mana, i) => {
-      expect(gains[i] ?? 0, `${i + 1} 段目の気力`).toBeGreaterThan(mana * unit - 0.01);
-      expect(gains[i] ?? 0, `${i + 1} 段目の気力（自然回復の 1 フレームぶんを超えない）`).toBeLessThan(mana * unit + 0.3);
-    });
+    gains.forEach((gain, i) => expect(gain, `${i + 1} 段目の字の命中の気力`).toBe(0));
+    expect(state.player.energy, "字の命中の奥義ゲージ").toBe(0);
   });
 
   it("左の字は約 10m（100px）で消える", () => {

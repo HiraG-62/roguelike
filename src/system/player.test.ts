@@ -8,7 +8,7 @@ import { damagePlayer } from "./combat";
 import { KS } from "./keystones";
 import { applyStatus } from "./statusEffects";
 import { fireTrigger } from "./triggers";
-import { type ButtonKey, MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
+import { type ButtonKey, MOVESETS, MOVESET_KEYS, shootsPrimary } from "../data/weapons";
 import { FORMS } from "../data/weaponForms";
 import { grantBoon } from "./boons";
 import type { FrameInput } from "../core/input";
@@ -360,7 +360,7 @@ function runRightLane(state: GameState, e: Enemy): number {
 describe("武器種: 右レーン（アクション 2）の各段", () => {
   for (const key of MOVESET_KEYS) {
     // 杖の右レーンは振りの無い弾の段だけ（wandMagic.test.ts が見る）
-    if (isGun(MOVESETS[key]) || key === "wand") continue;
+    if (shootsPrimary(MOVESETS[key]) || key === "wand") continue;
     it(`${MOVESETS[key].name}（${key}）: 右を押し続けると右レーンの最終段まで振り、正面の敵に当たる`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
@@ -376,8 +376,8 @@ describe("武器種: 右レーン（アクション 2）の各段", () => {
 
 describe("武器種: 各段が当たる", () => {
   for (const key of MOVESET_KEYS) {
-    // 銃の家系は近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
-    if (isGun(MOVESETS[key])) continue;
+    // 左で撃つ武器種は左に近接の段を持たない（射撃は projectiles.test.ts / 下の「二丁拳銃」で見る）
+    if (shootsPrimary(MOVESETS[key])) continue;
     it(`${MOVESETS[key].name}（${key}）: 押し続けると最終段まで振り、全段が正面の敵に当たる（多段ヒットは回数ぶん）`, () => {
       const state = arena(5, { moveset: key });
       const e = tough(placeEnemy(state, "boar", FRONT_DIST));
