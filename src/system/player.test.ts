@@ -1001,18 +1001,20 @@ describe("武器の重さ（ダッシュの取り消し・攻撃中の移動・�
     expect(canDashCancel(state), "溜め中").toBe(true);
   });
 
-  it("攻撃中の移動倍率は武器種の値を重さの帯に丸める（重は 0、軽は帯の中）", () => {
+  it("攻撃中の移動倍率は武器種の値を重さの帯に丸める（重は遅いが止まらない、軽は帯の中）", () => {
     const light = WEAPON.weightClass.light;
     const heavy = WEAPON.weightClass.heavy;
-    expect(attackMoveMulOf(MOVESETS.greatsword, 0), "大剣は止まる").toBe(heavy.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.greatsword, 0), "大剣は帯の下限").toBe(heavy.moveMulMin);
+    expect(attackMoveMulOf(MOVESETS.shield, 0), "大盾は帯の上限へ").toBe(heavy.moveMulMax);
+    expect(attackMoveMulOf(MOVESETS.greatsword, 0), "大剣も止まらない").toBeGreaterThan(0);
     expect(attackMoveMulOf(MOVESETS.fists, 0), "拳は等倍から帯の上限へ").toBe(light.moveMulMax);
     expect(attackMoveMulOf(MOVESETS.twinBlades, 0), "双剣は帯の中ならそのまま").toBe(MOVESETS.twinBlades.attackMoveMul);
   });
 
-  it("終撃は中で足が止まり、軽は止まらない", () => {
+  it("終撃は中で足が遅くなるが止まらず、軽は段と同じ", () => {
     const finisher = (key: "sword" | "twinBlades"): number => attackMoveMulOf(MOVESETS[key], hookCombo(MOVESETS[key], MOVESETS[key].steps.length - 1));
     expect(finisher("sword"), "中の終撃").toBe(WEAPON.weightClass.medium.finisherMoveMul);
-    expect(finisher("sword")).toBe(0);
+    expect(finisher("sword"), "中の終撃も止まらない").toBeGreaterThan(0);
     expect(finisher("twinBlades"), "軽の終撃は段と同じ").toBeGreaterThan(0);
   });
 
