@@ -87,8 +87,9 @@ import { clampHitstopScale } from "../ui/settings";
  * 41: 振りの速さと火力の見直し（近接の段の秒・威力・気力・連撃の窓を振り終わりから）・敵の狙いが攻撃の少し前に固まる（aimLock）
  * 42: 敗走の見直し（崩れたら 1 体ずつ逃げるか背水で踏みとどまるかを state.rng で引く・窮鼠の反撃・置き土産の泥・急報）
  * 43: 起床の見直し（気付く距離・音・起こす輪を縮め、輪の中心を今気付いた者に・後詰は群勢の合図で）
+ * 44: 銃の弾倉とリロード（入力 reloadPressed / reloadHeld・Player.magazine・短銃の旧「弾倉」戦意の撤去）
  */
-export const REPLAY_VERSION = 43;
+export const REPLAY_VERSION = 44;
 
 // ---------------------------------------------------------------------------
 // データ型
@@ -226,7 +227,9 @@ type ButtonKey =
   | "attackHeld"
   | "interactPressed"
   | "parryPressed"
-  | "flaskPressed";
+  | "flaskPressed"
+  | "reloadPressed"
+  | "reloadHeld";
 
 /** ビット順。末尾に追加するのは可、並べ替えは不可（過去のリプレイが壊れる） */
 const BUTTON_BITS: readonly ButtonKey[] = [
@@ -259,6 +262,9 @@ const BUTTON_BITS: readonly ButtonKey[] = [
   "parryPressed",
   // 瓶を飲む（economy-impl 6b）。末尾に足したので旧リプレイは 0 として読める
   "flaskPressed",
+  // 銃のリロードの押した瞬間と押しっぱなし（REPLAY_VERSION 44。砲の詰めは押しっぱなしを読む）
+  "reloadPressed",
+  "reloadHeld",
 ];
 
 /** 照準を 1px 単位に量子化する。-0 は 0 に寄せる */

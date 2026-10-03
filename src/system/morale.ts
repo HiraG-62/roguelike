@@ -2,7 +2,7 @@ import type { FrameInput } from "../core/input";
 import type { GameState, Player, Projectile } from "../core/state";
 import { isZero } from "../core/vec";
 import { FORM } from "../data/tuning";
-import { type FormDef, type MoraleGain, type MoraleRelease, type ReleasePerUnit, formOfKey } from "../data/weaponForms";
+import { type FormDef, type MoraleGain, type ReleasePerUnit, formOfKey } from "../data/weaponForms";
 import { type ButtonKey, type MovesetDef, MOVESETS, chargeLevelAt, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { hasReach } from "../loot/reach";
@@ -47,7 +47,7 @@ export interface ShotRelease {
 }
 
 export function createMorale(): MoraleState {
-  return { value: 0, sinceGain: 0, window: 0, primed: false, full: false, swingUnits: 0 };
+  return { value: 0, sinceGain: 0, primed: false, full: false, swingUnits: 0 };
 }
 
 /** 武器種を持ち替えたら戦意を捨てる（型が違えば単位も違う。同じ型でも持ち替えで溜めを持ち越させない） */
@@ -150,13 +150,10 @@ export function gainMorale(state: GameState, kind: MoraleGain["kind"], scale = 1
  * 満ちた瞬間（前ステップは満ちていない）なら true（充溢）
  */
 export function tickMorale(state: GameState, input: FrameInput, dt: number): boolean {
-  // 改鋳の挙動（装填の窓のダッシュ・設置弾の這い寄り）を窓の進みより先に（system/reforge.ts）
+  // 改鋳の挙動（込めの最中のダッシュ・設置弾の這い寄り。system/reforge.ts）
   tickReforges(state);
   const m = state.player.morale;
   const form = currentForm(state);
-  const reloading = m.window > 0;
-  m.window = Math.max(0, m.window - dt);
-  if (reloading && m.window === 0) finishReload(m);
   m.sinceGain += dt;
   if (form.morale.derived) m.value = derivedValue(state, form);
   else {
@@ -213,8 +210,6 @@ function tickDecay(m: MoraleState, form: FormDef, dt: number): void {
 /** 満ちた後の最初の一撃が放出の型（長銃）: 満ちたら構え、放出の最低を割ったら解く */
 function updatePrimed(state: GameState, form: FormDef, full: boolean): void {
   const m = state.player.morale;
-  // 短銃の強装填は装填の窓で立て、次の弾倉の間ずっと持つ（満ちた瞬間の構えとは別。noteShotFired が空になると降ろす）
-  if (form.morale.release.kind === "reload") return;
   if (form.morale.release.kind !== "nextPrimary") {
     m.primed = false;
     return;
@@ -244,8 +239,6 @@ function isReleaseSwing(form: FormDef, moveset: MovesetDef, spec: ReleaseSwingSp
       return branch !== undefined && branch.sequence.length >= 3;
     case "release":
       return branch?.art === "release";
-    case "reload":
-      return false;
   }
 }
 
@@ -320,7 +313,6 @@ export function releaseIsFinisher(state: GameState): boolean {
 export function consumeShotRelease(state: GameState): ShotRelease | undefined {
   const form = currentForm(state);
   const m = state.player.morale;
-  if (form.morale.release.kind === "reload") return reloadShotRelease(state, form);
   if (form.morale.release.kind !== "nextPrimary" || !m.primed) return undefined;
   const units = consume(state);
   if (units <= 0) return undefined;
@@ -335,66 +327,8 @@ export function chargeArmorOf(state: GameState): { damageTakenMul: number; noKno
 }
 
 // ---------------------------------------------------------------------------
-// 短銃の装填（弾倉が空 → 窓 → 強装填）と砲の置いた弾
+// 砲の置いた弾
 // ---------------------------------------------------------------------------
-
-type ReloadRelease = Extract<MoraleRelease, { kind: "reload" }>;
-
-/** 装填を持つ型で、窓が 0 より長いときの設定（windowSec 0 は装填ごと無効のつまみ） */
-function reloadOf(form: FormDef): ReloadRelease | undefined {
-  const r = form.morale.release;
-  return r.kind === "reload" && r.windowSec > 0 ? r : undefined;
-}
-
-/** 装填の窓の間か（player.ts の canShootNow が撃てなくする） */
-export function isReloading(state: GameState): boolean {
-  return state.player.morale.window > 0;
-}
-
-/** 窓が終わった: 新しい弾倉（撃った数を 0 に戻す）。強装填はそのまま次の弾倉へ持ち越す */
-function finishReload(m: MoraleState): void {
-  m.value = 0;
-  m.full = false;
-  m.sinceGain = 0;
-}
-
-/**
- * 左で 1 発撃った（player.ts の emitVolley）。短銃は撃った数を弾倉に数え、空（max 発）で装填の窓を開ける。
- * 弾倉は出来事で溜まる戦意と違い、溜まりやすさの倍率を掛けない（弾数を増やす道具ではない）。
- * 装填の窓が始まったら true
- */
-export function noteShotFired(state: GameState): boolean {
-  const form = currentForm(state);
-  const reload = reloadOf(form);
-  const m = state.player.morale;
-  if (!reload || m.window > 0) return false;
-  m.value = Math.min(moraleMax(state), m.value + gainAmountOf(form, "shotFired"));
-  m.sinceGain = 0;
-  if (m.value < moraleMax(state)) return false;
-  m.window = reload.windowSec;
-  // 窓の外で立てた強装填は撃ち切った弾倉のもの。窓の中で押し直して次の弾倉へ
-  m.primed = false;
-  return true;
-}
-
-/** 強装填を立てる（player.ts の右の押下）。窓の primeFrom〜primeTo の間の最初の押下だけ。立てたら true */
-export function tryPrimeReload(state: GameState): boolean {
-  const reload = reloadOf(currentForm(state));
-  const m = state.player.morale;
-  if (!reload || m.window <= 0 || m.primed) return false;
-  const elapsed = reload.windowSec - m.window;
-  if (elapsed < reload.primeFrom || elapsed > reload.primeTo) return false;
-  m.primed = true;
-  return true;
-}
-
-/** 強装填の弾倉の弾。弾倉の 1 発目だけが放出（終撃）で、以降は威力の上乗せだけ */
-function reloadShotRelease(state: GameState, form: FormDef): ShotRelease | undefined {
-  const m = state.player.morale;
-  if (!m.primed || m.window > 0) return undefined;
-  const first = m.value === 0;
-  return { units: first ? 1 : 0, mul: releaseMulOf(form.morale.numbers.perUnit, 1), finisher: first && form.finisher.includes("release"), crit: false };
-}
 
 /** 床に置いた自分の弾（設置弾・曲射弾）で、まだ炸裂していないもの（砲の置いた弾。起爆の対象） */
 export function isPlacedShot(pr: Projectile): boolean {

@@ -65,7 +65,7 @@ export type ReforgeKey = (typeof REFORGE_KEYS)[number];
 
 /**
  * 段・戦意・ルールで表せない挙動の切り替え（system/reforge.ts が読む）。
- * aimWhileMoving = 動いても狙いが減らず溜まる / dashReload = 装填の窓のダッシュで即座に装填 /
+ * aimWhileMoving = 動いても狙いが減らず溜まる / dashReload = 込めの最中のダッシュで即座に込め終わる /
  * pullToShots = 放出で飛んでいる自分の弾の方へ引き寄せられる / minesCling = 設置弾が近くの敵へ這い寄る
  */
 export const REFORGE_FLAGS = ["aimWhileMoving", "dashReload", "pullToShots", "minesCling"] as const;
@@ -417,7 +417,7 @@ export const REFORGES: Readonly<Record<ReforgeKey, ReforgeDef>> = {
     morale: { max: R.thrower.throwerTwin.max },
   }),
   // ---- 短銃 ----
-  pistolDash: def("pistolDash", "pistol", "疾駆", "装填の間にダッシュすると、その場で弾倉が満ちて強装填になる", { flags: ["dashReload"] }),
+  pistolDash: def("pistolDash", "pistol", "疾駆", "込めの最中にダッシュすると、その場で弾倉が満ち、早込めにも数える", { flags: ["dashReload"] }),
   pistolChain: def("pistolChain", "pistol", "雷管", "強装填の 1 発目が当たると、近くの敵へ雷が連鎖する", {
     rules: [
       {

@@ -15,6 +15,7 @@ import { PLAYER } from "../data/tuning";
 import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
+import { canFireAny } from "../system/magazine";
 import { nextLaneIndex, playerMoveset } from "../system/player";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, isGun, shootsPrimary } from "../data/weapons";
@@ -837,8 +838,9 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     pressMixedLane(state, bot, moveset, input);
     return input;
   }
-  // 銃は弾の命中で気力が戻らない（docs/ideas/gun-bases-review.md 0-2）。気力が足りない間は寄って右の近接で戻す
-  if (d < MELEE_RANGE && gunNeedsMana(state, moveset)) {
+  // 銃は弾の命中で気力が戻らない（docs/ideas/gun-bases-review.md 0-2）。気力が足りない間と、弾倉が空・込めの最中は寄って右の近接を振る
+  // （込めは振りの最中も進むので、撃てない間は近接で待つ）
+  if (d < MELEE_RANGE && (gunNeedsMana(state, moveset) || gunOutOfRounds(state, moveset))) {
     pressRightLane(state, bot, moveset, d, input, false);
     return input;
   }
@@ -859,6 +861,11 @@ export function gunNeedsMana(state: GameState, moveset: MovesetDef): boolean {
     hasManaSkill = true;
   }
   return hasManaSkill;
+}
+
+/** 銃で、どの手も撃てない（弾倉が空か込めの最中）か。込めは自動なので bot は待つだけ */
+export function gunOutOfRounds(state: GameState, moveset: MovesetDef): boolean {
+  return isGun(moveset) && shootsPrimary(moveset) && !canFireAny(state);
 }
 
 /** 奥義を押すか: 持続中でなく、ゲージが満タンで、敵が ULTIMATE_RANGE 以内 */

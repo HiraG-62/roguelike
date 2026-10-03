@@ -13,7 +13,8 @@ import { createDefaultSkillProfile } from "../skills/persistence";
 import { updateCamera } from "./camera";
 import { createEnemy } from "./enemies";
 import { borrowWeapon } from "./hub";
-import { currentForm, isReloading, moraleMax } from "./morale";
+import { isMagazineBusy, magazineView } from "./magazine";
+import { currentForm, moraleMax } from "./morale";
 import { isDashing, latchFrozenInput, playerMoveset } from "./player";
 import { createSandboxState, simulateSandbox } from "./sandbox";
 import { DUMMY_KEY } from "./specialRooms";
@@ -27,9 +28,9 @@ import { DUMMY_KEY } from "./specialRooms";
 
 /** 入力の後に待つ条件（台本の waitUntil / holdUntil） */
 export type DemoCondition =
-  /** 撃ち切って装填中（短銃の戦意） */
+  /** 銃の弾倉を込めている最中（system/magazine.ts） */
   | "reloading"
-  /** 装填の拍（強装填を押せる窓）に入った */
+  /** 込めの進みが早込めの窓に入った（短銃） */
   | "reloadPrime"
   /** 振り・溜め・構え・持続の奥義がすべて終わった */
   | "idle"
@@ -354,7 +355,7 @@ function conditionMet(state: GameState, cond: DemoCondition): boolean {
   const p = state.player;
   switch (cond) {
     case "reloading":
-      return isReloading(state);
+      return isMagazineBusy(state);
     case "reloadPrime":
       return reloadPrimeOpen(state);
     case "idle":
@@ -364,12 +365,12 @@ function conditionMet(state: GameState, cond: DemoCondition): boolean {
   }
 }
 
-/** 装填の窓のうち、強装填を押せる拍（FORM.pistol.reload の primeFrom〜primeTo）に入ったか */
+/** 込めの進みが早込めの窓（movesets/sidearm.json の quickReload）に入ったか */
 function reloadPrimeOpen(state: GameState): boolean {
-  const release = currentForm(state).morale.release;
-  if (release.kind !== "reload" || !isReloading(state)) return false;
-  const elapsed = release.windowSec - state.player.morale.window;
-  return elapsed >= release.primeFrom && elapsed <= release.primeTo;
+  const view = magazineView(state);
+  const hand = view.hands[0];
+  if (!view.quickWindow || !hand?.busy) return false;
+  return hand.progress >= view.quickWindow.from && hand.progress <= view.quickWindow.to;
 }
 
 // ---------------------------------------------------------------------------

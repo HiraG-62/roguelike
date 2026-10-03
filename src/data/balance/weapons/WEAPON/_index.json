@@ -3,6 +3,9 @@
     "chainWindow": "派生の入力列を保つ秒（振り終わりから。振っている間は減らない）。この間に次を押せば左右共有の段カウンタも続く。目安 0.3〜0.5。右レーンの段に置くと、その段を出した後の窓だけを上書きする（再使用・laneGap より十分長く）",
     "chainMaxInputs": "派生の照合に残す直近の入力の数。最長の派生の入力数以上にする",
     "laneGap": "右レーンの弾・手元返しの段を出した後、次の弾・手元返しの段を押せない秒（連打で弾を一度に出さない）。目安 0.2〜0.4",
+    "reloadMoveMul": "銃: 込め（リロード）の最中の移動速度の倍率（1 = 等倍。docs/ideas/gun-bases-review.md 2-8）。砲の詰めの最中も同じ倍率。二丁拳銃はどちらかの手が込めている間",
+    "quickReload": "短銃の早込め。込めの進みが from（割合 0..1）に届いてから sec 秒の間にリロードか左を押すと即込め終わり、窓の外で押すと込めが missSec 秒延びる。1 回の込めに 1 回だけ",
+    "pack": "砲の詰め。弾倉が満ちた後もリロードを押し続けると levelSec 秒ごとに詰めが 1 段（max 段まで）。詰めている間は撃てず足が reloadMoveMul 倍",
     "attackMoveMul": "攻撃中の移動速度の倍率（1 = 等倍）。実際は weightClass の帯（weight の moveMulMin〜Max）に丸めて使う",
     "weight": "武器の重さ（light / medium / heavy）。係数は weightClass.json の同名の行。決め方は docs/recipes/weapon.md",
     "windup": "振りの予備動作の秒（攻撃速度で割る）",
@@ -60,6 +63,7 @@
     "burst": "三点（count 1 押しの弾数 / interval 間隔の秒）",
     "boomerang": "回転刃（returnAt 寿命のこの割合で折り返す / catchRadius 手に収まる距離 px）",
     "lob": "曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px）",
+    "magazine": "銃の弾倉（docs/ideas/gun-bases-review.md 2-8）。capacity は容量（引き金を引いた回数。散弾の粒・三点の 3 本は 1 回）、reloadSec は空から満タンまでの込めの秒、perRoundSec は 1 発ずつ込める器（砲）の 1 発の秒（あれば reloadSec の代わりに使う）。撃ち切ると自動で込める",
     "meleeDamageScale": "近接の段の威力の係数表（base と全係数）に復元時に掛ける。銃の弾・スキル・奥義は対象外。base と係数を同率で下げるのでステータス 1 点あたりの伸び率は変わらない。倍率（1 = 等倍）",
     "unarmed": "素手（右手が空のときの拳の型）。damageMul は近接の威力の倍率（1 = 等倍）"
   },

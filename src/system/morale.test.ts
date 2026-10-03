@@ -15,7 +15,7 @@ import { FORM, PARRY, WEAPON } from "../data/tuning";
 import { FORMS } from "../data/weaponForms";
 import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { damagePlayer, rollOutgoing } from "./combat";
-import { gainMorale, isReloading, moraleGauge, moraleMax, placedShotCount } from "./morale";
+import { gainMorale, moraleGauge, moraleMax, placedShotCount } from "./morale";
 import { applyStats, currentMeleeStep, meleeStep, playerMoveset, updatePlayer } from "./player";
 import { detonateOwnMines } from "./weaponArts";
 import { arena, placeEnemy, withInput } from "./testHelpers";
@@ -281,122 +281,8 @@ describe("戦意の共通", () => {
   });
 });
 
-describe("戦意: 短銃（弾倉と装填）", () => {
+describe("戦意: 短銃（応手）", () => {
   const pistol = { moveset: "sidearm" as const, bullet: "pistol" };
-  const RELOAD = FORM.pistol.reload;
-
-  /** 左を 1 発撃つ（再使用を空けて 1 ステップ押す） */
-  function fire(state: GameState): GameEvent[] {
-    state.player.shootCooldown = 0;
-    return run(state, { attackHeld: true });
-  }
-
-  /** 弾倉を撃ち切って装填の窓を開ける（最後の 1 発で窓が立つ） */
-  function emptyMagazine(state: GameState): GameEvent[] {
-    const events: GameEvent[] = [];
-    for (let i = 0; i < FORM.pistol.max; i++) events.push(...fire(state));
-    return events;
-  }
-
-  /** 装填の窓が開いてから経った秒（窓は撃った瞬間に立ち、次のステップから減る） */
-  function pressRightAfter(state: GameState, sec: number): void {
-    run(state, {}, stepsFor(sec));
-    run(state, { shootHeld: true });
-    run(state, {});
-  }
-
-  it("撃った弾が弾倉に数えられ、空で装填の窓が開いて充溢の代わりに装填になり、窓の間は撃てない", () => {
-    const state = arena(5, pistol);
-    fire(state);
-    expect(state.player.morale.value, "1 発撃って弾倉 1").toBe(FORM.pistol.gain.shotFired);
-    const events = emptyMagazine(state);
-    expect(isReloading(state), "撃ち切ったら装填の窓").toBe(true);
-    // 窓は撃った瞬間に立ち、同じステップの終わりで 1 ステップ減る
-    expect(state.player.morale.window, "窓は装填の秒").toBeGreaterThan(RELOAD.windowSec - 2 * FIXED_DT);
-    expect(state.player.morale.window).toBeLessThanOrEqual(RELOAD.windowSec);
-    expect(kinds(events, "onBrim"), "空になった瞬間に 1 回（充溢の合図が装填の合図）").toHaveLength(1);
-    expect(kinds(run(state, {}), "onBrim"), "窓の間は繰り返さない").toHaveLength(0);
-
-    const shots = playerShots(state).length;
-    fire(state);
-    expect(playerShots(state).length, "窓の間は左で撃てない").toBe(shots);
-
-    run(state, {}, stepsFor(RELOAD.windowSec) + 1);
-    expect(isReloading(state), "窓が終わった").toBe(false);
-    expect(state.player.morale.value, "新しい弾倉").toBe(0);
-    fire(state);
-    expect(playerShots(state).length, "また撃てる").toBe(shots + 1);
-  });
-
-  it("短銃以外は弾倉を数えず装填もしない", () => {
-    const state = arena(5, { moveset: "longarm", bullet: "rifle" });
-    for (let i = 0; i < FORM.pistol.max + 2; i++) fire(state);
-    expect(isReloading(state), "長銃は装填しない").toBe(false);
-  });
-
-  it("窓の拍（primeFrom〜primeTo）に右を押すと強装填。次の弾倉は威力が乗り、1 発目だけが放出と終撃", () => {
-    const state = arena(5, pistol);
-    fire(state);
-    const normal = playerShots(state)[0];
-    if (!normal) throw new Error("普通の 1 発が出ない");
-    state.projectiles.length = 0;
-    state.player.morale.value = 0;
-    emptyMagazine(state);
-    state.projectiles.length = 0;
-    pressRightAfter(state, (RELOAD.primeFrom + RELOAD.primeTo) / 2);
-    expect(state.player.morale.primed, "拍に押せたら強装填").toBe(true);
-    expect(state.player.art.holding, "右の段（狙い）は出さない").toBe(false);
-    run(state, {}, stepsFor(RELOAD.windowSec));
-    expect(state.player.morale.primed, "窓が終わっても次の弾倉へ持ち越す").toBe(true);
-
-    const first = run(state, {}).concat(fire(state));
-    const shot = playerShots(state)[0];
-    if (!shot) throw new Error("強装填の 1 発目が出ない");
-    expect(shot.damage / normal.damage, "威力").toBeCloseTo(1 + FORM.pistol.perUnit.damageMul);
-    expect(shot.release, "1 発目は放出の弾（終撃）").toEqual({ finisher: true, crit: false });
-    expect(kinds(first, "onRelease"), "放出は 1 回").toHaveLength(1);
-
-    state.projectiles.length = 0;
-    fire(state);
-    const second = playerShots(state)[0];
-    if (!second) throw new Error("2 発目が出ない");
-    expect(second.damage / normal.damage, "2 発目も威力は乗る").toBeCloseTo(1 + FORM.pistol.perUnit.damageMul);
-    expect(second.release, "2 発目は放出でない").toBeUndefined();
-  });
-
-  it("強装填は撃ち切った弾倉で降り、次は拍を取り直す", () => {
-    const state = arena(5, pistol);
-    emptyMagazine(state);
-    pressRightAfter(state, (RELOAD.primeFrom + RELOAD.primeTo) / 2);
-    run(state, {}, stepsFor(RELOAD.windowSec));
-    emptyMagazine(state);
-    expect(state.player.morale.primed, "撃ち切ったら降りる").toBe(false);
-  });
-
-  it("拍より早い・遅い右は強装填にならない", () => {
-    const early = arena(5, pistol);
-    emptyMagazine(early);
-    pressRightAfter(early, 0);
-    expect(early.player.morale.primed, "早すぎ").toBe(false);
-    const late = arena(5, pistol);
-    emptyMagazine(late);
-    pressRightAfter(late, (RELOAD.primeTo + RELOAD.windowSec) / 2);
-    expect(late.player.morale.primed, "遅すぎ").toBe(false);
-  });
-
-  it("装填の秒を 0 にすると装填ごと無効（つまみ）", () => {
-    const release = FORMS.pistol.morale.release as { windowSec: number };
-    const saved = release.windowSec;
-    release.windowSec = 0;
-    try {
-      const state = arena(5, pistol);
-      for (let i = 0; i < FORM.pistol.max + 2; i++) fire(state);
-      expect(isReloading(state), "窓が開かない").toBe(false);
-      expect(state.player.morale.value, "弾倉も数えない").toBe(0);
-    } finally {
-      release.windowSec = saved;
-    }
-  });
 
   it("応手の見切りは零距離（zeroDistance）の敵だけ", () => {
     const near = arena(5, pistol);

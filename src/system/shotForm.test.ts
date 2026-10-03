@@ -195,12 +195,11 @@ describe("放出の弾と揺れ（P7）", () => {
   }
 
   function firstShotDeg(primed: boolean): number {
-    const state = arena(5, { moveset: "sidearm", bullet: "smg" });
+    // 揺れる弾（短機関銃）を長銃の型で撃つ。満ちた後の 1 発が放出の弾
+    const state = arena(5, { moveset: "longarm", bullet: "smg" });
     if (primed) {
-      // 短銃の強装填の弾倉（放出の弾）
       state.player.morale.primed = true;
-      state.player.morale.window = 0;
-      state.player.morale.value = 0;
+      state.player.morale.value = FORM.rifle.max;
     }
     state.time = swayPeak();
     press(state, { attackPressed: true, attackHeld: true });

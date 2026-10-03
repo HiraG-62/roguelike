@@ -1,5 +1,7 @@
 {
   "attackMoveMul": 0.4,
+  "reloadMoveMul": 0.45,
+  "pack": {"levelSec": 0.5, "max": 3},
   "weight": "heavy",
   "dashAttack": {"windup":0.04,"active":0.1,"recover":0.26,"scaling":{"base":6,"str":0.3,"vit":0.5},"poiseRatio":{"vit":0.48},"poise":16,"reach":0,"size":44,"knockback":300,"heavy":true,"mana":3,"shape":{"kind":"circle"},"hitstop":5,"shake":3,"trail":"#ffc070"},
   "steps2": [

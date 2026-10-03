@@ -96,6 +96,7 @@ import { drawInLayerOrder, hudLayoutFor } from "./layers";
 import { drawJinHud, drawLeaderMark } from "./jinUi";
 import { drawJinzu } from "./jinzuUi";
 import { drawMoraleHud } from "./moraleHud";
+import { drawMagazineHud } from "./magazineHud";
 import { drawSkillAir, drawSkillGround, drawSkillSlots } from "./skillHud";
 import { drawSmokeLayer, drawTerrainLayer } from "./terrainUi";
 import { TelegraphLayer } from "./telegraphLayer";
@@ -848,6 +849,7 @@ export class Renderer {
       hud: () => {
         this.drawHud(state, hud);
         drawSkillSlots(ctx, state, hud);
+        drawMagazineHud(ctx, state, ox, oy);
       },
       hudOverlay: () => drawChainHud(ctx, state, hud),
       transition: () => this.drawTransitionLayer(state),

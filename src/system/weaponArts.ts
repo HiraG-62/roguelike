@@ -22,6 +22,7 @@ import {
 import { scaled, withRatio } from "./attributes";
 import { cancelAttack, gainEnergy } from "./combat";
 import { spawnBurst } from "./effects";
+import { nextFireHand, spendRounds } from "./magazine";
 import { currentShot, emitShotRounds, emitVolley, isAttacking, isDashing, isPlayerStaggered, logButton, playerMoveset, startArtBranch } from "./player";
 import { type ShotRelease, gainMorale, isPlacedShot, laneStepRelease, swingShotRelease } from "./morale";
 import { noteRelease, noteRiposte } from "./moments";
@@ -443,12 +444,21 @@ export function onBranchStart(state: GameState, branch: BranchDef): void {
 function emitBranchShots(state: GameState, shots: BranchShots): void {
   // 派生の弾のレーンは派生の最後のボタン（beginSwing が attack.lane に置いた値）
   const over = { pierceBonus: shots.pierceBonus, damageMul: shots.damageMul, lane: state.player.attack.lane };
+  // 派生の弾も弾倉を撃つ回数ぶん減らし、足りなければ残りの分だけ撃つ（振りは出る。docs/ideas/gun-bases-review.md 0-3）
+  const count = branchRounds(state, Math.max(1, shots.count));
+  if (count <= 0) return;
   if (shots.from !== "lane") {
-    emitShotRounds(state, currentShot(state.stats), { count: shots.count, spreadDeg: shots.spreadDeg }, over);
+    emitShotRounds(state, currentShot(state.stats), { count, spreadDeg: shots.spreadDeg }, over);
     return;
   }
   const t = laneVolley(playerMoveset(state));
-  if (t) emitArtVolley(state, t, { ...over, fan: { count: Math.max(1, shots.count), spreadDeg: shots.spreadDeg ?? t.spreadDeg } });
+  if (t) emitArtVolley(state, t, { ...over, fan: { count, spreadDeg: shots.spreadDeg ?? t.spreadDeg } });
+}
+
+/** 派生の弾で撃てる回数（弾倉から使えた回数。弾倉が働かない武器種はそのまま） */
+function branchRounds(state: GameState, count: number): number {
+  const hand = nextFireHand(state);
+  return hand === undefined ? 0 : spendRounds(state, hand, count);
 }
 
 function applyStrikeExtras(state: GameState, extras: StrikeExtras): void {

@@ -54,7 +54,8 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   tipHit: "先端の命中",
   guardBlock: "構えで受けたダメージ",
   bulletCut: "敵弾払い",
-  shotFired: "撃った弾",
+  quickReload: "早込め",
+  pack: "詰め",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };
@@ -111,8 +112,6 @@ function releaseText(m: Readonly<MovesetDef>, form: FormDef): string {
       return "最大段の溜め攻撃";
     case "release":
       return "構えを離した振り";
-    case "reload":
-      return "強装填";
   }
 }
 
@@ -131,9 +130,8 @@ function gainText(form: FormDef): string {
   return `${events.join("・")}で溜まり、`;
 }
 
-/** 放出のしかた。短銃は撃ち切ると装填になり、その途中で右を押すと強装填 */
+/** 放出のしかた */
 function releaseSentence(m: Readonly<MovesetDef>, form: FormDef): string {
-  if (form.morale.release.kind === "reload") return "撃ち切ると装填になり、装填の途中で右を押すと次の弾倉が強装填になる。";
   return `${releaseText(m, form)}で放つ。`;
 }
 

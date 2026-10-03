@@ -121,9 +121,6 @@ const AIM_MARGIN_SEC = 0.15;
 const SUSTAIN_LEAD_SEC = 0.5;
 /** 導出の戦意（飛んでいる弾・床の設置弾）を溜める押しっぱなしの秒 */
 const BUILD_FIRE_SEC = 1.0;
-/** 撃ち切るまで撃つ上限の秒（短銃の装填） */
-const RELOAD_MAX_SEC = 8;
-const RELOAD_PRIME_MAX_SEC = 2;
 
 function withPeriod(s: string): string {
   return s.endsWith("。") ? s : `${s}。`;
@@ -427,14 +424,6 @@ function releaseCues(m: Readonly<MovesetDef>): DemoCue[] | null {
     }
     case "release":
       return [hold("secondary", GUARD_HOLD_SEC)];
-    case "reload":
-      return [
-        { kind: "holdUntil", button: "primary", until: "reloading", maxSec: RELOAD_MAX_SEC },
-        { kind: "waitUntil", until: "reloadPrime", maxSec: RELOAD_PRIME_MAX_SEC },
-        tap("secondary"),
-        { kind: "waitUntil", until: "idle", maxSec: RELOAD_PRIME_MAX_SEC },
-        hold("primary", FIRE_SEC),
-      ];
   }
 }
 

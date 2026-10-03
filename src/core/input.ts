@@ -13,6 +13,8 @@ export const ACTION_NAMES = [
   "special",
   /** 全武器共通の受け流し（system/parry.ts）。振っていなければいつでも押せる */
   "parry",
+  /** 銃のリロード（system/magazine.ts）。押した瞬間で込め始め、押しっぱなしで砲は詰める */
+  "reload",
   "confirm",
   "restart",
   "inventory",
@@ -47,6 +49,7 @@ export const REBINDABLE_ACTIONS = [
   "shoot",
   "special",
   "parry",
+  "reload",
   "inventory",
   "skill1",
   "skill2",
@@ -93,8 +96,10 @@ export const DEFAULT_KEYBINDS: Readonly<Keybinds> = {
   interact: ["KeyG"],
   // 瓶。B は X Z C V（スキル）と同じ列で届き、5 は 1〜4（スキル）の並びの続き
   flask: ["KeyB", "Digit5"],
-  // 床のアイテム情報ポップアップの表示切替。左手側の未使用キー
-  toggleDropInfo: ["KeyT"],
+  // 銃のリロード。R（受け流し）の右隣で、移動しながら左手で届く
+  reload: ["KeyT"],
+  // 床のアイテム情報ポップアップの表示切替。リロードに T を譲って隣の Y へ
+  toggleDropInfo: ["KeyY"],
 };
 
 /**
@@ -382,6 +387,9 @@ export interface FrameInput {
   specialPressed: boolean;
   /** 受け流し（system/parry.ts）。押した瞬間だけ true */
   parryPressed: boolean;
+  /** 銃のリロード（system/magazine.ts）の押した瞬間と押しっぱなし（砲の詰め） */
+  reloadPressed: boolean;
+  reloadHeld: boolean;
   confirmPressed: boolean;
   /**
    * パッド A のエッジのみ（キーボード Enter を含まない）。confirmPressed はキーボード/パッド OR なので、
@@ -428,6 +436,8 @@ export const EMPTY_INPUT: Readonly<FrameInput> = {
   shootHeld: false,
   specialPressed: false,
   parryPressed: false,
+  reloadPressed: false,
+  reloadHeld: false,
   confirmPressed: false,
   padConfirmPressed: false,
   restartPressed: false,
@@ -631,6 +641,8 @@ export class PlayerInput {
       shootHeld: this.isDown("shoot") || pad.shootHeld,
       specialPressed: this.wasPressed("special") || pad.specialPressed,
       parryPressed: this.wasPressed("parry") || pad.parryPressed,
+      reloadPressed: this.wasPressed("reload") || pad.reloadPressed,
+      reloadHeld: this.isDown("reload") || pad.reloadHeld,
       confirmPressed: this.wasPressed("confirm") || pad.confirmPressed,
       padConfirmPressed: pad.confirmPressed,
       restartPressed: this.wasPressed("restart"),

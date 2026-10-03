@@ -87,7 +87,9 @@ describe("武器の型", () => {
   });
 
   it("戦意が動く型（5a の剣・連刃・重打・長銃、5b-E の短銃・砲、他のレーンが増やす型）は全て上限と放出の最低を持つ", () => {
-    expect(activeForms(), "溜まる出来事を持つ型").toEqual(expect.arrayContaining(["blade", "crusher", "flurry", "rifle", "pistol", "artillery"]));
+    // 短銃は弾倉を銃の共通の仕組み（system/magazine.ts）へ移したので、段 3 で早込めの戦意を作り直すまで骨の型
+    expect(activeForms(), "溜まる出来事を持つ型").toEqual(expect.arrayContaining(["blade", "crusher", "flurry", "rifle", "artillery"]));
+    expect(FORMS.pistol.morale.gain, "短銃は骨の型（段 3 まで）").toEqual([]);
     for (const form of activeForms()) {
       const n = FORMS[form].morale.numbers;
       expect(n.max, `${form} の上限`).toBeGreaterThan(0);

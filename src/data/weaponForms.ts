@@ -61,8 +61,10 @@ export type MoraleGain =
   | { kind: "cast" }
   /** 自分の飛んでいる弾の数（投具。導出） */
   | { kind: "flyingShots" }
-  /** 撃った弾（短銃の弾倉） */
-  | { kind: "shotFired"; amount: number }
+  /** 早込めが決まった（短銃。system/magazine.ts の tryQuickReload。段 3 の型が量を持つ） */
+  | { kind: "quickReload"; amount: number }
+  /** 砲の詰めの段が 1 つ上がった（system/magazine.ts。段 3 の装薬の型が量を持つ） */
+  | { kind: "pack"; amount: number }
   /** 止まっている秒（長銃の狙い）。動く・ダッシュすると lossPerSec で減る */
   | { kind: "still"; perSec: number; lossPerSec: number }
   /** 床の自分の設置弾・曲射弾の数（砲。導出） */
@@ -86,9 +88,7 @@ export type MoraleRelease =
   /** 最大段の溜め攻撃が放出（重打） */
   | { kind: "maxCharge" }
   /** 構えを離した振りが放出（盾押し） */
-  | { kind: "release" }
-  /** 弾倉が空で装填、窓の中で右を押すと強装填（短銃。数値は FORM.pistol.reload） */
-  | { kind: "reload"; windowSec: number; primeFrom: number; primeTo: number };
+  | { kind: "release" };
 
 /** 放出の戦意 1 あたりの上乗せ（FORM.<型>.perUnit） */
 export interface ReleasePerUnit {
@@ -149,7 +149,7 @@ export const MOMENT_TEXT = {
   release: "放出",
   twinStrike: "双撃",
   firstStrike: "先制",
-  /** 短銃の装填（弾倉が空。充溢の代わり）と強装填（窓の中で右を押せた） */
+  /** 装填と強装填（旧短銃の戦意の文言。弾倉は system/magazine.ts へ移り、段 3 の強装填で使い直すまで出さない） */
   reload: "装填",
   primed: "強装填",
 } as const;
@@ -355,13 +355,12 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     riposte: ["parry", "recallCut", "justDodge"],
     finisher: ["lastStep", "release"],
   }),
-  // ---- 5b-E: 銃の型 2（短銃の装填・砲の一斉起爆） ----
+  // ---- 5b-E: 銃の型 2（短銃・砲の一斉起爆） ----
+  // 短銃は弾倉が戦意から銃の共通の仕組み（system/magazine.ts）へ移ったので、段 3 で早込めの戦意を作り直すまで骨の型
   pistol: defineForm("pistol", {
     name: "短銃",
-    desc: "弾倉を撃ち切り、装填の拍で強装填する",
-    label: "弾倉",
-    gain: [{ kind: "shotFired", amount: FORM.pistol.gain.shotFired }],
-    release: { kind: "reload", ...FORM.pistol.reload },
+    desc: "片手で撃ち、込めの拍で早く込める",
+    label: "早込め",
     // 応手は受け流しと零距離の見切り（見切りの範囲は moments.ts の noteRiposte が FORM.pistol.zeroDistance で絞る）
     keywords: kw(["ranged", "bullet"], ["just"]),
     riposte: ["parry", "justDodge"],

@@ -11,6 +11,8 @@ import { MOVESETS, meleeChargeOf } from "../data/weapons";
 import { terrainAt } from "./terrain";
 import { onBossDeath } from "./boss";
 import { currentForm, moraleMax, tickMorale } from "./morale";
+import { startReload, tickMagazine } from "./magazine";
+import { BULLETS } from "../loot/bullets";
 import { playerMoveset, updatePlayer } from "./player";
 import { chooseReforge, grantReforge, offerReforges, pullTowardShots, reforgeRules, rollReforgeOptions } from "./reforge";
 import { resolveRules } from "./rules";
@@ -279,17 +281,17 @@ describe("改鋳の挙動の切り替え（morale.ts から読む）", () => {
     expect(state.player.morale.value - MID, "半分の速さで溜まる").toBeCloseTo(gain);
   });
 
-  it("短銃「疾駆」: 装填の窓の中でダッシュすると即座に装填し、強装填になる", () => {
+  it("短銃「疾駆」: 込めの最中にダッシュすると、その場で弾倉が満ちる", () => {
     const state = arena(5, { moveset: "sidearm", bullet: "pistol" });
     state.reforges = ["pistolDash"];
-    const m = state.player.morale;
-    m.value = FORM.pistol.max;
-    m.window = FORM.pistol.reload.windowSec;
+    tickMagazine(state, withInput({}), FIXED_DT);
+    const hand = state.player.magazine.hands[0];
+    hand.rounds = 0;
+    startReload(state, 0);
     state.player.dashTimer = FIXED_DT * 2;
     tickMorale(state, withInput({}), FIXED_DT);
-    expect(m.window, "窓が閉じる").toBe(0);
-    expect(m.value, "弾倉が満ちる").toBe(0);
-    expect(m.primed, "強装填").toBe(true);
+    expect(hand.reloadLeft, "込めが終わる").toBe(0);
+    expect(hand.rounds, "弾倉が満ちる").toBe(BULLETS.pistol?.magazine?.capacity);
   });
 
   it("砲「吸着」: 設置弾が近くの敵へ向かって動く", () => {

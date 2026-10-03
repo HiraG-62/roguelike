@@ -190,10 +190,12 @@ export interface Player {
   ultimate: UltimateState;
   /**
    * 戦意（武器の型ごとのゲージ。system/morale.ts）。value = 今の量、sinceGain = 最後に溜まってからの秒（冷め）、
-   * window = 装填の窓など型固有の残り秒、primed = 次の一撃が放出、full = 前ステップで満ちていた（充溢の瞬間の検出）、
+   * primed = 次の一撃が放出、full = 前ステップで満ちていた（充溢の瞬間の検出）、
    * swingUnits = 今の振りが放出なら使った戦意（0 = 放出でない。振りの開始で決まり、その振りの間の倍率になる）
    */
-  morale: { value: number; sinceGain: number; window: number; primed: boolean; full: boolean; swingUnits: number };
+  morale: { value: number; sinceGain: number; primed: boolean; full: boolean; swingUnits: number };
+  /** 銃の弾倉（戦意とは別。system/magazine.ts）。銃でない武器種では使わない */
+  magazine: MagazineState;
   /**
    * 共通の瞬間の作業領域（system/moments.ts）。firstStrikeArmed = 次の一撃が先制、idleSec = 交戦の外にいる秒、
    * lastHitLane / lastHitAt = 双撃の判定に使う直前の命中のレーンと時刻、swingRiposte = 今の振りで応手を数えた、
@@ -210,6 +212,33 @@ export interface Player {
   };
   /** 遅れて受ける傷（逆さ時計・不動。docs/ideas/boon-impl.md 2-6）。due = 受ける state.time。未指定 = 遅らせていない */
   deferredDamage?: { amount: number; due: number }[];
+}
+
+/**
+ * 弾倉の手 1 本（system/magazine.ts）。rounds = 残りの回数（引き金の回数）、reloadLeft = 込めの残り秒（0 = 込めていない。
+ * 1 発ずつ込める器は次の 1 発までの秒）、reloadTotal = 今の込めの全体の秒（進みの表示と早込めの窓の基準）、
+ * cooldown = この手の撃つ間の残り秒（二丁拳銃の手ごとの間。段 4-B で使う）
+ */
+export interface MagazineHand {
+  rounds: number;
+  reloadLeft: number;
+  reloadTotal: number;
+  cooldown: number;
+}
+
+/**
+ * 銃の弾倉（docs/ideas/gun-bases-review.md 0-3・2-8）。bulletKey = 作ったときの stats.bullet（替わったら満タンで作り直す）、
+ * hands = 手（二丁拳銃は左右 2 本、他は 0 だけ使う）、fresh = 込め終えてからまだ撃っていない（長銃の「リロード後の 1 発目」。段 3）、
+ * primed = この弾倉が強装填（短銃。段 3）、quickTried = 今の込めで早込めを押した（1 回の込めに 1 回）、
+ * packSec = 砲の詰めを押し続けた秒（満ちた後。段は levelSec ごと）
+ */
+export interface MagazineState {
+  bulletKey: string;
+  hands: [MagazineHand, MagazineHand];
+  fresh: boolean;
+  primed: boolean;
+  quickTried: boolean;
+  packSec: number;
 }
 
 export interface TimedMul {

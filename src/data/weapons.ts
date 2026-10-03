@@ -431,6 +431,11 @@ export interface BulletDef {
   readonly mine?: MineDef;
   /** 三点: 1 押しで count 発を interval 秒おきに撃つ */
   readonly burst?: { readonly count: number; readonly interval: number };
+  /**
+   * 銃の弾倉（銃の器だけが持つ。docs/ideas/gun-bases-review.md 2-8。処理は system/magazine.ts）。capacity は引き金を引いた回数、
+   * reloadSec は空から満タンまでの込めの秒、perRoundSec は 1 発ずつ込める器（砲）の 1 発の秒
+   */
+  readonly magazine?: { readonly capacity: number; readonly reloadSec: number; readonly perRoundSec?: number };
   /** 回転刃: 寿命の returnAt の割合で反転して手元へ戻り、catchRadius で手に収まる */
   readonly boomerang?: { readonly returnAt: number; readonly catchRadius: number };
   /** 曲射: 照準の距離（minRange〜射程）で炸裂する。peak は描画の山の高さ（px） */

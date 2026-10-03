@@ -137,6 +137,21 @@ export const SFX_NAMES = [
   "shotBurst",
   "shotBoomerang",
   "shotLob",
+  // ---- 銃の弾倉（system/magazine.ts）----
+  /** 込め始め: 弾倉を抜く金属の擦れ */
+  "reloadStart",
+  /** 込め終わり: 弾倉を叩き込んで遊底を引く */
+  "reloadDone",
+  /** 1 発ずつ込める器（砲）の 1 発 */
+  "reloadBeat",
+  /** 早込めが決まった: 鋭い装填 + 小さなきらめき */
+  "quickReload",
+  /** 早込めを外した: 引っかかる鈍い金属 */
+  "quickMiss",
+  /** 砲の詰めの段が上がった: 込め棒で押し固める */
+  "packLevel",
+  /** 空撃ち: 撃鉄が空を打つ乾いたカチ */
+  "dryFire",
   // ---- 属性の命中音（無属性は hit / bulletHit のまま）----
   "hitFire",
   "hitIce",

@@ -85,8 +85,9 @@ import { createUltimateState, tryUltimate, ultimateFireRateMul, ultimateMoveMul,
 import { ultimateOnSwing, ultimateOnSwingHit } from "./ultimates";
 import { formCutsBullets, formOf, formReleaseCast } from "../data/weaponForms";
 import { onFormMeleeHit } from "./formMarks";
-import { type ReleaseMul, createMorale, gainMorale, isReloading, noteShotFired, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
-import { createMoment, noteRiposte, primeReload, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { type ReleaseMul, createMorale, gainMorale, releaseIsFinisher, resetMorale, swingReleaseMul } from "./morale";
+import { createMoment, noteRiposte, startShotMoments, startSwingMoments, tickFormState } from "./moments";
+import { canFireAny, createMagazineFor, nextFireHand, pressTrigger, reloadMoveMul, spendRounds, tickMagazine } from "./magazine";
 import { relicBlocksSwing, relicStride, tickNamedRelics } from "./namedRelics";
 import { dashDirection, dashIgnoresSwingLock, dashKeepsChain, dashLocksActions, dashSpeed, keepChainThroughDash, replaceDash, runDashForm, tickDashForm } from "./dashForms";
 import { attackHitManaMul, noteMeleeHitMana } from "./manaSources";
@@ -176,6 +177,7 @@ export function createPlayer(pos: Vec, stats: Readonly<PlayerStats> = DEFAULT_ST
     parry: { window: 0, recover: 0 },
     ultimate: createUltimateState(),
     morale: createMorale(),
+    magazine: createMagazineFor(stats),
     moment: createMoment(),
   };
 }
@@ -432,6 +434,8 @@ export function updatePlayer(state: GameState, input: FrameInput, dt: number): v
   // 血の契約の吸収は前フレームの敵・弾による与ダメも拾う
   trackDamageDealt(state);
   tickTimers(state, dt);
+  // 銃の弾倉（込めは振り・ダッシュ・怯みの最中も進む。弾が替わったら作り直す）
+  tickMagazine(state, input, dt);
   // 戦意と共通の瞬間（止まっている秒を数えるので入力を渡す）
   tickFormState(state, input, dt);
   const aiming = applyAim(state, input);
@@ -525,6 +529,8 @@ function onButtonPress(state: GameState, button: ButtonKey): void {
   if (shapeButtonPress(state, button)) return;
   const p = state.player;
   const moveset = playerMoveset(state);
+  // 込めの最中の短銃の左は早込め（押下を使う）。撃てない引き金は空撃ちの音
+  if (button === "primary" && shootsPrimary(moveset) && pressTrigger(state)) return;
   // 振っている最中に派生を予約済みなら、その派生が出るまで次の押下は受けない（予約の上書きで列と技がずれないように）
   if (p.attack.pendingBranch >= 0 && p.attack.phase !== "none") return;
   // 再使用中の右段は何も起こさない（派生に当たる右は妨げない）
@@ -593,8 +599,6 @@ function pressSecondary(state: GameState, moveset: MovesetDef): void {
   const p = state.player;
   const a = p.attack;
   if (isDashing(p)) return;
-  // 短銃の装填の拍に押せたら強装填（右の段は出さない）
-  if (primeReload(state)) return;
   if (a.phase === "none") {
     startLaneStep(state, moveset, a.step);
     return;
@@ -858,6 +862,8 @@ function updateMovement(state: GameState, input: FrameInput, dt: number, aiming:
       ultimateMoveMul(state) *
       skillMoveMul(state) *
       boonMoveMul(state) *
+      // 銃の込めの最中の足（武器種の reloadMoveMul）
+      reloadMoveMul(state) *
       staggerMul *
       playerStatusMoveMul(state);
     const buffMul = p.buffs.speed.time > 0 ? p.buffs.speed.mul : 1;
@@ -1628,10 +1634,10 @@ function updateShotCharge(state: GameState, shot: BulletDef, held: boolean, dt: 
   fireVolley(state, level, aim);
 }
 
-/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中） */
+/** 射撃できる状態か（再使用待ち・近接中・溜め中・ダッシュ中・弾倉が空か込めの最中） */
 function canShootNow(state: GameState): boolean {
   const p = state.player;
-  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || isReloading(state)) return false;
+  if (p.shootCooldown > 0 || isAttacking(p) || p.attack.charging || !canFireAny(state)) return false;
   return !isDashing(p);
 }
 
@@ -1742,10 +1748,13 @@ function orbitingCount(state: GameState): number {
   return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0 && pr.shot?.orbit !== undefined).length;
 }
 
-/** 射撃 1 回（再使用時間を立てる）。三点なら残りの弾を予約する */
+/** 射撃 1 回（再使用時間を立てる。弾倉を 1 回ぶん使う）。三点なら残りの弾を予約する */
 function fireVolley(state: GameState, level: number, aim?: number): void {
   const p = state.player;
   const s = state.stats;
+  // 引き金 1 回で弾倉を 1 減らす（散弾の粒・三点の続きは数えない）。二丁拳銃は撃てる手の銃口から
+  const hand = nextFireHand(state);
+  if (hand === undefined || spendRounds(state, hand, 1) <= 0) return;
   const shot = ultimateShot(state, currentShot(s));
   p.shootCooldown = (PLAYER.shoot.cooldown * shot.cooldownMul) / (s.fireRateMul * frenzyMul(state) * ultimateFireRateMul(state));
   // 満ちた後の 1 発（長銃）は戦意を使った放出の弾。放出の倍率が乗った弾には揺れを掛けない（P7）
@@ -1831,8 +1840,6 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
     });
   }
   const fired = state.projectiles.slice(firstShot);
-  // 短銃の弾倉は左の射撃 1 回で 1 発数える（右レーンの弾・三点の続きは数えない）
-  if (override.lane === "primary") noteShotFired(state);
   for (const pr of fired) markShotBullet(pr, shot.key);
   if (override.recoil !== false) p.knock = add(p.knock, scale(dir, -PLAYER.shoot.recoil * shot.recoilMul));
   const sparks = shot.look?.particles ?? MUZZLE_PARTICLES;

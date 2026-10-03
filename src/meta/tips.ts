@@ -113,6 +113,13 @@ const CONTROL_TIPS: readonly TipDef[] = [
     body: (b) =>
       `${k(b, "interact")} で、焦点の物の全文と数字の頁を開く。候補からは候補と今の見開き、人影からは体の書付（体: ステータス・体の性能・行動の計算式、内訳: ステータスを参照する行動と攻撃に掛かる増と倍、奥義）。倉庫の遺物の書付の下端から鍛冶の操作ができる。`,
   },
+  {
+    key: "reload",
+    term: "リロード",
+    category: "controls",
+    body: (b) =>
+      `${k(b, "reload")}（パッドは ${padActionLabel("reload")}）で銃の弾倉を込める。撃ち切ると自動で込める。込めている間は撃てず足が遅いが、右の近接とダッシュは出せて、込めは止まらない。`,
+  },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },
   {
@@ -130,6 +137,12 @@ const CONTROL_TIPS: readonly TipDef[] = [
 const COMBAT_TIPS: readonly TipDef[] = [
   { key: "hp", term: "生命", category: "combat", body: "尽きると探索が終わる。戦闘中の回復には 1 秒あたりの上限がある。" },
   { key: "mana", term: "気力", category: "combat", body: "スキルの資源。見切り・受け流しで多く戻り、通常攻撃の命中・撃破でも少し溜まり、スキルで減る。自然にはゆっくりしか戻らないので、減ったら攻めるか読んで取り戻す。ジョブごとの気力の源（剣士は応手と終撃など）・輪廻の祝福・芯「気の泉」・気力の性質で伸ばせる。" },
+  {
+    key: "magazine",
+    term: "弾倉",
+    category: "combat",
+    body: "銃は器ごとの弾倉を持ち、引き金を引くたびに 1 減る（散弾の粒・三点の 3 本は 1 回）。派生の弾も撃つ回数ぶん減り、足りなければ残りの分だけ撃つ。二丁拳銃は左右の手で別の弾倉。短銃は込めの途中の窓でリロードか左を押すと早込めで即込め終わり、外すと込めが遅れる（1 回の込めに 1 回）。砲は 1 発ずつ込め、1 発込めた後なら込めを止めて撃てる。満ちた後もリロードを押し続けると詰めが溜まる。",
+  },
   {
     key: "morale",
     term: "戦意",

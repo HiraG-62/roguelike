@@ -3,12 +3,13 @@ import type { Rule } from "../core/rules";
 import { type Enemy, type GameState, type Projectile, pushLog, pushSfx } from "../core/state";
 import { type Vec, add, dist, normalize, scale, sub } from "../core/vec";
 import { REFORGE_KEYS, REFORGES, type ReforgeFlag, type ReforgeKey, hasReforgeFlag, isOfferable, reforgeRulesOf } from "../data/reforges";
-import { MOMENT, REFORGE } from "../data/tuning";
-import { type FormKey, MOMENT_TEXT, formOfKey } from "../data/weaponForms";
+import { REFORGE } from "../data/tuning";
+import { type FormKey, formOfKey } from "../data/weaponForms";
 import { MOVESETS } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
 import { cardIndexAt } from "./boons";
-import { addHeadLabel } from "./effects";
+import { finishReloadNow } from "./magazine";
+import { gainMorale } from "./morale";
 
 /**
  * 改鋳の 3 択と、改鋳の挙動の切り替え（docs/ideas/weapon-forms-impl.md 3-6）。
@@ -28,8 +29,6 @@ export interface ReforgeChoice {
 /** 札ごとの選ぶ入力（祝福の 3 択と同じ並び: スキル 1・スキル 2・攻撃） */
 const PICK_SECOND = 1;
 const PICK_THIRD = 2;
-/** 装填の窓をダッシュで閉じた合図（強装填と同じ音） */
-const DASH_RELOAD_SFX = "chargeLevel";
 
 /** 装備の武器種の型（旧形式の stats でも落ちないよう剣へ） */
 function equippedForm(state: GameState): FormKey {
@@ -127,26 +126,20 @@ export function grantReforge(state: GameState, key: ReforgeKey): void {
 // 挙動の切り替え（system/morale.ts から呼ぶ）
 // ---------------------------------------------------------------------------
 
-/** 毎ステップ（system/morale.ts の tickMorale の頭）。装填のダッシュと設置弾の這い寄り */
+/** 毎ステップ（system/morale.ts の tickMorale の頭）。込めの最中のダッシュと設置弾の這い寄り */
 export function tickReforges(state: GameState): void {
   if (state.reforges.length === 0) return;
   if (hasFlag(state, "dashReload")) dashReload(state);
   if (hasFlag(state, "minesCling")) clingMines(state);
 }
 
-/** 疾駆: 装填の窓の中でダッシュすると、その場で弾倉が満ちる（強装填にもする） */
+/**
+ * 疾駆: 込めの最中にダッシュすると、その場で込め終わる（system/magazine.ts）。primes なら早込めが決まったことにもする
+ * （戦意への反映は型の早込めの出来事。段 3）
+ */
 function dashReload(state: GameState): void {
-  const p = state.player;
-  const m = p.morale;
-  if (m.window <= 0 || p.dashTimer <= 0) return;
-  m.window = 0;
-  m.value = 0;
-  m.full = false;
-  m.sinceGain = 0;
-  if (!REFORGE.pistol.pistolDash.primes) return;
-  m.primed = true;
-  addHeadLabel(state, p.body.pos, MOMENT_TEXT.primed, MOMENT.primed.color, MOMENT.primed.life);
-  pushSfx(state, DASH_RELOAD_SFX);
+  if (state.player.dashTimer <= 0 || !finishReloadNow(state)) return;
+  if (REFORGE.pistol.pistolDash.primes) gainMorale(state, "quickReload");
 }
 
 /** 床に据えた自分の設置弾（曲射は山なりに飛んでいるので除く） */

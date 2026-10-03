@@ -12,6 +12,7 @@ export const PAD_ACTIONS = [
   "shoot",
   "special",
   "parry",
+  "reload",
   "inventory",
   "skill1",
   "skill2",
@@ -119,7 +120,8 @@ export function formatPadCode(code: PadCode): string {
 
 /**
  * 既定の割り当て（以前の固定配置と同じ）。LB はスキルの層: 押している間の A / X / Y / B がスキル 1〜4。
- * 面ボタンは攻撃・固有技・奥義・ダッシュとメニューの決定・戻るを兼ねる。受け流しは RB（ダッシュの副だった RB を譲った）。拾うは空いている R3、瓶は十字キー上
+ * 面ボタンは攻撃・固有技・奥義・ダッシュとメニューの決定・戻るを兼ねる。受け流しは RB（ダッシュの副だった RB を譲った）。拾うは空いている R3、瓶は十字キー上、
+ * リロードは最後に空いていた L3（左スティックを倒したまま押し込めるので、動きながら込められる）
  */
 export const DEFAULT_PAD_BINDS: Readonly<PadBinds> = {
   dash: [padButtonCode(PAD_B)],
@@ -127,6 +129,7 @@ export const DEFAULT_PAD_BINDS: Readonly<PadBinds> = {
   shoot: [padButtonCode(PAD_LT), padButtonCode(PAD_X)],
   special: [padButtonCode(PAD_Y)],
   parry: [padButtonCode(PAD_RB)],
+  reload: [padButtonCode(PAD_LSTICK)],
   inventory: [padButtonCode(PAD_BACK)],
   skill1: [padChordCode(PAD_LB, PAD_A)],
   skill2: [padChordCode(PAD_LB, PAD_X)],
