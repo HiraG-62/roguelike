@@ -91,7 +91,7 @@ const RELEASE_MARK = "（放出）";
 export function releaseStepKeys(state: GameState): readonly string[] {
   if (!moraleGauge(state).active) return [];
   const release = currentForm(state).morale.release;
-  return release.kind === "laneStep" ? release.keys : [];
+  return release.kind === "laneStep" || release.kind === "nextShot" ? release.keys : [];
 }
 
 export interface ChargeGauge {
