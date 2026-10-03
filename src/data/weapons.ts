@@ -382,6 +382,8 @@ export interface MovesetDef {
   readonly chainAdvance?: "alternate";
   /** 投げた輪（手元へ戻る自分の弾）が飛んでいる間は左の射撃も連撃も進まない（戦輪。system/projectiles.ts の ringsInFlight） */
   readonly waitForReturn?: true;
+  /** この武器種を持つ間のダッシュの再使用時間の倍率（手裏剣。system/player.ts の dashCooldownTime） */
+  readonly dashCooldownMul?: number;
 }
 
 export interface BulletChargeLevelDef {
@@ -1738,7 +1740,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   shuriken: defineMoveset({
     key: "shuriken",
     name: "手裏剣",
-    desc: "左で 3 本をまっすぐ、右で 3 本を扇に投げる。連撃が進むほど本数が増え、3 段目は大手裏剣。気力はダッシュの抜け斬りで戻す",
+    desc: "左で 3 連射、右で 3 本を扇に投げる。連撃が進むほど本数が増え、3 段目は大手裏剣。気力はダッシュの抜け斬りで戻す。ダッシュの再使用は倍に長いが、敵を倒すとすぐ使える",
     steps: reviveSteps(W.shuriken.steps),
     dashAttack: reviveStep(W.shuriken.dashAttack),
     attackMoveMul: W.shuriken.attackMoveMul,
@@ -1752,6 +1754,9 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     branches: [],
     keywords: kw(["ranged", "bullet", "combo"], [], ["dash"]),
     attack: attack("ranged", "physical"),
+    // ダッシュの再使用は倍に長い代わりに、敵を倒すとダッシュの回数がすべて戻る（抜け斬りで倒して次の敵へ抜ける）
+    dashCooldownMul: W.shuriken.dashCooldownMul,
+    rules: [movesetRule("shuriken", 0, { when: "onKill", then: { kind: "refillDash", magnitude: 0, fill: true } })],
   }),
 };
 

@@ -6,10 +6,10 @@ import { ULTIMATE } from "../data/tuning";
 import { ULTIMATES } from "../data/ultimates";
 import { FORMS } from "../data/weaponForms";
 import { type ButtonKey, MOVESETS, type PinDef } from "../data/weapons";
-import { cancelAttack } from "./combat";
+import { cancelAttack, damageEnemy } from "./combat";
 import { timedAttackSpeedMul } from "./morale";
 import { pinCount, stickPin } from "./pins";
-import { playerMoveset } from "./player";
+import { dashCooldownTime, playerMoveset } from "./player";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { endUltimate, tryUltimate } from "./ultimates";
 
@@ -348,5 +348,30 @@ describe("奥義 3 本", () => {
     press(state, "primary");
     expect(a.phase, "押した次のステップで振り始める").not.toBe("none");
     expect(a.step, "手裏剣の 1 段目").toBe(0);
+  });
+});
+
+describe("ダッシュ: 再使用は倍、倒すとすぐ使える", () => {
+  it("手裏剣を持つ間はダッシュの再使用時間が倍になる", () => {
+    const star = arena(5, { moveset: "shuriken" });
+    const sword = arena(5, { moveset: "sword" });
+    expect(STAR.dashCooldownMul, "倍").toBe(2);
+    expect(dashCooldownTime(star.stats)).toBeCloseTo(dashCooldownTime(sword.stats) * 2, 6);
+  });
+
+  it("敵を倒すとダッシュの回数がすべて戻る（他の武器種では戻らない）", () => {
+    for (const moveset of ["shuriken", "sword"] as const) {
+      const state = arena(5, { moveset });
+      const e = placeEnemy(state, "boar", 30);
+      state.player.dashChargesLeft = 0;
+      state.player.dashCooldown = dashCooldownTime(state.stats);
+      expect(damageEnemy(state, e, e.hp + 1, { x: 1, y: 0 }, 0), `${moveset} 倒した`).toBe(true);
+      // 倒した瞬間のヒットストップが明けてから出来事が流れる。戻りの秒（倍）より十分短い間だけ進める
+      for (let i = 0; i < 30; i++) step(state, withInput({}), FIXED_DT);
+      expect(30 * FIXED_DT, "自然に戻るより短い").toBeLessThan(dashCooldownTime(state.stats));
+      const left = state.player.dashChargesLeft;
+      if (moveset === "shuriken") expect(left, "全部戻る").toBe(state.stats.dashCharges);
+      else expect(left, "剣は戻らない").toBe(0);
+    }
   });
 });
