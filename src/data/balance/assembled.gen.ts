@@ -878,6 +878,7 @@ import j_world_RUN_MOD from "./world/RUN_MOD.json";
 import j_world_HUB from "./world/HUB.json";
 import j_world_HUB_DECOR from "./world/HUB_DECOR.json";
 import j_world_BOSS_HALL from "./world/BOSS_HALL.json";
+import j_world_DOJO from "./world/DOJO.json";
 import j_world_LORD_HALL from "./world/LORD_HALL.json";
 import j_world_META from "./world/META.json";
 import j_world_DISCOVERY from "./world/DISCOVERY.json";
@@ -2071,6 +2072,7 @@ export const world = {
   "HUB": j_world_HUB,
   "HUB_DECOR": j_world_HUB_DECOR,
   "BOSS_HALL": j_world_BOSS_HALL,
+  "DOJO": j_world_DOJO,
   "LORD_HALL": j_world_LORD_HALL,
   "META": j_world_META,
   "DISCOVERY": j_world_DISCOVERY,
@@ -2978,6 +2980,7 @@ export const BALANCE_SOURCE_FILES: readonly string[] = [
   "world/CONTRACT.json",
   "world/DEEP.json",
   "world/DISCOVERY.json",
+  "world/DOJO.json",
   "world/ECONOMY/_index.json",
   "world/ECONOMY/bet.json",
   "world/ECONOMY/build.json",

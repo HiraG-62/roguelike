@@ -78,6 +78,7 @@ function fixtureLayout(): HubLayout {
     achievements: belowLot(LOTS.archive, 3),
     rack: belowLot(LOTS.rackShed),
     hall: belowLot(LOTS.hall),
+    dojo: { x: (LOTS.yard.x + 5.5) * T, y: (LOTS.yard.y + LOTS.yard.h - 0.5) * T },
   } satisfies Record<HubSpotKey, { x: number; y: number }>;
   const slot = (tx: number, ty: number): { x: number; y: number } => ({ x: (tx + 0.5) * T, y: (ty + 1) * T });
   return {
@@ -263,7 +264,8 @@ describe("buildTownLabels（名札）", () => {
     }
     const doors = labels.filter((l) => l.spot === "history" || l.spot === "codex" || l.spot === "achievements");
     expect(doors.length, "蔵の扉の小札").toBe(3);
-    expect(labels.length, "名札の総数（9 設備 + 蔵の扉 3 - 蔵 1）").toBe(HUB_LOT_KEYS.length - 1 + 3);
+    expect(labels.some((l) => l.spot === "dojo"), "稽古の間の入口の小札").toBe(true);
+    expect(labels.length, "名札の総数（9 設備 + 蔵の扉 3 - 蔵 1 + 稽古の間 1）").toBe(HUB_LOT_KEYS.length - 1 + 3 + 1);
   });
 
   it("未建設は「（建設予定）」付きで built = false。建っていれば付かない。井戸は常に建っている扱い", () => {

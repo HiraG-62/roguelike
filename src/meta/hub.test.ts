@@ -87,7 +87,7 @@ describe("拠点の設備の解放", () => {
   it("availableSpots は記録室が建つと履歴・図鑑・実績の 3 台を返す", () => {
     const spots = availableSpots(["archive"]);
     expect([...spots].sort(), "記録室の台").toEqual(["achievements", "codex", "history"]);
-    expect(availableSpots(["training"]).size, "訓練場は台を持たない").toBe(0);
+    expect([...availableSpots(["training"])], "稽古場は稽古の間の入口だけ").toEqual(["dojo"]);
     const all = availableSpots(builtFacilities(freshSource()));
     for (const spot of all) {
       expect(STARTER_FACILITIES, `${spot} の設備`).toContain(FACILITY_OF_SPOT[spot]);

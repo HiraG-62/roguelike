@@ -223,18 +223,25 @@ export type RackEntry = { kind: "moveset"; key: MovesetKey };
  * 差し替えは変身と同じく stats の写しの moveset と bullet だけを替える（銃は家系の一番早い器の弾。近接なら装備のまま）
  */
 export function setTrialWeapon(session: HubSession, moveset: MovesetKey | null): void {
-  const { state, hub } = session;
-  hub.trialMoveset = moveset;
+  session.hub.trialMoveset = moveset;
+  applyTrialMoveset(session.state, moveset);
+}
+
+/** 試す武器種を state に掛け直す（拠点と稽古の間の共通。null で装備のものに戻す）。試しの記録は呼び出し側が持つ */
+export function applyTrialMoveset(state: GameState, moveset: MovesetKey | null): void {
   // 振りの途中で型が替わると段の添字が新しい型に無いことがあるので止める
   if (state.player.attack.phase !== "none") cancelAttack(state);
   refreshRunStats(state);
-  enforceTrialWeapon(session);
+  enforceTrialMoveset(state, moveset);
 }
 
 /** 装備画面などで applyStats が stats を作り直しても、試している型へ差し直す（stepHub が毎ステップ呼ぶ） */
 function enforceTrialWeapon(session: HubSession): void {
-  const { state, hub } = session;
-  const moveset = hub.trialMoveset;
+  enforceTrialMoveset(session.state, session.hub.trialMoveset);
+}
+
+/** stats の写しの moveset と bullet を試す武器種へ差し直す（null なら何もしない。毎ステップ呼んでよい） */
+export function enforceTrialMoveset(state: GameState, moveset: MovesetKey | null): void {
   if (moveset === null) return;
   // 銃の家系は借りるときと同じ器（一番早く出るベース）の弾で撃つ（装備の武器の弾のままにしない）
   const bullet = isGun(MOVESETS[moveset]) ? bulletOfBase(earliestBase("mainHand", (b) => b.moveset === moveset)?.key) : state.stats.bullet;
@@ -341,17 +348,25 @@ function resourceNow(state: GameState, kind: HubResource): number {
 
 /** 資源の今の割合（0..1）。上限が 0 なら 0 */
 export function hubResourceRatio(session: HubSession, kind: HubResource): number {
-  const max = resourceMax(session.state, kind);
+  return resourceRatioOf(session.state, kind);
+}
+
+/** 資源の今の割合（0..1。拠点と稽古の間の共通）。上限が 0 なら 0 */
+export function resourceRatioOf(state: GameState, kind: HubResource): number {
+  const max = resourceMax(state, kind);
   if (max <= 0) return 0;
-  return Math.min(1, Math.max(0, resourceNow(session.state, kind) / max));
+  return Math.min(1, Math.max(0, resourceNow(state, kind) / max));
+}
+
+export function setHubResource(session: HubSession, kind: HubResource, ratio: number): void {
+  setResourceOf(session.state, kind, ratio);
 }
 
 /**
- * 資源を上限 × ratio（0..1 に丸める）にする。持続の奥義の最中に奥義ゲージを 0 にしたら、
+ * 資源を上限 × ratio（0..1 に丸める）にする（拠点と稽古の間の共通）。持続の奥義の最中に奥義ゲージを 0 にしたら、
  * updateUltimate が次のステップで「尽きた」として終える（最短の持続秒は守る）ので、ここでは終了処理を呼ばない
  */
-export function setHubResource(session: HubSession, kind: HubResource, ratio: number): void {
-  const state = session.state;
+export function setResourceOf(state: GameState, kind: HubResource, ratio: number): void {
   const r = Math.min(1, Math.max(0, ratio));
   const value = resourceMax(state, kind) * r;
   if (kind === "hp") state.player.hp = Math.max(MIN_HUB_HP, value);
@@ -361,5 +376,10 @@ export function setHubResource(session: HubSession, kind: HubResource, ratio: nu
 
 /** 生命・気力・奥義ゲージをすべて上限にする */
 export function fillHubResources(session: HubSession): void {
-  for (const kind of HUB_RESOURCES) setHubResource(session, kind, 1);
+  fillResourcesOf(session.state);
+}
+
+/** 生命・気力・奥義ゲージをすべて上限にする（拠点と稽古の間の共通） */
+export function fillResourcesOf(state: GameState): void {
+  for (const kind of HUB_RESOURCES) setResourceOf(state, kind, 1);
 }
