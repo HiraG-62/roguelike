@@ -391,7 +391,9 @@ export const FORMS: Readonly<Record<FormKey, FormDef>> = {
     name: "手裏剣",
     desc: "手数で刺し、刺さった数で崩す",
     label: "崩し",
-    // 骨: 戦意（刺さりで怯ませた回数）と放出（連ね投げ）は段 5-B・6-B
+    // 戦意は刺さり崩しで怯ませた回数（system/pins.ts の stickPin）。満ちた後の次の投げが放出で、秒のあいだ投げの間隔が縮む（連ね投げ）
+    gain: [{ kind: "pinStagger", amount: FORM.star.gain.pinStagger }],
+    release: { kind: "timed", sec: FORM.star.timed.sec, attackSpeedMul: FORM.star.timed.attackSpeedMul },
     keywords: kw(["ranged", "combo"], ["dash"]),
     riposte: ["parry", "justDodge"],
     finisher: ["lastStep", "release"],

@@ -316,6 +316,7 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     recoil: false,
     sprite: t.sprite,
     applies: t.applies,
+    ...(t.lineGap !== undefined ? { lineGap: t.lineGap } : {}),
     lane: over.lane ?? "secondary",
     release: over.release,
     ...(over.fan ? { fan: over.fan } : {}),

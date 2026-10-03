@@ -579,9 +579,9 @@ function throwShots(state: GameState, n: number): void {
   for (const pr of playerShots(state)) pr.pos.x += 60;
 }
 
-describe("戦意: 投擲物の型（骨。溜まる出来事は段 6 で入る。クナイは入った: system/kunai.test.ts）", () => {
-  it("戦輪・手裏剣の型は溜まる出来事を持たず、自分の弾が飛んでいても戦意は 0", () => {
-    for (const moveset of ["ringBlades", "shuriken"] as const) {
+describe("戦意: 投擲物の型（骨。溜まる出来事は段 6 で入る。クナイ・手裏剣は入った: system/kunai.test.ts・system/shuriken.test.ts）", () => {
+  it("戦輪の型は溜まる出来事を持たず、自分の弾が飛んでいても戦意は 0", () => {
+    for (const moveset of ["ringBlades"] as const) {
       const state = arena(5, { moveset });
       expect(formOf(MOVESETS[moveset]).morale.gain, `${moveset} の溜まる出来事`).toEqual([]);
       throwShots(state, 2);

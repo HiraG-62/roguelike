@@ -159,10 +159,17 @@ function avoidsBranches(m: Readonly<MovesetDef>, seq: readonly ButtonKey[]): boo
  */
 export function laneSequence(m: Readonly<MovesetDef>, index: number): ButtonKey[] {
   if (shootsPrimary(m)) return Array.from({ length: index + 1 }, () => "secondary" as const);
+  if (m.chainAdvance === "alternate") return alternatingHands(index + 1, "secondary");
   const fits = sequencesOf(index + 1).filter((s) => s[index] === "secondary" && avoidsBranches(m, s));
   // 反動で下がる段（爪の跳び退き）を途中に挟まない列を先に選ぶ（下がると続く振りが届かない）
   const found = fits.find((s) => !knockedOnTheWay(m, s)) ?? fits[0];
   return found ?? [...Array.from({ length: index }, () => "primary" as const), "secondary"];
+}
+
+/** 交互の連撃（手裏剣）で段が進む押し方: length 手、左右を替えながら最後が final になる列 */
+function alternatingHands(length: number, final: ButtonKey): ButtonKey[] {
+  const other: ButtonKey = final === "secondary" ? "primary" : "secondary";
+  return Array.from({ length }, (_, k) => ((length - 1 - k) % 2 === 0 ? final : other));
 }
 
 /** 右の段の最後の手（構え・溜めは長押し） */
@@ -285,6 +292,11 @@ function chainMove(m: Readonly<MovesetDef>): ManualMove {
   const n = m.steps.length;
   const last = m.steps[n - 1];
   const traits = last === undefined ? [] : [`${n} 段`, ...stepTraits(m, last, true).filter((t) => t !== shapeTrait(last))];
+  // 交互の連撃（手裏剣）は左右を替えるときだけ段が進む。左から始めて最後の段を左で出す
+  if (m.chainAdvance === "alternate") {
+    const hands = alternatingHands(n, "primary");
+    return { key: "chain", group: "chain", name: "左右の連撃", traits, desc: "左右を替えて押すたびに次の段を振る。同じ手を続けても段は進まない。最後の段は終撃。", script: { setup: NO_SETUP, cues: hands.map(tap) }, expect: "hit" };
+  }
   return { key: "chain", group: "chain", name: "左の連撃", traits, desc: "左を押すたびに次の段を振る。最後の段は終撃。", script: { setup: NO_SETUP, cues: times(n, tap("primary")) }, expect: "hit" };
 }
 

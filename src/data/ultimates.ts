@@ -207,6 +207,11 @@ export interface SustainDef {
   /** 立ち止まっているときの射撃の速さの倍率 */
   readonly stillFireRate?: number;
   readonly patch?: SustainPatch;
+  /**
+   * 持続中、連撃（左・右レーン・派生・溜め）を別の武器種の振りに差し替える（手裏剣の龍刃が刀を抜く）。
+   * 型・戦意・ダッシュ攻撃は装備のまま、振りの絵とエフェクトは借りた武器種のもの
+   */
+  readonly lanes?: { readonly moveset: MovesetKey };
   readonly shot?: SustainShot;
   /** 近接の命中で付ける状態異常（段に畳む） */
   readonly applies?: readonly StatusApply[];
@@ -964,10 +969,12 @@ function handbellSet(): UltimateSet {
   ];
 }
 
-// ---- 投擲物（docs/ideas/gun-bases-review.md 2-9）。クナイは段 6-A で本物。手裏剣は段 6-B まで既存の行為で仮置きする ----
+// ---- 投擲物（docs/ideas/gun-bases-review.md 2-9） ----
 
-/** 手裏剣の奥義の弾（左のまっすぐの 3 本の 1 本） */
+/** 手裏剣の奥義の弾（左のまっすぐの 3 本の 1 本。刺さる） */
 const SHURIKEN_BULLET = "cast.starToss";
+/** 手裏剣の奥義の大きい弾（大手裏剣。大車輪が自分の周りを回す） */
+const BIG_SHURIKEN_BULLET = "cast.bigStar";
 
 function kunaiSet(): UltimateSet {
   const m = "kunai";
@@ -982,9 +989,8 @@ function shurikenSet(): UltimateSet {
   const m = "shuriken";
   return [
     instantDef(m, "eightfold", "八方手裏剣", "全周へ手裏剣を 16 本投げる", RANGED, (n) => [volley(sub(n, "volley"), RANGED, SHURIKEN_BULLET)]),
-    instantDef(m, "greatWheel", "大車輪", "巨大な手裏剣が自分の周りを 2 周し、近くの敵に何度も当たる", RANGED, (n) => [orbitVolley(sub(n, "volley"), RANGED, SHURIKEN_BULLET)]),
-    // 仮: 左右の差し替えが入るまで威力と速さの持続（段 6-B で刀を抜いて左右とも斬りに）
-    sustainDef(m, "dragonBlade", "龍刃", "持続。振りが速く強くなり、会心しやすい", (n) => ({ ...sustainCore(n) })),
+    instantDef(m, "greatWheel", "大車輪", "巨大な手裏剣が自分の周りを 2 周し、近くの敵に何度も当たる", RANGED, (n) => [orbitVolley(sub(n, "volley"), RANGED, BIG_SHURIKEN_BULLET)]),
+    sustainDef(m, "dragonBlade", "龍刃", "持続。刀を抜いて左右とも斬りになり、振りが速く強くなる。斬りで気力が戻る", (n) => ({ ...sustainCore(n), lanes: { moveset: "katana" } })),
   ];
 }
 

@@ -741,7 +741,7 @@ function pullToMines(state: GameState, pull: NonNullable<SustainDef["minePull"]>
 
 /** 型を差し替える持続か（段の差し替え・命中付与・振りの速さ・怯み値） */
 function changesMoveset(s: SustainDef): boolean {
-  return s.patch !== undefined || (s.applies?.length ?? 0) > 0 || s.mul.attackSpeed !== undefined || s.mul.poise !== undefined;
+  return s.patch !== undefined || s.lanes !== undefined || (s.applies?.length ?? 0) > 0 || s.mul.attackSpeed !== undefined || s.mul.poise !== undefined;
 }
 
 /** 入力の型 × 奥義の key ごとの合成済みの型（毎ステップ新しいオブジェクトを作らない。中身は定義から決まるので決定性に影響しない） */
@@ -763,7 +763,24 @@ export function ultimateMoveset(state: GameState, base: MovesetDef): MovesetDef 
   return merged;
 }
 
-function patchMoveset(base: MovesetDef, s: SustainDef): MovesetDef {
+/** 連撃（左・右レーン・派生・溜め）を借りた武器種のものにする。型・戦意・ダッシュ攻撃は装備のまま。key は絵とエフェクトを引くので借りた武器種のもの */
+function borrowLanes(base: MovesetDef, from: MovesetKey): MovesetDef {
+  const src = MOVESETS[from];
+  return {
+    ...base,
+    key: src.key,
+    steps: src.steps,
+    steps2: src.steps2,
+    branches: src.branches,
+    charge: src.charge,
+    tip: src.tip,
+    chainAdvance: undefined,
+    waitForReturn: undefined,
+  };
+}
+
+function patchMoveset(carrier: MovesetDef, s: SustainDef): MovesetDef {
+  const base = s.lanes ? borrowLanes(carrier, s.lanes.moveset) : carrier;
   const p = s.patch ?? {};
   const moveMul = p.attackMoveMul ?? 1;
   const step = (st: MeleeStepDef): MeleeStepDef => patchStep(st, s);

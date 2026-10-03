@@ -323,6 +323,16 @@ function meleePress(): Partial<FrameInput> {
   return { attackPressed: true };
 }
 
+/**
+ * 交互の連撃（chainAdvance: alternate。手裏剣）は同じ手では段が進まないので、振っている最中は今の手と逆の手を押す。
+ * first は振っていないときに押す手。左は押した瞬間、右は押しっぱなしの差で取る
+ */
+function pressFor(state: GameState, first: "primary" | "secondary"): Partial<FrameInput> {
+  const a = state.player.attack;
+  const hand = MOVESETS[state.stats.moveset].chainAdvance !== "alternate" || a.phase === "none" ? first : a.lane === "primary" ? "secondary" : "primary";
+  return hand === "primary" ? meleePress() : { shootHeld: !state.player.secondaryWasHeld };
+}
+
 /** 連撃ボタンを押し続けてコンボを最終段まで振り切る。敵は毎フレーム自分の正面 FRONT_DIST へ戻す（踏み込みで前に出るため） */
 function runCombo(state: GameState, e: Enemy): number {
   const last = MOVESETS[state.stats.moveset].steps.length - 1;
@@ -331,7 +341,7 @@ function runCombo(state: GameState, e: Enemy): number {
     const p = state.player.body.pos;
     e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
     e.knock = { x: 0, y: 0 };
-    step(state, withInput(meleePress()), FIXED_DT);
+    step(state, withInput(pressFor(state, "primary")), FIXED_DT);
     maxStep = Math.max(maxStep, state.player.attack.step);
     if (maxStep === last && state.player.attack.phase === "none") break;
   }
@@ -349,7 +359,8 @@ function runRightLane(state: GameState, e: Enemy): number {
     const p = state.player.body.pos;
     e.body.pos = { x: p.x + FRONT_DIST, y: p.y };
     e.knock = { x: 0, y: 0 };
-    step(state, withInput({ shootHeld: i % 2 === 0 }), FIXED_DT);
+    const alternate = MOVESETS[state.stats.moveset].chainAdvance === "alternate";
+    step(state, withInput(alternate ? pressFor(state, "secondary") : { shootHeld: i % 2 === 0 }), FIXED_DT);
     const a = state.player.attack;
     if (a.phase !== "none" && a.lane === "secondary" && a.branch < 0) maxStep = Math.max(maxStep, a.step);
     if (maxStep === last && a.phase === "none") break;

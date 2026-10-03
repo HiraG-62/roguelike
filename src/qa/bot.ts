@@ -20,7 +20,7 @@ import { isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
 import { handsView, nextHandAction } from "../system/dualPistols";
 import { moraleGauge } from "../system/morale";
 import { actionCooldownLeft } from "../system/weaponArts";
-import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, firesByHand, isGun, shootsPrimary } from "../data/weapons";
+import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, firesByHand, isGun, isThrowingWeapon, shootsPrimary } from "../data/weapons";
 import { BOONS, type BoonChoice, choiceGrade } from "../system/boons";
 import { REFORGES } from "../data/reforges";
 import { canAffordSkill } from "../system/keystones";
@@ -91,6 +91,11 @@ const LANE_PATTERNS: readonly (readonly ButtonKey[])[] = [
   [S, S, S],
   [S, S, P],
   [P, S, S],
+  [S, P, S],
+];
+/** 交互の連撃（手裏剣）は左右を替えるときだけ段が進むので、替え続ける列だけ使う */
+const ALTERNATING_PATTERNS: readonly (readonly ButtonKey[])[] = [
+  [P, S, P],
   [S, P, S],
 ];
 const PARRY_HOLD = 0.2;
@@ -845,8 +850,9 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     return input;
   }
   const shoots = shootsPrimary(moveset);
-  // 射撃は左で撃つ武器種だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）
-  if (!shoots && d < MELEE_RANGE) {
+  // 射撃は左で撃つ武器種だけ。近接の武器種は近づいて左右を混ぜて振る（docs/ideas/weapon-redesign.md 0 章）。
+  // 投擲物の連撃（手裏剣）は振りが弾を投げるので、近づかず投げの射程から振る
+  if (!shoots && d < (throwsFromRange(moveset) ? ART_THROW_RANGE : MELEE_RANGE)) {
     pressMixedLane(state, bot, moveset, input);
     return input;
   }
@@ -860,6 +866,11 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   if (shoots) input.attackHeld = shootHeldFor(state);
   pressRightLane(state, bot, moveset, d, input);
   return input;
+}
+
+/** 左の連撃が弾を投げる投擲物（手裏剣）か。近づかず、投げの射程から振る */
+function throwsFromRange(moveset: MovesetDef): boolean {
+  return isThrowingWeapon(moveset) && moveset.steps[0]?.cast !== undefined;
 }
 
 /**
@@ -956,7 +967,7 @@ function pressMixedLane(state: GameState, bot: BotState, moveset: MovesetDef, in
     return;
   }
   if (a.buffered || a.pendingBranch >= 0 || a.phase === "windup" || p.art.holding) return;
-  if (bot.laneQueue.length === 0) bot.laneQueue = [...bot.rng.pick(LANE_PATTERNS)];
+  if (bot.laneQueue.length === 0) bot.laneQueue = [...bot.rng.pick(moveset.chainAdvance === "alternate" ? ALTERNATING_PATTERNS : LANE_PATTERNS)];
   const button = bot.laneQueue[0];
   if (button === S && p.secondaryWasHeld) return;
   bot.laneQueue.shift();
