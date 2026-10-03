@@ -28,13 +28,12 @@ import { featureText, formText } from "./weaponText";
  * 表示の入力の列は台本の手から作る（cueToken）ので、台本と表示がずれない。手書きの表は持たない
  */
 
-export const MANUAL_GROUPS = ["chain", "lane", "branch", "dash", "charge", "morale", "ultimate"] as const;
+export const MANUAL_GROUPS = ["chain", "branch", "dash", "charge", "morale", "ultimate"] as const;
 export type ManualGroup = (typeof MANUAL_GROUPS)[number];
 
 /** 技の一覧の見出し（docs/GLOSSARY.md） */
 export const MANUAL_GROUP_LABEL: Readonly<Record<ManualGroup, string>> = {
   chain: "連撃",
-  lane: "右の段",
   branch: "コンボ派生",
   dash: "ダッシュ攻撃",
   charge: "溜め攻撃",
@@ -346,7 +345,8 @@ function laneMoves(m: Readonly<MovesetDef>): ManualMove[] {
     // 振らない構え（受け流し・離しても振らない構え）と、反動で下がってから振る段は当たりを確かめない
     const knocked = (s.kind === "swing" && s.extras?.selfKnock !== undefined) || knockedOnTheWay(m, laneSequence(m, i));
     const expect: DemoExpect = (s.kind === "hold" && s.hold.release === undefined) || knocked ? "none" : "hit";
-    return { key: `lane.${i}`, group: "lane", name: actionStepName(s, i), traits: laneTraits(m, s, i), desc: s.desc ?? "", script, expect };
+    // 右の段は「押し方の列で出る技」としてコンボ派生と同じ見出しに並べる（段カウンタは左右共有なので、列で出る点は派生と同じ）
+    return { key: `lane.${i}`, group: "branch", name: actionStepName(s, i), traits: laneTraits(m, s, i), desc: s.desc ?? "", script, expect };
   });
 }
 

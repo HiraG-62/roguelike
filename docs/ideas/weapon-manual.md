@@ -7,9 +7,9 @@ Tips ノートの「武器種」タブを独立させた画面。武器種ごと
 | 節 | 中身 | 出どころ |
 | --- | --- | --- |
 | 見出し | 武器種名・型・重さ・左右の段数 | `MovesetDef`・`FormDef` |
-| 特色 | 手書きの一言（`MovesetDef.desc`）・間合い・参照ステータス・固有の仕組み（引き寄せ・敵弾払い・弾の性質…） | `meta/weaponText.ts` の `featureText` |
+| 特色 | 持ち味の一文（`data/weaponFeatures.ts` の `MOVESET_FEATURE`。押し方は書かない。`MovesetDef.desc` は押し方を含む武器掛けの一言なので使わない）・間合い・参照ステータス・固有の仕組み（引き寄せ・敵弾払い・弾の性質…） | `meta/weaponText.ts` の `featureText` |
 | 型と戦意 | 型・戦意の溜まり方と放ち方・応手 | `formText` |
-| 技の一覧 | 連撃 / 溜め攻撃 / 右の段 / コンボ派生 / ダッシュ攻撃 / 戦意の放出 / 奥義 3 本 | `meta/weaponManual.ts` の `weaponManualPage` |
+| 技の一覧 | 連撃 / 溜め攻撃 / コンボ派生（右の段も段カウンタを左右で共有する「押し方の列で出る技」なので同じ見出しに、右の段 → 名前付きの派生の順）/ ダッシュ攻撃 / 戦意の放出 / 奥義 3 本 | `meta/weaponManual.ts` の `weaponManualPage` |
 
 手書きの表は持たない。武器種・段・派生・奥義を足せば自動で載る（網羅テスト `meta/weaponManual.test.ts`）。
 
