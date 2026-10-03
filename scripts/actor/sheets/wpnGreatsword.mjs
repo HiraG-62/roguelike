@@ -57,5 +57,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnGreatsword",
   sheets: weaponSheets("wpnGreatsword", draw, { size: 110 }),
-  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -55, restHand: [6, 9], swayDeg: 2, parry: { hand: [10, -4], deg: 76, off: [10, 5], contact: 18 } } },
+  meta: { offGrip: OFF_GRIP, stance: { grip: "two", body: "heavy", restDeg: -55, restHand: [6, 9], swayDeg: 2, parry: { hand: [4, -11], deg: 42, off: [10, -2], contact: 20 } } },
 };
