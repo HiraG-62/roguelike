@@ -1648,6 +1648,65 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
   }),
 };
 
+/**
+ * 武器の群（docs/ideas/gun-bases-review.md 0-1）。銃と投擲物は別の概念として扱う。
+ * melee = 近接 / gun = 銃（弾倉を持つ）/ throwing = 投擲物（投げる。弾倉を持たない）
+ */
+export const WEAPON_GROUPS = ["melee", "gun", "throwing"] as const;
+export type WeaponGroup = (typeof WEAPON_GROUPS)[number];
+
+/** 武器種の群（表で引く。武器種を足したら型エラーで 1 行足す） */
+const WEAPON_GROUP_OF: Readonly<Record<MovesetKey, WeaponGroup>> = {
+  sword: "melee",
+  greatsword: "melee",
+  twinBlades: "melee",
+  spear: "melee",
+  scythe: "melee",
+  fists: "melee",
+  whip: "melee",
+  cleaver: "melee",
+  staff: "melee",
+  wand: "melee",
+  katana: "melee",
+  axe: "melee",
+  shield: "melee",
+  chainSickle: "melee",
+  hammer: "melee",
+  claws: "melee",
+  flail: "melee",
+  fan: "melee",
+  book: "melee",
+  handbell: "melee",
+  gunner: "gun",
+  sidearm: "gun",
+  longarm: "gun",
+  cannon: "gun",
+  grenade: "gun",
+  trapper: "gun",
+  thrown: "throwing",
+  warRing: "throwing",
+  ringBlades: "throwing",
+};
+
+export function weaponGroup(moveset: Pick<MovesetDef, "key">): WeaponGroup {
+  return WEAPON_GROUP_OF[moveset.key];
+}
+
+/** 投擲物の群か */
+export function isThrowingWeapon(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) === "throwing";
+}
+
+/** 近接でない群（銃・投擲物）か。器が弾を持ち、武器掛けで器を選ぶ */
+export function isRangedWeapon(moveset: Pick<MovesetDef, "key">): boolean {
+  return weaponGroup(moveset) !== "melee";
+}
+
+/** 左の押しっぱなしで器の弾を撃つ武器種か（群とは別。銃でも左で撃たない型がある） */
+export function shootsPrimary(moveset: Pick<MovesetDef, "primary">): boolean {
+  return moveset.primary === "shot";
+}
+
 /** 銃の家系（左で撃つ武器種）。祝福の loadout・性質の家系条件が読む */
 export const GUN_MOVESETS: readonly MovesetKey[] = ["sidearm", "longarm", "cannon", "thrown", "gunner", "grenade", "trapper", "warRing"];
 
