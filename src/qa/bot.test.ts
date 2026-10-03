@@ -6,7 +6,9 @@ import { PICKUP } from "../data/tuning";
 import { placeEnemy, arena, slayFloorLord, withInput } from "../system/testHelpers";
 import { ringsInFlight } from "../system/projectiles";
 import { resolveSlot } from "../system/skills";
-import { MOVESETS } from "../data/weapons";
+import { MOVESETS, type MovesetKey } from "../data/weapons";
+import { magazineView } from "../system/magazine";
+import { isDashing } from "../system/player";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
 import {
@@ -597,5 +599,141 @@ describe("bot の二丁拳銃（左右の手。system/dualPistols.ts）", () => 
     }
     expect([...lanes].sort(), "左手と右手の両方で撃った").toEqual(["primary", "secondary"]);
     expect(beat, "交互に撃って拍が溜まった").toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("bot の銃の込めと射程（弾倉・早込め・詰め。gun-bases-review 0-3・0-4）", () => {
+  /** 敵と向き合い、武器種と器を替える（弾倉は弾が替わると作り直される） */
+  function armed(dx: number, moveset: MovesetKey, bullet: string): GameState {
+    const state = facingEnemy(dx);
+    state.stats = { ...state.stats, moveset, bullet };
+    return state;
+  }
+
+  /** 気力のスキルではなく手で撃たせるため気力を 0 にして 1 フレーム回し、押した入力を返す */
+  function nextInput(state: GameState, bot = createBotState(5)) {
+    state.player.mana = 0;
+    return botInput(state, bot, DT);
+  }
+
+  it("散弾は届かない間は撃たず（寄る）、射程の内に入れば撃つ", () => {
+    // 散弾銃の射程は約 97px。気力 0 でも近接の射程（30px）より外なので左で撃つ側の判断になる
+    const far = armed(-150, "cannon", "shotgun");
+    const farInput = nextInput(far);
+    expect(farInput.attackHeld, "射程外では左を押さない").toBe(false);
+    expect(isZero(farInput.move), "寄るために動く").toBe(false);
+    const near = armed(-60, "cannon", "shotgun");
+    expect(nextInput(near).attackHeld, "射程内では左を押す").toBe(true);
+  });
+
+  it("射程の長い弾は遠くからでも撃つ", () => {
+    const state = armed(-150, "sidearm", "pistol");
+    expect(nextInput(state).attackHeld, "拳銃の射程は 270px").toBe(true);
+  });
+
+  it("短銃は込めの進みが早込めの窓に入ったときだけリロードを押す", () => {
+    const state = armed(-150, "sidearm", "pistol");
+    const bot = createBotState(5);
+    // 弾倉は弾が替わった後の最初の step で作り直される
+    step(state, nextInput(state, bot), DT);
+    const h = state.player.magazine.hands[0];
+    h.rounds = 0;
+    h.reloadTotal = 1;
+    h.reloadLeft = 0.9;
+    const early = nextInput(state, bot);
+    expect(magazineView(state).quickWindow, "窓が見える").not.toBeNull();
+    expect(early.reloadPressed, "進み 10% は窓の前").toBeFalsy();
+    h.reloadLeft = 0.4;
+    expect(nextInput(state, bot).reloadPressed, "進み 60% は窓の中").toBe(true);
+    step(state, { ...nextInput(state, bot), reloadPressed: true }, DT);
+    expect(state.player.morale.value, "早込めで戦意が溜まった").toBeGreaterThan(0);
+  });
+
+  it("弾が届かない敵がいる間は減った弾倉を込める。満ちていれば込めず、敵がいない間は歩きが遅くならないよう込めない", () => {
+    const state = armed(-150, "cannon", "shotgun");
+    const bot = createBotState(5);
+    step(state, nextInput(state, bot), DT);
+    expect(nextInput(state, bot).reloadPressed, "満タンなら押さない").toBeFalsy();
+    const hand = state.player.magazine.hands[0];
+    // 満タンの間に詰め始めているので、詰めを解いて減った弾倉にする
+    hand.rounds = 2;
+    hand.reloadLeft = 0;
+    hand.reloadTotal = 0;
+    expect(nextInput(state, bot).reloadPressed, "射程外の敵がいて減っていれば込める").toBe(true);
+    const idle = arena(3);
+    idle.stats = { ...idle.stats, moveset: "longarm", bullet: "rifle" };
+    const idleBot = createBotState(5);
+    step(idle, botInput(idle, idleBot, DT), DT);
+    idle.player.magazine.hands[0].rounds = 2;
+    expect(botInput(idle, idleBot, DT).reloadPressed, "敵がいなければ込めない（撃ち切れば本体が自動で込める）").toBeFalsy();
+  });
+
+  it("砲は満ちた弾倉で射程の外の敵へ寄る間、リロードを押し続けて詰める。射程に入れば離す", () => {
+    const state = armed(-150, "cannon", "shotgun");
+    const bot = createBotState(5);
+    expect(nextInput(state, bot).reloadHeld, "射程外で満タン").toBe(true);
+    const near = armed(-60, "cannon", "shotgun");
+    expect(nextInput(near).reloadHeld, "射程内では詰めない").toBeFalsy();
+  });
+
+  it("長銃は射程内の離れた敵には足を止めて撃ち、近づかれたら歩く", () => {
+    const far = armed(-150, "longarm", "rifle");
+    const farInput = nextInput(far);
+    expect(isZero(farInput.move), "止まって狙う（止まっている秒が戦意になる）").toBe(true);
+    expect(farInput.attackHeld, "撃つ").toBe(true);
+    const near = armed(-40, "longarm", "rifle");
+    expect(isZero(nextInput(near).move), "近いと歩く").toBe(false);
+  });
+
+  it("溜めの長銃は、戦意が満ちているときだけ最大段まで溜めてから離す", () => {
+    const state = armed(-150, "longarm", "matchlock");
+    const bot = createBotState(5);
+    const p = state.player;
+    p.shotCharging = true;
+    p.shotChargeTime = 0.8;
+    expect(nextInput(state, bot).attackHeld, "戦意が満ちていなければ 0.75 秒で離す").toBe(false);
+    p.morale.primed = true;
+    expect(nextInput(state, bot).attackHeld, "満ちていれば 0.8 秒ではまだ溜める").toBe(true);
+    p.shotChargeTime = 1.2;
+    expect(nextInput(state, bot).attackHeld, "最大段（1.1 秒）に届いたら離す").toBe(false);
+  });
+});
+
+describe("bot の抜け斬り（手裏剣。気力の源がダッシュ攻撃だけ）", () => {
+  function shurikenFacing(dx: number): GameState {
+    const state = facingEnemy(dx);
+    state.stats = { ...state.stats, moveset: "shuriken", bullet: "shuriken" };
+    state.player.mana = 0;
+    return state;
+  }
+
+  it("気力が足りなければ間合いの敵へダッシュし、ダッシュの間に左を押して抜け斬りを予約する", () => {
+    const state = shurikenFacing(55);
+    const bot = createBotState(5);
+    state.player.mana = 0;
+    const first = botInput(state, bot, DT);
+    expect(first.dashPressed, "踏み込みのダッシュ").toBe(true);
+    step(state, first, DT);
+    expect(isDashing(state.player), "ダッシュに入った").toBe(true);
+    state.player.mana = 0;
+    const second = botInput(state, bot, DT);
+    expect(second.attackPressed, "ダッシュの間に左を押す").toBe(true);
+    step(state, second, DT);
+    expect(state.player.dashAttackQueued, "抜け斬りが予約された").toBe(true);
+  });
+
+  it("気力が足りていれば踏み込まない。間合いの外でも踏み込まない", () => {
+    const full = shurikenFacing(55);
+    full.player.mana = full.stats.maxMana;
+    expect(botInput(full, createBotState(5), DT).dashPressed, "気力が足りている").toBeFalsy();
+    const far = shurikenFacing(-140);
+    expect(botInput(far, createBotState(5), DT).dashPressed, "間合いの外").toBeFalsy();
+  });
+
+  it("抜け斬りの無い武器種ではダッシュで踏み込まない", () => {
+    const state = facingEnemy(55);
+    state.stats = { ...state.stats, moveset: "sword" };
+    state.player.mana = 0;
+    expect(botInput(state, createBotState(5), DT).dashPressed, "剣").toBeFalsy();
   });
 });

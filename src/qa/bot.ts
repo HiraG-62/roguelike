@@ -16,9 +16,9 @@ import { reaperTimeLeft } from "../system/reaper";
 import { isSolidTile, overlapsWall } from "../system/physics";
 import { canStartParry } from "../system/parry";
 import { type HandIndex, canFireAny, magazineView } from "../system/magazine";
-import { isAttacking, nextLaneIndex, playerMoveset } from "../system/player";
+import { currentShot, isAttacking, isDashing, nextLaneIndex, playerMoveset } from "../system/player";
 import { handsView, nextHandAction } from "../system/dualPistols";
-import { moraleGauge } from "../system/morale";
+import { currentForm, moraleGauge } from "../system/morale";
 import { ringsInFlight } from "../system/projectiles";
 import { actionCooldownLeft } from "../system/weaponArts";
 import { type ActionStepDef, type ButtonKey, type MovesetDef, chargeButton, firesByHand, isGun, isThrowingWeapon, shootsPrimary } from "../data/weapons";
@@ -32,7 +32,6 @@ import { ART_DEFS, isArtKey } from "../skills/arts";
 import type { ArtSkillKey } from "../skills/arts/keys";
 import type { ArtAct } from "../skills/arts/types";
 import type { SkillKey } from "../skills/types";
-import { statsBulletHas } from "../loot/bullets";
 
 /**
  * ヘッドレス自動プレイ用のヒューリスティック bot。
@@ -109,6 +108,23 @@ const ART_THROW_RANGE = 160;
  * 交互に押しても撃ち尽くしにならないようにする
  */
 const HAND_PRESS_GAP = 0.12;
+/**
+ * 弾の射程のこの割合まで寄ってから撃つ。散弾の射程（約 97px）は敵の弾より短いので、届かない間は撃たずに足を速く使って寄る
+ * （撃ち続けると砲の足が止まり、遠くの射手に撃たれ続けて倒れた。段 8-C）
+ */
+const SHOT_REACH_MARGIN = 0.9;
+/** 長銃の「止まっている秒」で戦意を溜めるため、射程内でこの距離より遠い敵には足を止めて撃つ（これより寄ると近接の距離なので歩く） */
+const STAND_AND_SHOOT_MIN = MELEE_RANGE * 2;
+/** 溜めの終わりの段から離すまでの余白（秒）。最大段に届いてから離す */
+const CHARGE_TOP_MARGIN = 0.05;
+/**
+ * 抜け斬り（ダッシュ攻撃）を出す間合い（px）。ダッシュの距離 64px の内側で、斬りの踏み込み 48px で敵を抜けられる範囲。
+ * これより近いと抜ける前に敵の体に当たってしまう
+ */
+const DASH_STRIKE_MIN = 24;
+const DASH_STRIKE_MAX = 80;
+/** 早込めの窓の終わりの手前で押す余白（ステップ数）。押下は次のステップの込めの進みで判定されるため */
+const QUICK_WINDOW_MARGIN_STEPS = 2;
 /** 1 振りの技の射程に足す接近余地（px） */
 const ART_STRIKE_MARGIN = 6;
 /**
@@ -207,6 +223,10 @@ export interface BotState {
   marketTime: number;
   /** 届かないハートの経路を次に引き直せるまでの秒（heartWaypoint） */
   heartRetry: number;
+  /** 今のステップで交戦している敵までの距離（交戦していなければ null。銃の込め・詰めの判断に使う） */
+  engagedDist: number | null;
+  /** 抜け斬りのためにダッシュを出した直後（次のステップでダッシュの間に左を押して予約する） */
+  dashStrike: boolean;
 }
 
 export function createBotState(seed: number): BotState {
@@ -232,6 +252,8 @@ export function createBotState(seed: number): BotState {
     triedWares: new WeakSet(),
     marketTime: 0,
     heartRetry: 0,
+    engagedDist: null,
+    dashStrike: false,
   };
 }
 
@@ -799,6 +821,7 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   const input = freshInput();
   const pos = state.player.body.pos;
   const d = dist(enemy.body.pos, pos);
+  bot.engagedDist = d;
   input.aimScreen = worldToScreen(state, enemy.body.pos);
 
   // windup/strike は必ず評価する。それ以外のフェーズでも、手数の多い（攻撃間隔が短い）敵が
@@ -824,6 +847,8 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
   }
 
   input.move = steerToward(state, bot, enemy.body.pos, dt);
+  // 長銃は止まっている秒で戦意が溜まる。射程内の離れた敵には足を止めて撃つ
+  if (standsAndShoots(state, d)) input.move = { x: 0, y: 0 };
   if (shouldPressUltimate(state, d)) {
     input.specialPressed = true;
     return input;
@@ -842,6 +867,9 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     }
     return input;
   }
+
+  // 抜け斬り（手裏剣）: 気力の源がダッシュ攻撃だけなので、気力が足りない間は敵へ踏み込んで抜ける（ダッシュの間に左を押して予約する）
+  if (tryDashStrike(state, bot, d, input)) return input;
 
   // 投げた輪が戻るまでは左も右も出ない（戦輪）ので、押さずに戻りを待つ（受け流し・回避・スキルは上で済んでいる）
   if (ringsInFlight(state)) return input;
@@ -866,8 +894,8 @@ function combatInput(state: GameState, bot: BotState, enemy: Enemy, dt: number):
     pressRightLane(state, bot, moveset, d, input, false);
     return input;
   }
-  // 左で撃つ武器種は撃ち続けながら、射程内なら右の連撃も押す
-  if (shoots) input.attackHeld = shootHeldFor(state);
+  // 左で撃つ武器種は撃ち続けながら、射程内なら右の連撃も押す（弾が届かない間は撃たずに寄る）
+  if (shoots && d <= shotReach(state) * SHOT_REACH_MARGIN) input.attackHeld = shootHeldFor(state);
   pressRightLane(state, bot, moveset, d, input);
   return input;
 }
@@ -910,15 +938,7 @@ function bothHandsLoaded(state: GameState): boolean {
 
 /** 銃で、装着中の気力のスキルがあり、そのどれにも気力が足りないか（足りなければ近接で気力を戻しに寄る） */
 export function gunNeedsMana(state: GameState, moveset: MovesetDef): boolean {
-  if (!isGun(moveset)) return false;
-  let hasManaSkill = false;
-  for (let i = 0; i < SKILL_SLOT_COUNT; i++) {
-    const resolved = resolveSlot(state, i);
-    if (resolved?.def.resource !== "mana") continue;
-    if (canAffordSkill(state, resolved.cost)) return false;
-    hasManaSkill = true;
-  }
-  return hasManaSkill;
+  return isGun(moveset) && manaStarved(state);
 }
 
 /** 銃で、どの手も撃てない（弾倉が空か込めの最中）か。込めは自動なので bot は待つだけ */
@@ -1023,11 +1043,86 @@ function pressAttack(state: GameState, input: FrameInput): void {
   input.attackHeld = !(a.charging && a.chargeTime >= MELEE_CHARGE_HOLD);
 }
 
-/** 射撃の押しっぱなし。溜め撃ちの弾は SHOT_CHARGE_HOLD 秒溜めたら 1 フレーム離して撃つ */
+/**
+ * 射撃の押しっぱなし。溜め撃ちの弾は SHOT_CHARGE_HOLD 秒溜めたら 1 フレーム離して撃つ。
+ * 戦意が満ちて構えているとき（長銃の放出）は最大段まで溜める（放出は最大段の発射だけ。docs/ideas/gun-bases-review.md 0-4）
+ */
 function shootHeldFor(state: GameState): boolean {
-  if (!statsBulletHas(state.stats, "charge")) return true;
+  const levels = currentShot(state.stats).charge?.levels;
+  if (!levels) return true;
   const p = state.player;
-  return !(p.shotCharging && p.shotChargeTime >= SHOT_CHARGE_HOLD);
+  const top = levels[levels.length - 1]?.time ?? SHOT_CHARGE_HOLD;
+  const hold = p.morale.primed ? top + CHARGE_TOP_MARGIN : SHOT_CHARGE_HOLD;
+  return !(p.shotCharging && p.shotChargeTime >= hold);
+}
+
+/** 今の弾の射程（px）。曲射・設置弾・周回の弾は狙った所へ届くので無限大 */
+function shotReach(state: GameState): number {
+  const shot = currentShot(state.stats);
+  if (shot.lob || shot.mine || shot.orbit) return Number.POSITIVE_INFINITY;
+  return PLAYER.shoot.speed * shot.speedMul * state.stats.projectileSpeedMul * PLAYER.shoot.life * shot.lifeMul;
+}
+
+/** 長銃（止まっている秒で戦意が溜まる型）が、射程内の離れた敵に足を止めて撃つか */
+function standsAndShoots(state: GameState, d: number): boolean {
+  if (currentForm(state).key !== "rifle" || !shootsPrimary(playerMoveset(state))) return false;
+  return d >= STAND_AND_SHOOT_MIN && d <= shotReach(state) * SHOT_REACH_MARGIN;
+}
+
+/** 装着中の気力のスキルがあり、そのどれにも気力が足りないか（足りなければ気力を戻す手を使う） */
+function manaStarved(state: GameState): boolean {
+  let hasManaSkill = false;
+  for (let i = 0; i < SKILL_SLOT_COUNT; i++) {
+    const resolved = resolveSlot(state, i);
+    if (resolved?.def.resource !== "mana") continue;
+    if (canAffordSkill(state, resolved.cost)) return false;
+    hasManaSkill = true;
+  }
+  return hasManaSkill;
+}
+
+/**
+ * 抜け斬り（ダッシュ攻撃が敵をすり抜けて斬り、斬った敵の数だけ気力が戻る。手裏剣）。気力が足りないとき、
+ * 間合いに入った敵へダッシュし、そのダッシュの間に左を押して予約する。押したら true
+ */
+function tryDashStrike(state: GameState, bot: BotState, d: number, input: FrameInput): boolean {
+  const p = state.player;
+  if (bot.dashStrike) {
+    bot.dashStrike = false;
+    if (!isDashing(p)) return false;
+    input.attackPressed = true;
+    return true;
+  }
+  if (!playerMoveset(state).dashAttack.passThrough || !manaStarved(state)) return false;
+  if (p.dashChargesLeft <= 0 || isDashing(p) || d < DASH_STRIKE_MIN || d > DASH_STRIKE_MAX) return false;
+  input.dashPressed = true;
+  bot.dashStrike = true;
+  return true;
+}
+
+/**
+ * 銃の込めの入力（リロード T）。短銃の早込めの窓では押して即込め終わりにして戦意を溜める。
+ * 敵がいても弾が届かない間は、減った弾倉を満たしておく。砲は満ちた弾倉で寄りながら押し続けて詰める
+ * （詰めの最中は撃てないので、撃てない間にやる）。撃ち切りの込めは本体が自動で始める
+ */
+function pressGunKeys(state: GameState, bot: BotState, input: FrameInput, dt: number): void {
+  if (!isGun(playerMoveset(state))) return;
+  const view = magazineView(state);
+  if (!view.active) return;
+  const hand = view.hands[0];
+  const quick = view.quickWindow;
+  // 窓の終わりの手前（押下が次のステップで効くぶんの余白）まで
+  if (quick && hand?.busy && hand.progress >= quick.from && hand.progress < quick.to - QUICK_WINDOW_MARGIN_STEPS * dt) {
+    input.reloadPressed = true;
+    return;
+  }
+  // 交戦していない間は込めない（歩きが込めの間遅くなり、探索が伸びる）。撃ち切れば本体が自動で込める
+  if (bot.engagedDist === null || bot.engagedDist <= shotReach(state) * SHOT_REACH_MARGIN) return;
+  if (view.pack.max > 0 && view.hands.every((h) => h.rounds >= h.capacity)) {
+    input.reloadHeld = true;
+    return;
+  }
+  if (view.hands.some((h) => !h.busy && h.rounds < h.capacity)) input.reloadPressed = true;
 }
 
 /** 未クリアの部屋 → 階段の順で、BFS 経路のウェイポイントを辿って進む */
@@ -1089,7 +1184,9 @@ export function autoAttachHand(state: GameState): number {
  */
 export function botInput(state: GameState, bot: BotState, dt: number): FrameInput {
   autoAttachHand(state);
+  bot.engagedDist = null;
   const input = decideInput(state, bot, dt);
+  if (state.status === "playing" && !state.boonChoice && !state.reforgeChoice) pressGunKeys(state, bot, input, dt);
   // 瓶は行動の種類に関わらず低 HP で飲む（戦闘中・回収中でも命綱として押す）
   if (state.status === "playing" && !state.boonChoice && !state.reforgeChoice && shouldDrinkFlask(state)) input.flaskPressed = true;
   return input;

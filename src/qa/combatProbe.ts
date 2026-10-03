@@ -7,15 +7,16 @@ import { enemyDef } from "../data/enemies";
 import { ENEMY_AI } from "../data/tuning";
 import { MOVESET_KEYS, type MovesetKey, shootsPrimary } from "../data/weapons";
 import { BASES } from "../loot/bases";
-import { bulletOfBase } from "../loot/bullets";
+import { bulletOfBase, rangedBasesOf } from "../loot/bullets";
 import { computeStats } from "../loot/stats";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { createEnemy } from "../system/enemies";
 import { withBaseAreaMul } from "../system/floor";
-import { applyStats, playerMoveset } from "../system/player";
+import { applyStats, currentShot, playerMoveset } from "../system/player";
 import { attackCommitted, isStaggered } from "../system/poise";
 import { isBossDriven } from "../system/boss";
 import { behaviorOf } from "../system/behaviors/registry";
+import { worldToScreen } from "./bot";
 import { createCombatRecorder, hurtTextDamage, sumBands, type CombatBandTally } from "./combatMetrics";
 import { buildGearPowerSection, fittedEquipment, measureGearPower, type GearPowerRow } from "./gearPower";
 
@@ -43,6 +44,8 @@ const BOT_REACH = 20;
 const DANGER_RANGE = 55;
 /** ダッシュで避ける: 予備動作の終わりまでの残り秒がこれ未満になったら踏み出す（見切りの猶予に合わせた） */
 const DODGE_WINDUP_LEFT = 0.12;
+/** 溜め撃ちを最大段から離すまでの余白（秒） */
+const CHARGE_TOP_MARGIN = 0.05;
 /** 1 対 1: 敵を置く距離（px） */
 const DUEL_ENEMY_DISTANCE = 40;
 /** 1 対 1: 置いた敵の初回攻撃までの待ち（秒） */
@@ -65,6 +68,8 @@ const GROUP_DEATH_HP = 30;
 export type ProbeStockGear = "none" | "fitted";
 export interface ProbeMovesetGear {
   readonly moveset: MovesetKey;
+  /** 銃・投擲物の器（右手のベースの key）。省略は武器種の最初のベース。器ごとに弾の性質（弾倉・溜め・三点・刺さり）が違うので器ごとに測る */
+  readonly base?: string;
 }
 export type ProbeGear = ProbeStockGear | ProbeMovesetGear;
 
@@ -74,15 +79,16 @@ export const PROBE_GEAR_LABEL: Readonly<Record<ProbeStockGear, string>> = {
 };
 
 export function probeGearLabel(gear: ProbeGear): string {
-  return typeof gear === "string" ? PROBE_GEAR_LABEL[gear] : gear.moveset;
+  if (typeof gear === "string") return PROBE_GEAR_LABEL[gear];
+  return gear.base === undefined ? gear.moveset : `${gear.moveset}/${gear.base}`;
 }
 
 /**
- * 武器種だけを替えた素の能力。銃の家系は、その武器種の最初のベースの弾を撃たせる
+ * 武器種だけを替えた素の能力。銃・投擲物は、指定の器（省略は武器種の最初のベース）の弾を撃たせる
  * （bulletOfBase が実プレイと同じ決め方。近接は既定の弾のまま）
  */
-function movesetStats(moveset: MovesetKey): PlayerStats {
-  const base = BASES.find((b) => b.moveset === moveset);
+function movesetStats(moveset: MovesetKey, baseKey?: string): PlayerStats {
+  const base = baseKey === undefined ? BASES.find((b) => b.moveset === moveset) : BASES.find((b) => b.key === baseKey);
   return { ...DEFAULT_STATS, critChance: 0, keystones: [], triggers: [], moveset, bullet: bulletOfBase(base?.key) };
 }
 
@@ -104,7 +110,7 @@ export function makeArena(seed: number, depth: number, gear: ProbeGear = "none")
     applyStats(state, { ...computeStats(fittedEquipment(seed, depth), depth), critChance: 0 });
     state.player.hp = state.player.maxHp;
   } else if (typeof gear === "object") {
-    state.stats = movesetStats(gear.moveset);
+    state.stats = movesetStats(gear.moveset, gear.base);
     state.player.maxHp = state.stats.maxHp;
     state.player.hp = state.stats.maxHp;
   } else {
@@ -164,8 +170,26 @@ export function botInput(state: GameState, bot: ProbeBot): FrameInput {
     }
   }
   // 左で撃つ武器種は押しっぱなしで撃つ（player.ts shotButtonHeld）。近接は今までどおり押すだけ（溜めない）
-  const held = shootsPrimary(playerMoveset(state));
-  return frameInput({ attackPressed: true, attackHeld: held, aimScreen: null, move: d > BOT_REACH ? toward : NO_MOVE });
+  const shoots = shootsPrimary(playerMoveset(state));
+  const held = shoots && !shotChargeDone(state);
+  return frameInput({ attackPressed: true, attackHeld: held, aimScreen: lobAimScreen(state, target), move: d > BOT_REACH ? toward : NO_MOVE });
+}
+
+/** 溜め撃ちの弾（火縄銃・手砲）は最大段まで溜めたら 1 フレーム離して撃つ。押しっぱなしのままでは撃たない */
+function shotChargeDone(state: GameState): boolean {
+  const levels = currentShot(state.stats).charge?.levels;
+  const top = levels?.[levels.length - 1]?.time;
+  if (top === undefined) return false;
+  return state.player.shotCharging && state.player.shotChargeTime >= top + CHARGE_TOP_MARGIN;
+}
+
+/**
+ * 曲射の弾（擲弾）は照準の距離に落ちる。照準なしでは最大射程へ飛び越えて当たらないので、敵の位置を指す。
+ * 曲射でない弾は今までどおり照準なし（向きは facing で足りる）
+ */
+function lobAimScreen(state: GameState, target: Enemy): Vec | null {
+  if (!currentShot(state.stats).lob) return null;
+  return worldToScreen(state, target.body.pos);
 }
 
 /** 1 回の計測の生の数（seed をまたいで足せる） */
@@ -494,9 +518,11 @@ export interface ProbeRow {
   counts: ProbeCounts;
 }
 
-/** 武器種 × 敵 × 深度の 1 行（seed をまたいだ合計） */
+/** 武器種 × 敵 × 深度の 1 行（seed をまたいだ合計）。銃・投擲物は器ごとに 1 行 */
 export interface WeaponProbeRow {
   moveset: MovesetKey;
+  /** 器（右手のベースの key）。近接の武器種は null（器で弾が変わらない） */
+  base: string | null;
   enemy: string;
   depth: number;
   counts: ProbeCounts;
@@ -542,15 +568,27 @@ export function runProbe(cfg: ProbeConfig): ProbeResult {
   return { duels, groups, weapons: runWeaponProbe(cfg), power: measureGearPower(cfg.depths, cfg.powerSeeds) };
 }
 
-/** 武器種ごとに 1 対 1 を測る。装備は素の能力のままなので、差は武器種の型（と重さ）だけから出る */
+/**
+ * 武器種ごとに測る器。銃・投擲物は器ごとに弾の性質が違う（弾倉の容量・溜め・三点・刺さり・弧）ので全部の器を、
+ * 近接は器で変わらないので 1 つ（null）だけ。docs/ideas/gun-bases-review.md 0-3（P10）
+ */
+export function probeBasesOf(moveset: MovesetKey): (string | null)[] {
+  const bases = rangedBasesOf(moveset);
+  return bases.length === 0 ? [null] : bases.map((b) => b.key);
+}
+
+/** 武器種（銃・投擲物は器）ごとに 1 対 1 を測る。装備は素の能力のままなので、差は武器種の型（と重さ・器の弾）だけから出る */
 export function runWeaponProbe(cfg: ProbeConfig): WeaponProbeRow[] {
   const setup = cfg.weaponProbe;
   const rows: WeaponProbeRow[] = [];
   for (const moveset of cfg.weapons) {
-    for (const enemy of setup.enemies) {
-      for (const depth of setup.depths) {
-        const counts = sumOverSeeds(setup.seeds, (seed) => runDuel(depth, enemy, setup.bot, setup.seconds, seed, { moveset }));
-        rows.push({ moveset, enemy, depth, counts });
+    for (const base of probeBasesOf(moveset)) {
+      const gear: ProbeMovesetGear = base === null ? { moveset } : { moveset, base };
+      for (const enemy of setup.enemies) {
+        for (const depth of setup.depths) {
+          const counts = sumOverSeeds(setup.seeds, (seed) => runDuel(depth, enemy, setup.bot, setup.seconds, seed, gear));
+          rows.push({ moveset, base, enemy, depth, counts });
+        }
       }
     }
   }
@@ -798,7 +836,8 @@ export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeR
   lines.push("");
   lines.push(
     `装備なし（素の能力）のまま武器種だけ替え、bot「${PROBE_BOT_LABEL[setup.bot]}」で 1 回 ${setup.seconds} 秒 × seed ${setup.seeds.length}（${setup.seeds.join(", ")}）。` +
-      "銃の家系はその武器種の最初のベースの弾を撃つ。bot は左の連撃の連打だけ（銃の家系は押しっぱなしで撃つ。右レーン・溜め・構えは押さない）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。",
+      "銃・投擲物は器（右手のベース）ごとに 1 行（弾倉・溜め・三点・刺さり・弧が器ごとに違うため）。近接は器で弾が変わらないので 1 行。" +
+      "bot は左の連撃の連打だけ（銃の家系は押しっぱなしで撃ち、溜め撃ちは最大段で離し、曲射は敵の位置を指す。リロード・右レーン・構えは押さない。弾倉が尽きたら本体が自動で込める）。型どうしの釣り合いを見る表で、重さの補償を調整する前後で比べる。",
   );
   lines.push("");
   lines.push(
@@ -807,7 +846,7 @@ export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeR
   lines.push("- 撃破 0 のとき撃破秒は「-」（60 秒で 1 体も倒せない）");
   lines.push("");
   const extraHeaders = WEAPON_EXTRA_COLUMNS.map((c) => c.header);
-  const headers = ["武器種", "敵", "深度", "撃破秒", "撃破秒の比", "被弾/60秒", "被弾の比", ...extraHeaders];
+  const headers = ["武器種", "器", "敵", "深度", "撃破秒", "撃破秒の比", "被弾/60秒", "被弾の比", ...extraHeaders];
   lines.push(mdRow(headers));
   lines.push(mdRow(new Array<string>(headers.length).fill("---")));
   for (const r of rows) {
@@ -816,6 +855,7 @@ export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeR
     lines.push(
       mdRow([
         r.moveset,
+        r.base ?? "-",
         r.enemy,
         String(r.depth),
         fixed(m.secondsPerKill, 2),
