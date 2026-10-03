@@ -79,6 +79,7 @@ const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
   settings: "設定",
   restart: "やり直す",
   tips: "Tips ノート",
+  manual: "武器指南書",
   title: "拠点へ",
 };
 
@@ -216,6 +217,7 @@ const TITLE_ITEM_LABEL: Readonly<Record<TitleMainItem | TitleRecordItem, string>
   quests: "依頼",
   achievements: "実績",
   tips: "Tips ノート",
+  manual: "武器指南書",
   back: "戻る",
 };
 
@@ -226,13 +228,14 @@ const TITLE_ITEM_HOTKEY: Readonly<Partial<Record<TitleRecordItem, string>>> = {
   quests: "Q",
   achievements: "A",
   tips: "T",
+  manual: "M",
   back: "Esc",
 };
 
 const TITLE_MAIN_DESC: Readonly<Record<TitleMainItem, (dailySeed: string) => string>> = {
   hub: () => "装備を整えて、井戸から出立",
   daily: (seed) => `今日のシード ${seed}（誰でも同じ地図）`,
-  records: () => "探索履歴・図鑑・依頼・実績・Tips ノート",
+  records: () => "探索履歴・図鑑・依頼・実績・Tips ノート・武器指南書",
   settings: () => "音・画面揺れ・キー・パッド",
 };
 

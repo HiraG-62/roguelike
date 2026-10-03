@@ -10,7 +10,7 @@ import { MOVESETS, MOVESET_KEYS, type MovesetKey, isGun, meleeChargeOf } from ".
 
 /** 型の既定の重さから外れる武器種（個性として今の重さを残す。docs/ideas/weapon-forms-impl.md「決めたこと」6） */
 const WEIGHT_OVERRIDES: Readonly<Partial<Record<MovesetKey, string>>> = {
-  flail: "連接棍は回しの溜めで振り回すので重打の中でも中（重いと回しの間ずっと止まる）",
+  flail: "連接棍は回しの溜めで振り回すので重打の中でも中（重いと回しの間ずっと足が遅い）",
   grenade: "擲弾は曲射を置いて下がる砲なので中（重いと置いた後に逃げられない）",
   trapper: "仕掛けは設置弾を撒いて誘う砲なので中（重いと撒く間に囲まれる）",
 };

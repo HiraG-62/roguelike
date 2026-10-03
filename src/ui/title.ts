@@ -219,7 +219,7 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 // メニューのカーソル移動（ポーズ / 設定 共通）
 // ---------------------------------------------------------------------------
 
-export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "restart", "title"] as const;
+export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "manual", "restart", "title"] as const;
 export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
 
 export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "padBinds", "close"] as const;
@@ -264,8 +264,8 @@ function rowRects(count: number, panelX: number, firstY: number, panelW: number,
 }
 
 export const PAUSE_PANEL_W = 160;
-/** 見出し + 5 項目（Tips ノートの行を足して 96 → 120。行間が 18 まで広がっても収まる） */
-export const PAUSE_PANEL_H = 120;
+/** 見出し + 6 項目（Tips ノートの行を足して 96 → 120、武器指南書の行を足して 138。行間が 18 まで広がっても収まる） */
+export const PAUSE_PANEL_H = 138;
 /** パネル上端から最初の項目のテキスト基準線までの距離 */
 const PAUSE_ITEM_TOP = 36;
 
@@ -496,13 +496,13 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0,
 export const TITLE_MAIN_ITEMS = ["hub", "daily", "records", "settings"] as const;
 export type TitleMainItem = (typeof TITLE_MAIN_ITEMS)[number];
 
-export const TITLE_RECORD_ITEMS = ["history", "codex", "quests", "achievements", "tips", "back"] as const;
+export const TITLE_RECORD_ITEMS = ["history", "codex", "quests", "achievements", "tips", "manual", "back"] as const;
 export type TitleRecordItem = (typeof TITLE_RECORD_ITEMS)[number];
 
 /** 記録の下の階層で、戻る以外の項目（開く先の画面） */
 export type TitleRecordTarget = Exclude<TitleRecordItem, "back">;
-/** ホットキー（C / Q / A / T）で開く項目。H は履歴で、main.ts が別に拾う */
-export type TitleMenuItem = Extract<TitleRecordItem, "codex" | "quests" | "achievements" | "tips">;
+/** ホットキー（C / Q / A / T / M）で開く項目。H は履歴で、main.ts が別に拾う */
+export type TitleMenuItem = Extract<TitleRecordItem, "codex" | "quests" | "achievements" | "tips" | "manual">;
 
 export type TitleMenuLevel = "main" | "records";
 
@@ -576,6 +576,7 @@ export function activateTitleItem(menu: TitleMenuState): TitleAction {
     case "quests":
     case "achievements":
     case "tips":
+    case "manual":
       return { kind: "open", target: item };
     default:
       return { kind: "none" };
@@ -618,12 +619,13 @@ export function titleItemAt(x: number, y: number, level: TitleMenuLevel): number
   return found === -1 ? null : found;
 }
 
-/** ホットキー（C / Q / A / T）で開く項目 */
-export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t">): TitleMenuItem | null {
+/** ホットキー（C / Q / A / T / M）で開く項目 */
+export function titleMenuHotkey(hotkeys: Pick<MenuHotkeys, "c" | "q" | "a" | "t" | "m">): TitleMenuItem | null {
   if (hotkeys.c) return "codex";
   if (hotkeys.q) return "quests";
   if (hotkeys.a) return "achievements";
   if (hotkeys.t) return "tips";
+  if (hotkeys.m) return "manual";
   return null;
 }
 

@@ -7,7 +7,6 @@ import { UNIQUES } from "../loot/named";
 import { ATTR_LABEL, type AttrKey } from "../loot/types";
 import { WEAR_TUNING } from "../skills/tuning2";
 import type { ListEntry, ListTab } from "./listScreen";
-import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
 
 /**
  * Tips ノート: 用語とシステムの説明の置き場。UI（ツールチップ・ヘルプ・ログ・一覧の案内）には説明を書かず、
@@ -15,13 +14,12 @@ import { WEAPON_TIP_KEYS, weaponTipBody } from "./weaponTips";
  * 操作の項目はキー設定どおりの表記にするため、本文を束縛表から組む
  */
 
-export const TIP_CATEGORIES = ["controls", "combat", "weapon", "growth", "relic", "skill", "run", "hub"] as const;
+export const TIP_CATEGORIES = ["controls", "combat", "growth", "relic", "skill", "run", "hub"] as const;
 export type TipCategory = (typeof TIP_CATEGORIES)[number];
 
 export const TIP_CATEGORY_LABEL: Readonly<Record<TipCategory, string>> = {
   controls: "操作",
   combat: "戦い",
-  weapon: "武器種",
   growth: "育成",
   relic: "遺物",
   skill: "スキル",
@@ -76,8 +74,8 @@ function weightBody(): string {
   const heavy = WEAPON.weightClass.heavy;
   const guard = heavy.finisherGuardBreak ? "、終撃が堅守を崩す" : "";
   return (
-    "武器種ごとの軽・中・重。振りの出だしはどの重さもダッシュで切れない。軽は攻撃中も動け、当たっている最中でもダッシュで切れる。中は攻撃中の足が遅く、終撃で足を止め、当たっている間はダッシュで切れない。" +
-    `重は振る間止まり、硬直の前半もダッシュで切れないが、威力 ×${heavy.damageMul}・怯み値 ×${heavy.poiseMul}で、終撃が大きく押し返す${guard}。`
+    "武器種ごとの軽・中・重。振りの出だしはどの重さもダッシュで切れない。軽は攻撃中も動け、当たっている最中でもダッシュで切れる。中は攻撃中の足が遅く、終撃でさらに遅くなり、当たっている間はダッシュで切れない。" +
+    `重は振る間の足がとても遅く、硬直の前半もダッシュで切れないが、威力 ×${heavy.damageMul}・怯み値 ×${heavy.poiseMul}で、終撃が大きく押し返す${guard}。`
   );
 }
 
@@ -117,6 +115,12 @@ const CONTROL_TIPS: readonly TipDef[] = [
   },
   { key: "dropInfo", term: "アイテム情報", category: "controls", body: (b) => `${k(b, "toggleDropInfo")} で床のアイテムの性能表示を切り替える。` },
   { key: "restart", term: "やり直す", category: "controls", body: (b) => `${k(b, "restart")} で新しいシードの探索をやり直す。` },
+  {
+    key: "weaponManual",
+    term: "武器指南書",
+    category: "controls",
+    body: "タイトルの記録とポーズから開く。武器種ごとの特色・型と戦意・技の一覧（連撃・溜め攻撃・コンボ派生・ダッシュ攻撃・戦意の放出・奥義）を載せる。技を選ぶと横の窓で、その技の入力どおりに木人へ打ち込む実演が流れ、入力の列の今の手が光る。",
+  },
   { key: "keybinds", term: "キー設定", category: "controls", body: "設定 → キー設定で、アクションごとに主 / 副 / 予備の 3 つまで割り当てられる。画面の案内の表記もこれに合わせて変わる。" },
   { key: "hitstopDaily", term: "ヒットストップ", category: "controls", body: "設定のヒットストップの強さは、今日の挑戦では既定値で固定される（記録を競うため）。" },
   { key: "padBinds", term: "パッド設定", category: "controls", body: "設定 → パッド設定で、ゲームパッドのボタンを割り当て直せる。ボタンを押さえたまま別のボタンを押すと「LB+A」のような組み合わせになる。左スティック・十字キーの移動、A の決定、B の戻る、Start のポーズは固定。" },
@@ -245,7 +249,7 @@ const GROWTH_TIPS: readonly TipDef[] = [
     category: "growth",
     body: "誓約・共鳴・芯・会心・コンボなどが掛ける与ダメージ。増とは別に、出所ごとに掛け合わさる（×1.5 と ×1.5 なら 2.25 倍）。同じ出所は 2 つ持っても 1 回だけ。",
   },
-  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。" },
+  { key: "job", term: "ジョブ", category: "growth", body: "起点とは別に選ぶ戦い方（流儀）。ステータスの偏り・ダッシュの形・気力の源・固有のルール・初期スキル石を持つ。最初は見習いだけで、依頼の報酬で増える。" },
   { key: "dashForm", term: "ダッシュの形", category: "growth", body: "ジョブごとのダッシュ。詰め足は振りの途中でも出せて連撃が続き、退き足は後ろへ跳んで足元に罠を残し、不退はその場で構えて受け止める。" },
   { key: "manaSource", term: "気力の源", category: "growth", body: "ジョブごとに気力が多く湧く出来事。剣士は応手と終撃、狩人は遠い命中、術士はスキルの命中など。通常攻撃の命中でも少しは湧く。" },
   { key: "starterWeapon", term: "初期武器", category: "growth", body: "ジョブの初期の武器種の素の器。同じベースを持っていなければ、出撃のときに渡される。遺物の来歴では、同じ型の武器での撃破も数える。" },
@@ -428,14 +432,14 @@ const RUN_TIPS: readonly TipDef[] = [
 ];
 
 const HUB_TIPS: readonly TipDef[] = [
-  { key: "hub", term: "拠点", category: "hub", body: (b) => `探索の合間に戻る場所。台に近づいて ${k(b, "interact")} で開き、${k(b, "confirm")} の長押しで出撃する。探索を重ねると設備が増える。` },
+  { key: "hub", term: "拠点", category: "hub", body: (b) => `探索の合間に戻る場所。台に近づいて ${k(b, "interact")} で開く。石段に踏み込むと支度を選んで出撃し、${k(b, "confirm")} の長押しなら前回の支度のまま出撃する。探索を重ねると設備が増える。` },
   {
     key: "anvilStance",
     term: "金床の構え",
     category: "hub",
     body: "拠点の鍛冶屋で開く装束。部位を選ぶと装備中の遺物とその部位の倉庫が並び、そこから鍛冶の操作を選ぶ。下の壺の水位が残響の量。砕くのは長押しで、倉庫の遺物だけ。",
   },
-  { key: "origin", term: "起点", category: "hub", body: "出撃の前に選ぶ出発の条件。依頼の報酬で増える。" },
+  { key: "origin", term: "起点", category: "hub", body: "出撃の前に選ぶ出発の条件。最初は放浪者だけで、依頼の報酬で増える。" },
   { key: "runMod", term: "縛り", category: "hub", body: "起点の画面で積む難しさ。点の合計が位階になる。" },
   { key: "quest", term: "依頼", category: "hub", body: "出撃の前に 3 択から 1 つ受けるお題。達成すると次の探索から選べるものが増える。未達成なら次へ引き継ぐ。" },
   { key: "codex", term: "図鑑", category: "hub", body: "見た・起きたものの記録。？は未発見。依頼の報酬「図鑑の頁」で手がかりが増える。" },
@@ -458,18 +462,7 @@ const HUB_TIPS: readonly TipDef[] = [
   { key: "bossHall", term: "御堂", category: "hub", body: "探索で倒した章ボスと最深の主に、今の装備の写しで挑み直せる。祝福は無い。拾った物・探索履歴・図鑑には残らず、封鎖してからの挑戦の数と、撃破の最速・最少の被弾だけが記録される。" },
 ];
 
-/**
- * 武器種タブ: 全武器種（素手も含む「拳」）を 1 項目ずつ。手書きはしない。
- * 本文は data/weapons.ts の武器の定義（moveset の段・派生・右の段・奥義の名前）から weaponTipBody が組み立てる
- */
-const WEAPON_TIPS: readonly TipDef[] = WEAPON_TIP_KEYS.map((key) => ({
-  key: `weapon_${key}`,
-  term: MOVESETS[key].name,
-  category: "weapon",
-  body: (b: Keybinds | undefined) => weaponTipBody(key, b),
-}));
-
-const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...WEAPON_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
+const TIP_DEFS: readonly TipDef[] = [...CONTROL_TIPS, ...COMBAT_TIPS, ...GROWTH_TIPS, ...RELIC_TIPS, ...SKILL_TIPS, ...RUN_TIPS, ...HUB_TIPS];
 
 /** 全項目。binds を省くと現在のキー設定で操作の本文を組む */
 export function tipEntries(binds?: Keybinds): TipEntry[] {

@@ -212,7 +212,8 @@ describe("依頼: ラン中の数え上げ", () => {
 describe("依頼: ラン終了時の判定と報酬", () => {
   it("達成すると保存され、起点・頁・遺物・称号が解放される", () => {
     const save = createQuestSave();
-    expect(isOriginUnlocked(save, "wanderer") && isOriginUnlocked(save, "swordPilgrim") && isOriginUnlocked(save, "unarmed"), "既定の 3 起点は最初から").toBe(true);
+    expect(isOriginUnlocked(save, "wanderer"), "放浪者は最初から").toBe(true);
+    expect([...lockedOrigins(save)], "放浪者以外はすべて未解放").toEqual(ORIGIN_KEYS.filter((o) => o !== "wanderer"));
     expect(lockedOrigins(save).has("chanter"), "詠み手は未解放").toBe(true);
     const state = arena();
     state.questRun = createQuestRun("alchemist");

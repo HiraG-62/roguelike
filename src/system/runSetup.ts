@@ -52,6 +52,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
     name: "剣の巡礼者",
     desc: "誓約「近間の誓い」を立て、近接の祝福を 1 つ持って出発する。",
     keystones: ["ks_bladeOath"],
+    unlockedBy: "deepDiver",
   },
   cursedOne: {
     name: "呪われた者",
@@ -63,6 +64,7 @@ export const ORIGINS: Readonly<Record<OriginKey, OriginDef>> = {
     name: "素手",
     desc: `地下 ${ORIGIN.unarmedUnsealDepth} 階に着くまで装備が封印される。代わりに銭を ${ORIGIN.unarmedCoins} 得る。`,
     keystones: [],
+    unlockedBy: "oathless",
   },
   chanter: {
     name: "詠み手",
