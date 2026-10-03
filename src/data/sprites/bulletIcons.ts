@@ -791,3 +791,43 @@ export const BULLET_ICON_SPRITES: Record<string, SpriteFrames> = {
 
 /** 弾のアイコンのキー（テストと密度の登録が使う） */
 export const BULLET_ICON_KEYS: readonly string[] = Object.keys(BULLET_ICON_SPRITES);
+
+/**
+ * 武器掛けの器のカードの和紙の札（48x28・密度 2）。描画側（render/rackUi.ts）がこの上に器の弾の飛ぶ絵（エフェクトのスプライト）を重ねる。
+ * 耳の欠け・角の破れ・漉きむら（*）を持つ生成りの紙で、墨は載せない
+ */
+const RACK_PAPER: Frame = [
+  "................................................",
+  "....EEE$.........EEEEEEEEEEEEEEEEE$...EEEEEEE$..",
+  "...EDDDDEEEEEEEEEDDDDDDDDDDDDDDDDDDEEED*DDDD&$..",
+  "..EDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&$.",
+  ".EDDDDDDDDD*DDDD****DDDDD*DDDDDDDDDDDDDDDDDDD&$.",
+  ".EDDDDDDDDDD*DDDDDDDD*DDD*DDDD*D*DDD*D**DDDDD&$.",
+  ".EDDDDDDDDD*DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&D&$.",
+  ".EDD***DDD*DDDDDDDDD****DDDDDDDDDDDDDDDDDDDD*&$.",
+  ".E*DDD*DDD*DDDDD****DDDDDDDDDDD*DDDDDDDD****D&$.",
+  ".EDD*DDDDDDDDDDD****DDD********DDDDDD*DDDD*DD&$.",
+  ".ED*DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD*DDDDDDDDD&$.",
+  ".EDDDDD*DDDDDDDDDDDDD*D*DDD*DDDDDDDDDDDDDDDDD&$.",
+  ".EDDDDDDDDDDDDDDDDDDDDDDDDDD*DDDDDDDDDDDDDDDD&$.",
+  ".EDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&$.",
+  ".ED*DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD*&$.",
+  ".$DDDDDDDDDDDDDDDDD*D*DDDD*DDDDDDDDDDDDDDDDDD&$.",
+  "..EDDDDDDDD&DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&$.",
+  "..EDDDDDD&DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&$.",
+  "..EDDDDDDDDDDDDDDD*DDDDDDDDD*DDDDDDDDDDDDDDD&$..",
+  ".EDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD*DDDDDDDD&$..",
+  ".EDDDDDDDDDDDDDDDDD*DDDD*DDDDD*DDDDDDDDDDDDD&$..",
+  ".EDDDDD&DDDDDDDDDDDD*****D*D****D*DDDDDD*DD*&$..",
+  ".EDDDDDDDDDDDDDDDDDDDDDD*DDDD*DDDDDDDDDDDDDD&$..",
+  ".EDDDDDDD*DDDDDDDDDDDDD&DDDD****DDDDD*DDDDDD&$..",
+  ".E&DDDDDDDDDDDDDDDDDD&&&DDD&&&DD****&&&DD*&&$...",
+  ".$$&&&&&&&&&&&&&&&&&&$$$&&&$$$&&&&&&$$$&&&$$....",
+  "...$$$$$$$$$$$$$$$$$$...$$$...$$$$$$...$$$......",
+  "................................................",
+];
+
+/** 器のカードの札（BULLET_ICON_SPRITES とは別。弾のアイコンの網羅の検査に入れない） */
+export const RACK_PAPER_SPRITES: Record<string, SpriteFrames> = {
+  "rack.paper": [RACK_PAPER],
+};

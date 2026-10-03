@@ -532,6 +532,7 @@ describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
     ...STILL_PLAIN.map(([key]) => key),
     // 銃の器の弾のアイコン（武器掛けの器のカード。描く側が論理寸法で置く）
     ...BULLET_ICON_KEYS,
+    "rack.paper",
   ]);
 
   it("経済の絵はすべて密度 2 で登録されている", () => {

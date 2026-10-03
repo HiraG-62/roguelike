@@ -36,6 +36,8 @@ export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {
   deepLord: 2,
   gatePillar: 2,
   mirrorPane: 2,
+  // 武器掛けの器のカードの和紙の札（sprites/bulletIcons.ts。上に弾の飛ぶ絵を重ねる）
+  "rack.paper": 2,
   // 銃の器の弾のアイコン（sprites/bulletIcons.ts。48x28 = 論理 24x14。武器掛けの器のカード）
   "bulletIcon.matchlock": 2,
   "bulletIcon.crossbow": 2,
