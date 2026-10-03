@@ -6,7 +6,10 @@ import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { FX_RAMP_KEYS, cellOf, fitScale, haloAlpha, lifeFrame, loopFrame, pickDir, rampColors, rampGlow, rampHalo, snapArt, swingFrame } from "./fxSprites";
 import { ART_FX_KEY, BULLET_FX, MOVESET_FX, SKILL_FX, type SkillFx, ULTIMATE_FX, ULT_ATLAS_SUFFIX, mirrorFlip, motionKey, rampOfElement, skillAtlas, swingMotionKeys } from "./fxMotions";
 import { LEGACY_SKILL_KEYS, SKILL_KEYS } from "../skills/types";
+import { COMMON_ART_KEYS } from "../skills/arts/keys";
+import { ART_ACT_KINDS } from "../skills/arts/types";
 import { ultPiece } from "./fxUltimate";
+import { actPieceOf } from "./fxSkill";
 import { BULLETS } from "../loot/bullets";
 import { BASES, baseFamily } from "../loot/bases";
 import { movesetCasts } from "../data/weapons";
@@ -359,9 +362,33 @@ describe("fxMotions: スキル石の絵の表", () => {
 });
 
 describe("fxMotions: 全スキル石の網羅", () => {
-  it("どのスキル石も専用の絵を持つ（技は対象外。技は行為の輪・線・弾で描く）", () => {
-    const missing = LEGACY_SKILL_KEYS.filter((key) => !SKILL_FX[key]);
+  it("どのスキル石も専用の絵を持つ（手書きと技の両方）", () => {
+    const missing = [...LEGACY_SKILL_KEYS, ...COMMON_ART_KEYS].filter((key) => !SKILL_FX[key]);
     expect(missing).toEqual([]);
+  });
+
+  it("汎用の技の絵はどの行為の種類も描け、弾の絵を持つ（武器の型で行為の種類が変わっても絵が出る）", () => {
+    const generic = SKILL_FX[ART_FX_KEY];
+    for (const kind of ART_ACT_KINDS) expect(generic?.acts?.[kind], `@art acts.${kind}`).toBeDefined();
+    expect(generic?.fly, "@art fly").toBeDefined();
+  });
+
+  it("技の行為の絵は 技の細分 → 技の種類 → 汎用の細分 → 汎用の種類 の順に引く", () => {
+    const generic = SKILL_FX[ART_FX_KEY];
+    // 旋風斬りは輪だけを持つ: 輪は自分の絵、扇は汎用の絵
+    expect(actPieceOf("commonWhirl", "ring")).toBe(SKILL_FX.commonWhirl?.acts?.ring);
+    expect(actPieceOf("commonWhirl", "arcWide")).toBe(generic?.acts?.arcWide ?? generic?.acts?.arc);
+    // 手書きのスキルは汎用の絵に落ちない
+    expect(actPieceOf("parry", "ring")).toBeUndefined();
+  });
+
+  it("技の表の acts は行為の種類（と細分）の名前だけを持つ", () => {
+    const kinds: readonly string[] = ART_ACT_KINDS;
+    for (const key of [...COMMON_ART_KEYS, ART_FX_KEY]) {
+      for (const variant of Object.keys(SKILL_FX[key]?.acts ?? {})) {
+        expect(kinds, `${key} acts.${variant}`).toContain(/^[a-z]+/.exec(variant)?.[0] ?? variant);
+      }
+    }
   });
 });
 

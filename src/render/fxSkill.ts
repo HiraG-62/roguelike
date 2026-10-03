@@ -10,7 +10,7 @@ import type { FxSheetKey } from "../data/fxSheets.gen";
 import { castElement } from "../skills/hit";
 import { SKILL, skillAttack } from "../skills/data";
 import { fieldRadius, mineRadius, wellRadius } from "../skills/placed";
-import { graveRadius, kegRadius, springRadius } from "../skills/summons";
+import { graveRadius, kegRadius, springRadius, turretAim } from "../skills/summons";
 import type { ActiveCast, CastParams, SkillKey } from "../skills/types";
 import { hookRange } from "../system/skills";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, sheetDef } from "./fxSprites";
@@ -24,6 +24,8 @@ interface Placed {
   params: CastParams;
   /** 不透明度（起動前の地雷は薄く。無ければ 1） */
   alpha?: number;
+  /** 向き（ラジアン。砲台の砲身が狙う向き。無ければ 0） */
+  angle?: number;
 }
 
 /** 起動前の地雷の不透明度（起動したら濃くなるのが「踏むと炸裂する」の合図） */
@@ -78,7 +80,7 @@ function variantChain(variant: string): string[] {
 }
 
 /** 行為の出来事の絵: 技の表 → 汎用の技の表の順に、細分 → 種類で探す（配色はその技の表で決める） */
-function actPieceOf(key: string, variant: string): SkillPiece | undefined {
+export function actPieceOf(key: string, variant: string): SkillPiece | undefined {
   const chain = variantChain(variant);
   for (const table of [SKILL_FX[key], isArtFxKey(key) ? SKILL_FX[ART_FX_KEY] : undefined]) {
     for (const v of chain) {
@@ -106,7 +108,8 @@ function placedOf(state: GameState): Placed[] {
   for (const m of rs.mines) add(m.pos, m.params, mineRadius(m.params), m.arm > 0 ? UNARMED_ALPHA : 1);
   for (const k of rs.kegs) add(k.pos, k.params, kegRadius(k.params));
   for (const g of rs.graves) add(g.pos, g.params, graveRadius(g.params));
-  for (const t of rs.turrets) add(t.pos, t.params, 0);
+  const aim = rs.turrets.length > 0 ? turretAim(state) : null;
+  for (const t of rs.turrets) out.push({ key: t.params.skillKey, pos: t.pos, size: 0, params: t.params, angle: aim ? Math.atan2(aim.y - t.pos.y, aim.x - t.pos.x) : 0 });
   for (const s of rs.springs) add(s.pos, s.params, springRadius(s.params));
   for (const s of rs.stakes) add(s.pos, s.params, 0);
   for (const z of rs.mires ?? []) add(z.pos, z.params, SKILL.mire.radius * z.params.areaMul);
@@ -229,7 +232,7 @@ function drawPlaced(ctx: CanvasRenderingContext2D, state: GameState, bank: FxSpr
     if (!fx || !loop || !sheet || !bank.has(sheet)) continue;
     const phase = ((it.pos.x * 7 + it.pos.y * 13) % 97) / 97;
     const frame = loopFrame(sheetDef(sheet).frames, state.time + phase * loop.period, loop.period);
-    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, 0, { ramp: rampOf(fx, it.key, paramsElement(it.params)), scale: scaleOf(it.size, loop.base), alpha: it.alpha });
+    bank.draw(ctx, sheet, frame, it.pos.x, it.pos.y, it.angle ?? 0, { ramp: rampOf(fx, it.key, paramsElement(it.params)), scale: scaleOf(it.size, loop.base), alpha: it.alpha });
   }
 }
 

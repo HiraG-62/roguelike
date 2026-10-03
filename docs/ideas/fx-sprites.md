@@ -180,20 +180,28 @@
 - 奥義が出した輪・線・粒には印が付き（`withUltimateFx`）、絵が読めていれば手続きの描画を省く。奥義名の浮き文字は残す
 - 配色は奥義の素性の属性、無ければ表の `ramp`（既定は光）
 
-## 10. スキル石（2026-09-28）
+## 10. スキル石と技（2026-09-28。2026-10-03 に墨で作り直し）
 
-絵は **スキル名と説明から連想できるもの** にする（ユーザーの指示）。旋風斬りは体の周りを回る刃の渦と巻く風、撃ち抜きは照準で光を溜めて壁まで貫く螺旋の光条、氷結地帯は霜の結晶の網目が張った凍った床、突進斬りは踏み込みの衝撃と斬り抜けの一閃。
+絵は **スキル名と説明から連想できるもの** にする（ユーザーの指示）。2026-10-03 にゲームの主題が墨に決まったので、通常攻撃（3.5・3.6）に倣って **墨の筆で書いた絵** に作り直した（ユーザーが見本 4 本を承認: 旋風斬り = 体を巡る円相、撃ち抜き = 一文字と止めの飛沫、突進斬り = 飛白の通り道と払い、氷結地帯 = 一滴の墨が滲み広がる床と氷の割れ目の筆）。
 
-- アトラス（`scripts/fx/sheets/skill<群>.mjs`）: 見本 4 本は形ごと（`skillArea` 旋風斬り・`skillShot` 撃ち抜き・`skillPlaced` 氷結地帯・`skillMove` 突進斬り）、残り 72 本は処理のファイルの群ごとに並列で制作（2026-09-28）: `skillBase`（基本 10 本）・`skillExtraA`（拡張の前半 16 本）・`skillExtraB`（拡張の後半と召喚・設置 17 本）・`skillWave2`（第 2 弾 21 本）・`skillForm`（変身 8 本）。実行時は装備中の石のアトラスだけを読む（`renderer.ts` の `focus` と `equippedSkillKeys`）。全スキル石が絵を持つことは `render/fxSprites.test.ts` が固定する（技は対象外）
-- 表は `fx.skills`（スキルの key → `{ ramp, cast, act, end, active, placed }`。`render/fxMotions.ts` の `SkillFx`）
-  - 出来事（`EffectsState.skills`。`system/effects.ts` の `addSkillFx`）: `cast` = 発動・設置した瞬間、`act` = 1 回の行為（撃ち抜きのビーム 1 本）、`end` = 終わり（突進の止まった所・場が消える）。`pos` / `to` / `angle` / `size`（半径）/ `element`（刻印符で差し替わる属性 → 配色）を持つ
-  - 1 つの絵は奥義の絵と同じ `{ sheet, life, base, pivot, ground? }` に、`beam`（`pos` → `to` に `step` px ごとに並べる帯。区間のシートは向き 0 だけを描き、実行時に実際の角度へ回して並べる。15° 刻みの向きに丸めると斜めで階段状に折れるため。`FxSpriteBank.drawStrip`）と `tip`（`to` に置く着弾）を足せる
-  - `active`: 発動中（`state.skills.active` の本動作）。進み具合でフレームを流す。大きさは `render/fxSkill.ts` の `ACTIVE_SIZE`
-  - `placed`: 置いてある間（場・設置物）。`period` 秒で繰り返す。置いてある物の一覧は `fxSkill.ts` の `placedOf`（スキルを足すときにその設置物を足す）
-- 絵が読めたスキルは、手続きの描画を省く: スキルの処理が出す輪・線・粒を `withSkillFx` で狭く囲んで印を付け（命中・撃破の粒まで消さないよう、演出の呼び出しだけを囲む）、`skillHud.ts` の発動中・場の描画はスキルの key で飛ばす（撃ち抜きの照準線は狙いの表示なので残す）
-- 反響の残像（旋風斬りの残像など）は発動中の絵を持たないので、手続きの輪のまま
-- 置いてある物・飛んでいる物・纏い（`placed` / `fly` / `aura`）は、スキルのコードを触らずに表に書くだけで描ける（`fxSkill.ts` の `placedOf` / `movingOf` / `aurasOf`。どのスキルの物かは発動の値の `skillKey`）。弾は半径で拡縮し（`fly.base`）、投げた手榴弾は放物線の高さで描いて影は床に置く
-- 配色は表の `ramp`（スキルに合わせて選んだ色）を基本に、刻印符で属性が素性から差し替わったときだけその属性の配色にする（血抜きの血は闇の素性でも赤）。五彩の礫は礫ごとの共鳴の色
-- 遊びの情報は絵があっても残す: 撃ち抜き・墜星・手繰り糸の狙いと落下点（`skillHud.ts` の `KEEP_TELEGRAPH`）、雷の落ちるまでの残り（縮む輪）、投げた手榴弾の落ちる所の輪、結界杭 3 本の内側の塗り。起動前の地雷は薄く描く
-- テスト: `render/fxSprites.test.ts`（表のスキルが実在し、絵が `skill<形>` のアトラスに載り、行が壊れていない）、`system/effects.test.ts`（出来事の寿命・階の切り替え・印）
+### 10.1 墨の描き方（`scripts/fx/brush.mjs`）
 
+- 部品: `brushStroke`（一筆。入りで押して太く、払いで尖る筆圧・書き進み `grow`・掠れ `dry` / `fade`・平らな端 `flat`）、`enso`（円相）、`arcPoints`、`splatter`（墨の飛沫）、`inkBlot`（墨だまり）、`inkWash`（滲みの床。縁は墨だまり、内側は間引いたむら）、`lv(段)`（段 → `paint` の明るさ）
+- 段の使い方: 筆の本体は段 5、縁は段 4、芯の細い筋だけ段 7。墨の配色では段 1〜5 が黒（無属性は段 1〜2 が淡墨）で、属性つきは段 6〜7 だけが差し色になるので、面を段 6〜7 で塗ると色の板になって墨に見えない。差し色は芯・粒・間引いたむらに限る
+- 光る・きらめく・白い芯の表現は使わない。敵の予告（濃墨 + 朱の点 + 胡粉の白）と紛れないよう朱と白も使わない（プレイヤーの絵はコマが進むことで分かれる）
+- beam の 1 区間のシートは `ink: false`（墨の筆致の仕上げを掛けると区間の継ぎ目に縁が出て数珠つなぎに見える）
+- 語彙: 斬る = 一筆、周りの範囲 = 円相、帯 = 一文字 + 止め、移動 = 飛白、弾 = 墨の雫と筆の尾、場 = 滲み、自己強化 = 体を巡る筆の渦・立ち昇る煙、爆発 = 墨だまりが割れて飛沫、印 = 墨の角印・丸印、召喚物・設置物 = 墨の線画
+
+### 10.2 アトラスと表
+
+- 手書きスキル 45 本（`skillBase` 基本・`skillExtraA` / `skillExtraB` 拡張・`skillWave2` 第 2 弾・`skillForm` 変身・`skillPlaced` 氷結地帯）と技 60 種（`skillArt` 見本 3 本と汎用の技の絵 `@art`・`skillArtA` / `B` / `C` / `D` に 14〜15 種ずつ）。実行時は装備中の石のアトラスだけを読み、技は汎用の絵のアトラスも読む（`fxMotions.ts` の `skillAtlases`）。全スキル石が絵を持つことは `render/fxSprites.test.ts` が固定する
+- 表は `fx.skills`（スキルの key → `{ ramp, cast, act, end, active, placed, fly, aura, acts }`。`render/fxMotions.ts` の `SkillFx`）
+  - 出来事（`EffectsState.skills`。`system/effects.ts` の `addSkillFx`）: `cast` = 発動・設置した瞬間、`act` = 1 回の行為、`end` = 終わり。`pos` / `to` / `angle` / `size`（半径など）/ `element`（刻印符で差し替わる属性 → 配色）/ `variant`（技の行為の絵の選び分け）を持つ
+  - 1 つの絵は奥義の絵と同じ `{ sheet, life, base, pivot, ground? }` に、`beam`（`pos` → `to` に `step` px ごとに並べる帯。区間は向き 0 だけを描き、実行時に実際の角度へ回して並べる。`FxSpriteBank.drawStrip`）と `tip`（`to` に置く絵）を足せる
+  - `active`: 発動中（`state.skills.active` の本動作）。大きさは `render/fxSkill.ts` の `ACTIVE_SIZE`
+  - `placed` / `fly` / `aura`: 置いてある間・飛んでいる間・纏い。スキルのコードを触らずに表に書くだけで描ける（`fxSkill.ts` の `placedOf` / `movingOf` / `aurasOf`。どのスキルの物かは発動の値の `skillKey`）。砲台は狙う所（`skills/summons.ts` の `turretAim`）へ砲身を向けて描く
+  - `acts`: 技の行為ごとの絵（`acts[variant]`）。技の処理（`skills/arts/engine.ts` の `actFx`）が行為ごとに出来事を積む。variant は `arc`（160° 未満）/ `arcWide`（160〜300°）/ `arcFull`（300° 以上）/ `ring` / `ringTarget`（照準地点）/ `line` / `dash` / `dashBack` / `blink` / `shot` / `chain` / `pull` / `buff` / `detonate`。細分が無ければ種類の絵、技の表に無い種類（武器の型で行為の種類が変わったときなど）は汎用の技の絵（表の key `@art`）で描く。手書きのスキルも `acts` を持てる（狼化の噛みつき `bite`・鉄塊化の重い振り `swing`。`skills/forms.ts` の `noteShapeSwing` が振りの active の瞬間に積む）
+- 絵が読めたスキルは手続きの描画を省く: スキルの処理が出す輪・線・粒を `withSkillFx` で狭く囲んで印を付け（命中・撃破の粒まで消さないよう、演出の呼び出しだけを囲む）、`skillHud.ts` の発動中・場の描画はスキルの key で飛ばす。照準地点に遅れて落ちる技の予兆の輪は遊びの情報なので手続きのまま残す
+- 配色は表の `ramp`（素性の属性に合わせる。無属性は `steel`）。刻印符で属性が素性から差し替わったとき、汎用の技の絵で描くときは、その属性の配色にする（`fxSkill.ts` の `rampOf`）
+- 遊びの情報は絵があっても残す: 雷の残り・結界杭 3 本の内側の塗り。起動前の地雷は薄く描く
+- テスト: `render/fxSprites.test.ts`（表のスキルが実在し、絵が `skill<形>` のアトラスに載り、行が壊れていない・全スキル石の網羅・汎用の技の絵が全行為の種類を持つ）、`system/effects.test.ts`（出来事の寿命・階の切り替え・印）

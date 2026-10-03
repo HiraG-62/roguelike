@@ -703,10 +703,11 @@ function drawDrum(frame, grow = 1) {
   if (grow >= 1) drop(frame, 0, 0, 1.6, 7);
 }
 
-/** 置いてある間: 三脚と砲座。砲座の上の細い煙が揺れる（砲身は撃つ瞬間の絵が狙う向きに出す） */
+/** 置いてある間: 三脚と砲座と、狙う向き（+x。描画が砲台の狙いへ回す）へ向いた砲身。砲座の上の細い煙が揺れる */
 function turretBody(frame, f) {
   drawLegs(frame);
   drawDrum(frame);
+  brushStroke(frame, { pts: [{ x: 5, y: 0 }, { x: 17, y: 0 }], width: 2.4, profile: (u) => 1 - 0.25 * u, dry: 0.1, flat: true, seed: TURRET.seed + 8 });
   const q = f / TURRET.frames;
   const pts = [];
   for (let i = 0; i <= 5; i++) {
@@ -829,7 +830,7 @@ export const ATLAS = {
     sheet("springRise", 1, SPRING.frames, 96, springRise),
     sheet("springBurst", 1, SPRING.frames, size(SPRING.radiusPx, 30), springBurst),
     sheet("springDrink", 1, 6, 64, springDrink),
-    sheet("turretBody", 1, TURRET.frames, 56, turretBody),
+    sheet("turretBody", DIRS, TURRET.frames, 56, turretBody),
     sheet("turretDeploy", 1, 7, 72, turretDeploy),
     sheet("turretFire", DIRS, TURRET.fireFrames, 96, turretFire),
     sheet("turretShell", DIRS, 4, 48, turretShell),
