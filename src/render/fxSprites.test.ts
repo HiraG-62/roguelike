@@ -161,23 +161,15 @@ describe("fxSprites: 生成物と一覧の整合", () => {
  * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に描き切ったので空
  */
 const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
-  // 銃の近接の作り直し（段 4-A）: 短銃の短刀斬り・砲の込め棒の突き（絵は段 7）
-  sidearm: ["r:daggerCut"],
-  cannon: ["r:rammerThrust", "r:rammerThrust2"],
-  // チャクラムを戦輪へ統合（段 5-A）: 右の輪払い 2 つ（近投げ・強化投げは弾の絵）。絵は段 7
-  ringBlades: ["r:ringSweep", "r:ringSweep2"],
+  // クナイ（段 5-A で足した）: 段 7-A で命中と弾の絵のアトラスだけ作った。振りの絵は技の配線が固まってから段 7-B で描く
+  kunai: ["dash", "r:kunaiCut", "r:kunaiReturn", "r:kunaiDrive", "branch:shadowPin", "branch:farThrow"],
 };
 
 /**
  * 定義から消えた段の絵。生成物が残っているだけなので、fx レーンが取り除くまで許す。
- * 連刃の段数の拡張（5b-F）の旧 key は 2026-09-30 に取り除いたので空
+ * 砲の筒殴り・尻叩き、チャクラムの左 4 段と輪断ち・二輪断ちは段 7-A で取り除いたので空
  */
-const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {
-  // 砲の筒殴り・尻叩きは込め棒の突きに替わった（段 4-A）。絵は段 7 で取り除く
-  cannon: ["r:barrelBash", "r:buttSwing"],
-  // チャクラムの左 4 段と右の輪断ち・二輪断ちは戦輪への統合で消えた（段 5-A）。絵は段 7 で取り除く
-  ringBlades: ["l:0", "l:1", "l:2", "l:3", "r:ringCut", "r:twinRingCut"],
-};
+const STALE_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
 
 describe("fxMotions: 武器種のモーションの表", () => {
   it("表の行は壊れていない（無いシート・知らない原点がない）", () => {
@@ -330,9 +322,11 @@ describe("fxMotions: 奥義の絵の表", () => {
 /**
  * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
  * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に描き切った。
- * クナイ・手裏剣は段 5-A で足した（絵は段 7）
+ * 手裏剣は段 5-A で足した（絵は段 7-B）。クナイは段 7-A で命中と弾の絵の表を作った（振りは UNDRAWN_MOTIONS）
  */
-const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["kunai", "shuriken"];
+const UNDRAWN_MOVESETS: readonly MovesetKey[] = ["shuriken"];
+/** 奥義の絵（`<武器種>Ult.mjs`）がまだ無い武器種。クナイ・手裏剣の奥義は技の配線が固まってから段 7-B で描く */
+const UNDRAWN_ULTIMATES: readonly MovesetKey[] = ["kunai", "shuriken"];
 
 describe("fxMotions: スキル石の絵の表", () => {
   const sheetsOf = (fx: SkillFx): FxSheetKey[] => {
@@ -414,7 +408,7 @@ describe("fxMotions: 全武器種・全奥義の網羅", () => {
 
   it("どの奥義も専用の絵を持つ（一撃は発動と行為、持続は発動と纏い）", () => {
     for (const key of MOVESET_KEYS) {
-      if (UNDRAWN_MOVESETS.includes(key)) continue;
+      if (UNDRAWN_ULTIMATES.includes(key)) continue;
       for (const def of ULTIMATES[key]) {
         const fx = ULTIMATE_FX[def.key];
         expect(fx?.cast, `${def.key} の発動`).toBeDefined();

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PinDef } from "../data/weapons";
+import { SPRITES } from "../data/sprites";
+import { spriteDots } from "../data/sprites/dots";
+import { pinSpriteKey } from "../data/sprites/weapons";
+import { PIN_KINDS, type PinDef } from "../data/weapons";
 import { stickPin } from "../system/pins";
 import { arena, placeEnemy } from "../system/testHelpers";
 import { pinMarks } from "./pinsUi";
@@ -20,5 +23,13 @@ describe("刺さった飛び物の描く位置", () => {
     expect(mark.to.x).toBeLessThan(mark.from.x);
     state.time += KUNAI.sec + 1;
     expect(pinMarks(state, e).length, "抜けたら描かない").toBe(0);
+  });
+});
+
+describe("刺さった飛び物の絵", () => {
+  it.each([...PIN_KINDS])("%s は密度 2 の 1 フレームの絵を持つ", (kind) => {
+    const frames = SPRITES[pinSpriteKey(kind)];
+    expect(frames?.length).toBe(1);
+    expect(spriteDots(pinSpriteKey(kind))).toBe(2);
   });
 });

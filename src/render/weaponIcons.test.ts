@@ -8,7 +8,7 @@ const BOX_DOTS_W = ICON_BOX_W * ACTOR_ART_SCALE;
 const BOX_DOTS_H = ICON_BOX_H * ACTOR_ART_SCALE;
 const RECT_STRIDE = 6;
 /** 手に持つ絵がまだ無い武器種（render/actorSprites.test.ts の UNDRAWN_WEAPONS と同じ。カードは旧い絵で代わりに描く） */
-const UNDRAWN: readonly string[] = ["kunai", "shuriken"];
+const UNDRAWN: readonly string[] = [];
 
 describe("武器掛けのアイコン（手に持つ絵からの切り出し）", () => {
   it("全武器種に .held のシートがあり、向きの番号がシートの範囲に入る", () => {

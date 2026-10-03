@@ -38,6 +38,9 @@ export const SPRITE_DOTS: Readonly<Record<string, SpriteDots>> = {
   mirrorPane: 2,
   // 武器掛けの器のカードの和紙の札（sprites/rackPaper.ts。上に弾の飛ぶ絵を重ねる）
   "rack.paper": 2,
+  // 敵に刺さったクナイ・手裏剣（sprites/weapons.ts の PIN_SPRITES。render/pinsUi.ts が回して置く）
+  "pin.kunai": 2,
+  "pin.shuriken": 2,
 };
 
 /** ポーズの接尾辞を外した元のキー */

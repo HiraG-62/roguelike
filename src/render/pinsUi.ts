@@ -1,12 +1,14 @@
 import type { Enemy, GameState } from "../core/state";
 import { type Vec, add, fromAngle, scale } from "../core/vec";
+import { pinSpriteKey } from "../data/sprites/weapons";
 import type { PinKind } from "../data/weapons";
 import { livePins } from "../system/pins";
+import type { SpriteAtlas } from "./sprites";
 
 /**
- * 敵に刺さった飛び物（Enemy.pins。system/pins.ts）を敵の上に小さく描く。state を読むだけ。
- * 刺さった絵がまだ無いので手続きの短い線（クナイ = 柄の点の付いた棒、手裏剣 = 小さな十字）で描く。
- * 飛んできた向き（angle）のまま、敵の体の飛んできた側の縁から外へ突き出す
+ * 敵に刺さった飛び物（Enemy.pins。system/pins.ts）を敵の上に小さく描く。state を読むだけ（rng も使わない）。
+ * 刺さった絵（data/sprites/weapons.ts の pin.kunai / pin.shuriken）を飛んできた向き（angle）へ回し、
+ * 敵の体の飛んできた側の縁から外へ突き出す。絵が読めていない間は手続きの短い線（クナイ = 柄の点の付いた棒、手裏剣 = 小さな十字）
  */
 
 /** 刺さった先の深さ（体の半径に対する割合。中心から飛んできた側へこれだけ戻った所が先端） */
@@ -21,6 +23,10 @@ const SPREAD_SLOTS = 3;
 const PIN_COLOR: Readonly<Record<PinKind, string>> = { kunai: "#c9ced8", shuriken: "#aab3c2" };
 /** クナイの柄の輪の色 */
 const KUNAI_RING_COLOR = "#7a5a3a";
+/** 刺さったクナイの絵の右端（埋まった刃の根元）を、刺さった先からさらに奥へ入れる量（px） */
+const KUNAI_SINK = 1.5;
+/** 手裏剣の絵は尖りを斜めにして、飛んできた向きへ 1 本が刺さって見えるように回す */
+const SHURIKEN_TURN = Math.PI / 4;
 
 /** 描く 1 本（論理座標）。from は刺さった先、to は外へ突き出た端 */
 export interface PinMark {
@@ -41,11 +47,30 @@ export function pinMarks(state: Readonly<GameState>, e: Readonly<Enemy>): PinMar
   });
 }
 
-export function drawPins(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function drawPins(ctx: CanvasRenderingContext2D, state: GameState, atlas: SpriteAtlas): void {
   for (const e of state.enemies) {
     if (e.hp <= 0 || e.hidden || !e.pins) continue;
-    for (const mark of pinMarks(state, e)) drawMark(ctx, mark);
+    for (const mark of pinMarks(state, e)) {
+      if (!drawPinSprite(ctx, atlas, mark)) drawMark(ctx, mark);
+    }
   }
+}
+
+/** 刺さった絵を回して置く。クナイは絵の右端を刺さった先へ、手裏剣は絵の中心を外の端へ合わせる。絵が無ければ false */
+function drawPinSprite(ctx: CanvasRenderingContext2D, atlas: SpriteAtlas, mark: PinMark): boolean {
+  const sprite = atlas[pinSpriteKey(mark.kind)];
+  const img = sprite?.frames[0];
+  if (!sprite || !img) return false;
+  const angle = Math.atan2(mark.from.y - mark.to.y, mark.from.x - mark.to.x);
+  const kunai = mark.kind === "kunai";
+  const at = kunai ? mark.from : mark.to;
+  ctx.save();
+  ctx.translate(at.x, at.y);
+  ctx.rotate(kunai ? angle : angle + SHURIKEN_TURN);
+  const x = kunai ? KUNAI_SINK - sprite.w : -sprite.w / 2;
+  ctx.drawImage(img, x, -sprite.h / 2, sprite.w, sprite.h);
+  ctx.restore();
+  return true;
 }
 
 function drawMark(ctx: CanvasRenderingContext2D, mark: PinMark): void {

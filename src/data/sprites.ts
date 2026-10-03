@@ -149,7 +149,9 @@ export type SpriteFrames = readonly (readonly string[])[];
  *   sprites/beasts.ts: wolf / skeleton / laserEye（同上）、rat / mite / beetle / bat（16x16 歩行・羽ばたき 4）
  *   sprites/player.ts: player（24x24 歩行4。剣は描き込まない）+ player.windup（構え）/ player.strike（振り抜き）
  *   sprites/weapons.ts: weapon.<武器種>（12x12、横 / 斜め / 縦の 3。手に持つ武器 16 種）、
- *     slash.box / slash.arc / slash.arcWide（24・32 四方）/ slash.thrust（24x8）/ slash.ring（32）: 太さ 3 × A / B / 最終段 の 9 フレーム
+ *     slash.box / slash.arc / slash.arcWide（24・32 四方）/ slash.thrust（24x8）/ slash.ring（32）: 太さ 3 × A / B / 最終段 の 9 フレーム、
+ *     thrownWeapon.<形>（投げた武器の 1 フレーム。kunai / shuriken / bigShuriken を含む）、
+ *     pin.kunai（18x8）/ pin.shuriken（10x10）: 敵に刺さった飛び物（密度 2、1 フレーム）
  */
 export const SPRITES: Record<string, SpriteFrames> = {
   heart: [

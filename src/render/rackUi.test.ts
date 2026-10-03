@@ -5,8 +5,8 @@ import { BASES } from "../loot/bases";
 import { baseHasBullet } from "../loot/bullets";
 import { BULLET_FX } from "./fxMotions";
 
-/** 弾の飛ぶ絵がまだ無い器（段 5-A で投擲物の器に弾を持たせた。絵は段 7 で scripts/fx/sheets/<武器種>.mjs の bullets に足す） */
-const UNDRAWN_BULLETS = ["ringBlades", "fangRings", "kunai"] as const;
+/** 弾の飛ぶ絵がまだ無い器（scripts/fx/sheets/<武器種>.mjs の bullets に足したら消す。投擲物の器は段 7-A で描いたので空） */
+const UNDRAWN_BULLETS: readonly string[] = [];
 
 describe("武器掛けの器のカードの絵", () => {
   it("和紙の札は密度 2 の 1 フレーム", () => {

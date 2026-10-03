@@ -531,6 +531,9 @@ describe("SpriteDots（段 1: 密度の下ごしらえ）", () => {
     ...STILL_PLAIN.map(([key]) => key),
     // 武器掛けの器のカードの和紙の札（描く側が論理寸法で置く）
     "rack.paper",
+    // 敵に刺さったクナイ・手裏剣（render/pinsUi.ts が論理寸法で回して置く）
+    "pin.kunai",
+    "pin.shuriken",
   ]);
 
   it("経済の絵はすべて密度 2 で登録されている", () => {

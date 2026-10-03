@@ -1082,31 +1082,49 @@ const THROWN_KNIFE: Frame = [
   "...kkkkkk..",
 ];
 
-/** クナイ（右向き）: 尻の輪・木の握り・菱形の刃（仮。段 7 で描き直す） */
+/**
+ * クナイ（右向き。手に持つ絵 wpnKunai と同じ作り）: 尻の輪の柄頭（穴は輪郭の色）・藍の布巻きの柄・黒鉄の木の葉の刃。
+ * 刃は上の面が明るく、稜線から切っ先へ光が走る
+ */
 const THROWN_KUNAI: Frame = [
-  "kk.........",
-  "k.kkkkkkk..",
-  "kkUY11sssk.",
-  "..kYSSSSSSk",
-  "...kkkkkk..",
+  ".kkk......kkk...",
+  "kSSSkkkkkk#sskk.",
+  "kSkSkBSBSkS#s#sk",
+  "kSSSkkkkkkSSSkk.",
+  ".kkk......kkk...",
 ];
 
-/** 手裏剣: 4 方へ尖る星形、真ん中が抜ける（仮。段 7 で描き直す） */
+/** 手裏剣（手に持つ絵 wpnShuriken と同じ四方の星形）: 4 本の尖りと真ん中の穴（輪郭の色）。左上の面が明るい */
 const THROWN_SHURIKEN: Frame = [
-  "...k...",
-  "..k1k..",
-  "kkk1skk",
-  "k1s.sSk",
-  "kksSskk",
-  "..kSk..",
-  "...k...",
+  "....k....",
+  "...ksk...",
+  "...k#k...",
+  ".kks#Skk.",
+  "ks#SkS#Sk",
+  ".kk#SSkk.",
+  "...kSk...",
+  "...kSk...",
+  "....k....",
 ];
 
-/** 大手裏剣: 手裏剣を 2 倍に引き伸ばしたもの（仮） */
-const THROWN_BIG_SHURIKEN: Frame = THROWN_SHURIKEN.flatMap((row) => {
-  const wide = [...row].map((c) => c + c).join("");
-  return [wide, wide];
-});
+/** 大手裏剣: 手裏剣を大きく描き起こしたもの。尖りを少し傾けて風車の形にし、各尖りの光の側の面を明るくする */
+const THROWN_BIG_SHURIKEN: Frame = [
+  ".......kkk.....",
+  "......kss#k....",
+  "......kssSk....",
+  ".....kssSSk....",
+  ".kkkkkssSSk....",
+  "ksssssssSSkk...",
+  "k##sssskSssskk.",
+  "k###SSk.kss###k",
+  ".kkSSSskSSSS##k",
+  "...kkssSSSSSSSk",
+  "....kssSSkkkkk.",
+  "....kssSSk.....",
+  "....ksSSk......",
+  "....k#SSk......",
+  ".....kkk.......",
+];
 
 /** 分銅（鎖鎌の先の重り）: 上に鎖を通す輪 */
 const THROWN_WEIGHT: Frame = [
@@ -1165,9 +1183,53 @@ export const THROWN_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(
   THROWN_SHAPES.map((shape) => [thrownSpriteKey(shape), [THROWN_FRAMES[shape]]]),
 );
 
+// -----------------------------------------------------------------------------
+// 敵に刺さった飛び物（Enemy.pins。render/pinsUi.ts が飛んできた向きへ回して体の縁に置く）。密度 2（data/sprites/dots.ts）。
+// 右端が体に刺さった側（クナイは刃の根元まで埋まる）で、描画側は右端を刺さった先に合わせる。手裏剣は真ん中が刺さった点
+// -----------------------------------------------------------------------------
+
+/** 刺さった絵の種類（data/weapons.ts の PIN_KINDS と同じ並び） */
+export const PIN_SHAPES = ["kunai", "shuriken"] as const;
+export type PinShape = (typeof PIN_SHAPES)[number];
+
+export function pinSpriteKey(shape: PinShape): string {
+  return `pin.${shape}`;
+}
+
+/** 刺さったクナイ（18x8 = 論理 9x4）: 左に輪の柄頭（穴は輪郭の色）、藍の布巻きの柄、右端は埋まった刃の根元 */
+const PIN_KUNAI: Frame = [
+  "...kkkk.......kkk.",
+  "..k8ss#k.....k8ssk",
+  ".k8s##SSkkkkks###k",
+  ".ks#kkS%k]B]Bs###k",
+  ".k#SkkS%kB%B%#SSSk",
+  ".k#SSS%%kkkkk#SSSk",
+  "..k%%%%k.....kS%%k",
+  "...kkkk.......kkk.",
+];
+
+/** 刺さった手裏剣（10x10 = 論理 5。右と下の 1 列は余白）: 4 本の尖りと真ん中の穴（輪郭の色）。尖りの 1 本は体に埋まって見える向きで描画側が回す */
+const PIN_SHURIKEN: Frame = [
+  "....k.....",
+  "...k8k....",
+  "...ksk....",
+  ".kk8s#kk..",
+  "k8s#k#S%k.",
+  ".kks#Skk..",
+  "...k#k....",
+  "...kSk....",
+  "....k.....",
+  "..........",
+];
+
+const PIN_FRAMES: Readonly<Record<PinShape, Frame>> = { kunai: PIN_KUNAI, shuriken: PIN_SHURIKEN };
+
+export const PIN_SPRITES: Record<string, SpriteFrames> = Object.fromEntries(PIN_SHAPES.map((shape) => [pinSpriteKey(shape), [PIN_FRAMES[shape]]]));
+
 export const WEAPON_SPRITES: Record<string, SpriteFrames> = {
   ...Object.fromEntries(Object.entries(HELD).map(([key, frames]) => [weaponSpriteKey(key as MovesetKey), frames])),
   ...THROWN_SPRITES,
+  ...PIN_SPRITES,
 };
 
 // -----------------------------------------------------------------------------

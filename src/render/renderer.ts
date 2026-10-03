@@ -924,7 +924,7 @@ export class Renderer {
     const town = this.hubView;
     if (town) this.townLayer.drawBack(ctx, state, town);
     this.drawEnemies(state);
-    drawPins(ctx, state);
+    drawPins(ctx, state, this.atlas);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
     drawPlayerAuras(ctx, state);
