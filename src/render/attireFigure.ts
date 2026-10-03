@@ -186,7 +186,7 @@ export function figureReady(state: Readonly<GameState>): boolean {
   return weapon !== undefined && armColors(body) !== undefined && bank.ready(body) && bank.ready(weapon);
 }
 
-function canvasPainter(ctx: CanvasRenderingContext2D, weapon: string, colors: { sleeve: readonly string[]; hand: readonly string[] }): FigurePainter {
+export function canvasPainter(ctx: CanvasRenderingContext2D, weapon: string, colors: { sleeve: readonly string[]; hand: readonly string[] }, sprites: ActorSpriteBank = bank): FigurePainter {
   const cell = (c: ActorCell, x: number, y: number): void => {
     ctx.drawImage(c.img, c.sx, c.sy, c.w, c.h, Math.round(x - c.ox), Math.round(y - c.oy), c.w, c.h);
   };
@@ -201,7 +201,7 @@ function canvasPainter(ctx: CanvasRenderingContext2D, weapon: string, colors: { 
       const key = part.mirror && actorSheet(mirrored) ? mirrored : `${weapon}.held`;
       const sheet = actorSheet(key);
       if (!sheet) return;
-      const c = bank.cell(key, actorDir(part.angle, sheet.dirs), 0);
+      const c = sprites.cell(key, actorDir(part.angle, sheet.dirs), 0);
       if (c) cell(c, part.hand.x, part.hand.y);
     },
     arm: (shoulder, part, dim, withHand) => {
@@ -223,7 +223,7 @@ function canvasPainter(ctx: CanvasRenderingContext2D, weapon: string, colors: { 
       const key = `${weapon}.sheath`;
       const sheet = actorSheet(key);
       if (!sheet) return;
-      const c = bank.cell(key, actorDir(part.angle, sheet.dirs), 0);
+      const c = sprites.cell(key, actorDir(part.angle, sheet.dirs), 0);
       if (c) cell(c, part.mouth.x, part.mouth.y);
     },
   };
