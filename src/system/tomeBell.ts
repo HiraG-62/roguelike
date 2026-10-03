@@ -1,5 +1,6 @@
 import { type GameState, pushSfx } from "../core/state";
 import type { ButtonKey } from "../data/weapons";
+import type { SkillResource } from "../skills/types";
 import { FORM } from "../data/tuning";
 import { tollPlaced } from "../skills/placed";
 import { tollSummons } from "../skills/summons";
@@ -72,6 +73,11 @@ export function formSkillCooldownMul(state: GameState): number {
 /** 無詠唱が立っていれば気力のコストを 0 にする（HUD の表示と実際の支払いを揃えるため resolveSlot で掛ける） */
 export function freeCastCost(state: GameState, cost: number): number {
   return state.skills.freeCast === true ? 0 : cost;
+}
+
+/** この発動が無詠唱で撃つものか（気力のスキルだけが無詠唱を使う。consumeFreeCast の前に読む） */
+export function isFreeCast(state: GameState, resource: SkillResource): boolean {
+  return resource === "mana" && state.skills.freeCast === true;
 }
 
 /** 気力のスキルを撃ったら無詠唱を使い切る */

@@ -234,12 +234,16 @@ export function turretAim(state: GameState): Vec {
   return focusTarget(state)?.body.pos ?? add(p.body.pos, scale(p.facing, SKILL.turret.aimReach));
 }
 
-/** 砲台ごとに自分の向きの先（号令の狙いがあればその敵）を狙って 1 発（射撃に合わせる・鈴の打ち鳴らしの命令） */
-function fireTurrets(state: GameState, turrets: readonly Turret[]): void {
+/**
+ * 砲台ごとに自分の向きの先（号令の狙いがあればその敵）を狙って 1 発（射撃に合わせる・鈴の打ち鳴らしの命令）。
+ * tolled = 打ち鳴らし（戦意の放出）で撃たせた弾。振りが終わった後に当たっても戦意を溜めない
+ */
+function fireTurrets(state: GameState, turrets: readonly Turret[], tolled = false): void {
   const t = SKILL.turret;
   const aim = turretAim(state);
   for (const tur of turrets) {
-    spawnShot(state, tur.pos, sub(aim, tur.pos), tur.params, {
+    const params = tolled ? { ...tur.params, moraleGain: null } : tur.params;
+    spawnShot(state, tur.pos, sub(aim, tur.pos), params, {
       effect: "turret",
       power: skillPower(state, t.damage, tur.params),
       speed: t.speed,
@@ -285,7 +289,7 @@ export function tollSummons(state: GameState, center: Vec, radius: number): numb
   const graves = rs.graves.filter((sword) => near(sword.pos));
   for (const sword of graves) spinGrave(state, sword);
   const turrets = rs.turrets.filter((tur) => near(tur.pos));
-  fireTurrets(state, turrets);
+  fireTurrets(state, turrets, true);
   return blown.size + graves.length + turrets.length;
 }
 

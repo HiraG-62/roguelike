@@ -95,6 +95,11 @@ function settle(state: GameState): void {
   for (let i = 0; i < 120 && state.player.attack.phase !== "none"; i++) run(state, {});
 }
 
+/** 発動 1 回ぶんの params（戦意を溜められる回数を発動ごとに作り直す。castSlot と同じ） */
+function freshCast(params: CastParams): CastParams {
+  return { ...params, moraleGain: { left: 1 } };
+}
+
 function hit(state: GameState, e: Enemy, params: CastParams, minion: boolean): void {
   const dir: Vec = { x: 1, y: 0 };
   skillHit(state, e, params, { base: 1, kind: "ranged", dir, knockback: 0, stagger: false, minion });
@@ -105,8 +110,8 @@ describe("書（無詠唱・再使用）", () => {
     const state = skillArena({ moveset: "book" }, ["mines"]);
     const e = tough(state, 200);
     const params = paramsOf(state);
-    for (let i = 0; i < FORM.tome.releaseMin; i++) hit(state, e, params, false);
-    expect(state.player.morale.value, "スキルの命中の数だけ術").toBeCloseTo(FORM.tome.releaseMin * FORM.tome.gain.skillHit);
+    for (let i = 0; i < FORM.tome.releaseMin; i++) hit(state, e, freshCast(params), false);
+    expect(state.player.morale.value, "スキルの発動の数だけ術").toBeCloseTo(FORM.tome.releaseMin * FORM.tome.gain.skillHit);
 
     const cost = resolveSlot(state, 0)?.cost ?? 0;
     expect(cost, "地雷は気力を使う").toBeGreaterThan(0);
@@ -123,6 +128,38 @@ describe("書（無詠唱・再使用）", () => {
     expect(state.player.mana, "気力は減らない").toBeGreaterThanOrEqual(before - EPS);
     expect(state.skills.freeCast, "1 回で使い切る").toBe(false);
     expect(resolveSlot(state, 0)?.cost, "次からは元の気力").toBeCloseTo(cost);
+  });
+
+  it("多段・複数の敵に当たっても、術はスキルの発動 1 回につき 1 度だけ溜まる", () => {
+    const state = skillArena({ moveset: "book" }, ["mines"]);
+    const a = tough(state, 200);
+    const b = tough(state, 200, 40);
+    const params = freshCast(paramsOf(state));
+    hit(state, a, params, false);
+    hit(state, a, params, false);
+    hit(state, b, params, false);
+    expect(state.player.morale.value, "1 回の発動で 1 度").toBeCloseTo(FORM.tome.gain.skillHit);
+    const echo = { ...params };
+    hit(state, b, echo, false);
+    expect(state.player.morale.value, "反響などの写しは元の発動と回数を共有").toBeCloseTo(FORM.tome.gain.skillHit);
+    hit(state, a, freshCast(params), false);
+    expect(state.player.morale.value, "次の発動でまた 1 度").toBeCloseTo(FORM.tome.gain.skillHit * 2);
+  });
+
+  it("無詠唱で撃ったスキルの命中では術が溜まらない", () => {
+    const state = skillArena({ moveset: "book" }, ["mines"]);
+    run(state, { skill1Pressed: true });
+    expect(state.skills.mines.at(-1)?.params.moraleGain, "ふつうに撃った発動は溜められる").not.toBeNull();
+    settle(state);
+    state.player.mana = state.stats.maxMana;
+    state.skills.freeCast = true;
+    for (let i = 0; i < 120 && state.skills.freeCast; i++) run(state, { skill1Pressed: true });
+    expect(state.skills.freeCast, "無詠唱を使った").toBe(false);
+    const params = state.skills.mines.at(-1)?.params;
+    if (!params) throw new Error("地雷を置いていない");
+    expect(params.moraleGain, "無詠唱の発動は溜めない印").toBeNull();
+    hit(state, tough(state, 200), params, false);
+    expect(state.player.morale.value).toBe(0);
   });
 
   it("術が足りないと無詠唱はただの振りで、次のスキルの気力はそのまま", () => {
@@ -176,6 +213,7 @@ describe("鈴（打ち鳴らし）", () => {
     expect(state.skills.mines, "近くの地雷だけ起爆").toHaveLength(1);
     expect(state.skills.mines[0]?.pos.x, "遠くの地雷は残る").toBeCloseTo(p.x - FAR);
     expect(e.hp, "起爆が当たる").toBeLessThan(hpBefore);
+    expect(state.player.morale.value, "放出で動かした地雷の命中では鈴音が溜まらない").toBe(0);
     expect(state.skills.bellBuff?.mul, "強化の倍率").toBe(FORM.bell.toll.buffMul);
     expect(state.skills.bellBuff?.time ?? 0, "強化の秒").toBeGreaterThan(FORM.bell.toll.buffSec - FIXED_DT * 2);
   });

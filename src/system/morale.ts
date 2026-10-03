@@ -118,9 +118,17 @@ function gainAmountOf(form: FormDef, kind: MoraleGain["kind"]): number {
   return sum;
 }
 
-/** 戦意を足す（上限で止め、冷めの秒を 0 に戻す） */
+/**
+ * 放出の振りの最中か（振りの開始で戦意を使い、まだその振りが続いている）。
+ * 戦意を使って行う行動では戦意を溜めない（放出の振りの命中・応手で溜め直して撃ち放題にならないように）
+ */
+function inReleaseSwing(state: GameState): boolean {
+  return state.player.morale.swingUnits > 0;
+}
+
+/** 戦意を足す（上限で止め、冷めの秒を 0 に戻す）。放出の振りの間は足さない */
 function addMorale(state: GameState, amount: number): void {
-  if (amount <= 0) return;
+  if (amount <= 0 || inReleaseSwing(state)) return;
   const m = state.player.morale;
   m.value = Math.min(moraleMax(state), m.value + amount);
   m.sinceGain = 0;
@@ -155,6 +163,8 @@ export function tickMorale(state: GameState, input: FrameInput, dt: number): boo
   const m = state.player.morale;
   const form = currentForm(state);
   const reloading = m.window > 0;
+  // 振りが終われば放出の振りも終わり（swingUnits は次の振りの開始まで残るので、ここで畳む）
+  if (state.player.attack.phase === "none") m.swingUnits = 0;
   m.window = Math.max(0, m.window - dt);
   if (reloading && m.window === 0) finishReload(m);
   m.sinceGain += dt;

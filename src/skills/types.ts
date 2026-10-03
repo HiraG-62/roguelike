@@ -301,6 +301,11 @@ export interface CastParams {
   origin: Vec;
   /** この発動で命中した敵 id（連携の「直前の発動」が読む）。castSlot が発動ごとに作る */
   hitLog: Set<number>;
+  /**
+   * 型の戦意（書のスキルの命中）を溜められる残りの回数。発動 1 回で 1 度だけ溜まるよう castSlot が発動ごとに作り、
+   * 反響・遅延・分身の写しも同じ参照を共有する。null は戦意を使って撃った発動（書の無詠唱・鈴の打ち鳴らし）で、命中しても溜めない
+   */
+  moraleGain: { left: number } | null;
   /** 属性の差し替え（杖の型・移ろい刃）。null なら SKILL_ATTACK のまま */
   element: Element | null;
   /** 地形化: 命中した位置に属性の地形を置く。残り回数は発動 1 回ぶんで共有 */

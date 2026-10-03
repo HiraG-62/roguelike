@@ -158,6 +158,23 @@ describe("戦意: 連刃（熱）", () => {
     expect(now.damage / plain.damage, "威力の倍率").toBeCloseTo(1 + FORM.flurry.perUnit.damageMul * FORM.flurry.max);
     expect(state.player.morale.value).toBe(0);
   });
+
+  it("乱舞（放出の振り）の命中では熱が溜まらず、振りが終われば次の振りでまた溜まる", () => {
+    const state = arena(5, { moveset: "twinBlades" });
+    const e = tough(placeEnemy(state, "slime", 12));
+    state.player.morale.value = FORM.flurry.max;
+    const last = MOVESETS.twinBlades.steps2.length - 1;
+    readyLaneStep(state, last);
+    const hpBefore = e.hp;
+    run(state, { shootHeld: true });
+    settle(state);
+    expect(e.hp, "乱舞が当たる").toBeLessThan(hpBefore);
+    expect(state.player.morale.value, "放出の振りでは溜まらない").toBe(0);
+    run(state, {});
+    run(state, { attackPressed: true });
+    settle(state);
+    expect(state.player.morale.value, "ふつうの振りではまた溜まる").toBeGreaterThan(0);
+  });
 });
 
 describe("戦意: 重打（溜め）", () => {

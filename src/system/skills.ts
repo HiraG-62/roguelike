@@ -96,7 +96,7 @@ import { noteSkillCombo } from "../meta/runRecord";
 import { ART_CAST_RANGE, isArtKey, weaponArtLabel } from "../skills/arts";
 import type { ArtSkillKey } from "../skills/arts/keys";
 import { castArt, updateArtQueue, updateShotSteers } from "../skills/arts/engine";
-import { consumeFreeCast, formSkillCooldownMul, freeCastCost, tickTomeBell } from "./tomeBell";
+import { consumeFreeCast, formSkillCooldownMul, freeCastCost, isFreeCast, tickTomeBell } from "./tomeBell";
 
 /**
  * アクティブスキルの発動・更新・ドロップ・刻印符。docs/ideas/skills.md「7-4」〜「7-7」。
@@ -834,6 +834,8 @@ function castSlotWith(state: GameState, index: number, req: CastRequest): boolea
 
   const stateMul = castStateMul(state, index, r);
   const combo = findCombo(state, r.def, target);
+  // 書の無詠唱で撃った発動は戦意を溜めない（払う前に読む。payResource が無詠唱を使い切る）
+  const freeCast = isFreeCast(state, r.resource);
   const manaPaid = payResource(state, slot, r);
   onBoonSkillCast(state, index, r.resource, manaPaid);
   pushPlayerEvent(state, "onSkillCast", key, { slot: index, source: { kind: "skill", key } });
@@ -856,6 +858,7 @@ function castSlotWith(state: GameState, index: number, req: CastRequest): boolea
     refundPool: { left: manaPaid },
     hitRefundPool: { left: manaPaid * m.refund.cap },
     hitLog: new Set(),
+    moraleGain: freeCast ? null : { left: 1 },
     origin,
     combo: combo?.key ?? null,
   };

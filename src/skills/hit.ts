@@ -115,10 +115,25 @@ export function skillHit(state: GameState, e: Enemy, params: Readonly<CastParams
   }
   // 流儀の気力の源（system/manaSources.ts）
   onManaSource(state, spec.minion === true ? "minionHit" : "skillHit");
-  // 型の戦意（書 = スキルの命中、鈴 = 設置物・連動体の命中）
-  gainMorale(state, spec.minion === true ? "minionHit" : "skillHit");
+  gainCastMorale(state, params, spec.minion === true);
   afterHit(state, e, params, spec, killed, pos);
   return killed;
+}
+
+/**
+ * 型の戦意。書のスキルの命中は発動 1 回につき 1 度（多段・複数の敵で重ねない）、鈴の設置物・連動体の命中は命中ごと。
+ * 戦意を使って撃った発動（moraleGain が null）は溜めない（無詠唱の撃ち放題・打ち鳴らしの連鎖で戦意が尽きないように）
+ */
+function gainCastMorale(state: GameState, params: Readonly<CastParams>, minion: boolean): void {
+  const pool = params.moraleGain;
+  if (pool === null) return;
+  if (minion) {
+    gainMorale(state, "minionHit");
+    return;
+  }
+  if (pool.left <= 0) return;
+  pool.left -= 1;
+  gainMorale(state, "skillHit");
 }
 
 /** ノックバックの向きと強さ。手繰り（負の倍率）は向きを反転して発動側へ引く */

@@ -1007,6 +1007,8 @@ function echoLastCast(state: GameState, damageMul: number): void {
     hitRefundPool: { left: 0 },
     leyPool: { left: 0 },
     hitLog: new Set(),
+    // 写しは元の発動の命中で戦意を溜め終えているので、もう溜めない（反響の写しと同じ）
+    moraleGain: { left: 0 },
     echo: null,
     delay: null,
   };

@@ -400,6 +400,7 @@ export function baseCastParams(def: SkillDef): CastParams {
     combo: null,
     origin: { x: 0, y: 0 },
     hitLog: new Set(),
+    moraleGain: { left: 1 },
     element: null,
     leyline: false,
     leyPool: { left: 0 },

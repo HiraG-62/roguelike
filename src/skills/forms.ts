@@ -445,6 +445,8 @@ function shellParams(base: CastParams, paid: number, origin: Vec): CastParams {
     refundPool: { left: paid },
     hitRefundPool: { left: paid * SKILL.modifier.refund.cap },
     hitLog: new Set(),
+    // 砲撃は 1 発ごとに気力を払う発動なので、戦意も 1 発ごとに 1 度
+    moraleGain: { left: 1 },
     origin: { ...origin },
   };
 }

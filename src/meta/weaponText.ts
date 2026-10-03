@@ -46,7 +46,7 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   guardBlock: "構えで受けたダメージ",
   bulletCut: "敵弾払い",
   shotFired: "撃った弾",
-  skillHit: "スキルの命中",
+  skillHit: "スキルの命中（発動 1 回につき 1 度）",
   minionHit: "設置物・連動体の命中",
 };
 
