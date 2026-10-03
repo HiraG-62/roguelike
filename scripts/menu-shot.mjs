@@ -7,7 +7,7 @@
  *   npm run menu:shot -- --only skills-lift             1 場面だけ
  *   npm run menu:shot -- --only "cand-stone+focus=first" 場面名の後ろに「+」でクエリを足せる（focus=first = 候補の先頭の札に焦点、focus=2 = 3 枚目の札に焦点）
  *
- * 場面: manual（武器指南書。`--only "manual+weapon=spear&move=3&frames=40"`）/ attire / attire-swap（体の候補）/ skills（手持ちつき）/ skills-lift（手持ちの符を持ち上げ中）/ cand-stone（スキル枠の候補）/ cand-group（スキル枠の候補の束を開いた頁）/ cand-slot（頭の候補）。
+ * 場面: manual（武器指南書。`--only "manual+weapon=spear&move=3&frames=40"`）/ dojo（稽古の間。`--only "dojo+enemy=slime&count=3&frames=240"`）/ dojo-board（稽古帳）/ attire / attire-swap（体の候補）/ skills（手持ちつき）/ skills-lift（手持ちの符を持ち上げ中）/ cand-stone（スキル枠の候補）/ cand-group（スキル枠の候補の束を開いた頁）/ cand-slot（頭の候補）。
  * 別の作業ツリーの vite が同じ port を使っているときは MAP_SHOT_PORT で逃がす（map:shot と共通）
  */
 import { mkdirSync } from "node:fs";
