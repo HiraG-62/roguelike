@@ -23,6 +23,11 @@ export interface ThrownLook {
   readonly spin: number;
   /** 回る向きを進む向きで替えない（弧で行って戻る輪。折り返しや縦の弧で左右が入れ替わっても逆回しにならない） */
   readonly steady?: true;
+  /**
+   * 手に持つ武器の絵（プレイヤーの武器のアトラスのシート。例 `wpnRingBlades.held`）をそのまま回して飛ばす。
+   * シートの印 muzzle（投げた物の中心）を弾の位置に合わせ、回す角は方向ごとに焼いたフレームで出す。読めていなければ sprite へ落ちる
+   */
+  readonly held?: string;
 }
 
 /** 軽い物（輪・短刀・鉈）の回転 */
@@ -47,7 +52,8 @@ function point(shape: ThrownShape): ThrownLook {
 const KNIFE = point("knife");
 const KNIFE_SPIN = spin("knife");
 const AXE = spin("axe", SPIN_HEAVY);
-const RING_BLADES: ThrownLook = { ...spin("ringBlades"), steady: true };
+// 戦輪は手に持つ輪の絵のまま飛ばす（docs/ideas/gun-bases-review.md 0-5「飛ぶ輪は手に持っている絵のまま」）
+const RING_BLADES: ThrownLook = { ...spin("ringBlades"), steady: true, held: "wpnRingBlades.held" };
 const KUNAI = point("kunai");
 const SHURIKEN = spin("shuriken");
 const BIG_SHURIKEN = spin("bigShuriken");
@@ -197,4 +203,17 @@ function drawThrownEcho(ctx: CanvasRenderingContext2D, state: GameState, atlas: 
   // 投げる刃は id を持たないので、着弾点の座標で位相をずらす
   const phase = Math.round(e.origin.x + e.origin.y);
   drawThrownLook(ctx, atlas, THROWN_ECHO_LOOK, at.x, at.y, thrownAngle(THROWN_ECHO_LOOK, state.time, phase, { x: e.origin.x - from.x, y: 0 }), 1);
+}
+
+/** 手に持つ絵のセルを置く矩形（論理 px）。印 pivot（原点からのドット）を (x, y) に合わせ、scale 倍で描く */
+export function heldThrownRect(
+  cell: Readonly<{ w: number; h: number; ox: number; oy: number }>,
+  pivot: Readonly<{ x: number; y: number }>,
+  x: number,
+  y: number,
+  dotsPerPx: number,
+  scale: number,
+): { x: number; y: number; w: number; h: number } {
+  const k = scale / dotsPerPx;
+  return { x: x - (cell.ox + pivot.x) * k, y: y - (cell.oy + pivot.y) * k, w: cell.w * k, h: cell.h * k };
 }

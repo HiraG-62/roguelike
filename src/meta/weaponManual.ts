@@ -17,6 +17,7 @@ import {
   type MovesetKey,
   actionStepName,
   firesByHand,
+  isThrowingWeapon,
   matchBranch,
   shootsPrimary,
 } from "../data/weapons";
@@ -287,7 +288,11 @@ function branchTraits(m: Readonly<MovesetDef>, b: Readonly<BranchDef>): string[]
 
 function chainMove(m: Readonly<MovesetDef>): ManualMove {
   if (shootsPrimary(m)) {
-    return { key: "fire", group: "chain", name: "射撃", traits: ["押している間"], desc: "左を押している間、装備の銃の弾を撃つ。", script: { setup: NO_SETUP, cues: [hold("primary", FIRE_SEC)] }, expect: "hit" };
+    // 投擲物（戦輪・クナイ）は銃ではないので「投げ」と書く
+    const thrown = isThrowingWeapon(m);
+    const name = thrown ? "投げ" : "射撃";
+    const desc = thrown ? "左を押している間、装備の器を投げる。" : "左を押している間、装備の銃の弾を撃つ。";
+    return { key: "fire", group: "chain", name, traits: ["押している間"], desc, script: { setup: NO_SETUP, cues: [hold("primary", FIRE_SEC)] }, expect: "hit" };
   }
   const n = m.steps.length;
   const last = m.steps[n - 1];

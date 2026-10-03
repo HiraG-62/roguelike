@@ -8,6 +8,7 @@ import { BASES } from "../loot/bases";
 import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { markShotBullet, withUltimateFx } from "../system/effects";
 import { arena } from "../system/testHelpers";
+import { actorAnchor, actorSheet } from "./actorSprites";
 import {
   BULLET_LOOK,
   MOVESET_THROWN_LOOK,
@@ -17,6 +18,7 @@ import {
   ULTIMATE_LOOK,
   arcPoint,
   drawThrownLook,
+  heldThrownRect,
   projectileLook,
   skillShotLook,
   thrownAngle,
@@ -314,5 +316,38 @@ describe("投げた絵の描き方（論理寸法）", () => {
     const r = recorder();
     expect(drawThrownLook(r.ctx, {}, look, 0, 0, 0, 1)).toBe(false);
     expect(r.draws.length).toBe(0);
+  });
+});
+
+describe("手に持つ絵のまま飛ぶ物（戦輪）", () => {
+  const looks = Object.entries(BULLET_LOOK).filter(([, l]) => l.held !== undefined);
+
+  it("戦輪の器・技・奥義の輪はすべて手に持つ輪の絵で飛ぶ", () => {
+    for (const key of ["ringBlades", "fangRings", "cast.ringToss", "cast.ringHurl"]) {
+      expect(BULLET_LOOK[key]?.held, key).toBe("wpnRingBlades.held");
+    }
+    expect(ULTIMATE_LOOK["ringBlades.headsman"]?.held, "断頭輪").toBe("wpnRingBlades.held");
+    expect(ULTIMATE_LOOK["ringBlades.ringDance"]?.held, "輪舞").toBe("wpnRingBlades.held");
+  });
+
+  it("絵のシートは実在し、どの向きにも投げた物の中心の印 muzzle を持つ", () => {
+    expect(looks.length).toBeGreaterThan(0);
+    for (const [key, look] of looks) {
+      const sheet = look.held === undefined ? undefined : actorSheet(look.held);
+      expect(sheet, key).toBeDefined();
+      if (!sheet || look.held === undefined) continue;
+      for (let dir = 0; dir < sheet.dirs; dir++) expect(actorAnchor(look.held, dir, 0, "muzzle"), `${key} 向き ${dir}`).toBeDefined();
+    }
+  });
+
+  it("置く矩形は印を弾の位置に合わせ、密度と拡大率で大きさが決まる", () => {
+    const cell = { w: 40, h: 30, ox: 10, oy: 15 };
+    const r = heldThrownRect(cell, { x: 12, y: 0 }, 100, 50, 2, 1);
+    expect(r.x + (cell.ox + 12) / 2).toBeCloseTo(100);
+    expect(r.y + cell.oy / 2).toBeCloseTo(50);
+    expect([r.w, r.h]).toEqual([20, 15]);
+    const big = heldThrownRect(cell, { x: 12, y: 0 }, 100, 50, 2, 2);
+    expect([big.w, big.h], "2 倍").toEqual([40, 30]);
+    expect(big.x + (cell.ox + 12), "2 倍でも印は弾の位置").toBeCloseTo(100);
   });
 });
