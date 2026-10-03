@@ -1,7 +1,7 @@
 // 装備画面（装束と紋）と武器指南書の確認用の撮影。ゲーム本体からは import しない。
 // クエリ: ?scene=attire|attire-swap|skills|skills-lift|cand-stone|cand-group|cand-slot|manual で場面を作って 1 回描き、window.__menuShotReady = true。
 // manual は &weapon=<武器種>&move=<技の添字>&frames=<実演を進めるステップ数> で武器指南書の頁と実演の 1 コマ。
-// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）
+// parry は &weapons=<武器種,…>（既定は先頭 4 種）&job=<ジョブ> で、武器種ごとに受け流しの段階を横に並べた表（docs/ideas/parry-motion.md）。&cols=seq で途中のコマ・&cols=lr で左右の見比べ、&zoom=2 で拡大
 // dojo は &enemy=<敵の key>&count=<数>&behavior=<動き>&frames=<ステップ数>&stand=<台の key> で稽古の間（手前の敵へ寄って殴り続ける）、dojo-board は稽古帳
 // 実時間・Math.random は使わない（state.rng と固定の seed だけ）
 import { createGame } from "../core/game";
@@ -144,6 +144,22 @@ const PARRY_COLUMNS: readonly ParryColumn[] = [
   { label: "miss", recover: PARRY.recoverSec * 0.6 },
   { label: "left", window: PARRY.windowSec * 0.4, left: true },
 ];
+/** &cols=seq で並べる途中のコマ（構えを上げる途中・決まった後の戻り・外した崩れ） */
+const PARRY_SEQ_COLUMNS: readonly ParryColumn[] = [
+  { label: "r.01", window: PARRY.windowSec - 0.01 },
+  { label: "r.03", window: PARRY.windowSec - 0.03 },
+  { label: "h.15", impactAge: 0.15 },
+  { label: "h.22", impactAge: 0.22 },
+  { label: "h.27", impactAge: 0.27 },
+  { label: "m.7", recover: PARRY.recoverSec * 0.3 },
+  { label: "m.85", recover: PARRY.recoverSec * 0.15 },
+];
+/** &cols=lr で並べる右向き・左向きの受けの構え（拡大して左右の前後を見比べる） */
+const PARRY_LR_COLUMNS: readonly ParryColumn[] = [
+  { label: "guard", window: PARRY.windowSec * 0.4 },
+  { label: "left", window: PARRY.windowSec * 0.4, left: true },
+  { label: "l.r03", window: PARRY.windowSec - 0.03, left: true },
+];
 const PARRY_CELL = 66;
 const PARRY_ZOOM = 2;
 const PARRY_DEFAULT_ROWS = 4;
@@ -155,6 +171,9 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
   const list = (q.get("weapons") ?? MOVESET_KEYS.slice(0, PARRY_DEFAULT_ROWS).join(",")).split(",");
   const keys = list.filter((k): k is MovesetKey => (MOVESET_KEYS as readonly string[]).includes(k));
   const job = q.get("job") ?? "none";
+  // &zoom=2 で 2 倍に拡大（マスも 2 倍。7 列に収まらない分は切れる）
+  const scale = Number(q.get("zoom") ?? 1);
+  const cell = PARRY_CELL * scale;
   const ctx = renderer.context;
   renderer.beginFrame();
   ctx.fillStyle = "#000";
@@ -165,7 +184,9 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
     if (isJobKey(job)) state.job = job;
     state.enemies = [];
     for (let i = 0; i < MANUAL_SETTLE_FRAMES && !renderer.playerArtReady(state); i++) await nextFrame();
-    for (const [col, c] of PARRY_COLUMNS.entries()) {
+    const cols = q.get("cols");
+    const columns = cols === "seq" ? PARRY_SEQ_COLUMNS : cols === "lr" ? PARRY_LR_COLUMNS : PARRY_COLUMNS;
+    for (const [col, c] of columns.entries()) {
       const p = state.player;
       p.parry.window = c.window ?? 0;
       p.parry.recover = c.recover ?? 0;
@@ -173,12 +194,12 @@ async function shootParry(renderer: Renderer, q: URLSearchParams): Promise<void>
       const fx = fxState(state);
       fx.marks = fx.marks.filter((m) => m.kind !== "parry");
       if (c.impactAge !== undefined) fx.marks.push({ kind: "parry", pos: { ...p.body.pos }, age: c.impactAge, life: FX_ATTACK.sprite.parryLife, color: "#fff", value: 0 });
-      const rect = { x: col * PARRY_CELL, y: row * PARRY_CELL, w: PARRY_CELL - 1, h: PARRY_CELL - 1 };
-      renderer.renderDemo(state, rect, { x: p.body.pos.x, y: p.body.pos.y - PARRY_CENTER_LIFT }, PARRY_ZOOM);
+      const rect = { x: col * cell, y: row * cell, w: cell - 1, h: cell - 1 };
+      renderer.renderDemo(state, rect, { x: p.body.pos.x, y: p.body.pos.y - PARRY_CENTER_LIFT }, PARRY_ZOOM * scale);
       renderer.beginFrame();
       drawText(ctx, row === 0 ? `${c.label}` : "", rect.x + 2, rect.y + 2, TEXT.SMALL, "#fff");
     }
-    drawText(ctx, key, 7 * PARRY_CELL + 2, row * PARRY_CELL + 2, TEXT.SMALL, "#fff");
+    drawText(ctx, key, 7 * cell + 2, row * cell + 2, TEXT.SMALL, "#fff");
   }
 }
 

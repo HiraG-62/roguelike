@@ -503,20 +503,20 @@ describe("playerRig: 受け流しの構え（stance.parry）", () => {
     expect(solveRig({ ...base, stance: sword, guard: { ...full, sag: 3 } }).front.hand.y).toBeCloseTo(still.front.hand.y + 3);
   });
 
-  it("二刀は後ろの手のもう 1 本を受けの向きで体の前に構える（交差）", () => {
+  it("二刀は後ろの手のもう 1 本を受けの向きで構え、奥の腕なので体の後ろに描く", () => {
     const dual: Stance = { ...DEFAULT_STANCE, grip: "dual", body: "light", swayDeg: 0, offHand: [-3, 9], offDeg: 150, parry: { hand: [7, 4], deg: -70, off: [10, 0], offDeg: -18, contact: 16 } };
     const r = solveRig({ ...base, stance: dual, guard: full });
     expect(r.back.hand).toEqual({ x: 6, y: -24 });
     expect(r.back.angle).toBeCloseTo(deg(-18));
-    expect(r.back.behind).toBe(false);
+    expect(r.back.behind).toBe(true);
     expect(r.back.bare).toBe(false);
   });
 
-  it("片手の武器の off は添える素手（武器を描かない）", () => {
+  it("片手の武器の off は添える素手（武器を描かない・体の後ろ）", () => {
     const book: Stance = { ...sword, parry: { hand: [9, 1], deg: 0, off: [9, 2], contact: 2 } };
     const r = solveRig({ ...base, stance: book, guard: full });
     expect(r.back.bare).toBe(true);
-    expect(r.back.behind).toBe(false);
+    expect(r.back.behind).toBe(true);
   });
 
   it("両手持ちは添え手を受けの構えの柄の上に引き直す", () => {
@@ -526,9 +526,19 @@ describe("playerRig: 受け流しの構え（stance.parry）", () => {
     // 受けの構えの grip（柄の先の側）を握る
     expect(Math.hypot(r.back.hand.x - r.front.hand.x, r.back.hand.y - r.front.hand.y)).toBeCloseTo(6);
     expect(r.back.hand.y).toBeLessThan(r.front.hand.y);
+    expect(r.back.behind, "添え手の腕も体の後ろ").toBe(true);
     // 柄の線の上（主の手から武器の向きの直線上）
     const cross = (r.back.hand.x - r.front.hand.x) * Math.sin(r.front.angle) - (r.back.hand.y - r.front.hand.y) * Math.cos(r.front.angle);
     expect(Math.abs(cross)).toBeLessThan(1e-6);
+  });
+
+  it("構えを上げる途中・解く途中も、奥の手は体の後ろのまま（前後が途中で入れ替わらない）", () => {
+    const dual: Stance = { ...DEFAULT_STANCE, grip: "dual", body: "light", swayDeg: 0, offHand: [-3, 9], offDeg: 150, parry: { hand: [7, 4], deg: -70, off: [10, 0], offDeg: -18, contact: 16 } };
+    const two: Stance = { ...DEFAULT_STANCE, grip: "two", swayDeg: 0, parry: { hand: [0, 6], deg: -75, grip: 6, contact: 8 } };
+    for (const blend of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+      expect(solveRig({ ...base, stance: dual, guard: { ...full, blend } }).back.behind, `二刀 ${blend}`).toBe(true);
+      expect(solveRig({ ...base, stance: two, offGrip: -6, guard: { ...full, blend } }).back.behind, `両手持ち ${blend}`).toBe(true);
+    }
   });
 
   it("振りの最中（swing）は受けの構えを使わない", () => {

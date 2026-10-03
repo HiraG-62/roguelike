@@ -66,5 +66,5 @@ function draw(frame) {
 export const ATLAS = {
   key: "wpnRingBlades",
   sheets: weaponSheets("wpnRingBlades", draw, { size: 64 }),
-  meta: { offGrip: null, stance: { grip: "dual", body: "light", restDeg: -15, restHand: [7, 8], offHand: [-3, 9], offDeg: 160, swayDeg: 4, parry: { hand: [9, 2], deg: -25, off: [10, 5], offDeg: 25, offBehind: true, contact: 20 } } },
+  meta: { offGrip: null, stance: { grip: "dual", body: "light", restDeg: -15, restHand: [7, 8], offHand: [-3, 9], offDeg: 160, swayDeg: 4, parry: { hand: [9, 2], deg: -25, off: [10, 5], offDeg: 25, contact: 20 } } },
 };
