@@ -63,8 +63,12 @@ export function onManaSource(state: GameState, kind: ManaSourceKind, value = 1, 
   return gainAttackMana(state, base, attackManaMul(state));
 }
 
-/** 近接の振りの命中が気力を数える敵の上限を越えたか（群れを薙いで一気に満たさない。MANA.meleeTargetCap） */
+/**
+ * 近接の振りの命中が気力を数える敵の上限を越えたか（群れを薙いで一気に満たさない。MANA.meleeTargetCap）。
+ * 抜け斬り（MeleeStepDef.manaPerTarget）の振りは斬った敵の数だけ戻すので頭打ちしない
+ */
 function overMeleeCap(state: Readonly<GameState>): boolean {
+  if (state.player.attack.uncappedMana === true) return false;
   return state.player.attack.hitIds.size > MANA.meleeTargetCap;
 }
 

@@ -18,7 +18,7 @@ import type { ExitReward } from "../system/exits";
 import type { RunEventState } from "../system/runEvents";
 import type { ContractState } from "../system/contractors";
 import type { OriginKey, RunModKey } from "../system/runSetup";
-import type { BulletDef, ButtonKey, ShotRuntime } from "../data/weapons";
+import type { BulletDef, ButtonKey, PinKind, ShotRuntime } from "../data/weapons";
 import type { VolleyOverride } from "../system/player";
 import type { JobKey } from "../data/jobs";
 import type { FormationKey, JinzuPathKind } from "../data/formations";
@@ -85,6 +85,10 @@ export interface AttackState {
   startedAt: number;
   /** この振りで「出端か普通の命中か」の出来事（音・イベント・応手）を出し済みの敵。多段でも 1 振り × 1 体に 1 回にする */
   readIds: Set<number>;
+  /** 抜け斬り（MeleeStepDef.passThrough）の道筋の起点（振り始めの位置）。起点から今の位置までに体が重なった敵も斬る。未指定 = 抜け斬りでない */
+  passFrom?: Vec;
+  /** 今の振りが斬った敵 1 体ごとに気力を戻す（MeleeStepDef.manaPerTarget）。MANA.meleeTargetCap の頭打ちを外す */
+  uncappedMana?: boolean;
 }
 
 /**
@@ -191,9 +195,10 @@ export interface Player {
   /**
    * 戦意（武器の型ごとのゲージ。system/morale.ts）。value = 今の量、sinceGain = 最後に溜まってからの秒（冷め）、
    * primed = 次の一撃が放出、full = 前ステップで満ちていた（充溢の瞬間の検出）、
-   * swingUnits = 今の振りが放出なら使った戦意（0 = 放出でない。振りの開始で決まり、その振りの間の倍率になる）
+   * swingUnits = 今の振りが放出なら使った戦意（0 = 放出でない。振りの開始で決まり、その振りの間の倍率になる）、
+   * timedUntil = 時間の放出（連ね投げ）の窓が閉じる state.time（未指定 = 窓なし）
    */
-  morale: { value: number; sinceGain: number; primed: boolean; full: boolean; swingUnits: number };
+  morale: { value: number; sinceGain: number; primed: boolean; full: boolean; swingUnits: number; timedUntil?: number };
   /** 銃の弾倉（戦意とは別。system/magazine.ts）。銃でない武器種では使わない */
   magazine: MagazineState;
   /**
@@ -318,6 +323,8 @@ export interface Enemy {
   poise: PoiseState;
   /** 性質「撃ち込み杭」で刺さった弾の数（次の近接命中で爆ぜる。src/system/traitHooks.ts） */
   stuckShots?: number;
+  /** 刺さっている飛び物（クナイ・手裏剣。src/system/pins.ts）。刺さった順。抜ける時刻を過ぎたものは読む側が数えない */
+  pins?: EnemyPin[];
   /** 群れの長・楽団長・双子の相方など、紐付いた敵の id（src/system/enemies.ts） */
   leaderId?: number;
   /** マナ喰いが奪ったマナ。倒すと倍にして返す */
@@ -351,6 +358,18 @@ export interface Enemy {
   nemesis?: true;
   /** 本陣の陣図に動かされている（system/jinzu.ts）。大将は筆を持つ / 隊の兵は持ち場で止まる・走る */
   jinzuRun?: JinzuRun;
+}
+
+/**
+ * 敵に刺さった飛び物 1 本（src/system/pins.ts）。until = 抜ける state.time、angle = 刺さったときの飛ぶ向き（ラジアン。描画が読む）、
+ * damage = 刺さったときの威力（叩き込み・炸裂の追撃の元）、driveMul = 叩き込みの追撃の倍率（刺した弾の PinDef.driveMul の写し）
+ */
+export interface EnemyPin {
+  kind: PinKind;
+  until: number;
+  angle: number;
+  damage: number;
+  driveMul: number;
 }
 
 /** 敵に溜める傷の種類（氷獄 = ice / 月蝕 = doom） */

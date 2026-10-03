@@ -33,6 +33,8 @@ const BULLET_FEATURE_TEXT: Readonly<Record<BulletFeature, string>> = {
   burst: "三点で出る",
   boomerang: "行って戻ってくる",
   lob: "曲射になる",
+  pin: "敵に刺さって残る",
+  arc: "弧を描いて手元へ戻る",
 };
 
 /** 何の性質も持たない弾（data/weapons.ts の bulletFeatures が空）の説明 */
@@ -58,6 +60,9 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   pack: "詰め",
   blastHit: "敵を巻き込んだ炸裂",
   alternateShot: "左右の手を替えた射撃",
+  pinDriven: "刺さった飛び物の叩き込み",
+  pinStagger: "刺さり崩し",
+  roundTrip: "1 回の投げの行きと帰りの両方での命中",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };
@@ -123,6 +128,8 @@ function releaseText(m: Readonly<MovesetDef>, form: FormDef): string {
       return "構えを離した振り";
     case "bothHands":
       return "左右の同時押しの撃ち尽くし";
+    case "timed":
+      return "満ちた後の次の投げ";
   }
 }
 
@@ -144,6 +151,7 @@ function gainText(form: FormDef): string {
 /** 放出のしかた。短銃の強装填は振り・1 発ではなく弾倉そのものが放出になる */
 function releaseSentence(m: Readonly<MovesetDef>, form: FormDef): string {
   if (form.morale.release.kind === "nextMagazine") return `${releaseText(m, form)}が強装填になり、全弾が強くなる。`;
+  if (form.morale.release.kind === "timed") return `${releaseText(m, form)}から ${form.morale.release.sec} 秒、投げの間隔が縮む。`;
   return `${releaseText(m, form)}で放つ。`;
 }
 

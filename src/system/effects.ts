@@ -556,6 +556,8 @@ const SHOT_SFX: Readonly<Record<BulletFeature, SfxName>> = {
   burst: "shotBurst",
   boomerang: "shotBoomerang",
   lob: "shotLob",
+  pin: "shotPierce",
+  arc: "shotBoomerang",
 };
 
 export function shotSfxName(bullet: Readonly<BulletNumbers>): SfxName {

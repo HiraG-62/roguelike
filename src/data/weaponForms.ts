@@ -79,7 +79,13 @@ export type MoraleGain =
   /** スキルの命中（書） */
   | { kind: "skillHit"; amount: number }
   /** 設置物・連動体の命中（鈴） */
-  | { kind: "minionHit"; amount: number };
+  | { kind: "minionHit"; amount: number }
+  /** 刺さった飛び物を叩き込んだ本数（クナイ。system/pins.ts の drivePins。1 本ごとに amount） */
+  | { kind: "pinDriven"; amount: number }
+  /** 刺さり崩しで敵を怯ませた（手裏剣。system/pins.ts の stickPin） */
+  | { kind: "pinStagger"; amount: number }
+  /** 1 回の投げで行きと帰りの両方で当てた敵 1 体（戦輪。system/projectiles.ts の投げの組） */
+  | { kind: "roundTrip"; amount: number };
 
 /**
  * 放出の形。laneStep の keys は右レーンの段の key（型に束ねた武器種ごとに 1 つ。設計の key を 1 つから列へ広げた）。
@@ -104,7 +110,12 @@ export type MoraleRelease =
   /** 構えを離した振りが放出（盾押し） */
   | { kind: "release" }
   /** 左右をほぼ同時に押した撃ち尽くしが放出（二丁拳銃。system/dualPistols.ts。0 でも撃てて段ぶん強い） */
-  | { kind: "bothHands" };
+  | { kind: "bothHands" }
+  /**
+   * 満ちた後の次の投げ（振りの開始・左の射撃）で始まり、sec 秒のあいだ攻撃の速さが attackSpeedMul 倍（投げの間隔が縮む。
+   * 手裏剣の連ね投げ。system/morale.ts の timedAttackSpeedMul）
+   */
+  | { kind: "timed"; sec: number; attackSpeedMul: number };
 
 /** 放出の戦意 1 あたりの上乗せ（FORM.<型>.perUnit） */
 export interface ReleasePerUnit {

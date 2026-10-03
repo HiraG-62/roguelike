@@ -495,6 +495,9 @@ function releaseCues(m: Readonly<MovesetDef>): DemoCue[] | null {
       return [hold("secondary", GUARD_HOLD_SEC)];
     case "bothHands":
       return [{ kind: "both" }];
+    case "timed":
+      // 連ね投げは満ちた後の次の投げで始まる
+      return [tap("primary")];
   }
 }
 

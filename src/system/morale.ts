@@ -272,6 +272,9 @@ function isReleaseSwing(form: FormDef, moveset: MovesetDef, spec: ReleaseSwingSp
     case "bothHands":
       // 撃ち尽くしは振りではなく左右の同時押し（system/dualPistols.ts の consumeBothHandsRelease）
       return false;
+    case "timed":
+      // 連ね投げは満ちた後の次の投げ（ダッシュ攻撃でない振り）で始まる
+      return !spec.dashStrike;
   }
 }
 
@@ -312,6 +315,7 @@ export function beginSwingMorale(state: GameState, moveset: MovesetDef, spec: Re
   const form = currentForm(state);
   if (!isReleaseSwing(form, moveset, spec, m.primed)) return 0;
   m.swingUnits = form.morale.release.kind === "branch" ? branchUnits(state, moveset, spec) : spendRelease(state, form, spec);
+  if (m.swingUnits > 0) startTimedRelease(state, form);
   // 鎖の束ね打ちは振り始めに繋いだ敵を前へ寄せる（放出の繋ぎを使い切る）
   if (m.swingUnits > 0 && hasGain(form, "pullHit")) gatherLinked(state);
   return m.swingUnits;
@@ -368,9 +372,10 @@ export function consumeShotRelease(state: GameState, trigger: ShotTrigger): Shot
   const m = state.player.morale;
   if (release.kind === "nextPrimary") {
     if (!m.primed || (release.gate === "rifle" && !passesRifleGate(trigger))) return undefined;
-  } else if (release.kind !== "nextShot") return undefined;
+  } else if (release.kind !== "nextShot" && release.kind !== "timed") return undefined;
   const units = consume(state);
   if (units <= 0) return undefined;
+  startTimedRelease(state, form);
   return shotReleaseOf(form, units);
 }
 
@@ -420,6 +425,21 @@ export function consumeBothHandsRelease(state: GameState): ShotRelease | undefin
   const form = currentForm(state);
   if (form.morale.release.kind !== "bothHands") return undefined;
   return shotReleaseOf(form, consume(state));
+}
+
+/** 放出が timed の型なら、今から sec 秒の窓を開ける（手裏剣の連ね投げ。戦意は呼び出し側が使い済み） */
+function startTimedRelease(state: GameState, form: FormDef): void {
+  const release = form.morale.release;
+  if (release.kind !== "timed") return;
+  state.player.morale.timedUntil = state.time + release.sec;
+}
+
+/** 連ね投げの窓が開いている間の攻撃の速さの倍率（振りの秒と射撃の間隔を割る。player.ts）。窓の外・型が違えば 1 */
+export function timedAttackSpeedMul(state: GameState): number {
+  const until = state.player.morale.timedUntil;
+  if (until === undefined || state.time >= until) return 1;
+  const release = currentForm(state).morale.release;
+  return release.kind === "timed" ? release.attackSpeedMul : 1;
 }
 
 /** 重打の溜め中の堅さ（combat.ts の damagePlayer が被ダメと押しに掛ける）。溜めていなければ undefined */

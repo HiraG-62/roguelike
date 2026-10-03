@@ -4,6 +4,7 @@ import type { EventKind } from "../core/events";
 import { type Modifier, type Rule, type RuleCondition, type RuleEffect, SCOPE_ANY, ruleId } from "../core/rules";
 import { STATUS_KINDS, type StatusApply, type StatusKind } from "../core/status";
 import { TERRAIN_KINDS, type TerrainKind } from "../core/terrain";
+import type { Vec } from "../core/vec";
 import { ATTR_KEYS, type AttrKey, type AttrRatio, type Scaling } from "../loot/types";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 import type { FormKey } from "./weaponForms";
@@ -56,7 +57,7 @@ export type MovesetKey = (typeof MOVESET_KEYS)[number];
  * 弾の挙動の性質。弾は銃のベースごとに持ち（src/loot/bullets.ts）、性質はその数値から読む（bulletFeatures）。
  * 祝福の出現条件・統一ルールの条件・性質の効き先が「設置弾を撃つ武器」のように弾の挙動で絞るときに使う
  */
-export const BULLET_FEATURES = ["rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob"] as const;
+export const BULLET_FEATURES = ["rapid", "spread", "pierce", "homing", "ricochet", "charge", "mine", "burst", "boomerang", "lob", "pin", "arc"] as const;
 export type BulletFeature = (typeof BULLET_FEATURES)[number];
 
 /**
@@ -136,6 +137,12 @@ export interface MeleeStepDef {
    * 省略は攻撃の向き（pull / throw の段は自分の方 / 背後）
    */
   readonly knockToward?: "ownMine";
+  /** 命中した敵に刺さっている飛び物（Enemy.pins）を全部叩き込む（クナイ。system/pins.ts の drivePins） */
+  readonly drivePins?: true;
+  /** 踏み込みの道筋で体が重なった敵も斬り、敵を前へ押さず脇へ払う（抜け斬り。手裏剣のダッシュ攻撃） */
+  readonly passThrough?: true;
+  /** 斬った敵 1 体ごとに戻す気力。MANA.meleeTargetCap の頭打ちを外す（抜け斬り）。省略は mana の通常の回収 */
+  readonly manaPerTarget?: number;
 }
 
 /** 左の段・派生・ダッシュ攻撃が撃つ弾。name は HUD の「左: 火矢」（CAST_NAMES） */
@@ -377,6 +384,10 @@ export interface MovesetDef {
   readonly rules?: readonly Rule[];
   /** 武器種の常時の増・倍（Modifier）。system/modifiers.ts が今の武器種の分だけ集める */
   readonly modifiers?: readonly Modifier[];
+  /** 連撃の段の進め方。alternate = 左右を替えるときだけ段が進む（同じ手を続けても段はそのまま。手裏剣）。省略は押すたびに進む */
+  readonly chainAdvance?: "alternate";
+  /** 投げた輪（手元へ戻る自分の弾）が飛んでいる間は左の射撃も連撃も進まない（戦輪。system/projectiles.ts の ringsInFlight） */
+  readonly waitForReturn?: true;
 }
 
 export interface BulletChargeLevelDef {
@@ -439,6 +450,14 @@ export interface BulletDef {
   readonly lob?: { readonly blastRadius: number; readonly minRange: number; readonly peak: number; readonly color: string };
   /** 周回（持続の奥義・チャクラムの段が付ける。OrbitDef） */
   readonly orbit?: OrbitDef;
+  /** 刺さる弾: 当たると消えて敵に刺さって残る（クナイ・手裏剣。system/pins.ts） */
+  readonly pin?: PinDef;
+  /** 食い込む弾: 最初に当たった敵の位置で止まり、sec 秒のあいだに hits 回当ててから戻る（大手裏剣・牙輪） */
+  readonly grind?: GrindDef;
+  /** 弧で飛ぶ弾: 口元から弧を描いてカーソル（最大射程で頭打ち）まで飛び、反対側の弧で手元へ戻る（戦輪） */
+  readonly arc?: ArcDef;
+  /** 2 枚投げ: 1 回の射撃で体の上下（進む向きに直交する両側）から 1 枚ずつ出す（戦輪） */
+  readonly pair?: PairDef;
   /** 見た目（色・尾・粒・光）。描画と発射の粒だけが読み、当たり方は変えない */
   readonly look?: BulletLookDef;
   /** 消える位置（命中・壁・炸裂・寿命切れ。手元に戻った弾は除く）に地形を残す */
@@ -450,6 +469,76 @@ export interface BulletDef {
   readonly keywords: KeywordProfile;
   /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。敵の防御 / 魔防のどちらで受けるかを決める */
   readonly attack: AttackProfile;
+}
+
+/** 敵に刺さる飛び物の種類（描画の絵と、刺さり崩しを数える単位） */
+export const PIN_KINDS = ["kunai", "shuriken"] as const;
+export type PinKind = (typeof PIN_KINDS)[number];
+
+/**
+ * 刺さる弾（BulletDef.pin）。max = 1 体に同じ種類が刺さったままでいられる本数（超えたら古い順に抜く）、
+ * sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率（刺さったときの威力に掛ける）、
+ * staggerAt = 刺さり崩し（同じ敵に同じ種類がこの本数刺さると怯ませて刺さりを消す。省略は崩さない）
+ */
+export interface PinDef {
+  readonly kind: PinKind;
+  readonly max: number;
+  readonly sec: number;
+  readonly driveMul: number;
+  readonly staggerAt?: number;
+}
+
+/** 食い込む弾（BulletDef.grind）。sec 秒のあいだに hits 回（最初の命中を含む）当てる */
+export interface GrindDef {
+  readonly sec: number;
+  readonly hits: number;
+}
+
+/**
+ * 弧で飛ぶ弾（BulletDef.arc）。bulge = 弧の頂点の横のふくらみ（px）、catchRadius = 帰りに手元のこの距離で収まる（px）、
+ * range = 固定の射程（px。連撃の近投げ。省略はカーソルの距離を最大射程 = 速さ × 寿命で頭打ち）
+ */
+export interface ArcDef {
+  readonly bulge: number;
+  readonly catchRadius: number;
+  readonly range?: number;
+}
+
+/** 2 枚投げ（BulletDef.pair）。offset = 口元から進む向きに直交する両側へずらす距離（px） */
+export interface PairDef {
+  readonly offset: number;
+}
+
+/**
+ * 弧の弾の飛び方（ShotRuntime.arc）。行き: from（口元）→ 頂点 → to（カーソル）。帰り: from（折り返した位置）→ 反対側の頂点 →
+ * 今の自分の位置（毎ステップ読み直す）。頂点は区間の向きに直交する side の側（帰りは向きが逆なので世界では反対側になる）。
+ * t は区間の進み（0..1）、dur は区間の秒、speed は撃った速さ（帰りの区間の秒を決める）
+ */
+export interface ShotArc {
+  from: Vec;
+  to: Vec;
+  side: 1 | -1;
+  bulge: number;
+  t: number;
+  dur: number;
+  back: boolean;
+  speed: number;
+  catchRadius: number;
+}
+
+/** 食い込みの作業領域（ShotRuntime.grind）。targetId = 食い込んだ敵（未定 = まだ当たっていない）、done = 当てた回数、elapsed = 食い込んでからの秒 */
+export interface ShotGrind {
+  sec: number;
+  hits: number;
+  targetId?: number;
+  done: number;
+  elapsed: number;
+}
+
+/** 投げの組（ShotRuntime.trip）。同じ 1 回の投げの弾が共有する。out = 行きで当てた敵、scored = 往復を数えた敵 */
+export interface ShotTrip {
+  out: Set<number>;
+  scored: Set<number>;
 }
 
 /** 弾ごとの作業領域（Projectile.shot）。projectiles.ts が読む */
@@ -482,6 +571,14 @@ export interface ShotRuntime {
   look?: BulletLookDef;
   /** 地形を残し終えた（二重に置かない） */
   left?: boolean;
+  /** 刺さる弾（撃った瞬間の BulletDef.pin の写し。BULLETS に無い差し替えの弾でも効く） */
+  pin?: PinDef;
+  /** 食い込み（撃った瞬間に BulletDef.grind から作る） */
+  grind?: ShotGrind;
+  /** 弧の飛び方（撃った瞬間に BulletDef.arc から作る） */
+  arc?: ShotArc;
+  /** 投げの組（戻る弾だけ。行きと帰りの両方で当てた敵を数える） */
+  trip?: ShotTrip;
 }
 
 /** 弾の挙動ブロックの数値だけ（JSON の形。key・名前・語・素性は持ち主が足す） */
@@ -500,6 +597,8 @@ export function bulletFeatures(b: Readonly<BulletNumbers>): BulletFeature[] {
   if (b.burst) out.push("burst");
   if (b.boomerang) out.push("boomerang");
   if (b.lob) out.push("lob");
+  if (b.pin) out.push("pin");
+  if (b.arc) out.push("arc");
   return out;
 }
 
@@ -511,7 +610,19 @@ export function hasBulletFeature(b: Readonly<BulletNumbers>, feature: BulletFeat
 export function reviveBullet(raw: unknown, key: string, name: string, keywords: KeywordProfile, profile: AttackProfile): BulletDef {
   if (!isRecord(raw) || typeof raw.cooldownMul !== "number") throw new Error(`不正な弾: ${key}`);
   const bullet: BulletDef = { ...(raw as unknown as BulletNumbers), key, name, keywords, attack: profile };
-  return raw.leaves === undefined ? bullet : { ...bullet, leaves: reviveLeaves(raw.leaves, key) };
+  const pinned = raw.pin === undefined ? bullet : { ...bullet, pin: revivePin(raw.pin, key) };
+  return raw.leaves === undefined ? pinned : { ...pinned, leaves: reviveLeaves(raw.leaves, key) };
+}
+
+/** 刺さる弾（kind は union 文字列なので一覧と照合する） */
+function revivePin(raw: unknown, key: string): PinDef {
+  if (!isRecord(raw) || typeof raw.kind !== "string" || typeof raw.max !== "number" || typeof raw.sec !== "number" || typeof raw.driveMul !== "number") {
+    throw new Error(`不正な pin: ${key}`);
+  }
+  const kind = PIN_KINDS.find((k) => k === raw.kind);
+  if (kind === undefined) throw new Error(`未知の刺さる弾の種類: ${raw.kind}（${key}）`);
+  const staggerAt = typeof raw.staggerAt === "number" ? { staggerAt: raw.staggerAt } : {};
+  return { kind, max: raw.max, sec: raw.sec, driveMul: raw.driveMul, ...staggerAt };
 }
 
 /** 弾が残す地形（terrain は union 文字列なので一覧と照合する） */

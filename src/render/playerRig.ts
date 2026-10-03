@@ -427,6 +427,8 @@ export interface RigInput {
   readonly iai?: IaiMotion;
   /** 受け流しの構え（振っていない間だけ。swing より後に効く）。省けば今までの構え */
   readonly guard?: GuardMotion;
+  /** 投げた輪が戻るまで手ぶら（戦輪。system/projectiles.ts の ringsInFlight）。腕の構えはそのまま、手に持つ絵だけ描かない */
+  readonly emptyHanded?: boolean;
 }
 
 /** 腕を伸ばしきらない手の距離（肩から、ドット）。振りの半径 */
@@ -536,7 +538,8 @@ function blendPart(from: HeldPart, to: HeldPart, k: number): HeldPart {
 
 /** 手と武器の位置を決める */
 export function solveRig(i: RigInput): RigPose {
-  const pose = solveHands(i);
+  const held = solveHands(i);
+  const pose = i.emptyHanded === true ? { ...held, front: { ...held.front, bare: true }, back: { ...held.back, bare: true } } : held;
   const sheath = sheathPart(i);
   return sheath ? { ...pose, sheath } : pose;
 }

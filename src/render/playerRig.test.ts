@@ -552,3 +552,14 @@ describe("playerRig: 受け流しの構え（stance.parry）", () => {
     expect(BODY_CLIPS.find((c) => c.name === "parry")?.frames, "生成器と実行時の枚数が揃う").toBe(BODY_CLIP_FRAMES.parry);
   });
 });
+
+describe("playerRig: 投げた輪が戻るまでの手ぶら", () => {
+  it("emptyHanded なら腕の構えはそのままに、手に持つ絵を両手とも描かない", () => {
+    const held = solveRig(base);
+    const empty = solveRig({ ...base, emptyHanded: true });
+    expect(empty.front.bare, "前の手").toBe(true);
+    expect(empty.back.bare, "後ろの手").toBe(true);
+    expect(empty.front.hand, "手の位置は変えない").toEqual(held.front.hand);
+    expect(solveRig({ ...base, emptyHanded: false }).front.bare).toBe(held.front.bare);
+  });
+});

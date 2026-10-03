@@ -62,6 +62,8 @@ import { drawBossPoiseGauge, drawEnemyStatus, drawEnemyStatusFx, drawPlayerStatu
 import { type FxSprites, type SpriteImage, critFlashActive, drawAirMarks, drawDeathFx, drawFloorCard, drawGroundMarks, drawPlayerAuras, drawScreenMarks } from "./effectsUi";
 import { ELEMENT_FX_COLOR, hitElement, isBlastShape, isUltimateFx, itemTraitColor, skillFxOf } from "../system/effects";
 import { equippedSkillKeys } from "../system/runSetup";
+import { ringsInFlight } from "../system/projectiles";
+import { drawPins } from "./pinsUi";
 import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
 import { type HitShape, MOVESETS, lobHeight, meleeChargeOf, shootsPrimary } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
@@ -922,6 +924,7 @@ export class Renderer {
     const town = this.hubView;
     if (town) this.townLayer.drawBack(ctx, state, town);
     this.drawEnemies(state);
+    drawPins(ctx, state);
     drawDeathFx(ctx, state, this.fxSprites);
     this.drawBossDeath(state);
     drawPlayerAuras(ctx, state);
@@ -2389,6 +2392,7 @@ export class Renderer {
       ...(hip ? { hip } : {}),
       ...(iai ? { iai } : {}),
       ...(guard ? { guard } : {}),
+      emptyHanded: ringsInFlight(state),
     };
     const rig = solveRig(rigInput);
 
