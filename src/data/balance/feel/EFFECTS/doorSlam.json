@@ -1,6 +1,1 @@
-{
-  "life": 0.45,
-  "drop": 12,
-  "color": "#ff6060",
-  "hordeColor": "#ff9040"
-}
+{ "life": 0.45, "drop": 12, "color": "#ff6060", "hordeColor": "#ff9040" }

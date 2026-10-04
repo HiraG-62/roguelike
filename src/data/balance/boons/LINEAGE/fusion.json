@@ -24,7 +24,13 @@
   "winterNest": { "duration": 0.6, "icd": 1 },
   "bulwark": { "window": 3, "hpRatio": 0.3 },
   "galeStrike": { "combo": 5, "ratio": 0.6, "icd": 0.5 },
-  "reactionChain": { "radius": 48, "burn": 2, "chill": 0.8, "duration": 3, "icd": 0.5 },
+  "reactionChain": {
+    "radius": 48,
+    "burn": 2,
+    "chill": 0.8,
+    "duration": 3,
+    "icd": 0.5
+  },
   "clearMirror": { "manaPerCoin": 1 },
   "lavishBlade": { "coins": 2, "cost": 5, "perCoin": 4 },
   "bribe": { "cost": 10, "duration": 15, "count": 2, "icd": 1 }

@@ -6,7 +6,12 @@
   "contagionUnravel": { "window": 1.5 },
   "frostBreaker": { "window": 3 },
   "shadowExploit": { "window": 0.8 },
-  "reelStomp": { "_note": "吸い風→衝撃波の範囲と怯み値の倍率（旧 震脚の comboAreaMul / comboPoiseMul）", "window": 1, "areaMul": 1.3, "poiseMul": 1.5 },
+  "reelStomp": {
+    "_note": "吸い風→衝撃波の範囲と怯み値の倍率（旧 震脚の comboAreaMul / comboPoiseMul）",
+    "window": 1,
+    "areaMul": 1.3,
+    "poiseMul": 1.5
+  },
   "color": "#ffe070",
   "textScale": 1,
   "textLife": 0.7

@@ -18,7 +18,15 @@
   },
   "moonVerdict": { "duration": 4 },
   "bloodMist": { "waveRatio": 1.2, "selfBleed": 0.4, "selfBleedTime": 2, "icd": 0.1 },
-  "moonBloodFog": { "radius": 40, "bleedPotency": 1.5, "duration": 4, "color": "#d04050", "selfBleed": 0.2, "selfBleedTime": 2, "icd": 0.1 },
+  "moonBloodFog": {
+    "radius": 40,
+    "bleedPotency": 1.5,
+    "duration": 4,
+    "color": "#d04050",
+    "selfBleed": 0.2,
+    "selfBleedTime": 2,
+    "icd": 0.1
+  },
   "moonBloodRite": { "mana": 6, "selfBleed": 0.3, "selfBleedTime": 2, "icd": 0.1 },
   "moonNightfall": { "radius": 90, "duration": 4 },
   "bloodFeast": { "heal": 2 },

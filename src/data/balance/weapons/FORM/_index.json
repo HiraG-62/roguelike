@@ -35,5 +35,26 @@
     "timed": "手裏剣: 連ね投げ（放出）。戦意が満ちた後の次の投げで始まり、sec 秒のあいだ攻撃の速さ（振りの秒と射撃の間隔）が attackSpeedMul 倍になる（投げの間隔が縮む）",
     "toll": "鈴: 打ち鳴らし（右 1 段目の放出）。radius の内側の自分の設置物を即発動し、連動体（砲台・墓標）に 1 回撃たせる（px）。buffSec 秒の間、設置物・連動体の命中の威力を buffMul 倍にする（1 = 等倍）。強化の間の左の振り 1 回で extendSec 秒延び、残りは maxSec 秒まで"
   },
-  "_order": ["blade", "flurry", "crusher", "hewer", "polearm", "chain", "bulwark", "warfan", "rod", "thrower", "dart", "star", "pistol", "rifle", "artillery", "powder", "shell", "tome", "bell", "akimbo"]
+  "_order": [
+    "blade",
+    "flurry",
+    "crusher",
+    "hewer",
+    "polearm",
+    "chain",
+    "bulwark",
+    "warfan",
+    "rod",
+    "thrower",
+    "dart",
+    "star",
+    "pistol",
+    "rifle",
+    "artillery",
+    "powder",
+    "shell",
+    "tome",
+    "bell",
+    "akimbo"
+  ]
 }

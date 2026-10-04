@@ -1,5 +1,1 @@
-{
-  "threshold": 3,
-  "duration": 4,
-  "mul": 0.5
-}
+{ "threshold": 3, "duration": 4, "mul": 0.5 }

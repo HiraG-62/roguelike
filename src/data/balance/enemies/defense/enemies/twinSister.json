@@ -1,14 +1,8 @@
 {
   "body": "boss",
-  "resist": {
-    "light": 25
-  },
+  "resist": { "light": 25 },
   "stages": [
-    {
-      "fire": -50
-    },
-    {
-      "dark": -50
-    }
+    { "_id": "stage1", "fire": -50 },
+    { "_id": "stage2", "dark": -50 }
   ]
 }

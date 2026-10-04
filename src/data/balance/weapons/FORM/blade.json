@@ -8,6 +8,13 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "gain": {"riposte": 1},
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0.15, "hitsAdd": 1, "knockbackMul": 0, "pierceAdd": 0}
+  "gain": { "riposte": 1 },
+  "perUnit": {
+    "damageMul": 0,
+    "poiseMul": 0,
+    "reachMul": 0.15,
+    "hitsAdd": 1,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  }
 }

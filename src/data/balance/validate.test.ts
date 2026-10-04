@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffKeySets, fieldDescription, undocumentedLeaves, validateBalanceShape, validateFieldDocs } from "./validate";
+import { diffKeySets, fieldDescription, undocumentedLeaves, validateBalanceShape, validateFieldDocs, validateRowIds } from "./validate";
 
 describe("validateBalanceShape", () => {
   it("有限でない数値・null・文字列でない _note を path 付きで報告する", () => {
@@ -96,5 +96,25 @@ describe("項目の説明（_fields）", () => {
 
   it("validateBalanceShape は _fields のドット表記の key を識別子の違反にしない", () => {
     expect(validateBalanceShape({ a: { _fields: { "swarm.min": "下限" }, swarm: { min: 1 } } }, "x.json")).toEqual([]);
+  });
+});
+
+describe("validateRowIds", () => {
+  it("配列の要素のオブジェクトに _id が無い・形が違う・重なるものを path 付きで報告する", () => {
+    const issues = validateRowIds(
+      { steps: [{ windup: 1 }, { _id: "左の1段", windup: 1 }, { _id: "primary1.slash" }, { _id: "primary1.slash" }] },
+      "x.json",
+    );
+    expect(issues.map((i) => i.path)).toEqual(["x.json.steps[0]", "x.json.steps[1]", "x.json.steps[3]"]);
+  });
+
+  it("配列の要素でないオブジェクトの _id を報告する", () => {
+    expect(validateRowIds({ dash: { _id: "dashAttack", windup: 1 } }, "x.json").map((i) => i.path)).toEqual(["x.json.dash._id"]);
+  });
+
+  it("入れ子の配列も見て、値だけの配列と正しい名札は通す", () => {
+    const root = { steps: [{ _id: "primary1.slash", applies: [{ _id: "bleed", stacks: 1 }], seq: [1, 2] }] };
+    expect(validateRowIds(root, "x.json")).toEqual([]);
+    expect(validateRowIds({ steps: [{ _id: "primary1.slash", applies: [{ stacks: 1 }] }] }, "x.json")).toHaveLength(1);
   });
 });

@@ -1,18 +1,169 @@
 {
   "attackMoveMul": 0.8,
   "reloadMoveMul": 0.85,
-  "quickReload": {"from": 0.55, "sec": 0.15, "missSec": 0.5},
+  "quickReload": { "from": 0.55, "sec": 0.15, "missSec": 0.5 },
   "weight": "light",
-  "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4,"dex":0.8},"poise":8,"reach":0,"size":36,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},
+  "dashAttack": {
+    "windup": 0.03,
+    "active": 0.1,
+    "recover": 0.2,
+    "scaling": { "base": 4, "dex": 0.8 },
+    "poise": 8,
+    "reach": 0,
+    "size": 36,
+    "knockback": 180,
+    "heavy": false,
+    "mana": 3,
+    "shape": { "kind": "circle" },
+    "hits": 1,
+    "hitstop": 2,
+    "trail": "#ffe0a0"
+  },
   "steps2": [
-    {"kind":"swing","key":"daggerCut","step":{"windup":0.03,"active":0.08,"recover":0.2,"scaling":{"base":4.2,"dex":0.85},"poise":8,"reach":17,"size":17,"knockback":140,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":100},"hits":1,"hitstop":2,"trail":"#e8f0ff"}},
-    {"kind":"swing","key":"sidearmButt","step":{"windup":0.03,"active":0.1,"recover":0.24,"scaling":{"base":4.5,"dex":0.9},"poise":9,"reach":10.5,"size":18,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":1,"hitstop":2,"trail":"#ffe0a0"}},
-    {"kind":"swing","key":"muzzleSweep","step":{"windup":0.03,"active":0.1,"recover":0.24,"scaling":{"base":4.5,"dex":0.9},"poise":9,"reach":0,"size":36,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"}}
+    {
+      "_id": "secondary1.daggerCut",
+      "kind": "swing",
+      "key": "daggerCut",
+      "step": {
+        "windup": 0.03,
+        "active": 0.08,
+        "recover": 0.2,
+        "scaling": { "base": 4.2, "dex": 0.85 },
+        "poise": 8,
+        "reach": 17,
+        "size": 17,
+        "knockback": 140,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "arc", "deg": 100 },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#e8f0ff"
+      }
+    },
+    {
+      "_id": "secondary2.sidearmButt",
+      "kind": "swing",
+      "key": "sidearmButt",
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.24,
+        "scaling": { "base": 4.5, "dex": 0.9 },
+        "poise": 9,
+        "reach": 10.5,
+        "size": 18,
+        "knockback": 180,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "box" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      }
+    },
+    {
+      "_id": "secondary3.muzzleSweep",
+      "kind": "swing",
+      "key": "muzzleSweep",
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.24,
+        "scaling": { "base": 4.5, "dex": 0.9 },
+        "poise": 9,
+        "reach": 0,
+        "size": 36,
+        "knockback": 180,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "circle" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      }
+    }
   ],
   "branches": {
-    "tripleShot": {"sequence":["primary","primary","secondary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.4},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},"shots":{"count":3,"damageMul":0.9,"spreadDeg":8}},
-    "pointShot": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.4},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},"shots":{"count":1,"damageMul":1.6},"selfKnock":300},
-    "kickAway": {"sequence":["primary","secondary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4.6,"dex":0.9},"poise":9,"reach":10.5,"size":18,"knockback":400,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":1,"hitstop":2,"trail":"#ffe0a0"}},
-    "doubleTap": {"sequence":["secondary","primary","primary"],"step":{"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":2,"dex":0.4},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},"shots":{"count":2,"damageMul":1,"spreadDeg":4}}
+    "tripleShot": {
+      "sequence": ["primary", "primary", "secondary"],
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.2,
+        "scaling": { "base": 2, "dex": 0.4 },
+        "poise": 4,
+        "reach": 0,
+        "size": 20,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "circle" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      },
+      "shots": { "count": 3, "damageMul": 0.9, "spreadDeg": 8 }
+    },
+    "pointShot": {
+      "sequence": ["secondary", "secondary", "primary"],
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.2,
+        "scaling": { "base": 2, "dex": 0.4 },
+        "poise": 4,
+        "reach": 0,
+        "size": 20,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "circle" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      },
+      "shots": { "count": 1, "damageMul": 1.6 },
+      "selfKnock": 300
+    },
+    "kickAway": {
+      "sequence": ["primary", "secondary", "primary"],
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.2,
+        "scaling": { "base": 4.6, "dex": 0.9 },
+        "poise": 9,
+        "reach": 10.5,
+        "size": 18,
+        "knockback": 400,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "box" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      }
+    },
+    "doubleTap": {
+      "sequence": ["secondary", "primary", "primary"],
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.2,
+        "scaling": { "base": 2, "dex": 0.4 },
+        "poise": 4,
+        "reach": 0,
+        "size": 20,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "circle" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      },
+      "shots": { "count": 2, "damageMul": 1, "spreadDeg": 4 }
+    }
   }
 }

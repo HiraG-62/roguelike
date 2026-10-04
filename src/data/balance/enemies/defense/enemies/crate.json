@@ -1,6 +1,4 @@
 {
   "body": "fixture",
-  "resist": {
-    "fire": -50
-  }
+  "resist": { "fire": -50 }
 }

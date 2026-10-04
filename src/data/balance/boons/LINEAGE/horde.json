@@ -25,11 +25,26 @@
   "offering": { "ratio": 1.5, "radius": 32, "count": 1, "icd": 0.3 },
   "walkingStake": { "ringRadius": 12, "color": "#c0a0ff", "fxLife": 0.2 },
   "thrall": { "duration": 20, "radius": 96, "count": 3 },
-  "crossfire": { "ratio": 0.3, "interval": 0.5, "maxLength": 160, "width": 4, "color": "#c0a0ff", "fxLife": 0.15 },
+  "crossfire": {
+    "ratio": 0.3,
+    "interval": 0.5,
+    "maxLength": 160,
+    "width": 4,
+    "color": "#c0a0ff",
+    "fxLife": 0.15
+  },
   "packLeader": { "amount": 0.04, "every": 1, "cap": 0.4 },
   "guardian": { "icd": 4 },
   "hordeTally": { "amount": 0.05, "every": 1 },
   "stakeTally": { "amount": 0.02, "every": 10 },
   "hundredDemons": { "radius": 48, "count": 6, "duration": 20 },
-  "allyAi": { "reach": 6, "interval": 0.8, "damageMul": 1, "minDamage": 4, "speedMul": 1.2, "seekRange": 240, "knockback": 60 }
+  "allyAi": {
+    "reach": 6,
+    "interval": 0.8,
+    "damageMul": 1,
+    "minDamage": 4,
+    "speedMul": 1.2,
+    "seekRange": 240,
+    "knockback": 60
+  }
 }

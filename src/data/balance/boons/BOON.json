@@ -72,7 +72,12 @@
   "gradeBoostAfterBoss": 1,
   "gradeBoostCurseCard": 1,
   "gradeBoostTrialSeeker": 1,
-  "gradeColor": { "grand": "#ffd75f", "divine": "#ff9ce0", "supreme": "#ff8a50", "pinnacle": "#ffffff" },
+  "gradeColor": {
+    "grand": "#ffd75f",
+    "divine": "#ff9ce0",
+    "supreme": "#ff8a50",
+    "pinnacle": "#ffffff"
+  },
   "graceSlots": 2,
   "graceSlotsMax": 3,
   "baseWeight": 3,

@@ -1,7 +1,4 @@
 {
   "body": "elite",
-  "resist": {
-    "poison": 25,
-    "fire": -50
-  }
+  "resist": { "poison": 25, "fire": -50 }
 }

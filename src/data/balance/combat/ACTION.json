@@ -4,8 +4,30 @@
   },
   "_note": "アクション手触り（docs/ideas/action-feel.md「まず入れるべき5つ」+ 壁叩きつけ・ダッシュ攻撃）。dashAttack は src/data/balance/weapons.json の ACTION_DASH_ATTACK。表示文言（浮き文字の text）は src/data/actionText.ts に分離し、data/tuning.ts の ACTION が数値と合流する。counter は出端（敵の予告が下絵の間に振り始めた近接 / 撃った放出の弾。docs/ideas/reading-core-impl.md）。威力 damageMul・怯み値 poiseMul（下絵に絞ったので 1 → 1.5）・盾抜け・気力 ×2。頭上の文字は出さず、音・粒・白黒・墨の飛沫で見せる。止めは FEEL.hitstopCounter。lastKill はロック中の部屋で最後の敵を倒した瞬間のスローモーション。regain は被弾後しばらく近接ヒットでHPを取り戻す猶予（perHitRatio は0.15→0.1、poolRatioはC-1で0.6→0.5、memo 2026-09-24で0.5→0.3）。wallSplat は近接3段目などで吹き飛んだ敵が壁に激突（poise は強靭を無視する）。bulletCut は性質 bulletCut で敵弾を消したときの見た目のみ",
   "counter": { "damageMul": 1.5, "poiseMul": 1.5, "color": "#ff9040", "particles": 12 },
-  "lastKill": { "slowmo": 0.5, "flash": 0.85, "color": "#ffffff", "textScale": 2.6, "textLife": 1.2, "textOffsetY": 14, "ringRadius": 60, "ringLife": 0.45, "particles": 30 },
-  "regain": { "window": 3, "perHitRatio": 0.1, "poolRatio": 0.3, "color": "#b0ffb0", "particles": 4 },
-  "wallSplat": { "damage": 10, "poise": 20, "color": "#c0c0c0", "particles": 12, "hitstop": 3 },
+  "lastKill": {
+    "slowmo": 0.5,
+    "flash": 0.85,
+    "color": "#ffffff",
+    "textScale": 2.6,
+    "textLife": 1.2,
+    "textOffsetY": 14,
+    "ringRadius": 60,
+    "ringLife": 0.45,
+    "particles": 30
+  },
+  "regain": {
+    "window": 3,
+    "perHitRatio": 0.1,
+    "poolRatio": 0.3,
+    "color": "#b0ffb0",
+    "particles": 4
+  },
+  "wallSplat": {
+    "damage": 10,
+    "poise": 20,
+    "color": "#c0c0c0",
+    "particles": 12,
+    "hitstop": 3
+  },
   "bulletCut": { "color": "#c0e0ff", "particles": 4 }
 }

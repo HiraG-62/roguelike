@@ -25,17 +25,28 @@
   "unscathed": {
     "stakeRatio": 0.3,
     "stakeMin": 10,
-    "tiers": { "easy": { "mul": 1.5 }, "hard": { "mul": 2 } }
+    "tiers": {
+      "easy": { "mul": 1.5 },
+      "hard": { "mul": 2 }
+    }
   },
   "swift": {
     "stakeRatio": 0.3,
     "stakeMin": 10,
-    "tiers": { "easy": { "target": 25, "mul": 1.5 }, "hard": { "target": 15, "mul": 2 }, "extreme": { "target": 10, "mul": 3 } }
+    "tiers": {
+      "easy": { "target": 25, "mul": 1.5 },
+      "hard": { "target": 15, "mul": 2 },
+      "extreme": { "target": 10, "mul": 3 }
+    }
   },
   "parries": {
     "stakeRatio": 0.3,
     "stakeMin": 10,
-    "tiers": { "easy": { "target": 5, "mul": 1.5 }, "hard": { "target": 10, "mul": 2 }, "extreme": { "target": 20, "mul": 3 } }
+    "tiers": {
+      "easy": { "target": 5, "mul": 1.5 },
+      "hard": { "target": 10, "mul": 2 },
+      "extreme": { "target": 20, "mul": 3 }
+    }
   },
   "parryKeywordMul": 1.5,
   "jackpotPerChapter": 1,

@@ -24,5 +24,18 @@
   "leanWeight": 3,
   "resistWeight": 0.5,
   "weaponLeanTop": 2,
-  "_order": ["budget", "depthScale", "maxLines", "extraLineChance", "linesPerPoint", "pointValue", "armor", "leanWeight", "resistWeight", "resistLines", "slotLean", "weaponLeanTop"]
+  "_order": [
+    "budget",
+    "depthScale",
+    "maxLines",
+    "extraLineChance",
+    "linesPerPoint",
+    "pointValue",
+    "armor",
+    "leanWeight",
+    "resistWeight",
+    "resistLines",
+    "slotLean",
+    "weaponLeanTop"
+  ]
 }

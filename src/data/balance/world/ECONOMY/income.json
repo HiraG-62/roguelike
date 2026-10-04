@@ -16,12 +16,27 @@
     "pactSilentPenalty": "契約「沈黙」を破って失う銭。銭"
   },
   "spread": { "low": 0.7, "high": 1.4 },
-  "kill": { "normal": 0.8, "strong": 2, "elite": 5, "leader": 8, "lord": 10, "boss": 15 },
+  "kill": {
+    "normal": 0.8,
+    "strong": 2,
+    "elite": 5,
+    "leader": 8,
+    "lord": 10,
+    "boss": 15
+  },
   "swarmMul": 0.34,
   "routMul": 3,
   "jin": 4,
   "jinUnscathedMul": 2,
-  "roomBonus": { "challenge": 4, "arena": 4, "horde": 6, "nest": 4, "mirror": 4, "fogRoom": 2, "tideRoom": 2 },
+  "roomBonus": {
+    "challenge": 4,
+    "arena": 4,
+    "horde": 6,
+    "nest": 4,
+    "mirror": 4,
+    "fogRoom": 2,
+    "tideRoom": 2
+  },
   "floor": 3,
   "bounty": 10,
   "duel": 8,

@@ -1,7 +1,4 @@
 {
   "body": "spirit",
-  "resist": {
-    "fire": 75,
-    "ice": -50
-  }
+  "resist": { "fire": 75, "ice": -50 }
 }

@@ -2,22 +2,331 @@
   "attackMoveMul": 0.25,
   "weight": "heavy",
   "steps": [
-    {"windup":0.2,"active":0.1,"recover":0.3,"scaling":{"base":8.31,"str":1.15},"poiseRatio":{"str":0.46},"poise":15.3,"reach":14,"size":22,"knockback":260,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070","applies":[{"kind":"wound","stacks":1,"duration":6,"potency":0}]},
-    {"windup":0.2,"active":0.1,"recover":0.3,"scaling":{"base":8.86,"str":1.227},"poiseRatio":{"str":0.491},"poise":16.4,"reach":14,"size":22,"knockback":260,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070","applies":[{"kind":"wound","stacks":1,"duration":6,"potency":0}]},
-    {"windup":0.24,"active":0.1,"recover":0.35,"scaling":{"base":10.14,"str":1.159,"vit":0.29},"poiseRatio":{"str":0.608},"poise":20.3,"reach":14.5,"size":21.5,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070","applies":[{"kind":"wound","stacks":1,"duration":6,"potency":0}]},
-    {"windup":0.32,"active":0.12,"recover":0.48,"scaling":{"base":26.91,"str":2.484,"vit":0.828},"poiseRatio":{"str":1.615},"poise":53.8,"reach":14,"size":22,"knockback":420,"heavy":true,"mana":6.5,"shape":{"kind":"box"},"hitstop":7,"shake":4,"lunge":8,"trail":"#ffffff","applies":[{"kind":"wound","stacks":1,"duration":6,"potency":0}]}
+    {
+      "_id": "primary1.heavyStrike",
+      "windup": 0.2,
+      "active": 0.1,
+      "recover": 0.3,
+      "scaling": { "base": 8.31, "str": 1.15 },
+      "poiseRatio": { "str": 0.46 },
+      "poise": 15.3,
+      "reach": 14,
+      "size": 22,
+      "knockback": 260,
+      "heavy": true,
+      "mana": 4,
+      "shape": { "kind": "box" },
+      "hitstop": 4,
+      "shake": 2,
+      "lunge": 5,
+      "trail": "#ff9070",
+      "applies": [
+        {
+          "_id": "wound",
+          "kind": "wound",
+          "stacks": 1,
+          "duration": 6,
+          "potency": 0
+        }
+      ]
+    },
+    {
+      "_id": "primary2.heavyStrike",
+      "windup": 0.2,
+      "active": 0.1,
+      "recover": 0.3,
+      "scaling": { "base": 8.86, "str": 1.227 },
+      "poiseRatio": { "str": 0.491 },
+      "poise": 16.4,
+      "reach": 14,
+      "size": 22,
+      "knockback": 260,
+      "heavy": true,
+      "mana": 4,
+      "shape": { "kind": "box" },
+      "hitstop": 4,
+      "shake": 2,
+      "lunge": 5,
+      "trail": "#ff9070",
+      "applies": [
+        {
+          "_id": "wound",
+          "kind": "wound",
+          "stacks": 1,
+          "duration": 6,
+          "potency": 0
+        }
+      ]
+    },
+    {
+      "_id": "primary3.heavyStrike",
+      "windup": 0.24,
+      "active": 0.1,
+      "recover": 0.35,
+      "scaling": { "base": 10.14, "str": 1.159, "vit": 0.29 },
+      "poiseRatio": { "str": 0.608 },
+      "poise": 20.3,
+      "reach": 14.5,
+      "size": 21.5,
+      "knockback": 280,
+      "heavy": true,
+      "mana": 4,
+      "shape": { "kind": "box" },
+      "hitstop": 4,
+      "shake": 2.5,
+      "lunge": 6,
+      "trail": "#ff9070",
+      "applies": [
+        {
+          "_id": "wound",
+          "kind": "wound",
+          "stacks": 1,
+          "duration": 6,
+          "potency": 0
+        }
+      ]
+    },
+    {
+      "_id": "primary4.heavyStrike",
+      "windup": 0.32,
+      "active": 0.12,
+      "recover": 0.48,
+      "scaling": { "base": 26.91, "str": 2.484, "vit": 0.828 },
+      "poiseRatio": { "str": 1.615 },
+      "poise": 53.8,
+      "reach": 14,
+      "size": 22,
+      "knockback": 420,
+      "heavy": true,
+      "mana": 6.5,
+      "shape": { "kind": "box" },
+      "hitstop": 7,
+      "shake": 4,
+      "lunge": 8,
+      "trail": "#ffffff",
+      "applies": [
+        {
+          "_id": "wound",
+          "kind": "wound",
+          "stacks": 1,
+          "duration": 6,
+          "potency": 0
+        }
+      ]
+    }
   ],
-  "dashAttack": {"windup":0.08,"active":0.1,"recover":0.28,"scaling":{"base":9.42,"str":1.178},"poiseRatio":{"str":0.495},"poise":16.5,"reach":15.5,"size":19.5,"knockback":320,"heavy":true,"mana":3.5,"shape":{"kind":"box"},"hitstop":5,"shake":3,"trail":"#ff9070"},
+  "dashAttack": {
+    "windup": 0.08,
+    "active": 0.1,
+    "recover": 0.28,
+    "scaling": { "base": 9.42, "str": 1.178 },
+    "poiseRatio": { "str": 0.495 },
+    "poise": 16.5,
+    "reach": 15.5,
+    "size": 19.5,
+    "knockback": 320,
+    "heavy": true,
+    "mana": 3.5,
+    "shape": { "kind": "box" },
+    "hitstop": 5,
+    "shake": 3,
+    "trail": "#ff9070"
+  },
   "steps2": [
-    {"kind":"swing","key":"shoulderCharge","step":{"windup":0.1,"active":0.1,"recover":0.23,"scaling":{"base":7.23,"str":0.241,"vit":0.723},"poiseRatio":{"str":0.579},"poise":19.3,"reach":12,"size":24,"knockback":360,"heavy":true,"mana":3.5,"shape":{"kind":"box"},"hitstop":5,"shake":3,"lunge":22}},
-    {"kind":"swing","key":"verticalSplit","step":{"windup":0.2,"active":0.1,"recover":0.36,"scaling":{"base":9.7,"str":1.347},"poiseRatio":{"str":0.525},"poise":17.5,"reach":16,"size":18,"knockback":260,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2,"lunge":5,"trail":"#ff9070"}},
-    {"kind":"swing","key":"cleaverSweep","step":{"windup":0.24,"active":0.1,"recover":0.42,"scaling":{"base":11.15,"str":1.287,"vit":0.286},"poiseRatio":{"str":0.686},"poise":22.9,"reach":25.5,"size":25.5,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"arc","deg":160},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070"}},
-    {"kind":"swing","key":"rend","step":{"windup":0.32,"active":0.12,"recover":0.58,"scaling":{"base":31.24,"str":2.859,"vit":0.919},"poiseRatio":{"str":1.899},"poise":63.3,"reach":14,"size":22,"knockback":420,"heavy":true,"mana":6.5,"shape":{"kind":"box"},"hitstop":7,"shake":4,"lunge":8,"trail":"#ffffff"}}
+    {
+      "_id": "secondary1.shoulderCharge",
+      "kind": "swing",
+      "key": "shoulderCharge",
+      "step": {
+        "windup": 0.1,
+        "active": 0.1,
+        "recover": 0.23,
+        "scaling": { "base": 7.23, "str": 0.241, "vit": 0.723 },
+        "poiseRatio": { "str": 0.579 },
+        "poise": 19.3,
+        "reach": 12,
+        "size": 24,
+        "knockback": 360,
+        "heavy": true,
+        "mana": 3.5,
+        "shape": { "kind": "box" },
+        "hitstop": 5,
+        "shake": 3,
+        "lunge": 22
+      }
+    },
+    {
+      "_id": "secondary2.verticalSplit",
+      "kind": "swing",
+      "key": "verticalSplit",
+      "step": {
+        "windup": 0.2,
+        "active": 0.1,
+        "recover": 0.36,
+        "scaling": { "base": 9.7, "str": 1.347 },
+        "poiseRatio": { "str": 0.525 },
+        "poise": 17.5,
+        "reach": 16,
+        "size": 18,
+        "knockback": 260,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2,
+        "lunge": 5,
+        "trail": "#ff9070"
+      }
+    },
+    {
+      "_id": "secondary3.cleaverSweep",
+      "kind": "swing",
+      "key": "cleaverSweep",
+      "step": {
+        "windup": 0.24,
+        "active": 0.1,
+        "recover": 0.42,
+        "scaling": { "base": 11.15, "str": 1.287, "vit": 0.286 },
+        "poiseRatio": { "str": 0.686 },
+        "poise": 22.9,
+        "reach": 25.5,
+        "size": 25.5,
+        "knockback": 280,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "arc", "deg": 160 },
+        "hitstop": 4,
+        "shake": 2.5,
+        "lunge": 6,
+        "trail": "#ff9070"
+      }
+    },
+    {
+      "_id": "secondary4.rend",
+      "kind": "swing",
+      "key": "rend",
+      "step": {
+        "windup": 0.32,
+        "active": 0.12,
+        "recover": 0.58,
+        "scaling": { "base": 31.24, "str": 2.859, "vit": 0.919 },
+        "poiseRatio": { "str": 1.899 },
+        "poise": 63.3,
+        "reach": 14,
+        "size": 22,
+        "knockback": 420,
+        "heavy": true,
+        "mana": 6.5,
+        "shape": { "kind": "box" },
+        "hitstop": 7,
+        "shake": 4,
+        "lunge": 8,
+        "trail": "#ffffff"
+      }
+    }
   ],
   "branches": {
-    "slamDown": {"sequence":["primary","primary","secondary"],"step":{"windup":0.4,"active":0.12,"recover":0.58,"scaling":{"base":31.45,"str":2.935,"vit":0.839},"poiseRatio":{"str":1.887},"poise":62.9,"reach":12.5,"size":25.5,"knockback":460,"heavy":true,"mana":6.5,"shape":{"kind":"circle"},"hitstop":8,"shake":5,"trail":"#ffffff"}},
-    "bloodSpray": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.24,"active":0.1,"recover":0.35,"scaling":{"base":16.54,"str":1.861,"vit":0.517},"poiseRatio":{"str":0.993},"poise":33.1,"reach":14.5,"size":21.5,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070","applies":[{"kind":"bleed","stacks":2,"duration":4,"potency":1.5,"ratio":{"str":0.045}}]}},
-    "pressCut": {"sequence":["primary","secondary","primary"],"step":{"windup":0.24,"active":0.1,"recover":0.35,"scaling":{"base":16.54,"str":1.861,"vit":0.517},"poiseRatio":{"str":0.993},"poise":33.1,"reach":14.5,"size":21.5,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":20,"trail":"#ff9070"}},
-    "boneBreak": {"sequence":["secondary","primary","primary"],"step":{"windup":0.24,"active":0.1,"recover":0.35,"scaling":{"base":16.54,"str":1.861,"vit":0.517},"poiseRatio":{"str":0.993},"poise":33.1,"reach":14.5,"size":21.5,"knockback":280,"heavy":true,"mana":4,"shape":{"kind":"box"},"hitstop":4,"shake":2.5,"lunge":6,"trail":"#ff9070","applies":[{"kind":"broken","stacks":1,"duration":1.5,"potency":0}]}}
+    "slamDown": {
+      "sequence": ["primary", "primary", "secondary"],
+      "step": {
+        "windup": 0.4,
+        "active": 0.12,
+        "recover": 0.58,
+        "scaling": { "base": 31.45, "str": 2.935, "vit": 0.839 },
+        "poiseRatio": { "str": 1.887 },
+        "poise": 62.9,
+        "reach": 12.5,
+        "size": 25.5,
+        "knockback": 460,
+        "heavy": true,
+        "mana": 6.5,
+        "shape": { "kind": "circle" },
+        "hitstop": 8,
+        "shake": 5,
+        "trail": "#ffffff"
+      }
+    },
+    "bloodSpray": {
+      "sequence": ["secondary", "secondary", "primary"],
+      "step": {
+        "windup": 0.24,
+        "active": 0.1,
+        "recover": 0.35,
+        "scaling": { "base": 16.54, "str": 1.861, "vit": 0.517 },
+        "poiseRatio": { "str": 0.993 },
+        "poise": 33.1,
+        "reach": 14.5,
+        "size": 21.5,
+        "knockback": 280,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2.5,
+        "lunge": 6,
+        "trail": "#ff9070",
+        "applies": [
+          {
+            "_id": "bleed",
+            "kind": "bleed",
+            "stacks": 2,
+            "duration": 4,
+            "potency": 1.5,
+            "ratio": { "str": 0.045 }
+          }
+        ]
+      }
+    },
+    "pressCut": {
+      "sequence": ["primary", "secondary", "primary"],
+      "step": {
+        "windup": 0.24,
+        "active": 0.1,
+        "recover": 0.35,
+        "scaling": { "base": 16.54, "str": 1.861, "vit": 0.517 },
+        "poiseRatio": { "str": 0.993 },
+        "poise": 33.1,
+        "reach": 14.5,
+        "size": 21.5,
+        "knockback": 280,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2.5,
+        "lunge": 20,
+        "trail": "#ff9070"
+      }
+    },
+    "boneBreak": {
+      "sequence": ["secondary", "primary", "primary"],
+      "step": {
+        "windup": 0.24,
+        "active": 0.1,
+        "recover": 0.35,
+        "scaling": { "base": 16.54, "str": 1.861, "vit": 0.517 },
+        "poiseRatio": { "str": 0.993 },
+        "poise": 33.1,
+        "reach": 14.5,
+        "size": 21.5,
+        "knockback": 280,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2.5,
+        "lunge": 6,
+        "trail": "#ff9070",
+        "applies": [
+          {
+            "_id": "broken",
+            "kind": "broken",
+            "stacks": 1,
+            "duration": 1.5,
+            "potency": 0
+          }
+        ]
+      }
+    }
   }
 }

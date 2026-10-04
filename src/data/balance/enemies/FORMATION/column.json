@@ -4,6 +4,12 @@
   "weight": 0,
   "spacing": 22,
   "slots": [
-    { "role": "vanguard", "grade": "normal", "share": 1, "min": 1 }
+    {
+      "_id": "vanguard.normal",
+      "role": "vanguard",
+      "grade": "normal",
+      "share": 1,
+      "min": 1
+    }
   ]
 }

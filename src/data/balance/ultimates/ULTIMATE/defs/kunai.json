@@ -1,12 +1,19 @@
 {
   "shadowStitch": {
-    "pinNova": { "radius": 80, "pins": 2, "scaling": { "base": 14, "dex": 1.2 }, "poise": 12, "poiseRatio": { "dex": 0.3 } }
+    "pinNova": {
+      "radius": 80,
+      "pins": 2,
+      "scaling": { "base": 14, "dex": 1.2 },
+      "poise": 12,
+      "poiseRatio": { "dex": 0.3 }
+    }
   },
   "blastKunai": {
     "detonatePins": { "damageMul": 4 }
   },
   "hiddenArms": {
-    "drainPerSec": 12.5, "minSec": 1,
+    "drainPerSec": 12.5,
+    "minSec": 1,
     "mul": { "damage": 1.15 },
     "shot": { "pelletsAdd": 1 },
     "pinDriveMul": 1.6

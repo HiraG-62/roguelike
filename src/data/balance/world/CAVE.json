@@ -26,11 +26,7 @@
     "widen": 0
   },
   "biome": {
-    "swamp": {
-      "fillChance": 0.44,
-      "minRoomTiles": 10,
-      "maxRooms": 11
-    },
+    "swamp": { "fillChance": 0.44, "minRoomTiles": 10, "maxRooms": 11 },
     "glacier": {
       "fillChance": 0.43,
       "openDist": 4,
@@ -39,19 +35,8 @@
       "maxRooms": 7,
       "widen": 1
     },
-    "meadow": {
-      "fillChance": 0.42,
-      "openDist": 4,
-      "maxRooms": 8
-    },
-    "forge": {
-      "fillChance": 0.47,
-      "minRoomTiles": 10,
-      "maxRooms": 10
-    },
-    "dark": {
-      "fillChance": 0.46,
-      "maxRooms": 10
-    }
+    "meadow": { "fillChance": 0.42, "openDist": 4, "maxRooms": 8 },
+    "forge": { "fillChance": 0.47, "minRoomTiles": 10, "maxRooms": 10 },
+    "dark": { "fillChance": 0.46, "maxRooms": 10 }
   }
 }

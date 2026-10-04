@@ -1,27 +1,11 @@
 {
   "_note": "地形の層の効果（system/terrain.ts・map/generator.ts の planTerrain）。秒・px・確率の数値",
   "tickInterval": 0.5,
-  "water": {
-    "wetStacks": 1
-  },
-  "oil": {
-    "oiledStacks": 1
-  },
-  "lava": {
-    "damage": 1,
-    "enemyDamage": 3,
-    "burnDps": 2,
-    "burnDuration": 1.5
-  },
-  "bog": {
-    "poisonDuration": 3,
-    "corrodeEvery": 3
-  },
-  "ice": {
-    "chillEvery": 4,
-    "chillDuration": 2,
-    "accel": 5
-  },
+  "water": { "wetStacks": 1 },
+  "oil": { "oiledStacks": 1 },
+  "lava": { "damage": 1, "enemyDamage": 3, "burnDps": 2, "burnDuration": 1.5 },
+  "bog": { "poisonDuration": 3, "corrodeEvery": 3 },
+  "ice": { "chillEvery": 4, "chillDuration": 2, "accel": 5 },
   "fire": {
     "burnDps": 3,
     "burnDuration": 2,

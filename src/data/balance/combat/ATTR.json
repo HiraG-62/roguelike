@@ -18,6 +18,6 @@
   "vitStatusTakenMin": 0.5,
   "mndMaxMana": 5,
   "mndManaRegen": 0.12,
-  "defArmor": 1.0,
+  "defArmor": 1,
   "defWarding": 0.5
 }

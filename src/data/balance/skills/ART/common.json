@@ -1,248 +1,841 @@
 {
   "_note": "共通技 60（前半 24 は skills/arts/common.ts、後半 36 は common2.ts）。後半 36 は段取り 7c で束ねた武器技の代表の数値をそのまま写した（docs/ideas/skills-7c-plan.md 1-2 の「数値の写し元」）。威力はステータス基礎値（各 5）で気力 1 あたり約 2〜2.3 を目安",
-  "commonShockwave": { "cost": 16, "minInterval": 0.5, "poise": 14, "wave": { "radius": 42, "damage": { "base": 7.5, "str": 0.6, "vit": 0.6 }, "knockback": 220 } },
-  "commonBackstep": { "cooldown": 5, "minInterval": 0.3, "poise": 0, "leap": { "distance": -64, "invuln": 0.3 } },
-  "commonBlink": { "cooldown": 7, "minInterval": 0.3, "poise": 0, "range": 110, "blink": { "invuln": 0.2 } },
+  "commonShockwave": {
+    "cost": 16,
+    "minInterval": 0.5,
+    "poise": 14,
+    "wave": {
+      "radius": 42,
+      "damage": { "base": 7.5, "str": 0.6, "vit": 0.6 },
+      "knockback": 220
+    }
+  },
+  "commonBackstep": {
+    "cooldown": 5,
+    "minInterval": 0.3,
+    "poise": 0,
+    "leap": { "distance": -64, "invuln": 0.3 }
+  },
+  "commonBlink": {
+    "cooldown": 7,
+    "minInterval": 0.3,
+    "poise": 0,
+    "range": 110,
+    "blink": { "invuln": 0.2 }
+  },
   "commonWarCry": {
-    "cooldown": 14, "minInterval": 0.3, "poise": 0,
-    "shout": { "radius": 56, "fear": { "stacks": 1, "duration": 1.5, "potency": 0 } },
+    "cooldown": 14,
+    "minInterval": 0.3,
+    "poise": 0,
+    "shout": {
+      "radius": 56,
+      "fear": { "stacks": 1, "duration": 1.5, "potency": 0 }
+    },
     "rouse": { "duration": 4, "damageMul": 1.2 }
   },
-  "commonFirstAid": { "cooldown": 18, "minInterval": 0.3, "poise": 0, "mend": { "duration": 0, "heal": 0.15 } },
+  "commonFirstAid": {
+    "cooldown": 18,
+    "minInterval": 0.3,
+    "poise": 0,
+    "mend": { "duration": 0, "heal": 0.15 }
+  },
   "commonMeditate": {
-    "cooldown": 16, "minInterval": 0.3, "poise": 0,
-    "calm": { "duration": 0, "mana": 30, "self": { "harden": { "stacks": 1, "duration": 2, "potency": 0 } } }
+    "cooldown": 16,
+    "minInterval": 0.3,
+    "poise": 0,
+    "calm": {
+      "duration": 0,
+      "mana": 30,
+      "self": {
+        "harden": { "stacks": 1, "duration": 2, "potency": 0 }
+      }
+    }
   },
   "commonFireball": {
-    "cost": 16, "minInterval": 0.4, "poise": 10,
-    "ball": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.7, "bulletRadius": 5, "damage": { "base": 10, "mnd": 0.6, "spi": 1.2 }, "knockback": 60, "burn": { "stacks": 1, "duration": 3, "potency": 3 } }
+    "cost": 16,
+    "minInterval": 0.4,
+    "poise": 10,
+    "ball": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 200,
+      "life": 0.7,
+      "bulletRadius": 5,
+      "damage": { "base": 10, "mnd": 0.6, "spi": 1.2 },
+      "knockback": 60,
+      "burn": { "stacks": 1, "duration": 3, "potency": 3 }
+    }
   },
   "commonIceLance": {
-    "cost": 17, "minInterval": 0.45, "poise": 10,
-    "lance": { "count": 1, "spreadDeg": 0, "speed": 260, "life": 0.6, "bulletRadius": 4, "pierce": 2, "damage": { "base": 8.8, "dex": 0.6, "spi": 1 }, "knockback": 40, "chill": { "stacks": 2, "duration": 2, "potency": 0 } }
+    "cost": 17,
+    "minInterval": 0.45,
+    "poise": 10,
+    "lance": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 260,
+      "life": 0.6,
+      "bulletRadius": 4,
+      "pierce": 2,
+      "damage": { "base": 8.8, "dex": 0.6, "spi": 1 },
+      "knockback": 40,
+      "chill": { "stacks": 2, "duration": 2, "potency": 0 }
+    }
   },
   "commonThunderclap": {
-    "cost": 20, "minInterval": 0.5, "poise": 16, "range": 130,
-    "bolt": { "radius": 30, "damage": { "base": 12.5, "mnd": 0.8, "spi": 1.2 }, "knockback": 40, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+    "cost": 20,
+    "minInterval": 0.5,
+    "poise": 16,
+    "range": 130,
+    "bolt": {
+      "radius": 30,
+      "damage": { "base": 12.5, "mnd": 0.8, "spi": 1.2 },
+      "knockback": 40,
+      "shock": { "stacks": 1, "duration": 2.5, "potency": 2 }
+    }
   },
   "commonPoisonMist": {
-    "cost": 17, "minInterval": 0.5, "poise": 4, "range": 120,
-    "mist": { "radius": 34, "damage": { "base": 3.8, "spi": 0.8 }, "knockback": 0, "poison": { "stacks": 2, "duration": 5, "potency": 0 }, "terrainRadius": 22, "terrainTime": 5 }
+    "cost": 17,
+    "minInterval": 0.5,
+    "poise": 4,
+    "range": 120,
+    "mist": {
+      "radius": 34,
+      "damage": { "base": 3.8, "spi": 0.8 },
+      "knockback": 0,
+      "poison": { "stacks": 2, "duration": 5, "potency": 0 },
+      "terrainRadius": 22,
+      "terrainTime": 5
+    }
   },
   "commonShadowBolt": {
-    "cost": 14, "minInterval": 0.4, "poise": 8,
-    "bolt": { "count": 1, "spreadDeg": 0, "speed": 170, "life": 0.9, "bulletRadius": 6, "damage": { "base": 8.8, "spi": 1.4 }, "knockback": 30, "weaken": { "stacks": 1, "duration": 4, "potency": 0 } }
+    "cost": 14,
+    "minInterval": 0.4,
+    "poise": 8,
+    "bolt": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 170,
+      "life": 0.9,
+      "bulletRadius": 6,
+      "damage": { "base": 8.8, "spi": 1.4 },
+      "knockback": 30,
+      "weaken": { "stacks": 1, "duration": 4, "potency": 0 }
+    }
   },
   "commonHolyNova": {
-    "cost": 21, "minInterval": 0.6, "poise": 10,
-    "light": { "radius": 44, "damage": { "base": 8.8, "mnd": 1, "spi": 0.6 }, "knockback": 90 },
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 10,
+    "light": {
+      "radius": 44,
+      "damage": { "base": 8.8, "mnd": 1, "spi": 0.6 },
+      "knockback": 90
+    },
     "bless": { "duration": 0, "heal": 0.04 }
   },
   "commonChainSpark": {
-    "cost": 18, "minInterval": 0.45, "poise": 8, "range": 130,
-    "arc": { "range": 36, "jumps": 3, "jumpRange": 60, "damage": { "base": 7.5, "dex": 0.4, "spi": 1 }, "knockback": 20, "shock": { "stacks": 1, "duration": 2.5, "potency": 2 } }
+    "cost": 18,
+    "minInterval": 0.45,
+    "poise": 8,
+    "range": 130,
+    "arc": {
+      "range": 36,
+      "jumps": 3,
+      "jumpRange": 60,
+      "damage": { "base": 7.5, "dex": 0.4, "spi": 1 },
+      "knockback": 20,
+      "shock": { "stacks": 1, "duration": 2.5, "potency": 2 }
+    }
   },
   "commonMagnet": {
-    "cooldown": 9, "minInterval": 0.3, "poise": 20, "range": 120,
-    "gather": { "radius": 70, "toDistance": 12, "damage": { "base": 2, "spi": 0.4 }, "knockback": 0 }
+    "cooldown": 9,
+    "minInterval": 0.3,
+    "poise": 20,
+    "range": 120,
+    "gather": {
+      "radius": 70,
+      "toDistance": 12,
+      "damage": { "base": 2, "spi": 0.4 },
+      "knockback": 0
+    }
   },
   "commonSmokeBomb": {
-    "cooldown": 10, "minInterval": 0.3, "poise": 0,
+    "cooldown": 10,
+    "minInterval": 0.3,
+    "poise": 0,
     "smoke": { "radius": 10, "terrainRadius": 30, "terrainTime": 4 },
     "hop": { "distance": -48, "invuln": 0.2 }
   },
   "commonKnifeFan": {
-    "cost": 16, "minInterval": 0.4, "poise": 5,
-    "knives": { "count": 5, "spreadDeg": 12, "speed": 230, "life": 0.45, "bulletRadius": 3, "damage": { "base": 3.8, "dex": 0.6 }, "knockback": 20, "bleed": { "stacks": 1, "duration": 4, "potency": 1 } }
+    "cost": 16,
+    "minInterval": 0.4,
+    "poise": 5,
+    "knives": {
+      "count": 5,
+      "spreadDeg": 12,
+      "speed": 230,
+      "life": 0.45,
+      "bulletRadius": 3,
+      "damage": { "base": 3.8, "dex": 0.6 },
+      "knockback": 20,
+      "bleed": { "stacks": 1, "duration": 4, "potency": 1 }
+    }
   },
   "commonMeteor": {
-    "cost": 31, "minInterval": 0.8, "poise": 40, "range": 140,
-    "fall": { "delay": 0.7, "radius": 44, "damage": { "base": 27.5, "str": 1, "spi": 1.6 }, "knockback": 240, "heavy": true, "burn": { "stacks": 2, "duration": 3, "potency": 3 }, "terrainRadius": 30, "terrainTime": 3 }
+    "cost": 31,
+    "minInterval": 0.8,
+    "poise": 40,
+    "range": 140,
+    "fall": {
+      "delay": 0.7,
+      "radius": 44,
+      "damage": { "base": 27.5, "str": 1, "spi": 1.6 },
+      "knockback": 240,
+      "heavy": true,
+      "burn": { "stacks": 2, "duration": 3, "potency": 3 },
+      "terrainRadius": 30,
+      "terrainTime": 3
+    }
   },
-  "commonQuickstep": { "cooldown": 12, "minInterval": 0.3, "poise": 0, "run": { "duration": 4, "speedMul": 1.3, "self": { "haste": { "stacks": 1, "duration": 4, "potency": 0 } } } },
-  "commonIronSkin": { "cooldown": 14, "minInterval": 0.3, "poise": 0, "harden": { "duration": 0, "self": { "harden": { "stacks": 1, "duration": 5, "potency": 0 } } } },
+  "commonQuickstep": {
+    "cooldown": 12,
+    "minInterval": 0.3,
+    "poise": 0,
+    "run": {
+      "duration": 4,
+      "speedMul": 1.3,
+      "self": {
+        "haste": { "stacks": 1, "duration": 4, "potency": 0 }
+      }
+    }
+  },
+  "commonIronSkin": {
+    "cooldown": 14,
+    "minInterval": 0.3,
+    "poise": 0,
+    "harden": {
+      "duration": 0,
+      "self": {
+        "harden": { "stacks": 1, "duration": 5, "potency": 0 }
+      }
+    }
+  },
   "commonExecution": {
-    "cost": 21, "minInterval": 0.6, "poise": 20,
-    "thrust": { "length": 60, "width": 12, "damage": { "base": 15, "str": 0.8, "dex": 0.8 }, "knockback": 60, "execute": 0.2 }
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 20,
+    "thrust": {
+      "length": 60,
+      "width": 12,
+      "damage": { "base": 15, "str": 0.8, "dex": 0.8 },
+      "knockback": 60,
+      "execute": 0.2
+    }
   },
   "commonBarrage": {
-    "cost": 18, "minInterval": 0.5, "poise": 4,
-    "s1": { "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.1, "dex": 0.5 }, "knockback": 15 },
-    "s2": { "delay": 0.1, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.1, "dex": 0.5 }, "knockback": 15 },
-    "s3": { "delay": 0.2, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.1, "dex": 0.5 }, "knockback": 15 },
-    "s4": { "delay": 0.3, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 3, "damage": { "base": 3.1, "dex": 0.5 }, "knockback": 15 }
+    "cost": 18,
+    "minInterval": 0.5,
+    "poise": 4,
+    "s1": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 240,
+      "life": 0.5,
+      "bulletRadius": 3,
+      "damage": { "base": 3.1, "dex": 0.5 },
+      "knockback": 15
+    },
+    "s2": {
+      "delay": 0.1,
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 240,
+      "life": 0.5,
+      "bulletRadius": 3,
+      "damage": { "base": 3.1, "dex": 0.5 },
+      "knockback": 15
+    },
+    "s3": {
+      "delay": 0.2,
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 240,
+      "life": 0.5,
+      "bulletRadius": 3,
+      "damage": { "base": 3.1, "dex": 0.5 },
+      "knockback": 15
+    },
+    "s4": {
+      "delay": 0.3,
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 240,
+      "life": 0.5,
+      "bulletRadius": 3,
+      "damage": { "base": 3.1, "dex": 0.5 },
+      "knockback": 15
+    }
   },
   "commonGroundSpike": {
-    "cost": 21, "minInterval": 0.6, "poise": 14,
-    "near": { "ahead": 24, "radius": 16, "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 }, "knockback": 80 },
-    "mid": { "delay": 0.12, "ahead": 52, "radius": 18, "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 }, "knockback": 80 },
-    "far": { "delay": 0.24, "ahead": 82, "radius": 20, "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 }, "knockback": 80 }
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 14,
+    "near": {
+      "ahead": 24,
+      "radius": 16,
+      "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 },
+      "knockback": 80
+    },
+    "mid": {
+      "delay": 0.12,
+      "ahead": 52,
+      "radius": 18,
+      "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 },
+      "knockback": 80
+    },
+    "far": {
+      "delay": 0.24,
+      "ahead": 82,
+      "radius": 20,
+      "damage": { "base": 7.5, "str": 0.5, "spi": 0.5 },
+      "knockback": 80
+    }
   },
   "commonFrostNova": {
-    "cost": 20, "minInterval": 0.6, "poise": 8,
-    "frost": { "radius": 40, "damage": { "base": 6.2, "mnd": 0.6, "spi": 0.8 }, "knockback": 50, "chill": { "stacks": 3, "duration": 2, "potency": 0 }, "terrainRadius": 26, "terrainTime": 4 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 8,
+    "frost": {
+      "radius": 40,
+      "damage": { "base": 6.2, "mnd": 0.6, "spi": 0.8 },
+      "knockback": 50,
+      "chill": { "stacks": 3, "duration": 2, "potency": 0 },
+      "terrainRadius": 26,
+      "terrainTime": 4
+    }
   },
   "commonBloodSurge": {
-    "cooldown": 16, "minInterval": 0.3, "poise": 0,
-    "surge": { "duration": 5, "damageMul": 1.25, "speedMul": 1.15, "self": { "wrath": { "stacks": 2, "duration": 5, "potency": 0 } } }
+    "cooldown": 16,
+    "minInterval": 0.3,
+    "poise": 0,
+    "surge": {
+      "duration": 5,
+      "damageMul": 1.25,
+      "speedMul": 1.15,
+      "self": {
+        "wrath": { "stacks": 2, "duration": 5, "potency": 0 }
+      }
+    }
   },
   "commonWindCutter": {
-    "cost": 21, "minInterval": 0.6, "poise": 14,
-    "wave": { "count": 1, "spreadDeg": 0, "speed": 150, "life": 0.9, "bulletRadius": 12, "pierce": 6, "damage": { "base": 24, "str": 2.2 }, "knockback": 90 }
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 14,
+    "wave": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 150,
+      "life": 0.9,
+      "bulletRadius": 12,
+      "pierce": 6,
+      "damage": { "base": 24, "str": 2.2 },
+      "knockback": 90
+    }
   },
   "commonRicochet": {
-    "cost": 19, "minInterval": 0.5, "poise": 8,
-    "blade": { "count": 1, "spreadDeg": 0, "speed": 200, "life": 0.9, "bulletRadius": 5, "bounces": 3, "damage": { "base": 7.5, "dex": 0.9 }, "knockback": 30 }
+    "cost": 19,
+    "minInterval": 0.5,
+    "poise": 8,
+    "blade": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 200,
+      "life": 0.9,
+      "bulletRadius": 5,
+      "bounces": 3,
+      "damage": { "base": 7.5, "dex": 0.9 },
+      "knockback": 30
+    }
   },
   "commonScatter": {
-    "cost": 19, "minInterval": 0.55, "poise": 8,
-    "scatter": { "count": 6, "spreadDeg": 10, "speed": 200, "life": 0.3, "bulletRadius": 4, "damage": { "base": 4, "dex": 0.4, "mnd": 0.3 }, "knockback": 25 }
+    "cost": 19,
+    "minInterval": 0.55,
+    "poise": 8,
+    "scatter": {
+      "count": 6,
+      "spreadDeg": 10,
+      "speed": 200,
+      "life": 0.3,
+      "bulletRadius": 4,
+      "damage": { "base": 4, "dex": 0.4, "mnd": 0.3 },
+      "knockback": 25
+    }
   },
   "commonKiBlast": {
-    "cost": 17, "minInterval": 0.5, "poise": 10,
-    "blast": { "count": 1, "spreadDeg": 0, "speed": 230, "life": 0.55, "bulletRadius": 7, "damage": { "base": 9, "dex": 0.5, "spi": 0.7 }, "knockback": 80 }
+    "cost": 17,
+    "minInterval": 0.5,
+    "poise": 10,
+    "blast": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 230,
+      "life": 0.55,
+      "bulletRadius": 7,
+      "damage": { "base": 9, "dex": 0.5, "spi": 0.7 },
+      "knockback": 80
+    }
   },
   "commonVenomDart": {
-    "cost": 18, "minInterval": 0.45, "poise": 8,
-    "blade": { "count": 1, "spreadDeg": 0, "speed": 210, "life": 0.6, "bulletRadius": 5, "damage": { "base": 9.5, "dex": 1, "spi": 0.4 }, "knockback": 20, "poison": { "stacks": 2, "duration": 5, "potency": 0 } }
+    "cost": 18,
+    "minInterval": 0.45,
+    "poise": 8,
+    "blade": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 210,
+      "life": 0.6,
+      "bulletRadius": 5,
+      "damage": { "base": 9.5, "dex": 1, "spi": 0.4 },
+      "knockback": 20,
+      "poison": { "stacks": 2, "duration": 5, "potency": 0 }
+    }
   },
   "commonWhirl": {
-    "cost": 20, "minInterval": 0.6, "poise": 7,
-    "spin": { "radius": 32, "hits": 3, "damage": { "base": 4.4, "str": 0.4, "dex": 0.4 }, "knockback": 60 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 7,
+    "spin": {
+      "radius": 32,
+      "hits": 3,
+      "damage": { "base": 4.4, "str": 0.4, "dex": 0.4 },
+      "knockback": 60
+    }
   },
   "commonTremor": {
-    "cost": 20, "minInterval": 0.6, "poise": 20,
-    "shake": { "radius": 38, "damage": { "base": 10, "str": 1.0 }, "knockback": 90, "terrainRadius": 34 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 20,
+    "shake": {
+      "radius": 38,
+      "damage": { "base": 10, "str": 1 },
+      "knockback": 90,
+      "terrainRadius": 34
+    }
   },
   "commonDeflect": {
-    "cooldown": 7, "minInterval": 0.3, "poise": 4,
-    "parry": { "radius": 26, "damage": { "base": 3, "vit": 0.4 }, "knockback": 40 }
+    "cooldown": 7,
+    "minInterval": 0.3,
+    "poise": 4,
+    "parry": {
+      "radius": 26,
+      "damage": { "base": 3, "vit": 0.4 },
+      "knockback": 40
+    }
   },
   "commonSmokeScreen": {
-    "cooldown": 9, "minInterval": 0.3, "poise": 0,
+    "cooldown": 9,
+    "minInterval": 0.3,
+    "poise": 0,
     "smoke": { "radius": 10, "terrainRadius": 32, "terrainTime": 4 }
   },
   "commonPierce": {
-    "cost": 19, "minInterval": 0.5, "poise": 18,
-    "thrust": { "length": 78, "width": 12, "damage": { "base": 15, "str": 0.9, "dex": 0.9 }, "knockback": 90 }
+    "cost": 19,
+    "minInterval": 0.5,
+    "poise": 18,
+    "thrust": {
+      "length": 78,
+      "width": 12,
+      "damage": { "base": 15, "str": 0.9, "dex": 0.9 },
+      "knockback": 90
+    }
   },
   "commonQuake": {
-    "cost": 20, "minInterval": 0.6, "poise": 30,
-    "cleave": { "length": 72, "width": 24, "damage": { "base": 20, "str": 3.4 }, "knockback": 130, "heavy": true, "terrainRadius": 22 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 30,
+    "cleave": {
+      "length": 72,
+      "width": 24,
+      "damage": { "base": 20, "str": 3.4 },
+      "knockback": 130,
+      "heavy": true,
+      "terrainRadius": 22
+    }
   },
   "commonRailshot": {
-    "cost": 21, "minInterval": 0.6, "poise": 12,
-    "rail": { "length": 100, "width": 14, "damage": { "base": 14, "str": 0.5, "dex": 1.1 }, "knockback": 60 }
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 12,
+    "rail": {
+      "length": 100,
+      "width": 14,
+      "damage": { "base": 14, "str": 0.5, "dex": 1.1 },
+      "knockback": 60
+    }
   },
   "commonFireWall": {
-    "cost": 21, "minInterval": 0.6, "poise": 10,
-    "wall": { "length": 70, "width": 20, "damage": { "base": 9, "mnd": 0.4, "spi": 0.8 }, "knockback": 40, "terrainRadius": 20, "terrainTime": 4 }
+    "cost": 21,
+    "minInterval": 0.6,
+    "poise": 10,
+    "wall": {
+      "length": 70,
+      "width": 20,
+      "damage": { "base": 9, "mnd": 0.4, "spi": 0.8 },
+      "knockback": 40,
+      "terrainRadius": 20,
+      "terrainTime": 4
+    }
   },
   "commonShove": {
-    "cost": 19, "minInterval": 0.55, "poise": 20,
-    "push": { "length": 50, "width": 30, "damage": { "base": 9, "str": 0.4, "vit": 0.6 }, "knockback": 260 }
+    "cost": 19,
+    "minInterval": 0.55,
+    "poise": 20,
+    "push": {
+      "length": 50,
+      "width": 30,
+      "damage": { "base": 9, "str": 0.4, "vit": 0.6 },
+      "knockback": 260
+    }
   },
   "commonCrescent": {
-    "cost": 24, "minInterval": 0.7, "poise": 20,
-    "cres": { "reach": 42, "deg": 220, "damage": { "base": 15, "str": 2.0 }, "knockback": 100 }
+    "cost": 24,
+    "minInterval": 0.7,
+    "poise": 20,
+    "cres": {
+      "reach": 42,
+      "deg": 220,
+      "damage": { "base": 15, "str": 2 },
+      "knockback": 100
+    }
   },
   "commonBleedEdge": {
-    "cost": 16, "minInterval": 0.5, "poise": 12,
-    "edge": { "reach": 30, "deg": 90, "damage": { "base": 9, "dex": 1.0 }, "knockback": 50, "bleed": { "stacks": 1, "duration": 5, "potency": 1, "ratio": { "dex": 0.03 } } }
+    "cost": 16,
+    "minInterval": 0.5,
+    "poise": 12,
+    "edge": {
+      "reach": 30,
+      "deg": 90,
+      "damage": { "base": 9, "dex": 1 },
+      "knockback": 50,
+      "bleed": {
+        "stacks": 1,
+        "duration": 5,
+        "potency": 1,
+        "ratio": { "dex": 0.03 }
+      }
+    }
   },
   "commonRisingSlash": {
-    "cost": 18, "minInterval": 0.55, "poise": 34,
-    "rise": { "reach": 32, "deg": 90, "damage": { "base": 12.5, "str": 1.2, "dex": 0.4 }, "knockback": 200, "heavy": true }
+    "cost": 18,
+    "minInterval": 0.55,
+    "poise": 34,
+    "rise": {
+      "reach": 32,
+      "deg": 90,
+      "damage": { "base": 12.5, "str": 1.2, "dex": 0.4 },
+      "knockback": 200,
+      "heavy": true
+    }
   },
   "commonFlurry": {
-    "cost": 20, "minInterval": 0.6, "poise": 4,
-    "flurry": { "reach": 30, "deg": 70, "hits": 6, "damage": { "base": 2.4, "dex": 0.4 }, "knockback": 15 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 4,
+    "flurry": {
+      "reach": 30,
+      "deg": 70,
+      "hits": 6,
+      "damage": { "base": 2.4, "dex": 0.4 },
+      "knockback": 15
+    }
   },
   "commonBomb": {
-    "cost": 22, "minInterval": 0.6, "poise": 18, "range": 130,
-    "blast": { "radius": 32, "damage": { "base": 13.8, "str": 0.6, "dex": 0.8 }, "knockback": 140 }
+    "cost": 22,
+    "minInterval": 0.6,
+    "poise": 18,
+    "range": 130,
+    "blast": {
+      "radius": 32,
+      "damage": { "base": 13.8, "str": 0.6, "dex": 0.8 },
+      "knockback": 140
+    }
   },
   "commonFreezeBomb": {
-    "cost": 20, "minInterval": 0.6, "poise": 8, "range": 130,
-    "freeze": { "radius": 32, "damage": { "base": 6.2, "spi": 0.6 }, "knockback": 30, "chill": { "stacks": 4, "duration": 2.5, "potency": 0 }, "terrainRadius": 26, "terrainTime": 4 }
+    "cost": 20,
+    "minInterval": 0.6,
+    "poise": 8,
+    "range": 130,
+    "freeze": {
+      "radius": 32,
+      "damage": { "base": 6.2, "spi": 0.6 },
+      "knockback": 30,
+      "chill": { "stacks": 4, "duration": 2.5, "potency": 0 },
+      "terrainRadius": 26,
+      "terrainTime": 4
+    }
   },
   "commonFlashBang": {
-    "cooldown": 10, "minInterval": 0.4, "poise": 0, "range": 110,
-    "flash": { "radius": 36, "silence": { "stacks": 1, "duration": 2, "potency": 0 }, "fear": { "stacks": 1, "duration": 1.5, "potency": 0 } }
+    "cooldown": 10,
+    "minInterval": 0.4,
+    "poise": 0,
+    "range": 110,
+    "flash": {
+      "radius": 36,
+      "silence": { "stacks": 1, "duration": 2, "potency": 0 },
+      "fear": { "stacks": 1, "duration": 1.5, "potency": 0 }
+    }
   },
   "commonLunge": {
-    "cooldown": 6, "minInterval": 0.4, "poise": 14,
-    "flash": { "distance": 72, "width": 18, "invuln": 0.25, "damage": { "base": 8, "dex": 1.2 }, "knockback": 40 }
+    "cooldown": 6,
+    "minInterval": 0.4,
+    "poise": 14,
+    "flash": {
+      "distance": 72,
+      "width": 18,
+      "invuln": 0.25,
+      "damage": { "base": 8, "dex": 1.2 },
+      "knockback": 40
+    }
   },
   "commonCharge": {
-    "cooldown": 11, "minInterval": 0.5, "poise": 30,
-    "rush": { "distance": 110, "width": 26, "damage": { "base": 20, "str": 2.4 }, "knockback": 220, "heavy": true, "invuln": 0.2 }
+    "cooldown": 11,
+    "minInterval": 0.5,
+    "poise": 30,
+    "rush": {
+      "distance": 110,
+      "width": 26,
+      "damage": { "base": 20, "str": 2.4 },
+      "knockback": 220,
+      "heavy": true,
+      "invuln": 0.2
+    }
   },
   "commonThousandCuts": {
-    "cost": 29, "minInterval": 0.8, "poise": 8, "range": 120,
-    "s1": { "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
-    "s2": { "delay": 0.2, "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
-    "s3": { "delay": 0.4, "radius": 30, "damage": { "base": 5, "dex": 0.5, "spi": 0.3 }, "knockback": 20 },
-    "s4": { "delay": 0.6, "radius": 34, "damage": { "base": 6.2, "dex": 0.6, "spi": 0.4 }, "knockback": 120 }
+    "cost": 29,
+    "minInterval": 0.8,
+    "poise": 8,
+    "range": 120,
+    "s1": {
+      "radius": 30,
+      "damage": { "base": 5, "dex": 0.5, "spi": 0.3 },
+      "knockback": 20
+    },
+    "s2": {
+      "delay": 0.2,
+      "radius": 30,
+      "damage": { "base": 5, "dex": 0.5, "spi": 0.3 },
+      "knockback": 20
+    },
+    "s3": {
+      "delay": 0.4,
+      "radius": 30,
+      "damage": { "base": 5, "dex": 0.5, "spi": 0.3 },
+      "knockback": 20
+    },
+    "s4": {
+      "delay": 0.6,
+      "radius": 34,
+      "damage": { "base": 6.2, "dex": 0.6, "spi": 0.4 },
+      "knockback": 120
+    }
   },
   "commonTriplePound": {
-    "cost": 22, "minInterval": 0.6, "poise": 10, "range": 120,
-    "s1": { "radius": 26, "damage": { "base": 7, "str": 0.6 }, "knockback": 60 },
-    "s2": { "delay": 0.18, "radius": 28, "damage": { "base": 7.5, "str": 0.6 }, "knockback": 70 },
-    "s3": { "delay": 0.36, "radius": 30, "damage": { "base": 8.5, "str": 0.7 }, "knockback": 130 }
+    "cost": 22,
+    "minInterval": 0.6,
+    "poise": 10,
+    "range": 120,
+    "s1": {
+      "radius": 26,
+      "damage": { "base": 7, "str": 0.6 },
+      "knockback": 60
+    },
+    "s2": {
+      "delay": 0.18,
+      "radius": 28,
+      "damage": { "base": 7.5, "str": 0.6 },
+      "knockback": 70
+    },
+    "s3": {
+      "delay": 0.36,
+      "radius": 30,
+      "damage": { "base": 8.5, "str": 0.7 },
+      "knockback": 130
+    }
   },
   "commonInhale": {
-    "cost": 18, "minInterval": 0.5, "poise": 10,
-    "inhale": { "radius": 50, "toDistance": 35, "damage": { "base": 6, "dex": 0.4 }, "knockback": 0 }
+    "cost": 18,
+    "minInterval": 0.5,
+    "poise": 10,
+    "inhale": {
+      "radius": 50,
+      "toDistance": 35,
+      "damage": { "base": 6, "dex": 0.4 },
+      "knockback": 0
+    }
   },
   "commonTripleThrust": {
-    "cost": 18, "minInterval": 0.55, "poise": 8,
-    "t1": { "length": 44, "width": 10, "damage": { "base": 5, "dex": 0.6 }, "knockback": 30 },
-    "t2": { "delay": 0.1, "length": 44, "width": 10, "damage": { "base": 5, "dex": 0.6 }, "knockback": 30 },
-    "t3": { "delay": 0.2, "length": 50, "width": 12, "damage": { "base": 6.2, "dex": 0.8 }, "knockback": 90 }
+    "cost": 18,
+    "minInterval": 0.55,
+    "poise": 8,
+    "t1": {
+      "length": 44,
+      "width": 10,
+      "damage": { "base": 5, "dex": 0.6 },
+      "knockback": 30
+    },
+    "t2": {
+      "delay": 0.1,
+      "length": 44,
+      "width": 10,
+      "damage": { "base": 5, "dex": 0.6 },
+      "knockback": 30
+    },
+    "t3": {
+      "delay": 0.2,
+      "length": 50,
+      "width": 12,
+      "damage": { "base": 6.2, "dex": 0.8 },
+      "knockback": 90
+    }
   },
   "commonLeapSlam": {
-    "cooldown": 9, "minInterval": 0.5, "poise": 26,
-    "leap": { "distance": 70, "width": 20, "damage": { "base": 10, "str": 1.0 }, "knockback": 40, "invuln": 0.2 },
-    "slam": { "delay": 0.15, "radius": 36, "damage": { "base": 14, "str": 1.8 }, "knockback": 150, "heavy": true }
+    "cooldown": 9,
+    "minInterval": 0.5,
+    "poise": 26,
+    "leap": {
+      "distance": 70,
+      "width": 20,
+      "damage": { "base": 10, "str": 1 },
+      "knockback": 40,
+      "invuln": 0.2
+    },
+    "slam": {
+      "delay": 0.15,
+      "radius": 36,
+      "damage": { "base": 14, "str": 1.8 },
+      "knockback": 150,
+      "heavy": true
+    }
   },
   "commonDiveShot": {
-    "cost": 19, "minInterval": 0.5, "poise": 10,
+    "cost": 19,
+    "minInterval": 0.5,
+    "poise": 10,
     "dive": { "distance": 70, "width": 18, "invuln": 0.25 },
-    "shot": { "delay": 0.12, "count": 1, "spreadDeg": 0, "speed": 240, "life": 0.5, "bulletRadius": 4, "damage": { "base": 9, "dex": 0.7, "mnd": 0.5 }, "knockback": 50 }
+    "shot": {
+      "delay": 0.12,
+      "count": 1,
+      "spreadDeg": 0,
+      "speed": 240,
+      "life": 0.5,
+      "bulletRadius": 4,
+      "damage": { "base": 9, "dex": 0.7, "mnd": 0.5 },
+      "knockback": 50
+    }
   },
   "commonRiposte": {
-    "cooldown": 7, "minInterval": 0.4, "poise": 26,
+    "cooldown": 7,
+    "minInterval": 0.4,
+    "poise": 26,
     "guard": { "duration": 0, "invuln": 0.35 },
-    "counter": { "delay": 0.3, "reach": 36, "deg": 140, "damage": { "base": 10, "str": 0.8, "dex": 0.8 }, "knockback": 120 }
+    "counter": {
+      "delay": 0.3,
+      "reach": 36,
+      "deg": 140,
+      "damage": { "base": 10, "str": 0.8, "dex": 0.8 },
+      "knockback": 120
+    }
   },
   "commonHack": {
-    "cost": 26, "minInterval": 0.8, "poise": 10,
-    "r1": { "reach": 36, "deg": 100, "damage": { "base": 9, "str": 1.0 }, "knockback": 60 },
-    "r2": { "delay": 0.28, "reach": 36, "deg": 100, "damage": { "base": 9, "str": 1.0 }, "knockback": 60 },
-    "r3": { "delay": 0.56, "reach": 40, "deg": 110, "damage": { "base": 12, "str": 1.4 }, "knockback": 140, "heavy": true }
+    "cost": 26,
+    "minInterval": 0.8,
+    "poise": 10,
+    "r1": {
+      "reach": 36,
+      "deg": 100,
+      "damage": { "base": 9, "str": 1 },
+      "knockback": 60
+    },
+    "r2": {
+      "delay": 0.28,
+      "reach": 36,
+      "deg": 100,
+      "damage": { "base": 9, "str": 1 },
+      "knockback": 60
+    },
+    "r3": {
+      "delay": 0.56,
+      "reach": 40,
+      "deg": 110,
+      "damage": { "base": 12, "str": 1.4 },
+      "knockback": 140,
+      "heavy": true
+    }
   },
   "commonMeteorDive": {
-    "cooldown": 9, "minInterval": 0.4, "poise": 12, "range": 110,
+    "cooldown": 9,
+    "minInterval": 0.4,
+    "poise": 12,
+    "range": 110,
     "step": { "invuln": 0.2 },
-    "burst": { "radius": 26, "damage": { "base": 8, "spi": 0.8 }, "knockback": 90 }
+    "burst": {
+      "radius": 26,
+      "damage": { "base": 8, "spi": 0.8 },
+      "knockback": 90
+    }
   },
   "commonDetonate": {
-    "cost": 20, "minInterval": 0.5, "poise": 14,
-    "blast": { "radius": 36, "damage": { "base": 9.5, "str": 0.6, "spi": 0.4 }, "knockback": 100 }
+    "cost": 20,
+    "minInterval": 0.5,
+    "poise": 14,
+    "blast": {
+      "radius": 36,
+      "damage": { "base": 9.5, "str": 0.6, "spi": 0.4 },
+      "knockback": 100
+    }
   },
   "commonCrossCut": {
-    "cost": 17, "minInterval": 0.5, "poise": 10,
-    "side": { "reach": 34, "deg": 110, "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 }, "knockback": 50 },
-    "down": { "delay": 0.14, "length": 40, "width": 16, "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 }, "knockback": 80 }
+    "cost": 17,
+    "minInterval": 0.5,
+    "poise": 10,
+    "side": {
+      "reach": 34,
+      "deg": 110,
+      "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 },
+      "knockback": 50
+    },
+    "down": {
+      "delay": 0.14,
+      "length": 40,
+      "width": 16,
+      "damage": { "base": 7.5, "str": 0.6, "dex": 0.6 },
+      "knockback": 80
+    }
   },
   "commonBackstab": {
-    "cooldown": 8, "minInterval": 0.5, "poise": 20, "range": 130,
-    "stab": { "delay": 0.12, "reach": 30, "deg": 100, "damage": { "base": 14, "dex": 1.8 }, "knockback": 90 }
+    "cooldown": 8,
+    "minInterval": 0.5,
+    "poise": 20,
+    "range": 130,
+    "stab": {
+      "delay": 0.12,
+      "reach": 30,
+      "deg": 100,
+      "damage": { "base": 14, "dex": 1.8 },
+      "knockback": 90
+    }
   },
   "commonStrikeAway": {
-    "cooldown": 8, "minInterval": 0.4, "poise": 10,
-    "hit": { "length": 60, "width": 10, "damage": { "base": 8, "dex": 0.7 }, "knockback": 60 },
+    "cooldown": 8,
+    "minInterval": 0.4,
+    "poise": 10,
+    "hit": {
+      "length": 60,
+      "width": 10,
+      "damage": { "base": 8, "dex": 0.7 },
+      "knockback": 60
+    },
     "back": { "delay": 0.1, "distance": -70, "width": 16, "invuln": 0.2 }
   }
 }

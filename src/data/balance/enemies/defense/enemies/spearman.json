@@ -1,6 +1,4 @@
 {
   "body": "guard",
-  "resist": {
-    "lightning": -50
-  }
+  "resist": { "lightning": -50 }
 }

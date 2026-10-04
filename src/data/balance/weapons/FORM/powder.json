@@ -8,11 +8,18 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "gain": {"pack": 1},
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
+  "gain": { "pack": 1 },
+  "perUnit": {
+    "damageMul": 0,
+    "poiseMul": 0,
+    "reachMul": 0,
+    "hitsAdd": 0,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  },
   "levels": [
-    {"pelletsAdd": 2, "damageMul": 1.3, "recoilPx": 40},
-    {"pelletsAdd": 4, "damageMul": 1.6, "recoilPx": 70},
-    {"pelletsAdd": 6, "damageMul": 2.0, "recoilPx": 100}
+    { "_id": "level1", "pelletsAdd": 2, "damageMul": 1.3, "recoilPx": 40 },
+    { "_id": "level2", "pelletsAdd": 4, "damageMul": 1.6, "recoilPx": 70 },
+    { "_id": "level3", "pelletsAdd": 6, "damageMul": 2, "recoilPx": 100 }
   ]
 }

@@ -1,13 +1,31 @@
 {
   "grandLibrary": {
-    "nova": { "radius": 64, "hits": 3, "scaling": { "base": 8, "mnd": 0.6, "spi": 0.8 }, "poise": 12, "poiseRatio": { "mnd": 0.2, "spi": 0.2 }, "knockback": 160 },
+    "nova": {
+      "radius": 64,
+      "hits": 3,
+      "scaling": { "base": 8, "mnd": 0.6, "spi": 0.8 },
+      "poise": 12,
+      "poiseRatio": { "mnd": 0.2, "spi": 0.2 },
+      "knockback": 160
+    },
     "buff": { "mana": 40, "duration": 0 }
   },
   "sealingScript": {
-    "volley": { "count": 5, "spreadDeg": 12, "speedMul": 1.2, "lifeMul": 1.2, "bulletRadius": 4, "pierceBonus": 2, "scaling": { "base": 12, "mnd": 0.8, "spi": 1.2 }, "poise": 18, "poiseRatio": { "mnd": 0.3, "spi": 0.3 } }
+    "volley": {
+      "count": 5,
+      "spreadDeg": 12,
+      "speedMul": 1.2,
+      "lifeMul": 1.2,
+      "bulletRadius": 4,
+      "pierceBonus": 2,
+      "scaling": { "base": 12, "mnd": 0.8, "spi": 1.2 },
+      "poise": 18,
+      "poiseRatio": { "mnd": 0.3, "spi": 0.3 }
+    }
   },
   "recitation": {
-    "drainPerSec": 12.5, "minSec": 1,
+    "drainPerSec": 12.5,
+    "minSec": 1,
     "hitMana": { "magnitude": 2, "icd": 0 },
     "skillHaste": { "magnitude": 0.2, "icd": 0 }
   }

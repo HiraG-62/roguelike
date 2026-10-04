@@ -2,20 +2,220 @@
   "attackMoveMul": 0.45,
   "weight": "medium",
   "steps": [
-    {"windup":0.12,"active":0.08,"recover":0.2,"scaling":{"base":5.46,"spi":0.39,"mnd":0.325},"poiseRatio":{"spi":0.13,"mnd":0.104},"poise":7.8,"reach":20,"size":20,"knockback":150,"heavy":false,"mana":4,"shape":{"kind":"arc","deg":120},"hitstop":1,"trail":"#ffe890"},
-    {"windup":0.12,"active":0.08,"recover":0.2,"scaling":{"base":5.74,"spi":0.41,"mnd":0.342},"poiseRatio":{"spi":0.137,"mnd":0.109},"poise":8.2,"reach":20,"size":20,"knockback":150,"heavy":false,"mana":4,"shape":{"kind":"arc","deg":120},"hitstop":1,"trail":"#ffe890"},
-    {"windup":0.16,"active":0.1,"recover":0.33,"scaling":{"base":12.02,"spi":0.773,"mnd":0.687},"poiseRatio":{"spi":0.343,"mnd":0.309},"poise":20.6,"reach":22,"size":22,"knockback":260,"heavy":false,"mana":6.5,"shape":{"kind":"arc","deg":160},"hitstop":3,"shake":1.5,"trail":"#fff4c0"}
+    {
+      "_id": "primary1.slash",
+      "windup": 0.12,
+      "active": 0.08,
+      "recover": 0.2,
+      "scaling": { "base": 5.46, "spi": 0.39, "mnd": 0.325 },
+      "poiseRatio": { "spi": 0.13, "mnd": 0.104 },
+      "poise": 7.8,
+      "reach": 20,
+      "size": 20,
+      "knockback": 150,
+      "heavy": false,
+      "mana": 4,
+      "shape": { "kind": "arc", "deg": 120 },
+      "hitstop": 1,
+      "trail": "#ffe890"
+    },
+    {
+      "_id": "primary2.slash",
+      "windup": 0.12,
+      "active": 0.08,
+      "recover": 0.2,
+      "scaling": { "base": 5.74, "spi": 0.41, "mnd": 0.342 },
+      "poiseRatio": { "spi": 0.137, "mnd": 0.109 },
+      "poise": 8.2,
+      "reach": 20,
+      "size": 20,
+      "knockback": 150,
+      "heavy": false,
+      "mana": 4,
+      "shape": { "kind": "arc", "deg": 120 },
+      "hitstop": 1,
+      "trail": "#ffe890"
+    },
+    {
+      "_id": "primary3.slash",
+      "windup": 0.16,
+      "active": 0.1,
+      "recover": 0.33,
+      "scaling": { "base": 12.02, "spi": 0.773, "mnd": 0.687 },
+      "poiseRatio": { "spi": 0.343, "mnd": 0.309 },
+      "poise": 20.6,
+      "reach": 22,
+      "size": 22,
+      "knockback": 260,
+      "heavy": false,
+      "mana": 6.5,
+      "shape": { "kind": "arc", "deg": 160 },
+      "hitstop": 3,
+      "shake": 1.5,
+      "trail": "#fff4c0"
+    }
   ],
-  "dashAttack": {"windup":0.04,"active":0.1,"recover":0.18,"scaling":{"base":5.32,"spi":0.414,"mnd":0.355},"poiseRatio":{"spi":0.177,"mnd":0.142},"poise":10.6,"reach":0,"size":44,"knockback":240,"heavy":false,"mana":3.5,"shape":{"kind":"circle"},"trail":"#ffe890"},
+  "dashAttack": {
+    "windup": 0.04,
+    "active": 0.1,
+    "recover": 0.18,
+    "scaling": { "base": 5.32, "spi": 0.414, "mnd": 0.355 },
+    "poiseRatio": { "spi": 0.177, "mnd": 0.142 },
+    "poise": 10.6,
+    "reach": 0,
+    "size": 44,
+    "knockback": 240,
+    "heavy": false,
+    "mana": 3.5,
+    "shape": { "kind": "circle" },
+    "trail": "#ffe890"
+  },
   "steps2": [
-    {"kind":"swing","key":"toll","step":{"windup":0.12,"active":0.1,"recover":0.3,"scaling":{"base":4.44,"spi":0.381,"mnd":0.317},"poiseRatio":{"spi":0.152,"mnd":0.127},"poise":10.1,"reach":0,"size":40,"knockback":200,"heavy":false,"mana":4,"shape":{"kind":"circle"},"hitstop":2,"shake":1.5,"trail":"#fff4c0"}},
-    {"kind":"swing","key":"bellSweep","step":{"windup":0.12,"active":0.08,"recover":0.25,"scaling":{"base":6.24,"spi":0.434,"mnd":0.38},"poiseRatio":{"spi":0.136,"mnd":0.136},"poise":9.5,"reach":22,"size":22,"knockback":170,"heavy":false,"mana":4,"shape":{"kind":"arc","deg":150},"hitstop":1,"trail":"#ffe890"}},
-    {"kind":"swing","key":"bellDrop","step":{"windup":0.2,"active":0.1,"recover":0.4,"scaling":{"base":13.91,"spi":0.869,"mnd":0.782},"poiseRatio":{"spi":0.417,"mnd":0.348},"poise":24.3,"reach":14,"size":16,"knockback":300,"heavy":true,"mana":6.5,"shape":{"kind":"box"},"hitstop":4,"shake":2,"trail":"#fff4c0"}}
+    {
+      "_id": "secondary1.toll",
+      "kind": "swing",
+      "key": "toll",
+      "step": {
+        "windup": 0.12,
+        "active": 0.1,
+        "recover": 0.3,
+        "scaling": { "base": 4.44, "spi": 0.381, "mnd": 0.317 },
+        "poiseRatio": { "spi": 0.152, "mnd": 0.127 },
+        "poise": 10.1,
+        "reach": 0,
+        "size": 40,
+        "knockback": 200,
+        "heavy": false,
+        "mana": 4,
+        "shape": { "kind": "circle" },
+        "hitstop": 2,
+        "shake": 1.5,
+        "trail": "#fff4c0"
+      }
+    },
+    {
+      "_id": "secondary2.bellSweep",
+      "kind": "swing",
+      "key": "bellSweep",
+      "step": {
+        "windup": 0.12,
+        "active": 0.08,
+        "recover": 0.25,
+        "scaling": { "base": 6.24, "spi": 0.434, "mnd": 0.38 },
+        "poiseRatio": { "spi": 0.136, "mnd": 0.136 },
+        "poise": 9.5,
+        "reach": 22,
+        "size": 22,
+        "knockback": 170,
+        "heavy": false,
+        "mana": 4,
+        "shape": { "kind": "arc", "deg": 150 },
+        "hitstop": 1,
+        "trail": "#ffe890"
+      }
+    },
+    {
+      "_id": "secondary3.bellDrop",
+      "kind": "swing",
+      "key": "bellDrop",
+      "step": {
+        "windup": 0.2,
+        "active": 0.1,
+        "recover": 0.4,
+        "scaling": { "base": 13.91, "spi": 0.869, "mnd": 0.782 },
+        "poiseRatio": { "spi": 0.417, "mnd": 0.348 },
+        "poise": 24.3,
+        "reach": 14,
+        "size": 16,
+        "knockback": 300,
+        "heavy": true,
+        "mana": 6.5,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2,
+        "trail": "#fff4c0"
+      }
+    }
   ],
   "branches": {
-    "bellStorm": {"sequence":["primary","primary","secondary"],"step":{"windup":0.1,"active":0.24,"recover":0.28,"scaling":{"base":3.12,"spi":0.312,"mnd":0.234},"poise":4.7,"reach":0,"size":48,"knockback":130,"heavy":false,"mana":2.5,"shape":{"kind":"circle"},"hits":3,"hitstop":1,"trail":"#ffe890"}},
-    "warding": {"sequence":["secondary","secondary","primary"],"step":{"windup":0.14,"active":0.1,"recover":0.33,"scaling":{"base":8.49,"spi":0.679,"mnd":0.594},"poiseRatio":{"spi":0.238,"mnd":0.204},"poise":17,"reach":0,"size":48,"knockback":420,"heavy":false,"mana":5.5,"shape":{"kind":"circle"},"hitstop":3,"shake":2,"trail":"#fff4c0","cutsBullets":true}},
-    "ringOut": {"sequence":["secondary","primary","primary"],"step":{"windup":0.1,"active":0.3,"recover":0.28,"scaling":{"base":2.45,"spi":0.229,"mnd":0.229},"poise":3.1,"reach":0,"size":40,"knockback":100,"heavy":false,"mana":2.5,"shape":{"kind":"circle"},"hits":4,"hitstop":1,"trail":"#ffe890"}},
-    "purifyStrike": {"sequence":["primary","secondary","primary"],"step":{"windup":0.16,"active":0.1,"recover":0.35,"scaling":{"base":12.85,"spi":0.856,"mnd":0.685},"poiseRatio":{"spi":0.343,"mnd":0.343},"poise":22.3,"reach":14,"size":16,"knockback":280,"heavy":true,"mana":5.5,"shape":{"kind":"box"},"hitstop":4,"shake":2,"trail":"#fff4c0"}}
+    "bellStorm": {
+      "sequence": ["primary", "primary", "secondary"],
+      "step": {
+        "windup": 0.1,
+        "active": 0.24,
+        "recover": 0.28,
+        "scaling": { "base": 3.12, "spi": 0.312, "mnd": 0.234 },
+        "poise": 4.7,
+        "reach": 0,
+        "size": 48,
+        "knockback": 130,
+        "heavy": false,
+        "mana": 2.5,
+        "shape": { "kind": "circle" },
+        "hits": 3,
+        "hitstop": 1,
+        "trail": "#ffe890"
+      }
+    },
+    "warding": {
+      "sequence": ["secondary", "secondary", "primary"],
+      "step": {
+        "windup": 0.14,
+        "active": 0.1,
+        "recover": 0.33,
+        "scaling": { "base": 8.49, "spi": 0.679, "mnd": 0.594 },
+        "poiseRatio": { "spi": 0.238, "mnd": 0.204 },
+        "poise": 17,
+        "reach": 0,
+        "size": 48,
+        "knockback": 420,
+        "heavy": false,
+        "mana": 5.5,
+        "shape": { "kind": "circle" },
+        "hitstop": 3,
+        "shake": 2,
+        "trail": "#fff4c0",
+        "cutsBullets": true
+      }
+    },
+    "ringOut": {
+      "sequence": ["secondary", "primary", "primary"],
+      "step": {
+        "windup": 0.1,
+        "active": 0.3,
+        "recover": 0.28,
+        "scaling": { "base": 2.45, "spi": 0.229, "mnd": 0.229 },
+        "poise": 3.1,
+        "reach": 0,
+        "size": 40,
+        "knockback": 100,
+        "heavy": false,
+        "mana": 2.5,
+        "shape": { "kind": "circle" },
+        "hits": 4,
+        "hitstop": 1,
+        "trail": "#ffe890"
+      }
+    },
+    "purifyStrike": {
+      "sequence": ["primary", "secondary", "primary"],
+      "step": {
+        "windup": 0.16,
+        "active": 0.1,
+        "recover": 0.35,
+        "scaling": { "base": 12.85, "spi": 0.856, "mnd": 0.685 },
+        "poiseRatio": { "spi": 0.343, "mnd": 0.343 },
+        "poise": 22.3,
+        "reach": 14,
+        "size": 16,
+        "knockback": 280,
+        "heavy": true,
+        "mana": 5.5,
+        "shape": { "kind": "box" },
+        "hitstop": 4,
+        "shake": 2,
+        "trail": "#fff4c0"
+      }
+    }
   }
 }

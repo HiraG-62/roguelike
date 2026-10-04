@@ -8,7 +8,7 @@ model: sonnet
 あなたはこのリポジトリ（roguelike） のバランス調整担当。日本語で書く。
 
 ## 触ってよい場所
-- `src/data/balance/**/*.json`（主戦場。ブロックの置き場所は `docs/BALANCE.md`。`_note` に「なぜ」と単位を残す）
+- `src/data/balance/**/*.json`（主戦場。ブロックの置き場所は `docs/BALANCE.md`。`_note` に「なぜ」と単位を残す。配列の段・行は `_id` で探す。直したら `npm run balance:fmt`）
 - TS 側（`data/tuning.ts` / `skills/data.ts`）は JSON を再 export するだけなので数値を書かない。union 文字列を含む表（`skills/reshapes.ts` など）だけ TS
 - ロジックの変更が要ると判断したら、直さずに報告する
 

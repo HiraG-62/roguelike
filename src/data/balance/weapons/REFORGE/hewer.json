@@ -1,4 +1,10 @@
 {
-  "hewerSpread": { "stacks": 2, "duration": 6, "radius": 60, "icd": 0.2, "color": "#d0b090" },
+  "hewerSpread": {
+    "stacks": 2,
+    "duration": 6,
+    "radius": 60,
+    "icd": 0.2,
+    "color": "#d0b090"
+  },
   "hewerPass": { "radius": 80, "color": "#d0b090" }
 }

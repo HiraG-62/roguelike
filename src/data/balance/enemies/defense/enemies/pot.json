@@ -1,6 +1,4 @@
 {
   "body": "fixture",
-  "resist": {
-    "ice": -50
-  }
+  "resist": { "ice": -50 }
 }

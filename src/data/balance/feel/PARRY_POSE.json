@@ -33,12 +33,7 @@
     "lenMin": 6,
     "lenMax": 13,
     "tail": 0.45,
-    "colors": [
-      "#fffbe6",
-      "#ffe07a",
-      "#ffa63d",
-      "#d9662b"
-    ]
+    "colors": ["#fffbe6", "#ffe07a", "#ffa63d", "#d9662b"]
   },
   "barrier": {
     "radius": 14,

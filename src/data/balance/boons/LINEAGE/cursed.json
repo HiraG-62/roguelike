@@ -19,7 +19,13 @@
   },
   "bloodSoil": { "energy": 15, "bleed": 1, "bleedTime": 3, "icd": 2 },
   "singleMind": { "mainMul": 1.3, "otherMul": 0.85 },
-  "scorchBlade": { "burn": 2, "icd": 0.3, "selfDps": 2, "selfTime": 1.5, "selfIcd": 1 },
+  "scorchBlade": {
+    "burn": 2,
+    "icd": 0.3,
+    "selfDps": 2,
+    "selfTime": 1.5,
+    "selfIcd": 1
+  },
   "madBloom": { "ratio": 0.6, "weaken": 1.5, "icd": 0.5 },
   "heavyOath": { "poise": 30, "weaken": 1, "icd": 1 },
   "drenched": { "mana": 100, "wetStacks": 3, "wetTime": 6, "icd": 6 }

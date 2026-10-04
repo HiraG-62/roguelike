@@ -34,11 +34,7 @@
   "dashSpeedMul": 5.5,
   "dashTime": 0.5,
   "wallStagger": 1.2,
-  "minions": [
-    2,
-    2,
-    3
-  ],
+  "minions": [2, 2, 3],
   "minionSpread": 50,
   "phase2Ratio": 0.65,
   "phase3Ratio": 0.3,

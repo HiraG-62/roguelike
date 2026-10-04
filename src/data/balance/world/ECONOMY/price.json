@@ -8,6 +8,15 @@
   },
   "spread": { "low": 0.85, "high": 1.2 },
   "repeatMul": 0.2,
-  "base": { "flask": 40, "item": 70, "rune": 50, "key": 30, "reroll": 15, "skill": 80, "cursedItem": 90, "keystone": 60 },
+  "base": {
+    "flask": 40,
+    "item": 70,
+    "rune": 50,
+    "key": 30,
+    "reroll": 15,
+    "skill": 80,
+    "cursedItem": 90,
+    "keystone": 60
+  },
   "rerollStep": 10
 }

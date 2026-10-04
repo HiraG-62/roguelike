@@ -5,7 +5,19 @@
   "spacing": 22,
   "leader": { "role": "vanguard", "grade": "strong", "lairChance": 0.4 },
   "slots": [
-    { "role": "vanguard", "grade": "normal", "share": 0.6, "min": 1 },
-    { "role": "swarm", "grade": "normal", "share": 0.4, "min": 1 }
+    {
+      "_id": "vanguard.normal",
+      "role": "vanguard",
+      "grade": "normal",
+      "share": 0.6,
+      "min": 1
+    },
+    {
+      "_id": "swarm.normal",
+      "role": "swarm",
+      "grade": "normal",
+      "share": 0.4,
+      "min": 1
+    }
   ]
 }

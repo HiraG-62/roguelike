@@ -215,3 +215,47 @@ export function fieldDescription(root: unknown, segs: readonly string[]): string
   }
   return lookupDescription(scopes, segs);
 }
+
+// -----------------------------------------------------------------------------
+// 行の名札（_id）。配列は何番目かでしか区別できず、人の手で調整するときにどの行動・どの段かが読めないため
+// -----------------------------------------------------------------------------
+
+/** 配列の要素（オブジェクト）に必ず置く名札のキー。_ で始まるので読み込み時に剥がされ、数値の版にも効かない */
+export const ROW_ID_KEY = "_id";
+
+/** 名札の形: 英数の語をドットでつないだもの（`primary1.heavySlash` / `secondary2.starFan` / `depth8`）。文章にしない */
+const ROW_ID_RE = /^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)*$/;
+
+/** 配列の要素のオブジェクトはすべて _id を持ち、同じ配列の中で重ならない。配列の要素でないオブジェクトには置かない */
+export function validateRowIds(root: unknown, file: string): BalanceIssue[] {
+  const issues: BalanceIssue[] = [];
+  walkRowIds(root, file, false, issues);
+  return issues;
+}
+
+function walkRowIds(value: unknown, path: string, isRow: boolean, issues: BalanceIssue[]): void {
+  if (Array.isArray(value)) {
+    const seen = new Set<string>();
+    value.forEach((el, i) => {
+      const at = `${path}[${i}]`;
+      if (isPlainObject(el)) {
+        const id = el[ROW_ID_KEY];
+        if (typeof id !== "string" || !ROW_ID_RE.test(id)) {
+          issues.push({ path: at, message: `${ROW_ID_KEY} が無いか形が違う（英数の語をドットでつなぐ。例: primary1.heavySlash）` });
+        } else if (seen.has(id)) {
+          issues.push({ path: at, message: `${ROW_ID_KEY} "${id}" が同じ配列の中で重なっている` });
+        } else {
+          seen.add(id);
+        }
+      }
+      walkRowIds(el, at, true, issues);
+    });
+    return;
+  }
+  if (!isPlainObject(value)) return;
+  if (!isRow && ROW_ID_KEY in value) issues.push({ path: `${path}.${ROW_ID_KEY}`, message: `${ROW_ID_KEY} は配列の要素にだけ置く（オブジェクトのキーがすでに名札になる）` });
+  for (const [key, child] of Object.entries(value)) {
+    if (isMetaKey(key)) continue;
+    walkRowIds(child, `${path}.${key}`, false, issues);
+  }
+}

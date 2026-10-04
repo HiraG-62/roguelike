@@ -1,6 +1,1 @@
-{
-  "interval": 0.6,
-  "radius": 50,
-  "maxStacks": 3,
-  "duration": 2.5
-}
+{ "interval": 0.6, "radius": 50, "maxStacks": 3, "duration": 2.5 }

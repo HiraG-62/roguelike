@@ -1,5 +1,6 @@
 [
   {
+    "_id": "depth22",
     "depth": 22,
     "min": 8,
     "max": 10,
@@ -7,6 +8,7 @@
     "max2": 4
   },
   {
+    "_id": "depth10",
     "depth": 10,
     "min": 5,
     "max": 7,
@@ -14,6 +16,7 @@
     "max2": 3
   },
   {
+    "_id": "depth1",
     "depth": 1,
     "min": 3,
     "max": 4,

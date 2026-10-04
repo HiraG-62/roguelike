@@ -80,7 +80,13 @@
   "strongMinDepth": 2,
   "gradeWeight": { "normal": 1, "strong": 2, "elite": 3, "leader": 4 },
   "strong": { "hpMul": 1.6, "poiseMul": 1.3, "damageMul": 1.2 },
-  "column": { "base": 3, "perDepth": 0.34, "max": 4, "members": 3, "minDistFromJin": 200 },
+  "column": {
+    "base": 3,
+    "perDepth": 0.34,
+    "max": 4,
+    "members": 3,
+    "minDistFromJin": 200
+  },
   "morale": {
     "routRatio": 0.34,
     "leaderBreakRatio": 0.2,
@@ -95,11 +101,38 @@
     "holdAttackIntervalMul": 0.75,
     "holdColor": "#e8604a"
   },
-  "rout": { "speedMul": 1.1, "maxTime": 12, "retargetSec": 1, "mergeDist": 40, "dropMul": 1.5, "turnRadius": 30, "turnFirstDelay": 0.4, "turnCooldown": 2.5, "mudInterval": 1.4, "mudRadius": 9, "mudSec": 4, "alarmColor": "#ff9860", "color": "#c8a070", "leaderColor": "#ffd860" },
-  "wake": { "noticeRange": 70, "radius": 80, "reserveMoraleRatio": 0.6, "secondWaveDelay": 1, "color": "#ff9860" },
+  "rout": {
+    "speedMul": 1.1,
+    "maxTime": 12,
+    "retargetSec": 1,
+    "mergeDist": 40,
+    "dropMul": 1.5,
+    "turnRadius": 30,
+    "turnFirstDelay": 0.4,
+    "turnCooldown": 2.5,
+    "mudInterval": 1.4,
+    "mudRadius": 9,
+    "mudSec": 4,
+    "alarmColor": "#ff9860",
+    "color": "#c8a070",
+    "leaderColor": "#ffd860"
+  },
+  "wake": {
+    "noticeRange": 70,
+    "radius": 80,
+    "reserveMoraleRatio": 0.6,
+    "secondWaveDelay": 1,
+    "color": "#ff9860"
+  },
   "stir": { "delay": 40, "interval": 25 },
   "roamHeartChance": 0.05,
   "lookout": { "count": 2, "noticeMul": 2, "snapDist": 120, "minDistFromJin": 120 },
   "noise": { "dash": 90, "hit": 110, "explode": 140, "maxPerStep": 8 },
-  "hud": { "color": "#d89040", "bgColor": "#2a1a0c", "leaderColor": "#ffd860", "strongColor": "#f0b878", "range": 320 }
+  "hud": {
+    "color": "#d89040",
+    "bgColor": "#2a1a0c",
+    "leaderColor": "#ffd860",
+    "strongColor": "#f0b878",
+    "range": 320
+  }
 }

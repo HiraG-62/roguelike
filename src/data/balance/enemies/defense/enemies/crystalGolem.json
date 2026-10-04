@@ -1,8 +1,4 @@
 {
   "body": "armored",
-  "resist": {
-    "ice": 25,
-    "light": 25,
-    "lightning": -50
-  }
+  "resist": { "ice": 25, "light": 25, "lightning": -50 }
 }

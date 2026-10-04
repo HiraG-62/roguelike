@@ -1,1 +1,12 @@
-{"windup":0.1,"active":0.08,"recover":0.28,"scaling":{"base":10.28,"str":0.428,"dex":0.714},"poiseRatio":{"str":0.314,"dex":0.2},"poise":17.1,"reach":15.5,"size":18,"knockback":220,"heavy":false}
+{
+  "windup": 0.1,
+  "active": 0.08,
+  "recover": 0.28,
+  "scaling": { "base": 10.28, "str": 0.428, "dex": 0.714 },
+  "poiseRatio": { "str": 0.314, "dex": 0.2 },
+  "poise": 17.1,
+  "reach": 15.5,
+  "size": 18,
+  "knockback": 220,
+  "heavy": false
+}

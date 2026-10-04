@@ -1,14 +1,144 @@
 {
   "attackMoveMul": 0.75,
   "weight": "light",
-  "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4.5,"dex":0.7},"poiseRatio":{"dex":0.3},"poise":9,"reach":22,"size":10,"knockback":150,"heavy":false,"mana":3,"shape":{"kind":"thrust"},"lunge":18,"trail":"#d0e0ff"},
+  "dashAttack": {
+    "windup": 0.03,
+    "active": 0.1,
+    "recover": 0.2,
+    "scaling": { "base": 4.5, "dex": 0.7 },
+    "poiseRatio": { "dex": 0.3 },
+    "poise": 9,
+    "reach": 22,
+    "size": 10,
+    "knockback": 150,
+    "heavy": false,
+    "mana": 3,
+    "shape": { "kind": "thrust" },
+    "lunge": 18,
+    "trail": "#d0e0ff"
+  },
   "steps2": [
-    {"kind":"swing","key":"kunaiCut","step":{"windup":0.04,"active":0.08,"recover":0.2,"scaling":{"base":4.6,"dex":0.8},"poiseRatio":{"dex":0.3},"poise":9,"reach":15,"size":15,"knockback":140,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":120},"hitstop":2,"trail":"#e8f0ff","drivePins":1}},
-    {"kind":"swing","key":"kunaiReturn","step":{"windup":0.04,"active":0.08,"recover":0.22,"scaling":{"base":4.8,"dex":0.85},"poiseRatio":{"dex":0.32},"poise":10,"reach":15,"size":15,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"arc","deg":140},"hitstop":2,"trail":"#e8f0ff","drivePins":1}},
-    {"kind":"swing","key":"kunaiDrive","step":{"windup":0.1,"active":0.08,"recover":0.32,"scaling":{"base":8,"dex":1,"str":0.3},"poiseRatio":{"dex":0.5},"poise":18,"reach":18,"size":10,"knockback":260,"heavy":true,"mana":4,"shape":{"kind":"thrust"},"hitstop":4,"shake":2,"lunge":6,"trail":"#ffffff","drivePins":true}}
+    {
+      "_id": "secondary1.kunaiCut",
+      "kind": "swing",
+      "key": "kunaiCut",
+      "step": {
+        "windup": 0.04,
+        "active": 0.08,
+        "recover": 0.2,
+        "scaling": { "base": 4.6, "dex": 0.8 },
+        "poiseRatio": { "dex": 0.3 },
+        "poise": 9,
+        "reach": 15,
+        "size": 15,
+        "knockback": 140,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "arc", "deg": 120 },
+        "hitstop": 2,
+        "trail": "#e8f0ff",
+        "drivePins": 1
+      }
+    },
+    {
+      "_id": "secondary2.kunaiReturn",
+      "kind": "swing",
+      "key": "kunaiReturn",
+      "step": {
+        "windup": 0.04,
+        "active": 0.08,
+        "recover": 0.22,
+        "scaling": { "base": 4.8, "dex": 0.85 },
+        "poiseRatio": { "dex": 0.32 },
+        "poise": 10,
+        "reach": 15,
+        "size": 15,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "arc", "deg": 140 },
+        "hitstop": 2,
+        "trail": "#e8f0ff",
+        "drivePins": 1
+      }
+    },
+    {
+      "_id": "secondary3.kunaiDrive",
+      "kind": "swing",
+      "key": "kunaiDrive",
+      "step": {
+        "windup": 0.1,
+        "active": 0.08,
+        "recover": 0.32,
+        "scaling": { "base": 8, "dex": 1, "str": 0.3 },
+        "poiseRatio": { "dex": 0.5 },
+        "poise": 18,
+        "reach": 18,
+        "size": 10,
+        "knockback": 260,
+        "heavy": true,
+        "mana": 4,
+        "shape": { "kind": "thrust" },
+        "hitstop": 4,
+        "shake": 2,
+        "lunge": 6,
+        "trail": "#ffffff",
+        "drivePins": true
+      }
+    }
   ],
   "branches": {
-    "shadowPin": {"sequence":["primary","primary","secondary"],"shots":{"count":1,"damageMul":1.2,"lifeMul":0.1,"applies":[{"kind":"paralyze","stacks":1,"duration":0.6,"potency":0}]},"step":{"windup":0.05,"active":0.08,"recover":0.24,"scaling":{"base":2,"dex":0.4},"poise":4,"reach":0,"size":20,"knockback":60,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#d0e0ff"}},
-    "farThrow": {"sequence":["secondary","secondary","primary"],"shots":{"count":2,"damageMul":1,"spreadDeg":10},"selfKnock":700,"step":{"windup":0.04,"active":0.08,"recover":0.24,"scaling":{"base":2,"dex":0.4},"poise":4,"reach":0,"size":20,"knockback":160,"heavy":false,"mana":2,"shape":{"kind":"circle"},"hitstop":2,"trail":"#d0e0ff"}}
+    "shadowPin": {
+      "sequence": ["primary", "primary", "secondary"],
+      "shots": {
+        "count": 1,
+        "damageMul": 1.2,
+        "lifeMul": 0.1,
+        "applies": [
+          {
+            "_id": "paralyze",
+            "kind": "paralyze",
+            "stacks": 1,
+            "duration": 0.6,
+            "potency": 0
+          }
+        ]
+      },
+      "step": {
+        "windup": 0.05,
+        "active": 0.08,
+        "recover": 0.24,
+        "scaling": { "base": 2, "dex": 0.4 },
+        "poise": 4,
+        "reach": 0,
+        "size": 20,
+        "knockback": 60,
+        "heavy": false,
+        "mana": 2,
+        "shape": { "kind": "circle" },
+        "hitstop": 2,
+        "trail": "#d0e0ff"
+      }
+    },
+    "farThrow": {
+      "sequence": ["secondary", "secondary", "primary"],
+      "shots": { "count": 2, "damageMul": 1, "spreadDeg": 10 },
+      "selfKnock": 700,
+      "step": {
+        "windup": 0.04,
+        "active": 0.08,
+        "recover": 0.24,
+        "scaling": { "base": 2, "dex": 0.4 },
+        "poise": 4,
+        "reach": 0,
+        "size": 20,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 2,
+        "shape": { "kind": "circle" },
+        "hitstop": 2,
+        "trail": "#d0e0ff"
+      }
+    }
   }
 }

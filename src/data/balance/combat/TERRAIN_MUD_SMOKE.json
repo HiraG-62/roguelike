@@ -8,8 +8,5 @@
     "genMinDepth": 2,
     "genWeight": 1
   },
-  "smoke": {
-    "puffColor": "#9a9aa4",
-    "puffParticles": 3
-  }
+  "smoke": { "puffColor": "#9a9aa4", "puffParticles": 3 }
 }

@@ -8,7 +8,14 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "gain": {"pinDriven": 1},
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
-  "senbon": {"count": 5, "spreadDeg": 12, "pinMax": 5}
+  "gain": { "pinDriven": 1 },
+  "perUnit": {
+    "damageMul": 0,
+    "poiseMul": 0,
+    "reachMul": 0,
+    "hitsAdd": 0,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  },
+  "senbon": { "count": 5, "spreadDeg": 12, "pinMax": 5 }
 }

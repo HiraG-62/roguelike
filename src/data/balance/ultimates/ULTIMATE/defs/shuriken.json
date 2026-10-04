@@ -1,12 +1,34 @@
 {
   "eightfold": {
-    "volley": { "count": 16, "spreadDeg": 22.5, "speedMul": 1.2, "lifeMul": 0.9, "bulletRadius": 2, "pierceBonus": 0, "scaling": { "base": 8, "dex": 1 }, "poise": 6, "poiseRatio": { "dex": 0.2 } }
+    "volley": {
+      "count": 16,
+      "spreadDeg": 22.5,
+      "speedMul": 1.2,
+      "lifeMul": 0.9,
+      "bulletRadius": 2,
+      "pierceBonus": 0,
+      "scaling": { "base": 8, "dex": 1 },
+      "poise": 6,
+      "poiseRatio": { "dex": 0.2 }
+    }
   },
   "greatWheel": {
-    "volley": { "count": 1, "spreadDeg": 0, "speedMul": 0.6, "lifeMul": 3, "bulletRadius": 10, "pierceBonus": 99, "scaling": { "base": 8, "dex": 1 }, "poise": 10, "poiseRatio": { "dex": 0.3 }, "orbit": { "radius": 36, "turnRate": 6, "laps": 2 } }
+    "volley": {
+      "count": 1,
+      "spreadDeg": 0,
+      "speedMul": 0.6,
+      "lifeMul": 3,
+      "bulletRadius": 10,
+      "pierceBonus": 99,
+      "scaling": { "base": 8, "dex": 1 },
+      "poise": 10,
+      "poiseRatio": { "dex": 0.3 },
+      "orbit": { "radius": 36, "turnRate": 6, "laps": 2 }
+    }
   },
   "dragonBlade": {
-    "drainPerSec": 12.5, "minSec": 1,
+    "drainPerSec": 12.5,
+    "minSec": 1,
     "mul": { "damage": 1.2, "attackSpeed": 1.15 },
     "critAdd": 0.05
   }

@@ -14,7 +14,13 @@
     "patience": "怒っていない商人を誤って怒らせない仕組み（system/merchantAi.ts の shieldsMerchant）。shelterRange 商人からこの距離（px）以内に敵（壺・木箱・商人・従魔を除く。眠っている敵も数える）がいる間はプレイヤーの攻撃が当たらない / grace 警告の後この秒数以内の一撃は同じ一振りの続きとして数えない / window 警告の後この秒数以内にもう一度殴ると怒る（過ぎたら警告からやり直し）"
   },
   "stock": {
-    "market": { "flask": 1, "item": 1, "rune": 1, "key": 1, "reroll": 1 },
+    "market": {
+      "flask": 1,
+      "item": 1,
+      "rune": 1,
+      "key": 1,
+      "reroll": 1
+    },
     "chapterMarket": { "flask": 2, "item": 1, "key": 1, "reroll": 1 },
     "peddler": { "flask": 1, "item": 1, "rune": 1 },
     "blackMarket": { "cursedItem": 1, "skill": 1, "keystone": 1 }
@@ -27,8 +33,23 @@
   "offerSpacing": 2,
   "greetRange": 56,
   "color": "#e0b050",
-  "throw": { "count": 3, "spreadDeg": 30, "speed": 130, "damage": 7, "color": "#e0b050" },
-  "peddler": { "chance": 0.5, "discount": 0.1, "speed": 22, "minStartDist": 200, "openRange": 40, "saveRadius": 60, "threatPad": 6, "hurtDps": 8 },
+  "throw": {
+    "count": 3,
+    "spreadDeg": 30,
+    "speed": 130,
+    "damage": 7,
+    "color": "#e0b050"
+  },
+  "peddler": {
+    "chance": 0.5,
+    "discount": 0.1,
+    "speed": 22,
+    "minStartDist": 200,
+    "openRange": 40,
+    "saveRadius": 60,
+    "threatPad": 6,
+    "hurtDps": 8
+  },
   "cursedItemBoost": 2,
   "patience": { "shelterRange": 128, "grace": 0.4, "window": 3 }
 }

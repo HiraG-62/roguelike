@@ -63,9 +63,5 @@
     "wrath": "この状態異常を命中した敵に付ける（stacks・duration〔秒〕・potency）"
   },
   "weight": 4,
-  "_order": [
-    "weight",
-    "common",
-    "TRANSFORM"
-  ]
+  "_order": ["weight", "common", "TRANSFORM"]
 }
