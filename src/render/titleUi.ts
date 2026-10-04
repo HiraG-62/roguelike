@@ -5,6 +5,7 @@
 import { RENDER_SCALE, VIEW_H, VIEW_W } from "../core/view";
 import { RARITIES, RARITY_LABEL, type RunHistoryEntry } from "../loot/types";
 import type {
+  PauseMenuItem,
   ReplayAvailability,
   RunItemSummary,
   SeedInputState,
@@ -19,6 +20,7 @@ import type {
 import {
   KEYBINDS_ROWS,
   PADBINDS_ROWS,
+  HUB_MENU_ITEMS,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
   dailyBestIndices,
@@ -74,14 +76,20 @@ const COLOR_CURSOR_BG = "rgba(106,140,255,0.22)";
 
 const LINE_H = 9;
 
-const PAUSE_LABEL: Record<(typeof PAUSE_MENU_ITEMS)[number], string> = {
+const PAUSE_LABEL: Record<PauseMenuItem, string> = {
   resume: "再開",
   settings: "設定",
   restart: "やり直す",
   tips: "Tips ノート",
   manual: "武器指南書",
-  title: "拠点へ",
+  hub: "拠点へ",
+  title: "タイトルに戻る",
+  quit: "ゲームを終了する",
 };
+
+/** ラン中のポーズと拠点のメニューの見出し */
+const PAUSE_HEADING = "ポーズ中";
+const HUB_MENU_HEADING = "メニュー";
 
 const SETTINGS_LABEL: Record<(typeof SETTINGS_ITEMS)[number], string> = {
   mute: "ミュート",
@@ -213,6 +221,7 @@ const TITLE_ITEM_LABEL: Readonly<Record<TitleMainItem | TitleRecordItem, string>
   daily: "デイリー",
   records: "記録",
   settings: "設定",
+  quit: "ゲームを終了する",
   history: "探索履歴",
   codex: "図鑑",
   quests: "依頼",
@@ -238,6 +247,7 @@ const TITLE_MAIN_DESC: Readonly<Record<TitleMainItem, (dailySeed: string) => str
   daily: (seed) => `今日のシード ${seed}（誰でも同じ地図）`,
   records: () => "探索履歴・図鑑・依頼・実績・Tips ノート・武器指南書",
   settings: () => "音・画面揺れ・キー・パッド",
+  quit: () => "ウィンドウを閉じて終わる",
 };
 
 const TITLE_FIRST_RUN_TEXT = "はじめての探索";
@@ -516,21 +526,22 @@ export function drawReplayHud(ctx: CanvasRenderingContext2D, info: ReplayHudInfo
   drawText(ctx, `シード:${info.seedText}   ← →: 速度   Esc: 終了`, VIEW_W / 2, barY + REPLAY_BAR_H + 9, TEXT.SMALL, COLOR_DIM, "center");
 }
 
-/** questLine: 受けている依頼の進み（無ければ空文字。パネルの下に出す） */
-export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number, questLine = ""): void {
+/** questLine: 受けている依頼の進み（無ければ空文字。パネルの下に出す）。where: ラン中のポーズか拠点のメニューか */
+export function drawPauseMenu(ctx: CanvasRenderingContext2D, cursor: number, questLine = "", where: "run" | "hub" = "run"): void {
+  const menuItems: readonly PauseMenuItem[] = where === "hub" ? HUB_MENU_ITEMS : PAUSE_MENU_ITEMS;
   ctx.fillStyle = COLOR_OVERLAY;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
   const itemGap = Math.max(16, textLineHeight(TEXT.SMALL));
-  const { panel, items } = pauseMenuLayout(itemGap);
+  const { panel, items } = pauseMenuLayout(itemGap, menuItems.length);
   ctx.fillStyle = COLOR_PANEL_BG;
   ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
   ctx.strokeStyle = COLOR_BORDER;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
 
-  drawText(ctx, "ポーズ中", VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
+  drawText(ctx, where === "hub" ? HUB_MENU_HEADING : PAUSE_HEADING, VIEW_W / 2, panel.y + 16, TEXT.BODY, COLOR_TITLE, "center");
 
-  PAUSE_MENU_ITEMS.forEach((item, i) => {
+  menuItems.forEach((item, i) => {
     const active = i === cursor;
     const label = PAUSE_LABEL[item];
     const row = items[i];

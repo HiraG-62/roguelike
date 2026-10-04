@@ -26,6 +26,7 @@ import {
   dailyBestIndices,
   isDailyEntry,
   moveHistoryCursor,
+  HUB_MENU_ITEMS,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
   pauseMenuItemAt,
@@ -147,16 +148,14 @@ describe("processMenuKeys", () => {
     expect(TITLE_RECORD_ITEMS, "記録の下に Tips ノート").toContain("tips");
     expect(titleMenuHotkey({ c: false, q: false, a: false, t: true, m: false }), "T は Tips ノート").toBe("tips");
     expect(PAUSE_MENU_ITEMS, "ポーズのメニューに Tips ノート").toContain("tips");
-    const layout = pauseMenuLayout(18);
-    const last = layout.items[layout.items.length - 1];
-    if (!last) throw new Error("ポーズの項目が無い");
-    expect(last.y + last.h, "最後の項目がパネルに収まる").toBeLessThanOrEqual(layout.panel.y + layout.panel.h);
+    expect(HUB_MENU_ITEMS, "拠点のメニューに Tips ノート").toContain("tips");
   });
 
   it("タイトルとポーズのメニューから武器指南書を開ける", () => {
     expect(TITLE_RECORD_ITEMS, "記録の下に武器指南書").toContain("manual");
     expect(titleMenuHotkey({ c: false, q: false, a: false, t: false, m: true }), "M は武器指南書").toBe("manual");
     expect(PAUSE_MENU_ITEMS, "ポーズのメニューに武器指南書").toContain("manual");
+    expect(HUB_MENU_ITEMS, "拠点のメニューに武器指南書").toContain("manual");
   });
 
   it("D/P/S と矢印キーを拾う", () => {
@@ -355,26 +354,30 @@ describe("リプレイの再生可否", () => {
   });
 });
 
-describe("ポーズメニューのレイアウトと当たり判定", () => {
+describe("ポーズ・拠点のメニューのレイアウトと当たり判定", () => {
   const ITEM_GAP = 18;
+  const MENUS = [
+    ["ポーズ", PAUSE_MENU_ITEMS.length],
+    ["拠点のメニュー", HUB_MENU_ITEMS.length],
+  ] as const;
 
-  it("各項目の矩形内の座標で index が返る", () => {
-    const layout = pauseMenuLayout(ITEM_GAP);
+  it.each(MENUS)("%s: 各項目の矩形内の座標で index が返る", (_, count) => {
+    const layout = pauseMenuLayout(ITEM_GAP, count);
     layout.items.forEach((rect, i) => {
       const cx = rect.x + rect.w / 2;
       const cy = rect.y + rect.h / 2;
-      expect(pauseMenuItemAt(cx, cy, ITEM_GAP)).toBe(i);
+      expect(pauseMenuItemAt(cx, cy, ITEM_GAP, count)).toBe(i);
     });
   });
 
-  it("パネル外の座標では null になる", () => {
-    const layout = pauseMenuLayout(ITEM_GAP);
-    expect(pauseMenuItemAt(layout.panel.x - 10, layout.panel.y, ITEM_GAP)).toBeNull();
-    expect(pauseMenuItemAt(0, 0, ITEM_GAP)).toBeNull();
+  it.each(MENUS)("%s: パネル外の座標では null になる", (_, count) => {
+    const layout = pauseMenuLayout(ITEM_GAP, count);
+    expect(pauseMenuItemAt(layout.panel.x - 10, layout.panel.y, ITEM_GAP, count)).toBeNull();
+    expect(pauseMenuItemAt(0, 0, ITEM_GAP, count)).toBeNull();
   });
 
-  it("描画と同じ行間なので隣接行にはみ出さない（境界のずれが半行未満）", () => {
-    const layout = pauseMenuLayout(ITEM_GAP);
+  it.each(MENUS)("%s: 描画と同じ行間なので隣接行にはみ出さない（境界のずれが半行未満）", (_, count) => {
+    const layout = pauseMenuLayout(ITEM_GAP, count);
     for (let i = 0; i < layout.items.length - 1; i++) {
       const a = layout.items[i];
       const b = layout.items[i + 1];
@@ -386,8 +389,18 @@ describe("ポーズメニューのレイアウトと当たり判定", () => {
     }
   });
 
-  it("項目数は PAUSE_MENU_ITEMS と一致する", () => {
-    expect(pauseMenuLayout(ITEM_GAP).items.length).toBe(PAUSE_MENU_ITEMS.length);
+  it.each(MENUS)("%s: 項目数ぶんの矩形が並び、最後の項目がパネルに収まる", (_, count) => {
+    const layout = pauseMenuLayout(ITEM_GAP, count);
+    expect(layout.items.length).toBe(count);
+    const last = layout.items[layout.items.length - 1];
+    if (!last) throw new Error("項目が無い");
+    expect(last.y + last.h, "最後の項目がパネルに収まる").toBeLessThanOrEqual(layout.panel.y + layout.panel.h);
+  });
+
+  it("拠点のメニューには「タイトルに戻る」と「ゲームを終了する」があり、ラン中のポーズには無い", () => {
+    expect(HUB_MENU_ITEMS, "拠点のメニュー").toEqual(expect.arrayContaining(["title", "quit"]));
+    expect(PAUSE_MENU_ITEMS, "ラン中のポーズ").not.toContain("title");
+    expect(PAUSE_MENU_ITEMS, "ラン中のポーズ").not.toContain("quit");
   });
 });
 

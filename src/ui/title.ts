@@ -219,8 +219,14 @@ export function processMenuKeys(events: readonly RawKeyEvent[], seedInput: SeedI
 // メニューのカーソル移動（ポーズ / 設定 共通）
 // ---------------------------------------------------------------------------
 
-export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "manual", "restart", "title"] as const;
-export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number];
+/** ラン中のポーズ（Esc）。hub は探索をやめて拠点へ戻る */
+export const PAUSE_MENU_ITEMS = ["resume", "settings", "tips", "manual", "restart", "hub"] as const;
+/**
+ * 拠点のメニュー（Esc）。装備画面を閉じる Esc の連打でタイトルまで抜けないよう、
+ * 拠点の Esc はこのメニューを開くだけにし、タイトルへはここから明示的に戻る
+ */
+export const HUB_MENU_ITEMS = ["resume", "settings", "tips", "manual", "title", "quit"] as const;
+export type PauseMenuItem = (typeof PAUSE_MENU_ITEMS)[number] | (typeof HUB_MENU_ITEMS)[number];
 
 export const SETTINGS_ITEMS = ["mute", "volume", "musicVolume", "screenShake", "hitstopScale", "dropTooltip", "keybinds", "padBinds", "close"] as const;
 export type SettingsItem = (typeof SETTINGS_ITEMS)[number];
@@ -271,21 +277,22 @@ const PAUSE_ITEM_TOP = 36;
 
 export interface PauseMenuLayout {
   panel: Rect;
-  /** PAUSE_MENU_ITEMS と同じ順の当たり判定矩形（パネル幅いっぱい） */
+  /** 項目の並び（PAUSE_MENU_ITEMS / HUB_MENU_ITEMS）と同じ順の当たり判定矩形（パネル幅いっぱい） */
   items: readonly Rect[];
 }
 
-export function pauseMenuLayout(itemGap: number): PauseMenuLayout {
+/** count: 項目数（ラン中のポーズと拠点のメニューで違う。パネルは 6 項目ぶんの高さで共通） */
+export function pauseMenuLayout(itemGap: number, count: number): PauseMenuLayout {
   const panelX = (VIEW_W - PAUSE_PANEL_W) / 2;
   const panelY = (VIEW_H - PAUSE_PANEL_H) / 2;
   const panel: Rect = { x: panelX, y: panelY, w: PAUSE_PANEL_W, h: PAUSE_PANEL_H };
-  const items = rowRects(PAUSE_MENU_ITEMS.length, panelX, panelY + PAUSE_ITEM_TOP, PAUSE_PANEL_W, itemGap);
+  const items = rowRects(count, panelX, panelY + PAUSE_ITEM_TOP, PAUSE_PANEL_W, itemGap);
   return { panel, items };
 }
 
 /** 座標に対応する項目 index。どの項目にも乗っていなければ null */
-export function pauseMenuItemAt(x: number, y: number, itemGap: number): number | null {
-  const found = pauseMenuLayout(itemGap).items.findIndex((r) => pointInRect(x, y, r));
+export function pauseMenuItemAt(x: number, y: number, itemGap: number, count: number): number | null {
+  const found = pauseMenuLayout(itemGap, count).items.findIndex((r) => pointInRect(x, y, r));
   return found === -1 ? null : found;
 }
 
@@ -489,11 +496,11 @@ export function keybindsItemAt(x: number, y: number, rowGap: number, scroll = 0,
 
 // ---------------------------------------------------------------------------
 // タイトルのメニュー（案 A「門」。docs/ideas/title-ideas.md）。
-// 4 項目「拠点へ / デイリー / 記録 / 設定」と、記録の下の階層「探索履歴 / 図鑑 / 依頼 / 実績 / Tips ノート / 戻る」。
+// 5 項目「拠点へ / デイリー / 記録 / 設定 / ゲームを終了する」と、記録の下の階層「探索履歴 / 図鑑 / 依頼 / 実績 / Tips ノート / 戻る」。
 // カーソルは ↑↓・パッド・マウスのなぞりで動かし、決定で開く。ボタンの外のクリックでは何も起きない。
 // ---------------------------------------------------------------------------
 
-export const TITLE_MAIN_ITEMS = ["hub", "daily", "records", "settings"] as const;
+export const TITLE_MAIN_ITEMS = ["hub", "daily", "records", "settings", "quit"] as const;
 export type TitleMainItem = (typeof TITLE_MAIN_ITEMS)[number];
 
 export const TITLE_RECORD_ITEMS = ["history", "codex", "quests", "achievements", "tips", "manual", "back"] as const;
@@ -551,6 +558,7 @@ export type TitleStartKind = "hub" | "daily";
 export type TitleAction =
   | { kind: "start"; start: TitleStartKind }
   | { kind: "settings" }
+  | { kind: "quit" }
   | { kind: "open"; target: TitleRecordTarget }
   | { kind: "none" };
 
@@ -564,6 +572,8 @@ export function activateTitleItem(menu: TitleMenuState): TitleAction {
       return { kind: "start", start: "daily" };
     case "settings":
       return { kind: "settings" };
+    case "quit":
+      return { kind: "quit" };
     case "records":
       menu.level = "records";
       menu.index = 0;
@@ -589,7 +599,8 @@ export const TITLE_MENU_PANEL: Rect = { x: 14, y: 122, w: 118, h: 104 };
 export const TITLE_MENU_TEXT_X = 34;
 export const TITLE_MENU_FIRST_Y = 130;
 const TITLE_MENU_ROW_PAD = 2;
-const TITLE_MENU_GAP_MAIN = 16;
+/** 主メニューは 5 行の下に説明文（render/titleUi.ts の MENU_DESC_Y）が来るので、そこへ掛からない行間にする */
+const TITLE_MENU_GAP_MAIN = 14;
 const TITLE_MENU_GAP_RECORDS = 13;
 
 /** 階層ごとの行間（記録の下は 6 行 + 見出しが面に収まるよう詰める） */

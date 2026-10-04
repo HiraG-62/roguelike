@@ -76,6 +76,7 @@ import {
   isPadActionRow,
   type BindsMode,
   MenuKeyCapture,
+  HUB_MENU_ITEMS,
   PAUSE_MENU_ITEMS,
   SETTINGS_ITEMS,
   buildHistoryEntry,
@@ -252,6 +253,7 @@ type Screen =
   | "keybinds"
   | "replay"
   | "hub"
+  | "hubMenu"
   | "altar"
   | "rack"
   | "hall"
@@ -388,7 +390,7 @@ function applyHitstopScale(): void {
 
 let screen: Screen = "title";
 /** settings 画面を Esc で閉じたときにどこへ戻るか */
-let returnScreen: "title" | "paused" = "title";
+let returnScreen: "title" | "paused" | "hubMenu" = "title";
 let state: GameState | null = null;
 
 const seedInput = createSeedInputState(initialSeedText());
@@ -883,8 +885,8 @@ let hubBanner: string | null = null;
 let hubBannerTimer = 0;
 /** 井戸に出す寄進の総額（拠点へ入るたびに保存データから読み直す） */
 let hubDonated = 0;
-/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズから開いたらポーズ */
-let menuReturn: "title" | "hub" | "paused" = "title";
+/** 起点画面・一覧画面・履歴の Esc の戻り先。拠点の台から開いたら拠点、タイトルから開いたらタイトル、ポーズ・拠点のメニューから開いたらそのメニュー */
+let menuReturn: "title" | "hub" | "paused" | "hubMenu" = "title";
 const departLatch = createHoldLatch();
 
 function hubSource(): ReturnType<typeof hubProgressSource> {
@@ -945,6 +947,12 @@ function leaveMenu(): void {
     returnToHub();
     return;
   }
+  if (menuReturn === "hubMenu" && hub) {
+    // 拠点のメニューの一覧から戻るだけ。以後の既定の戻り先は拠点
+    menuReturn = "hub";
+    screen = "hubMenu";
+    return;
+  }
   if (menuReturn === "paused" && state) {
     // ポーズの一覧から戻るだけ。以後の既定の戻り先はタイトルに戻す
     menuReturn = "title";
@@ -1001,7 +1009,7 @@ function tickHubBanner(dt: number): void {
 function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean, dt: number): void {
   tickHubBanner(dt);
   // 装備画面は stepHub より前に処理する（開いている間は paused で拠点の時間が止まる。Tab は拠点でも使える）
-  // Esc で閉じた同じフレームに拠点から出ないよう、開いていたかを先に見る
+  // Esc で閉じた同じフレームにメニューを開かないよう、開いていたかを先に見る
   const wasOpen = inventoryUi.open;
   updateInventoryUi(session.state, inventoryUi, frame, dt, { back: escape || input.menuBackClickPressed(), confirmHeld: input.confirmHeld() });
   if (wasOpen || inventoryUi.open) {
@@ -1012,8 +1020,11 @@ function updateHubFrame(session: HubSession, frame: FrameInput, escape: boolean,
     return;
   }
   if (escape) {
-    sfx.play("uiClose");
-    leaveHub();
+    // タイトルへは直接抜けない（装備画面を閉じる Esc の連打で抜けてしまうため）。メニューの「タイトルに戻る」から
+    sfx.play("uiClick");
+    pauseCursor = 0;
+    resetHoldLatch(departLatch);
+    enterMenu("hubMenu", frame.move.x, frame.move.y);
     return;
   }
   const action = stepHub(session, frame, dt, latchedHold(departLatch, input.confirmHeld()));
@@ -1428,7 +1439,8 @@ function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void
   const spots = { spots: h.layout.spots, available: h.available, near: h.near, town: { layout: h.layout, look } };
   // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
   renderer.setHubView(spots);
-  renderGame(s, inventoryUi.open ? null : lastAim);
+  // メニュー・設定を重ねている間は照準を描かない
+  renderGame(s, inventoryUi.open || screen !== "hub" ? null : lastAim);
   renderer.setHubView(null);
   drawHubOverlay(ctx, s, { ...spots, departHold: h.departHold, trialKeystone: h.trialKeystone, banner: hubBanner, donated: hubDonated, ...rackLabels(session) });
   if (!inventoryUi.open) drawBudUi(ctx, s);
@@ -1483,10 +1495,83 @@ function endReplay(): void {
   screen = "history";
 }
 
-function enterMenu(next: "paused" | "settings", frameMoveX: number, frameMoveY: number): void {
+function enterMenu(next: "paused" | "hubMenu" | "settings", frameMoveX: number, frameMoveY: number): void {
   screen = next;
   menuNav.prevX = frameMoveX;
   menuNav.prevY = frameMoveY;
+}
+
+/**
+ * ポーズ・拠点のメニューのカーソル（マウスのなぞり・↑↓・ホイール）を動かし、決定・クリックした項目を返す。
+ * 何も決定していなければ null
+ */
+function stepPauseMenuCursor(items: readonly PauseMenuItem[], frame: FrameInput): PauseMenuItem | null {
+  const itemGap = Math.max(16, textLineHeight(TEXT.SMALL));
+  const aim = frame.aimScreen;
+  // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
+  const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
+  if (aimMoved) {
+    const hovered = pauseMenuItemAt(aim.x, aim.y, itemGap, items.length);
+    if (hovered !== null && hovered !== pauseCursor) {
+      pauseCursor = hovered;
+      sfx.play("menuMove");
+    }
+  }
+
+  const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
+  const navY = keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
+  if (navY !== 0) {
+    pauseCursor = cycleIndex(pauseCursor, navY, items.length);
+    sfx.play("menuMove");
+  }
+  menuNav.prevX = frame.move.x;
+  menuNav.prevY = frame.move.y;
+  menuAimPrev = aim;
+
+  if (frame.confirmPressed) {
+    const current = items[pauseCursor];
+    if (current) sfx.play("uiClick");
+    return current ?? null;
+  }
+  if (!frame.clickPressed || !aim) return null;
+  const clicked = pauseMenuItemAt(aim.x, aim.y, itemGap, items.length);
+  const item = clicked !== null ? items[clicked] : undefined;
+  if (clicked === null || !item) return null;
+  pauseCursor = clicked;
+  sfx.play("uiClick");
+  return item;
+}
+
+/** 拠点のメニュー（Esc）の 1 フレーム。拠点の時間は止めたまま（stepHub を呼ばない） */
+function updateHubMenuFrame(session: HubSession, frame: FrameInput, escape: boolean): void {
+  if (escape) {
+    sfx.play("uiClose");
+    returnToHub();
+    return;
+  }
+  const item = stepPauseMenuCursor(HUB_MENU_ITEMS, frame);
+  if (item === "resume") {
+    returnToHub();
+  } else if (item === "settings") {
+    returnScreen = "hubMenu";
+    settingsCursor = 0;
+    enterMenu("settings", frame.move.x, frame.move.y);
+  } else if (item === "tips") {
+    menuReturn = "hubMenu";
+    openListScreen("tips", frame.move.x, frame.move.y);
+  } else if (item === "manual") {
+    menuReturn = "hubMenu";
+    openManual(session.state.stats.moveset, frame);
+  } else if (item === "title") {
+    leaveHub();
+  } else if (item === "quit") {
+    quitGame();
+  }
+}
+
+/** ゲームを終える（Electron 版のみを想定。窓を閉じると pagehide で保存が書き出され、window-all-closed でアプリが終わる） */
+function quitGame(): void {
+  window.close();
 }
 
 /** キー設定・パッド設定を入力と HUD 表記へ反映して保存する */
@@ -1681,6 +1766,10 @@ function runTitleAction(action: TitleAction, frame: FrameInput): void {
     case "settings":
       openTitleSettings(frame);
       return;
+    case "quit":
+      sfx.play("uiClick");
+      quitGame();
+      return;
     case "open":
       openTitleRecord(action.target, frame);
       return;
@@ -1764,9 +1853,14 @@ function questDoneInRun(s: GameState): boolean {
  */
 const MUSIC_RUN_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["playing", "paused", "settings", "keybinds", "replay", "hallFight"]);
 /** 拠点の画面。ランの state は無いので、拠点の曲だけを流す */
-const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "altar", "rack", "hall", "dojo", "dojoBoard"]);
+const MUSIC_HUB_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["hub", "hubMenu", "altar", "rack", "hall", "dojo", "dojoBoard"]);
+/** 拠点のメニューから開いた設定・キー設定も、拠点の曲を流したままにする */
+function inHubScreens(): boolean {
+  if (MUSIC_HUB_SCREENS.has(screen)) return true;
+  return returnScreen === "hubMenu" && (screen === "settings" || screen === "keybinds");
+}
 function updateMusic(): void {
-  if (hub && MUSIC_HUB_SCREENS.has(screen)) {
+  if (hub && inHubScreens()) {
     music.update(musicCue({ inRun: true, hub: true, floorKind: "rooms", engaged: false, boss: false, bossDown: false, seed: 0, depth: 0 }));
     return;
   }
@@ -1887,6 +1981,15 @@ startLoop(
           break;
         }
         updateHubFrame(hub, frame, hotkeys.escape, dt);
+        break;
+      }
+
+      case "hubMenu": {
+        if (!hub) {
+          screen = "title";
+          break;
+        }
+        updateHubMenuFrame(hub, frame, hotkeys.escape);
         break;
       }
 
@@ -2240,63 +2343,24 @@ startLoop(
           break;
         }
 
-        const applyPauseItem = (item: PauseMenuItem): void => {
-          if (item === "resume") {
-            screen = "playing";
-            cur.paused = false;
-          } else if (item === "settings") {
-            returnScreen = "paused";
-            settingsCursor = 0;
-            enterMenu("settings", frame.move.x, frame.move.y);
-          } else if (item === "tips") {
-            menuReturn = "paused";
-            openListScreen("tips", frame.move.x, frame.move.y);
-          } else if (item === "manual") {
-            menuReturn = "paused";
-            openManual(cur.stats.moveset, frame);
-          } else if (item === "restart") {
-            leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "paused", frame);
-          } else {
-            leaveRun(cur, { kind: "hub" }, "paused", frame);
-          }
-        };
-
-        const itemGap = Math.max(16, textLineHeight(TEXT.SMALL));
-        const aim = frame.aimScreen;
-        // マウスが実際に動いた時だけホバーでカーソルを奪う（キーボード操作を上書きしないため）
-        const aimMoved = aim !== null && (menuAimPrev === null || menuAimPrev.x !== aim.x || menuAimPrev.y !== aim.y);
-        if (aimMoved) {
-          const hovered = pauseMenuItemAt(aim.x, aim.y, itemGap);
-          if (hovered !== null && hovered !== pauseCursor) {
-            pauseCursor = hovered;
-            sfx.play("menuMove");
-          }
-        }
-
-        const keyNavY = edgeDir(menuNav.prevY, frame.move.y);
-        const navY = keyNavY !== 0 ? keyNavY : Math.sign(frame.wheel);
-        if (navY !== 0) {
-          pauseCursor = cycleIndex(pauseCursor, navY, PAUSE_MENU_ITEMS.length);
-          sfx.play("menuMove");
-        }
-        menuNav.prevX = frame.move.x;
-        menuNav.prevY = frame.move.y;
-        menuAimPrev = aim;
-
-        if (frame.confirmPressed) {
-          const current = PAUSE_MENU_ITEMS[pauseCursor];
-          if (current) {
-            sfx.play("uiClick");
-            applyPauseItem(current);
-          }
-        } else if (frame.clickPressed && aim) {
-          const clicked = pauseMenuItemAt(aim.x, aim.y, itemGap);
-          const item = clicked !== null ? PAUSE_MENU_ITEMS[clicked] : undefined;
-          if (clicked !== null && item) {
-            pauseCursor = clicked;
-            sfx.play("uiClick");
-            applyPauseItem(item);
-          }
+        const item = stepPauseMenuCursor(PAUSE_MENU_ITEMS, frame);
+        if (item === "resume") {
+          screen = "playing";
+          cur.paused = false;
+        } else if (item === "settings") {
+          returnScreen = "paused";
+          settingsCursor = 0;
+          enterMenu("settings", frame.move.x, frame.move.y);
+        } else if (item === "tips") {
+          menuReturn = "paused";
+          openListScreen("tips", frame.move.x, frame.move.y);
+        } else if (item === "manual") {
+          menuReturn = "paused";
+          openManual(cur.stats.moveset, frame);
+        } else if (item === "restart") {
+          leaveRun(cur, { kind: "run", seedText: randomSeedText() }, "paused", frame);
+        } else if (item === "hub") {
+          leaveRun(cur, { kind: "hub" }, "paused", frame);
         }
         break;
       }
@@ -2367,6 +2431,14 @@ startLoop(
     }
     if (screen === "hub" && hub) {
       drawHubScreen(ctx, hub);
+      drawGamepadConnectedHint(ctx);
+      return;
+    }
+    if (hub && (screen === "hubMenu" || ((screen === "settings" || screen === "keybinds") && returnScreen === "hubMenu"))) {
+      drawHubScreen(ctx, hub);
+      if (screen === "hubMenu") drawPauseMenu(ctx, pauseCursor, "", "hub");
+      else if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+      else drawKeybindsOverlay(ctx);
       drawGamepadConnectedHint(ctx);
       return;
     }

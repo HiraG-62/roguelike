@@ -28,8 +28,8 @@ function entry(over: Partial<RunHistoryEntry>): RunHistoryEntry {
 }
 
 describe("タイトルのメニュー: 項目とカーソル", () => {
-  it("主メニューは 拠点へ / デイリー / 記録 / 設定 の 4 つ", () => {
-    expect(TITLE_MAIN_ITEMS, "主メニューの項目").toEqual(["hub", "daily", "records", "settings"]);
+  it("主メニューは 拠点へ / デイリー / 記録 / 設定 / ゲームを終了する の 5 つ", () => {
+    expect(TITLE_MAIN_ITEMS, "主メニューの項目").toEqual(["hub", "daily", "records", "settings", "quit"]);
     expect(createTitleMenu(), "最初は拠点へにカーソル").toEqual({ level: "main", index: 0 });
   });
 
@@ -62,7 +62,7 @@ describe("タイトルのメニュー: 項目とカーソル", () => {
     expect(menu.level, "主メニューへ").toBe("main");
   });
 
-  it("決定の結果: 拠点へ・デイリーは開始、設定は設定、記録の頁は開く先", () => {
+  it("決定の結果: 拠点へ・デイリーは開始、設定は設定、終了は終了、記録の頁は開く先", () => {
     const at = (level: "main" | "records", item: string) => {
       const menu = { level, index: titleMenuItems(level).findIndex((i) => i === item) };
       return activateTitleItem(menu);
@@ -70,6 +70,7 @@ describe("タイトルのメニュー: 項目とカーソル", () => {
     expect(at("main", "hub"), "拠点へ").toEqual({ kind: "start", start: "hub" });
     expect(at("main", "daily"), "デイリー").toEqual({ kind: "start", start: "daily" });
     expect(at("main", "settings"), "設定").toEqual({ kind: "settings" });
+    expect(at("main", "quit"), "ゲームを終了する").toEqual({ kind: "quit" });
     for (const target of ["history", "codex", "quests", "achievements", "tips"] as const) {
       expect(at("records", target), `${target} を開く`).toEqual({ kind: "open", target });
     }
