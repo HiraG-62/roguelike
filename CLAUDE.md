@@ -100,6 +100,7 @@ electron/    Electron 版の main / preload / IPC
 
 - 機能を **ファイル所有** で分割し、Agent ごとに「所有 / 編集禁止 / 先に読む / 完了条件 / 報告形式」を渡す（`/parallel`）。共有ファイルは **最小の Edit のみ**、全文 Write 禁止
 - Agent は **コミットしない**。統合役が `git add <所有ファイル>` で論理単位ごとにコミット（`git add -A` 禁止）。一時ファイルは scratchpad へ
+- **Codex 優先**: 実装レーンとレビューは、利用枠が空いていれば指示を待たず Codex に任せ、結果はメインが確かめる（`docs/AI_WORKFLOW.md`「Codex の使い方」）
 - モデル: メインは Opus。設計判断・診断・ドット絵は Opus（architect / pixel-artist）、実装・定型・通常のレビュー・発想・数値調整は Sonnet（implementer / qa-runner / localizer / reviewer / brainstormer / balance-tuner）。決定性に触るレビューと、大量並列のブレストの一部は `model: "opus"` で上書きする。Fable は本当に超思考が要る場面だけ `model: "fable"` で上書きして呼ぶ。設計が曖昧なまま Sonnet に実装させない
 - skill（`.claude/skills/`）: `/check` `/qa` `/add-enemy` `/add-affix` `/add-skill` `/add-boon` `/parallel` `/review` `/handoff-docs` `/agent-docs` `/release-notes` `/bump`
 

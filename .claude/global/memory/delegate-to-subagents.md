@@ -5,8 +5,10 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: f524313c-58e4-4708-afb8-0d454729138b
-  modified: 2026-10-04T00:00:00.000Z
+  modified: 2026-10-05T00:00:00.000Z
 ---
+
+**実装とレビューは Codex 優先**（2026-10-05、ユーザーの指示）: 利用枠が空いていれば、設計済みの実装レーンは `codex:codex-rescue`、レビューは Codex（companion の review）に指示を待たず任せ、メインが diff と指摘を確かめる。Codex と reviewer の二重レビューはしない。枠が無いときだけ下の Claude のサブエージェント。詳細は `docs/AI_WORKFLOW.md`「Codex の使い方」。
 
 メイン（統合役）のモデルは Opus。サブエージェントは 2 段で使い分ける（正は `docs/AI_WORKFLOW.md` の「モデルの使い分け」と `.claude/agents/*.md` の `model:`）。
 - Opus: architect（設計判断・原因の見えない不具合の診断・影響分析）/ pixel-artist

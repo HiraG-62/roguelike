@@ -1,14 +1,14 @@
 # AI 開発ワークフロー
 
-2026-09-23 の夜に確立した進め方。メイン（統合役、Opus）は設計・分割・統合・コミットに徹し、実装・テスト・レビュー・QA はサブエージェントに任せる。設計判断・診断・レビューは Opus のサブエージェント（下の「モデルの使い分け」）に委任し、Fable は超思考が要る場面だけ呼ぶ。
+2026-09-23 の夜に確立した進め方。メイン（統合役、Opus）は設計・分割・統合・コミットに徹し、実装・テスト・レビュー・QA はサブエージェントに任せる。実装とレビューは Codex の利用枠が空いていれば Codex を優先する（下の「Codex の使い方」）。設計判断・診断・レビューは Opus のサブエージェント（下の「モデルの使い分け」）に委任し、Fable は超思考が要る場面だけ呼ぶ。
 
 ## 手順
 
 1. **設計**: 何を足すかを 1 段落で決める。既存の設計文書（`docs/LOOT_DESIGN.md`、`docs/ideas/*.md`、`docs/DESIGN_PRINCIPLES.md`）と矛盾しないか確認する
 2. **ブレスト**（大きな機能のみ）: `brainstormer` に `docs/ideas/<topic>.md` を書かせる。案ごとにコスト / 面白さ / 触るファイル、最後に「今すぐ入れるべき 5 つ」
 3. **分割**: 機能を **ファイル所有** で切る。1 ファイルの所有者は 1 Agent。共有ファイルは「最小 Edit のみ許可」と明記して複数 Agent に開放する
-4. **並列実装**: `implementer` を所有ごとに起動（`/parallel`）。互いの完了を待つ依存があれば、先に型だけ入れる Agent を走らせる
-5. **レビュー**: 大きな段の終わりに `reviewer`（`/review`。下の「速く進める原則」）。レビュアーはバグを見つけたら直すところまでやる
+4. **並列実装**: 所有ごとにレーンを起動（`/parallel`）。実装先は Codex 優先（`codex:codex-rescue`）、枠が無ければ `implementer`。互いの完了を待つ依存があれば、先に型だけ入れる Agent を走らせる
+5. **レビュー**: 大きな段の終わりに 1 回（`/review`。下の「速く進める原則」）。Codex のレビューを優先し、指摘はメインがコードで真偽を確かめて直す。枠が無ければ `reviewer`（バグを見つけたら直すところまでやる）。Codex と reviewer の二重レビューはしない
 6. **QA**: `qa-runner`（`/qa`）で `pnpm run check` と、数値合わせの段で `pnpm run qa:full`。数値の問題は `balance-tuner` へ
 7. **統合**: メインが報告を読み、共有ファイルの差分を確認し、報告の「資料に必要な変更」を CLAUDE.md などに反映して（`/agent-docs`）、`git add <所有ファイル>` で論理単位ごとにコミット。`docs/HANDOFF.md`（現在地は上書き）・`docs/BACKLOG.md`・`IDEAS.md` の「現状」・`docs/ideas/README.md` を更新（`/handoff-docs`）
 
@@ -88,7 +88,7 @@ master に直接コミットしない。改修は必ずブランチを切り、�
 - **テストは担当分だけ回す**: レーンは作業中、自分の変えたファイルのテストだけを `pnpm exec vitest run <ファイル>` で回す（数秒〜数十秒）。全テストは最後に 1 回だけ `pnpm run check:fast`（QA シミュレーション・Electron の型検査・ビルドを省く）。全段の `pnpm run check` は統合役がコミット前に 1 回。この環境は CPU が少ない（4 コア）ので、全テストを複数のレーンで同時に回すと互いに遅くなる
 - **テストはファイルごとに分離しない**（`vitest.config.ts` の `projects`。2026-09-30 の実測で全体 210 秒 → 118 秒）。他のテストとモジュールの状態を共有すると落ちるファイルだけ `vitest.config.ts` の分離の一覧に足す。新しいテストでは、モジュールの変数を書き換えたら元に戻す
 - **仕様が固まったレーンは Sonnet**（「モデルの使い分け」）。共有ファイルの構造を変える大きな撤去・決定性に触る実装だけ Opus
-- **レビューは大きな段の終わりに 1 回**: 途中の小さな段ごとには回さない。決定性・リプレイ・永続化に触る段だけは段ごとに `model: "opus"` の `reviewer`
+- **レビューは大きな段の終わりに 1 回**: 途中の小さな段ごとには回さない。決定性・リプレイ・永続化に触る段だけは段ごと。どちらも Codex 優先で、枠が無ければ `reviewer`（決定性などに触る段は `model: "opus"`）
 - **フル QA（約 70 分）は数値合わせの段で 1 回**: 途中の段では回さない（縮小版は `pnpm run check` に入っている）
 - **資料の反映は 2 段に分ける**: `pnpm run audit:docs` を通すのに要るもの（`CODE_MAP.md`・`docs/recipes/`・新しいファイル・消した識別子）はコードと同じコミットで直す。用語集・Tips の文章・`ARCHITECTURE.md` の説明・`CHANGELOG.md` は大きな段の終わりにまとめて直す（`meta/tips.test.ts` が用語集の語を要求する分は、そのコミットで足す）
 - **`REPLAY_VERSION` は大きな段の終わりに 1 回上げる**: 同じ段の途中のコミットでは上げなくてよい（途中の版の記録は開発中の手元だけのもの）
@@ -121,6 +121,16 @@ master に直接コミットしない。改修は必ずブランチを切り、�
 | 状態の選択待ちで bot が止まる | QA が途中で進まなくなる（祝福 3 択の前例） | モーダルな状態を足したら `src/qa/bot.ts` の対応も所有に含める |
 | 失敗を他人のせいにして終わる | 本当は自分の変更が原因 | 失敗したテストのファイルが自分の所有かを確認し、再現手順を報告 |
 
+## Codex の使い方（2026-10-05、ユーザーの指示）
+
+Codex（公式プラグイン `codex@openai-codex`）は **実装とレビューの第一の委譲先**。指示を待たず統合役の判断で使う。設計判断・診断・ドット絵・ブレスト・数値調整・QA は従来どおり Claude のサブエージェント（下の「モデルの使い分け」）。
+
+- **枠の確認**: 実装やレビューを振る前に `node "C:/Users/Horry/.claude/skills/codex-orchestra/scripts/limits.mjs"`。`ok` なら Codex、`low` なら小さいレーンだけ Codex で残りは `implementer`、`limited` ならそのセッションは Codex を使わず従来の Agent。無料リセットはユーザーの指示なしに使わない。クラウドセッションなどスクリプトが無い環境も `limited` と同じ扱い
+- **実装**: 設計が固まったレーン（`implementer` に渡せる条件と同じ。「モデルの使い分け」）を `codex:codex-rescue` に渡す。プロンプトは下の雛形そのまま（所有 / 編集禁止 / 先に読む / 仕様 / 完了条件 / 報告形式）。並行のレーンは従来どおり `isolation: "worktree"`。数行で済むものはメインが直接やる
+- **Codex の成果は必ずメインが確かめる**: `git diff` で所有外の変更・一時ファイルが無いかを見て、担当テストと `pnpm run check:fast` を通す（codex-rescue は検証しない）。Codex 実行中は同じファイルをメインが触らない
+- **レビュー**: `node "C:/Users/Horry/.claude/skills/codex-orchestra/scripts/companion.mjs" review --wait`（対象は `--base <ref>` / `--scope working-tree|branch`。設計そのものを疑うときは `adversarial-review --wait <焦点>`）。Codex は指摘だけ返すので、**メインが各指摘をコードで真偽確認し、確かなものだけ直す**（直しが大きければ Codex か `implementer` へ）。`reviewer` は Codex の枠が無いときの代わりで、両方は回さない
+- **失敗したとき**: 空の結果・失敗なら枠の確認と同じコマンドで `status` を見る。`limited` なら再試行せず、途中の変更を `git status` / `git diff` で見て残すか戻すかをユーザーに聞き、以降は従来の Agent で引き継ぐ。それ以外は指示を具体化して 1 回だけ再試行し、駄目なら `implementer` へ
+
 ## モデルの使い分け
 
 メイン（統合役）は Opus。サブエージェントは仕事の難しさで 2 段に分け、`.claude/agents/*.md` の `model:` に固定してある。
@@ -150,8 +160,8 @@ implementer を Sonnet で動かす前提は **設計が固まっていること
 | 型検査・テスト・ビルド | `/check` | - |
 | フル QA と報告 | `/qa` | qa-runner |
 | 敵 / 性質 / スキル / 祝福の追加 | `/add-enemy` `/add-affix` `/add-skill` `/add-boon` | implementer（+ pixel-artist） |
-| 機能の並列実装 | `/parallel` | implementer × N |
-| 直近コミットのレビュー | `/review` | reviewer |
+| 機能の並列実装 | `/parallel` | codex:codex-rescue（枠が無ければ implementer）× N |
+| 直近コミットのレビュー | `/review` | Codex のレビュー（枠が無ければ reviewer） |
 | 引き継ぎ文書の更新 | `/handoff-docs` | - |
 | エージェント資料（CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/`・この文書）の追随 | `/agent-docs`（機械検査は `pnpm run audit:docs`） | - |
 | 変更点まとめ | `/release-notes` | - |
