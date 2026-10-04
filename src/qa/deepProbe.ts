@@ -22,7 +22,7 @@ import { placedPools } from "../system/rules";
 import { botInput, makeArena, placeEnemy, probeMetrics, runGroup, type ProbeCounts } from "./combatProbe";
 
 /**
- * 深みの QA（docs/ideas/deep-impl.md 4 章の D・5 章）。`npm run qa:probe -- --deep` が probe.md の「## 深み」の節を作る。
+ * 深みの QA（docs/ideas/deep-impl.md 4 章の D・5 章）。`ppnpm run qa:probe --deep` が probe.md の「## 深み」の節を作る。
  * 3 つの表: (1) 深度ごとの地力 ÷ 敵の生命と「追い付くのに要る倍」、(2) 到達の届き方、(3) 壊れたビルドの 1 step の重さ。
  * ゲームのロジックは変えず、生成と集計の純関数と実際の step() を呼んで数えるだけ。
  */
@@ -373,7 +373,7 @@ function buildBrokenTable(broken: readonly BrokenRow[]): string[] {
 /** probe.md の節「## 深み」。3 つの表と目標 */
 export function buildDeepSection(curve: readonly DeepCurveRow[], odds: readonly ReachOddsRow[], broken: readonly BrokenRow[]): string[] {
   const lines: string[] = [];
-  lines.push("## 深み（深度 22 から。`npm run qa:probe -- --deep`）");
+  lines.push("## 深み（深度 22 から。`ppnpm run qa:probe --deep`）");
   lines.push("");
   lines.push("### 曲線: 地力 ÷ 敵の生命と、追い付くのに要る倍");
   lines.push("");

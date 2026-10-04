@@ -58,7 +58,7 @@
 
 ## 4. 実装レーン（3 本）
 
-各レーンの最後は `npm run check`。Agent はコミットしない。共有ファイルは最小の Edit のみ。
+各レーンの最後は `pnpm run check`。Agent はコミットしない。共有ファイルは最小の Edit のみ。
 
 ### レーン A: 拠点のシミュレーション
 
@@ -187,7 +187,7 @@ export function trialKeystoneKeys(): string[];
 
 **完了条件**
 
-- npm run check が通る。
+- pnpm run check が通る。
 - 既存の `src/core/replay.test.ts` の結果が変わらない。
 
 ### レーン B: 拠点の成長・永続化・描画部品
@@ -297,7 +297,7 @@ export function drawHubOverlay(ctx: CanvasRenderingContext2D, state: GameState, 
 
 **完了条件**
 
-- npm run check が通る。
+- pnpm run check が通る。
 
 ### レーン C: main.ts の配線
 
@@ -368,7 +368,7 @@ export function altarTabs(current: string | null): ListTab[];
 
 **完了条件**
 
-- npm run check が通る。
+- pnpm run check が通る。
 - 手動で次を確認する。
   - タイトルから拠点、井戸を通ってランに入れる。
   - 死亡後の T で拠点に戻れる。

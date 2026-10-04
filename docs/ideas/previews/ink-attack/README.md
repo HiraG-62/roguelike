@@ -20,7 +20,7 @@
 | `ink-D.png` | D 濃墨・鮮やかな属性の芯（差し色 強） |
 | `ink-E.png` | E 濃墨・属性の色の光の滲み（差し色 強。線の周りが属性の色で光る） |
 | `ink-NOW.png` | 比較用: 筆致だけ足して色は今のまま |
-| `variants.mjs` | 撮影の台（作業用。撮影 `npm run map:shot` の PNG を読む。パスは作業時のまま） |
+| `variants.mjs` | 撮影の台（作業用。撮影 `pnpm run map:shot` の PNG を読む。パスは作業時のまま） |
 
 **決定（2026-10-02）**: 属性つき = 案 B、無属性 = 案 C（`docs/ideas/fx-sprites.md` 3.6）。
 

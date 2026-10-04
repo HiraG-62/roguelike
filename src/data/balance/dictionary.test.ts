@@ -16,7 +16,7 @@ import { buildSections, renderDictionary } from "./dictionary";
 
 /** 辞書の置き場所（リポジトリのルートからの相対。vitest はルートで動く） */
 const DICT_FILE = "docs/BALANCE_DICTIONARY.md";
-/** npm run balance:dict がこれを付けて走らせ、辞書を書き出す */
+/** pnpm run balance:dict がこれを付けて走らせ、辞書を書き出す */
 const WRITE = process.env.BALANCE_DICT_WRITE === "1";
 
 const DIRS: readonly (readonly [string, unknown])[] = [
@@ -53,10 +53,10 @@ describe("バランス数値の辞書", () => {
     expect(sections[1]?.entries).toEqual([{ path: "steps[].windup", description: undefined }]);
   });
 
-  it(`${DICT_FILE} が各 JSON の _fields と食い違っていない（ずれたら npm run balance:dict）`, () => {
+  it(`${DICT_FILE} が各 JSON の _fields と食い違っていない（ずれたら pnpm run balance:dict）`, () => {
     const text = renderDictionary(DIRS);
     if (WRITE) writeFileSync(DICT_FILE, text);
     const current = existsSync(DICT_FILE) ? readFileSync(DICT_FILE, "utf8").replace(/\r\n/g, "\n") : "";
-    expect(current === text, `${DICT_FILE} が古い（npm run balance:dict で書き直す）`).toBe(true);
+    expect(current === text, `${DICT_FILE} が古い（pnpm run balance:dict で書き直す）`).toBe(true);
   });
 });

@@ -1,16 +1,16 @@
 /**
- * 戦闘の基準値の計測（`npm run qa:probe`）。SIM_PROBE=1 を付けて src/qa/combatProbe.test.ts の重い版を実行し、
+ * 戦闘の基準値の計測（`pnpm run qa:probe`）。SIM_PROBE=1 を付けて src/qa/combatProbe.test.ts の重い版を実行し、
  * 標準出力のマーカー間（<<<QA_PROBE_START>>> 〜 <<<QA_PROBE_END>>>）を src/qa/probe.md に書き出す。
  * combatProbe.test.ts は @types/node が無く fs に触れないため、書き出しはこのスクリプトの責務
  * （scripts/qa-full.mjs と同じ方式）。
  *
  * 使い方:
- *   npm run qa:probe              # 武器種 × 敵の表を除いて実行し、probe.md を上書き（武器種の節は今の内容を残す。約 1 分）
- *   npm run qa:probe -- --weapons   # 武器種 × 敵の表（29 武器種、銃・投擲物は器ごと × 敵 3 × 深度 2 × seed 3。約 4 分）だけ測り、probe.md のその節だけ差し替える
- *   npm run qa:probe -- --bosses    # 章ボス 4 と最深の主を 1 体ずつ測り（5 体 × seed 5。約 1 分）、probe.md の「## ボス」の節だけ差し替える
- *   npm run qa:probe -- --deep      # 深み（深度 21〜40 の曲線・到達の届き方・壊れたビルドの重さ。src/qa/deepProbe.ts）だけ測り、probe.md の「## 深み」の節だけ差し替える
- *   npm run qa:probe -- --jinzu     # 試し陣（深度 4 の鶴翼の本陣。方針 3 つ × seed 16。src/qa/jinzuProbe.ts）だけ測り、probe.md の「## 本陣と陣図」の節だけ差し替える
- *   npm run qa:probe -- --no-write  # 実行だけ（probe.md を変えない）。--weapons / --bosses / --deep / --jinzu と併用できる
+ *   pnpm run qa:probe              # 武器種 × 敵の表を除いて実行し、probe.md を上書き（武器種の節は今の内容を残す。約 1 分）
+ *   ppnpm run qa:probe --weapons   # 武器種 × 敵の表（29 武器種、銃・投擲物は器ごと × 敵 3 × 深度 2 × seed 3。約 4 分）だけ測り、probe.md のその節だけ差し替える
+ *   ppnpm run qa:probe --bosses    # 章ボス 4 と最深の主を 1 体ずつ測り（5 体 × seed 5。約 1 分）、probe.md の「## ボス」の節だけ差し替える
+ *   ppnpm run qa:probe --deep      # 深み（深度 21〜40 の曲線・到達の届き方・壊れたビルドの重さ。src/qa/deepProbe.ts）だけ測り、probe.md の「## 深み」の節だけ差し替える
+ *   ppnpm run qa:probe --jinzu     # 試し陣（深度 4 の鶴翼の本陣。方針 3 つ × seed 16。src/qa/jinzuProbe.ts）だけ測り、probe.md の「## 本陣と陣図」の節だけ差し替える
+ *   ppnpm run qa:probe --no-write  # 実行だけ（probe.md を変えない）。--weapons / --bosses / --deep / --jinzu と併用できる
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";

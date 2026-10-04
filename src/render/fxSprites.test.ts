@@ -157,7 +157,7 @@ describe("fxSprites: 生成物と一覧の整合", () => {
 });
 
 /**
- * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `npm run fx:gen` したら消す。
+ * 段を足して絵がまだ無いもの（手続きの描画に落ちる）。fx レーンが scripts/fx/sheets/<武器種>.mjs に足して `pnpm run fx:gen` したら消す。
  * 連刃の段数の拡張（5b-F）の分は 2026-09-30 に、クナイの振りは段 7-B（2026-10-03）に描き切ったので空
  */
 const UNDRAWN_MOTIONS: Readonly<Partial<Record<MovesetKey, readonly string[]>>> = {};
@@ -318,7 +318,7 @@ describe("fxMotions: 奥義の絵の表", () => {
 
 /**
  * エフェクトの絵がまだ無い武器種（新しい武器種を足した直後、手続きの描画に落ちている間だけ載せる）。
- * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `npm run fx:gen` したら消す。書・手鈴は 2026-09-30 に、
+ * fx レーンが scripts/fx/sheets/<武器種>.mjs と <武器種>Ult.mjs を足して `pnpm run fx:gen` したら消す。書・手鈴は 2026-09-30 に、
  * クナイ・手裏剣は段 7-B（2026-10-03）に描き切ったので空
  */
 const UNDRAWN_MOVESETS: readonly MovesetKey[] = [];

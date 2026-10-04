@@ -16,7 +16,7 @@ const ISOLATED_FILES = ["src/loot/describe.test.ts", "src/render/**/*.test.ts"];
 /** 並列レーンの作業ツリー（.claude/worktrees）の中のテストを拾わない */
 const IGNORED = [".claude/**"];
 
-/** `npm run check:fast`（scripts/check.mjs が VITEST_FAST=1 を渡す）で省く重いテスト。projects には CLI の --exclude が効かないのでここで外す */
+/** `pnpm run check:fast`（scripts/check.mjs が VITEST_FAST=1 を渡す）で省く重いテスト。projects には CLI の --exclude が効かないのでここで外す */
 const FAST_EXCLUDE = process.env.VITEST_FAST === "1" ? ["src/qa/simulation.test.ts"] : [];
 
 export default defineConfig({

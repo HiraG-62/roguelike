@@ -74,16 +74,16 @@
 | `src/data/meleeReach.test.ts` | `BEYOND_BLADE` に `book: ["*"]`（理由「書は頁から出る文字の刃・術」） |
 | `src/render/actorSprites.test.ts` | 手に持つ絵が向き 32 という検査に「回さない絵（開いた書）は向き 1」の例外 |
 
-- QA bot: 書の固有の処理は無いのでコード変更は不要。確かめは `npm run qa:probe -- --weapons --no-write`
+- QA bot: 書の固有の処理は無いのでコード変更は不要。確かめは `ppnpm run qa:probe --weapons --no-write`
 
 ## 4. 実装レーン
 
 | レーン | 担当 | 所有 | 最小 Edit | 完了条件 | コスト |
 | --- | --- | --- | --- | --- | --- |
-| A 絵 | pixel-artist | `scripts/actor/sheets/wpnBook.mjs`（`held` と `swing` を向き 1）、生成物（`npm run actor:gen -- --atlas wpnBook`） | `src/data/sprites/weapons.ts`（`BOOK_SIDE` / `BOOK_DIAG`）、`src/render/actorSprites.test.ts`、`src/data/meleeReach.test.ts` | 確認用 PNG と `npm run sprite -- lint`、`check:fast` | 中 |
+| A 絵 | pixel-artist | `scripts/actor/sheets/wpnBook.mjs`（`held` と `swing` を向き 1）、生成物（`ppnpm run actor:gen --atlas wpnBook`） | `src/data/sprites/weapons.ts`（`BOOK_SIDE` / `BOOK_DIAG`）、`src/render/actorSprites.test.ts`、`src/data/meleeReach.test.ts` | 確認用 PNG と `ppnpm run sprite lint`、`check:fast` | 中 |
 | B 振りの中身 | implementer | `book.json`、`assembled.gen.ts`、`src/system/tomeBell.test.ts` | `src/system/effects.ts`（`HIT_FAMILY.book`） | 3 章の表のとおり、テスト 4 本、`check:fast` | 小 |
-| C エフェクト | implementer（絵の質で迷えば pixel-artist） | `scripts/fx/sheets/book.mjs`、fx の生成物（`npm run fx:gen -- --atlas book`） | なし | `l:0〜2` が文字の刃、`l:2` が扇 120° reach 22 | 中 |
-| 統合 | 統合役 | この文書、`docs/GLOSSARY.md`、`CHANGELOG.md` | `src/data/weapons.ts` の書の `desc`（説明文の修正レーンの取り込み後） | `npm run check`、probe で書が他の武器種から大きく外れない | 小 |
+| C エフェクト | implementer（絵の質で迷えば pixel-artist） | `scripts/fx/sheets/book.mjs`、fx の生成物（`ppnpm run fx:gen --atlas book`） | なし | `l:0〜2` が文字の刃、`l:2` が扇 120° reach 22 | 中 |
+| 統合 | 統合役 | この文書、`docs/GLOSSARY.md`、`CHANGELOG.md` | `src/data/weapons.ts` の書の `desc`（説明文の修正レーンの取り込み後） | `pnpm run check`、probe で書が他の武器種から大きく外れない | 小 |
 
 A・B・C は互いのファイルに触らないので並行できる。型・状態・リプレイの形を変えないので決定性への影響は無い。
 

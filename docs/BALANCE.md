@@ -1,6 +1,6 @@
 # バランス調整ガイド
 
-調整したい数値はすべて `src/data/balance/` 以下の JSON にある。JSON を書き換えて保存すれば反映される（`npm run dev` 中は自動で再読み込み）。1 ファイルに持つ情報を少なくするため、ブロックごと（大きい表は行ごと）にファイルを分けてある。
+調整したい数値はすべて `src/data/balance/` 以下の JSON にある。JSON を書き換えて保存すれば反映される（`pnpm run dev` 中は自動で再読み込み）。1 ファイルに持つ情報を少なくするため、ブロックごと（大きい表は行ごと）にファイルを分けてある。
 
 | ディレクトリ | 中身 | 探し方の例 |
 | --- | --- | --- |
@@ -26,15 +26,15 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 - **組み立て**: `src/data/balance/assembled.gen.ts` がすべての JSON を明示的に import して元の形に戻す（JSON ごとの厳密な型を保つため `import.meta.glob` は使わない）。生成物なので手で直さない。**数値を書き換えるだけなら生成し直さなくてよい**（保存すれば再読み込みされる）
 - **ファイル・ディレクトリを足す / 消す / 名前を変える**とき:
   1. JSON を置く（ディレクトリを新しく作るなら `_index.json` に `"_order": []` を書く）
-  2. `npm run balance:gen`。`_order` に無い key は末尾へ足され、`assembled.gen.ts` が書き直される。並びを変えたいときは `_order` を手で並べ替えてからもう一度 `npm run balance:gen`
-  3. 生成し忘れは `npm run check`（`audit:docs` と `balance.test.ts`）が落とす。キーの並びは `BALANCE_HASH` と敵の一覧などの並びに効くので、既存の key の順は変えない
+  2. `pnpm run balance:gen`。`_order` に無い key は末尾へ足され、`assembled.gen.ts` が書き直される。並びを変えたいときは `_order` を手で並べ替えてからもう一度 `pnpm run balance:gen`
+  3. 生成し忘れは `pnpm run check`（`audit:docs` と `balance.test.ts`）が落とす。キーの並びは `BALANCE_HASH` と敵の一覧などの並びに効くので、既存の key の順は変えない
 - 最上位のディレクトリ（`combat` など）を足すときは `src/data/balance/index.ts` の `BALANCE` にも 1 行足す
 
 各ブロックの `_note` に「なぜこの値か」と単位が書いてある。設計の詳細は `docs/ideas/data-externalization.md`。
 
 ## 書式と行の名札（`_id`）
 
-**書式は 1 項目 1 行**。値だけの小さいオブジェクト・配列（4 項目以下で、全角を 2 字に数えて 100 字に収まるもの。`{ "base": 1.6, "dex": 0.25 }` や `["primary", "secondary"]`）だけは 1 行に畳む。手で直したあとは `npm run balance:fmt`（`scripts/balance-format.mjs`）で整える。`balance:gen` が書き直す `_order` も同じ書式になる。整形がずれていると `balance.test.ts` が落ちる。
+**書式は 1 項目 1 行**。値だけの小さいオブジェクト・配列（4 項目以下で、全角を 2 字に数えて 100 字に収まるもの。`{ "base": 1.6, "dex": 0.25 }` や `["primary", "secondary"]`）だけは 1 行に畳む。手で直したあとは `pnpm run balance:fmt`（`scripts/balance-format.mjs`）で整える。`balance:gen` が書き直す `_order` も同じ書式になる。整形がずれていると `balance.test.ts` が落ちる。
 
 **配列の要素（オブジェクト）には必ず `_id` を先頭に置く**。配列は何番目かでしか区別できず、人の手で調整するときにどの行動・どの段か読めないため。`_` で始まるので `_note` と同じく読み込み時に剥がされ、挙動にも数値の版（`BALANCE_HASH`）にも効かない。形は英数の語をドットでつないだもの（`^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)*$`）で、文章にしない。同じ配列の中で重ねない。オブジェクトのキーがすでに名札になる所（`branches.<key>`・`dashAttack`・敵の表の行）には置かない。検査は `validate.ts` の `validateRowIds`。
 
@@ -51,7 +51,7 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 ## 項目の意味を読む / 書く
 
-**全項目の一覧は `docs/BALANCE_DICTIONARY.md`**（辞書。各 JSON の `_fields` / `_note` から `npm run balance:dict` で生成する。`_fields` を直したら生成し直す。古いと `dictionary.test.ts` が落ちる）。
+**全項目の一覧は `docs/BALANCE_DICTIONARY.md`**（辞書。各 JSON の `_fields` / `_note` から `pnpm run balance:dict` で生成する。`_fields` を直したら生成し直す。古いと `dictionary.test.ts` が落ちる）。
 
 **読む**: 項目の意味は、同じブロックの先頭にある `_fields` に「項目名 → 説明（意味。単位。目安）」で書いてある。敵のように同じ形の行が並ぶ表では、表の先頭に 1 回だけ書き、行（`slime` など）はそれを引き継ぐ。行の中に `_fields` があれば、その行だけの説明が優先。`swarm.min` のようなドット表記は、行の中の `swarm` の中の `min` を指す。`resist` のようにオブジェクト名だけの説明は、その中の項目全部に効く。
 
@@ -72,14 +72,14 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 **書く**: 新しい数値の項目を足したら、そのブロック（表なら表の先頭）の `_fields` にも 1 行足す。説明は「意味。単位（秒 / px / 倍率〔1 = 等倍〕/ 割合〔0..1〕/ %〔表示単位〕）。目安 / 範囲」の順で、用語は `docs/GLOSSARY.md`。推測で書かず、その数値を読む system のコードで効き方を確かめる。「なぜこの値か（QA の履歴）」は `_fields` ではなく `_note` に書く。
 
-- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値・真偽は全ディレクトリで 0（基準値 `UNDOCUMENTED_BASELINE` はすべて 0。上げない）。新しい項目を足したら `_fields` も書き、`npm run balance:dict` で辞書を生成し直す
+- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値・真偽は全ディレクトリで 0（基準値 `UNDOCUMENTED_BASELINE` はすべて 0。上げない）。新しい項目を足したら `_fields` も書き、`pnpm run balance:dict` で辞書を生成し直す
 - 配列がルートのファイル（`weapons/PLAYER_MELEE.json` など）は `_fields` を置けないので、親のディレクトリの `_index.json` の `_fields` に書く（項目名の末尾で引かれる）
 - 雛形: `node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` のように TS の型名を渡すと、JSDoc から `_fields` の雛形を出す。単位と目安を足してから貼る
 - `_fields` は `_note` と同じく読み込み時に剥がされるので、足しても数値の版（`BALANCE_HASH`）は変わらない
 
 ## 数値の変え方
 
-全部 `src/data/balance/**/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`npm run check` は通さなくても `npm run dev` は動くが、変える前に一度 `npm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
+全部 `src/data/balance/**/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`pnpm run check` は通さなくても `pnpm run dev` は動くが、変える前に一度 `pnpm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
 
 **武器の振りの速さを変える**（例: 大剣の 1 段目を速くする）:
 1. `src/data/balance/weapons/WEAPON/movesets/greatsword.json` を開き、`steps` の配列から 1 段目（`"_id": "primary1.…"`）を探す
@@ -102,5 +102,5 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 2. 怯み耐性（怯みにくさ）を変えたいときは `enemies/combat/<敵の key>.json` の `poise`、防御・耐性は `enemies/defense/enemies/<敵の key>.json`
 
 **共通の注意**:
-- 数値だけを直す分には型は壊れない（`shape.kind` のような形の種類や `key` は文字列の一覧と照合されるので、存在しない値を書くと `npm run check` の vitest で落ちる）
-- 変えたら該当のテスト（`npx vitest run src/data/weapons.test.ts` など）と `npm run check` を通す。テストは「数値を変えていないこと」を固定しているものが多いので、意図した数値変更でテストが落ちるのは正常（そのテストの期待値も一緒に直す）
+- 数値だけを直す分には型は壊れない（`shape.kind` のような形の種類や `key` は文字列の一覧と照合されるので、存在しない値を書くと `pnpm run check` の vitest で落ちる）
+- 変えたら該当のテスト（`pnpm exec vitest run src/data/weapons.test.ts` など）と `pnpm run check` を通す。テストは「数値を変えていないこと」を固定しているものが多いので、意図した数値変更でテストが落ちるのは正常（そのテストの期待値も一緒に直す）

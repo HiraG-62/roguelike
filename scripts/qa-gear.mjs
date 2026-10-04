@@ -1,14 +1,14 @@
 /**
- * 装備パターンの行列（`npm run qa:gear`）。src/qa/gearMatrix.ts のパターンを seed の列で bot に遊ばせ、
+ * 装備パターンの行列（`pnpm run qa:gear`）。src/qa/gearMatrix.ts のパターンを seed の列で bot に遊ばせ、
  * 標準との差を src/qa/gear.md（表）と src/qa/gear.json（集計。次の回の「前回比」の元）に書き出す。
  * ランは vitest のプロセスを並べて分け合う（SIM_GEAR=run）。集計は最後に 1 プロセスで行う（SIM_GEAR=report）。
  * 全ランの記録は src/qa/gear.runs.json（.gitignore）に残し、--only で測り直したパターンだけ差し替える。
  *
  * 使い方:
- *   npm run qa:gear                       # 全パターン × 20 seed（並列。約 30〜60 分）
- *   npm run qa:gear -- --only weapon,job  # 軸（standard / carry / slots / quality / weapon / job）か key（weapon.spear）で絞る。標準は常に測る
- *   npm run qa:gear -- --seeds 10 --steps 90000 --jobs 8
- *   npm run qa:gear -- --no-write         # 書き出さない（gear.runs.json も変えない）
+ *   pnpm run qa:gear                       # 全パターン × 20 seed（並列。約 30〜60 分）
+ *   ppnpm run qa:gear --only weapon,job  # 軸（standard / carry / slots / quality / weapon / job）か key（weapon.spear）で絞る。標準は常に測る
+ *   ppnpm run qa:gear --seeds 10 --steps 90000 --jobs 8
+ *   ppnpm run qa:gear --no-write         # 書き出さない（gear.runs.json も変えない）
  */
 import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";

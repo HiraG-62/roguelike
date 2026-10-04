@@ -1,5 +1,5 @@
 /**
- * `npm run electron:build`: Web 版の dist/ と main / preload を作り、electron-builder で
+ * `pnpm run electron:build`: Web 版の dist/ と main / preload を作り、electron-builder で
  * release/win-unpacked/（Steam にそのまま上げられる展開済みフォルダ）を作る
  */
 import { spawnSync } from "node:child_process";

@@ -1,4 +1,4 @@
-// エフェクトのスプライトを生成する（npm run fx:gen）。docs/ideas/fx-sprites.md
+// エフェクトのスプライトを生成する（pnpm run fx:gen）。docs/ideas/fx-sprites.md
 //
 // scripts/fx/sheets/<アトラス>.mjs を自動で集める（登録は要らない）。各ファイルは `export const ATLAS = { key, sheets, fx }` を持つ。
 // アトラスごとに public/assets/fx/<key>.png と src/data/fx/<key>.gen.json を書き、全アトラスを束ねる src/data/fxSheets.gen.ts を書き直す
@@ -135,7 +135,7 @@ function ident(key) {
 /** 全アトラスの JSON を束ねる index（描かずに作れる。アトラスの一覧だけで決まる） */
 function indexSource(keys) {
   return [
-    "// 生成物: npm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md",
+    "// 生成物: pnpm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md",
     "// アトラスごとの中身は src/data/fx/<key>.gen.json（寸法・シートの矩形・武器種のモーションの表）",
     ...keys.map((k) => `import ${ident(k)} from "./fx/${k}.gen.json";`),
     "",
@@ -247,7 +247,7 @@ if (checkOnly) {
     const json = join(JSON_DIR, `${a.key}.gen.json`);
     same = same && existsSync(png) && readFileSync(png).equals(a.png) && existsSync(json) && readFileSync(json, "utf8") === a.json;
   }
-  console.log(same ? "fx: 生成物は最新" : "fx: 生成物が古い（npm run fx:gen）");
+  console.log(same ? "fx: 生成物は最新" : "fx: 生成物が古い（pnpm run fx:gen）");
   process.exit(same ? 0 : 1);
 }
 mkdirSync(OUT_DIR, { recursive: true });

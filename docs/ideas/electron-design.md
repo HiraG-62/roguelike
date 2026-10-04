@@ -178,7 +178,7 @@ scripts/electron-build.mjs  vite build → 2 つの lib ビルド → electron-b
 ```
 
 - `package.json`: `"main": "dist-electron/main.js"`、scripts に `electron:dev` / `electron:build`、devDependencies に `electron` / `electron-builder` / `@types/node`。**`dependencies` は作らない**（「ランタイム依存なし」は維持。実行時に必要なのは Electron 本体だけ）
-- `scripts/check.mjs` の `STEPS` に `{ label: "tsc (electron)", entry: bin("typescript/bin/tsc"), args: ["-p", "tsconfig.electron.json", "--noEmit"] }` を 1 件足す（`electron/` の型検査も `npm run check` に含める）。`vitest run` は `electron/saveStore.test.ts` も既定 include で拾う
+- `scripts/check.mjs` の `STEPS` に `{ label: "tsc (electron)", entry: bin("typescript/bin/tsc"), args: ["-p", "tsconfig.electron.json", "--noEmit"] }` を 1 件足す（`electron/` の型検査も `pnpm run check` に含める）。`vitest run` は `electron/saveStore.test.ts` も既定 include で拾う
 - `.gitignore` に `dist-electron` / `release`
 - vite-plugin-electron を使わない理由: プラグイン 1 つ増える割に、やることは「2 つのエントリを束ねて electron を起動する」だけで、既にある Vite のライブラリモードで足りる。Vite 8（rolldown）との相性を追いかける手間も減る
 - preload を CJS にする理由: `sandbox: true` の preload は ESM 非対応（Electron の制約）。root `package.json` が `"type": "module"` なので出力名を `.cjs` にする
@@ -261,7 +261,7 @@ Electron 版: ストア ── saveStorage() ──> GuardedStorage(FileStorage)
   - migrate: 「ファイル側が空で localStorage に roguelike.* があれば写す」「ファイル側に 1 つでもあれば何もしない」「source が null なら何もしない」
   - settings（既存ファイルに追記）: 「キー設定は roguelike.keybinds.v1 に別保存され settings 側には含まれない」「旧 settings に埋め込まれたキー設定を keybinds キーが無いときだけ読む」
   - replay（既存 `src/core/replay.test.ts` に追記）: 「guardStorageWrites は setSaveStorage で差し込んだ MemoryStorage にも効く」
-- 完了条件: `npm run check` 成功。既存の 14 テストファイル（`MemoryStorage` を渡すもの）を変更していない。`grep -rn "localStorage" src --include=*.ts | grep -v test | grep -v src/save/` が `core/replay.ts` のコメント以外ヒットしない
+- 完了条件: `pnpm run check` 成功。既存の 14 テストファイル（`MemoryStorage` を渡すもの）を変更していない。`grep -rn "localStorage" src --include=*.ts | grep -v test | grep -v src/save/` が `core/replay.ts` のコメント以外ヒットしない
 
 ### 6.2 レーン B（Sonnet implementer）: Electron 本体とビルド
 
@@ -269,7 +269,7 @@ Electron 版: ストア ── saveStorage() ──> GuardedStorage(FileStorage)
 - 最小 Edit のみ: `package.json`（`main`、scripts 2 つ、devDependencies 3 つ）、`.gitignore`（2 行）、`scripts/check.mjs`（STEPS に electron の tsc を 1 件追加）
 - 編集禁止: `src/**`（`src/save/bridge.ts` と `src/save/fileEnvelope.ts` は import するだけ）。**レーン A の 2.2 / 2.4 のファイルが先に要る**。A を先に走らせるか、A に「まず 2.2 / 2.4 を作ってコミット可能な状態にする」よう指示してから B を並走させる
 - 先に読むもの: この文書の 4 章、`src/render/renderer.ts:600-625`、`scripts/check.mjs`、`index.html`
-- 追加する npm パッケージ（`npm view <pkg> version` で確認してから入れる。2026-09-24 時点の最新: electron 44.4.5、electron-builder 26.15.3）: `electron` ^44、`electron-builder` ^26、`@types/node`（Electron 44 が同梱する Node の major に合わせる。`npx electron -e "console.log(process.versions.node)"` で確認）。すべて `-D`。`ELECTRON_SKIP_BINARY_DOWNLOAD=1` なら本体を落とさず型検査だけできる
+- 追加する npm パッケージ（`npm view <pkg> version` で確認してから入れる。2026-09-24 時点の最新: electron 44.4.5、electron-builder 26.15.3）: `electron` ^44、`electron-builder` ^26、`@types/node`（Electron 44 が同梱する Node の major に合わせる。`pnpm exec electron -e "console.log(process.versions.node)"` で確認）。すべて `-D`。`ELECTRON_SKIP_BINARY_DOWNLOAD=1` なら本体を落とさず型検査だけできる
 - 追加する公開関数（`electron/saveStore.ts`。fs と path だけに依存、Electron を import しない）:
   ```ts
   export interface SaveStore {
@@ -283,7 +283,7 @@ Electron 版: ストア ── saveStorage() ──> GuardedStorage(FileStorage)
   ```
 - IPC チャネル名（preload と main で共有する定数を `electron/ipc.ts` に置く）: `save:readAll`（sendSync）/ `save:write` / `save:remove`（invoke）/ `save:writeAllSync`（sendSync）/ `save:openFolder`（invoke）
 - テスト（`electron/saveStore.test.ts`。`os.tmpdir()` 配下に一時ディレクトリを作って実施）: 「write したキーを readAll で読み戻せる」「write は前の版を .bak に残す」「本体が壊れていれば .bak から読み、本体を .corrupt-* に改名する」「未知のキーは write で例外」「import.json があれば取り込んで import.done-* に改名する」「save/ が無ければ作る」
-- 完了条件: `npm run check` 成功（electron の tsc ステップを含む）。`npm run electron:dev` でウィンドウが開き、装備を拾って 1 秒後に `%APPDATA%\BOKUEN\save\profile.json` が更新される。`npm run electron:build` で `release/win-unpacked/BOKUEN.exe` が起動し、同じ save/ を読む。F11 でフルスクリーン、ウィンドウを閉じて再起動しても装備が残る
+- 完了条件: `pnpm run check` 成功（electron の tsc ステップを含む）。`pnpm run electron:dev` でウィンドウが開き、装備を拾って 1 秒後に `%APPDATA%\BOKUEN\save\profile.json` が更新される。`pnpm run electron:build` で `release/win-unpacked/BOKUEN.exe` が起動し、同じ save/ を読む。F11 でフルスクリーン、ウィンドウを閉じて再起動しても装備が残る
 
 ### 6.3 レーン C（後続・任意）: 設定画面の「セーブデータを書き出す / 読み込む / セーブフォルダを開く」
 
@@ -301,4 +301,4 @@ Electron 版: ストア ── saveStorage() ──> GuardedStorage(FileStorage)
 7. **DPR 125% 環境での整数倍**: `useContentSize` は CSS px 基準なので、`computeViewScale` の `cssScale` が意図した k になるかを 125% の Windows で `renderer.ts:613` の値を DevTools で確認
 8. **Electron の localStorage からの移行（3 章 1）が dev で二重に走らないか**: `migrateFromLocalStorage` は「ファイル側が空」条件で 1 回だけ。2 回目の起動で何も起きないことを `save/` の更新時刻で確認
 9. **`@types/node` と Vite 8 の型の衝突**: root `tsconfig.json` は `types: ["vite/client"]` のままなので `src/` には node 型が入らない。`tsconfig.electron.json` 側で `src/save/bridge.ts` を include したとき `declare global { interface Window … }` が DOM lib を要求する → electron 側の `lib` にも `DOM` を入れる（preload は renderer 文脈なので問題ない）
-10. **`npm install electron` の本体ダウンロード**: 100MB 超をミラーから落とす。会社プロキシ等で失敗したら `ELECTRON_MIRROR` を設定。`npm run check` 自体は本体無しでも通る（型だけ）
+10. **`pnpm install electron` の本体ダウンロード**: 100MB 超をミラーから落とす。会社プロキシ等で失敗したら `ELECTRON_MIRROR` を設定。`pnpm run check` 自体は本体無しでも通る（型だけ）

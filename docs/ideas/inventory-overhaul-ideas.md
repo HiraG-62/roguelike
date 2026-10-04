@@ -592,7 +592,7 @@ UI の時間は `MenuUi.time`（開いている間 `state.time` は止まる）�
 | 5 床・鍛冶場・揃え | G 長押しで拾って装備・拾った知らせ・鍛冶場を遺物頁の右半分に・がらくたの一括・揃え 3 つ | 開かずに装備が済む。整理が 1 操作 | M〜L | `src/system/loot.ts`、`src/core/replay.ts`、`src/ui/echoTab.ts`、`src/render/echoTabUi.ts`、`src/loot/profile.ts` |
 | 6 意匠の部品と演出 | G 章の枠の部品（9-slice）・和紙の地・系譜の紋 9・札の枠 7・部位 5・スキルの形 6・通貨 3 のドット絵、焦点の滑り・段の満ち・長押しの輪・判子・灯の筆の線、区画から寄る（A5） | 見て気持ちいい。世界観がメニューにまで通る | M | 新規 `src/data/sprites/uiParts.ts`・`src/data/sprites/menuIcons.ts`・`src/render/uiFrame.ts`、新規 `src/data/balance/feel/MENU.json` |
 
-段ごとに `npm run check`。段 0〜4 は描画と UI だけで `REPLAY_VERSION` は変わらない（ラン中の変更は今の `captureLoadout` の経路のまま）。段 5 の G 長押しだけが入力を 1 つ足す。
+段ごとに `pnpm run check`。段 0〜4 は描画と UI だけで `REPLAY_VERSION` は変わらない（ラン中の変更は今の `captureLoadout` の経路のまま）。段 5 の G 長押しだけが入力を 1 つ足す。
 
 型の追加（まとめ）: `Item.unseen?` / `Item.mark?`（`src/loot/types.ts`）、`SkillStone.unseen?` / `SkillStone.mark?`（`src/skills/types.ts`）、`Profile.loadoutSets?` と新規型 `LoadoutSet`、`FrameInput.interactHeld`、新規型 `MenuInput`、`AffixDef.short?`（厚い行）、`LINEAGE_GLYPH` / `LINEAGE_COLOR`（表示の表）、`StashView` に語の絞り。数値（長押しの秒・連続送りの間隔・演出の秒・拾った知らせの秒）は新規 `src/data/balance/feel/MENU.json`（`data/tuning.ts` の `MENU`）。
 

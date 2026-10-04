@@ -180,7 +180,7 @@
 - 編集禁止: `boonRules.ts`、`boonDefsWave2.ts`、`render/**`、`qa/**`
 - 公開する関数と型: `BoonGrade` / `BOON_GRADES` / `BOON_GRADE_LABEL` / `rollGrade` / `isGraded` / `gradeMagnitudeMul` / `gradeRadiusMul` / `gradeIcdMul` / `boonGradeMul(state, key)` / `boonGradeOf(state, key): BoonGrade`、`grantBoon(state, key, grade = 1)`、`BoonChoice.grades` / `BoonChoice.core`、`BoonRunState.grades` / `BoonRunState.gradeBoost`、`rollCoreOptions(state)`、`offerBoons` の芯分岐
 - テスト（`boons.test.ts`、it 名）: 「格は深いほど高いものが出やすい（深度 2 と深度 10 で 1000 回引いた分布）」「呪い付きの札は格を持たない」「Rule の効果量は格で ×1.5 / ×2.2 になる（爆走の爆発ダメージで確認）」「神威の Rule は ICD が短くなるが ruleMinIcd を下回らない」「試練の部屋の制圧で 3 択が開き、格の下駄が 1 回だけ効く」「ボス階の直後の提示は格の下駄が乗る」「呪いを受けて足した 4 枚目は格の下駄が乗る」「深度 2 の最初の提示は芯だけの 3 択で呪いの札が出ない」「芯を持つと同じタグの祝福の重みが coreTagBonus 倍になる」「芯を持っていれば通常の 3 択に芯は出ない」「同じ seed なら格の列も同じ（決定性）」
-- 完了条件: `npx vitest run src/system/boons.test.ts src/system/rules.test.ts src/core/replay.test.ts` が通り、`npx tsc --noEmit` が通る。`BOON` に足した key はすべて `_note` に単位を書く
+- 完了条件: `pnpm exec vitest run src/system/boons.test.ts src/system/rules.test.ts src/core/replay.test.ts` が通り、`pnpm exec tsc --noEmit` が通る。`BOON` に足した key はすべて `_note` に単位を書く
 
 ### Lane B: 芯と新祝福 18 種（Sonnet 可）
 
@@ -189,7 +189,7 @@
 - 編集禁止: `rules.ts`、`boonGrade.ts`、`render/**`、`qa/**`、`player.ts`、`weapons.ts`、`weaponArts.ts`
 - 公開する関数: `BOON_KEYS_WAVE3` / `BOONS_WAVE3`、`foldCoreStats`、`coreCursedForced`、`coreGradeShift`、`ownedCore(state): BoonDef | null`
 - テスト（`boonRules.test.ts`、it 名）: 「硝子の心は近接・射撃・スキルの倍率を ×1.5 にし最大生命を半分にする（ソフトキャップの後に掛かる）」「拍の刻はコンボ段ごとの倍率を上書きし、被弾でコンボが 0 になる」「血の巡りはハートを拾えず自然回復が 0」「満ち潮の器は最大気力 ×2 で自然回復 0」「逃げ水はダッシュの終わりに爆発する」「鉄の巨人は怯み値 ×2 で攻撃速度が落ちる」「病み喰いは状態異常 2 種の敵への攻撃が必ず会心になる」「呪い喰いは 3 択に必ず呪い付きが 1 枚混ざる」「火柱は燃焼中の敵の撃破でだけ爆発する」「雷落としは回避の見切りでだけ連鎖雷を出す（受け流しのスキルでは出ない）」「血脈は出血中の敵への会心で出血が広がる」「猛りは交戦開始から 6 秒だけ与ダメが上がる」「精鋭狩りは精鋭にだけ脆弱を付ける」「影縫いは恐怖中の敵の撃破で周囲に恐怖」「氷の足跡はダッシュの終点に氷床を置く」「逆撃はカウンターヒットで爆発する」「格を読むフック型 10 種は大祝福で倍率が 1.5 倍になる（奪弾の弾ダメージで確認）」「新しい 18 種の tags / keywords / requires が語彙の範囲に収まる（既存の網羅テストへ追加）」
-- 完了条件: `npx vitest run src/system/boonRules.test.ts src/system/boons.test.ts src/system/keywords.test.ts` が通る。`docs/GLOSSARY.md` に足す語（芯 / 大祝福 / 神威 / 18 種の名前）を報告に列挙
+- 完了条件: `pnpm exec vitest run src/system/boonRules.test.ts src/system/boons.test.ts src/system/keywords.test.ts` が通る。`docs/GLOSSARY.md` に足す語（芯 / 大祝福 / 神威 / 18 種の名前）を報告に列挙
 
 ### Lane C: 表示と QA（Sonnet 可）
 
@@ -198,14 +198,14 @@
 - 編集禁止: `system/**`、`data/**`
 - 計測（`simulation.test.ts` に足す指標）: ランあたりの祝福取得数（芯を含む / 含まない）、格の分布（並 / 大 / 神威 の枚数）、芯 8 種の取得回数、格 2 以上を取ったランと並だけのランの平均到達深度・平均 kills、提示回数の内訳（階段 / 試練 / 闘技場・鏡 / 呪いの祠 / 契約）
 - テスト（it 名）: 「大祝福・神威のカードは格の語と色で描かれ、並は今までの副題のまま」「芯の提示では呪いの札を描かない」「HUD の芯は先頭に出る」「bot は格の高い札を選ぶ」
-- 完了条件: `npm run test`（縮小版 QA を含む）が通り、`report.md` に出す表の形が決まっている
+- 完了条件: `pnpm run test`（縮小版 QA を含む）が通り、`report.md` に出す表の形が決まっている
 
 ### 統合の順序
 
-1. Lane A → `npm run check` → コミット（`feat: 祝福に格と芯の提示を追加`）
-2. Lane B と Lane C を並列 → 各 `npm run check` → コミット（`feat: 芯の祝福 8 種と格を活かす祝福 10 種` / `feat: 祝福カードの格の表示と QA の計測`）
+1. Lane A → `pnpm run check` → コミット（`feat: 祝福に格と芯の提示を追加`）
+2. Lane B と Lane C を並列 → 各 `pnpm run check` → コミット（`feat: 芯の祝福 8 種と格を活かす祝福 10 種` / `feat: 祝福カードの格の表示と QA の計測`）
 3. 資料: `docs/CODE_MAP.md`（`boonGrade.ts` / `boonCores.ts` / `boonDefsWave3.ts` の 3 行）、`docs/recipes/boon.md`（「Rule 型は格が自動で掛かる。フック型で格を効かせるなら `graded: true` と `boonGradeMul`」の 1 項、「芯は `core: true`、1 ランに 1 つ、代償を持つ」の 1 項）、`docs/GLOSSARY.md`（芯 / 大祝福 / 神威、317 行目の希少度の説明）、`docs/ARCHITECTURE.md`（`BoonRunState.grades` と格の適用点）、`docs/ideas/boons-expansion.md` の実装状況節に 1 行、`IDEAS.md` 現状節の祝福の件数（180 → 198）
-4. 隔離 worktree で `npm run qa:full`
+4. 隔離 worktree で `pnpm run qa:full`
 
 ---
 
@@ -216,7 +216,7 @@
 - 芯 8 種の取得回数に 0 のものが無いこと（bot は 1 枚目を選ぶので、抽選が偏っていれば偏りが見える）
 - `SYNERGY.maxEventsPerStep` 到達回数と `ruleRun.droppedEvents` が増えていないこと（神威で ICD が短くなる分。増えたら `keywordBudget` 6 → 8 を検討）
 - 序盤（深度 1〜3）の死亡率が下がりすぎないこと（芯の硝子の心・鉄の巨人が序盤を壊すなら `coreDepth` を 3 に）
-- 決定性: `npx vitest run src/core/replay.test.ts`。格の抽選は `state.rng` だけを使う
+- 決定性: `pnpm exec vitest run src/core/replay.test.ts`。格の抽選は `state.rng` だけを使う
 
 ### ユーザーに確認したほうがよい点
 

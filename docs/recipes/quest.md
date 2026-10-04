@@ -7,4 +7,4 @@
 - どちらも一覧画面は `meta/listScreen.ts` / `meta/screens.ts`（タブ状態）→ `render/codexUi.ts`（描画）で共通化されている。新しいタブを増やすのでなければ画面側は触らなくてよい
 - テスト: `meta/quests.test.ts` / `meta/achievements.test.ts`
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

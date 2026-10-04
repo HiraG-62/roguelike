@@ -1,6 +1,6 @@
 ---
 name: agent-docs
-description: エージェント資料（CLAUDE.md・docs/CODE_MAP.md・docs/recipes・.claude/agents・.claude/skills・docs/AI_WORKFLOW.md）をコードの現状に追随させる。機械検査（npm run audit:docs）で拾えるずれを直し、差分から「何を変えたらどこを直すか」の表で判断の要る追随を行う。
+description: エージェント資料（CLAUDE.md・docs/CODE_MAP.md・docs/recipes・.claude/agents・.claude/skills・docs/AI_WORKFLOW.md）をコードの現状に追随させる。機械検査（pnpm run audit:docs）で拾えるずれを直し、差分から「何を変えたらどこを直すか」の表で判断の要る追随を行う。
 ---
 
 # /agent-docs [範囲]
@@ -9,10 +9,10 @@ description: エージェント資料（CLAUDE.md・docs/CODE_MAP.md・docs/reci
 
 ## 手順
 
-1. `npm run audit:docs` を実行し、出た指摘を全部直す（実在しない参照・地図に無いファイル・件数のずれ・未登録の skill / agent・旧用語）。検査を緩めて通さない（例外を足すなら `scripts/audit-agent-docs.mjs` の定数に理由付きで）
+1. `pnpm run audit:docs` を実行し、出た指摘を全部直す（実在しない参照・地図に無いファイル・件数のずれ・未登録の skill / agent・旧用語）。検査を緩めて通さない（例外を足すなら `scripts/audit-agent-docs.mjs` の定数に理由付きで）
 2. 範囲を決める: 引数が無ければ前回の資料コミット（`git log --oneline -3 -- CLAUDE.md docs/CODE_MAP.md docs/recipes .claude docs/AI_WORKFLOW.md` の先頭）以降の `git log --oneline` と `git diff --stat`。未コミット変更があれば `git status --short` も
 3. 差分を下の表に当て、該当する資料を直す。差分の中身は `git show --stat <hash>` と、必要な箇所だけ `git show <hash> -- <file>` で読む
-4. もう一度 `npm run audit:docs`。資料だけの変更なら `npm run check` は不要
+4. もう一度 `pnpm run audit:docs`。資料だけの変更なら `pnpm run check` は不要
 5. 報告は「直した資料と要点」の箇条書きのみ
 
 ## 何を変えたらどこを直すか
@@ -25,7 +25,7 @@ description: エージェント資料（CLAUDE.md・docs/CODE_MAP.md・docs/reci
 | `step` の呼び出し順（`core/game.ts`） | `docs/CODE_MAP.md`「system」見出しの順序の一文 |
 | 数値の置き場所・不変条件（JSON のブロック・フォント・保存先・決定性） | CLAUDE.md「不変条件」、agent の作法（implementer / reviewer / localizer / balance-tuner）、AI_WORKFLOW の「よくある事故と対策」 |
 | 用語の変更（`docs/GLOSSARY.md` の対応表） | 資料全体の表記。旧語は「旧〜」の形でだけ残す。audit の `STALE_TERMS` に旧語を足す |
-| npm scripts / `scripts/*.mjs` の追加・変更 | CLAUDE.md「コマンド」表、関係する skill（`/check` `/qa` `/bump`）、`scripts/check.mjs` |
+| `package.json` の scripts / `scripts/*.mjs` の追加・変更 | CLAUDE.md「コマンド」表、関係する skill（`/check` `/qa` `/bump`）、`scripts/check.mjs` |
 | 永続化キー・保存先の形式 | CLAUDE.md 不変条件 8、`docs/ARCHITECTURE.md`「永続化キー」 |
 | skill / agent の追加・改名・model の変更 | CLAUDE.md「並列開発の作法」の一覧、AI_WORKFLOW の「モデルの使い分け」と「対応」表 |
 | `docs/*.md` の追加・改名 | CLAUDE.md「ドキュメント索引」。レシピを足したら「要素の足し方」の表（audit が登録を検査） |

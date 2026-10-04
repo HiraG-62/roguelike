@@ -9,4 +9,4 @@
 - 床の地形の層を増やすなら `src/core/terrain.ts` の `TERRAIN_KINDS` + `src/system/terrain.ts` に効果、配置は `src/map/generator.ts` の `planTerrain`、描画は `src/render/terrainUi.ts`
 - テスト: `system/statusEffects.test.ts`（相互作用・拘束上限・免疫）。敵の付与は `system/enemies.test.ts` に追加
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

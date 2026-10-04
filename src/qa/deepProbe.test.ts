@@ -22,7 +22,7 @@ import { BOON_KEYS } from "../system/boonDefs";
 // @types/node が無いため process の型は自前で最小限だけ宣言する
 declare const process: { env: Record<string, string | undefined> };
 
-/** SIM_PROBE=deep: 深みの表を測って probe.md の「## 深み」の節にする（`npm run qa:probe -- --deep`） */
+/** SIM_PROBE=deep: 深みの表を測って probe.md の「## 深み」の節にする（`ppnpm run qa:probe --deep`） */
 const PROBE_DEEP = process.env.SIM_PROBE === "deep";
 const DEEP_START = "<<<QA_PROBE_DEEP_START>>>";
 const DEEP_END = "<<<QA_PROBE_DEEP_END>>>";

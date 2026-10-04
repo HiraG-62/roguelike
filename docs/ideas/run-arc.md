@@ -339,7 +339,7 @@ Hades（30〜40 分）より長い。縮める手は「章ごとにマップの�
 | 2 | B 持ち込み・持ち帰り | `loot/runGear.ts`（新）、`ui/carryBack.ts` + `render/carryBackUi.ts`（新）、`ui/inventory.ts` の袋表示、`meta/hub.ts` 荷車、`loot/runGear.test.ts` | `core/game.ts` `createGame`（gear の生成）、`system/loot.ts` `pickUp`、`loot/provenance.ts`（gear を読む）、`core/replay.ts`（snapshot / applyLoadout）、`main.ts` endRun → 持ち帰り画面、`map/hubMap.ts` 台の追加 | 1 が済んでから（`profile.equipment` の参照を一斉に切り替えるので単独で） |
 | 2 | E デイリー | `meta/dailyStore.ts` / `meta/dailyShare.ts`（新）、`system/dailyLoadout.ts`（新: 借り物の生成）、`ui/dailyScreen.ts`（新）、テスト | `main.ts` の D キーと記録室の台、`map/hubMap.ts` | B の借り物（`Item.loaned`）と `RunSetup.carrySlots` を使うので B の後 |
 
-各レーンの最後は `npm run check`。Agent はコミットしない。QA は隔離 worktree（HANDOFF 3 節の作法）。
+各レーンの最後は `pnpm run check`。Agent はコミットしない。QA は隔離 worktree（HANDOFF 3 節の作法）。
 
 ### 6-2. `REPLAY_VERSION` と永続化キー
 

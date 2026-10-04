@@ -1,14 +1,14 @@
 /**
- * 一瞬の固まり（ヒッチ）の計測。`npm run hitch:probe`。
+ * 一瞬の固まり（ヒッチ）の計測。`pnpm run hitch:probe`。
  * tools/hitch-probe.html（src/tools/hitchProbe.ts）を Chromium で開き、bot に実時間で遊ばせて、
  * step・効果音・描画の合計が閾値を超えたフレームを、そのフレームで初めて作った canvas・getImageData・初めて鳴った音・
  * 初めて画面に入った敵と並べて出す。
  *
- *   npm run hitch:probe                                  深度 1・seed 1・3600 フレーム（60 秒）
- *   npm run hitch:probe -- --seed 7 --depth 6            seed と開始の深度
- *   npm run hitch:probe -- --frames 1800 --threshold 12  フレーム数と閾値（ms）
- *   npm run hitch:probe -- --methods                     Renderer のメソッドごとの自己時間（上位 6）も出す
- *   npm run hitch:probe -- --headed                      窓を出して様子を見る（既定は窓を出さない）
+ *   pnpm run hitch:probe                                  深度 1・seed 1・3600 フレーム（60 秒）
+ *   ppnpm run hitch:probe --seed 7 --depth 6            seed と開始の深度
+ *   ppnpm run hitch:probe --frames 1800 --threshold 12  フレーム数と閾値（ms）
+ *   ppnpm run hitch:probe --methods                     Renderer のメソッドごとの自己時間（上位 6）も出す
+ *   ppnpm run hitch:probe --headed                      窓を出して様子を見る（既定は窓を出さない）
  *
  * 窓を出さなくても、Windows では GPU で描く（--use-angle=d3d11。指定しないと headless はソフトウェア描画になり、
  * GPU からの読み戻しのような実機の重さが出ない）。GPU の無い環境ではソフトウェア描画に落ちる

@@ -23,7 +23,7 @@ import {
 import { fittedEquipment } from "./gearPower";
 
 /**
- * ボスの 1 体ずつの計測（docs/ideas/boss-impl.md 5 章。`npm run qa:probe -- --bosses`）。
+ * ボスの 1 体ずつの計測（docs/ideas/boss-impl.md 5 章。`ppnpm run qa:probe --bosses`）。
  * 深度相応の装備のプレイヤー（qa/bot.ts）をボス部屋へ置き、封鎖から撃破 / 死亡 / 打ち切りまでの実際の step を回して数える。
  * ゲームのロジックは変えない。同じ seed なら同じ結果（bot の乱数は seed から作る専用のもの）
  */
@@ -72,7 +72,7 @@ export const FULL_BOSS_PROBE_CONFIG: BossProbeConfig = {
   caption: `章ボス 4 と最深の主 × seed ${FULL_SEED_COUNT}。封鎖から最長 ${FULL_MAX_SECONDS} 秒。装備は深度相応（itemLevel = 深度の並の遺物 6 部位）`,
 };
 
-/** 縮小版: 5 体 × 1 seed を 30 秒だけ（`npm run check:fast` の中で数秒） */
+/** 縮小版: 5 体 × 1 seed を 30 秒だけ（`pnpm run check:fast` の中で数秒） */
 export const SMOKE_BOSS_PROBE_CONFIG: BossProbeConfig = {
   bosses: probeTargets(),
   seeds: [1],

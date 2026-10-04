@@ -1,4 +1,4 @@
-<!-- 自動生成: scripts/sync-claude-global.mjs が ~/.claude/CLAUDE.md から写す。手で直さず、元を直して npm run sync:claude -->
+<!-- 自動生成: scripts/sync-claude-global.mjs が ~/.claude/CLAUDE.md から写す。手で直さず、元を直して pnpm run sync:claude -->
 
 # 言語・コミュニケーション
 

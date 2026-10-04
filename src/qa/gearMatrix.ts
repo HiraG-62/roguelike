@@ -21,7 +21,7 @@ import { botInput, createBotState } from "./bot";
 import { buildColoredItem, buildQaSkillProfile, rollUntilRarity } from "./qaLoadout";
 
 /**
- * 装備パターンの行列（`npm run qa:gear`）。持ち込み・部位の選び方・装備の質・武器種・ジョブを 1 軸ずつ「標準」から変え、
+ * 装備パターンの行列（`pnpm run qa:gear`）。持ち込み・部位の選び方・装備の質・武器種・ジョブを 1 軸ずつ「標準」から変え、
  * 同じ seed の列で bot を走らせて差を見る（同じ seed を全パターンで使うので、差は対にして比べる）。
  * ゲームの持ち込みの決まり（右手 + CARRY.carrySlots 部位。loot/runGear.ts）に合わせ、ラン中に拾った遺物は bot が付ける。
  * ゲームのロジックは変えず、bot と集計の純関数だけを持つ。実行と書き出しは scripts/qa-gear.mjs
@@ -659,7 +659,7 @@ export function buildGearReport(summaries: readonly GearSummary[], meta: Readonl
   const prev = new Map(prevSummaries.map((s) => [s.pattern, s]));
   const std = summaries.find((s) => s.pattern === "standard");
   const lines: string[] = [
-    "# 装備パターンの行列（`npm run qa:gear`）",
+    "# 装備パターンの行列（`pnpm run qa:gear`）",
     "",
     `生成: ${meta.generatedAt} / ${summaries.length} パターン × ${meta.seeds} seed × 最大 ${meta.maxSteps} step`,
     "",

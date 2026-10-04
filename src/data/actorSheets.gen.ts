@@ -1,4 +1,4 @@
-// 生成物: npm run actor:gen（scripts/actor/gen.mjs）。手で直さない。docs/ideas/player-sprites.md
+// 生成物: pnpm run actor:gen（scripts/actor/gen.mjs）。手で直さない。docs/ideas/player-sprites.md
 // アトラスごとの中身は src/data/actor/<key>.gen.json（寸法・シートの矩形・位置の印・アトラスの付帯情報）
 import actor_bodyAlchemist from "./actor/bodyAlchemist.gen.json";
 import actor_bodyBrawler from "./actor/bodyBrawler.gen.json";

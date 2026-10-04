@@ -274,7 +274,7 @@ export interface Jin {
 | `ENEMY_AI` 削除 | 既存 | `maxSimultaneousStrikers` を消す（`_order` も） |
 | `ROAM` 削除 | 既存 | `fraction / corridorPerTiles / corridorMax / corridorMinDist / reinforceDelay / reinforceInterval / capBase / capPerDepth / capMax / minSpawnDist / offscreenMargin` |
 
-`npm run balance:gen` は統合役。`balance.test.ts` の `_fields` 検査に通るよう新しい数値には全部 1 行付ける。
+`pnpm run balance:gen` は統合役。`balance.test.ts` の `_fields` 検査に通るよう新しい数値には全部 1 行付ける。
 
 ### 3-2. 型の変更（共有ファイルは最小 Edit）
 
@@ -304,7 +304,7 @@ export interface Jin {
 | `src/data/balance/balance.test.ts` | 新 JSON の `_fields` 漏れ | 各レーンが付ける |
 | `src/system/floatingText.test.ts` | 新しい浮き文字 | `JIN_TEXT` 定数経由。体言止め |
 | `src/core/game.test.ts` / `replay.test.ts` / `simulation.test.ts` の決定性 | 同じ seed で同じ結果を比べるだけ | 通る |
-| seed 依存で落ちる可能性: `hiddenRoom.test.ts`・`contractors.test.ts`・`specialRooms.test.ts`・`meta/codex.test.ts`・`quests.test.ts` | 敵の配置の後に引く乱数がずれる | 性質の検証なら通る。特定の部屋番号・敵種を期待していれば seed を選び直す。確認は `npx vitest run src/system src/meta` |
+| seed 依存で落ちる可能性: `hiddenRoom.test.ts`・`contractors.test.ts`・`specialRooms.test.ts`・`meta/codex.test.ts`・`quests.test.ts` | 敵の配置の後に引く乱数がずれる | 性質の検証なら通る。特定の部屋番号・敵種を期待していれば seed を選び直す。確認は `pnpm exec vitest run src/system src/meta` |
 
 ---
 
@@ -321,7 +321,7 @@ export interface Jin {
 | **B 反応ルール・語彙・上限**（Sonnet。設計済み） | 新規 `system/enemyReactions.ts` + test、`behaviors/base.ts`、`behaviors/families.ts`、`system/enemies.ts`（`chase` / `chaseMove` / `windup` / `recover` / `beginWindup` / `coordinateNearby` / `strikeSlotsFull` / `contactDamageOf` の強の倍率 1 行）、`balance/enemies/REACTION.json`、`ENEMY_TEMPO.json`、`ENEMY_AI/_index.json`（削除）、テスト `enemies.test.ts` / `enemyTempo.test.ts` | `core/state.ts`（`EnemyAi` 3 項目）、`system/combat.ts:194`（`onStruck` 1 行）、`data/tuning.ts`（`REACTION`）、`qa/simulation.test.ts:1551-1594`（動的上限） | `floor.ts`、`spawner.ts`、`jinSpawn.ts`、`floorLord.ts` | 2-3、2-4 の 3a 分、2-8 |
 
 - 接点: B の `slotTarget` は `e.jinId` を読む（A の型）。型は前置きのコミットで `core/state.ts` に **統合役が先に足す**（`Jin` 型と `Enemy.jinId? / grade?` の 4 行）。A・B は同じインターフェースに触らない
-- 統合役: `npm run balance:gen` → `REPLAY_VERSION` 14 → `npm run check` → `npm run qa:probe` と `npm run qa:full` で 5 章の指標を出し、`JIN.tilesPerJin / budgetBase` で総数を 80〜100 に合わせる
+- 統合役: `pnpm run balance:gen` → `REPLAY_VERSION` 14 → `pnpm run check` → `pnpm run qa:probe` と `pnpm run qa:full` で 5 章の指標を出し、`JIN.tilesPerJin / budgetBase` で総数を 80〜100 に合わせる
 
 ### 3b: 群勢・敗走・大将・後詰・HUD
 
@@ -366,7 +366,7 @@ export interface Jin {
 5. **隙を狙う条件の `dashChargesLeft === 0`**: 1 回 1.2 秒なので「ダッシュ直後の 1.2 秒は敵の時計が 1.7 倍」になる。強すぎれば `punishBias` を 0.4 に落とすか、ダッシュの条件を外して終撃・受け流し外しだけにする。probe の連打+ダッシュ bot の被弾（今 slime 深度 1 で 0.0）が 3 を超えたら見直す
 6. **上限の数え方 `awakeNear` にボスの取り巻きを含めるか**: 含める（推奨。ボス自身は数えない）。ボス戦の被弾が跳ねたら `strikerCountRadius` を縛る
 7. **長蛇の目的地**: 先頭だけが `pickRoamTarget`、他は写す（推奨）。列が伸びて分断されるなら `nextWaypoint` を先頭の位置へ向ける
-8. **`ROAM` の削除範囲**: `roamSpawnPoint` は `floor.ts` からしか呼ばれていない（grep 済み）。盗賊のランイベントは `spawnReinforcements` 経由なので無事。削る前に `npx tsc --noEmit`
+8. **`ROAM` の削除範囲**: `roamSpawnPoint` は `floor.ts` からしか呼ばれていない（grep 済み）。盗賊のランイベントは `spawnReinforcements` 経由なので無事。削る前に `pnpm exec tsc --noEmit`
 9. **決着の報酬を陣ごとに変える（陣形で違う）**: 今回はしない。段取り 6 の銭・鍵で「大将のいる陣は鍵」のように差を付ける
 10. **QA bot が敗走した敵を追いかけて時間を溶かす**: bot は部屋の敵か近くの徘徊を狙う（`bot.ts:860-881`）。敗走敵は `ROAMING_ROOM` なので「近くの徘徊」扱いで追う可能性。フル QA の時間配分が悪化したら `bot.ts` で `e.rout` を無視する 1 行
 

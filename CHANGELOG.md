@@ -392,6 +392,7 @@
 - 銃口の粒を、胸の高さに構えた銃の描いた銃口から出す（閃光・弾と揃える）
 
 ### 整備
+- **パッケージマネージャを pnpm へ**（開発用）: `package-lock.json` をやめて `pnpm-lock.yaml`（`pnpm import` で同じ版のまま写した）。資料・スクリプト・コメントの `npm run` / `npx` を `pnpm run` / `pnpm exec` に直した。スクリプトへの引数は `--` を挟まず直接付ける（`pnpm run qa:probe --weapons`）。版上げ `scripts/bump.mjs` は lock を書き換えなくなった
 - **Claude 用ファイルの整理**（開発用）: 引き継ぎ `docs/HANDOFF.md` を現在地だけの 55 行に削り（節を積み増さず上書きする決まり・100 行の上限を `npm run audit:docs` が検査）、積み残しを `docs/BACKLOG.md`、統合の実務を `docs/AI_WORKFLOW.md`、過去の引き継ぎとレビューを `docs/archive/` へ分けた。共通ルールの `@` 取り込みをやめ、クラウドセッションのときだけ SessionStart hook（`scripts/claude-session-context.mjs`）が載せる（ローカルで同じ文面が 2 回読まれていた）。`docs/ideas/README.md` に全ファイルの早見表（核の設計 / 実装設計 / 案 / 絵の記録）を足し、載せ忘れを検査する。古くなった記憶（サブエージェントのモデル・memo の扱い）を直した
 - **バランス数値の辞書**: `docs/BALANCE_DICTIONARY.md` に JSON の全項目の意味を一覧にした。説明の無かった約 1800 項目の `_fields` を、数値を読むコードで効き方を確かめて書き足し、未記入を 0 にした。各 JSON の `_fields` から `npm run balance:dict` で生成し、古いとテストが落ちる
 - **バランス数値の JSON を手で調整しやすくする**: 配列の要素すべてに名札 `_id` を付けた（左の連撃は `primary4.heavySlash`、右は `secondary2.starFan2`、ほかに `bleed` / `level2` / `depth8` / `vanguard.elite` など。読み込み時に剥がすので挙動と数値の版は変わらない）。全 JSON を 1 項目 1 行の書式にそろえ、`npm run balance:fmt` で整形する。名札の付け忘れと整形のずれは `balance.test.ts` が落とす

@@ -249,7 +249,7 @@
 | ファイル | 触り方 |
 | --- | --- |
 | `src/core/state.ts` | `Jin` に `honjin?: true`・`jinzu?: JinzuState`・`flagFell?: true`。`Enemy` に `jinzuRun?: JinzuRun`（画の点列・何点目まで・当たったか・隊の id）。型 `JinzuPhase` / `JinzuState`（段・段の経過秒・的 P・画の配列〔点列・隊の id 列・下絵 / 墨 / 消えた / 走り済み〕・回数・最後の立て直しの終わり）を足す。`GameState` には足さない（同時 1 つの判定は `state.jins` を走査して出す。陣は 1 階 20 前後） |
-| `src/data/balance/enemies/HONJIN.json`・`JINZU.json`（新規）、`FORMATION/*.json` の `jinzu` | 2-3 のとおり。`src/data/tuning.ts` で再 export、`npm run balance:gen` で組み立て |
+| `src/data/balance/enemies/HONJIN.json`・`JINZU.json`（新規）、`FORMATION/*.json` の `jinzu` | 2-3 のとおり。`src/data/tuning.ts` で再 export、`pnpm run balance:gen` で組み立て |
 | `src/data/formations.ts` | `FormationDef.jinzu?: FormationJinzu` と検査。union `JinzuSquadKey` / `JinzuPathKind` / `JinzuLeaderSeat` |
 | `src/map/jinzuShape.ts`（新規、純関数） | `strokePoints(path, start, axis, params, map)`: 2 次ベジエを 12 点に刻み `walkLine` で切る。`safeSpotExists(strokes, p, reach)` は テストと `planStrokes` の両方が使う |
 | `src/system/jinzu.ts`（新規） | `planHonjin(state)`（R1・R2。乱数なし）/ `updateJinzu(state)`（R3・R4。段の遷移と割り込みの検出〔大将の `hasStatus` を毎ステップ見る〕）/ `stepBrushLeader(state, e, dt)`（大将の筆の時計を `edt` で進める）/ `formSquads` / `beginCharge` / `stepJinzuRun(state, e, def, dt, speed)` / `jinzuHoldsAttack(state, e)`（R5 の 1 拍）/ `freshStrokeCount(state)`（R5 の予告の数え）/ `surgeStrikerSlot(state)`（R5 の 1 枠）/ `onHonjinLeaderFell(state, jin)`（R6 の旗倒れ）。`statusEffects.ts` からは呼ばない（循環 import を作らないため、割り込みは状態の見張りで取る。`jinFormations.ts` と同じ方針） |
@@ -290,7 +290,7 @@
 | 鐘潮の段 2（旗が倒れるたびに歩き出しが 1 刻遅れる） | `Jin.flagFell` を立てておけば `stirsDue` 側で数えられる。本書では入れない |
 | 墨入れ（予告の描き替え）より先に入ると、陣図だけ別の絵の言葉になる（02-encounter） | 段 1 は今の黄 / 赤で描き、墨入れが入った段で一緒に描き替える。描画だけの差し替えなので版は動かない |
 | 「迅速の」が大将の速さで難しくする | 段 0 で L10-07 の削除を先に入れる（README 段 0〜1） |
-| 稽古場（拠点の木人）では試せない: `stepHub` は陣・階の仕組みを回さない（`system/bossHall.ts` の注記） | `HONJIN.trial` で本物の階に試し陣を置く。人は `npm run dev` + seed 指定で遊び、bot は `jinzuProbe` が `createGame` で同じ盤を作る |
+| 稽古場（拠点の木人）では試せない: `stepHub` は陣・階の仕組みを回さない（`system/bossHall.ts` の注記） | `HONJIN.trial` で本物の階に試し陣を置く。人は `pnpm run dev` + seed 指定で遊び、bot は `jinzuProbe` が `createGame` で同じ盤を作る |
 
 ### 3-3. 決定性
 
@@ -339,7 +339,7 @@
 
 入れない物: 旗倒れの連鎖（大将撃破は今の敗走のまま）・他の陣形・ミニマップの印・本番の本陣の数・破陣・密書・馬印の正式な絵。
 
-出口の条件: probe で 1 章の「bot・止められるか / 止めた位置 / 読む価値 / 帯域」の 4 つが目安に入る。`HONJIN.trial.depth = 4` でユーザーが 3 回遊び、「読めた / 読めない」の所感をもらう（1 章の人の門）。`npm run check` が通る（試し陣を入れても `HONJIN.count` 0 の既定でフル QA の数字が変わらないこと = 版を動かさなくてよい証拠）。
+出口の条件: probe で 1 章の「bot・止められるか / 止めた位置 / 読む価値 / 帯域」の 4 つが目安に入る。`HONJIN.trial.depth = 4` でユーザーが 3 回遊び、「読めた / 読めない」の所感をもらう（1 章の人の門）。`pnpm run check` が通る（試し陣を入れても `HONJIN.count` 0 の既定でフル QA の数字が変わらないこと = 版を動かさなくてよい証拠）。
 
 ---
 
@@ -386,7 +386,7 @@
 | 旗倒れ（段 2 から） | 本陣の大将撃破 1 回あたり、連鎖で敗走した素の陣の数・背を向けた兵の数 |
 | 時間 | 本陣の交戦から決着までの秒、階の滞在の秒の差 |
 
-**試し陣の probe**（`qa/jinzuProbe.ts`、`npm run qa:probe -- --jinzu` の節を `probe.md` に足す）。`HONJIN.trial` と同じ盤を `createGame` で作り、深度 4・装備は深度相応（`gearPower` の `fittedEquipment`）で、bot の方針を 3 つ回す。
+**試し陣の probe**（`qa/jinzuProbe.ts`、`ppnpm run qa:probe --jinzu` の節を `probe.md` に足す）。`HONJIN.trial` と同じ盤を `createGame` で作り、深度 4・装備は深度相応（`gearPower` の `fittedEquipment`）で、bot の方針を 3 つ回す。
 
 | 方針 | 動き | 見る物 |
 | --- | --- | --- |
@@ -400,7 +400,7 @@
 
 - `HONJIN.trial.depth = 4` で 3 回: 掲げから 1 秒以内の動き（大将へ / 画の外へ / 何もしない）、筆折れの手応えが分かったか、射線（5 画目）が帯を塞ぐのを読めたか
 - 段 3 の後の通しプレイ 3〜5 本: 地図で本陣を見て寄り道したか、本陣を避けたか（どちらも正解）。旗倒れで周りが崩れた瞬間を切り抜きたくなったか
-- 撮影: `npm run map:shot` に「陣図の書きかけ」「筆折れの直後」「総掛かりの最中」の 3 場面を足し（ツールの場面の足し方は未確認）、配信の縮小と色覚の見え方をユーザーが判定
+- 撮影: `pnpm run map:shot` に「陣図の書きかけ」「筆折れの直後」「総掛かりの最中」の 3 場面を足し（ツールの場面の足し方は未確認）、配信の縮小と色覚の見え方をユーザーが判定
 
 ---
 

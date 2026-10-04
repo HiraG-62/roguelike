@@ -20,11 +20,11 @@ description: バージョンを上げる（/bump patch|minor|major）。判断�
 ## 手順
 
 1. `git status --short` を確認する。未コミットの変更が残っているなら、先にそれをコミットするかユーザーに確認する（bump のコミットには 4 ファイルしか入らない）
-2. `npm run check` が通ることを確認する。失敗していたら上げない
+2. `pnpm run check` が通ることを確認する。失敗していたら上げない
 3. 前回タグ（`git describe --tags --abbrev=0`）以降の `git log --oneline` を読み、`CHANGELOG.md` の `## [Unreleased]` に「追加 / 変更 / 修正」の見出しでプレイヤー視点の箇条書きを書く（`/release-notes` の書き方）
 4. まず `node scripts/bump.mjs <level> --dry-run` で次の版を確認する
 5. `node scripts/bump.mjs <level>`（短い追記だけなら `--note "..."`）を実行する
-   - package.json / package-lock.json / src/version.ts / CHANGELOG.md を更新する
+   - package.json / src/version.ts / CHANGELOG.md を更新する
    - `chore: v0.0.2α` の形でその 4 ファイルだけをコミットし、`v0.0.2` タグを作る
    - push はしない
 6. 報告: 旧版 → 新版、タグ名、CHANGELOG に載せた項目

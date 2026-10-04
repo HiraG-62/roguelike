@@ -2,11 +2,11 @@
 
 次のセッションが最初に読むファイル。「いまどこで、何が動いていて、次に何をするか」だけを書く。
 
-**書き方の決まり**: 節を積み増さない。「現在地」は毎回 **上書き** する（前の現在地は消す。経緯は `CHANGELOG.md`）。積み残しは `docs/BACKLOG.md` へ、固まった運用は `docs/AI_WORKFLOW.md` へ移す。全体で 100 行以内（`npm run audit:docs` が検査）。
+**書き方の決まり**: 節を積み増さない。「現在地」は毎回 **上書き** する（前の現在地は消す。経緯は `CHANGELOG.md`）。積み残しは `docs/BACKLOG.md` へ、固まった運用は `docs/AI_WORKFLOW.md` へ移す。全体で 100 行以内（`pnpm run audit:docs` が検査）。
 
 ## 1. 現在地
 
-- `master` は PR #57 まで取り込み済み。`npm run check` 通過（テスト 8,276 件）。`REPLAY_VERSION` 46。版は 0.0.15α のまま（**[Unreleased] に大きな変更が溜まっている**）
+- `master` は PR #57 まで取り込み済み。`pnpm run check` 通過（テスト 8,276 件）。`REPLAY_VERSION` 46。版は 0.0.15α のまま（**[Unreleased] に大きな変更が溜まっている**）
 - 直近に入ったもの（詳細は `CHANGELOG.md` の [Unreleased]）
   - 銃と投擲物の見直し（`docs/ideas/gun-bases-review.md`。段 1〜8 すべて。弾倉とリロード・銃ごとの近接・砲の型・クナイ / 手裏剣 / 戦輪・武器掛けの 3 段）
   - バランス JSON の名札 `_id`・1 項目 1 行の書式・全項目の辞書 `docs/BALANCE_DICTIONARY.md`

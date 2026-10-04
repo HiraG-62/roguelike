@@ -329,7 +329,7 @@ y256 ↑↓←→ 選ぶ　Enter 決める（砕くは長押し）　G 書付　
 | 5 スキルと加護の頁 | 石 4 列・符を持ち上げて置く・外れた符・石の候補（3 の画面を流用）。加護の頁（行動・加護 2 枠・乗る遺物・注ぐ系統） | `src/ui/skillRunes.ts`（流用）、新規 `src/render/skillPageUi.ts`・`src/render/actPageUi.ts`、`src/ui/inventory.ts`（スキルタブの撤去） | M |
 | 6 書付 | 1 品・見開き・体（ステータス・体の性能・計算式・奥義）・倉庫の遺物の操作 5 | 新規 `src/ui/sheet.ts`・`src/render/sheetUi.ts`、`src/ui/statusTab.ts`・`src/render/statusTabUi.ts`（中身を移す）、`src/ui/scalingText.ts`・`src/ui/reachRows.ts`（流用）、`src/ui/echoTab.ts`（状態機械を流用） | M |
 | 7 金床の構え | 拠点の鍛冶場で装束を金床の構えで開く。残響の壺 | `src/ui/hubFlow.ts`（鍛冶場の行き先）、`src/render/attireUi.ts`、`src/loot/crafting.ts`（読むだけ） | S |
-| 8 3 択の写しと仕上げ | 祝福の 3 択に紋の写しの畳んだ帯。Tips に「装束と紋」「伏流」「書付」。GLOSSARY・CODE_MAP・`docs/recipes/stash.md` の追随、`npm run audit:docs` | `src/render/boonUi.ts`、`src/meta/tips.ts`、`docs/GLOSSARY.md`、`docs/CODE_MAP.md`、`docs/recipes/stash.md` | S〜M |
+| 8 3 択の写しと仕上げ | 祝福の 3 択に紋の写しの畳んだ帯。Tips に「装束と紋」「伏流」「書付」。GLOSSARY・CODE_MAP・`docs/recipes/stash.md` の追随、`pnpm run audit:docs` | `src/render/boonUi.ts`、`src/meta/tips.ts`、`docs/GLOSSARY.md`、`docs/CODE_MAP.md`、`docs/recipes/stash.md` | S〜M |
 | （後）床の札 | 床の遺物の札を「紋の欠片」（変わる系統の丸印 ≤ 4 + ▲▼ + 名前 1 行）に縮める（A の見立て / D の (a)）。拾う長押しで拾って付けるは `FrameInput` と `REPLAY_VERSION` に触るので別の段で判断 | `src/render/dropTooltip.ts` | M |
 
 要追加: 新着の判定（今の `Item` は `foundAt` だけなので、`Item.unseen` か「最後に候補を見た時刻」を profile に）、`resonanceBySource`（段取り 1）。バランスの JSON は増えない（長押しの秒は既存の `DESTROY_CONFIRM_SECONDS` 相当を流用。足すなら `data/balance/feel/` に 1 ブロック）。決定性・リプレイには触れない（描画のゆらぎは `renderMath.ts` の座標ハッシュと時刻、`state.rng` は使わない）。

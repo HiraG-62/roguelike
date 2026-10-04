@@ -19,7 +19,7 @@ import { rangedBasesOf } from "../loot/bullets";
 // @types/node が無いため process の型は自前で最小限だけ宣言する
 declare const process: { env: Record<string, string | undefined> };
 
-/** SIM_PROBE=1: 武器種の表を除いた重い版 / SIM_PROBE=weapons: 武器種 × 敵の表だけ（`npm run qa:probe -- --weapons`） */
+/** SIM_PROBE=1: 武器種の表を除いた重い版 / SIM_PROBE=weapons: 武器種 × 敵の表だけ（`ppnpm run qa:probe --weapons`） */
 const PROBE = process.env.SIM_PROBE === "1";
 const PROBE_WEAPONS = process.env.SIM_PROBE === "weapons";
 

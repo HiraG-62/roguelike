@@ -7,7 +7,7 @@
  * - ~/.claude/hooks/court-guard-context.txt          → PREFERENCES.md の末尾に「毎プロンプトの注意」として追記
  * - ~/.claude/projects/<このリポジトリ>/memory/*.md → .claude/global/memory/（自動メモリ。MEMORY.md が索引）
  *
- * 使い方: `npm run sync:claude`。ローカルで memory やグローバル CLAUDE.md を変えたあとに実行してコミットする。
+ * 使い方: `pnpm run sync:claude`。ローカルで memory やグローバル CLAUDE.md を変えたあとに実行してコミットする。
  * クラウド側は SessionStart hook（`scripts/claude-session-context.mjs`）が `.claude/global/` を読むので、これだけで同じ文脈が載る。
  *
  * オプション:
@@ -51,7 +51,7 @@ function buildPreferences() {
   const src = join(CLAUDE_HOME, "CLAUDE.md");
   if (!existsSync(src)) throw new Error(`グローバル CLAUDE.md が見つからない: ${src}`);
   const header = [
-    "<!-- 自動生成: scripts/sync-claude-global.mjs が ~/.claude/CLAUDE.md から写す。手で直さず、元を直して npm run sync:claude -->",
+    "<!-- 自動生成: scripts/sync-claude-global.mjs が ~/.claude/CLAUDE.md から写す。手で直さず、元を直して pnpm run sync:claude -->",
     "",
     "",
   ].join("\n");

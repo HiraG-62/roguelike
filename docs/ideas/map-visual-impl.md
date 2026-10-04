@@ -219,7 +219,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 ## 4. 段取りとレーン
 
-共通の注意（全レーンのプロンプトに入れる）: 編集禁止 = `src/render/effectsUi.ts`（ボス階の引き込みの演出のレーン）、`src/render/playerRig.ts` / `actorSprites.ts` / `fx*.ts`（書の真上の見え方のレーン）、`src/core/**`、`src/system/**`、`src/map/**`。`renderer.ts` は最小の Edit のみ（old_string を短く、既存の目印の直後に足す）。コミットしない。テストは担当分だけ（`npx vitest run <file>`）、途中確認は `npm run check:fast`。
+共通の注意（全レーンのプロンプトに入れる）: 編集禁止 = `src/render/effectsUi.ts`（ボス階の引き込みの演出のレーン）、`src/render/playerRig.ts` / `actorSprites.ts` / `fx*.ts`（書の真上の見え方のレーン）、`src/core/**`、`src/system/**`、`src/map/**`。`renderer.ts` は最小の Edit のみ（old_string を短く、既存の目印の直後に足す）。コミットしない。テストは担当分だけ（`pnpm exec vitest run <file>`）、途中確認は `pnpm run check:fast`。
 
 ### 段 0（統合役、S）
 
@@ -248,7 +248,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 **L5 置物の絵**（pixel-artist、M）
 - 所有: 新規 `src/data/sprites/mapProps.ts`（密度 2。色は「役の文字」で書き、テーマで色を当てる: k 輪郭 / S・D 石の明暗 / L 光 / Y 光の芯 / R・r 差し色 / W 木 / w 骨）
 - 描くもの: 茸・頭骨・小石の山・根の塊（章 1）/ 石灯籠・地蔵・祠・経巻・骨壺（章 2）/ 篝火・鎧・氷晶（章 3）/ 燐光の珠・逆さの鳥居（章 4）/ 行灯（最深の間）。見本の `SPR` の同名の絵を下絵にする。朱の柱・墨の石・折れた槍は手続き（L4）
-- 完了条件: `npm run sprite lint`（使えない場合は 8 章の 3）、`render` で確認用 PNG
+- 完了条件: `pnpm run sprite lint`（使えない場合は 8 章の 3）、`render` で確認用 PNG
 
 ### 段 2（3 本並行。段 1 を統合した後）
 
@@ -272,7 +272,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 **L7 手前の縁・描き順・封鎖の結界・片付け**（implementer、M。描き順の変更は reviewer を opus で）
 - 外部の 2 レーン（ボス階の引き込み・書の真上）を統合した後に始める
 - 最小 Edit: `renderer.ts`（1-5 節の描き順。`drawFrontLip` を足し、`drawProjectiles` / `drawLasers` を `drawPlayer` の後へ。封鎖の扉を「章の差し色の格子の帯 + 外周だけ赤く脈打つ線」に）、`layers.ts` / `layers.test.ts`、`data/tiles.ts` と `tiles.test.ts`（3 章の「捨てる」）、`renderer.ts` の `drawBiomeTint` の呼び方
-- 統合役: `docs/CODE_MAP.md`（新規 10 ファイル前後）、`docs/GLOSSARY.md`（半マス・天面・側面・縁・汚し・置物）、`docs/ARCHITECTURE.md`（描画の決定性: 焼き付けは地図とテーマだけで決まる）、`docs/ideas/graphics-style.md`（A19 色の予約）、`docs/BALANCE.md`（feel に MAP_LIGHT）、`IDEAS.md` の現状、`CHANGELOG.md`、`npm run check`、5-2 節の撮影で前後比較
+- 統合役: `docs/CODE_MAP.md`（新規 10 ファイル前後）、`docs/GLOSSARY.md`（半マス・天面・側面・縁・汚し・置物）、`docs/ARCHITECTURE.md`（描画の決定性: 焼き付けは地図とテーマだけで決まる）、`docs/ideas/graphics-style.md`（A19 色の予約）、`docs/BALANCE.md`（feel に MAP_LIGHT）、`IDEAS.md` の現状、`CHANGELOG.md`、`pnpm run check`、5-2 節の撮影で前後比較
 
 コストの合計: 段 0 S、段 1 M〜L ×2 + M ×2、段 2 M ×2 + S、段 3 M。
 
@@ -331,7 +331,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 1. **ブラウザでの焼きの速さ**: node の値で見積もった。L1b の `map-shot ?bench=1` で Chromium の実測を取り、25ms を超えるテーマは L1a で `vor` / `vnoise` のキャッシュを詰める。それでも足りなければ Web Worker で焼く（Electron の `file://` で module worker が動くかを先に確かめる）
 2. **隠し部屋が開いたときの同期の焼き直し**: 1 回 25〜50ms の引っかかりが出る。気になる場合は「変わったマスだけ平塗りで上書きし、行の予算で焼き直す」に替える（`mapChunks.ts` の中で閉じる）
-3. **ドット絵の作業台との相性**: `mapProps.ts` は役の文字で色を当てるので、`npm run sprite lint` / `render` がアトラスへの登録や全体の色表を前提にしていると通らない。L5 の最初に `scripts/sprite/cli.mjs` の入力の形を確かめ、合わなければ `render` に色表を渡す引数を足すか、確認用 PNG を `mapShot` で撮る
+3. **ドット絵の作業台との相性**: `mapProps.ts` は役の文字で色を当てるので、`pnpm run sprite lint` / `render` がアトラスへの登録や全体の色表を前提にしていると通らない。L5 の最初に `scripts/sprite/cli.mjs` の入力の形を確かめ、合わなければ `render` に色表を渡す引数を足すか、確認用 PNG を `mapShot` で撮る
 4. **光の色の重ね方**: `soft-light` の見え方は見本の掛け算と少し違う。L3 で 12 枚を撮り、合わなければ `overlay` か「暗くした後に `lighter` で弱く足す」に替える（数値は `MAP_LIGHT.lightTint`）
 5. **描き順の入れ替え（弾を自分の上へ）**: 書の真上のレーンの銃口・`insideDrawnGun` の見え方に効く可能性がある。L7 の前にそのレーンの統合結果で撮り直し、銃口で弾が二重に見えないかを確かめる
 6. **参道の判定**（確定 2026-10-01: court の参道は部屋の所属に入らず `roomOf == -1` で拾える。脇の戸口・外回り廊下・裏道も含む。縦軸の court は参道の両脇が東西の壁なので壁際の石灯籠の列が出ない）: court の参道を「どの部屋にも属さない通路のマス」（`RoomLookup.roomOf` が -1）で拾う想定。court の通路が部屋の所属に含まれている場合は拾えないので、L4 の最初に `map/layout/court.ts` の出力を 1 枚撮って確かめる

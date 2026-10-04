@@ -1,4 +1,4 @@
-// 生成物: npm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md
+// 生成物: pnpm run fx:gen（scripts/fx/gen.mjs）。手で直さない。docs/ideas/fx-sprites.md
 // アトラスごとの中身は src/data/fx/<key>.gen.json（寸法・シートの矩形・武器種のモーションの表）
 import fx_axe from "./fx/axe.gen.json";
 import fx_axeUlt from "./fx/axeUlt.gen.json";

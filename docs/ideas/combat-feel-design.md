@@ -141,7 +141,7 @@
   - `src/meta/hub.test.ts`:「武器掛けは最初から建っている」
 
 ### 完了条件
-- `npm run check` 通過。`src/core/replay.test.ts` が通る（初期武器は `state.rng` を使わず、拠点の借り物はスナップショットに入る）。
+- `pnpm run check` 通過。`src/core/replay.test.ts` が通る（初期武器は `state.rng` を使わず、拠点の借り物はスナップショットに入る）。
 - ブラウザ: 剣士で出撃すると打刀を持って始まる。拠点の武器掛けで大剣を試すと木人への振りが大剣になり、借りて出撃 → 死亡後に拠点へ戻ると大剣が消えている。
 
 ---
@@ -192,7 +192,7 @@
 剣士 左左左右「燕返し」（箱 hits 2 heavy）/ 狩人 左左左右「射抜き」（thrust reach 50）/ 拳闘士 左左左右「猛連打」（hits 5）/ 盾持ち 左左左右「盾殴り」（heavy knockback 380）/ 呪術師 左左左右「呪い刃」（`applies: weaken`）/ 槍兵 左左左右「穂先返し」（thrust、tip 倍率）/ 術士 左左左右「魔力放出」（circle 48）/ 影 左左左右「影縫い」（`applies: vulnerable`）/ 錬金術師 左左左右「反応刃」（circle、`applies: burn` 弱）。数値は `JOB.branches.<job>`。テスト:「すべてのジョブ（見習い以外）が固有の派生を持ち、表示名が登録済み」。
 
 ### 完了条件
-- `npm run check` 通過。`skills.test.ts` の `FORBIDDEN` は触らない（武器種はスキルの相性表に関与しない）。
+- `pnpm run check` 通過。`skills.test.ts` の `FORBIDDEN` は触らない（武器種はスキルの相性表に関与しない）。
 - `docs/COMBAT_DESIGN.md` A-7 の表に 6 種・3 型を追記（implementer が同じ PR で）。
 
 ---
@@ -232,7 +232,7 @@ export function weaponPose(phase: SwingPhase, t: number, shape: HitShape["kind"]
 - 本命は pixel-artist の **攻撃ポーズ 2 フレーム**（`SPRITES.playerSwing`: 引き / 振り抜き）。あれば `drawPlayer` が phase で選ぶ。無くても C-2 の武器スプライトの回転だけで「振っている」ように見えるので、2 フレームは第 2 弾でよい。
 
 ### 完了条件
-- `npm run check` 通過（`sprites.test.ts` の寸法・パレット検査）。
+- `pnpm run check` 通過（`sprites.test.ts` の寸法・パレット検査）。
 - ブラウザ: 武器掛けで 16 種を順に試し、持っている武器が手元で見分けられ、扇・突き・円で斬撃の絵が変わる。剣を外した player フレームで違和感が無い。
 
 ---
@@ -287,7 +287,7 @@ export function weaponPose(phase: SwingPhase, t: number, shape: HitShape["kind"]
 - 効果音: `hit` に低域の層を足す（`sfxLayers.ts` に `hitThump`: sine 70 Hz 0.07 s peak 0.3。`damageEnemy :195` で `hit` と一緒に積む）。`hitHeavy` はそのまま。
 
 ### 完了条件
-- `npm run check` 通過。`replay.test.ts`、`actionFeel.test.ts` が通る。
+- `pnpm run check` 通過。`replay.test.ts`、`actionFeel.test.ts` が通る。
 - ブラウザ: 剣で 3 段を連打したときの間隔が明らかに縮まり、3 段目で敵が壁まで飛ぶ。HUD に「剣 ●●○ 右: 十字断ち」が出て、右を押すと「十字断ち」が浮く。
 
 ---
@@ -296,8 +296,8 @@ export function weaponPose(phase: SwingPhase, t: number, shape: HitShape["kind"]
 
 1. **初期武器の保存経路**: `startJob` は `createGame` の中で倉庫へ石を入れるが、プロファイルの保存は `src/main.ts:387, 728` の `saveProfile`（拾得時・ラン終了時）。初期武器を装着しても、そのランで何も拾わずタブを閉じると保存されない可能性がある。→ `beginRun` の直後に `saveProfile(profile)` を 1 回呼ぶ最小 Edit を A に含めるか、ブラウザで「出撃 → 即リロード」で確かめる。
 2. **借り物の装備画面の扱い**: 残響（クラフト）が借り物に性質を付けられると「素の器を育てる」抜け道になる。`src/ui/echoTab.ts` が `loaned` を弾くか（1 行）を A で入れる。
-3. **A-2 の `minLevel` 変更と seed 固定テスト**: `rollBase` の候補が増えるので `generator.test.ts` / `replay.test.ts` の装備スナップショット・`qa/simulation.test.ts` の固定値がずれ得る。`npx vitest run src/loot/generator.test.ts src/core/replay.test.ts` で先に確かめる。
-4. **`knockbackUnstaggered` の副作用**: 0.45 は QA 2026-09-23 で「密着を崩す」ために上げた値（`tuning.ts:498-500`）。0.7 にすると敵が射程外へ逃げ、近接の 2 段目が空振りしやすくなる懸念。`npm run qa:full` の「1 対 1 被弾」と「怯み発生回数」で見る。
+3. **A-2 の `minLevel` 変更と seed 固定テスト**: `rollBase` の候補が増えるので `generator.test.ts` / `replay.test.ts` の装備スナップショット・`qa/simulation.test.ts` の固定値がずれ得る。`pnpm exec vitest run src/loot/generator.test.ts src/core/replay.test.ts` で先に確かめる。
+4. **`knockbackUnstaggered` の副作用**: 0.45 は QA 2026-09-23 で「密着を崩す」ために上げた値（`tuning.ts:498-500`）。0.7 にすると敵が射程外へ逃げ、近接の 2 段目が空振りしやすくなる懸念。`pnpm run qa:full` の「1 対 1 被弾」と「怯み発生回数」で見る。
 5. **`fxRandom` への切り替えで揺れの見た目が変わるか**: 分布は同じ一様乱数なので変わらないはずだが、`fxState` の seed の初期化がラン間で固定なら「同じ seed で同じ揺れ」になる（問題なし）。`effects.ts:50-63` を implementer が確認する。
 6. **武器掛けの「借りる」入力**: 一覧画面（`meta/listScreen.ts`）は "activate" しか返さない（hub-design 5 章）。長押し検出は `latchedHold` で main.ts 側に書けるが、パッドの決定ボタンでも同じか（`departHold` と衝突しないか）。ブラウザとパッドで確認。
 7. **二丁拳銃（gunner）と変身・砲身化**: `shapeLocksShot`（`player.ts:376`）は変身中に射撃を止める。両方 shot の武器種で変身したときの左クリックの挙動を `skills/forms.test.ts` に 1 件足して確かめる。

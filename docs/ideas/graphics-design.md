@@ -174,7 +174,7 @@ export const BIOME_TILESET: Readonly<Record<FloorKind | "hub", { prefix: string;
 
 - 1 回の依頼 = 同じ家族 4〜6 体（例「鼠・狼・猪・甲虫」）。様式書と、その家族の既存原画・`EnemyDef`（behavior / windup / 色）を渡す
 - 成果物は新規ファイル `src/data/sprites/<family>.ts`（`export const <FAMILY>_SPRITES: Record<string, SpriteFrames>`）。`src/data/sprites.ts` は `SPRITES = { ...legacy, ...playerSprites, ...beastSprites, … }` に最小 Edit で合流させる（並列 3〜4 人が同じ 3,358 行のファイルを触らないため）
-- 検収は `npx vitest run src/render/sprites.test.ts` + スクリーンショット（`npm run dev` で seed 固定 → 目視）。**recolor 種の `swap` 元文字が新原画に残っているか** をテストに足す（`recolorFrames` の結果が元と違うことは既にテスト済み `sprites.test.ts:155-170`）
+- 検収は `pnpm exec vitest run src/render/sprites.test.ts` + スクリーンショット（`pnpm run dev` で seed 固定 → 目視）。**recolor 種の `swap` 元文字が新原画に残っているか** をテストに足す（`recolorFrames` の結果が元と違うことは既にテスト済み `sprites.test.ts:155-170`）
 
 ## 7. 素材の取得手順（A レーン）
 
@@ -193,7 +193,7 @@ export const BIOME_TILESET: Readonly<Record<FloorKind | "hub", { prefix: string;
 ### A 素材取得（Sonnet implementer。コード変更なし）
 - 所有: `public/assets/**`（新規）、`CREDITS.md`（新規）、`docs/ASSETS.md`（末尾に節を追記）
 - 編集禁止: `src/**`
-- 完了条件: 3 パックの PNG + LICENSE + SOURCE が置かれ、`CREDITS.md` に URL・ライセンス・取得日・sha256。取れなかったパックは理由と手動手順を報告。`npm run check` は無変更で通る
+- 完了条件: 3 パックの PNG + LICENSE + SOURCE が置かれ、`CREDITS.md` に URL・ライセンス・取得日・sha256。取れなかったパックは理由と手動手順を報告。`pnpm run check` は無変更で通る
 - 報告に必ず: 各 PNG の実寸、タイル間隔（0 か 1px か）、切り出し一覧ファイルの有無
 
 ### B 取り込み基盤（Sonnet implementer。設計は本書で固定済み）
@@ -201,7 +201,7 @@ export const BIOME_TILESET: Readonly<Record<FloorKind | "hub", { prefix: string;
 - 最小 Edit: `src/render/sprites.ts`（`mergeAtlas`、`TintCache.clear`）、`src/render/renderMath.ts`（`wallMask`、`spriteFeetY`）、`src/render/renderer.ts`（`setAtlas`、`drawTiles` の壁分岐 887〜892 を「atlas にあれば mask キー」に、`1169` / `1781` の足元）、`src/main.ts:216` 直後の 1 行
 - 型・関数: 5.1 / 5.2 / 5.3 のシグネチャ通り
 - テスト（it 名）: 「wallMask は隣接 4 方向の床をビットにする」「wallMask は周囲が全部壁なら 0」「spriteFeetY は 16px 当時の足元（半径 6 → +8）と一致する」「TILE_SPRITES のキーは重複しない」「TILE_SPRITES の矩形は 16 の倍数」「BIOME_TILESET は FloorKind 9 種と hub を全部持つ」「mergeAtlas は同名キーを上書きし無いキーは残す」
-- 完了条件: `npm run check` 通過。PNG が 1 枚も無い状態でも見た目が今と同じ（フォールバックの確認）
+- 完了条件: `pnpm run check` 通過。PNG が 1 枚も無い状態でも見た目が今と同じ（フォールバックの確認）
 
 ### C タイル・地形・小物の差し替え（Sonnet implementer。A + B の後）
 - 所有: `src/data/tiles.ts`（表の中身）、`src/render/terrainUi.ts`、`src/render/runUi.ts` の `drawRoomProps` 〜 `propColor` 区間、`src/render/hubUi.ts` の飾り描画
@@ -214,7 +214,7 @@ export const BIOME_TILESET: Readonly<Record<FloorKind | "hub", { prefix: string;
 - 最小 Edit: `src/data/sprites.ts`（`SPRITES` に家族ファイルを合流。`upscale2x` の利用箇所を描き下ろしに置換）、`src/render/renderer.ts` の `drawPlayer` 1776〜1811（武器オーバーレイの合成。`playerFrame` は renderMath）
 - B と `renderMath.ts` を共有する（B は `wallMask` / `spriteFeetY`、D は `playerFrame`。関数追加のみで衝突しない）
 - テスト（it 名）: 「player は 24x24 で 8 フレーム以上」「全武器種の持ち手オーバーレイ weapon.<key>.1〜3 がある」「全射撃の型の gun.<key> がある」「recolor の swap 元文字が新原画に残っている」「ボスは 48x48」
-- 完了条件: `npm run check` 通過。家族ごとのスクリーンショット
+- 完了条件: `pnpm run check` 通過。家族ごとのスクリーンショット
 
 順序: A ∥ B ∥ D（様式書 → 家族並列）→ C。統合役が C の後に `CHANGELOG.md` と `docs/HANDOFF.md` を更新し、`CLAUDE.md` の「スプライト」レシピに「外部素材は `src/data/tiles.ts` + `CREDITS.md`」の 1 行を足す。
 
@@ -226,7 +226,7 @@ export const BIOME_TILESET: Readonly<Record<FloorKind | "hub", { prefix: string;
 - **Windows での zip 展開**: Git Bash に `unzip` が無い場合があるので `tar -xf` を第一候補にし、失敗したら PowerShell の `Expand-Archive`
 - **Kenney の絵柄の浮き**: LUT で暗く寄せても平坦さは残る。世界に置くのは拠点の小物と穴埋めに限り、浮くようなら D レーンで自作に置き換える（`PALETTE` に 0x72 の色を足しておくのはそのため）
 - **描画負荷**: 画面 510 タイル分の `drawImage` は今と同じ回数。バイオームごとの LUT 済み canvas を読み込み時に作るので毎フレームの合成は増えない
-- **24px 化での被弾の読み**: 当たり半径 6 に対し見た目が幅 16〜18 になるので「見た目は当たったのに外れた」が増える。様式書で「体の中心 12px に密度を寄せ、外側は髪・マント・武器などの薄い要素にする」を規則にし、`npm run qa:full` で被弾率が変わらないことを確認する（描画だけの変更なので変わらないはず。変わったらロジックを触っている）
+- **24px 化での被弾の読み**: 当たり半径 6 に対し見た目が幅 16〜18 になるので「見た目は当たったのに外れた」が増える。様式書で「体の中心 12px に密度を寄せ、外側は髪・マント・武器などの薄い要素にする」を規則にし、`pnpm run qa:full` で被弾率が変わらないことを確認する（描画だけの変更なので変わらないはず。変わったらロジックを触っている）
 
 ## 10. 取得結果（A レーン、2026-09-24）
 

@@ -32,5 +32,5 @@
 - **`per.cap` と `TemperStat.cap` は深みで外れる**（深度 22 から。`isDeepDepth`。`modifiers.ts` の `perValue` と `boons.ts` の `temperAmount` が `uncapped` を見る）。章の間は上限で止まり、深みで初めて「うまくいったビルドが壊れる」。**外れて困る上限**（1 回の効果・操作の手触りの上限。溜めの秒・来歴の段・待ちの符など）は `per.cap` に書かず手書きの式で持つ（深みで外れるのは「〜につき」と研鑽の上限だけ、と 1 行で言えるようにする）。札の説明文に「最大」を書くなら章の間の値として正しいこと（効果の頁が深みで「（深み: 最大なし）」と足す）
 - 集める順は `system/modifiers.ts` の `collectModifiers`（装備 → 誓約 → ジョブ → 武器種 → 持続の奥義 → 祝福の取得順 → スキルスロット順）。テストは `system/modifiers.test.ts`
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 - 銭の祝福の見本: 「守銭」`miser`（持つ型: 持ち金 20 につき増。`modifiers` の `per: { kind: "coins" }`）/ 「拾銭」`coinGleaner`（稼ぐ型: `onCoinPickup` の Rule）。`system/boonDefs/wealth.ts`

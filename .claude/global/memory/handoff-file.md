@@ -12,4 +12,4 @@ metadata:
 
 **Why:** 利用上限で会話が途中で切れることが複数回あり、ユーザーが「引き継ぎファイルを優先的に作って」と依頼した。
 
-**How to apply:** 新しいセッションはまず `docs/HANDOFF.md` → `IDEAS.md` の現状 → `CHANGELOG.md` の順に読む。中断したレーンは名前宛ての SendMessage で再開できる（文脈を保持）。HANDOFF の「進行中のレーン」表は、レーンを起動・完了するたびに書き換える。**節を積み増さず「現在地」は上書きする**（積み増して 227 行まで膨らんだため。`npm run audit:docs` が行数を検査）。関連: [[user-memo-dir]] [[content-volume-policy]] [[delegate-to-subagents]]
+**How to apply:** 新しいセッションはまず `docs/HANDOFF.md` → `IDEAS.md` の現状 → `CHANGELOG.md` の順に読む。中断したレーンは名前宛ての SendMessage で再開できる（文脈を保持）。HANDOFF の「進行中のレーン」表は、レーンを起動・完了するたびに書き換える。**節を積み増さず「現在地」は上書きする**（積み増して 227 行まで膨らんだため。`pnpm run audit:docs` が行数を検査）。関連: [[user-memo-dir]] [[content-volume-policy]] [[delegate-to-subagents]]

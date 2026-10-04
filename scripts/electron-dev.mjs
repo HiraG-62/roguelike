@@ -1,5 +1,5 @@
 /**
- * `npm run electron:dev`: main / preload を束ね、Vite の dev サーバを起動してから Electron を開く。
+ * `pnpm run electron:dev`: main / preload を束ね、Vite の dev サーバを起動してから Electron を開く。
  * renderer は dev サーバから読むので HMR がそのまま効く。Electron を閉じたら dev サーバも止める
  */
 import { spawn } from "node:child_process";

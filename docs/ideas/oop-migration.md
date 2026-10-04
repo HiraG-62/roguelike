@@ -6,7 +6,7 @@
 
 - **クラスにするのは「振る舞い」だけ。「定義データ」と「実行時の状態」はプレーンなまま残す**。敵の behavior（55 種、`src/system/enemies.ts` に約 15 か所の `switch (def.behavior)`）から始め、`EnemyBehaviorBase` → 家族（Rusher / Charger / Keeper / Flyer / Stationary / BossDriven）→ 個別クラスの 3 段の継承にする。インスタンスは**状態を持たない凍結された単一体**（`Object.freeze`）で、`Record<EnemyBehavior, EnemyBehaviorBase>` の登録表から引く。`GameState` / `Enemy` / `EnemyDef` はプレーンのまま（`structuredClone`・fingerprint・QA・`arena` ヘルパーが壊れない。乱数の消費順も変わらない）
 - **バランス調整ファイルは JSON のまま**で、`_note`（なぜ）に加えて **`_fields`（項目ごとの「意味・単位・目安」）** を導入する。`_` 始まりのキーは既に `Clean<T>` / `stripNotes` が型と実行時から剥がす（`src/data/balance/index.ts:18-40`）ので配線の変更ゼロ、`BALANCE_HASH` も変わらない。`validate.ts` に「stale な説明」と「説明の無い数値の葉」の検査を足し、網羅はファイルごとの基準値を下げるだけのラチェットで守る。YAML / JSONC は tsc の JSON import 型付け（`...N.slime` の欠落検出）を失うか二重管理になるので採らない
-- **移行は strangler**。第 1 段（今夜）は 2 レーン: A「behavior 登録表の骨格 + 定数表 5 つ + 述語 2 つの移行（結果を変えない証拠として黄金 fingerprint テストを先に固定）」、B「`_fields` の検査基盤 + `enemies.json` の `stats` / `combat` / `defense` の説明」。以降は要素ごと（敵の switch 全移行 → behavior の基本パラメータを JSON の `BEHAVIOR` へ → 状態異常 → 武器の固有技・弾 → スキル行動）。各段で `npm run check` が通る
+- **移行は strangler**。第 1 段（今夜）は 2 レーン: A「behavior 登録表の骨格 + 定数表 5 つ + 述語 2 つの移行（結果を変えない証拠として黄金 fingerprint テストを先に固定）」、B「`_fields` の検査基盤 + `enemies.json` の `stats` / `combat` / `defense` の説明」。以降は要素ごと（敵の switch 全移行 → behavior の基本パラメータを JSON の `BEHAVIOR` へ → 状態異常 → 武器の固有技・弾 → スキル行動）。各段で `pnpm run check` が通る
 
 ## 1. 現状の観察（根拠）
 
@@ -303,7 +303,7 @@ export function undocumentedLeaves(root: unknown, file: string): string[];
 
 ## 4. 段階的な移行計画
 
-原則: 1 段 = 1 要素の 1 側面。各段で `npm run check` が通り、その段の黄金テスト / 固定値テストが変わらない。数値の変更と移行を同じコミットに混ぜない。
+原則: 1 段 = 1 要素の 1 側面。各段で `pnpm run check` が通り、その段の黄金テスト / 固定値テストが変わらない。数値の変更と移行を同じコミットに混ぜない。
 
 ### 4.1 第 1 段（今夜）: 2 レーン、互いに所有ファイルが重ならない
 
@@ -317,7 +317,7 @@ export function undocumentedLeaves(root: unknown, file: string): string[];
 - 黄金テスト: `ENEMIES` の各 def について `arena(11)` + `placeEnemy` 2 体 + 500 ステップ（`enemies.test.ts:29-41` と同じ入力）の後の fingerprint（`replay.test.ts:45` と同じ観点 + `e.phase` / `e.ai?.move`）を `GOLDEN: Readonly<Record<string, string>>` に固定。未登録の key は「実測値を含むメッセージで落とす」（貼り直せるように）。**移行期間だけの安全網**で、敵 behavior の移行完了時に削除する（意図した数値変更で落ちたら期待値を直す。既存の固定値テストと同じ扱い）
 - 公開 API: `EnemyBehaviorBase`（2.3 のフィールドとフック）、`StrikeStart`、`EnemyTelegraph`、家族 `Rusher / Charger / Keeper / Flyer / Stationary / BossDriven`、個別 `Knight / Wisp / Mimic / Basilisk / FrostCrusher / Scavenger / Absorber / MineLayer / Hollow / BannerBearer / Laser / ChainWarden / GiantToad / WindSprite`（`canBeginAttack` と `aimFixedAtWindup` に登場する behavior だけ。各 3〜6 行）、`BEHAVIORS`、`behaviorOf(def)`
 - テスト（`registry.test.ts` の `it` 名）: 「EnemyBehavior のすべての key に振る舞いが登録され、インスタンスの key と一致する」「振る舞いのインスタンスは凍結されていて、フィールドを書き換えると例外になる」「基本パラメータは移行前の表と同じ（chaser 4.6、charger 7.5、bat の windupMoveMul 0.3、echoStriker の keepAway は ENEMY_AI.echoStriker.keepAway、graveBell は stationary、laser は silenceable）」「地雷撒きは攻撃を始めず、旗持ちは旗が立っている間は近距離だけ攻撃を始める」（`arena` + `placeEnemy`）
-- 完了条件: `npm run check`。`enemyGolden.test.ts` が移行前に採った値で全件通る。`grep -c "STRIKE_SPEED_MUL\|WINDUP_MOVE_MUL\|KEEP_AWAY\|STATIONARY\|SILENCED_BEHAVIORS" src/system/enemies.ts` が 0。`system/enemies.test.ts` は無変更。`git diff --stat` に `render/**` `data/**` が無い
+- 完了条件: `pnpm run check`。`enemyGolden.test.ts` が移行前に採った値で全件通る。`grep -c "STRIKE_SPEED_MUL\|WINDUP_MOVE_MUL\|KEEP_AWAY\|STATIONARY\|SILENCED_BEHAVIORS" src/system/enemies.ts` が 0。`system/enemies.test.ts` は無変更。`git diff --stat` に `render/**` `data/**` が無い
 - 報告に含める: CODE_MAP に足す 4 行（system 節）、レシピ enemy.md の手順 2 の新文言（5 章）
 
 #### レーン B: `_fields` の基盤と敵の説明（implementer / Sonnet）
@@ -327,7 +327,7 @@ export function undocumentedLeaves(root: unknown, file: string): string[];
 - 先に読む: この文書 3 章、`validate.ts` 全部、`balance.test.ts:49-87`、`data/enemies.ts:163-254`（JSDoc）、`data/enemyCombat.ts` / `enemyDefense.ts` の型の JSDoc
 - 公開 API: `FIELD_DOCS_KEY`、`validateFieldDocs(root, file): BalanceIssue[]`、`undocumentedLeaves(root, file): string[]`
 - テスト（`it` 名）: `validate.test.ts` に「_fields は文字列値のオブジェクトで、兄弟にも子の行にも無い項目は stale として path 付きで報告する」「子の行は親の _fields を引き継ぎ、行に置けば上書きできる」「ドット表記でネストした項目を説明できる」「色文字列は説明の対象に数えない」。`balance.test.ts` に「各 JSON の _fields に stale な項目が無い」「説明の無い数値の葉の数がファイルごとの基準値以下」「enemies.json の stats / combat / defense はすべての項目に説明がある」
-- 完了条件: `npm run check`。`git diff -U0 src/data/balance/enemies.json | grep '^-' | grep -v '^---'` が空（削除行なし = 値を変えていない）。`UNDOCUMENTED_BASELINE` の他ファイルの値は実測（下げるのは第 5 段）。`node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` が JSON の雛形を標準出力に出す
+- 完了条件: `pnpm run check`。`git diff -U0 src/data/balance/enemies.json | grep '^-' | grep -v '^---'` が空（削除行なし = 値を変えていない）。`UNDOCUMENTED_BASELINE` の他ファイルの値は実測（下げるのは第 5 段）。`node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` が JSON の雛形を標準出力に出す
 
 ### 4.2 第 2 段: 敵 behavior の全移行と `BEHAVIOR` ブロック
 
@@ -370,4 +370,4 @@ export function undocumentedLeaves(root: unknown, file: string): string[];
 2. **YAML の期待**: 「項目の意味が読める」を `_fields` で満たす案。YAML の見た目（インラインコメント）がどうしても欲しい場合は、`_fields` を入れた後に「YAML → JSON 生成 + 同期テスト」を段 5 の別レーンとして乗せられる（`_fields` は無駄にならない）。今回は見送りでよいか
 3. **黄金 fingerprint テストの摩擦**: 移行期間中、`enemies.json` の数値を変えると該当の敵の黄金値が落ちる。「意図した変更なら期待値を貼り直す」運用と、敵 behavior の移行完了で削除する前提を確認したい
 4. **並行レーンとの衝突**: レーン A は `src/system/enemies.ts` の既存行を書き換える。今夜、武器・奥義・祝福・効果音・描画のレーンがこのファイルや `enemyBehaviors.ts` / `enemyWave3.ts` を触る予定があるか（触るなら A を先に通して rebase してもらう）
-5. **不確かな点（確認方法）**: (a) `Object.freeze` した親クラスのフィールドを `override readonly` で上書きする define 意味論が tsc 7 / Vite の ESBuild で一致するか → レーン A の「基本パラメータは移行前の表と同じ」テストが拾う。(b) メソッド dispatch への置き換えで QA シミュレーションの実行時間が伸びないか → `npx vitest run src/qa/simulation.test.ts` の秒数を前後で比べる（1 割以内なら無視）。(c) 正規表現の JSDoc 抽出が複数行 JSDoc（`bossPart` の 3 行、`enemies.ts:190-193`）を 1 行に畳めるか → スクリプトのテストは不要、雛形の目視で足りる
+5. **不確かな点（確認方法）**: (a) `Object.freeze` した親クラスのフィールドを `override readonly` で上書きする define 意味論が tsc 7 / Vite の ESBuild で一致するか → レーン A の「基本パラメータは移行前の表と同じ」テストが拾う。(b) メソッド dispatch への置き換えで QA シミュレーションの実行時間が伸びないか → `pnpm exec vitest run src/qa/simulation.test.ts` の秒数を前後で比べる（1 割以内なら無視）。(c) 正規表現の JSDoc 抽出が複数行 JSDoc（`bossPart` の 3 行、`enemies.ts:190-193`）を 1 行に畳めるか → スクリプトのテストは不要、雛形の目視で足りる

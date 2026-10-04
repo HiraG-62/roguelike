@@ -52,7 +52,7 @@ describe("BALANCE", () => {
 });
 
 describe("ディレクトリの組み立て（assembled.gen.ts）", () => {
-  it("balance 以下の JSON がすべて組み立てに使われている（足したら npm run balance:gen）", () => {
+  it("balance 以下の JSON がすべて組み立てに使われている（足したら pnpm run balance:gen）", () => {
     const onDisk = Object.keys(import.meta.glob("./*/**/*.json")).map((p) => p.replace(/^\.\//, ""));
     expect(diffKeySets("balance の JSON", onDisk, BALANCE_SOURCE_FILES)).toEqual([]);
   });
@@ -89,7 +89,7 @@ describe("各 JSON の形", () => {
 describe("JSON の書式（1 項目 1 行）", () => {
   const RAW_JSON: Record<string, string> = import.meta.glob("./**/*.json", { query: "?raw", import: "default", eager: true });
 
-  it("すべての JSON が整形済み（ずれたら npm run balance:fmt）", () => {
+  it("すべての JSON が整形済み（ずれたら pnpm run balance:fmt）", () => {
     expect(Object.keys(RAW_JSON)).toHaveLength(BALANCE_SOURCE_FILES.length);
     const unformatted = Object.entries(RAW_JSON)
       .filter(([, raw]) => {

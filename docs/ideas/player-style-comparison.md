@@ -3,7 +3,7 @@
 ※ この文書は初回案の記録。比較ページは全面リデザイン版へ更新済み。
 現在の内容は [player-redesign.md](player-redesign.md) を参照。
 
-`npm run dev` の表示するURLに `/tools/player-styles.html` を付けて開く。
+`pnpm run dev` の表示するURLに `/tools/player-styles.html` を付けて開く。
 開発用ページで、通常のゲームのビルドには含めない。
 
 現行の探索者と、黒衣の剣士・白銀の騎士・赤布の狩人・仮面の探索者の4案を比較する。

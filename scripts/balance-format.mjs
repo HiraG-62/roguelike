@@ -1,5 +1,5 @@
 /**
- * バランス数値の JSON（src/data/balance/**\/*.json）を「1 項目 1 行」にそろえる（`npm run balance:fmt`）。
+ * バランス数値の JSON（src/data/balance/**\/*.json）を「1 項目 1 行」にそろえる（`pnpm run balance:fmt`）。
  * 1 行に何項目も並ぶと人の手で調整するときに目で追えないため。ただし値だけの小さいオブジェクト・配列
  * （`{ "base": 1.6, "dex": 0.25 }` や `["primary", "secondary"]`）は 1 行に収まるなら 1 行に残す。
  *
@@ -97,7 +97,7 @@ function main() {
       console.log("[balance:fmt] OK（整形済み）");
       process.exit(0);
     }
-    for (const f of bad) console.error(`  - ${f}（npm run balance:fmt で整形する）`);
+    for (const f of bad) console.error(`  - ${f}（pnpm run balance:fmt で整形する）`);
     process.exit(1);
   }
   let changed = 0;

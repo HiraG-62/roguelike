@@ -6,4 +6,4 @@
 - 予告まわりの音（予備動作・赤への移り・受け流し・下絵を崩す）は、先に `audio/narimono.ts` の鳴物帳（家 = 音色の系統 1 つに意味 1 つ。`NARIMONO_TABLE` と検査）を読み、既存の家に別の意味を載せない。左右に振る音は `play(name, { pan })`。sim は音を知らないので、状態の変わり目から鳴らす音は `narimono.ts` / `cues.ts`（main.ts の drain）に書く
 - テスト: `audio/sfx.test.ts` / `audio/music.test.ts`
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

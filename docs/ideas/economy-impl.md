@@ -288,7 +288,7 @@ export function chapterBossKey(depth): string | null
 
 ### 3-1. 新しい balance JSON
 
-`src/data/balance/world/ECONOMY/`（ディレクトリ。`_index.json` に `_note` / `_fields` / `_order`。`world/_index.json` の `_order` に `"ECONOMY"`, `"ARC"` を足し、`data/tuning.ts` に `export const ECONOMY = BALANCE.world.ECONOMY` / `ARC`、`npm run balance:gen`）
+`src/data/balance/world/ECONOMY/`（ディレクトリ。`_index.json` に `_note` / `_fields` / `_order`。`world/_index.json` の `_order` に `"ECONOMY"`, `"ARC"` を足し、`data/tuning.ts` に `export const ECONOMY = BALANCE.world.ECONOMY` / `ARC`、`pnpm run balance:gen`）
 
 | ファイル | 項目（`_fields` に 1 行ずつ） |
 | --- | --- |
@@ -338,7 +338,7 @@ export function chapterBossKey(depth): string | null
 
 ## 4. 段階分けとレーン
 
-各段の最後は `npm run check`。共有ファイル（`core/state.ts` / `core/game.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts` / `system/combat.ts` / `system/floor.ts` / `audio/sfxNames.ts`）は最小 Edit のみ・全文 Write 禁止。Agent はコミットしない
+各段の最後は `pnpm run check`。共有ファイル（`core/state.ts` / `core/game.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts` / `system/combat.ts` / `system/floor.ts` / `audio/sfxNames.ts`）は最小 Edit のみ・全文 Write 禁止。Agent はコミットしない
 
 ### 6a 銭の芯（遊べる: 銭が落ち、拾い、契約者に払える。被弾でこぼれる）
 
@@ -380,7 +380,7 @@ export function chapterBossKey(depth): string | null
 
 ### 6e 絵（pixel-artist。段の順は 6b の後ならいつでも）
 
-- `data/sprites/`（密度 2）: 銭（小 / 中 / 大の 3 段 = 額で絵を変える）、鍵、瓶（満 / 空）、壺・木箱・鍵付き宝箱、寄進の祠、商人 4 種の体（市・行商・闇市・章の市。契約者の人影より 1 段描き込む）、HUD の瓶アイコン。`npm run sprite lint`。描画側の差し替えは `coinUi.ts` / `flaskHud.ts` / `merchantUi.ts` の `SPR` 参照を 1 行ずつ
+- `data/sprites/`（密度 2）: 銭（小 / 中 / 大の 3 段 = 額で絵を変える）、鍵、瓶（満 / 空）、壺・木箱・鍵付き宝箱、寄進の祠、商人 4 種の体（市・行商・闇市・章の市。契約者の人影より 1 段描き込む）、HUD の瓶アイコン。`pnpm run sprite lint`。描画側の差し替えは `coinUi.ts` / `flaskHud.ts` / `merchantUi.ts` の `SPR` 参照を 1 行ずつ
 - 効果音（audio）: `coinPickup`（拾う。連続で鳴るので `pushSfx` の同フレーム重複除去で足りる）、`coinSpill`、`flaskDrink`、`merchantProvoked`、`betWin` / `betLose`。`audio/sfxNames.ts` / `sfxLayers.ts` は最小 Edit
 
 ### 6f（任意・後段）出口の予告
@@ -420,7 +420,7 @@ bot 方針: 銭は自動で拾える（引き寄せ）ので追加なし。瓶�
 4. ★ **章ボスの顔ぶれ**: 章 1 スライム王 / 章 2 盗賊王 / 章 3 油壺の王 / 章 4 鏡の騎士（core-synthesis 1 章 E29 を優先し、run-arc の骸骨卿・霜の巨人はローテーションへ）。run-arc 1-1 の表と食い違うので確認
 5. ★ **出口の予告と祝福**: 6f を入れるなら「祝福の出口を選んだ階だけ 3 択」（run-arc 決定 3）は祝福の総数を変えるので、段取り 7 の祝福の作り直しと一緒にするか、6f を祝福なしの縮小版にするか。推奨は後者を 6f で、前者は段取り 7
 6. ★ **瓶のキー**: `KeyB` + `Digit5`、パッドは D パッド上（推奨）。実プレイの手触りで変えてよい（`REBINDABLE_ACTIONS` に入れるので設定画面から変えられる）
-7. 商人・壺を Enemy にすることの副作用: `engagement.ts`（idle は交戦に数えない前提）、`enemies.ts` の `separate`（`stationary` で押されない前提）、`strikerCap`（idle は数えない）、図鑑・`jinMetrics`・`ROAM` の徘徊上限（`ROAMING_ROOM` の数を数える箇所があれば商人を除く）。確認: `rg 'ROAMING_ROOM' src/system/spawner.ts src/system/engagement.ts` と `npx vitest run src/system/engagement.test.ts src/qa/simulation.test.ts`
+7. 商人・壺を Enemy にすることの副作用: `engagement.ts`（idle は交戦に数えない前提）、`enemies.ts` の `separate`（`stationary` で押されない前提）、`strikerCap`（idle は数えない）、図鑑・`jinMetrics`・`ROAM` の徘徊上限（`ROAMING_ROOM` の数を数える箇所があれば商人を除く）。確認: `rg 'ROAMING_ROOM' src/system/spawner.ts src/system/engagement.ts` と `pnpm exec vitest run src/system/engagement.test.ts src/qa/simulation.test.ts`
 8. 敵の攻撃で壺が割れるか: 「敵の攻撃が敵にも当たる」（core-synthesis E30）の実装状況で決まる。確認: `rg 'friendly|hitsEnemies|敵にも当たる' src/system/enemies.ts src/system/hazards.ts`。未実装なら爆発（`hazards`）だけ壊す
 9. 泉の呪い（`state.cursed`）を休符で外すと、`cursed` を前提にしたテスト（`roomTypes.test.ts` の「泉を使うと次の部屋が呪われる」）は深度 3 の泉が無くなるので書き換えが要る。深度 3 の泉は消えるが、出口の予告「泉」（6f）で戻せる
 10. 銭の実体数と性能: 80 体 / 階で 8 秒の寿命なら同時 30〜50 個。`maxCoins` 120 で足りるはずだが、フル QA の 1 step ms（今 0.22ms）を見る。超えたら `updateCoinPickups` の引き寄せを「プレイヤーから 80px 以内の銭だけ距離を測る」に絞る（決定性に影響なし）
