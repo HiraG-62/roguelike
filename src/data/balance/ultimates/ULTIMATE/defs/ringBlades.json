@@ -6,6 +6,7 @@
       "speedMul": 0.5,
       "lifeMul": 1.6,
       "arcRange": 150,
+      "arcAngleDeg": 15,
       "bulletRadius": 10,
       "pierceBonus": 99,
       "scaling": { "base": 40, "str": 2, "dex": 2 },

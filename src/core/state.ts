@@ -654,6 +654,8 @@ export interface Projectile {
   firedAt?: number;
   /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */
   pointBlank?: boolean;
+  /** 命中のヒットストップ（ステップ。撃った弾の BulletDef.hitstop の写し）。未指定は FEEL.hitstopBullet */
+  hitstop?: number;
 }
 
 /**

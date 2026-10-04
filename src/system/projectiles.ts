@@ -1,9 +1,9 @@
 import { type Enemy, type GameState, type Projectile, pushSfx } from "../core/state";
 import { type Vec, add, angle, dist, fromAngle, length, normalize, scale, sub } from "../core/vec";
 import { ACTION, FEEL } from "../data/tuning";
-import { type ArcDef, type BulletDef, type OrbitDef, type ShotArc, type ShotRuntime, type ShotTrip, MOVESETS } from "../data/weapons";
+import { type ArcDef, type ArcLegDef, type BulletDef, type MovesetKey, type OrbitDef, type ShotArc, type ShotRuntime, type ShotTrip, MOVESETS } from "../data/weapons";
 import { BULLETS } from "../loot/bullets";
-import { damageEnemy, damagePlayer, rollOutgoing } from "./combat";
+import { type DamageImpact, damageEnemy, damagePlayer, rollOutgoing } from "./combat";
 import { hitstop, markBlastShot, spawnBlast, spawnBurst } from "./effects";
 import { deflectProjectile } from "./elites";
 import { isAllied } from "./rules";
@@ -19,10 +19,8 @@ import { applyStatus, inflictOnPlayer } from "./statusEffects";
 import { placeTerrain, swallowedBySmoke } from "./terrain";
 
 const BULLET_KNOCKBACK = 60;
-const BULLET_HITSTOP = 1;
-/** 設置弾の炸裂のノックバックとヒットストップ */
+/** 設置弾の炸裂のノックバック（ヒットストップは FEEL.hitstopBlast） */
 const MINE_KNOCKBACK = 180;
-const MINE_HITSTOP = 2;
 const MINE_PARTICLES = 14;
 const MINE_FX_LIFE = 0.25;
 /** 床で止まったとみなす速さ（これ未満は 0 にする） */
@@ -34,6 +32,15 @@ const ORBIT_EASE = 8;
 const ARC_MIN_SPAN = 16;
 /** 弧の弾の寿命の余り（秒）。区間の秒が尽きる前に寿命で消えないように */
 const ARC_LIFE_PAD = 0.5;
+/** 弧の傾きの上限（度）。90 度では目標へ一歩も近づかずに回り続けるので手前で止める */
+export const ARC_MAX_DEG = 85;
+/** 帰りの区間の寿命の倍率（自分が離れていく間も、追いつくまで消えないように） */
+const ARC_BACK_LIFE_SLACK = 2;
+/** 行きの区間がカーソルに着いたとみなす距離（px。届く 1 ステップは目標の上で止めるので丸めの誤差だけ） */
+const ARC_ARRIVE_EPS = 0.5;
+const DEG_TO_RAD = Math.PI / 180;
+/** 弧の輪の命中音の武器種（斬撃の系統の、戦輪の金属がよく鳴る命中音。audio/weaponHits.ts） */
+const RING_HIT_WEAPON: MovesetKey = "ringBlades";
 
 /**
  * 自分の弾の命中・炸裂では気力も奥義ゲージも増やさない（遠距離の攻撃は資源を戻さない。docs/ideas/gun-bases-review.md 0-2）。
@@ -322,7 +329,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
     // 設置弾・曲射の炸裂は直撃（擲弾）扱いで bulletHitHeavy
     damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul * mul, {
-      hitstopSteps: MINE_HITSTOP,
+      hitstopSteps: FEEL.hitstopBlast,
       kind: pr.kind,
       crit: out.crit,
       poise: (pr.poise ?? 0) * mul,
@@ -386,7 +393,8 @@ function afterShotHit(state: GameState, pr: Projectile, e: Enemy, amount: number
 function strikeEnemy(state: GameState, pr: Projectile, e: Enemy): number {
   // 出端: 放出の弾を撃った時に、この敵の予告が下絵だった（弾の飛ぶ間に墨入れへ入っていても。system/readTiming.ts）
   const debana = pr.release !== undefined && pr.firedAt !== undefined && yellowAt(e, pr.firedAt);
-  const out = rollOutgoing(state, e, pr.damage, pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
+  const leg = arcLegOf(pr);
+  const out = rollOutgoing(state, e, pr.damage * (leg?.damageMul ?? 1), pr.kind, { attack: pr.attack, release: pr.release !== undefined, forceCrit: pr.release?.crit, counter: debana });
   const amount = debana ? Math.round(out.amount * ACTION.counter.damageMul) : out.amount;
   // 砲（溜め撃ち）の直撃だけ重い命中音（bulletHitHeavy）
   const heavy = shotDefOf(pr)?.charge !== undefined;
@@ -394,14 +402,14 @@ function strikeEnemy(state: GameState, pr: Projectile, e: Enemy): number {
   // 食い込んで止まっている弾は速度を持たないので、敵を撃った向き（自分から敵へ）に押す
   const knockDir = length(pr.vel) > 0 ? normalize(pr.vel) : normalize(sub(e.body.pos, state.player.body.pos));
   damageEnemy(state, e, amount, knockDir, BULLET_KNOCKBACK * state.stats.knockbackMul, {
-    hitstopSteps: BULLET_HITSTOP,
+    hitstopSteps: leg?.hitstop ?? pr.hitstop ?? FEEL.hitstopBullet,
     kind: pr.kind,
     crit: out.crit,
-    poise: (pr.poise ?? 0) * (debana ? ACTION.counter.poiseMul : 1),
+    poise: (pr.poise ?? 0) * (leg?.poiseMul ?? 1) * (debana ? ACTION.counter.poiseMul : 1),
     guardBreak: debana,
     readStart: debana,
     counterStop: debana,
-    impact: heavy ? { family: "blunt", weight: "heavy" } : undefined,
+    impact: shotImpact(pr, heavy),
     // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
     finisher: pr.release?.finisher,
     release: pr.release !== undefined,
@@ -415,6 +423,13 @@ function strikeEnemy(state: GameState, pr: Projectile, e: Enemy): number {
   applyShotStatus(state, pr, e);
   noteTrip(state, pr, e);
   return amount;
+}
+
+/** 弾の命中音の指定。砲の直撃は重い打撃、弧の輪（戦輪）は斬撃の命中音（combat.ts が射撃でも武器の命中音を鳴らす）、ほかは既定の弾の音 */
+function shotImpact(pr: Projectile, heavy: boolean): DamageImpact | undefined {
+  if (heavy) return { family: "blunt", weight: "heavy" };
+  if (playerArc(pr)) return { family: "slash", weight: "light", weapon: RING_HIT_WEAPON };
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -434,8 +449,14 @@ function noteTrip(state: GameState, pr: Projectile, e: Enemy): void {
     trip.out.add(e.id);
     return;
   }
-  if (!trip.out.has(e.id) || trip.scored.has(e.id)) return;
-  trip.scored.add(e.id);
+  if (!trip.out.has(e.id)) return;
+  scoreTrip(state, trip, e.id);
+}
+
+/** 1 回の投げで 1 体につき 1 回だけ「往復」を数える */
+function scoreTrip(state: GameState, trip: ShotTrip, enemyId: number): void {
+  if (trip.scored.has(enemyId)) return;
+  trip.scored.add(enemyId);
   gainMorale(state, "roundTrip");
 }
 
@@ -470,6 +491,19 @@ function heldRing(pr: Readonly<Projectile>): boolean {
 
 function isGrinding(pr: Projectile): boolean {
   return pr.owner === "player" && pr.shot?.grind?.targetId !== undefined;
+}
+
+/**
+ * 食い込む輪（牙輪）は食い込んだ敵で止まるので、帰りに同じ敵へ当て直せない。代わりに、食い込みを当て切った
+ * （または食い込みの最中に倒した）敵 1 体を「往復」に数える
+ */
+function noteGrindTrip(state: GameState, pr: Projectile, targetId: number | undefined): void {
+  const g = pr.shot?.grind;
+  const trip = pr.shot?.trip;
+  if (!g || !trip || targetId === undefined) return;
+  const target = state.enemies.find((e) => e.id === targetId);
+  const finished = g.done >= g.hits || (target !== undefined && target.hp <= 0);
+  if (finished) scoreTrip(state, trip, targetId);
 }
 
 /** 最初に当たった敵で止まる（その命中を 1 回目に数える） */
@@ -510,6 +544,7 @@ function stepGrind(state: GameState, pr: Projectile, dt: number): void {
 function releaseGrind(state: GameState, pr: Projectile): void {
   const g = pr.shot?.grind;
   if (!g) return;
+  noteGrindTrip(state, pr, g.targetId);
   g.targetId = undefined;
   g.done = Math.max(g.done, g.hits, 1);
   const arc = pr.shot?.arc;
@@ -540,7 +575,7 @@ function sideOf(dir: Vec): Vec {
 
 /**
  * 1 枚の出どころと弧の飛び方（player.ts の emitVolley が弾ごとに呼ぶ）。2 枚投げは口元を side の側へ offset ずらす。
- * 弧の弾は行きの区間（口元 → 頂点 → カーソル。カーソルは最大射程 = 速さ × 寿命で頭打ち、固定の射程があればそれ）を作り、
+ * 弧の弾は行きの区間（口元 → 円弧 → カーソル。カーソルは最大射程 = 速さ × 寿命で頭打ち、固定の射程があればそれ）を作り、
  * 寿命は行きの秒に余りを足した長さにする（帰りは折り返すときに延ばす）
  */
 export function launchThrow(
@@ -552,64 +587,104 @@ export function launchThrow(
   speed: number,
   life: number,
   aim: number | undefined,
-): { pos: Vec; life: number; arc?: ShotArc } {
+): { pos: Vec; life: number; arc?: ShotArc; vel?: Vec } {
   const dir = fromAngle(fireAngle);
   const pos = add(muzzle, scale(sideOf(dir), side * (shot.pair?.offset ?? 0)));
   if (!shot.arc || speed <= 0) return { pos, life };
   const arc = outboundArc(state, shot.arc, pos, dir, side >= 0 ? 1 : -1, speed, life, aim);
-  return { pos, life: arc.dur + ARC_LIFE_PAD, arc };
+  // 出だしの速度は弧の最初の向き（撃った瞬間から弧の向きで描き、当たり判定の先読みもその向き）
+  const toTarget = sub(arc.to, pos);
+  const vel = scale(fromAngle(angle(toTarget) + arc.side * arcTiltNow(arc, arc.out, length(toTarget))), speed * arc.out.speedMul);
+  return { pos, life: legSeconds(arc.startDist, arc.out, speed) + ARC_LIFE_PAD, arc, vel };
 }
 
 function outboundArc(state: Readonly<GameState>, def: Readonly<ArcDef>, from: Vec, dir: Vec, side: 1 | -1, speed: number, life: number, aim: number | undefined): ShotArc {
   const maxRange = speed * life;
   const range = Math.max(ARC_MIN_SPAN, Math.min(maxRange, def.range ?? aim ?? maxRange));
   const to = add(state.player.body.pos, scale(dir, range));
-  const dur = Math.max(ARC_MIN_SPAN, dist(from, to)) / speed;
-  return { from: { ...from }, to, side, bulge: def.bulge, t: 0, dur, back: false, speed, catchRadius: def.catchRadius };
+  return { to, side, back: false, startDist: Math.max(ARC_MIN_SPAN, dist(from, to)), traveled: 0, speed, catchRadius: def.catchRadius, out: def.out, backLeg: def.back };
 }
 
-/** 二次ベジエの弧の上の点（区間の始点 → 頂点（中点 + 横 × bulge）→ 終点） */
-export function arcPoint(arc: Readonly<ShotArc>, end: Vec, t: number): Vec {
-  const chord = sub(end, arc.from);
-  const mid = add(arc.from, scale(chord, 0.5));
-  const apex = add(mid, scale(sideOf(normalize(chord, { x: 1, y: 0 })), arc.side * arc.bulge));
-  const u = 1 - t;
-  return add(add(scale(arc.from, u * u), scale(apex, 2 * u * t)), scale(end, t * t));
+/** 区間の傾き（ラジアン）。0〜ARC_MAX_DEG に収める */
+function legTilt(leg: Readonly<ArcLegDef>): number {
+  return Math.min(ARC_MAX_DEG, Math.max(0, leg.angleDeg)) * DEG_TO_RAD;
 }
 
-/** 弧の区間を dt 進め、次の点へ届く速度を置く（位置の更新は updateProjectiles。周回と同じ流儀）。帰りの終点は今の自分の位置 */
+/** 止まった目標までの区間の秒（円弧の長さ = 弦 × 傾き / sin(傾き) を区間の速さで割る） */
+function legSeconds(chord: number, leg: Readonly<ArcLegDef>, speed: number): number {
+  const v = speed * leg.speedMul;
+  if (v <= 0) return 0;
+  const tilt = legTilt(leg);
+  const ratio = tilt > 0 ? tilt / Math.sin(tilt) : 1;
+  return (chord * ratio) / v;
+}
+
+/** 今の区間の定義（自分の弧の弾でなければ undefined） */
+function arcLegOf(pr: Projectile): ArcLegDef | undefined {
+  const arc = playerArc(pr);
+  if (!arc) return undefined;
+  return arc.back ? arc.backLeg : arc.out;
+}
+
+/**
+ * 弧の区間を dt 進める: 区間の速さで等速に、目標への向きから side の側へ傾けて飛ぶ。傾きは
+ * asin(sin(区間の傾き) × 今の距離 / 区間の始まりの距離) で、目標が止まっていれば始点と目標を結ぶ円弧になる。
+ * 帰りの目標は今の自分の位置で、自分が近づいても離れても輪の速さは変わらない。目標に届く 1 ステップは目標の上で止める
+ */
 function steerArc(state: GameState, pr: Projectile, arc: ShotArc, dt: number): void {
-  if (dt <= 0 || arc.dur <= 0) return;
-  arc.t = Math.min(1, arc.t + dt / arc.dur);
-  const end = arc.back ? state.player.body.pos : arc.to;
-  pr.vel = scale(sub(arcPoint(arc, end, arc.t), pr.pos), 1 / dt);
+  if (dt <= 0) return;
+  const leg = arc.back ? arc.backLeg : arc.out;
+  const target = arc.back ? state.player.body.pos : arc.to;
+  const toTarget = sub(target, pr.pos);
+  const d = length(toTarget);
+  const speed = arc.speed * leg.speedMul;
+  if (d <= speed * dt) {
+    pr.vel = scale(toTarget, 1 / dt);
+    return;
+  }
+  pr.vel = scale(fromAngle(angle(toTarget) + arc.side * arcTiltNow(arc, leg, d)), speed);
+  arc.traveled += speed * dt;
+}
+
+/**
+ * 今の傾き（ラジアン）。距離から決める傾き asin(sin(区間の傾き) × 距離 / 始まりの距離) と、道のりから決める傾き
+ * 区間の傾き × (1 - 道のり / 円弧の長さ) の小さい方。目標が止まっていれば両者は同じ円弧を描く。
+ * 自分が離れ続けると距離の側は減らないが、道のりの側が 0 へ減るので、円弧の長さを飛び切った輪は真っすぐ追う（外へ広がらない）
+ */
+function arcTiltNow(arc: Readonly<ShotArc>, leg: Readonly<ArcLegDef>, d: number): number {
+  const full = legTilt(leg);
+  if (full <= 0 || arc.startDist <= 0) return 0;
+  const byDist = Math.asin(Math.sin(full) * Math.min(1, d / arc.startDist));
+  const arcLength = (arc.startDist * full) / Math.sin(full);
+  const byPath = full * Math.max(0, 1 - arc.traveled / arcLength);
+  return Math.min(byDist, byPath);
 }
 
 /** 区間の終わり: 行きならカーソルで折り返し、帰りなら手元（catchRadius）で収まって消える */
 function settleArc(state: GameState, pr: Projectile, arc: ShotArc): void {
-  if (pr.life <= 0) return;
+  // 食い込んだ輪は敵の上で止まっている（カーソルの上の敵に食い込んでも、当て終えるまで折り返さない）
+  if (pr.life <= 0 || isGrinding(pr)) return;
   if (!arc.back) {
-    if (arc.t >= 1) beginArcBack(state, pr, arc);
+    if (dist(pr.pos, arc.to) <= ARC_ARRIVE_EPS) beginArcBack(state, pr, arc);
     return;
   }
   const p = state.player.body;
-  if (arc.t >= 1 || circlesOverlap(pr.pos.x, pr.pos.y, pr.radius + arc.catchRadius, p.pos.x, p.pos.y, p.radius)) pr.life = 0;
+  if (circlesOverlap(pr.pos.x, pr.pos.y, pr.radius + arc.catchRadius, p.pos.x, p.pos.y, p.radius)) pr.life = 0;
 }
 
 /**
  * 帰りの区間を今の位置から始める。当てた敵を忘れて帰りでもう一度当たれるようにする（折り返した瞬間に触れている敵は、
- * 同じ位置で行きと帰りを続けて当てないよう覚えたまま）。寿命は帰りの秒に余りを足して延ばす
+ * 同じ位置で行きと帰りを続けて当てないよう覚えたまま）。寿命は帰りの秒（自分が離れても追いつけるよう倍率を掛ける）に余りを足して延ばす
  */
 function beginArcBack(state: GameState, pr: Projectile, arc: ShotArc): void {
   arc.back = true;
-  arc.from = { ...pr.pos };
-  arc.t = 0;
-  arc.dur = Math.max(ARC_MIN_SPAN, dist(pr.pos, state.player.body.pos)) / arc.speed;
+  arc.startDist = Math.max(ARC_MIN_SPAN, dist(pr.pos, state.player.body.pos));
+  arc.traveled = 0;
   pr.vel = { x: 0, y: 0 };
   const touching = state.enemies.filter((e) => pr.hitIds.has(e.id) && circlesOverlap(pr.pos.x, pr.pos.y, pr.radius, e.body.pos.x, e.body.pos.y, e.body.radius));
   pr.hitIds.clear();
   for (const e of touching) pr.hitIds.add(e.id);
-  pr.life = Math.max(pr.life, arc.dur + ARC_LIFE_PAD);
+  pr.life = Math.max(pr.life, legSeconds(arc.startDist, arc.backLeg, arc.speed) * ARC_BACK_LIFE_SLACK + ARC_LIFE_PAD);
 }
 
 function hitPlayer(state: GameState, pr: Projectile): void {

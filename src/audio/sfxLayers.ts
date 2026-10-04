@@ -432,6 +432,13 @@ export const LAYERED_SFX = {
     { k: "noise", filter: "bandpass", from: 3000, to: 5000, dur: 0.12, q: 2, attack: 0.04, peak: 0.3 },
     { k: "fm", freq: 900, ratio: 1.5, index: 1, dur: 0.1, peak: 0.08, to: 1600 },
   ],
+  // 戦輪の投げ: 刃の輪が空気を裂く低い「ブォン」。中低域の帯域ノイズを遅い立ち上がりで膨らませ、回転のうねりを 2 つ目の山で足す
+  shotWarRing: [
+    { k: "noise", filter: "bandpass", from: 1400, to: 380, dur: 0.24, q: 1.4, attack: 0.07, peak: 0.42 },
+    { k: "noise", filter: "bandpass", from: 1000, to: 320, dur: 0.16, q: 1.8, attack: 0.05, peak: 0.24, at: 0.1 },
+    { k: "noise", filter: "lowpass", from: 700, to: 160, dur: 0.26, attack: 0.08, peak: 0.2 },
+    { k: "noise", filter: "bandpass", from: 3200, to: 1600, dur: 0.1, q: 2, attack: 0.03, peak: 0.07 },
+  ],
   // 曲射（砲・擲弾）: 筒の低い「ドン」
   shotLob: [
     { k: "click", freq: 1500, peak: 0.3 },

@@ -9,7 +9,7 @@
 - オブジェクト名だけの行（`resist` など）は、その中の項目すべてに効く
 - （未記入） は `_fields` に説明がまだ無い項目
 
-項目 3672（うち（未記入） 0）
+項目 3680（うち（未記入） 0）
 
 ## combat/MANA
 
@@ -1550,7 +1550,7 @@
 | `movesets.*.*.*.*.heavy` | 重い振り（重いヒットストップと壁叩きつけ） |
 | `movesets.*.*.*.*.mana` | 命中 1 体ごとの気力回収 |
 | `movesets.*.*.*.*.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
-| `movesets.*.*.*.*.hitstop` | ヒットストップ（ステップ。60Hz） |
+| `movesets.*.*.*.*.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `movesets.*.*.*.*.shake` | 命中時の画面揺れ |
 | `movesets.*.*.*.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
 | `movesets.*.*.*.step.trail` | active に入った瞬間に引く残像の線の色（派生・右の連撃の段） |
@@ -1568,16 +1568,16 @@
 | `movesets.*.*.heavy` | 重い振り（重いヒットストップと壁叩きつけ） |
 | `movesets.*.*.mana` | 命中 1 体ごとの気力回収 |
 | `movesets.*.*.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
-| `movesets.*.*.hitstop` | ヒットストップ（ステップ。60Hz） |
+| `movesets.*.*.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `movesets.*.*.shake` | 命中時の画面揺れ |
 | `movesets.*.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
 | `movesets.*.steps[].trail` | active に入った瞬間に引く残像の線の色 |
 | `movesets.*.dashAttack` | ダッシュ攻撃の振り（項目は段と同じ） |
 | `*.*.charge` | 溜め。moveMul は溜め中の移動の倍率、step は離して出す振り、levels は段（time 秒で届き、damageMul / poiseMul / reachMul 倍）。近接の溜めの reachMul は 1（届く距離は刃先のまま。刀の居合を除く） |
-| `movesets.*.*.step.hitstop` | ヒットストップ（ステップ。60Hz） |
+| `*.*.*.*.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `movesets.*.*.step.shake` | 命中時の画面揺れ |
 | `*.*.*.*.damageMul` | 1 発の威力の倍率 |
-| `*.*.charge.levels[].poiseMul` | 1 発の怯み値の倍率 |
+| `*.*.*.*.poiseMul` | 1 発の怯み値の倍率 |
 | `*.*.*.hits` | 1 振りの多段ヒット数（active を等分する） |
 | `movesets.*.steps2[].step.invuln` | 振り始めから付く無敵（秒） |
 | `movesets.*.steps2[].step.hits` | 1 振りの多段ヒット数（active を等分する） |
@@ -1667,7 +1667,7 @@
 | `movesets.*.steps2[].charge.spinning.step.heavy` | 重い振り（重いヒットストップと壁叩きつけ） |
 | `movesets.*.steps2[].charge.spinning.step.mana` | 命中 1 体ごとの気力回収 |
 | `movesets.*.steps2[].charge.spinning.step.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
-| `movesets.*.steps2[].charge.spinning.step.hitstop` | ヒットストップ（ステップ。60Hz） |
+| `movesets.*.steps2[].charge.spinning.step.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `movesets.*.steps2[].charge.spinning.step.trail` | active に入った瞬間に引く残像の線の色（派生・右の連撃の段） |
 | `movesets.*.steps2[].step.cast.key` | 段が撃つ弾（cast）の key。HUD の技名（CAST_NAMES）と弾の数値（cast.<key>）を引く |
 | `movesets.*.steps2[].step.cast.throw` | 近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度）） |
@@ -1679,7 +1679,11 @@
 | `movesets.*.steps2[].step.cast.throw.bullet.recoilMul` | 撃った反動の倍率 |
 | `movesets.*.steps2[].step.cast.throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pierceBonus` | 貫通の追加回数 |
-| `movesets.*.steps2[].step.cast.throw.bullet.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc` | 弧で飛ぶ弾（戦輪。catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕/ out・back 行き・帰りの区間: angleDeg 飛び出す向きと目標への向きのずれ 度〔大きいほど大きな弧。0 で直線、85 まで〕・speedMul 撃った速さに掛ける・damageMul 威力に掛ける・poiseMul 怯み値に掛ける・hitstop この区間の命中のヒットストップ ステップ〔省略は弾の hitstop〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る。帰りは自分の動きに関わらず等速 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.speedMul` | 弾速の倍率 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.damageMul` | 1 発の威力の倍率 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.poiseMul` | 1 発の怯み値の倍率 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `movesets.*.steps2[].step.cast.throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.steps2[].step.cast.throw.poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
@@ -1713,7 +1717,7 @@
 | `jobBranches.*.mana` | 命中 1 体ごとの気力回収 |
 | `jobBranches.*.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
 | `jobBranches.*.hits` | 1 振りの多段ヒット数（active を等分する） |
-| `jobBranches.*.hitstop` | ヒットストップ（ステップ。60Hz） |
+| `jobBranches.*.hitstop` | ヒットストップ（ステップ。60Hz）。振りの段と弾の命中の両方。弾で省略すると FEEL.hitstopBullet。通常命中は FEEL.hitstopNormalMax で切り詰める |
 | `jobBranches.*.shake` | 命中時の画面揺れ |
 | `jobBranches.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
 | `jobBranches.*.trail` | ジョブ派生の振りの残像の線の色 |
@@ -1737,7 +1741,8 @@
 | `bullets.*.lob` | 曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px） |
 | `bullets.*.pin` | 弾（bullet）が刺さる弾になる（手裏剣・クナイ）。kind = 絵と数える種類（shuriken / kunai）、max = 1 体に刺さったままでいられる本数（超えたら古い順に抜く）、sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率、staggerAt = 同じ敵にこの本数刺さると怯ませて刺さりを消す（省略は崩さない。戦意 pinStagger が溜まる） |
 | `bullets.*.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
-| `bullets.*.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
+| `bullets.*.arc` | 弧で飛ぶ弾（戦輪。catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕/ out・back 行き・帰りの区間: angleDeg 飛び出す向きと目標への向きのずれ 度〔大きいほど大きな弧。0 で直線、85 まで〕・speedMul 撃った速さに掛ける・damageMul 威力に掛ける・poiseMul 怯み値に掛ける・hitstop この区間の命中のヒットストップ ステップ〔省略は弾の hitstop〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る。帰りは自分の動きに関わらず等速 |
+| `bullets.*.arc.*.speedMul` | 弾速の倍率 |
 | `bullets.*.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
 | `bullets.*.grind` | 食い込む弾（牙輪・大手裏剣。sec 食い込んで回る秒 / hits その間に当てる回数。最初に当たった敵で止まり、当て終えると戻る） |
 | `meleeDamageScale` | 近接の段の威力の係数表（base と全係数）に復元時に掛ける。銃の弾・スキル・奥義は対象外。base と係数を同率で下げるのでステータス 1 点あたりの伸び率は変わらない。倍率（1 = 等倍） |
@@ -3876,6 +3881,8 @@
 | `hitstopKill` | 普通の撃破のヒットストップ（ステップ）。6→3（読み合いの手直し。手数のテンポを守る） |
 | `hitstopKillMark` | 節目の撃破（陣の最後の 1 体・大将・精鋭・ボス）のヒットストップ（ステップ） |
 | `hitstopFinisher` | 終撃（連撃の最後の一撃）のヒットストップの下限（ステップ）。武器の重さが hitstopFinisher を持てばそちらが優先 |
+| `hitstopBullet` | 自分の弾の命中のヒットストップの既定（ステップ）。弾の hitstop・戦輪の弧の区間の hitstop が無いときの値。通常命中は hitstopNormalMax で切り詰める |
+| `hitstopBlast` | 自分の設置弾・曲射の炸裂の命中のヒットストップ（ステップ）。通常命中は hitstopNormalMax で切り詰める |
 | `shakeLight` | 軽い画面揺れの振れ幅（通常の命中・敵のレーザーなど軽い攻撃）。px。大きいほど揺れる（毎秒 22px ずつ減る） |
 | `shakeHeavy` | 重い画面揺れの振れ幅（怯ませた命中・敵の撃破・ボスの着地など）。px |
 | `shakeHurt` | 被弾の画面揺れの振れ幅。px |
@@ -4421,6 +4428,7 @@
 | `defs.grenade.incendiary.blast.terrainDuration` | 着弾に残す地形の秒 |
 | `defs.trapper.trapperSense.minePull` | 持続中、床の自分の設置弾が radius（px）以内の敵を speed（px/秒）で引き寄せる |
 | `defs.ringBlades.*.volley.arcRange` | 戦輪の輪が飛ぶ固定の距離（px。弧でこの距離まで飛んで戻る。省略は照準の距離） |
+| `defs.ringBlades.headsman.volley.arcAngleDeg` | 戦輪の輪の弧の傾き（度。行きと帰りの両方。小さいほどまっすぐ。省略は器の輪刃の弧） |
 | `defs.kunai.shadowStitch.pinNova` | 周りの敵すべてにクナイを刺す一撃（クナイの影縫いの陣）。radius = 範囲（px。burstRadiusMul が掛かる）、pins = 1 体に刺す本数、scaling / poise / poiseRatio = 刺すときに当てる傷（威力は 奥義の増（increased.ultimate）が掛かり、その威力が刺さったときの威力になる）。刺さりの秒・上限・叩き込みの倍率はクナイの弾の pin |
 | `defs.kunai.shadowStitch.pinNova.pins` | 1 体に刺すクナイの本数（刺さりの上限を超えたら古い順に抜ける） |
 | `defs.kunai.blastKunai.detonatePins` | 刺さっている飛び物をすべて炸裂させる一撃（クナイの爆ぜクナイ）。damageMul = 1 本ごとに刺さったときの威力へ掛ける倍率（奥義の増が乗る）。刺さりが無ければ何も起きない |

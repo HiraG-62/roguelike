@@ -58,12 +58,14 @@ function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0);
 }
 
-/** 自分の最初の弾の進む先に的を置き、当たるまで進める（設置弾は近づいた的で炸裂する） */
+/** 自分の最初の弾の進む先（弧の輪は折り返す点）に的を置き、当たるまで進める（設置弾は近づいた的で炸裂する） */
 function hitWithFirstShot(state: GameState, e: Enemy): void {
   const shot = playerShots(state)[0];
   if (!shot) throw new Error("弾が出ていない");
   const dir = normalize(shot.vel);
-  e.body.pos = { x: shot.pos.x + dir.x * SHOT_LEAD, y: shot.pos.y + dir.y * SHOT_LEAD };
+  // 弧の輪は折り返す点（カーソル）を必ず通るので、そこに置く
+  const arcTo = shot.shot?.arc?.to;
+  e.body.pos = arcTo ? { ...arcTo } : { x: shot.pos.x + dir.x * SHOT_LEAD, y: shot.pos.y + dir.y * SHOT_LEAD };
   for (let i = 0; i < MAX_FLIGHT_STEPS && e.hp === TOUGH_HP; i++) press(state);
 }
 
