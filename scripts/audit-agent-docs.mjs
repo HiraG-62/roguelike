@@ -89,6 +89,8 @@ function checkPaths({ rel, text }) {
   const seen = new Set();
   // ディレクトリ付きの参照（src/... docs/... など）
   for (const m of text.matchAll(/(?:src|docs|scripts|electron|memo|\.claude)\/[A-Za-z0-9_./-]+/g)) {
+    // リポジトリ外の絶対パス（`C:/Users/.../.claude/...`）の一部は見ない
+    if (m.index > 0 && text[m.index - 1] === "/") continue;
     let token = m[0].replace(/[.]+$/, "");
     if (PLACEHOLDER.test(token) || seen.has(token)) continue;
     seen.add(token);

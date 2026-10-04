@@ -1,4 +1,4 @@
-- [Delegate to subagents](delegate-to-subagents.md) — メインは Opus、設計判断・診断・ドット絵は Opus（architect/pixel-artist）、設計済みの実装と定型は Sonnet、Fable は超思考が要るときだけ上書き
+- [Delegate to subagents](delegate-to-subagents.md) — 実装とレビューは Codex の枠があれば Codex 優先。メインは Opus、設計判断・診断・ドット絵は Opus（architect/pixel-artist）、設計済みの実装と定型は Sonnet、Fable は超思考が要るときだけ上書き
 - [Autonomous overnight progress](autonomous-overnight-progress.md) — 確認なしで進める。攻撃キーは左手側（Q/E）、右側キー不可
 - [Roguelike hack-and-slash vision](roguelike-hack-and-slash-vision.md) — リアルタイムアクション + PoE 風永続装備（無限バリエーション）の融合方針
 - [Versioning rule](versioning-rule.md) — x.xx.xx、メジャーはユーザー指示のみ、α 期間は 0.0.xxα、/bump で更新

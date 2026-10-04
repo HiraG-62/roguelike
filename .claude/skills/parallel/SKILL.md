@@ -13,12 +13,12 @@ description: 1 つの機能をファイル所有で分割し、複数の実装�
 
 | レーン | Agent | 所有ファイル（新規 / 既存） | 最小 Edit 許可 | 依存 |
 | --- | --- | --- | --- | --- |
-| A | implementer | src/system/xxx.ts（新規）, src/system/xxx.test.ts | state.ts: <フィールド>, balance/<file>/<ブロック>.json + tuning.ts: XXX ブロック | なし |
-| B | implementer | src/render/xxxUi.ts（新規） | renderer.ts: 呼び出し 1 行 | A の型 |
+| A | codex | src/system/xxx.ts（新規）, src/system/xxx.test.ts | state.ts: <フィールド>, balance/<file>/<ブロック>.json + tuning.ts: XXX ブロック | なし |
+| B | codex | src/render/xxxUi.ts（新規） | renderer.ts: 呼び出し 1 行 | A の型 |
 | C | pixel-artist | src/data/sprites/<family>.ts | - | なし |
 
 共有ファイルの担当: state.ts = A、game.ts = 統合役、balance/**/*.json と tuning.ts = ブロックごと
-統合順: A → B → C → reviewer → qa-runner
+統合順: A → B → C → レビュー（`/review`）→ qa-runner
 ```
 
 分割のルール
@@ -29,13 +29,15 @@ description: 1 つの機能をファイル所有で分割し、複数の実装�
 
 ## 2. 起動する
 
+- 実装レーンの先は Codex 優先。起動前に `node "C:/Users/Horry/.claude/skills/codex-orchestra/scripts/limits.mjs"` を見て、`ok` なら `codex:codex-rescue`、`low` なら小さいレーンだけ Codex、`limited` なら `implementer`（`docs/AI_WORKFLOW.md`「Codex の使い方」）。ドット絵（pixel-artist）など判断の要るレーンは Claude のまま
+
 - 各レーンを 1 メッセージで並列に Agent 起動する。プロンプトは `docs/AI_WORKFLOW.md` の雛形（所有ファイル / 編集禁止 / 先に読む / 仕様 / 完了条件 / 報告形式）
 - 編集禁止欄には **他レーンの所有ファイル** を必ず列挙する
 - 同じ段で並列に動かすレーン・並行で走らせる別の段は `isolation: "worktree"` で起動し、統合役が取り込む（他レーンの途中の編集で検査が落ちるのを防ぐ）。同時に動かす数に上限は設けない。前置き（共有の型）だけのレーンは作らない（`docs/AI_WORKFLOW.md`「速く進める原則」）
 
 ## 3. 統合する
 
-1. 各報告の「統合手順」を適用する（共有ファイルは Edit で）
+1. 各報告の「統合手順」を適用する（共有ファイルは Edit で）。Codex のレーンは `git diff` で所有外の変更が無いかを必ず見る（codex-rescue は検証しない）
 2. `git diff` で共有ファイルに他レーンの変更が残っているか確認する（クロバー検出）
 3. `git status --short` で一時ファイルが無いか確認する
 4. `pnpm run check`（多レーン並列中は負荷で `replay.test.ts` / `qa/simulation.test.ts` がタイムアウトすることがある。負荷が下がってから回す）
