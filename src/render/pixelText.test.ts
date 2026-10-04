@@ -44,15 +44,16 @@ function fakeCtx(scale = 1, e = 0, f = 0) {
 function makeEnv(ready = true) {
   let created = 0;
   let resolveLoad: () => void = () => {};
+  let rejectLoad: () => void = () => {};
   const env: PixelTextEnv = {
     createCanvas(width, height) {
       created++;
       return { width, height, getContext: () => fakeCtx().ctx } as unknown as HTMLCanvasElement;
     },
     isFontReady: () => ready,
-    loadFont: () => new Promise<void>((r) => (resolveLoad = r)),
+    loadFont: () => new Promise<void>((r, j) => ((resolveLoad = r), (rejectLoad = () => j(new Error("font"))))),
   };
-  return { env, created: () => created, resolveLoad: () => resolveLoad() };
+  return { env, created: () => created, resolveLoad: () => resolveLoad(), rejectLoad: () => rejectLoad() };
 }
 
 describe("PixelText advance", () => {
@@ -173,6 +174,29 @@ describe("PixelText フォント未ロード", () => {
     expect(pt.isReady()).toBe(true);
     pt.draw(ctx, "あい", 0, 0, { m: 1, color: "#fff" });
     expect(draws).toHaveLength(2);
+  });
+});
+
+/** then → catch → finally を流し切る microtask の数 */
+const SETTLE_TICKS = 4;
+
+describe("PixelText 読み込みの決着", () => {
+  it("読み込み中は未決着、読めたら決着", async () => {
+    const e = makeEnv(false);
+    const pt = new PixelText(e.env);
+    expect(pt.isSettled()).toBe(false);
+    e.resolveLoad();
+    for (let i = 0; i < SETTLE_TICKS; i++) await Promise.resolve();
+    expect(pt.isSettled()).toBe(true);
+  });
+
+  it("読み込みに失敗しても決着する（代替フォントのまま進む）", async () => {
+    const e = makeEnv(false);
+    const pt = new PixelText(e.env);
+    e.rejectLoad();
+    for (let i = 0; i < SETTLE_TICKS; i++) await Promise.resolve();
+    expect(pt.isSettled()).toBe(true);
+    expect(pt.isReady()).toBe(false);
   });
 });
 

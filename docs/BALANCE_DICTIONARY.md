@@ -9,7 +9,7 @@
 - オブジェクト名だけの行（`resist` など）は、その中の項目すべてに効く
 - （未記入） は `_fields` に説明がまだ無い項目
 
-項目 3694（うち（未記入） 0）
+項目 3702（うち（未記入） 0）
 
 ## combat/MANA
 
@@ -4377,6 +4377,21 @@
 | `spark` | 受け止めた所の火花。life = 寿命（秒）/ flashSec = 白い閃きの秒 / flashPx = 閃きの十字の腕の長さ（論理 px）/ count = 火の粉の本数 / spreadDeg = 散る扇の開き / lenMin・lenMax = 火の粉の伸びる距離（論理 px）/ tail = 火の粉の尾の長さ（伸びる距離に対する割合）/ colors = 若い → 古い火の粉の色 |
 | `spark.colors` | 受け止めた所の火花。life = 寿命（秒）/ flashSec = 白い閃きの秒 / flashPx = 閃きの十字の腕の長さ（論理 px）/ count = 火の粉の本数 / spreadDeg = 散る扇の開き / lenMin・lenMax = 火の粉の伸びる距離（論理 px）/ tail = 火の粉の尾の長さ（伸びる距離に対する割合）/ colors = 若い → 古い火の粉の色 |
 | `barrier` | 魔法の武器（杖・書・手鈴。武器の絵の meta.stance.parry.barrier）が体の前に張る結界。radius = 肩から結界までの距離（論理 px）/ halfDeg = 結界の弧の半分の開き（度）/ depthPx = 結界の帯の厚み（論理 px。内側ほど薄い）/ edgeAlpha・fillAlpha = 縁と帯の濃さ / shimmerSec = 縁を走る光の 1 巡（秒）/ popPx = 受け止めた瞬間に結界が前へ膨らむ量（論理 px） |
+
+## feel/LOADING
+
+読み込み画面「絵巻」の時間（docs/ideas/loading-screen.md）。
+
+| 項目 | 意味 |
+| --- | --- |
+| `followRate` | 紙の開きが進み具合へ追いつく速さ。1 秒あたりの指数の率（大きいほど速く追いつく） |
+| `openSnap` | 開きと進み具合の差がこれ以下になったら広げきったとみなす。割合 |
+| `sealDelaySec` | 広げきってから朱印を押し始めるまで。秒 |
+| `sealSec` | 朱印を押す弾みの長さ。秒 |
+| `holdSec` | 朱印を押してからクリックを受け付けるまで。秒（押した直後の誤クリックで飛ばさない） |
+| `promptBlinkSec` | 「クリックで進む」の案内の明滅の周期。秒 |
+| `fadeSec` | 読み込み画面が薄れて階の画面が現れるまで。秒 |
+| `tipMaxChars` | 出す Tips の本文の字数の上限。これより長い項目は選ばない |
 
 ## ultimates/ULTIMATE
 

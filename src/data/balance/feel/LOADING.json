@@ -1,0 +1,21 @@
+{
+  "_note": "読み込み画面「絵巻」の時間（docs/ideas/loading-screen.md）。見た目だけでロジックには効かない",
+  "_fields": {
+    "followRate": "紙の開きが進み具合へ追いつく速さ。1 秒あたりの指数の率（大きいほど速く追いつく）",
+    "openSnap": "開きと進み具合の差がこれ以下になったら広げきったとみなす。割合",
+    "sealDelaySec": "広げきってから朱印を押し始めるまで。秒",
+    "sealSec": "朱印を押す弾みの長さ。秒",
+    "holdSec": "朱印を押してからクリックを受け付けるまで。秒（押した直後の誤クリックで飛ばさない）",
+    "promptBlinkSec": "「クリックで進む」の案内の明滅の周期。秒",
+    "fadeSec": "読み込み画面が薄れて階の画面が現れるまで。秒",
+    "tipMaxChars": "出す Tips の本文の字数の上限。これより長い項目は選ばない"
+  },
+  "followRate": 10,
+  "openSnap": 0.004,
+  "sealDelaySec": 0.08,
+  "sealSec": 0.16,
+  "holdSec": 0.3,
+  "promptBlinkSec": 1.2,
+  "fadeSec": 0.35,
+  "tipMaxChars": 64
+}

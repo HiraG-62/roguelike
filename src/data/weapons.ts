@@ -166,6 +166,14 @@ export interface CastDef {
   readonly releaseThrow?: ThrowArtDef;
 }
 
+/** 放出の弾（CastDef.releaseThrow）の key の末尾 */
+const RELEASE_THROW_SUFFIX = ".release";
+
+/** 弾の絵・エフェクトを引く key。放出の弾はふだんの投げと同じ絵で飛ぶので、`.release` を外す */
+export function bulletArtKey(key: string): string {
+  return key.endsWith(RELEASE_THROW_SUFFIX) ? key.slice(0, -RELEASE_THROW_SUFFIX.length) : key;
+}
+
 /** 左クリック（攻撃 1）= primary、右クリック（攻撃 2）= secondary。docs/ideas/ougi-and-dual-actions.md 4 章 */
 export type ButtonKey = "primary" | "secondary";
 
@@ -772,7 +780,7 @@ export function reviveCast(raw: unknown): CastDef {
   const name = CAST_NAMES[raw.key] ?? raw.key;
   const cast: CastDef = { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
   if (raw.releaseThrow === undefined) return cast;
-  return { ...cast, releaseThrow: reviveThrowAs(raw.releaseThrow, `cast.${raw.key}.release`, name, CAST_VOLLEY[raw.key]) };
+  return { ...cast, releaseThrow: reviveThrowAs(raw.releaseThrow, `cast.${raw.key}${RELEASE_THROW_SUFFIX}`, name, CAST_VOLLEY[raw.key]) };
 }
 
 function reviveSteps(raw: unknown): MeleeStepDef[] {

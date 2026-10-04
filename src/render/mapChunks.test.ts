@@ -8,15 +8,13 @@ import {
   CHUNK_PX,
   MapChunkCache,
   type MapView,
-  bakeBudget,
   chunkChecksum,
   chunkKey,
   chunkPlan,
   flatTileRange,
-  lruVictims,
   tileClass,
 } from "./mapChunks";
-import { BAKE_ROWS_BOOST, BAKE_ROWS_PER_FRAME, CHUNK_CACHE_MAX, CHUNK_DOTS, CHUNK_TILES } from "./mapTypes";
+import { BAKE_ROWS_PER_FRAME, CHUNK_DOTS, CHUNK_TILES, PREPARE_ROWS_PER_FRAME } from "./mapTypes";
 
 const VIEW: MapView = { x: 0, y: 0, w: 480, h: 270 };
 
@@ -128,20 +126,6 @@ describe("平塗り・LRU・予算の純関数", () => {
     expect(flatTileRange(0, 0, { ...VIEW, x: -300 }, 100, 100)?.tx0, "負の画面でも 0 から").toBe(0);
   });
 
-  it("lruVictims は上限を超えた数だけ、古い順に返し、今のフレームのものは捨てない", () => {
-    const entries = Array.from({ length: 6 }, (_, i) => ({ key: i, lastUsed: i + 1 }));
-    expect(lruVictims(entries, 4, 100), "2 つ超過").toEqual([0, 1]);
-    expect(lruVictims(entries, 6, 100), "超えていない").toEqual([]);
-    expect(lruVictims(entries, 2, 3), "今のフレーム（3 以上）は残す").toEqual([0, 1]);
-  });
-
-  it("焼きの予算は黒帯中で画面内に未焼きがあるときだけ BOOST 倍", () => {
-    expect(bakeBudget(false, false), "通常").toBe(BAKE_ROWS_PER_FRAME);
-    expect(bakeBudget(false, true), "黒帯でない").toBe(BAKE_ROWS_PER_FRAME);
-    expect(bakeBudget(true, false), "全部焼けている").toBe(BAKE_ROWS_PER_FRAME);
-    expect(bakeBudget(true, true), "黒帯中の未焼き").toBe(BAKE_ROWS_PER_FRAME * BAKE_ROWS_BOOST);
-  });
-
   it("chunkKey はチャンクごとに一意", () => {
     const keys = new Set<number>();
     for (let cy = 0; cy < 30; cy++) for (let cx = 0; cx < 30; cx++) keys.add(chunkKey(cx, cy));
@@ -188,7 +172,7 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     const view: MapView = { x: 0, y: 0, w: 256, h: 256 };
     const images = fakeImages();
     const cache = new MapChunkCache(images.make);
-    cache.update(map, theme, view, false);
+    cache.update(map, theme, view);
     expect(cache.bakedCount, "最初の 1 フレームでは焼き上がらない").toBe(0);
     expect(cache.hasUnbakedInView(), "画面内に未焼き").toBe(true);
     const before = fakeCtx();
@@ -200,7 +184,7 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     const maxFrames = (CHUNK_DOTS / BAKE_ROWS_PER_FRAME) * 4;
     let frames = 1;
     while (cache.bakedCount === 0 && frames < maxFrames) {
-      cache.update(map, theme, view, false);
+      cache.update(map, theme, view);
       frames++;
     }
     expect(frames, "予算の行数ずつ焼いて 2 フレーム以上かかる").toBeGreaterThan(1);
@@ -211,57 +195,53 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     expect(after.drawn.fills, "平塗りなし").toBe(0);
   });
 
-  it("1 フレームに焼く行は予算まで（黒帯中の未焼きは BOOST 倍）", () => {
+  it("1 フレームに焼く行は予算まで（描画の中は BAKE_ROWS_PER_FRAME、先に焼き上げる間は PREPARE_ROWS_PER_FRAME）", () => {
     const map = openMap(64, 64);
     const cache = new MapChunkCache(fakeImages().make);
-    cache.update(map, theme, VIEW, false);
-    expect(cache.lastBakedRows, "通常").toBe(BAKE_ROWS_PER_FRAME);
-    const boosted = new MapChunkCache(fakeImages().make);
-    boosted.update(map, theme, VIEW, true);
-    expect(boosted.lastBakedRows, "黒帯中").toBe(BAKE_ROWS_PER_FRAME * BAKE_ROWS_BOOST);
+    cache.update(map, theme, VIEW);
+    expect(cache.lastBakedRows, "描画の中").toBe(BAKE_ROWS_PER_FRAME);
+    const preparing = new MapChunkCache(fakeImages().make);
+    preparing.prepare(map, theme);
+    expect(preparing.lastBakedRows, "先に焼き上げる間").toBe(PREPARE_ROWS_PER_FRAME);
   });
 
-  it("settle は欲しいチャンクを全部焼き、lip が空なら lip の canvas を作らない", () => {
+  it("prepare は地図の全チャンクを焼き上げるまで false、焼き上がったら true（初めて見せるときから欠けない）", () => {
+    const map = openMap(64, 48);
+    const cache = new MapChunkCache(fakeImages().make);
+    const total = Math.ceil(64 / CHUNK_TILES) * Math.ceil(48 / CHUNK_TILES);
+    expect(cache.ready(map, theme), "焼く前").toBe(false);
+    let frames = 0;
+    while (!cache.prepare(map, theme) && frames < 1000) frames++;
+    expect(frames, "1 フレームでは終わらない").toBeGreaterThan(0);
+    expect(cache.bakedCount, "全チャンク").toBe(total);
+    expect(cache.ready(map, theme), "焼き上がり").toBe(true);
+    expect(cache.ready(map, { ...theme, key: "other" }), "テーマが違えば未").toBe(false);
+    const drawn = fakeCtx();
+    cache.drawGround(drawn.ctx, { x: 500, y: 300, w: 480, h: 270 });
+    expect(drawn.drawn.fills, "どこを映しても平塗りなし").toBe(0);
+  });
+
+  it("地図を替えたら前の地図のチャンクを持たず、新しい地図を焼き上げたら余った取り置きの canvas を手放す", () => {
+    const cache = new MapChunkCache(fakeImages().make);
+    cache.settle(openMap(64, 64), theme, VIEW);
+    expect(cache.size, "広い地図は 16 枚").toBe(16);
+    const small = openMap(16, 16);
+    while (!cache.prepare(small, theme));
+    expect(cache.size, "狭い地図の 1 枚だけ持つ").toBe(1);
+    expect(cache.spareCount, "前の地図の canvas は手放した").toBe(0);
+  });
+
+  it("settle は地図の全チャンクを焼き、lip が空なら lip の canvas を作らない", () => {
     const map = openMap(64, 64);
     const images = fakeImages();
     const cache = new MapChunkCache(images.make);
     cache.settle(map, theme, VIEW);
-    const want = chunkPlan(VIEW, map.width, map.height).length;
+    const want = (64 / CHUNK_TILES) * (64 / CHUNK_TILES);
     expect(cache.bakedCount, "欲しい数ぶん焼けた").toBe(want);
     // 一面の床でも地図の外は壁なので、南端に接するチャンクだけ lip を持つ。中のチャンクは ground だけ
     expect(images.count(), "lip を持たないチャンクがあるので ground + lip の 2 倍より少ない").toBeLessThan(want * 2);
     expect(images.count(), "ground は全部").toBeGreaterThanOrEqual(want);
     expect(cache.hasUnbakedInView(), "未焼きなし").toBe(false);
-  });
-
-  it("持つチャンクは CHUNK_CACHE_MAX を超えない（広い地図を横切っても）", () => {
-    const map = openMap(320, 160);
-    const cache = new MapChunkCache(fakeImages().make);
-    let peak = 0;
-    for (let x = 0; x < 320 * 16 - 480; x += 200) {
-      cache.settle(map, theme, { ...VIEW, x, y: (x % 1200) + 100 });
-      peak = Math.max(peak, cache.size);
-    }
-    expect(peak, "上限").toBeLessThanOrEqual(CHUNK_CACHE_MAX);
-    expect(peak, "ある程度は持つ").toBeGreaterThan(6);
-  });
-
-  it("LRU で手放したチャンクの canvas を次の焼きで使い回す（作り直さない）", () => {
-    const map = openMap(320, 160);
-    const reused: HTMLCanvasElement[] = [];
-    let made = 0;
-    const make = (_pixels: Uint32Array, reuse: HTMLCanvasElement | null): HTMLCanvasElement => {
-      if (reuse) {
-        reused.push(reuse);
-        return reuse;
-      }
-      made++;
-      return { id: made } as unknown as HTMLCanvasElement;
-    };
-    const cache = new MapChunkCache(make);
-    for (let x = 0; x < 320 * 16 - 480; x += 200) cache.settle(map, theme, { ...VIEW, x, y: (x % 1200) + 100 });
-    expect(reused.length, "横切るうちに使い回しが起きる").toBeGreaterThan(0);
-    expect(made, "作った canvas は持てる上限（床と縁で 2 枚ずつ）+ 取り置きの範囲に収まる").toBeLessThanOrEqual(CHUNK_CACHE_MAX * 4);
   });
 
   it("地図が変わったら canvas を取り置きに回し、新しい地図の焼きで使う", () => {
@@ -291,7 +271,7 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     cache.settle(a, theme, VIEW);
     expect(cache.bakedCount, "焼けた").toBeGreaterThan(0);
     const b = openMap(32, 32);
-    cache.update(b, theme, VIEW, false);
+    cache.update(b, theme, VIEW);
     expect(cache.bakedCount, "別の地図なら焼き直し（1 フレームでは上がらない）").toBe(0);
   });
 
@@ -299,7 +279,7 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     const map = openMap(32, 32);
     const cache = new MapChunkCache(fakeImages().make);
     cache.settle(map, theme, VIEW);
-    cache.update(map, { ...theme, key: "other" }, VIEW, false);
+    cache.update(map, { ...theme, key: "other" }, VIEW);
     expect(cache.bakedCount, "鍵が違えば別のチャンク").toBe(0);
   });
 
@@ -312,16 +292,16 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     const baked = images.count();
 
     setTile(map, 5, 5, Tile.StairsDown);
-    cache.update(map, theme, VIEW, false);
+    cache.update(map, theme, VIEW);
     expect(images.count(), "階段では作り直さない").toBe(baked);
 
     setTile(map, 0, 5, Tile.Floor);
-    cache.update(map, theme, VIEW, false);
+    cache.update(map, theme, VIEW);
     expect(images.count(), "壁 → 床は同期で焼き直し（1 フレームで canvas が増える）").toBeGreaterThan(baked);
     expect(cache.hasUnbakedInView(), "画面内は焼き上がったまま").toBe(false);
   });
 
-  it("画面外のチャンクが変わったら捨てて予算で焼き直す（同期で焼かない）", () => {
+  it("先読みの内のチャンクが変わったら、画面外でも同期で焼き直す（全部持っているので欠けたままにしない）", () => {
     const map = openMap(80, 80);
     const cache = new MapChunkCache(fakeImages().make);
     const view: MapView = { x: 0, y: 0, w: 480, h: 270 };
@@ -331,8 +311,9 @@ describe("MapChunkCache（チャンクのキャッシュ）", () => {
     expect(far, "先読みだけのチャンクがある").toBeDefined();
     if (!far) return;
     setTile(map, far.cx * CHUNK_TILES + 2, far.cy * CHUNK_TILES + 2, Tile.Wall);
-    cache.update(map, theme, view, false);
-    expect(cache.bakedCount, "1 枚は焼き直し待ち").toBeLessThan(planned.length);
+    const before = cache.bakedCount;
+    cache.update(map, theme, view);
+    expect(cache.bakedCount, "焼き直し待ちを残さない").toBe(before);
   });
 
   it("lightsIn は画面に掛かる光だけ（置物の光が画面の外なら空）", () => {

@@ -231,6 +231,7 @@ export const RUN_MOD = BALANCE.world.RUN_MOD;
 
 /** ミニマップ */
 export const MINIMAP = BALANCE.feel.MINIMAP;
+export const LOADING = BALANCE.feel.LOADING;
 /** 武器指南書の実演（system/manualDemo.ts・render/weaponManualUi.ts） */
 export const MANUAL = BALANCE.feel.MANUAL;
 

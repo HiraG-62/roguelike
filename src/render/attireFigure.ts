@@ -9,7 +9,7 @@ import { type ArmInk, type HeldPart, type Pt, type RigPose, type SheathPart, typ
 /**
  * 装束・候補の頁の「体」。ゲーム中のプレイヤーと同じ高精細の体（待機の 1 巡）に、待機の構えの腕と手に持つ武器を重ねて
  * 大きく描く。ドットの粒は整数倍（ZOOM）で保ち、拡大に imageSmoothing は使わない。
- * 絵が読めるまで（または体の絵が無いとき）は呼び側が今までのドット絵の人形（attireUi.drawFigure）で代わりに描く。
+ * 体の絵が無い・読めなかったときは呼び側が今までのドット絵の人形（attireUi.drawFigure）で代わりに描く（読み込み中は main.ts が画面を止める）。
  * 腕・武器の重ね順は renderer.ts の drawRiggedPlayer / rigLayers の「待機」の部分と同じ（振り・残像・縄・銃口は持たない）。
  * 専用の ActorSpriteBank を持つ（renderer の bank は今の武器・体のアトラスだけで、装備画面と取り合いにならない）
  */

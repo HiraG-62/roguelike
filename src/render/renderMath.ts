@@ -828,6 +828,11 @@ export interface SlashVisual {
   readonly flipY: boolean;
 }
 
+/** 手続きの斬撃（絵・軌跡・形の縁取り）を描く段か。届く距離も大きさも 0 の段（投げるだけの段）は振りの当たりが無いので描かない（専用の絵は別に描く） */
+export function hasSlash(step: Readonly<{ reach: number; size: number }>): boolean {
+  return step.reach > 0 || step.size > 0;
+}
+
 /**
  * 斬撃の絵: 形でキー（箱・扇・広い扇・突き・円）、太さの段と絵の種類でフレームを選ぶ。
  * 最終段（または重い振り）は専用の絵、それ以外は 2 段ごとに A / B を替え、段の偶奇で上下を返す。

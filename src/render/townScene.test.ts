@@ -447,16 +447,14 @@ describe("TownLayer（絵の作り直しとフレーム分け）", () => {
     const f = fakeFactory();
     const layer = new TownLayer(f.make);
     const v = view(fixtureLayout(), look({ built: ALL_BUILT, lanterns: 8, bustle: 4, trophies: [1, 2, 3], stele: 1, wellTier: 2 }));
-    layer.prepare(v);
+    expect(layer.prepare(v), "1 フレームでは出来上がらない（main.ts が画面を止めて待つ）").toBe(false);
     expect(f.made.length, "最初のフレームの絵の数").toBeLessThanOrEqual(TOWN_ART_PER_FRAME);
     expect(layer.pendingCount, "まだ作り終わっていない").toBeGreaterThan(0);
     expect(layer.hasRoad, "道はまだ").toBe(false);
     let frames = 1;
-    while (layer.pendingCount > 0 && frames < 100) {
-      layer.prepare(v);
-      frames++;
-    }
+    while (!layer.prepare(v) && frames < 100) frames++;
     expect(frames, "有限のフレームで終わる").toBeLessThan(100);
+    expect(layer.pendingCount, "出来上がったら残り 0").toBe(0);
     expect(layer.hasRoad, "道が出来た").toBe(true);
     // 灯籠 8 本は同じ絵 1 枚、鍵の種類 = 敷地 10（井戸は well の絵）+ 鳥居 + 灯籠 + 幟 3 + 碑 + 小物 4 + 道 1
     const placements = buildTownPlacements(v.town.layout, v.town.look);

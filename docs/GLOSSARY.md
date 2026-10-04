@@ -104,6 +104,7 @@
 | 主 / 副 / 予備 | Keybinds の配列の 0 / 1 / 2 番目 | キー設定の列見出し。1 アクション最大 3 つ（`KEYBIND_SLOTS`） | `render/titleUi.ts` KEYBIND_SLOT_LABEL |
 | やり直す | restart | 探索を新しいシードでやり直す操作（キー設定の行名は「やり直す（新シード）」、ポーズの項目も「やり直す」） | `render/titleUi.ts` ACTION_LABEL / PAUSE_LABEL |
 | キー表記 | `keyLabel` / `moveKeyLabel` | 表示文字列にキー名を直書きしない。案内のキーは現在のキー設定から組む（`core/input.ts`）。説明文（スキル・祝福など）ではキー名ではなくアクション名（攻撃 1 / 攻撃 2 / 奥義 / ダッシュ）で書く。検査は `ui/keyLabels.test.ts` | `core/input.ts` |
+| 心得 | 読み込み画面の Tips（`ui/loadingScreen.ts`） | 読み込み画面の巻物の下に出す Tips ノートの 1 項目の見出し。「心得 ・ ダッシュ」 | `ui/loadingScreen.ts`、`render/loadingScreenUi.ts` |
 | Tips ノート | tips（`meta/tips.ts`） | 用語とシステムの説明をまとめた画面。タイトルのメニュー（T）とポーズから開く。UI の案内・ツールチップ・ログに仕組みの説明を書かず、ここへ移す | `meta/tips.ts`、`render/codexUi.ts` |
 | 武器指南書 / 実演 / 木人 | manual（`meta/weaponManual.ts`・`system/manualDemo.ts`） | 武器種ごとの特色・型と戦意・技の一覧（連撃 / 溜め攻撃 / コンボ派生〔右の段も押し方の列で出る技として同じ見出し〕/ ダッシュ攻撃 / 戦意 / 奥義）の画面。Tips ノートから武器種のタブを移した。タイトルの記録（M）とポーズから開く。技を選ぶと横の窓に**実演**（稽古場の**木人**へ、その技の入力の台本を本物の入力として流す）。入力の札は「左」「右」「ダッシュ」「奥義」、長押しは札に「長押し」の印 | `meta/weaponManual.ts`、`render/weaponManualUi.ts` |
 | 既定に戻す | reset | キー設定を既定の割り当てへ戻す行 | `render/titleUi.ts` |

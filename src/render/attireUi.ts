@@ -1,3 +1,4 @@
+import { actorArtLoading } from "./actorSprites";
 import { KEYWORD_DEFS, profileKeywords } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { ATTIRE_FIGURE, RELIC_GLYPHS } from "../data/sprites/attire";
@@ -204,8 +205,8 @@ export function drawAttire(ctx: CanvasRenderingContext2D, state: Readonly<GameSt
     line(ctx, r.x + r.w / 2, r.y + r.h / 2, anchor.x, anchor.y, focused ? MENU_INK.gold : MENU_INK.rule, !focused);
   }
   drawPedestal(ctx, FIGURE_FEET, FIGURE_ZOOM);
-  // 体の絵が読めるまでは今までのドット絵の人形で代わりに描く
-  if (!drawAttireFigure(ctx, state, FIGURE_FEET, FIGURE_ZOOM, ui.time)) drawFigure(ctx, FIGURE_POS.x, FIGURE_POS.y, FIGURE_POS.scale);
+  // 体の絵が無い・読めなかったときは今までのドット絵の人形。読み込み中は出さない（main.ts が読み終えるまで画面を止める）
+  if (!drawAttireFigure(ctx, state, FIGURE_FEET, FIGURE_ZOOM, ui.time) && !actorArtLoading()) drawFigure(ctx, FIGURE_POS.x, FIGURE_POS.y, FIGURE_POS.scale);
   for (const slot of ATTIRE_SLOTS) drawPart(ctx, state, slot, focusedPart(view.focus) === slot, shape);
   px(ctx, WAIST_LINE.x, WAIST_LINE.y, WAIST_LINE.w, 1, MENU_INK.rule);
   const focusStone = focusedStone(view.focus);

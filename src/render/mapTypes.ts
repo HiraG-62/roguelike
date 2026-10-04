@@ -16,12 +16,13 @@ export const CHUNK_DOTS = CHUNK_TILES * TILE_DOTS;
 export const LIP_DOTS = 6;
 /** 縁の層に積む、南の壁の天面の帯（論理 7px） */
 export const LIP_TOP_DOTS = 14;
-/** 1 フレームに焼くドット行。時間ではなく行で区切る（実時間に依存しない） */
+/**
+ * 描画の中で焼き進めるドット行（先に焼き上げない撮影・計測の道具向け。ゲームは prepare で焼き上げてから見せる）。
+ * 時間ではなく行で区切る（実時間に依存しない）
+ */
 export const BAKE_ROWS_PER_FRAME = 32;
-/** 階の切り替えの黒帯中・画面内の未焼きがあるときの倍率 */
-export const BAKE_ROWS_BOOST = 8;
-/** 持つチャンクの上限（LRU） */
-export const CHUNK_CACHE_MAX = 20;
+/** 先に焼き上げる間（main.ts が画面を止めている間）に 1 フレームで焼くドット行（約 1 チャンク。待つ間も描画のループを回す） */
+export const PREPARE_ROWS_PER_FRAME = CHUNK_DOTS;
 
 /** town = 拠点（門前町。docs/ideas/hub-town-impl.md 4 章）。深度からは決まらず、townTheme() が直接返す */
 export type MapStyle = "moss" | "temple" | "castleFire" | "castleFrost" | "deep" | "final" | "town";

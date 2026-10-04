@@ -78,6 +78,7 @@ import {
   offhandOffset,
   phaseProgress,
   playerBodyPose,
+  hasSlash,
   slashVisual,
   slashWeight,
   swingSign,
@@ -666,6 +667,16 @@ function pick<T>(arr: readonly T[], i: number): T | undefined {
   return arr[i % arr.length];
 }
 
+/** 描く世界の準備の進み（prepareWorld） */
+export interface WorldPrep {
+  /** 準備が残っている（ゲームを止める） */
+  pending: boolean;
+  /** 地図（と拠点の町の層）を描き終えた */
+  mapReady: boolean;
+  /** 地図の描き終わりの割合（0..1） */
+  progress: number;
+}
+
 /** world 層へ外から差し込む絵（カメラの座標系。state は読むだけ） */
 export type WorldDecor = (ctx: CanvasRenderingContext2D, state: GameState) => void;
 
@@ -833,10 +844,7 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     if (this.lookup?.map !== state.map) this.lookup = buildRoomLookup(state);
-    // 装備中の武器種のエフェクトのアトラスだけを持つ（持ち替えたら前の武器種の分を捨てて読み直す）
-    const moveset = playerMoveset(state).key;
-    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset), ...equippedSkillKeys(state).flatMap(skillAtlases)]);
-    this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
+    this.focusArt(state, true);
     this.track(state);
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -874,9 +882,13 @@ export class Renderer {
    */
   renderDemo(state: GameState, rect: Readonly<{ x: number; y: number; w: number; h: number }>, center: Readonly<{ x: number; y: number }>, zoom: number): void {
     const { ctx } = this;
-    const moveset = playerMoveset(state).key;
-    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset)]);
-    this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
+    this.focusArt(state, false);
+    // 読み込み中は窓を空けておく（代わりの手続きの絵・24x24 の体を見せない）
+    if (this.artLoading()) {
+      ctx.fillStyle = COLOR_BG;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      return;
+    }
     const cam = state.camera;
     const viewX = Math.round(center.x - rect.w / 2 / zoom - cam.offset.x);
     const viewY = Math.round(center.y - rect.h / 2 / zoom - cam.offset.y);
@@ -1186,7 +1198,7 @@ export class Renderer {
         this.demoChunks.settle(state.map, this.mapTheme(state), view);
         this.demoSettled = state.map;
       }
-      this.demoChunks.update(state.map, this.mapTheme(state), view, false);
+      this.demoChunks.update(state.map, this.mapTheme(state), view);
       this.demoChunks.drawGround(this.ctx, view);
       return;
     }
@@ -1196,7 +1208,7 @@ export class Renderer {
       return;
     }
     const view = this.setMapView(viewX, viewY);
-    this.mapChunks.update(state.map, this.mapTheme(state), view, this.wipeActive);
+    this.mapChunks.update(state.map, this.mapTheme(state), view);
     this.mapChunks.drawGround(this.ctx, view);
   }
 
@@ -1210,7 +1222,7 @@ export class Renderer {
   /** 門前町の床（見た目用の地図 ground を様式 town で焼いたチャンク）と参道・辻の石畳 */
   private drawTownGround(town: TownHubView, viewX: number, viewY: number): void {
     const view = this.setMapView(viewX, viewY);
-    this.mapChunks.update(town.town.layout.ground, townTheme(), view, false);
+    this.mapChunks.update(town.town.layout.ground, townTheme(), view);
     this.mapChunks.drawGround(this.ctx, view);
     this.townLayer.drawRoads(this.ctx, town);
   }
@@ -1247,7 +1259,35 @@ export class Renderer {
     return this.mapView;
   }
 
-  /** 画面内の欲しいチャンクを予算なしで焼き上げる（撮影・ベンチ用。ゲーム中は呼ばない）。拠点は何もしない */
+  /**
+   * 装備中の武器種・奥義（skills なら装備中のスキル石も）のエフェクトと、今の体・手持ちの絵のアトラスだけを持つ
+   * （持ち替えたら前の武器種の分を捨てて読み直す）
+   */
+  private focusArt(state: GameState, skills: boolean): void {
+    const moveset = playerMoveset(state).key;
+    const skillArt = skills ? equippedSkillKeys(state).flatMap(skillAtlases) : [];
+    this.fxBank.focus([movesetAtlas(moveset), ultimateAtlas(chosenUltimate(state).moveset), ...skillArt]);
+    this.actorBank.focus([bodyAtlas(state.job), weaponAtlas(moveset)]);
+  }
+
+  private artLoading(): boolean {
+    return this.fxBank.isLoading() || this.actorBank.isLoading();
+  }
+
+  /**
+   * render(state) で描く世界の準備（体・武器・エフェクトの絵の読み込み、地図の全チャンクの焼き、拠点の町の層）を 1 フレームぶん進める。
+   * town は拠点の景色（main.ts の drawHubScreen が setHubView に渡すもの）。拠点以外は null。
+   * main.ts は pending が false になるまでゲームを進めず描画もしない（初めて見えたときから欠けた所・代わりの絵を見せない）。
+   * 地図を描いている間（mapReady が false）は読み込み画面を出す。1 フレームに 1 回だけ呼ぶ
+   */
+  prepareWorld(state: GameState, town: TownHubView | null): WorldPrep {
+    this.focusArt(state, true);
+    const mapReady = town
+      ? this.mapChunks.prepare(town.town.layout.ground, townTheme()) && this.townLayer.prepare(town)
+      : this.mapChunks.prepare(state.map, this.mapTheme(state));
+    return { pending: !mapReady || this.artLoading(), mapReady, progress: this.mapChunks.progress };
+  }
+
   /** 今のジョブの体と武器種の高精細の絵が読めているか（撮影ツールが待つため。読めていなければ読み始める） */
   playerArtReady(state: GameState): boolean {
     const body = bodyAtlas(state.job);
@@ -1256,6 +1296,7 @@ export class Renderer {
     return this.actorBank.ready(body) && (weapon === undefined || this.actorBank.ready(weapon));
   }
 
+  /** 地図の全チャンクを予算なしで焼き上げる（撮影・ベンチ・稽古の間に入るとき）。拠点は setHubView 済みなら町の床 */
   settleMap(state: GameState): void {
     const town = state.sandbox === true ? this.hubView : null;
     const cam = state.camera;
@@ -2813,6 +2854,8 @@ export class Renderer {
     const step = currentMeleeStep(state);
     if (!step) return;
     if (this.drawSwingSprite(state, p, step)) return;
+    // 専用の絵の無い投げるだけの段（戦輪の近投げ・強化投げなど）は、手続きの斬撃の光を手元に出さない
+    if (!hasSlash(step)) return;
     const moveset = playerMoveset(state);
     const anchor = meleeAnchor(p, step);
     const finalStep = p.attack.branch < 0 && !p.dashStrike && p.attack.step >= moveset.steps.length - 1;

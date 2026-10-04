@@ -42,12 +42,16 @@ const bank = new ActorSpriteBank();
 /** focus は 1 回だけ（ATLASES は変わらないので 2 回目以降は何もしないのに、カードごと・毎フレームに鍵の配列と文字列を作っていた） */
 let focused = false;
 
+/** アイコンのアトラスを読み始める（main.ts が描く前に呼ぶ。初めて武器掛けを開いた 1 フレーム目に欠けたカードを見せない） */
+export function primeWeaponIcons(): void {
+  if (focused) return;
+  bank.focus(ATLASES);
+  focused = true;
+}
+
 /** 武器種のアイコンのセル。アトラスがまだ読めていない・絵が無い間は undefined（呼び側が旧い絵で代わりに描く） */
 export function weaponIconCell(moveset: MovesetKey): ActorCell | undefined {
-  if (!focused) {
-    bank.focus(ATLASES);
-    focused = true;
-  }
+  primeWeaponIcons();
   const pick = weaponIconSheetDir(moveset);
   if (!pick) return undefined;
   return bank.cell(pick.key, pick.dir, 0);
