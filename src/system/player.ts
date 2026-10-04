@@ -440,7 +440,8 @@ export function dashTime(stats: Readonly<PlayerStats>): number {
 }
 
 export function dashCooldownTime(stats: Readonly<PlayerStats>): number {
-  return PLAYER.dash.cooldown * stats.dashCooldownMul;
+  // 武器種の倍率（手裏剣は倍。倒すと戻る）
+  return PLAYER.dash.cooldown * stats.dashCooldownMul * (MOVESETS[stats.moveset]?.dashCooldownMul ?? 1);
 }
 
 /** カーソルがこの距離より近いと向きを更新しない（震え防止） */

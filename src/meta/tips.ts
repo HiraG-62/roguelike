@@ -201,7 +201,7 @@ const COMBAT_TIPS: readonly TipDef[] = [
     term: "抜け斬り",
     category: "combat",
     body: () =>
-      `手裏剣のダッシュ攻撃。敵をすり抜けながら斬り、斬った敵 1 体ごとに気力が ${WEAPON.movesets.shuriken.dashAttack.manaPerTarget} 戻る。弾では気力が溜まらない手裏剣が、気力を取り戻す手段。`,
+      `手裏剣のダッシュ攻撃。敵をすり抜けながら斬り、斬った敵 1 体ごとに気力が ${WEAPON.movesets.shuriken.dashAttack.manaPerTarget} 戻る。弾では気力が溜まらない手裏剣が、気力を取り戻す手段。手裏剣を持つ間はダッシュの再使用が ${WEAPON.movesets.shuriken.dashCooldownMul} 倍に伸びるが、敵を倒すとダッシュの回数がすべて戻る。`,
   },
   {
     key: "ringThrow",
