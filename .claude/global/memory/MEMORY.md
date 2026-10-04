@@ -12,3 +12,4 @@
 - [Cloud session sync](cloud-session-sync.md) — グローバル設定と memory は .claude/global/ に写す。memory を変えたら pnpm run sync:claude
 - [Worktree 削除と node_modules](worktree-remove-node-modules.md) — エージェント worktree を消したら本体の node_modules が空になった。消す前にジャンクションを外す
 - [Electron only](electron-only.md) — 動かすのは Electron だけ。ブラウザ版の制約・分岐は考慮しない
+- [ローカルは master で作業](check-branch-before-commit.md) — ローカルは master で作業・コミットしてよい、並列は worktree、クラウドはブランチ + PR。コミット前にブランチと push 先を確かめる

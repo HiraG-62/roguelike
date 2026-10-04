@@ -117,7 +117,7 @@ CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/agents/`・`.claude/
 - 版は `scripts/bump.mjs`（`/bump`）で上げる。手で書き換えない。**メジャーはユーザーの指示があるときだけ**。α 期間は「0.0.xxα」で minor 相当でもパッチを上げる。判断基準は `/bump` の表
 - 変更内容はコミットのたびに統合役が `CHANGELOG.md` の `[Unreleased]` へ日本語で追記する（並列の Agent は触らない）
 - コミットは `<type>: <日本語の概要>`（feat / fix / refactor / docs / style / test / chore）。1 コミット = 1 論理変更。ユーザーの指示があるまでコミットしない
-- **改修はブランチを切って進め、master に直接コミットしない**。`pnpm run check` が通ったらユーザーに承認を求め、承認後に push して master へ PR を出す（マージはユーザー）。手順は `docs/AI_WORKFLOW.md` の「ブランチと PR」
+- **ローカルのセッションは master で作業してよい**。並列で動かすときは worktree で分ける。クラウドのセッションはブランチを切って PR を出す（マージはユーザー）。手順は `docs/AI_WORKFLOW.md` の「ブランチと PR」
 - PR はタイトルも本文も日本語（`<type>: <概要>` + 概要 / 変更 / 確認の 3 節）。UI が英語で自動生成した PR は日本語に書き直す。レビュー返信も日本語
 
 ## ドキュメント索引
