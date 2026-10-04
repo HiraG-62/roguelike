@@ -68,7 +68,12 @@
               "pellets": 0,
               "spreadDeg": 0,
               "pierceBonus": 1,
-              "arc": { "bulge": 10, "catchRadius": 6, "range": 34 },
+              "arc": {
+                "catchRadius": 6,
+                "range": 34,
+                "out": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
+                "back": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+              },
               "look": { "color": "#e0f8ff" }
             },
             "scaling": { "base": 5, "dex": 0.65 },
@@ -131,7 +136,12 @@
               "pellets": 0,
               "spreadDeg": 0,
               "pierceBonus": 2,
-              "arc": { "bulge": 16, "catchRadius": 6, "range": 64 },
+              "arc": {
+                "catchRadius": 6,
+                "range": 64,
+                "out": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
+                "back": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+              },
               "pair": { "offset": 6 },
               "look": { "color": "#ffffff", "trail": "#e0f8ff" }
             },

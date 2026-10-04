@@ -215,7 +215,8 @@ describe("bot の戦輪（投げた輪が戻るまで待つ）", () => {
     let thrown = false;
     let waited = 0;
     let swung = false;
-    const FRAMES = 60 * 8;
+    // 戦輪の弧が大きく、輪が飛んでいる時間が長いので、戻ってから寄って振る機会が来るまで長めに回す
+    const FRAMES = 60 * 20;
     for (let i = 0; i < FRAMES && !swung; i++) {
       const flying = ringsInFlight(state);
       const input = botInput(state, bot, DT);

@@ -2,6 +2,7 @@ import { type DamageKind, type DamageTapKind, type Enemy, type GameState, type V
 import { type Vec, normalize, scale, sub } from "../core/vec";
 import { formatAmount } from "../core/units";
 import type { HurtCause } from "../core/hurt";
+import type { SfxName } from "../audio/sfxNames";
 import { noteHurt } from "./deathCause";
 import { enemyDef, isBossClass } from "../data/enemies";
 import { behaviorOf } from "./behaviors/registry";
@@ -75,6 +76,13 @@ const KILL_DIRECTIONAL_SPEED = 220;
 /** lifeOnHit は「与ダメの %」 */
 const PERCENT = 100;
 
+/** 命中音の質感（DamageOptions.impact） */
+export interface DamageImpact {
+  family: HitFamily;
+  weight: HitWeight;
+  weapon?: MovesetKey;
+}
+
 export interface HitOptions {
   /** 最終の怯み値（poiseDamageMul 込み）。0 / 未指定は怯み値なし */
   poise?: number;
@@ -103,9 +111,9 @@ export interface HitOptions {
   finisher?: boolean;
   /**
    * 命中音の質感（system/effects.ts の hitSfxName）。近接は武器種の系統 × 段の重さ、未指定は従来の hit / hitHeavy。
-   * 射撃は weight: "heavy" のときだけ bulletHitHeavy に差し替える（family は使わない）
+   * 射撃は weapon があればその武器の命中音（戦輪の輪の斬撃）、無ければ weight: "heavy" のときだけ bulletHitHeavy に差し替える
    */
-  impact?: { family: HitFamily; weight: HitWeight; weapon?: MovesetKey };
+  impact?: DamageImpact;
   /** 終撃のヒットストップの底上げ（武器の重さの hitstopFinisher。省略は FEEL.hitstopFinisher） */
   finisherHitstop?: number;
   /** 戦意を使った放出の一撃（system/morale.ts。onFinisher の tag） */
@@ -248,7 +256,7 @@ export function damageEnemy(
     // 刃・鞭打は高域の「ザシュッ」「ピシッ」が主役で、ドンを重ねると埋もれて鈍い音にしか聞こえないので重ねない
     if (!heavy && !skipsThump(opts.impact?.family)) pushSfx(state, "hitThump");
   }
-  if (kind === "ranged") pushSfx(state, opts.impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit");
+  if (kind === "ranged") pushSfx(state, rangedHitSfx(opts.impact));
   if (!opts.silent && (kind === "melee" || kind === "ranged")) emitNoise(state, enemy.body.pos, "hit");
   if (kind === "melee" && !opts.silent) applyRegain(state);
   if (kind !== "proc") {
@@ -808,4 +816,10 @@ export function healPlayer(state: GameState, amount: number, opts: HealOptions =
   spawnBurst(state, p.body.pos, COLOR_HEAL, 10, 80, 0.5, 2);
   pushSfx(state, "heal");
   return gained;
+}
+
+/** 射撃の命中音。武器の命中音を指定した弾（戦輪の輪）はその武器の音、重い弾は bulletHitHeavy、ほかは bulletHit */
+function rangedHitSfx(impact: DamageImpact | undefined): SfxName {
+  if (impact?.weapon !== undefined) return hitSfxName(impact.family, impact.weight, impact.weapon);
+  return impact?.weight === "heavy" ? "bulletHitHeavy" : "bulletHit";
 }

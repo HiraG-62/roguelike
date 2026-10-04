@@ -5,6 +5,7 @@ import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
   type BulletDef,
+  type GrindDef,
   type ButtonKey,
   type BranchDef,
   type BranchShots,
@@ -308,8 +309,10 @@ export function castOverride(state: GameState, lane: ButtonKey): ArtVolleyOverri
  * 射撃扱い（射撃の性質・onRangedHit が乗る）。出したら true
  */
 export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyOverride = {}): boolean {
+  const grind = inheritedGrind(state, t.bullet);
+  const bullet = grind ? { ...t.bullet, grind: grind.grind } : t.bullet;
   const override: VolleyOverride = {
-    damage: scaled(state.stats, t.scaling) * (over.damageMul ?? 1),
+    damage: scaled(state.stats, t.scaling) * (over.damageMul ?? 1) * (grind?.damageMul ?? 1),
     poise: withRatio(state.stats, t.poise, t.poiseRatio) * state.stats.poiseDamageMul,
     count: over.count ?? t.count,
     spreadDeg: over.spreadDeg ?? t.spreadDeg,
@@ -323,10 +326,21 @@ export function emitArtVolley(state: GameState, t: ThrowArtDef, over: ArtVolleyO
     ...(over.radiusMul !== undefined ? { radiusMul: over.radiusMul } : {}),
     ...(over.fan ? { fan: over.fan } : {}),
   };
-  if (!emitVolley(state, t.bullet, 0, state.player.aimDistance, override)) return false;
+  if (!emitVolley(state, bullet, 0, state.player.aimDistance, override)) return false;
   // 連射の弾（手裏剣の左の 3 連射）は続きを同じ向きへ間を置いて投げる
-  queueArtBurst(state, t.bullet, override);
+  queueArtBurst(state, bullet, override);
   return true;
+}
+
+/**
+ * 段の弧の輪（戦輪の連撃の投げ）が、装備の器の食い込み（牙輪）を受け継ぐか。受け継ぐなら食い込みと、
+ * 1 回の威力に掛ける器の damageMul（食い込みは何度も当たるので器の 1 発と同じ割合に下げる）を返す
+ */
+function inheritedGrind(state: GameState, bullet: Readonly<BulletDef>): { grind: GrindDef; damageMul: number } | undefined {
+  if (!bullet.arc || bullet.grind || bullet.pin) return undefined;
+  const base = currentShot(state.stats);
+  if (!base.grind || !base.arc) return undefined;
+  return { grind: base.grind, damageMul: base.damageMul };
 }
 
 /** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す */

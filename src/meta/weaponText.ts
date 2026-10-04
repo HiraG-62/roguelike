@@ -69,7 +69,7 @@ const GAIN_EVENT_TEXT: Readonly<Partial<Record<MoraleGain["kind"], string>>> = {
   alternateShot: "左右の手を替えた射撃",
   pinDriven: "刺さった飛び物の叩き込み",
   pinStagger: "刺さり崩し",
-  roundTrip: "一度の投げの行きと帰りの両方での命中",
+  roundTrip: "一度の投げの行きと帰りの両方での命中（牙輪は食い込みの当て切り）",
   skillHit: "スキルの命中",
   minionHit: "設置物・連動体の命中",
 };

@@ -1979,7 +1979,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
         id: allocId(state),
         owner: "player",
         pos: flight.pos,
-        vel: scale(fromAngle(baseAngle + offset), spec.speed),
+        vel: flight.vel ?? scale(fromAngle(baseAngle + offset), spec.speed),
         radius: spec.radius,
         damage: spec.damage,
         life: flight.life,

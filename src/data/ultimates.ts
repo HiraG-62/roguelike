@@ -912,13 +912,16 @@ const RING_BULLET = "ringBlades";
 
 /**
  * 戦輪の奥義の輪: 輪刃の弧の弾を借り、数と大きさを差し替える。奥義は 1 枚ずつ（2 枚投げの pair は外す）、
- * 飛ぶ距離は arcRange（省略は照準の距離）の固定で、どの向きへも同じだけ飛んで弧で戻る
+ * 飛ぶ距離は arcRange（省略は照準の距離）の固定で、どの向きへも同じだけ飛んで弧で戻る。arcAngleDeg は弧の傾き（省略は器の輪刃のまま）
  */
 function ringVolley(r: Raw, profile: AttackProfile): UltimateAct {
   const t = throwOf(r, profile, RING_BULLET);
   const { pair: _pair, ...single } = t.bullet;
   const range = optNum(r, "arcRange");
-  const arc = single.arc !== undefined && range !== undefined ? { ...single.arc, range } : single.arc;
+  const angleDeg = optNum(r, "arcAngleDeg");
+  const ranged = single.arc !== undefined && range !== undefined ? { ...single.arc, range } : single.arc;
+  // 弧の傾きの差し替え（断頭輪は巨大な輪をまっすぐ寄りに飛ばす）。行きと帰りの両方に効く
+  const arc = ranged !== undefined && angleDeg !== undefined ? { ...ranged, out: { ...ranged.out, angleDeg }, back: { ...ranged.back, angleDeg } } : ranged;
   return { kind: "volley", throw: { ...t, bullet: { ...single, ...(arc ? { arc } : {}) } } };
 }
 

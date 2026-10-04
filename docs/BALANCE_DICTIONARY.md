@@ -9,7 +9,7 @@
 - オブジェクト名だけの行（`resist` など）は、その中の項目すべてに効く
 - （未記入） は `_fields` に説明がまだ無い項目
 
-項目 3672（うち（未記入） 0）
+項目 3677（うち（未記入） 0）
 
 ## combat/MANA
 
@@ -1577,7 +1577,7 @@
 | `movesets.*.*.step.hitstop` | ヒットストップ（ステップ。60Hz） |
 | `movesets.*.*.step.shake` | 命中時の画面揺れ |
 | `*.*.*.*.damageMul` | 1 発の威力の倍率 |
-| `*.*.charge.levels[].poiseMul` | 1 発の怯み値の倍率 |
+| `*.*.*.*.poiseMul` | 1 発の怯み値の倍率 |
 | `*.*.*.hits` | 1 振りの多段ヒット数（active を等分する） |
 | `movesets.*.steps2[].step.invuln` | 振り始めから付く無敵（秒） |
 | `movesets.*.steps2[].step.hits` | 1 振りの多段ヒット数（active を等分する） |
@@ -1679,7 +1679,10 @@
 | `movesets.*.steps2[].step.cast.throw.bullet.recoilMul` | 撃った反動の倍率 |
 | `movesets.*.steps2[].step.cast.throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pierceBonus` | 貫通の追加回数 |
-| `movesets.*.steps2[].step.cast.throw.bullet.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc` | 弧で飛ぶ弾（戦輪。catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕/ out・back 行き・帰りの区間: angleDeg 飛び出す向きと目標への向きのずれ 度〔大きいほど大きな弧。0 で直線、85 まで〕・speedMul 撃った速さに掛ける・damageMul 威力に掛ける・poiseMul 怯み値に掛ける）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る。帰りは自分の動きに関わらず等速 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.speedMul` | 弾速の倍率 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.damageMul` | 1 発の威力の倍率 |
+| `movesets.*.steps2[].step.cast.throw.bullet.arc.*.poiseMul` | 1 発の怯み値の倍率 |
 | `movesets.*.steps2[].step.cast.throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.steps2[].step.cast.throw.poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
@@ -1737,7 +1740,8 @@
 | `bullets.*.lob` | 曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px） |
 | `bullets.*.pin` | 弾（bullet）が刺さる弾になる（手裏剣・クナイ）。kind = 絵と数える種類（shuriken / kunai）、max = 1 体に刺さったままでいられる本数（超えたら古い順に抜く）、sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率、staggerAt = 同じ敵にこの本数刺さると怯ませて刺さりを消す（省略は崩さない。戦意 pinStagger が溜まる） |
 | `bullets.*.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
-| `bullets.*.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
+| `bullets.*.arc` | 弧で飛ぶ弾（戦輪。catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕/ out・back 行き・帰りの区間: angleDeg 飛び出す向きと目標への向きのずれ 度〔大きいほど大きな弧。0 で直線、85 まで〕・speedMul 撃った速さに掛ける・damageMul 威力に掛ける・poiseMul 怯み値に掛ける）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る。帰りは自分の動きに関わらず等速 |
+| `bullets.*.arc.*.speedMul` | 弾速の倍率 |
 | `bullets.*.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
 | `bullets.*.grind` | 食い込む弾（牙輪・大手裏剣。sec 食い込んで回る秒 / hits その間に当てる回数。最初に当たった敵で止まり、当て終えると戻る） |
 | `meleeDamageScale` | 近接の段の威力の係数表（base と全係数）に復元時に掛ける。銃の弾・スキル・奥義は対象外。base と係数を同率で下げるのでステータス 1 点あたりの伸び率は変わらない。倍率（1 = 等倍） |
@@ -4421,6 +4425,7 @@
 | `defs.grenade.incendiary.blast.terrainDuration` | 着弾に残す地形の秒 |
 | `defs.trapper.trapperSense.minePull` | 持続中、床の自分の設置弾が radius（px）以内の敵を speed（px/秒）で引き寄せる |
 | `defs.ringBlades.*.volley.arcRange` | 戦輪の輪が飛ぶ固定の距離（px。弧でこの距離まで飛んで戻る。省略は照準の距離） |
+| `defs.ringBlades.headsman.volley.arcAngleDeg` | 戦輪の輪の弧の傾き（度。行きと帰りの両方。小さいほどまっすぐ。省略は器の輪刃の弧） |
 | `defs.kunai.shadowStitch.pinNova` | 周りの敵すべてにクナイを刺す一撃（クナイの影縫いの陣）。radius = 範囲（px。burstRadiusMul が掛かる）、pins = 1 体に刺す本数、scaling / poise / poiseRatio = 刺すときに当てる傷（威力は 奥義の増（increased.ultimate）が掛かり、その威力が刺さったときの威力になる）。刺さりの秒・上限・叩き込みの倍率はクナイの弾の pin |
 | `defs.kunai.shadowStitch.pinNova.pins` | 1 体に刺すクナイの本数（刺さりの上限を超えたら古い順に抜ける） |
 | `defs.kunai.blastKunai.detonatePins` | 刺さっている飛び物をすべて炸裂させる一撃（クナイの爆ぜクナイ）。damageMul = 1 本ごとに刺さったときの威力へ掛ける倍率（奥義の増が乗る）。刺さりが無ければ何も起きない |

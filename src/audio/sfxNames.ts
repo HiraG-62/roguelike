@@ -136,6 +136,7 @@ export const SFX_NAMES = [
   "shotMine",
   "shotBurst",
   "shotBoomerang",
+  "shotWarRing",
   "shotLob",
   // ---- 銃の弾倉（system/magazine.ts）----
   /** 込め始め: 弾倉を抜く金属の擦れ */

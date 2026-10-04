@@ -19,6 +19,8 @@ const TOUGH_HP = 99999;
 const NO_ATTACK_COOLDOWN = 99;
 const MAX_STEPS = 600;
 const RING_RANGE = 30;
+/** 近投げの弧の区間（傾き 30 度・速さと威力はそのまま） */
+const NEAR_LEG = { angleDeg: 30, speedMul: 1, damageMul: 1, poiseMul: 1 } as const;
 
 function tough(e: Enemy): Enemy {
   e.attackCooldown = NO_ATTACK_COOLDOWN;
@@ -60,7 +62,7 @@ function ringBullet(): BulletDef {
     speedMul: 0.2,
     lifeMul: 5,
     pierceBonus: 99,
-    arc: { bulge: 8, catchRadius: 6, range: RING_RANGE },
+    arc: { catchRadius: 6, range: RING_RANGE, out: NEAR_LEG, back: NEAR_LEG },
   };
 }
 

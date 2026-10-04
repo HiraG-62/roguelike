@@ -6,12 +6,14 @@ import { dist } from "../core/vec";
 import { FORM, PLAYER, ULTIMATE } from "../data/tuning";
 import { ultimateDef } from "../data/ultimates";
 import { formOf } from "../data/weaponForms";
-import { MOVESETS } from "../data/weapons";
+import { MOVESETS, type ThrowArtDef } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
 import { moraleMax, moraleReleaseMin } from "./morale";
 import { canStartParry } from "./parry";
 import { emitVolley, isDashing } from "./player";
 import { ringsInFlight } from "./projectiles";
+import { emitArtVolley } from "./weaponArts";
+import { weaponHitName } from "../audio/weaponHitNames";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { tryUltimate, ultimateMoveset } from "./ultimates";
 
@@ -38,6 +40,14 @@ function playerShots(state: GameState): Projectile[] {
 function maxRangeOf(key: string): number {
   const b = bulletDef(key);
   return PLAYER.shoot.speed * b.speedMul * PLAYER.shoot.life * b.lifeMul;
+}
+
+/** 右の連撃の投げの段（movesets/ringBlades.json の steps2） */
+function comboThrow(key: string): ThrowArtDef {
+  for (const s of MOVESETS.ringBlades.steps2) {
+    if (s.kind === "swing" && s.step.cast?.key === key) return s.step.cast.throw;
+  }
+  throw new Error(`${key} の投げが無い`);
 }
 
 /** 左の射撃と同じ弾の出し方（レーンは左）。aim は照準の距離 */
@@ -90,6 +100,25 @@ describe("輪刃: 上下 2 枚の弧", () => {
     expect(maxRangeOf("fangRings")).toBeLessThan(maxRangeOf("ringBlades"));
   });
 
+  it("投げは風を切る音、輪の命中は斬撃の命中音（弾の命中音ではない）", () => {
+    const state = arena(5, RING_STATS);
+    // 2 枚はカーソルで交わるので、カーソルの上の敵に当たる
+    const foe = tough(placeEnemy(state, "boar", 60));
+    const foePos = { ...foe.body.pos };
+    throwRings(state, "ringBlades", 60);
+    expect(state.sfx, "投げの音").toContain("shotWarRing");
+    let heard: string[] = [];
+    for (let i = 0; i < MAX_STEPS && foe.hp === TOUGH_HP; i++) {
+      state.sfx.length = 0;
+      step(state, withInput({}), FIXED_DT);
+      foe.body.pos = { ...foePos };
+      heard = [...state.sfx];
+    }
+    expect(foe.hp, "当たった").toBeLessThan(TOUGH_HP);
+    expect(heard, "斬撃の命中音").toContain(weaponHitName("ringBlades", "light"));
+    expect(heard, "弾の命中音は鳴らさない").not.toContain("bulletHit");
+  });
+
   it("左の押しっぱなしで 2 枚投げる（反動で押されない）", () => {
     const state = arena(5, RING_STATS);
     const before = { ...state.player.body.pos };
@@ -120,6 +149,27 @@ describe("牙輪: 食い込んで 4 回", () => {
     expect(foe.hp, "当たっている").toBeLessThan(TOUGH_HP);
     expect(wentBack, "当て終えたら戻る").toBe(true);
     expect(playerShots(state).length, "手元へ戻って消えた").toBe(0);
+  });
+
+  it("連撃の投げ（近投げ・強化投げ）も牙輪なら食い込み、輪刃なら食い込まない", () => {
+    for (const key of ["ringToss", "ringHurl"]) {
+      const fang = arena(5, FANG_STATS);
+      expect(emitArtVolley(fang, comboThrow(key)), key).toBe(true);
+      const fangRings = playerShots(fang);
+      expect(fangRings.length, key).toBeGreaterThan(0);
+      for (const r of fangRings) expect(r.shot?.grind?.hits, `${key} は牙輪の食い込み`).toBe(bulletDef("fangRings").grind?.hits);
+      const ring = arena(5, RING_STATS);
+      emitArtVolley(ring, comboThrow(key));
+      for (const r of playerShots(ring)) expect(r.shot?.grind, `${key} は輪刃では食い込まない`).toBeUndefined();
+    }
+  });
+
+  it("食い込みを当て切った敵 1 体を往復に数える（帰りに同じ敵へ当て直せない代わり）", () => {
+    const state = arena(5, FANG_STATS);
+    tough(placeEnemy(state, "boar", 60));
+    throwRings(state, "fangRings", 60);
+    runUntil(state, () => playerShots(state).length === 0);
+    expect(state.player.morale.value, "2 枚とも同じ敵に食い込んでも 1 体で 1").toBe(1);
   });
 
   it("輪刃は食い込まず、貫いて通り抜ける", () => {
@@ -214,11 +264,17 @@ describe("往復の戦意", () => {
 
   it("行きだけで当てた敵は数えない（輪の届かない奥の敵）", () => {
     const state = arena(5, RING_STATS);
-    tough(placeEnemy(state, "boar", 34, 9));
+    const near = tough(placeEnemy(state, "boar", 34, 9));
     // 片側の弧だけに敵がいても、帰りに反対側の輪が同じ側を通るので往復になる。弧の外側の敵は数えない
     tough(placeEnemy(state, "boar", 34, 70));
     throwRings(state, "ringBlades", 60);
-    runUntil(state, () => playerShots(state).length === 0);
+    // 敵が歩いて帰りの弧から外れないよう、位置を固定する
+    const foePos = { ...near.body.pos };
+    for (let i = 0; i < MAX_STEPS && playerShots(state).length > 0; i++) {
+      step(state, withInput({}), FIXED_DT);
+      near.body.pos = { ...foePos };
+      near.knock = { x: 0, y: 0 };
+    }
     expect(state.player.morale.value, "弧の上の 1 体だけ").toBe(1);
   });
 

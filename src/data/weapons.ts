@@ -491,13 +491,25 @@ export interface GrindDef {
 }
 
 /**
- * 弧で飛ぶ弾（BulletDef.arc）。bulge = 弧の頂点の横のふくらみ（px）、catchRadius = 帰りに手元のこの距離で収まる（px）、
- * range = 固定の射程（px。連撃の近投げ。省略はカーソルの距離を最大射程 = 速さ × 寿命で頭打ち）
+ * 弧で飛ぶ弾（BulletDef.arc）。catchRadius = 帰りに手元のこの距離で収まる（px）、
+ * range = 固定の射程（px。連撃の近投げ。省略はカーソルの距離を最大射程 = 速さ × 寿命で頭打ち）、out / back = 行き / 帰りの区間（ArcLegDef）
  */
 export interface ArcDef {
-  readonly bulge: number;
   readonly catchRadius: number;
   readonly range?: number;
+  readonly out: ArcLegDef;
+  readonly back: ArcLegDef;
+}
+
+/**
+ * 弧の 1 区間（行き / 帰り）。angleDeg = 飛び出す向きと目標への向きのずれ（度。大きいほど大きな弧。0 は直線、上限は ARC_MAX_DEG）、
+ * speedMul = 撃った速さに掛ける、damageMul / poiseMul = この区間の命中の威力 / 怯み値に掛ける
+ */
+export interface ArcLegDef {
+  readonly angleDeg: number;
+  readonly speedMul: number;
+  readonly damageMul: number;
+  readonly poiseMul: number;
 }
 
 /** 2 枚投げ（BulletDef.pair）。offset = 口元から進む向きに直交する両側へずらす距離（px） */
@@ -506,20 +518,21 @@ export interface PairDef {
 }
 
 /**
- * 弧の弾の飛び方（ShotRuntime.arc）。行き: from（口元）→ 頂点 → to（カーソル）。帰り: from（折り返した位置）→ 反対側の頂点 →
- * 今の自分の位置（毎ステップ読み直す）。頂点は区間の向きに直交する side の側（帰りは向きが逆なので世界では反対側になる）。
- * t は区間の進み（0..1）、dur は区間の秒、speed は撃った速さ（帰りの区間の秒を決める）
+ * 弧の弾の飛び方（ShotRuntime.arc）。行き: 口元 → to（カーソル）。帰り: 折り返した位置 → 今の自分の位置（毎ステップ読み直す）。
+ * どちらの区間も区間の速さで等速に進み、目標への向きから side の側へ傾けて飛ぶ（目標が止まっていれば円弧。帰りは向きが逆なので
+ * 世界では反対側へふくらむ）。startDist は区間の始まりの目標までの距離（傾きを距離に合わせて減らす基準）、speed は撃った速さ
  */
 export interface ShotArc {
-  from: Vec;
   to: Vec;
   side: 1 | -1;
-  bulge: number;
-  t: number;
-  dur: number;
   back: boolean;
+  startDist: number;
+  /** 今の区間で進んだ道のり（px）。傾きを道のりでも減らし、自分が離れ続けても弧が外へ広がらないように */
+  traveled: number;
   speed: number;
   catchRadius: number;
+  out: ArcLegDef;
+  backLeg: ArcLegDef;
 }
 
 /** 食い込みの作業領域（ShotRuntime.grind）。targetId = 食い込んだ敵（未定 = まだ当たっていない）、done = 当てた回数、elapsed = 食い込んでからの秒 */
