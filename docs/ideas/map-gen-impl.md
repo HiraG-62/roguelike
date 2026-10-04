@@ -201,9 +201,9 @@ JSON は `src/data/balance/world/MAP_LAYOUT/_index.json` に置く（初期値�
   - `src/map/layout/finalize.ts`、`validate.ts`、`select.ts`、`index.ts`（`LAYOUT_GENERATORS: Record<LayoutKind, LayoutGenerator>`、`generateLayoutMap(kind, rng, width, height): GameMap | null`）
   - 8 型のスタブ `src/map/layout/{cavern,river,ring,court,drunk,isle,terrace,prefab}.ts`（null を返すだけ）
   - `layouts.test.ts`、`select.test.ts`
-  - JSON `world/MAP_LAYOUT/_index.json` と 8 型の `<型>.json`（`npm run balance:gen` はこのレーンだけが回す）
+  - JSON `world/MAP_LAYOUT/_index.json` と 8 型の `<型>.json`（`pnpm run balance:gen` はこのレーンだけが回す）
 - 最小 Edit: `src/map/cave.ts`（regions から import。出力と乱数消費は不変。`carveArena` の Pit を埋めない）、`src/data/tuning.ts`（`MAP_LAYOUT` を re-export）
-- 完了条件: `npm run check:fast`、既存の cave / generator のテストが無修正で通る
+- 完了条件: `pnpm run check:fast`、既存の cave / generator のテストが無修正で通る
 
 **L0b 穴の当たり・system（M）**
 - 最小 Edit: `src/system/physics.ts`（`isSolidTile` / `overlapsSolid` に Pit、`overlapsShotWall` 新設）、`src/system/projectiles.ts` / `src/skills/shots.ts` / `src/skills/geom.ts`（`overlapsShotWall` へ）、`src/map/pathing.ts`（`visit` で Pit を塞ぐ、`walkLine` を新設して `chaseHeading` で使う）、`src/system/explore.ts`、`src/system/merchants.ts`、`src/system/terrain.ts`（`planOnce` で `map.shallow` を写す）
@@ -229,7 +229,7 @@ JSON は `src/data/balance/world/MAP_LAYOUT/_index.json` に置く（初期値�
 
 ### 段 4
 
-**L7 QA（M）**: `src/qa/bot.ts`（`crossesPit`）、`src/qa/simulation.test.ts`（型別の smoke とフル版の表）。`npm run qa:full` を裏で回し、前の report と比べる
+**L7 QA（M）**: `src/qa/bot.ts`（`crossesPit`）、`src/qa/simulation.test.ts`（型別の smoke とフル版の表）。`pnpm run qa:full` を裏で回し、前の report と比べる
 
 **統合役（資料）**: `docs/CODE_MAP.md`（map/layout の各ファイル）、`docs/ARCHITECTURE.md`（乱数の順・版）、`docs/BALANCE.md`（`MAP_LAYOUT`）、新規 `docs/recipes/map-layout.md` と CLAUDE.md のレシピ表に 1 行、`docs/GLOSSARY.md`（穴・奈落、型の表示名を出す場合）、`IDEAS.md` の現状、`CHANGELOG.md`
 

@@ -1,6 +1,6 @@
 # バランス数値の辞書
 
-<!-- 自動生成（npm run balance:dict）。手で直さない。説明は各 JSON の _fields を直してから生成し直す -->
+<!-- 自動生成（pnpm run balance:dict）。手で直さない。説明は各 JSON の _fields を直してから生成し直す -->
 
 `src/data/balance/` の JSON の各項目が何に効くかの一覧。説明の正は各 JSON の `_fields`（書き方は `docs/BALANCE.md`「項目の意味を読む / 書く」）。
 

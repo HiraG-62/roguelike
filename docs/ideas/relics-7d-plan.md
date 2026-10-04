@@ -3,7 +3,7 @@
 作成日: 2026-09-30。`docs/ideas/boon-impl.md` 2-10 を、architect が機械集計で実装レーンに渡せる表まで確定したもの。統合役の決定: ★ 属性の変換 6 は残す（通常攻撃の属性を変える手段を武器のベースだけにしないため）。写しの表 `LEGACY_AFFIX_MAP`（210）/ `LEGACY_UNIQUE_MAP`（76）は実装で `src/loot/migrate.ts` に入る。
 
 
-作成: architect（2026-09-30）。根拠の機械集計は `scratchpad/p7d/`: `affixes.tsv` / `conversions.tsv` / `keystones.tsv` / `uniques.tsv`（今の定義の書き出し。列 = key / 色 / tags / 部位 / 段階 / 右手の家系 / 目覚め / apply が触る欄 / 表示）、`decide.mjs`（振り分けと検算。`node decide.mjs`）、`affix_actions.tsv`（旧 key 290 の行き先）、`keys.json`、**`LEGACY_AFFIX_MAP.ts.txt` / `LEGACY_UNIQUE_MAP.ts.txt`（そのまま貼れる形）**、`dump.test.ts`（書き出しの vitest。`npx vitest run --config p7d/vitest.config.mjs`）。
+作成: architect（2026-09-30）。根拠の機械集計は `scratchpad/p7d/`: `affixes.tsv` / `conversions.tsv` / `keystones.tsv` / `uniques.tsv`（今の定義の書き出し。列 = key / 色 / tags / 部位 / 段階 / 右手の家系 / 目覚め / apply が触る欄 / 表示）、`decide.mjs`（振り分けと検算。`node decide.mjs`）、`affix_actions.tsv`（旧 key 290 の行き先）、`keys.json`、**`LEGACY_AFFIX_MAP.ts.txt` / `LEGACY_UNIQUE_MAP.ts.txt`（そのまま貼れる形）**、`dump.test.ts`（書き出しの vitest。`pnpm exec vitest run --config p7d/vitest.config.mjs`）。
 
 ## 0. 結論
 
@@ -307,7 +307,7 @@
 | `balance/loot/FLUX.json` / `INNATE/budget.json` | **7d では触らない**（数値は 7e。設計 3-2 の FLUX 0.6〜1.8 と perDepth 0.5 は 7e の最初に） |
 | ECHO | JSON は無い（5 章） |
 
-どのレーンも `npm run balance:gen` を何度走らせてよい（木全体から `assembled.gen.ts` を作り直すので、他レーンの JSON も入る）。
+どのレーンも `pnpm run balance:gen` を何度走らせてよい（木全体から `assembled.gen.ts` を作り直すので、他レーンの JSON も入る）。
 
 ---
 
@@ -332,7 +332,7 @@
 
 **前提**: 7c（G・H2）がコミット済み。確かめ方: `git status --short` が空、`rg -n "attune|hueInfuse" src` が 0 件。
 
-**P 前置き（統合役か Opus 1 本。1 コミット。挙動を変えない。`npm run check` 通過）**
+**P 前置き（統合役か Opus 1 本。1 コミット。挙動を変えない。`pnpm run check` 通過）**
 
 | ファイル | 足すもの |
 | --- | --- |
@@ -349,7 +349,7 @@
 | `src/system/boons.ts` | `BoonRunState.resonance: ResonanceStep[]`（空で初期化）。`graceSlotsOf` に `+ (state.stats.graceSlotBonus[action] ?? 0)` |
 | `src/system/statusEffects.ts` | `maxStacks` に state を渡し、敵側に `state.stats.statusStackCapBonus[kind] ?? 0` を足す |
 | `src/data/weaponForms.ts` / `src/data/reforges.ts` | `FormDef.keywords?` / `ReforgeDef.keywords?` |
-| `src/data/balance/loot/RELIC.json`（新）/ `loot/_index.json` の `_order` / `src/data/tuning.ts` | 空の器と `export const RELIC = BALANCE.loot.RELIC`。`npm run balance:gen` |
+| `src/data/balance/loot/RELIC.json`（新）/ `loot/_index.json` の `_order` / `src/data/tuning.ts` | 空の器と `export const RELIC = BALANCE.loot.RELIC`。`pnpm run balance:gen` |
 
 **レーン**（P の後に 4 本並列。共有ファイルは下の「最小 Edit」の範囲だけ、old_string を短く）
 
@@ -361,7 +361,7 @@
 | **L 残響** | **Sonnet でよい** | `loot/crafting.ts`、`ui/echoTab.ts`、`render/echoTabUi.ts`、`loot/crafting.test.ts`、`ui/echoTab.test.ts`、`ui/echoTabWave2.test.ts` | `meta/tips.ts:162-172`（7 項目を消す）、`render/inventoryUi.test.ts:119`、`loot/innate.test.ts:8, 421`、`audio/sfxNames.ts`（残響の音で使われなくなる名があれば消さずに残す） | 他全部 | `ECHO_OPS` 5、`rg -n "dyeTrait\|calmTrait\|pareTrait\|modulateTrait\|bleachTrait\|reforgeTrait\|tensionTrait" src` が 0 件 |
 
 - 同じ共有ファイルを 2 レーンが触るのは `system/combat.ts`（I 1 行・J 5 行）、`system/player.ts`（I 1・J 3・K 1）、`system/keywords.ts`（I と K で別の行範囲）、`loot/types.ts`（I は `TraitStats`、K は共鳴の型）、`render/renderMath.ts`（I は 263-277、K は 250-260）、`meta/tips.ts`（K は 152-155、L は 162-172）、`system/statusEffects.ts`（J と K で別の関数）。範囲が重ならないので並べてよい
-- 並べる間は他レーン起因の tsc / テストの失敗は報告だけ（`npm run check:fast`）。I が消す key を fixture に使うテストは I が直す（8 章）
+- 並べる間は他レーン起因の tsc / テストの失敗は報告だけ（`pnpm run check:fast`）。I が消す key を fixture に使うテストは I が直す（8 章）
 - Sonnet の判断: **L だけ Sonnet**。I は 212 件の中身と traitHooks の分岐・誓約の engine の削除に判断が要り、J は engine 分岐 10 と移行、K は新しい仕組みと 20 か所の読み替えがあるので Opus
 - 分けたくなったら I を「I1 性質（affixes.ts の AFFIXES 区間・traitHooks・fixture）」と「I2 転じ・誓約（CONVERSION / KEYSTONES 区間・keystones.ts・damageMods）」に割れる（同じ `affixes.ts` の別区間。traitHooks の誓約の分岐は I2 が先に消す順）
 

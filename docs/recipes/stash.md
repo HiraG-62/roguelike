@@ -9,4 +9,4 @@
 - 候補の差の右の列（変わる地金のステータスの「今 → 後」）は `ui/statDiff.ts`。項目の数は `MENU_BUDGET.innateDiffs`、数の上限は `compareNumbers`
 - テスト: `ui/candidates.test.ts`（並びごとの順・5 枚ずつの送り・絞り込み・腰の石の切り替え）、`ui/skillPage.test.ts`（手持ち）、`ui/statDiff.test.ts`、`render/candidatesUi.test.ts`（候補の予算）
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

@@ -281,7 +281,7 @@ export const LEGACY_SLOT_MAP: Readonly<Record<string, Slot>> = { weapon: "mainHa
 - 追加する型・関数: 2 章の `PrimaryKind` / `WeaponArtDef` / `HoldArtDef` / `ThrowArtDef` / `RecallArtDef`、`defineMoveset`、`isGun` / `usesProjectiles` / `GUN_MOVESETS` / `ART_NAMES`。`system/weaponArts.ts`: `startArt(state)`（右押下で tryBranch が外れたときに呼ぶ）/ `updateArt(state, input, dt)`（`updatePlayer` で `updateCharge` の直後）/ `tryParry` / `guardDamageMul` / `emitArtVolley`（`player.ts` の `emitVolley` を `export` にして `override?: { damage; poise; count; spreadDeg; attack; sprite }` を受けるようにし、それを呼ぶ）/ `recallShots`
 - `player.ts` の変更点: `onButtonPress` の `role !== "shot"` 分岐を「左なら `tryAttack`、右なら `startArt`」に。`shotButtonHeld` は `isGun` のときだけ左を見る。`buttonRole` / `ActionKind` を消す。`updateShooting` は `isGun` でなければ呼ばない（`shotBurst` / `shotCharging` は銃のときだけ動く）。hold 中は `tryAttack` を通さず、左押下でホールドを解除してから通常の流れへ
 - テスト（it 名）: 「右クリックは武器種の固有技を出す（剣は受け流し、大剣は薙ぎ払い）」「strike の技は派生として branches に混ざり、長い列の派生が優先される（左左右 → 兜割り）」「受け流しの窓の被弾は無効化され、相手が怯みカウンター扱いになる」「受け流しの窓を過ぎた被弾は通る」「盾の構えは前方の被ダメを減らし、後ろからは減らさない」「構えを離すと盾押しが出る」「斧の投擲は戻る弾を出し、再使用が明ける前は出ない」「手元返しで自分の弾が反転する」「銃の家系だけ左で撃ち、近接の武器種では左を押しても弾が出ない」「射撃の型はベースの shot のまま（短銃の三連銃は三点）」「技の再使用中は右を押しても何も起きず、入力列にも積まない」「変身中の右クリックは変身が引き受ける（遠吠え）」「bot は銃なら左を押し、近接なら右の技を周期的に使う」
-- 完了条件: `npm run check` 緑、`docs/COMBAT_DESIGN.md` A-7 の「ボタンの役割」「コンボ派生」の表を 3 章に差し替え
+- 完了条件: `pnpm run check` 緑、`docs/COMBAT_DESIGN.md` A-7 の「ボタンの役割」「コンボ派生」の表を 3 章に差し替え
 
 ### Lane B: 右手 / 左手と装備データ（implementer、Sonnet 可）
 
@@ -289,14 +289,14 @@ export const LEGACY_SLOT_MAP: Readonly<Record<string, Slot>> = { weapon: "mainHa
 - 最小 Edit: `src/render/inventoryUi.ts`（左手の「—（両手の仕組みは後日）」表示）
 - 追加: `SLOTS` / `LOOT_SLOTS` / `LEGACY_SLOT_MAP` / `normalizeSlot(v: unknown): Slot | null`、`AffixDef.family`、`TraitContext.family`、`baseFamily(base)`、`REPLAY_VERSION = 8`
 - テスト（it 名）: 「旧セーブの weapon / gun スロットの遺物は右手と倉庫へ移る」「gun スロットの文字列を持つアイテムは mainHand として読める（冪等）」「左手にはベースが無く、ドロップの部位抽選に出ない」「射撃専用の性質は銃の家系のベースにだけ出る」「近接のベースに貫通が乗らない」「共鳴の環は 6 部位のまま（右手 – 鎧、左手 – 靴 が対）」「武器掛けは武器種だけを並べ、銃の家系も含む」「狩人の初期武器は弩で、得意武器の上乗せは射撃に掛かる」「旧版のリプレイは version 違いで捨てられる」
-- 完了条件: `npm run check` 緑、`docs/GLOSSARY.md` の部位の行と `docs/ARCHITECTURE.md` の永続化の節を更新
+- 完了条件: `pnpm run check` 緑、`docs/GLOSSARY.md` の部位の行と `docs/ARCHITECTURE.md` の永続化の節を更新
 
 ### Lane C: 射撃依存コンテンツの読み替え（implementer、Sonnet 可）
 
 - 所有: `src/system/boonDefs.ts`（`loadout` の追加）、`src/system/boons.ts`（`buildTags` の `ranged` 判定）、`src/system/keystones.ts`（表示名の文言）、`src/loot/affixes.ts` の誓約 `ks_bladeOath` の `desc`（Lane B と同じファイルなので **Lane B の完了後** に着手。行は 3363 付近のみ）、`src/skills/summons.ts`（砲台の同期）、`src/system/elementCombat.ts` / `src/render/elementUi.ts`（`Projectile.attack` 優先）、`src/system/traitHooks.ts`（変更が要るか確認のみ）、`src/system/boons.test.ts` / `boonRules.test.ts`
 - 最小 Edit: `src/core/state.ts`（`Projectile.attack?: AttackProfile`）
 - テスト（it 名）: 「射撃の祝福は銃の家系を持つときだけ 3 択に出る」「指輪の射撃性質だけでは射撃の祝福が出ない」「杖の魔弾の命中で杖の灯が気力を戻す」「砲台は近接の振りに合わせて撃つ」「投擲の弾の素性は技のものが優先される」
-- 完了条件: `npm run check` 緑
+- 完了条件: `pnpm run check` 緑
 
 ### Lane D: 持ち手の刃の向きと銃の絵（pixel-artist + implementer、Opus）
 
@@ -304,9 +304,9 @@ export const LEGACY_SLOT_MAP: Readonly<Record<string, Slot>> = { weapon: "mainHa
 - 最小 Edit: `src/render/renderer.ts`（`heldWeaponPose` に `edge` を渡す 1 行。`drawHeldWeapon` の二丁拳銃の分岐は `moveset.key === "gunner"` に）
 - 追加: `WEAPON_EDGE`、`WEAPON_FRAME.diagonalOut`、`mirrorAntiDiagonal`、`edgeView`、`WeaponPoseInput.edge?`。銃 4 家系の絵（短銃 = 今の GUN を流用、長銃 = 長い銃身、砲 = 太い筒、投擲 = 輪 / 短刀）。絵が揃うまでは `HELD` で GUN を流用して `sprites.test` を通す
 - テスト: 7 章の it 名
-- 完了条件: `npm run check` 緑。ブラウザで大鎌・斧・戦鎚の構えと振りを目視（10 章）
+- 完了条件: `pnpm run check` 緑。ブラウザで大鎌・斧・戦鎚の構えと振りを目視（10 章）
 
-統合順: A → B / C / D 並列 → 統合役が `CHANGELOG.md` に追記し `npm run qa:full`。QA の結果を見て balance-tuner が 8 章の補足の数値を詰める。
+統合順: A → B / C / D 並列 → 統合役が `CHANGELOG.md` に追記し `pnpm run qa:full`。QA の結果を見て balance-tuner が 8 章の補足の数値を詰める。
 
 ## 10. 不確かな点・ブラウザで確かめる点
 

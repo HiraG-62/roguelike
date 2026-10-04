@@ -23,7 +23,7 @@
   - `grip`: 両手持ちの添え手の柄の上の位置（柄を立てる長柄は尻の側だと後ろの肩から届かない）
   - `contact`: 受け止める所（火花の位置）
   - `barrier`: 武器で受けず体の前に結界を張る（値は色）。ユーザーの判断「魔法系の武器は武器で直接守るよりバリアを出す方がいい」で杖（紫）・書（青）・手鈴（金）。結界は向いている側の弧の帯で縁に光が走り、決まった瞬間は白く光って前へ膨らみ・結界の色の火花、外すと点が抜けて崩れる（`render/parryBarrier.ts`、数値は `PARRY_POSE.barrier`）
-- 確認: `npm run menu:shot -- --only "parry+weapons=sword,greatsword,twinBlades,spear"`（列 = 待機 / 構え / 決まった瞬間 / 押し返され / 解く / 外して崩れる / 左向き）
+- 確認: `ppnpm run menu:shot --only "parry+weapons=sword,greatsword,twinBlades,spear"`（列 = 待機 / 構え / 決まった瞬間 / 押し返され / 解く / 外して崩れる / 左向き）
 
 ## 3. 武器種ごとの形（値は各武器の絵のファイル `scripts/actor/sheets/wpn<武器種>.mjs` の `parry`）
 

@@ -336,8 +336,8 @@ export function bossOnAnswer(state: GameState, e: Enemy, kind: BossAnswerKind): 
 
 | 段 | 所有 | 最小 Edit のみ | 完了条件 |
 | --- | --- | --- | --- |
-| A 器 + 段階 1 | `src/system/bossKit.ts`・`bossKit.test.ts`・`bossKingSlime.ts`・`bossKingSlime.test.ts` | `core/state.ts`・`system/poise.ts`・`system/boss.ts`・`system/bossRecord.ts`・`system/parry.ts`・`system/combat.ts`・出端の口（`debana.ts` か `player.ts`）・`system/projectiles.ts`・`system/bossDeepLord.ts`・`render/renderer.ts`・`balance/enemies/BOSS/kingSlime.json` | 段階 1 の墜落と、墜落 2 回で分裂が動く。段階 2・3 は **今のまま**（消化の棒立ちもまだ残す）。`npm run check` |
-| B 段階 2・3 | `bossKingSlime.ts`・`bossKingSlime.test.ts`・冠スライムの JSON 3 つ | `data/enemies.ts`・`data/enemyRoles.ts`・`enemyCombat` / `enemyDefense`・`behaviors/families.ts`・`behaviors/registry.ts`・`poise.ts`（引導）・`meta/tips.ts`・`docs/GLOSSARY.md` | 2 章の全部。`npm run balance:gen` を回す。`npm run check` |
+| A 器 + 段階 1 | `src/system/bossKit.ts`・`bossKit.test.ts`・`bossKingSlime.ts`・`bossKingSlime.test.ts` | `core/state.ts`・`system/poise.ts`・`system/boss.ts`・`system/bossRecord.ts`・`system/parry.ts`・`system/combat.ts`・出端の口（`debana.ts` か `player.ts`）・`system/projectiles.ts`・`system/bossDeepLord.ts`・`render/renderer.ts`・`balance/enemies/BOSS/kingSlime.json` | 段階 1 の墜落と、墜落 2 回で分裂が動く。段階 2・3 は **今のまま**（消化の棒立ちもまだ残す）。`pnpm run check` |
+| B 段階 2・3 | `bossKingSlime.ts`・`bossKingSlime.test.ts`・冠スライムの JSON 3 つ | `data/enemies.ts`・`data/enemyRoles.ts`・`enemyCombat` / `enemyDefense`・`behaviors/families.ts`・`behaviors/registry.ts`・`poise.ts`（引導）・`meta/tips.ts`・`docs/GLOSSARY.md` | 2 章の全部。`pnpm run balance:gen` を回す。`pnpm run check` |
 | C 定跡と門 | `src/qa/bossAnswers.ts`（新）・`qa/bossProbe.ts`・`qa/bossMetrics.ts`・各 test | `qa/bot.ts`（要る関数を export するだけ） | 4-7 の 3 列が `probe.md` に出る。骨組みは A の後に B と並行で書ける |
 | D 絵・音・戦跡・溜墨 | `data/sprites/`・`render/` の新しい描画・`audio/` | `render/renderer.ts` | 描画だけ（`REPLAY_VERSION` を動かさない） |
 
@@ -385,7 +385,7 @@ export function bossOnAnswer(state: GameState, e: Enemy, kind: BossAnswerKind): 
 - `src/qa/bossAnswers.ts`（新）: `AnswerMode = "mash" | "A" | "B"`、`AnswerPolicy = (state, view, dt) => FrameInput | null`（null は今の連打の bot に任せる）。見え方は 12 ステップ（0.2 秒）前の写しだけを読む（人に無理な答えを通さない）
   - A: 影が出たら影の中心に留まり、影が黄なら振る、赤なら影の外へ / 段階 2 は王が空中の間に冠へ詰めて振る / 段階 3 は王の 60px 以内に留まり、噛みの影の着地 0.1 秒前に受け流し。呑み損ねの間は生命 25% 以下なら終撃の段を当てる。膨張の輪は最寄りの隅
   - B: 影に入らない / 王に最も近い冠でない分裂体から倒し、最後に冠 / 噛みは見切り、膨張は隅
-- 門（スライム王は seed 10。統合役が `npm run qa:probe -- --bosses` で見る。vitest の縮小版は 3 列が落ちずに回ることだけ）
+- 門（スライム王は seed 10。統合役が `ppnpm run qa:probe --bosses` で見る。vitest の縮小版は 3 列が落ちずに回ることだけ）
 
 | 列 | 勝ち | 撃破の秒（中央値） | 被弾（中央値） | 行為で進んだ段階 | 答え / 戦 |
 | --- | --- | --- | --- | --- | --- |
@@ -465,7 +465,7 @@ export function bossOnAnswer(state: GameState, e: Enemy, kind: BossAnswerKind): 
 
 ## 8. 不確かな点（確かめ方）
 
-- `src/system/player.ts`・`parry.ts` から `boss.ts` を import すると import の輪が増える（`combat.ts` → `elites.ts` → `boss.ts` → `bossKingSlime.ts` → `combat.ts` は既にある）。段 A で `npm run check` が通るかで確かめる。モジュールの初期化で落ちたら `bossOnAnswer` を葉のモジュールへ移し、各ボスの関数は `boss.ts` が登録する表にする
+- `src/system/player.ts`・`parry.ts` から `boss.ts` を import すると import の輪が増える（`combat.ts` → `elites.ts` → `boss.ts` → `bossKingSlime.ts` → `combat.ts` は既にある）。段 A で `pnpm run check` が通るかで確かめる。モジュールの初期化で落ちたら `bossOnAnswer` を葉のモジュールへ移し、各ボスの関数は `boss.ts` が登録する表にする
 - 上昇で壁を越えた着地点が柱の縁にかかる場合: `spawnSpot(state, want, want, radius)` が空き地を探す（`src/system/enemyTraits.ts:64`）。苔の釜の格子（`src/map/layout/lordHallGrids.ts`）の全ての床から跳ばせるテストを 1 本足して確かめる
 - 最深の主（体が大きい）が借りた跳躍で影の中心へ動くとき、門柱・壁と重ならないか: 段 A のテスト「借りた跳躍でも影の真上へ着く」を深度 21 の最深の間で回す
 - 放出の弾での墜落が多すぎないか: 銃の列は `qa/gearPower.ts` の武器の基を引数にしてから測る（段 C の後）

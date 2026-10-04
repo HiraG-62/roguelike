@@ -30,7 +30,7 @@
 
 ## 4. 確認の手順
 
-`node scripts/actor/gen.mjs --only <シート> --preview <dir> [--marks]` で確認用 PNG（`--marks` で原点と位置の印）。書き出しは `npm run actor:gen`。
+`node scripts/actor/gen.mjs --only <シート> --preview <dir> [--marks]` で確認用 PNG（`--marks` で原点と位置の印）。書き出しは `pnpm run actor:gen`。
 
 ## 5. 攻撃の動き（見本: 剣）
 

@@ -38,6 +38,6 @@ description: 1 つの機能をファイル所有で分割し、複数の実装�
 1. 各報告の「統合手順」を適用する（共有ファイルは Edit で）
 2. `git diff` で共有ファイルに他レーンの変更が残っているか確認する（クロバー検出）
 3. `git status --short` で一時ファイルが無いか確認する
-4. `npm run check`（多レーン並列中は負荷で `replay.test.ts` / `qa/simulation.test.ts` がタイムアウトすることがある。負荷が下がってから回す）
+4. `pnpm run check`（多レーン並列中は負荷で `replay.test.ts` / `qa/simulation.test.ts` がタイムアウトすることがある。負荷が下がってから回す）
 5. 大きな段の終わりにだけ `/review`（決定性・リプレイ・永続化に触る段は段ごと）。`/qa` のフル QA は数値合わせの段で 1 回
 6. コミット（ユーザーの指示がある場合）: レーンごとに `git add <所有ファイル>` → `git commit -m "<type>: <日本語>"`

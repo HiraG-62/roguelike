@@ -93,8 +93,8 @@
 | --- | --- | --- | --- |
 | A 地図と入出（implementer） | `map/hubMap.ts`、`system/hub.ts`、`system/hub.test.ts`、新規 `map/hubMap.test.ts` | `HUB.json` | 配置図どおり。石段で出撃。テスト: 台が床 / 開始から全部の台へ行ける / 台どうし 40px 超 / 台が敷地の南 1 マス以内 / 敷地は本物の地図で壁・ground で床 / 石段は入った時 1 回だけ |
 | B 景色の材料と配線（implementer） | `meta/townLook.ts` + test | `meta/hub.ts`（`FACILITY_OF_LOT`・`FACILITY_HINT`）、`ui/hubFlow.ts`、`main.ts`（openHub / returnToHub / drawHubScreen）、`HUB_DECOR.json` | 空の保存と最大の保存の見え方・段の境目・同じ入力なら同じ key |
-| C1 地面と描画の枠（implementer） | 新規 `render/townScene.ts` + test | `mapTypes.ts`、`data/mapThemes.ts`、`mapTheme.ts`、`mapLight.ts`、`renderer.ts`（drawTiles の sandbox 分岐・drawHubSpots の置き換え・drawPlayer の後・settleMap）、`hubUi.ts`、`tools/mapShot.ts`（hub-new / hub-full） | 仮の絵で町が描ける。名札が全設備に出る。`npm run map:shot -- --only hub-new` |
-| C2 建物と小物の絵（pixel-artist） | `render/townArt.ts`、新規 `data/sprites/townProps.ts` + test | なし | 全 `HubLotKey` の建った絵・空き地・井戸 4 段・提灯・鳥居と石段・幟・小物。`npm run sprite -- lint` |
+| C1 地面と描画の枠（implementer） | 新規 `render/townScene.ts` + test | `mapTypes.ts`、`data/mapThemes.ts`、`mapTheme.ts`、`mapLight.ts`、`renderer.ts`（drawTiles の sandbox 分岐・drawHubSpots の置き換え・drawPlayer の後・settleMap）、`hubUi.ts`、`tools/mapShot.ts`（hub-new / hub-full） | 仮の絵で町が描ける。名札が全設備に出る。`ppnpm run map:shot --only hub-new` |
+| C2 建物と小物の絵（pixel-artist） | `render/townArt.ts`、新規 `data/sprites/townProps.ts` + test | なし | 全 `HubLotKey` の建った絵・空き地・井戸 4 段・提灯・鳥居と石段・幟・小物。`ppnpm run sprite lint` |
 
 - **段 2（統合役 + reviewer）**: 削除は済み（2026-10-02。`hubDecorations` / `HubDecor`〔meta/hub.ts〕は呼ぶ所が無くなったので段 3 で消せる）。残り: 資料（CODE_MAP・GLOSSARY・IDEAS・map-visual-impl・CHANGELOG）、`map:shot` の撮り比べをユーザーに見せる
 
@@ -109,5 +109,5 @@
 ## 不確かな点
 
 - `MapStyle` に `town` を足したときの `Record<MapStyle, …>` と様式の検査の追随（C1 が tsc と mapTheme / mapThemes のテストで確かめる）
-- 道の canvas と物の canvas を作る時間（C1 が `hitch:probe` と `map:shot -- --bench` で測り、16ms を超えるならフレームに分ける）
+- 道の canvas と物の canvas を作る時間（C1 が `hitch:probe` と `map:shot --bench` で測り、16ms を超えるならフレームに分ける）
 - タイトルの開始の演出（門へ寄って暗転）から門の真下に立つ拠点へのつながりは、撮った絵を見て判断

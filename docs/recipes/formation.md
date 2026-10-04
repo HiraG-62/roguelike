@@ -3,7 +3,7 @@
 陣形 = 陣（敵の一団が占める場所）の中の役割と格の組み合わせと並べ方。設計は `docs/ideas/jin-impl.md` 2-5・2-6、考え方は `docs/ideas/core-synthesis.md` 4 章。
 
 - **key と表示名**: `src/data/formations.ts` の `FORMATION_KEYS` と `FORMATION_LABEL`（熟語。`docs/GLOSSARY.md` に 1 行）。まだ JSON の無い key は抽選に出ない
-- **数値**: `src/data/balance/enemies/FORMATION/<key>.json` を 1 つ足し、`src/data/balance/enemies/FORMATION/_index.json` の `_order` に key を足して `npm run balance:gen`。項目の意味は `_index.json` の `_fields`
+- **数値**: `src/data/balance/enemies/FORMATION/<key>.json` を 1 つ足し、`src/data/balance/enemies/FORMATION/_index.json` の `_order` に key を足して `pnpm run balance:gen`。項目の意味は `_index.json` の `_fields`
   - `layout`: 並べ方（`FORMATION_LAYOUTS`。wedge 三角 / vee V 字 / arc 弧 / line 一列 / ring 輪 / diagonal 斜め / column 縦列 / twoRows 2 列 / single 1 点）。新しい並べ方は `src/map/formation.ts` の `layoutOffsets` に足す（正面 +x、原点が陣の中心の純関数）
   - `minDepth` / `weight` / `spacing`
   - `leader`（任意）: 大将のスロット `{ role, grade, lairChance }`。先頭（正面）に置き、深度 3 以降は精鋭を必ず 1 つ付ける。部屋主が候補にいれば `lairChance` で大将にする。大将の重さは `JIN.gradeWeight.leader`（倒すと群勢が大きく下がる）
@@ -16,4 +16,4 @@
 - **配り方**: `src/system/jinSpawn.ts` の `planJins`（陣を置く塊と予算）と `spawnJin`（スロットを埋める）。通路の長蛇は陣形 `column`
 - テスト: `src/data/formations.test.ts`（JSON の検査）・`src/map/formation.test.ts`（並べ方）・`src/system/jinSpawn.test.ts`（配り）
 
-最後に `npm run check`。生成直後の総数と陣形の出現数はフル QA の陣の表（`src/qa/jinMetrics.ts`）で見る。
+最後に `pnpm run check`。生成直後の総数と陣形の出現数はフル QA の陣の表（`src/qa/jinMetrics.ts`）で見る。

@@ -1,11 +1,11 @@
 /**
- * フル QA（`npm run qa:full`）。SIM_FULL=1 を付けて src/qa のシミュレーションを実行し、
+ * フル QA（`pnpm run qa:full`）。SIM_FULL=1 を付けて src/qa のシミュレーションを実行し、
  * 標準出力のマーカー間（<<<QA_REPORT_START>>> 〜 <<<QA_REPORT_END>>>）を src/qa/report.md に書き出す。
  * simulation.test.ts は @types/node が無く fs に触れないため、書き出しはこのスクリプトの責務。
  *
  * 使い方:
- *   npm run qa:full              # 実行して report.md を上書き
- *   npm run qa:full -- --no-write  # 実行だけ（report.md を変えない）
+ *   pnpm run qa:full              # 実行して report.md を上書き
+ *   ppnpm run qa:full --no-write  # 実行だけ（report.md を変えない）
  */
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";

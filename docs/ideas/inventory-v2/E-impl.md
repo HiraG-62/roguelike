@@ -358,7 +358,7 @@ E3・E4・E5・E6・E8a は `isolation: "worktree"` で同時に走らせる。E
   - seen: 「seenAt が無ければすべて新着」「候補を見た後の部位は新着でなくなり、後から入った物だけ新着」「壊れた seenAt は読み捨てる」（`loot/profile.ts` の sanitize）
   - render: 「全ての頁を例外なく描き、fillText を直接使わない」「装束の予算: 文の行 4・BODY 1・数 1・印 28 以下」
   - hubFlow: 「鍛冶場は金床の構え、書庫はスキルの頁、庭は芽のある部位の候補で開く」
-- 完了条件: `npm run check:fast`。Esc で閉じた同じフレームにポーズ・拠点の退出が起きない（手で確認）。報告に CODE_MAP の行（6 章 6-3）
+- 完了条件: `pnpm run check:fast`。Esc で閉じた同じフレームにポーズ・拠点の退出が起きない（手で確認）。報告に CODE_MAP の行（6 章 6-3）
 
 #### E3 段 3: 候補と比べる（M、Sonnet、E2 の後、E4・E5・E6・E8a と並行）
 
@@ -422,7 +422,7 @@ E3・E4・E5・E6・E8a は `isolation: "worktree"` で同時に走らせる。E
 
 - `src/meta/tips.ts`・`docs/GLOSSARY.md`（6 章）、`docs/CODE_MAP.md` の説明の整え、`docs/ARCHITECTURE.md`（永続化の表に `seenAt`、旧タブの記述）、`IDEAS.md` の現状、`docs/HANDOFF.md`、`CHANGELOG.md`
 - コードの片付け: `src/ui/inventoryLayout.ts`・`src/render/lootUiParts.ts` の使われない export を消す（2-2）
-- 完了条件: `npm run check`
+- 完了条件: `pnpm run check`
 
 ### 4-4. レビューの位置
 

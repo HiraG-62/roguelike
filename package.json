@@ -4,6 +4,12 @@
   "version": "0.0.15",
   "type": "module",
   "main": "dist-electron/main.js",
+  "packageManager": "pnpm@10.14.0",
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "electron-winstaller"
+    ]
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

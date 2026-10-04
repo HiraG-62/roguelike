@@ -118,7 +118,7 @@ export function rowsToRgba(rows: readonly string[], palette: Palette): RgbaImage
   return { width, height, rgba };
 }
 
-/** `npm run sprite -- import` と同じ形の TS リテラル */
+/** `ppnpm run sprite import` と同じ形の TS リテラル */
 export function frameLiteral(name: string, rows: readonly string[]): string {
   return `const ${name}: Frame = [\n${rows.map((r) => `  "${r}",`).join("\n")}\n];`;
 }

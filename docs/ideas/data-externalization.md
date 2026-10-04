@@ -203,7 +203,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 ### 5.2 Electron 版
 
 - **JSON はバンドルに固定し、配布後の差し替え口は作らない**。`resources/` や `userData/balance/` からの読み込みは実装しない
-- 理由: (1) 決定性の前提（同じ seed + 同じ入力 → 同じ結果）が「同じ数値」を含んでいる。差し替えを許すとデイリーの比較とリプレイの再現が壊れる (2) 調整するのはユーザー本人で、`npm run dev` か `npm run electron:dev` で JSON を直せば足りる (3) 今の main プロセスは `save/` の既知キー以外を読まない設計（`electron/main.ts:83-120`）で、読み込み口を増やすと検証の穴になる
+- 理由: (1) 決定性の前提（同じ seed + 同じ入力 → 同じ結果）が「同じ数値」を含んでいる。差し替えを許すとデイリーの比較とリプレイの再現が壊れる (2) 調整するのはユーザー本人で、`pnpm run dev` か `pnpm run electron:dev` で JSON を直せば足りる (3) 今の main プロセスは `save/` の既知キー以外を読まない設計（`electron/main.ts:83-120`）で、読み込み口を増やすと検証の穴になる
 - 将来 MOD を許すなら: `userData/mods/balance/*.json` を起動時に読み、`BALANCE` に **上書きマージ**して `BALANCE_HASH` を再計算、タイトルに「改変版」バッジ、デイリー・実績の記録を止める。`BALANCE` が 1 か所に集まる本案の上に乗せられる
 
 ### 5.3 決定性・リプレイ
@@ -214,11 +214,11 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 
 ## 6. 移行計画
 
-原則: **1 段 = tuning.ts のブロック群 1 組 + 対応する TS テーブル**。各段の完了条件は `npm run check` と、その段に関係する既存テストが 1 つも変わらないこと（固定値テストが「数値を変えていない」証拠になる）。数値の変更と移行を同じコミットに混ぜない。
+原則: **1 段 = tuning.ts のブロック群 1 組 + 対応する TS テーブル**。各段の完了条件は `pnpm run check` と、その段に関係する既存テストが 1 つも変わらないこと（固定値テストが「数値を変えていない」証拠になる）。数値の変更と移行を同じコミットに混ぜない。
 
 ### 6.0 抽出スクリプト `scripts/extract-balance.mjs`
 
-> 2026-09-25 追記: 移行が終わったので抽出スクリプトは削除した。JSON は 1 ファイルずつではなく `src/data/balance/<ファイル>/` のディレクトリに分け、`scripts/balance-assemble.mjs`（`npm run balance:gen`）が元の形に組み立てる（配置の決まりは `docs/BALANCE.md`「ファイルの配置」）。以下は当時の記録。
+> 2026-09-25 追記: 移行が終わったので抽出スクリプトは削除した。JSON は 1 ファイルずつではなく `src/data/balance/<ファイル>/` のディレクトリに分け、`scripts/balance-assemble.mjs`（`pnpm run balance:gen`）が元の形に組み立てる（配置の決まりは `docs/BALANCE.md`「ファイルの配置」）。以下は当時の記録。
 
 - Vite の JS API で TS を評価して値を取り出す（依存追加なし。`scripts/electron-dev.mjs:8,16` が既に `createServer` を使っている）:
   ```js
@@ -283,7 +283,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 - 先に読む: この文書 3〜4 章、`src/core/rng.ts:42`（`hashSeed`）、`src/version.test.ts`（JSON を読むテストの前例）
 - 公開 API: 4.1 / 4.2 のシグネチャ。`Clean<T>` / `stripNotes` / `BALANCE` / `BALANCE_HASH` / `validateBalanceShape` / `diffKeySets`
 - テスト（`it` 名）: 「_note を剥がして readonly の値を返す」「_ で始まるキーは型からも消える（`// @ts-expect-error`）」「有限でない数値・null・文字列でない _note を path 付きで報告する」「diffKeySets は JSON 側の余分と TS 側の余分を両方報告する」「BALANCE_HASH は 8 桁 hex」
-- 完了条件: `npm run check` 成功。`src/system/attributes.test.ts` の固定値テストが無変更で通る。`node scripts/extract-balance.mjs combat` が `combat.json` と同じ内容を吐く（差分ゼロ）
+- 完了条件: `pnpm run check` 成功。`src/system/attributes.test.ts` の固定値テストが無変更で通る。`node scripts/extract-balance.mjs combat` が `combat.json` と同じ内容を吐く（差分ゼロ）
 
 ### レーン B: 敵（段 1。A の後）
 
@@ -291,7 +291,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 - 最小 Edit: `src/data/tuning.ts`（`ENEMY_AI ENEMY_TEMPO ELITE ELITE_GREEDY DOUBLE_CHARGE BOSS REAPER` の 7 ブロックを再 export に）、`src/data/balance/balance.test.ts`（敵のキー集合 3 件 + body / biome の存在）
 - 追加する関数: `enemyDefense.ts` に `defenseOf(key: string): EnemyDefenseDef`（`BALANCE.enemies.defense` を畳む）、`ENEMY_ATTACK: Readonly<Record<string, AttackProfile>>`（`attack` を TS に残す表）
 - テスト: 上記 + 既存 `data/enemyCombat.test.ts` / `system/enemies.test.ts` / `render/sprites.test.ts` が無変更で通る
-- 完了条件: `npm run check`。`git diff --stat` で `system/**` に変更が無い
+- 完了条件: `pnpm run check`。`git diff --stat` で `system/**` に変更が無い
 
 ### レーン C: ジョブ（段 2。A の後。B と並行可）
 
@@ -304,7 +304,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 ### レーン E: 残り（段 4。B〜D の後）
 
 - 所有: `combat.json`（残り）、`loot.json`、`world.json`、`feel.json`、`src/data/actionText.ts`（新規）、`src/loot/affixes.ts`（`curve` の置換のみ）、`src/loot/bases.ts`。最小 Edit: `tuning.ts`（残り全ブロック → 再 export だけのファイルに）、`ACTION.x.text` を読む数か所（`ACTION_TEXT.x` へ）、`src/core/replay.ts` / `src/main.ts`（5.3 の `balance` 欄と注記）、`src/qa/simulation.ts`（report 先頭のハッシュ）、`docs/ARCHITECTURE.md`
-- 完了条件: `npm run check`。`grep -c "as const" src/data/tuning.ts` が 0。`src/qa/report.md` に `BALANCE_HASH` が出る
+- 完了条件: `pnpm run check`。`grep -c "as const" src/data/tuning.ts` が 0。`src/qa/report.md` に `BALANCE_HASH` が出る
 
 ## 9. 却下した案
 
@@ -319,7 +319,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 ## 10. 不確かな点と確かめ方
 
 1. **Vite 8 の module runner API 名**（6.0）: `createServerModuleRunner` と `server.environments.ssr` が Vite 8 でそのまま使えるか。`node -e "import('vite').then(v => console.log(typeof v.createServerModuleRunner))"` で確認。無ければ `server.ssrLoadModule("/src/data/tuning.ts")`（非推奨だが残っている想定）
-2. **JSON import の型が 3,000 キー規模で tsc / エディタを遅くしないか**: 段 1 の後に `npm run check` の tsc の秒数を段 0 と比べる（`scripts/check.mjs` が秒数を出す）。1 ファイルが大きすぎるなら `enemies.json` を `enemies.stats.json` / `enemies.ai.json` に割る
+2. **JSON import の型が 3,000 キー規模で tsc / エディタを遅くしないか**: 段 1 の後に `pnpm run check` の tsc の秒数を段 0 と比べる（`scripts/check.mjs` が秒数を出す）。1 ファイルが大きすぎるなら `enemies.json` を `enemies.stats.json` / `enemies.ai.json` に割る
 3. **`Clean<T>` の `as` 句によるキー除去が深いネストで型の推論を鈍らせないか**: 段 0 のテストで `BALANCE.combat.PLAYER.melee[0]!.scaling.base` が `number` に推論されることを `expectTypeOf` で固定する
 4. **Vite の JSON 変換と `_note`**: `build.json.stringify` の既定（`auto`）で問題ないはず。`vite build` 後の `dist/assets/*.js` に `_note` の文字列が残る（バンドルサイズが少し増える）。気になれば `stripNotes` を build 時に前倒しする Vite プラグイン（依存なし・数行）を後で足す
 5. **`vitest` の JSON import**: Vite と同じ変換なのでそのまま読める想定。段 0 の `balance.test.ts` で確認
@@ -329,7 +329,7 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 
 ## 11. ユーザー向け: 数値の変え方
 
-全部 `src/data/balance/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`npm run check` は通さなくても `npm run dev` は動くが、変える前に一度 `npm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
+全部 `src/data/balance/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`pnpm run check` は通さなくても `pnpm run dev` は動くが、変える前に一度 `pnpm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
 
 **武器の振りの速さを変える**（例: 大剣の 1 段目を速くする）:
 1. `src/data/balance/weapons.json` を開き、`WEAPON.movesets.greatsword.steps` の配列を探す（1 段 1 行）
@@ -349,5 +349,5 @@ export function diffKeySets(label: string, jsonKeys: Iterable<string>, tsKeys: I
 2. 怯み耐性（怯みにくさ）を変えたいときは `combat.<敵の key>.poise`、防御・耐性は `defense.enemies.<敵の key>`
 
 **共通の注意**:
-- 数値だけを直す分には型は壊れない（`shape.kind` のような形の種類や `key` は文字列の一覧と照合されるので、存在しない値を書くと `npm run check` の vitest で落ちる）
-- 変えたら該当のテスト（`npx vitest run src/data/weapons.test.ts` など）と `npm run check` を通す。テストは「数値を変えていないこと」を固定しているものが多いので、意図した数値変更でテストが落ちるのは正常（そのテストの期待値も一緒に直す）
+- 数値だけを直す分には型は壊れない（`shape.kind` のような形の種類や `key` は文字列の一覧と照合されるので、存在しない値を書くと `pnpm run check` の vitest で落ちる）
+- 変えたら該当のテスト（`pnpm exec vitest run src/data/weapons.test.ts` など）と `pnpm run check` を通す。テストは「数値を変えていないこと」を固定しているものが多いので、意図した数値変更でテストが落ちるのは正常（そのテストの期待値も一緒に直す）

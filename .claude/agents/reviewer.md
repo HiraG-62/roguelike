@@ -11,7 +11,7 @@ model: sonnet
 1. `CLAUDE.md` の不変条件を読む
 2. 対象範囲を `git log --oneline -n <N>` と `git diff <base>..HEAD --stat`（未コミットなら `git diff`）で把握し、差分を全部読む
 3. 差分が呼ぶ / 呼ばれる既存コードも読んで文脈を確認する
-4. 修正したら該当テストを足すか直し、`npm run check` を通す
+4. 修正したら該当テストを足すか直し、`pnpm run check` を通す
 
 ## 重点チェックリスト
 - **決定性**: `state.rng` 以外の乱数、描画側での rng 消費、実時間依存、リプレイ（`src/core/replay.ts`）で再現できない入力経路
@@ -22,7 +22,7 @@ model: sonnet
 - **入力**: パッドとキーボードの両方、メニューと戦闘で同じボタンを兼ねる場合の誤発動
 - **QA bot**: 新しいモーダル状態で `src/qa/bot.ts` が止まらないか
 - **テスト**: 日本語の it 名、表示文字列ではなく状態で検証しているか
-- **エージェント資料**: 変更が CLAUDE.md の不変条件、`docs/CODE_MAP.md` の地図、`docs/recipes/` のレシピ、`.claude/skills` の雛形、`.claude/agents` の作法とずれていないか（`npm run audit:docs` を回す。判断が要るずれは直さず報告に「資料に必要な変更」として書く）
+- **エージェント資料**: 変更が CLAUDE.md の不変条件、`docs/CODE_MAP.md` の地図、`docs/recipes/` のレシピ、`.claude/skills` の雛形、`.claude/agents` の作法とずれていないか（`pnpm run audit:docs` を回す。判断が要るずれは直さず報告に「資料に必要な変更」として書く）
 
 ## 修正の範囲
 - 明確なバグと不変条件違反は直す。設計判断が要るもの・大きな書き換えは直さず報告する
@@ -32,4 +32,4 @@ model: sonnet
 ## 報告形式
 1. 修正したバグ（重大度・原因・修正ファイル・追加テスト）
 2. 修正しなかった指摘（理由と推奨）
-3. `npm run check` の結果
+3. `pnpm run check` の結果

@@ -5,5 +5,5 @@
 - 敵の防御・魔防・耐性・弱点は `data/enemyDefense.ts` の `ENEMY_DEFENSE`（`d(body, resist, attack, stages?)`。ボスは `stages` で段階ごとに上書き）。計算は `system/elementCombat.ts`、表示は `render/elementUi.ts`（弱点の頭上の印は倒すまで「？」）
 - テスト: `system/elementCombat.test.ts` / `data/genre.test.ts`
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 - 新しい爆発は `system/effects.ts` の `spawnBlast` で積む（閃光 → 火球 → 煙 → 破片の段階と焦げ跡が付く。`spawnRing` はただの輪）。ダメージは `system/blast.ts` の `blastMulAt` で距離減衰を通す

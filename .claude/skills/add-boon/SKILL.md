@@ -8,7 +8,7 @@ description: ラン内の祝福（3 択）を追加する。ルール変更型�
 1. 原則に照らす: **数値盛りではなくルール変更**。装備タグ（burn / chill / shock / dash / just / combo …）と掛け算になる形か
 2. 決める: 日本語名 / key / desc（1〜2 文、GLOSSARY の表記）/ icon（1 文字）/ rarity / tags / cursed（代償付きか）/ requires（装備タグが無いと出ない）
 3. 効果の入れ場所を決める: 「〜時: 〜」で書けるなら統一ルール文法（`BoonDef.rules`。`core/rules.ts`）を最優先。数値なら `foldBoonStats`、フックが要るなら `boons.ts` の既存フック（`onBoonMeleeHit` / `onBoonKill` / `onBoonDash` / `onBoonRoomClear` …）から `boonRules.ts` の `onBoonXxxRules` へ。同じ主の多段なら `lineage` / `after`、2 祝福の合体なら `duo`
-4. implementer を起動（下の雛形）。報告後に `npm run check`
+4. implementer を起動（下の雛形）。報告後に `pnpm run check`
 
 ## implementer への雛形
 ```
@@ -30,7 +30,7 @@ description: ラン内の祝福（3 択）を追加する。ルール変更型�
 ## 完了条件
 - テスト（日本語）: 取得前は効かない / 取得後に効く / 代償が効く / requires のタグが無いと候補に出ない
 - src/qa/bot.ts の祝福選択が引き続き動く
-- npm run check が通る
+- pnpm run check が通る
 ## 報告形式
 docs/AI_WORKFLOW.md の雛形の報告形式
 ```

@@ -305,7 +305,7 @@ export type ManaSource =
 - JSON: `twinBlades.json` 5 → 6、`fists.json` 5 → 6、`claws.json` 5 → 8。右レーンも同数（最終段 = 乱舞 `frenzy`）。段の目安は既存の 3〜4 段目を写して `hits` を足す。派生の `next` は張り直す（最終段を指すものは新しい最終段へ）
 - 計算式の頁: `ui/scalingText.ts actionListRows` に **「連続する段で式が同じなら『1〜2 段目』に畳む」** を足す（連刃は 1・2 段が同じ式）。`detailPane.test.ts:87, 119` が受ける
 - HUD: `comboPips` 8 個の幅（`render/comboUi.ts`）は `renderMath` の hudLayout で確認。溢れたらピップの間隔を段数で縮める
-- fx: `MOVESET_FX` の網羅の検査（`swingMotionKeys`）が新しい `l:5..7` / `r:frenzy` を要求する → **fx レーン**（`scripts/fx/sheets/twinBlades.mjs / claws.mjs / fists.mjs` + `npm run fx:gen -- --atlas <key>`）。先に入れるときは検査に「未描画の段の許容リスト」を足す（手続きの描画に落ちる）
+- fx: `MOVESET_FX` の網羅の検査（`swingMotionKeys`）が新しい `l:5..7` / `r:frenzy` を要求する → **fx レーン**（`scripts/fx/sheets/twinBlades.mjs / claws.mjs / fists.mjs` + `ppnpm run fx:gen --atlas <key>`）。先に入れるときは検査に「未描画の段の許容リスト」を足す（手続きの描画に落ちる）
 - `data/meleeReach.test.ts`（外縁は刃先まで）が新段を検査するので reach/size は既存の段に揃える
 
 ### 3-10. 型の足し方（レシピ `docs/recipes/weapon.md` の書き直し）
@@ -342,7 +342,7 @@ export type ManaSource =
 | `DASH_FORM` | `balance/jobs/DASH_FORM.json` | 形ごとの `distanceMul / invulnMul / timeMul / trapKey / terrain / wardSec / wardMul / shadowBackstabSec / vaultLanding` |
 | `MANA_SOURCE` | `balance/jobs/MANA_SOURCE.json` | 流儀ごとの源の量（3-7 の表）。`JOB.json` に `manaBaseMul` 0.35 |
 | 削る | `balance/jobs/weakness.json`、`JOB.json` の `favored*` / `*Mul`（弱点）| 5c |
-すべて `npm run balance:gen` → `balance.test.ts` の `_fields` 検査
+すべて `pnpm run balance:gen` → `balance.test.ts` の `_fields` 検査
 
 ### 4-3. テスト（新しい仕組みには必ず）
 - `data/weaponForms.test.ts`: 全武器種が型を持つ / 型の放出の段の key が `steps2` に実在（laneStep のもの）/ 段数が型の幅に入る / 重さの既定から外れる武器種は `WEIGHT_OVERRIDES` に理由付き / FormKey と MovesetKey が重ならない
@@ -404,9 +404,9 @@ export type ManaSource =
 | **D 近接の型 5**（刃斧・長柄・鎖・盾・扇・杖・投具。Sonnet ×2 に分けてよい: D1 刃斧・長柄・鎖 / D2 盾・扇・杖・投具）| `data/weaponForms.ts` の該当型、`FORM/<form>.json`、`movesets/{axe,cleaver,spear,staff,whip,chainSickle,scythe,shield,fan,wand,ringBlades,thrown,warRing}.json`（放出の段の key 付け・裂き `rend` / 叩きつけ `slam` の差し替え・`wound` の applies）、`core/status.ts` + `system/statusEffects.ts`（`wound`。D1）、`balance/combat/STATUS/wound.json`、`system/morale.test.ts` の該当節、`docs/recipes/status.md` に従う | `system/combat.ts`（一蓮托生 1 か所。D1）、`system/weaponArts.ts`（`recallShots` の倍率 1 行。D2）、`system/projectiles.ts`（戻りの弾 × 敵弾 = recallCut 1 か所。D2）、`system/enemies.ts`（`Enemy.linked` の初期化・減衰 各 1 行。D1）| `player.ts`（A が入れた口だけ使う）|
 | **E 銃の型 3**（短銃・砲。長銃は 5a）| `data/weaponForms.ts` の該当型、`FORM/{pistol,artillery}.json`、`movesets/{sidearm,gunner,cannon,grenade,trapper}.json`、`system/morale.test.ts` の該当節 | `system/player.ts`（`canShootNow` に装填の窓 1 行、`pressSecondary` に強装填 1 分岐、`emitVolley` の shotFired 1 行）、`system/weaponArts.ts`（`detonateOwnMines` の戻り値 = 数）| D のファイル |
 | **F 連刃の段数**（Sonnet）| `movesets/{twinBlades,claws,fists}.json`（6/8/6 段 + 右 + 乱舞 `frenzy` + 派生の `next`）、`data/weapons.ts` `STEP2_NAMES`、`ui/scalingText.ts`（同じ式の段の畳み）、`render/detailPane.test.ts`、`data/weapons.test.ts`（幅・EXPECTED）、`data/scalingVariety.test.ts`、`data/meleeReach.test.ts`、`system/player.test.ts`（段数の固定値）| `render/comboUi.ts`（ピップの間隔）、`render/fxMotions.test.ts`（未描画の許容リスト。G が消す）| `player.ts` |
-| **G 連刃の fx**（fx。F の JSON が決まってから）| `scripts/fx/sheets/{twinBlades,claws,fists}.mjs`、`npm run fx:gen -- --atlas <key>` の生成物（`data/fx/*.gen.json` `public/assets/fx/`）、`render/fxMotions.test.ts` の許容リストを消す | — | 本体 |
+| **G 連刃の fx**（fx。F の JSON が決まってから）| `scripts/fx/sheets/{twinBlades,claws,fists}.mjs`、`ppnpm run fx:gen --atlas <key>` の生成物（`data/fx/*.gen.json` `public/assets/fx/`）、`render/fxMotions.test.ts` の許容リストを消す | — | 本体 |
 | **H 重さの補償**（balance-tuner Opus。A〜F の後）| `balance/weapons/WEAPON/weightClass.json`（補償の 3 項目の追加は A が型と口を入れる: `scaleStep` knockback / `meleeHitEnemy` guardBreak）、各 `movesets/*.json` の数値、`src/qa/probe.md` | — | コード |
-- 統合役: `REPLAY_VERSION` 19、`npm run qa:probe`、6 章の指標で H に渡す
+- 統合役: `REPLAY_VERSION` 19、`pnpm run qa:probe`、6 章の指標で H に渡す
 
 ### 5c. 改鋳と流儀（遊べる: ボス後に改鋳 3 択、ジョブでダッシュと気力の湧き方が変わる）
 | レーン | 所有 | 最小 Edit | 編集禁止 |
@@ -422,7 +422,7 @@ export type ManaSource =
 | **M 持ち手の絵**（pixel-artist）| `data/sprites/weapons.ts` の `HELD` 2 件、`WEAPON_EDGE`、`scripts/actor/` の武器の生成一覧、`render/sprites.test.ts` | — |
 | **N fx**（fx）| `scripts/fx/sheets/{tome,bell,tomeUlt,bellUlt}.mjs` + 生成物 | — |
 | **O 陰陽師・巫女**（Sonnet。K の後）| `data/jobs.ts`（2 ジョブ）、`balance/jobs/*`、`system/dashForms.ts`（swap / ward）、`system/manaSources.ts`（minionHit / boonFired）、`jobs.test.ts`、`meta/quests.ts`（解放の依頼を割り当てるなら）| `system/rules.ts`（boonFired は K が入れる）|
-- 統合役: `REPLAY_VERSION` 21、`npm run qa:full`
+- 統合役: `REPLAY_VERSION` 21、`pnpm run qa:full`
 
 ### 資料に必要な変更（統合役）
 `docs/recipes/weapon.md`（3-10 の形に書き直し）/ `job.md`（dash / mana）、`docs/CODE_MAP.md`（`weaponForms.ts` `morale.ts` `moments.ts` `reforge.ts` `dashForms.ts` `manaSources.ts` `moraleHud.ts` `reforgeUi.ts`、`FORM/` `REFORGE/`）、`docs/ARCHITECTURE.md`（版・戦意はラン内・改鋳は入力で決定）、`docs/GLOSSARY.md`（型名 15・戦意の名 15・放出の段名・改鋳名 30・流儀のダッシュ名）、`docs/BALANCE.md`（`weapons/FORM` `REFORGE` `MOMENT` `jobs/DASH_FORM` `MANA_SOURCE`）、`docs/COMBAT_DESIGN.md` A-7 / A-9、`IDEAS.md` 現状、`scripts/audit-agent-docs.mjs` の件数
@@ -431,7 +431,7 @@ export type ManaSource =
 
 ## 6. 調整つまみと測る指標
 
-物差しは `npm run qa:probe`（5a の C で武器種の軸を足す）。**bot は `mashDodge`（連打+ダッシュ）**、敵は slime（並）・knight（堅守）・eye（射手）、深度 1 / 5、60 秒 × seed 3。
+物差しは `pnpm run qa:probe`（5a の C で武器種の軸を足す）。**bot は `mashDodge`（連打+ダッシュ）**、敵は slime（並）・knight（堅守）・eye（射手）、深度 1 / 5、60 秒 × seed 3。
 
 | 目標 | 指標 | つまみ（優先順）|
 | --- | --- | --- |
@@ -458,5 +458,5 @@ export type ManaSource =
 9. **放出の消費は振りの開始**（空振りでも消える）を推奨。命中で消す案は「当たるまで振り続ける」で放つ時機を読まなくなる
 10. **改鋳の出所**: 今は 5 の倍数の階のボス撃破直後。章（段取り 6）が入ったら出口へ。`REFORGE.perRun` で回数を縛る
 11. **応手の 6 語の EventKind と既存の `onCounter` / `onJustDodge` の二重発火**: 既存の祝福・ジョブ Rule を壊さないため両方出す。段取り 7 で祝福を `onRiposte` に寄せてから既存を減らす
-12. **確認方法**: 各段の終わりに `npm run check` → `npm run qa:probe` で 6 章の表 → 剣・双剣・大剣・長銃・拳銃を `npm run dev` で手動（充溢の浮き文字と放出の倍率が見えるか、装填の拍が押せるか）
+12. **確認方法**: 各段の終わりに `pnpm run check` → `pnpm run qa:probe` で 6 章の表 → 剣・双剣・大剣・長銃・拳銃を `pnpm run dev` で手動（充溢の浮き文字と放出の倍率が見えるか、装填の拍が押せるか）
 13. **`boonChoice` 中の入力は `main.ts` を通らず step の中で読む**（`updateBoonChoice`）ので改鋳も同じ経路で `main.ts` は無変更のはず。J が `core/game.ts` の `step` を読んで確認する

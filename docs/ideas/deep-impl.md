@@ -262,11 +262,11 @@ Tips の本文（数値は JSON から組む）:
 | `world/FLOOR_KIND.json` | `deepDepth` / `deepMaxEnemiesBonus` / `mutationEvery` の値と `_fields` の 3 行を削除 | A |
 | `world/ROOM.json` | `_fields.maxEnemies` の文を「…深み（最深の間の次の階から）は DEEP.maxEnemiesBonus を足す」に | A |
 | `enemies/ENEMY_SCALE.json` | `_fields.deepDepth` の文だけ「ここから深み（指数の伸び）。最深の間の深度と同じにする（chapters.test.ts が縛る）。深みの敵数・変異は world/DEEP」に（**値と `_note` は 7e のもの。触らない**） | A |
-| `loot/REACH.json`（新。`loot/_index.json` の `_order` の `"RESONANCE"` の直後に `"REACH"`） | `_note`: 「厳選の到達点（loot/reach.ts）。装備だけで数えた量が閾値に届くと、その軸の決まりが 1 つ変わる。祝福・起点・祭壇の誓約では届かない。閾値の目安は『深度 25〜30 で拾った上振れの遺物 2 つ』（qa:probe -- --deep の到達の表で確かめる）」。`chain 0.8`（「無尽の閾値。装備の連鎖係数の合計（1 = +100%）。目安 0.6〜1」）、`burn 7`（「燎原の閾値。装備の燃焼の重ねの上限の加算。目安 5〜9」）、`morale 32`（「常在の閾値。装備の戦意の上限の加算。目安 25〜40」） | B |
-| `combat/LIMITS.json`（新。`combat/_index.json` の `_order` の `"STATUS"` の直後に `"LIMITS"`） | `_note`: 「性能の歯止め（system/limits.ts）。強さの上限ではなく 1 ステップの重さを抑える数。超えた分は古い順に消し ruleRun.trimmed に数える。通常のプレイでは届かない数にする（qa:probe -- --deep の壊れの表で最大値を見る）」。`playerProjectiles 256` / `skillShots 192` / `placedPerPool 32` | C |
+| `loot/REACH.json`（新。`loot/_index.json` の `_order` の `"RESONANCE"` の直後に `"REACH"`） | `_note`: 「厳選の到達点（loot/reach.ts）。装備だけで数えた量が閾値に届くと、その軸の決まりが 1 つ変わる。祝福・起点・祭壇の誓約では届かない。閾値の目安は『深度 25〜30 で拾った上振れの遺物 2 つ』（qa:probe --deep の到達の表で確かめる）」。`chain 0.8`（「無尽の閾値。装備の連鎖係数の合計（1 = +100%）。目安 0.6〜1」）、`burn 7`（「燎原の閾値。装備の燃焼の重ねの上限の加算。目安 5〜9」）、`morale 32`（「常在の閾値。装備の戦意の上限の加算。目安 25〜40」） | B |
+| `combat/LIMITS.json`（新。`combat/_index.json` の `_order` の `"STATUS"` の直後に `"LIMITS"`） | `_note`: 「性能の歯止め（system/limits.ts）。強さの上限ではなく 1 ステップの重さを抑える数。超えた分は古い順に消し ruleRun.trimmed に数える。通常のプレイでは届かない数にする（qa:probe --deep の壊れの表で最大値を見る）」。`playerProjectiles 256` / `skillShots 192` / `placedPerPool 32` | C |
 | `src/data/tuning.ts` | A: `export const ARC = …` の直後に `export const DEEP = BALANCE.world.DEEP;`。B: `export const RESONANCE = …` の直後に `export const REACH = BALANCE.loot.REACH;`。C: `export const STATUS = …` の直後に `export const LIMITS = BALANCE.combat.LIMITS;` | A / B / C |
 
-`src/data/balance/assembled.gen.ts` は 3 レーンが import を足す → **統合役が取り込みごとに `npm run balance:gen`**（手で直さない）。
+`src/data/balance/assembled.gen.ts` は 3 レーンが import を足す → **統合役が取り込みごとに `pnpm run balance:gen`**（手で直さない）。
 
 ### 3-3. テスト（`it` は日本語。状態で検証する）
 
@@ -316,7 +316,7 @@ Tips の本文（数値は JSON から組む）:
 | `system/effects.test.ts:110`（浮き文字の上限）・命中の数字の検査 | 小さい数は同じ文字 | そのまま | C |
 | `core/replay.test.ts`・`system/enemyGolden.test.ts` | 深度 22 未満は変わらない | そのまま通るのが完了条件 | A / C |
 | `data/balance/balance.test.ts` | 新しい葉 | 全部 `_fields` に書く | 各 |
-| `npm run audit:docs` | 新しい本体 5 ファイル（`system/deep.ts` / `loot/reach.ts` / `ui/reachRows.ts` / `system/limits.ts` / `qa/deepProbe.ts`）が `CODE_MAP.md` に無い | 統合役がコードと同じコミットで足す | 統合役 |
+| `pnpm run audit:docs` | 新しい本体 5 ファイル（`system/deep.ts` / `loot/reach.ts` / `ui/reachRows.ts` / `system/limits.ts` / `qa/deepProbe.ts`）が `CODE_MAP.md` に無い | 統合役がコードと同じコミットで足す | 統合役 |
 
 ### 3-6. セーブの移行
 
@@ -326,7 +326,7 @@ Tips の本文（数値は JSON から組む）:
 
 ## 4. 段階とレーン
 
-全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `npx vitest run <ファイル>`、最後に 1 回 `npm run check:fast`（他レーン起因の失敗と負荷のタイムアウトは報告だけ）。統合役は取り込みごとに `npm run balance:gen`、段の終わりに `npm run check`。
+全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `pnpm exec vitest run <ファイル>`、最後に 1 回 `pnpm run check:fast`（他レーン起因の失敗と負荷のタイムアウトは報告だけ）。統合役は取り込みごとに `pnpm run balance:gen`、段の終わりに `pnpm run check`。
 
 ### 10a（並行 3 本。遊べる: 深み 1 層目から変異と敵数、深みで「最大」が外れる、研鑽の数えが見える、到達 3 つ、踏破の数え、大きな数、歯止め）
 
@@ -338,9 +338,9 @@ Tips の本文（数値は JSON から組む）:
 | **B 厳選の到達点** | Sonnet | `src/loot/reach.ts`（新）、`src/loot/reach.test.ts`（新）、`src/system/reachEffects.test.ts`（新）、`src/ui/reachRows.ts`（新）、`src/ui/reachRows.test.ts`（新）、`balance/loot/REACH.json`（新） | `balance/loot/_index.json`（`_order`）、`data/tuning.ts`（RESONANCE の直後 1 行）、`loot/types.ts`（`REACH_KEYS` / `ReachKey` を `PlayerStats` の直前、`reach` を `graceSlotBonus` の直後、`DEFAULT_STATS` も `graceSlotBonus` の直後）、`loot/stats.ts`（`createBaseStats` の `graceSlotBonus` の直後 1 行、`computeStats` の `return finalize(stats);` を 2 行に）、`system/rules.ts:202`（`chainedChance` の頭 1 行と import）、`system/statusEffects.ts:312`（1 行と import）、`system/morale.ts:158`（1 行と import）、`ui/statusTab.ts:228, 240`（見出しの文と `[...reachRows(state.stats), ...runEffectRows(state)]`）、`meta/tips.ts`（`innate`〔地金〕の項目の直後に `reach`） | A・C の所有、`ui/effectsList.ts`、`system/modifiers.ts`、`system/boons.ts`、`loot/affixes.ts`（7e）、`core/**`、`src/qa/**` | 3-3 の B が通る。到達を持たない装備で既存の `statusEffects` / `morale` / `rules` のテストが変更なしで通る |
 | **C 歯止めと大きな数** | Sonnet | `src/system/limits.ts`（新）、`src/system/limits.test.ts`（新）、`balance/combat/LIMITS.json`（新） | `balance/combat/_index.json`（`_order`）、`data/tuning.ts`（STATUS の直後 1 行）、`core/game.ts:202`（直後に 1 行と import）、`core/events.ts:164, 176`（`trimmed` の 2 行）、`core/units.ts`（`formatAmount` と定数を末尾に）、`core/units.test.ts`（追記）、`system/rules.ts:1030`（`export` を足すだけ）、`system/combat.ts:308`・`system/effects.ts:1008`（`formatAmount` と import）、`system/effects.test.ts`（1 件追記） | A・B の所有、`system/rules.ts` の :1030 以外、`src/qa/**` | 3-3 の C が通る。`core/replay.test.ts` が変更なしで通る |
 
-**衝突の確認（10a）**: `data/tuning.ts` は 3 本が別の目印の直後（STATUS :32 / RESONANCE :93 / ARC :196）に 1 行ずつ。`balance/*/_index.json` は world（A）/ loot（B）/ combat（C）で別ファイル。`system/rules.ts` は B = :202 付近、C = :1030 で 800 行離れる。`meta/tips.ts` は A = :209 と :227 の直後、B = :155 の直後で別の場所。`ui/effectsList.ts` は A だけ、`ui/statusTab.ts` は B だけ。`assembled.gen.ts` は 3 本とも import が増える → 統合役が取り込みごとに `npm run balance:gen`。**7e との衝突**: 10a の所有・最小 Edit のうち 7e が触るのは `ENEMY_SCALE.json` だけ（A は `_fields.deepDepth` の 1 行、7e は `_note` と値の行で離れている）。取り込みの前に `git diff --stat <10a を切ったコミット>..<7e> -- src/data/balance/enemies/ENEMY_SCALE.json` を見て、重なれば A の 1 行を統合役が手で当て直す。
+**衝突の確認（10a）**: `data/tuning.ts` は 3 本が別の目印の直後（STATUS :32 / RESONANCE :93 / ARC :196）に 1 行ずつ。`balance/*/_index.json` は world（A）/ loot（B）/ combat（C）で別ファイル。`system/rules.ts` は B = :202 付近、C = :1030 で 800 行離れる。`meta/tips.ts` は A = :209 と :227 の直後、B = :155 の直後で別の場所。`ui/effectsList.ts` は A だけ、`ui/statusTab.ts` は B だけ。`assembled.gen.ts` は 3 本とも import が増える → 統合役が取り込みごとに `pnpm run balance:gen`。**7e との衝突**: 10a の所有・最小 Edit のうち 7e が触るのは `ENEMY_SCALE.json` だけ（A は `_fields.deepDepth` の 1 行、7e は `_note` と値の行で離れている）。取り込みの前に `git diff --stat <10a を切ったコミット>..<7e> -- src/data/balance/enemies/ENEMY_SCALE.json` を見て、重なれば A の 1 行を統合役が手で当て直す。
 
-**統合（10a）**: C → B → A の順（A が最も広い）。`npm run balance:gen` → `npm run check`。`REPLAY_VERSION` を 1 つ上げる。**レビューは段の終わりに `model: "opus"` の reviewer 1 回**（決定性: `enforceLimits` の消し方と step の中の位置、深みの上限の解放が `state.depth` だけを見るか、到達が装備だけで数えられるか・封じの扱い、踏破の数えが `endRun` 1 回か）。資料（統合役）: `CODE_MAP.md`（新しい本体 4 行: `system/deep.ts` / `loot/reach.ts` / `ui/reachRows.ts` / `system/limits.ts`）をコードと同じコミットで。段の終わりにまとめて: `docs/GLOSSARY.md`（:177「無限の深み / 変異」を「深み / 変異: 深度 22（深み 1 層）から。{mutationEvery} 層ごとに変異（血の月 → 霧 → 属性の嵐）…『〜につき』と研鑽の上限が外れる」に書き直し、「到達（無尽 / 燎原 / 常在）」「深み n 層」、:174「踏破」の定義に「最深の主を倒したラン（深みで力尽きても）」）、`docs/BALANCE.md`（`DEEP` / `REACH` / `LIMITS`、FLOOR_KIND から消えた 3 項目）、`docs/ARCHITECTURE.md`（`PlayerStats.reach`、step の末尾の `enforceLimits`、版の一覧）、`docs/recipes/affix.md`（「到達の軸に効く性質を足したら `REACH_DEFS[k].affixes` に 1 つ」）、`docs/recipes/boon.md`（「`per.cap` / `TemperStat.cap` は深みで外れる。外れて困る上限は手書きにする」）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の P8 の行、`CHANGELOG.md`、`HANDOFF.md`。
+**統合（10a）**: C → B → A の順（A が最も広い）。`pnpm run balance:gen` → `pnpm run check`。`REPLAY_VERSION` を 1 つ上げる。**レビューは段の終わりに `model: "opus"` の reviewer 1 回**（決定性: `enforceLimits` の消し方と step の中の位置、深みの上限の解放が `state.depth` だけを見るか、到達が装備だけで数えられるか・封じの扱い、踏破の数えが `endRun` 1 回か）。資料（統合役）: `CODE_MAP.md`（新しい本体 4 行: `system/deep.ts` / `loot/reach.ts` / `ui/reachRows.ts` / `system/limits.ts`）をコードと同じコミットで。段の終わりにまとめて: `docs/GLOSSARY.md`（:177「無限の深み / 変異」を「深み / 変異: 深度 22（深み 1 層）から。{mutationEvery} 層ごとに変異（血の月 → 霧 → 属性の嵐）…『〜につき』と研鑽の上限が外れる」に書き直し、「到達（無尽 / 燎原 / 常在）」「深み n 層」、:174「踏破」の定義に「最深の主を倒したラン（深みで力尽きても）」）、`docs/BALANCE.md`（`DEEP` / `REACH` / `LIMITS`、FLOOR_KIND から消えた 3 項目）、`docs/ARCHITECTURE.md`（`PlayerStats.reach`、step の末尾の `enforceLimits`、版の一覧）、`docs/recipes/affix.md`（「到達の軸に効く性質を足したら `REACH_DEFS[k].affixes` に 1 つ」）、`docs/recipes/boon.md`（「`per.cap` / `TemperStat.cap` は深みで外れる。外れて困る上限は手書きにする」）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の P8 の行、`CHANGELOG.md`、`HANDOFF.md`。
 
 ### 10b（1 本。遊べる: 変化なし。深みを測れる）
 
@@ -348,7 +348,7 @@ Tips の本文（数値は JSON から組む）:
 
 | レーン | モデル | 所有 | 最小 Edit のみ | 編集禁止 | 完了条件 |
 | --- | --- | --- | --- | --- | --- |
-| **D 深みの QA** | Sonnet | `src/qa/deepProbe.ts`（新）、`src/qa/deepProbe.test.ts`（新） | `src/qa/combatProbe.ts`（`makeArena` / `placeEnemy` / `botInput` に `export` を付けるだけ）、`src/qa/scalingMetrics.ts`（`ScalingTally` に `trimmed`、`createScalingRecorder` で `ruleRun.trimmed` の差を数え、`:266` の直後に 1 行「性能の歯止めで消した数（`ruleRun.trimmed`）: N（目標 0）」、`DeathDigest` に `temperCards`〔研鑽の札の枚数〕と `tallySum`〔`boonRun.tallies` の合計〕、死亡時の内訳の表に 2 列）、`src/qa/simulation.test.ts`（`DEEP_START_DEPTHS = [10, 20, 22]` と節の見出しの文）、`scripts/qa-probe.mjs`（`--deep` で `SIM_PROBE=deep`、`probe.md` の「## 深み」の節だけ差し替え。`--weapons` と同じ作法） | `src/system/**`、`src/loot/**`、`src/core/**` | 3-3 の D が通る。縮小版が `npm run check:fast` の中で数秒。`npm run qa:probe -- --deep` を隔離 worktree で回して 5 章の表が出る |
+| **D 深みの QA** | Sonnet | `src/qa/deepProbe.ts`（新）、`src/qa/deepProbe.test.ts`（新） | `src/qa/combatProbe.ts`（`makeArena` / `placeEnemy` / `botInput` に `export` を付けるだけ）、`src/qa/scalingMetrics.ts`（`ScalingTally` に `trimmed`、`createScalingRecorder` で `ruleRun.trimmed` の差を数え、`:266` の直後に 1 行「性能の歯止めで消した数（`ruleRun.trimmed`）: N（目標 0）」、`DeathDigest` に `temperCards`〔研鑽の札の枚数〕と `tallySum`〔`boonRun.tallies` の合計〕、死亡時の内訳の表に 2 列）、`src/qa/simulation.test.ts`（`DEEP_START_DEPTHS = [10, 20, 22]` と節の見出しの文）、`scripts/qa-probe.mjs`（`--deep` で `SIM_PROBE=deep`、`probe.md` の「## 深み」の節だけ差し替え。`--weapons` と同じ作法） | `src/system/**`、`src/loot/**`、`src/core/**` | 3-3 の D が通る。縮小版が `pnpm run check:fast` の中で数秒。`ppnpm run qa:probe --deep` を隔離 worktree で回して 5 章の表が出る |
 
 `deepProbe.ts` の中身:
 
@@ -368,7 +368,7 @@ export function measureBrokenBuild(depth: number, seconds: number, seed: number)
 export function buildDeepSection(curve: readonly DeepCurveRow[], odds: readonly ReachOddsRow[], broken: readonly BrokenRow[]): string[]; // 「## 深み」
 ```
 
-**統合（10b）**: 取り込み → `npm run check`。隔離 worktree で `npm run qa:probe -- --deep`（数分）と `npm run qa:full`（7e の後のフル QA と兼ねる）→ `probe.md` / `report.md` を本体へ。5 章の表で外れた数値は balance-tuner（`DEEP` / `REACH` / `LIMITS`、深みの傾きは `ENEMY_SCALE.deepHpGrowth / deepDamageGrowth`）。資料: `CODE_MAP.md` に `qa/deepProbe.ts` の 1 行（同じコミット）、`CLAUDE.md` のコマンド表の `qa:probe` の行に `-- --deep`（1 行の範囲で）。
+**統合（10b）**: 取り込み → `pnpm run check`。隔離 worktree で `ppnpm run qa:probe --deep`（数分）と `pnpm run qa:full`（7e の後のフル QA と兼ねる）→ `probe.md` / `report.md` を本体へ。5 章の表で外れた数値は balance-tuner（`DEEP` / `REACH` / `LIMITS`、深みの傾きは `ENEMY_SCALE.deepHpGrowth / deepDamageGrowth`）。資料: `CODE_MAP.md` に `qa/deepProbe.ts` の 1 行（同じコミット）、`CLAUDE.md` のコマンド表の `qa:probe` の行に `--deep`（1 行の範囲で）。
 
 ---
 
@@ -381,7 +381,7 @@ export function buildDeepSection(curve: readonly DeepCurveRow[], odds: readonly 
 3. 到達の閾値: `REACH.chain`（0.8）/ `burn`（7）/ `morale`（32）
 4. 性能: `LIMITS.*`、壊れの実質の天井 `SYNERGY.keywordBudget`（10）
 
-**指標**（D の `qa:probe -- --deep` と フル QA）
+**指標**（D の `qa:probe --deep` と フル QA）
 
 | 指標 | どこで | 目標 |
 | --- | --- | --- |

@@ -6,7 +6,7 @@
 3. 鍛冶・属性の祭壇など「通常攻撃に属性を乗せる」系は `ensureContractStats` が `applyStats` の結果に後から足す
 4. テスト: `system/contractors.test.ts`
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 
 ## 商人の品を足す（2026-09-30）
 

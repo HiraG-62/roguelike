@@ -255,7 +255,7 @@
 
 | ファイル | 触る所 | 段 |
 | --- | --- | --- |
-| `src/data/balance/world/FLOOR_ROLE.json`（新規） | 2-7 の表。`npm run balance:gen` で `assembled.gen.ts` に入る | 1 |
+| `src/data/balance/world/FLOOR_ROLE.json`（新規） | 2-7 の表。`pnpm run balance:gen` で `assembled.gen.ts` に入る | 1 |
 | `src/data/tuning.ts` | `FLOOR_ROLE` の再 export | 1 |
 | `src/system/floorRoles.ts`（新規） | `floorRoleOf(depth): FloorRoleKey \| null`（深度と ARC だけから。21 と深みは null）・`roleOf(depth)`（上書きを畳んだ行）・`StopSource` / `ThemeKind` の型・`countStops(state)`・`stopCeiling(chapter, index)`・`themeLeft(state)` | 1 |
 | `src/system/chapters.ts` | 変えない（`chapterOf` / `isChapterRest` / `isChapterBossDepth` を `floorRoles.ts` が読む） | — |

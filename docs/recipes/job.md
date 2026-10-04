@@ -12,4 +12,4 @@
 5. 解放する依頼の `meta/quests.ts` の `reward` を `{ kind: "job", job: <key> }` にする（`unlockedBy` と一致させる。1 依頼 1 報酬なので、称号などの報酬を差し替える）
 6. テスト: `system/jobs.test.ts`（定義・説明の行数）、`system/dashForms.test.ts`（形ごとに 1 本）、`system/manaSources.test.ts`（源ごとに 1 本）
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`（ダッシュの形の名前は既存の語と重ねない）。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`（ダッシュの形の名前は既存の語と重ねない）。

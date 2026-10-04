@@ -2,7 +2,7 @@
  * バランス数値の辞書（docs/BALANCE_DICTIONARY.md）を各 JSON の `_fields` / `_note` から組み立てる。
  * 説明の正は JSON の `_fields` のまま（辞書はその写し）にして、二重に書いた説明がずれないようにする。
  * 同じ形の行が並ぶ表（敵の表・武器種の表・配列の段）は `*` / `[]` に畳み、項目を 1 回だけ載せる。
- * 書き出しは `npm run balance:dict`（dictionary.test.ts が BALANCE_DICT_WRITE=1 で書く）
+ * 書き出しは `pnpm run balance:dict`（dictionary.test.ts が BALANCE_DICT_WRITE=1 で書く）
  */
 import { fieldDescription } from "./validate";
 
@@ -172,7 +172,7 @@ export function renderDictionary(dirs: readonly (readonly [string, Json])[]): st
   const lines = [
     "# バランス数値の辞書",
     "",
-    "<!-- 自動生成（npm run balance:dict）。手で直さない。説明は各 JSON の _fields を直してから生成し直す -->",
+    "<!-- 自動生成（pnpm run balance:dict）。手で直さない。説明は各 JSON の _fields を直してから生成し直す -->",
     "",
     "`src/data/balance/` の JSON の各項目が何に効くかの一覧。説明の正は各 JSON の `_fields`（書き方は `docs/BALANCE.md`「項目の意味を読む / 書く」）。",
     "",

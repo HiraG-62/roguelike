@@ -1,4 +1,4 @@
-// 自動生成（scripts/balance-assemble.mjs）。手で直さない。JSON を足したり消したりしたら `npm run balance:gen`
+// 自動生成（scripts/balance-assemble.mjs）。手で直さない。JSON を足したり消したりしたら `pnpm run balance:gen`
 // 配置の決まりは docs/BALANCE.md「ファイルの配置」
 import j_boons__index from "./boons/_index.json";
 import j_boons_BOON from "./boons/BOON.json";

@@ -204,15 +204,15 @@ export function generateLordHallMap(bossKey: string): GameMap;
 - `src/map/layout/lordHall.test.ts`（L8a）: 全部の間 × 入口・前室で、行の幅が揃う・使える文字だけ・`@` が 1 つ・部屋 3 つで順が入口 → 前室 → 主の間・全部屋が `roomTiles`・8 近傍で接しない・主の間の `rect` が奇数 × 奇数で中心が `@`・中心 ±4 が床・入口の中心から主の間の中心まで歩ける・2x2 の窓で前室から主の間の中心へ・穴の上に部屋のタイルが無い・地図が 30x17 以上・同じ key で同じタイル列。間ごと: 苔の釜は四隅が床・膨張の半径・窪みごとに安全な床 3 マス以上 / 蔵の縦穴は柵の 4 か所が床・どの 2 か所に柵でも床がつながる / 油の溜め場は油溜まりの 4 点が床で柱と重ならない / 浮島は中心 ±70px が島の床 / plain は `rect` の全マスが床
 - `src/system/lordHallFloor.test.ts`（L8b）: 深度 5 / 10 / 15 / 20 / 21 / 25 / 30 で `map.layout === "lordHall"`・ボスが中央・主の間の外に商人以外の敵がいない・`state.jins` が空・主の間に壺が無い・前室に商人（章ボス階は `chapterMarket`）・入ると封鎖され `lockedTiles` が門の通路のタイルだけ・撃破で中央に階段と分岐の階段が床に乗る・深度 21 は地上への道が床に乗る・拠点のボスの間が作れ入口に立てる・同じ seed で同じ結果
 - 壊れそうな既存のテスト（L8b が直す）: `src/system/boss*.test.ts`・`finale.test.ts`・`chapters.test.ts`・`merchants.test.ts`・`exits.test.ts`・`floor.test.ts`・`src/qa/bossMetrics.test.ts`・`src/qa/bot.test.ts`・`src/qa/simulation.test.ts`
-- QA: 蔵の縦穴で bot が穴の縁に詰まるのは L7 の `crossesPit` で解く。L8b の後に `npm run qa:probe -- --bosses` で前の `src/qa/probe.md` と比べる（見込み: 盗賊王は「追い詰め」、鏡の騎士は「盾割れ」が増える）。フル QA のボス階の「生成直後の敵数」は陣が無くなるので下がる
+- QA: 蔵の縦穴で bot が穴の縁に詰まるのは L7 の `crossesPit` で解く。L8b の後に `ppnpm run qa:probe --bosses` で前の `src/qa/probe.md` と比べる（見込み: 盗賊王は「追い詰め」、鏡の騎士は「盾割れ」が増える）。フル QA のボス階の「生成直後の敵数」は陣が無くなるので下がる
 
 ## 7. 実装レーン
 
 | レーン | 所有 | 最小 Edit | 編集禁止 | 完了条件 | コスト |
 | --- | --- | --- | --- | --- | --- |
-| **L8a 主の間の生成**（map 層。すぐ並行で始められる） | 新規 `src/map/layout/lordHall.ts`・`lordHallGrids.ts`・`lordHall.test.ts`、`src/data/balance/world/LORD_HALL.json` | `src/data/tuning.ts`（`LORD_HALL` の re-export 1 行）、`src/data/balance/world/_index.json`（`_order`） | L0a のファイル（types / select / finalize / validate / index / shapes）、`src/map/grid.ts`、`src/system/**` | `lordHall.test.ts` 全件、`npm run check:fast` | M |
-| **L8b floor との結線**（L5 と L8a の取り込み後） | 新規 `src/system/lordHallFloor.test.ts` | `src/system/floor.ts`（`"lordHall"` → `generateLordHallMap(bossKeyForDepth(depth))`、`layout !== "lordHall"` のときだけ `planJins`）、`src/system/containers.ts`（主の間の所属タイルを候補から外す）、`src/map/layout/select.ts`、`src/system/biomes.ts` の注記、`src/core/replay.ts` の版の注記、既存テストの期待値 | boss のファイル全部、`src/render/**`、`src/qa/bot.ts` | `npm run check` | S〜M |
-| L7 の追加 | — | `qa:probe -- --bosses` で比べ `src/qa/probe.md` を更新 | — | probe の表に 5 ボス | S |
+| **L8a 主の間の生成**（map 層。すぐ並行で始められる） | 新規 `src/map/layout/lordHall.ts`・`lordHallGrids.ts`・`lordHall.test.ts`、`src/data/balance/world/LORD_HALL.json` | `src/data/tuning.ts`（`LORD_HALL` の re-export 1 行）、`src/data/balance/world/_index.json`（`_order`） | L0a のファイル（types / select / finalize / validate / index / shapes）、`src/map/grid.ts`、`src/system/**` | `lordHall.test.ts` 全件、`pnpm run check:fast` | M |
+| **L8b floor との結線**（L5 と L8a の取り込み後） | 新規 `src/system/lordHallFloor.test.ts` | `src/system/floor.ts`（`"lordHall"` → `generateLordHallMap(bossKeyForDepth(depth))`、`layout !== "lordHall"` のときだけ `planJins`）、`src/system/containers.ts`（主の間の所属タイルを候補から外す）、`src/map/layout/select.ts`、`src/system/biomes.ts` の注記、`src/core/replay.ts` の版の注記、既存テストの期待値 | boss のファイル全部、`src/render/**`、`src/qa/bot.ts` | `pnpm run check` | S〜M |
+| L7 の追加 | — | `qa:probe --bosses` で比べ `src/qa/probe.md` を更新 | — | probe の表に 5 ボス | S |
 
 L5 との接点: 地図を作る所を `generateFloorMap(state, layout)` のような 1 つの関数（`switch`）にまとめてもらい、L8b の差分を 1 行で済ませる。
 

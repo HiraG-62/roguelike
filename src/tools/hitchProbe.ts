@@ -2,7 +2,7 @@
 // bot に実時間で遊ばせて、1 フレームの step・描画・効果音の ms と、そのフレームで初めて作った canvas・getImageData・
 // 画像の decode・初めて出た敵 / 効果音の名前を記録し、長いフレームを window.__hitch に出す。
 // クエリ: ?seed=&depth=&frames=&threshold=&methods=1（methods=1 は Renderer のメソッドごとの自己時間も取る）。
-// 実行は `npm run hitch:probe`（scripts/hitch-probe.mjs）。実時間（performance.now）を使うのは計測だけで、state には入れない。
+// 実行は `pnpm run hitch:probe`（scripts/hitch-probe.mjs）。実時間（performance.now）を使うのは計測だけで、state には入れない。
 import { createGame, step } from "../core/game";
 import { VIEW_H, VIEW_W } from "../core/view";
 import { SHEETS, TILE_SPRITES } from "../data/tiles";

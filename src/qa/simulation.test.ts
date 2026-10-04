@@ -81,7 +81,7 @@ import { overlapsWall } from "../system/physics";
  * SIM_FULL=1 を付けたときだけフル版（30 seed × 6 装備パターン × 180,000 ステップ）を実行し、
  * 収集した指標を report.md 相当の Markdown を console.log に出力する
  * （@types/node が無いプロジェクトのため、このファイル自体は fs に触れない。
- *  実際の src/qa/report.md は `SIM_FULL=1 npx vitest run src/qa/simulation.test.ts` の
+ *  実際の src/qa/report.md は `SIM_FULL=1 pnpm exec vitest run src/qa/simulation.test.ts` の
  *  出力を人手で保存したもの）。
  */
 
@@ -1886,7 +1886,7 @@ describe("QA simulation (フル版, SIM_FULL=1)", () => {
 
       const report = buildReport(allMetrics, deepMetrics);
       // @types/node が無くこのファイルは fs に触れられないので、標準出力に区切り付きで
-      // 出す。呼び出し側 (`SIM_FULL=1 npx vitest run src/qa/simulation.test.ts`) が
+      // 出す。呼び出し側 (`SIM_FULL=1 pnpm exec vitest run src/qa/simulation.test.ts`) が
       // このマーカー間を抜き出して src/qa/report.md に保存する
       console.log(REPORT_START);
       console.log(report);

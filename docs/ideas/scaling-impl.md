@@ -90,7 +90,7 @@
 
 ### 1-7. 計測
 
-- probe（`npm run qa:probe`）: 深度 1 / 5 / 10 の 1 対 1・集団、撃破秒・被弾/60 秒・完遂率など（`/home/user/roguelike/src/qa/combatProbe.ts:272-303`、`src/qa/probe.md`）。装備なしの剣だけ
+- probe（`pnpm run qa:probe`）: 深度 1 / 5 / 10 の 1 対 1・集団、撃破秒・被弾/60 秒・完遂率など（`/home/user/roguelike/src/qa/combatProbe.ts:272-303`、`src/qa/probe.md`）。装備なしの剣だけ
 - フル QA（`report.md`）: 6 装備パターン、平均到達深度 1.0〜2.5、死亡率 77〜100%。深度帯は `1-2 / 3-5 / 6+`（`/home/user/roguelike/src/qa/combatMetrics.ts:12-24`）。深度 6 以降の観測がほぼ無い
 - 開始深度を選ぶ型は `createGame` に無い（`core/game.ts:60` で `depth: 1` 固定）
 
@@ -371,7 +371,7 @@ export interface Modifier {
 | `combat/POISE.json` | `depthScale` と `_fields` の行を削除 |
 | `world/FLOOR_KIND.json` | `deepHpSlope` と `_fields` の行を削除（`deepDepth` は残す） |
 | `loot/INNATE/budget.json` `hardCap.json` `_index.json` | `cap` 削除、`lowScale 0.6`、`hardCap.json` 削除、`_order` と `_fields` から `hardCap` / `budget.cap` を消す。`_note` の「予算 12 点で深度 31」を消す |
-| `loot/FLUX.json`（新規） | 2-5 の定数一式 + `_fields`。`loot/_index.json` の `_order` に足す → `npm run balance:gen` |
+| `loot/FLUX.json`（新規） | 2-5 の定数一式 + `_fields`。`loot/_index.json` の `_order` に足す → `pnpm run balance:gen` |
 | `loot/SYNERGY.json` | `chainDecay` 削除、`maxDepth 8`、`keywordBudget 10`、`procCoefficient: {…}`。`_fields` を足す（今このブロックには `_fields` が無い。`UNDOCUMENTED_BASELINE` は下げる方向） |
 | `enemies/JIN.json` | `hpSpread: { low: 0.9, high: 1.1 }` + `_fields` |
 
@@ -412,11 +412,11 @@ export interface Modifier {
 
 | レーン | 所有 | 最小 Edit | 編集禁止 | 完了条件 |
 | --- | --- | --- | --- | --- |
-| A1 計算（Opus か Sonnet） | `system/damageMods.ts`（新規）、`system/combat.ts` の `rollOutgoing` / `damageEnemy` の怯み値、`system/keystones.ts` `boonCores.ts` `ultimates.ts:793` `statusEffects.ts:200` の返り値を `MoreMul` に、`damageMods.test.ts` | `system/traitHooks.ts`（`traitOutgoingMul` を `traitIncreased` に改名するだけ） | `loot/*`、`ui/*` | 装備なし深度 1 の probe の威力が同じ。`npx vitest run src/system` |
+| A1 計算（Opus か Sonnet） | `system/damageMods.ts`（新規）、`system/combat.ts` の `rollOutgoing` / `damageEnemy` の怯み値、`system/keystones.ts` `boonCores.ts` `ultimates.ts:793` `statusEffects.ts:200` の返り値を `MoreMul` に、`damageMods.test.ts` | `system/traitHooks.ts`（`traitOutgoingMul` を `traitIncreased` に改名するだけ） | `loot/*`、`ui/*` | 装備なし深度 1 の probe の威力が同じ。`pnpm exec vitest run src/system` |
 | A2 集計（Sonnet） | `loot/types.ts` の旧フィールド削除、`loot/stats.ts`、`loot/affixes.ts` の `apply` 全件（`+= pct(v)` → `increased.<tag>`、`*=` → `more.push`）、`loot/resonance.ts`、`data/jobs.ts` `system/jobs.ts:55-58`（得意は `more`）、`system/hub.ts`、`system/keywords.ts`、`loot/stats.test.ts` | `system/boons.ts:612-614`（`triggerHappy` の `rangedDamageMul *=` → `more`） | `system/combat.ts` | tsc が旧フィールドの参照 0 件。`stats.test.ts` 書き換え済み |
 | A3 表示（Sonnet） | `ui/scalingText.ts` 計算式の頁に増・倍の内訳、`loot/describe.ts` `statsSummary` の文言「増 +X%」「倍 ×Y」、`docs/GLOSSARY.md` に「増 / 倍」 | `render/*`（呼び出し 1 箇所） | ロジック全部 | 単一指標を出さない検査（`stats.test.ts:243`）が通る |
 
-統合: A2 → A1 → A3 の順に `git add <所有>`。`REPLAY_VERSION 17`。`npm run check`。
+統合: A2 → A1 → A3 の順に `git add <所有>`。`REPLAY_VERSION 17`。`pnpm run check`。
 
 ### 4b. 敵の曲線・地金・曲線の末端・揺らぎの器（遊べる: 敵と地金の数値が変わる）
 
@@ -462,7 +462,7 @@ export interface Modifier {
 | 陣の生命の揺らぎ | なし | 陣ごと ×0.9〜1.1。同じ陣の中は揃う | `JIN.hpSpread` |
 | 弱点 / 耐性の発生比 | 弱点 2% / 耐性 9.8%（build-core 3-1） | この段では触らない（段取り 7） | — |
 
-`npm run qa:probe`（深度 1 の表が 4a・4b で変わらないことの確認）→ `npm run qa:full`（4b・4c の後に `report.md` を作り直す）。
+`pnpm run qa:probe`（深度 1 の表が 4a・4b で変わらないことの確認）→ `pnpm run qa:full`（4b・4c の後に `report.md` を作り直す）。
 
 ---
 

@@ -17,7 +17,7 @@
 - **相性表**: `skills/skills.test.ts` の `FORBIDDEN` を必ず更新（手書きスキルとの全組み合わせをテストで固定している。技との相性は `fitsArt` / 行為の列で決まる）
 - 常時の増・倍・条件付き・「〜につき」: スキル石の定義に `modifiers`（`core/rules.ts` の `Modifier`）を置くと、スロットに入っている間だけ与ダメ・怯み値に効く（評価は `system/modifiers.ts`。書き方は `docs/recipes/boon.md` の「常時の増・倍」節）。`CastParams` の倍率で常時の与ダメを盛らない
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
 
 ## 技（共通技）
 
@@ -26,7 +26,7 @@
 1. `skills/arts/keys.ts` の `COMMON_ART_KEYS` の末尾に key を足す（`common` + 英名。表示名に武器種名を入れない）
 2. `skills/arts/common2.ts` に `ArtSpec`（名前・1 文字アイコン・動詞・タグ・素性・行為の列。`moveset: null`）を足す
 3. `data/balance/skills/ART/common.json` に数値ブロック（`cost` か `cooldown`・`minInterval`・`poise`・照準を使うなら `range`、行為ごとのブロック）を足す。新しい項目名を使ったら `data/balance/skills/ART/_index.json` の `_fields` に 1 行。型ごとの形の変化は `transform.ts`（数値は `ART/TRANSFORM/<型>.json`）で、技ごとには書かない
-4. `npx vitest run src/skills/arts`（全技を 1 回ずつ撃つ検査がある）→ `npm run check`
+4. `pnpm exec vitest run src/skills/arts`（全技を 1 回ずつ撃つ検査がある）→ `pnpm run check`
 
 行為の種類を足すときは `types.ts` の `ART_ACT_KINDS`・`build.ts` の必須項目 / 項目名・`engine.ts` の `runAct` の 3 か所。
 - 説明に「投げる」とある技・スキル石を足したら `render/thrownLook.ts` の表に載せる（飛ぶ武器の絵）。載せないなら `render/thrownLook.test.ts` の `EXCLUDED` に理由を書く

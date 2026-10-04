@@ -248,38 +248,38 @@ export interface MovesetDef {
 
 - 所有: `src/data/weapons.ts`（型だけ: `ActionStepDef` / `MovesetDef.steps2` / `BranchDef.nextLane` / 補助関数の新シグネチャ。`MOVESETS` の中身は各武器種を **`steps2: [旧 art を 1 段目に置いた 1 段]`** に機械変換して型を通す）、`src/data/ultimates.ts`（型 + `ULTIMATES` は各武器種 1 本目 = 「円月」相当の nova だけの仮定義）、`src/system/ultimates.ts`（公開関数のシグネチャと no-op）、`src/data/balance/ultimates.json`（`_note` + `common`）、`src/data/balance/index.ts`（1 行）、`src/data/tuning.ts`（`export const ULTIMATE`）
 - 最小 Edit: `src/core/state.ts`（`AttackState.lane` / `bufferedLane`、`Player.ultimate`、`Player.art.cooldowns: Map<string, number>`）、`src/core/rules.ts`（`ultimateActive` / `lane` 条件）、`src/core/replay.ts`（`REPLAY_VERSION = 9`、`ReplayLoadout.ultimates`）、`src/loot/types.ts`（`Profile.ultimates?`）、`src/system/player.ts`（`trySpecial` → `tryUltimate` の呼び替え、`updateUltimate` の呼び出し、`playerMoveset` に `ultimateMoveset` を挟む。中身は Lane A / B）
-- 完了条件: `npm run check` 緑（挙動は今と同じ。`weapons.test.ts` の `art` 参照は `steps2[0]` に読み替えるだけ）
+- 完了条件: `pnpm run check` 緑（挙動は今と同じ。`weapons.test.ts` の `art` 参照は `steps2[0]` に読み替えるだけ）
 
 ### Lane A: 右レーンと混合コンボ（Opus implementer。設計は本書 4 章）
 
 - 所有: `src/data/weapons.ts`（`MOVESETS` 23 種の `steps2` / `branches`、`reviveActionStep`、`STEP2_NAMES`、`BRANCH_NAMES` 追加分）、`src/data/balance/weapons.json`（`steps2` 23 本・派生 92 本以上）、`src/system/player.ts`（4.2 章）、`src/system/weaponArts.ts`（段の定義を受ける形に。`currentHold` / `currentAim` は `steps2[attack.step]` を読む）、`src/skills/forms.ts`（`buildMoveset` の `steps2`）、`src/render/renderMath.ts`（`holdPose`）、`src/render/comboUi.ts` + test、`src/data/weapons.test.ts`、`src/system/weaponArts.test.ts`、`src/system/player.test.ts`
 - 編集禁止: `system/ultimates.ts`、`data/ultimates.ts`、hub / ui / renderer
 - テスト（it 名）: 「右を押すと右レーンの段が出て、段カウンタは左右で共有される（左右左 = 1・2・3 段目）」「同じ段で左と右は別の振りになる（剣の 3 段目: 左は斬り、右は斬り上げ）」「名前付き派生は 3 入力以上で、長い列が先に一致する（右左左 → 踏み込み斬り）」「近接の武器種は steps2 が steps と同じ長さ、銃は 3 段」「受け流しは右 1 段目で、離す・窓が閉じると段が進む（右右 = 受け流し → 返し斬り）」「弾を出す右段は押した瞬間に出て段だけ進む（杖の右右右 = 魔弾・魔弾・大魔弾）」「再使用中の右段は入力列に積まない」「構えを離した盾押しは今までどおり派生として出る」「右レーンの最終段は終撃として扱われる（得物の誉れが乗る）」「ジョブ派生 左左左右 は右レーンの 4 段目を上書きする」「銃の家系は左で撃ち右で 3 段の連撃を出す」「変身中の右は変身が引き受ける」
-- 完了条件: `npm run check` 緑。`docs/COMBAT_DESIGN.md` A-7「ボタンの役割」「コンボ派生」と表を 4 章に差し替え、`docs/recipes/weapon.md` に「右レーンの段の足し方」
+- 完了条件: `pnpm run check` 緑。`docs/COMBAT_DESIGN.md` A-7「ボタンの役割」「コンボ派生」と表を 4 章に差し替え、`docs/recipes/weapon.md` に「右レーンの段の足し方」
 
 ### Lane B: 奥義の中身（Opus implementer。設計は本書 3 章）
 
 - 所有: `src/data/ultimates.ts`（69 本）、`src/data/balance/ultimates.json`、`src/system/ultimates.ts`、`src/system/ultimates.test.ts`、`src/data/ultimates.test.ts`
 - 最小 Edit: `src/system/combat.ts`（撃破で `noteUltimateKill`、`damagePlayer` に `ultimateIncomingMul`、1 行ずつ）、`src/system/rules.ts`（`collectRules` に sustain の rules、`ultimateActive` の判定）、`src/system/player.ts`（`actionStats` / `updateMovement` / `applyStepStatus` に倍率と付与を 1 行ずつ。Lane A と同じファイルなので **Lane A の完了後に着手する行だけ**を残し、それ以外は先に進める）、`src/system/weaponArts.ts`（`detonateOwnMines` / `emitArtVolley` を export）
 - テスト（it 名）: 「奥義ゲージが満タンでなければ出ず、未充填の文字が出る」「一撃の奥義はゲージを 0 にし、行為の列を順に出す（円月は周囲に当てて敵弾を消す）」「一撃の奥義の威力と範囲に burstDamageMul / burstRadiusMul が掛かる」「一撃の奥義は発動時に onBurst（量 = 倒した数）を積む」「持続の奥義はゲージが毎秒減り、0 で終わる」「持続中にもう一度押すと終わり、残りのゲージは保つ」「持続中は段が差し替わり、終わると装備の型に戻って振りが止まる（剣気解放）」「持続中の倍率は通常攻撃に burstDamageMul を二重に掛けない」「持続の奥義は終了時に onBurst（量 = 持続中の撃破数）を積む」「持続中に変身を撃つと奥義が終わり、奥義を撃つと変身が解ける」「すべての武器種が 3 本の奥義を持ち、名前が派生・技・祝福・スキルと重ならない」「swing / lunge の行為は列の最後にだけ置かれている」「持続の rules は active のときだけ collectRules に入る」
-- 完了条件: `npm run check` 緑。`docs/STATS_AND_SCALING.md` 2 章の例外表の例に「奥義（一閃・天墜）」を足す
+- 完了条件: `pnpm run check` 緑。`docs/STATS_AND_SCALING.md` 2 章の例外表の例に「奥義（一閃・天墜）」を足す
 
 ### Lane C: 選択・永続化・HUD・表示名（Sonnet implementer。設計は本書 2・5 章）
 
 - 所有: `src/loot/profile.ts`（sanitize と `ultimates`）、`src/system/hub.ts` / `src/ui/hubFlow.ts` / `src/render/hubUi.ts`（武器掛けの奥義行）、`src/render/detailPane.ts`、`src/ui/scalingText.ts`、`src/render/titleUi.ts`、`src/core/game.ts:128`（文言）、`src/render/renderer.ts:2300`（文言 1 行）、`src/audio/cues.ts`（変更不要なら触らない）、表示文字列の置換（5 章の一覧）、`docs/GLOSSARY.md`（2 章の行と「バースト」を残す語からの削除、系譜 4 段目 → 真髄）、`docs/ideas/boons-expansion.md` / `IDEAS.md`（奥義 → 真髄）、`scripts/audit-agent-docs.mjs`（旧用語 3 語）、`src/loot/affixes.ts:2561`（ラベル 1 行）、関連テスト（`profile.test` / `hub.test` / `hubFlow.test` / `scalingText.test` / `boonsWave2.test:87` の it 名）
 - 編集禁止: `player.ts` / `weaponArts.ts` / `ultimates.ts` の中身
 - テスト（it 名）: 「武器掛けで奥義を選ぶと profile.ultimates に保存され、読み直しても残る」「不正な奥義の key や武器種違いの組は捨てて既定へ落ちる」「奥義を選んでいない武器種は 1 本目が既定」「リプレイのスナップショットに奥義の選択が入り、再生側で同じ奥義が出る」「表示文字列に バースト / 必殺ゲージ / 固有技 が残っていない（audit:docs の旧用語）」
-- 完了条件: `npm run check` 緑（`audit:docs` の旧用語検査を含む）
+- 完了条件: `pnpm run check` 緑（`audit:docs` の旧用語検査を含む）
 
 ### Lane D: QA bot と資料（Sonnet qa-runner。A・B の後）
 
 - 所有: `src/qa/bot.ts`（4.4 章）、`src/qa/bot.test.ts`、`docs/CODE_MAP.md`（`data/ultimates.ts` / `system/ultimates.ts` / `balance/ultimates.json` の行、`weaponArts.ts` の説明を「右レーンの構え・弾・溜め・手元返しの段」に）、`docs/ARCHITECTURE.md`（REPLAY_VERSION 9・Profile の `ultimates`）、`CHANGELOG.md` は統合役
 - テスト（it 名）: 「bot は近接なら左右を混ぜた列で連撃を出し、名前付き派生を踏む」「bot は奥義ゲージが満タンなら敵の近くで F を押す」「bot は受け流しの右段だけ敵の予備動作に合わせて押す」
-- 完了条件: `npm run check` 緑 → 統合役が `npm run qa:full` を回し、report に「sustain の手動終了・aim / recall の右段は踏まない」を注記
+- 完了条件: `pnpm run check` 緑 → 統合役が `pnpm run qa:full` を回し、report に「sustain の手動終了・aim / recall の右段は踏まない」を注記
 
 ### 順序と決定性
 
-1. Lane 0 → コミット → A / B / C 並列 → A・B が終わったら B の `player.ts` の 3 行 → D → 統合役が `CHANGELOG.md` と `npm run qa:full`
+1. Lane 0 → コミット → A / B / C 並列 → A・B が終わったら B の `player.ts` の 3 行 → D → 統合役が `CHANGELOG.md` と `pnpm run qa:full`
 2. 決定性: 奥義・右レーンは `state.rng` を使わない（bot の列選びは `bot.rng`）。`Date.now()` は使わない。`core/replay.test.ts` は version 9 で記録を作り直す（seed と入力列で再現するテストなので、テスト内で `createGame` から記録すれば自動で追随する。フィクスチャ JSON を持っているかは Lane 0 が最初に確認）
 3. 既存テストへの影響: `data/weapons.test.ts` の `art` を参照する 6 件（`weapons.test.ts:88,248,352,362,375,384`）は Lane A が書き換える。`MIN_BRANCHES 2` は「名前付き派生 ≥ 4・3 入力以上」に。`system/weaponArts.test.ts` は段の定義経由に。`qa/simulation.test.ts` は変更不要（bot の挙動が変わるので撃破数などの目安は report で見直す）
 4. balance-tuner は統合後に `weapons.json` の右レーンの威力（左と同じ段番号なら **同じ秒間威力の目安**、右は「重い・広い」寄りで recover を 1.2 倍）と `ultimates.json` を詰める。`data/weapons.test.ts:178`「単一最強を作らない」は右レーンも含めた最大値で見る（テストの集計を Lane A が拡張）

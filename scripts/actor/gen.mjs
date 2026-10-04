@@ -1,4 +1,4 @@
-// プレイヤーの体と手に持つ武器のスプライトを生成する（npm run actor:gen）。docs/ideas/player-sprites.md
+// プレイヤーの体と手に持つ武器のスプライトを生成する（pnpm run actor:gen）。docs/ideas/player-sprites.md
 //
 // scripts/actor/sheets/<アトラス>.mjs を自動で集める。各ファイルは `export const ATLAS = { key, sheets, meta }` を持つ。
 // アトラスごとに public/assets/actor/<key>.png と src/data/actor/<key>.gen.json を書き、全アトラスを束ねる
@@ -121,7 +121,7 @@ function ident(key) {
 
 function indexSource(keys) {
   return [
-    "// 生成物: npm run actor:gen（scripts/actor/gen.mjs）。手で直さない。docs/ideas/player-sprites.md",
+    "// 生成物: pnpm run actor:gen（scripts/actor/gen.mjs）。手で直さない。docs/ideas/player-sprites.md",
     "// アトラスごとの中身は src/data/actor/<key>.gen.json（寸法・シートの矩形・位置の印・アトラスの付帯情報）",
     ...keys.map((k) => `import ${ident(k)} from "./actor/${k}.gen.json";`),
     "",
@@ -217,7 +217,7 @@ if (checkOnly) {
     const json = join(JSON_DIR, `${a.key}.gen.json`);
     same = same && existsSync(png) && readFileSync(png).equals(a.png) && existsSync(json) && readFileSync(json, "utf8") === a.json;
   }
-  console.log(same ? "actor: 生成物は最新" : "actor: 生成物が古い（npm run actor:gen）");
+  console.log(same ? "actor: 生成物は最新" : "actor: 生成物が古い（pnpm run actor:gen）");
   process.exit(same ? 0 : 1);
 }
 mkdirSync(OUT_DIR, { recursive: true });

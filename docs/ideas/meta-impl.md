@@ -377,7 +377,7 @@ export function sanitizeRunMeta(v: unknown): RunMetaSetup; // 未知の key・�
 | `world/META.json` | 足す: `diagramDeaths 3` | B |
 | `world/TIER_REWARD.json`（新。`_order` の `ARC` の後） | `marketTier 3` / `marketExtra { "rune": 1 }` / `exitTier 10` / `exitExtra 1` / `steleColor "#d0f0ff"` | C |
 
-`src/data/tuning.ts` の再 export: `NEMESIS`（`ELITE` の行の後、A）、`BOSS_HALL`（`HUB` の行の後、D）、`TIER_REWARD`（`ARC` の行の後、C）。`assembled.gen.ts` は統合役が段ごとに `npm run balance:gen` で作り直す。
+`src/data/tuning.ts` の再 export: `NEMESIS`（`ELITE` の行の後、A）、`BOSS_HALL`（`HUB` の行の後、D）、`TIER_REWARD`（`ARC` の行の後、C）。`assembled.gen.ts` は統合役が段ごとに `pnpm run balance:gen` で作り直す。
 
 ### 3-3. テスト（`it` は日本語）
 
@@ -431,7 +431,7 @@ export function sanitizeRunMeta(v: unknown): RunMetaSetup; // 未知の key・�
 | `src/save/fileEnvelope.test.ts:42`（SAVE_FILES と各ストアのキー） | 新しいキーを作らない | そのまま | — |
 | `src/system/contractors.test.ts:79`（重みが全部正） | 重みは JSON のまま、封じは state 側 | そのまま | C |
 | `src/core/replay.test.ts`・`src/system/enemyGolden.test.ts`・`src/qa/simulation.test.ts` | 空の runMeta で乱数消費が同じ | そのまま通るのが完了条件 | A / C |
-| `npm run audit:docs` | 新しい本体ファイル 14 が `CODE_MAP.md` に無い、「（`ACHIEVEMENTS`、41 種）」 | 統合役がコードと同じコミットで足す（4 章の統合） | 統合役 |
+| `pnpm run audit:docs` | 新しい本体ファイル 14 が `CODE_MAP.md` に無い、「（`ACHIEVEMENTS`、41 種）」 | 統合役がコードと同じコミットで足す（4 章の統合） | 統合役 |
 
 ### 3-6. セーブの移行
 
@@ -451,7 +451,7 @@ export function sanitizeRunMeta(v: unknown): RunMetaSetup; // 未知の key・�
 
 ## 4. 段階とレーン
 
-全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `npx vitest run <ファイル>`、最後に 1 回 `npm run check:fast`。統合役は段の終わりに `npm run balance:gen` → `npm run check`。**9a は 8b の E2 を取り込んだコミットから切る**（`boss.ts`・`ARC.json`・`enemies*.ts` の取り込み中の差分と重ならないように。F は `src/qa/` だけなので並行でよい）。
+全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `pnpm exec vitest run <ファイル>`、最後に 1 回 `pnpm run check:fast`。統合役は段の終わりに `pnpm run balance:gen` → `pnpm run check`。**9a は 8b の E2 を取り込んだコミットから切る**（`boss.ts`・`ARC.json`・`enemies*.ts` の取り込み中の差分と重ならないように。F は `src/qa/` だけなので並行でよい）。
 
 ### 9a（並行 3 本。遊べる: 死亡画面の死因・次の山・前回比、仇、ボスの間、依頼の語の重みと HUD）
 
@@ -463,7 +463,7 @@ export function sanitizeRunMeta(v: unknown): RunMetaSetup; // 未知の key・�
 
 **衝突の確認（9a）**: `main.ts` は 3 本とも触るが、A = 234 / 416〜485 / 1771 付近、D = 168〜185 / 682〜700 / 1084 / 1250 付近 / 1690 付近、E = 485〜491 / 1763 の 1 行で、同じ関数を触らない（A の `drawDeathSummary` の引数と E の HUD の行は 7 行離れる）。`data/tuning.ts` は A（`ELITE` の後）と D（`HUB` の後）で離れた行。`balance/*/_index.json` は A = enemies、D = world で別ファイル。`runSetup.ts` は A = 型の欄、D = コメント 1 行（:150）で別の行。`system/hub.ts`（拠点の GameState）は A だけ、`meta/hub.ts`（設備）は D だけ。
 
-**統合（9a）**: A → D → E の順。`npm run balance:gen` → `npm run check`。**レビューは 9a の終わりに `model: "opus"` の reviewer 1 回**（永続化と再生: 3 キーの sanitize が新しい欄を落とさず壊れた値を捨てるか、`runMeta` の往復、空の `runMeta` で乱数消費が変わらないか、ボスの間が保存を書かないか）。`CODE_MAP.md` に core 1（`hurt.ts`）・system 4（`deathCause.ts` / `nemesis.ts` / `runMeta.ts` / `bossHall.ts`）・meta 2（`deathReport.ts` / `runMetaSetup.ts`）・ui 1（`bossHall.ts`）・render 2（`bossHallUi.ts` / `questHud.ts`）の 10 行を同じコミットで。
+**統合（9a）**: A → D → E の順。`pnpm run balance:gen` → `pnpm run check`。**レビューは 9a の終わりに `model: "opus"` の reviewer 1 回**（永続化と再生: 3 キーの sanitize が新しい欄を落とさず壊れた値を捨てるか、`runMeta` の往復、空の `runMeta` で乱数消費が変わらないか、ボスの間が保存を書かないか）。`CODE_MAP.md` に core 1（`hurt.ts`）・system 4（`deathCause.ts` / `nemesis.ts` / `runMeta.ts` / `bossHall.ts`）・meta 2（`deathReport.ts` / `runMetaSetup.ts`）・ui 1（`bossHall.ts`）・render 2（`bossHallUi.ts` / `questHud.ts`）の 10 行を同じコミットで。
 
 ### 9b（並行 2 本。遊べる: 予告の図解、解放制、位階の見返りと実績、踏破の碑）
 
@@ -474,7 +474,7 @@ export function sanitizeRunMeta(v: unknown): RunMetaSetup; // 未知の key・�
 
 **衝突の確認（9b）**: `main.ts` は B = `updateListScreenFrame` と一覧の描画、C = `withRunMeta` と `recordMeta` で別の関数。図鑑は B = `codex.ts`（敵の頁）、C = `screens.ts`（場所の頁の後付け）で別ファイル。`META.json` は B だけ（E は 9a で済み）。`tips.ts` は B と C が別の項目を末尾に足す → 取り込みで並べ替えが要れば統合役。
 
-**統合（9b）**: B → C。`npm run balance:gen` → `npm run check`。レビューは段の終わりに通常の reviewer 1 回（C の封じが乱数を引かないことを重点に）。資料は段の終わりにまとめて: `CODE_MAP.md`（system 1 `telegraphDiagram.ts`・render 1 `telegraphDiagramUi.ts`・meta 2 `unlocks.ts` / `tierRewards.ts` の 4 行と「（`ACHIEVEMENTS`、48 種）」）、`docs/ARCHITECTURE.md`（`GameState.hurt` / `nemesis` / `runMeta`、`RunSetup.runMeta` → `ReplayData.runMeta` の道、版の一覧の据え置きの 1 行、永続化キーの表に 3 キーの新しい欄）、`docs/GLOSSARY.md`（6 章 ★1 の語）、`docs/BALANCE.md`（`NEMESIS` / `BOSS_HALL` / `TIER_REWARD` / `META` の 2 つ）、`docs/recipes/quest.md`（依頼の `keywords` と解放の表）、`docs/recipes/room.md`（新しい部屋の種類は `ROOM_UNLOCKS` に 1 行）、`docs/recipes/contractor.md`（`CONTRACTOR_UNLOCKS` に 1 行）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の Q8 の行、`CHANGELOG.md`、`HANDOFF.md`。
+**統合（9b）**: B → C。`pnpm run balance:gen` → `pnpm run check`。レビューは段の終わりに通常の reviewer 1 回（C の封じが乱数を引かないことを重点に）。資料は段の終わりにまとめて: `CODE_MAP.md`（system 1 `telegraphDiagram.ts`・render 1 `telegraphDiagramUi.ts`・meta 2 `unlocks.ts` / `tierRewards.ts` の 4 行と「（`ACHIEVEMENTS`、48 種）」）、`docs/ARCHITECTURE.md`（`GameState.hurt` / `nemesis` / `runMeta`、`RunSetup.runMeta` → `ReplayData.runMeta` の道、版の一覧の据え置きの 1 行、永続化キーの表に 3 キーの新しい欄）、`docs/GLOSSARY.md`（6 章 ★1 の語）、`docs/BALANCE.md`（`NEMESIS` / `BOSS_HALL` / `TIER_REWARD` / `META` の 2 つ）、`docs/recipes/quest.md`（依頼の `keywords` と解放の表）、`docs/recipes/room.md`（新しい部屋の種類は `ROOM_UNLOCKS` に 1 行）、`docs/recipes/contractor.md`（`CONTRACTOR_UNLOCKS` に 1 行）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の Q8 の行、`CHANGELOG.md`、`HANDOFF.md`。
 
 ---
 

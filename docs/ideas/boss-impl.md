@@ -256,7 +256,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 | `enemies/stats|combat/mirrorPane.json`、`defense/enemies/mirrorPane.json` | `icePillar` の写し（`hp` は `icePillar` × 2） | D |
 | `world/ARC.json` | 足す: `finalBoss "boneLord"`（E1。E2 が `"deepLord"` に替える）/ `surfaceHold 1.5` / `surfaceOffset 2` / `surfaceColor "#d0f0ff"` / `aheadColor "#ffd75f"` | E1（E2 は `finalBoss` の値だけ） |
 
-`src/data/balance/assembled.gen.ts` は新しい JSON ファイルで import が増える（手で直さない）。**同じ段の複数レーンが新しい JSON を足すので、取り込みで衝突したら統合役が `npm run balance:gen` を回して作り直す**。
+`src/data/balance/assembled.gen.ts` は新しい JSON ファイルで import が増える（手で直さない）。**同じ段の複数レーンが新しい JSON を足すので、取り込みで衝突したら統合役が `pnpm run balance:gen` を回して作り直す**。
 
 ### 3-3. テスト（新しい仕組みには必ず。`it` は日本語）
 
@@ -312,7 +312,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 | `system/floatingText.test.ts` | 新しい浮き文字（膨張 / 呑み込み / 吐き出し / 盾割れ / 反動 / 鏡割れ / 四門 / 門崩れ / 陥没 / 第三の顔 / 踏破）は全部体言止め | そのまま通る | 各 |
 | `render/sprites.test.ts` | 新しい敵の絵 | `recolor` か P の絵で埋める | D / E2 |
 | `data/balance/balance.test.ts`（説明の無い葉の基準値） | 新しい葉 | 全部 `_fields` に書く | 各 |
-| `npm run audit:docs` | 新しいファイル 7 つが `CODE_MAP.md` に無い | 統合役がコードと同じコミットで足す | 統合役 |
+| `pnpm run audit:docs` | 新しいファイル 7 つが `CODE_MAP.md` に無い | 統合役がコードと同じコミットで足す | 統合役 |
 
 ### 3-6. セーブの移行
 
@@ -322,7 +322,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 
 ## 4. 段階とレーン
 
-全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `npx vitest run <ファイル>`、最後に 1 回 `npm run check:fast`。統合役は段の終わりに `npm run check`。
+全レーン `isolation: "worktree"`。レーンはコミットしない。作業中は自分のテストだけ `pnpm exec vitest run <ファイル>`、最後に 1 回 `pnpm run check:fast`。統合役は段の終わりに `pnpm run check`。
 
 ### 8a（並行 3 本。遊べる: スライム王が新しい 3 段階、全ボスが取り巻きで怯み・固有の報酬、深度 21 が最深の間で骸骨卿が仮の主、倒すと踏破できる）
 
@@ -330,7 +330,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 | --- | --- | --- | --- | --- | --- |
 | **A 器とスライム王** | Opus（全ボスの状態機械と state の型、決定性） | `system/bossKit.ts`、`system/bossRecord.ts`（新）、`system/bossKingSlime.ts`（新）、`system/bossRewards.ts`（新）、`system/bossKit.test.ts`（新）、`system/bossKingSlime.test.ts`（新）、`system/bossRewards.test.ts`（新）、`system/boss.test.ts`（スライム王の 3 件を消す）、`balance/enemies/BOSS/rules.json`（新）、`BOSS/_index.json`（`_order`）、`BOSS/kingSlime.json` | `system/boss.ts`（**1〜24 行目の import と 53〜71 行目で使われなくなった定数、253〜342 行目のスライム王の削除、`bossTelegraph` に kingSlime、`announceBoss` に `lockedAt`、`onBossDeath` の `bossKillFx` の直後に記録と報酬の 2 行**。25 行目と 73〜98 行目は E1 のもの）、`system/bossThiefKing.ts` / `bossOilKing.ts` / `bossMirrorKnight.ts`（末尾に `export const XXX_SIGNATURE` を足すだけ。自傷の怯みを `bossDown` に寄せるのは 8b の各レーン）、`core/state.ts`（3-1 の A 分）、`core/game.ts`（`bossLog: []`）、`system/hub.ts`（`bossLog: []`）、`system/combat.ts`（`damagePlayer` の "hit" の経路に `noteBossFightHit(state)` 1 行）、`system/enemyTraits.ts`（`onEnemyDeath` の `crackEgg` の直後に `noteBossMinionDeath` 1 行） | `system/floor.ts`、`system/chapters.ts`、`system/specialRooms.ts`、`main.ts`、`render/**` | 2-1・2-2・2-7 が 3-3 のテストで通る。`sequence` だけのボス（群れの母・司書・霜の巨人・双子・骸骨卿）の挙動が変わらない（既存テストが通る） |
 | **E1 最深の間と踏破** | Sonnet（場所がすべて列挙済みの小さな Edit） | `system/finale.ts`（新: `clearRun` / `placeSurfaceGate` / `updateFinale` / `announceChapterAhead`）、`system/finale.test.ts`（新）、`system/chapters.ts`（`isFinalDepth` / `finalBossKey` / `chapterAheadLines`）、`system/chapters.test.ts`、`balance/world/ARC.json` | `system/boss.ts`（**25 行目の chapters の import、73〜98 行目の `isBossDepth` と `bossKeyForDepth`** だけ）、`core/state.ts`（`GameStatus` と `runOver`）、`core/game.ts:149`、`system/specialRooms.ts`（3-1 の E1 分）、`system/floor.ts`（`installRoomHooks` に `surface`、`updateRooms` の末尾に `updateFinale(state)`、`descend` の末尾の `fresh` の枝に `announceChapterAhead(state)`）、`render/runUi.ts`（:87・:119・:153 に surface の色・ラベル・乗り続ける輪）、`main.ts:1091, 1188, 1638, 1770`、`render/renderer.ts:816, 2061, 3206`、`render/effectsUi.ts:636`、`system/player.ts:204`、`system/mana.ts:17, 26, 61`、`core/replay.ts:736`、`ui/title.ts:567`、`render/titleUi.ts:126`、`meta/tips.ts`（「踏破」の 1 項目。tips のテストが用語集の語を要求するなら `docs/GLOSSARY.md` に 最深の間 / 最深の主 / 踏破 / 地上への道 の 4 行も） | `system/bossKit.ts`、`bossKingSlime.ts`、`combat.ts`、`enemyTraits.ts` | 3-3 の E1 のテストが通る。`rg '=== "dead"' src` が `ui/title.ts`（cause の振り分け）・`qa/economyMetrics.ts`・テストだけ |
-| **P 絵** | Opus（pixel-artist） | `src/data/sprites/bosses.ts` に `deepLord`（密度 2、32×32 相当。予備動作と攻撃の原画は `render/sprites.ts` の `poseKey` の形で）、`src/data/sprites/still.ts` に `gatePillar` / `mirrorPane`（24×24。`icePillar` と同じ据え置きの作法） | `src/data/sprites/dots.ts`（`SPRITE_DOTS` に 3 行） | `src/data/enemies*.ts`（定義は E2 / D が足す） | `npm run sprite -- lint` が通る。`render/sprites.test.ts` が通る（使われない絵が増えても落ちない） |
+| **P 絵** | Opus（pixel-artist） | `src/data/sprites/bosses.ts` に `deepLord`（密度 2、32×32 相当。予備動作と攻撃の原画は `render/sprites.ts` の `poseKey` の形で）、`src/data/sprites/still.ts` に `gatePillar` / `mirrorPane`（24×24。`icePillar` と同じ据え置きの作法） | `src/data/sprites/dots.ts`（`SPRITE_DOTS` に 3 行） | `src/data/enemies*.ts`（定義は E2 / D が足す） | `ppnpm run sprite lint` が通る。`render/sprites.test.ts` が通る（使われない絵が増えても落ちない） |
 
 **統合（8a）**: A → E1 → P の順に取り込む。`boss.ts` は A と E1 が別の行を触る（上の行の割り当て）。`assembled.gen.ts` は A だけが import を足す。`CODE_MAP.md` に `bossKingSlime.ts` / `bossRewards.ts` / `bossRecord.ts` / `finale.ts` の 4 行と、`boss.ts` の行の「スライム王は bossKingSlime.ts」。`REPLAY_VERSION` は上げない。
 
@@ -342,11 +342,11 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 | **C 油壺の王** | Sonnet | `system/bossOilKing.ts`、`system/bossOilKing.test.ts`（新）、`BOSS/oilKing.json` | `system/bossWave3.test.ts`（「油壺の王」の describe :101-124 を消すだけ） | 他のボスのファイル、`bossWave3.test.ts` の他の describe | 2-4 と 3-3 の C |
 | **D 鏡の騎士** | Sonnet | `system/bossMirrorKnight.ts`、`system/bossMirrorKnight.test.ts`（新）、`BOSS/mirrorKnight.json`、`balance/enemies/{stats,combat}/mirrorPane.json`・`defense/enemies/mirrorPane.json`（新） | `data/enemiesWave3.ts`（`mirrorImage` の行の直後に `mirrorPane` 1 行。P の絵が取り込み済みなら `recolor` なし、未取り込みなら `recolor: { base: "icePillar", … }`）、`data/enemyDefense.ts` / `data/enemyCombatWave3.ts`（`mirrorKnight` の行の直後に 1 行）、`system/bossWave3.test.ts`（「鏡の騎士」の describe :168-226 を消すだけ） | 他のボスのファイル、`boss.ts` | 2-5 と 3-3 の D |
 | **E2 最深の主** | Opus（新ボス・部屋の地形の書き換え・借りる技の組み立て） | `system/bossDeepLord.ts`（新）、`system/bossDeepLord.test.ts`（新）、`BOSS/deepLord.json`（新）、`balance/enemies/{stats,combat}/{deepLord,gatePillar}.json`・`defense/enemies/…`（新） | `BOSS/_index.json`（`_order` に `"deepLord"`）、`world/ARC.json`（`finalBoss` の値を `"deepLord"` に）、`data/enemies.ts`（`EnemyBehavior` に 1 行）、`data/enemiesWave3.ts`（**配列の末尾** = `reaperShade` の行の後に 2 行）、`data/enemyDefense.ts` / `data/enemyCombatWave3.ts`（**末尾**に 2 行）、`data/enemyRoles.ts`（1 行）、`system/behaviors/registry.ts`（1 行）、`system/boss.ts`（`updateBossEnemy` の switch・`bossTelegraph`・`bossArmorBlocks`・`setupBossRoom` に 1 行ずつ） | 章ボス 4 のファイル（署名の技は import して呼ぶだけ） | 2-6 と 3-3 の E2 |
-| **F QA** | Sonnet（**7e の取り込み後に始める**） | `qa/bossMetrics.ts`（新）、`qa/bossMetrics.test.ts`（新）、`qa/bossProbe.ts`（新）、`qa/bossProbe.test.ts`（新） | `qa/simulation.test.ts`（ラン終わりに `state.bossLog` を集め、report に「## ボス」の表を 1 節）、`qa/bot.ts`（`nearestEngagedEnemy` で `bossArmorBlocks(state, e)` の敵を飛ばす 1 行。地上への道は踏まない = 目的地に選ばない）、`scripts/qa-probe.mjs`（`--bosses` で `SIM_PROBE=bosses`、`probe.md` の「## ボス」の節だけ差し替え。`--weapons` と同じ作法） | `system/**` | 6 章の指標が表に出る。縮小版が `npm run check:fast` の中で数秒 |
+| **F QA** | Sonnet（**7e の取り込み後に始める**） | `qa/bossMetrics.ts`（新）、`qa/bossMetrics.test.ts`（新）、`qa/bossProbe.ts`（新）、`qa/bossProbe.test.ts`（新） | `qa/simulation.test.ts`（ラン終わりに `state.bossLog` を集め、report に「## ボス」の表を 1 節）、`qa/bot.ts`（`nearestEngagedEnemy` で `bossArmorBlocks(state, e)` の敵を飛ばす 1 行。地上への道は踏まない = 目的地に選ばない）、`scripts/qa-probe.mjs`（`--bosses` で `SIM_PROBE=bosses`、`probe.md` の「## ボス」の節だけ差し替え。`--weapons` と同じ作法） | `system/**` | 6 章の指標が表に出る。縮小版が `pnpm run check:fast` の中で数秒 |
 
-**衝突の確認（8b）**: `boss.ts` は E2 だけ。`enemiesWave3.ts` / `enemyDefense.ts` / `enemyCombatWave3.ts` は D が鏡の騎士の直後、E2 が末尾（離れた行）。`bossWave3.test.ts` は C と D が別の describe を消すだけ。`BOSS/_index.json` は E2 だけ。`assembled.gen.ts` は D と E2 が import を足す → 統合役が `npm run balance:gen`。**7e との衝突**: 8b の前に `git diff --stat <8a の統合コミット>..<7e> -- src/data/balance/enemies/BOSS src/data/balance/world/ARC.json src/data/balance/enemies/stats src/qa` を見る。7e が BOSS / ARC / ボスの stats に触れていれば 7e を先に入れてから 8b の worktree を切る。F は 7e の後でなければ始めない（`src/qa/` が 7e の所有）。
+**衝突の確認（8b）**: `boss.ts` は E2 だけ。`enemiesWave3.ts` / `enemyDefense.ts` / `enemyCombatWave3.ts` は D が鏡の騎士の直後、E2 が末尾（離れた行）。`bossWave3.test.ts` は C と D が別の describe を消すだけ。`BOSS/_index.json` は E2 だけ。`assembled.gen.ts` は D と E2 が import を足す → 統合役が `pnpm run balance:gen`。**7e との衝突**: 8b の前に `git diff --stat <8a の統合コミット>..<7e> -- src/data/balance/enemies/BOSS src/data/balance/world/ARC.json src/data/balance/enemies/stats src/qa` を見る。7e が BOSS / ARC / ボスの stats に触れていれば 7e を先に入れてから 8b の worktree を切る。F は 7e の後でなければ始めない（`src/qa/` が 7e の所有）。
 
-**統合（8b）**: B → C → D → E2 → F の順。`npm run balance:gen` → `npm run check`。`REPLAY_VERSION` を 1 つ上げる。レビューは段の終わりに `model: "opus"` の reviewer 1 回（決定性: `pickMove` に乱数が無いこと、陥没の溶岩と柵の `lockedTiles` の後始末、`bossLog` の積み方）。`npm run qa:probe -- --bosses` を隔離 worktree で回して 6 章の表を見る。資料は段の終わりにまとめて: `CODE_MAP.md`（`bossDeepLord.ts` / `qa/bossMetrics.ts` / `qa/bossProbe.ts` の 3 行。8a の 4 行と合わせて新規 7）、`docs/recipes/enemy.md` に「ボス」の 5 行（`pickMove` / `followUp` / `BOSS_THREATS` / 署名の技 / 固有の報酬）、`docs/GLOSSARY.md`（6 章 1 の語）、`docs/BALANCE.md`（`BOSS.rules` / `deepLord` / `ARC` の追加）、`docs/ARCHITECTURE.md`（`GameStatus "cleared"`・`bossLog`・版の一覧）、`meta/tips.ts`（ボスの隙・第三の顔）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の Q6 の行、`CHANGELOG.md`、`HANDOFF.md`。
+**統合（8b）**: B → C → D → E2 → F の順。`pnpm run balance:gen` → `pnpm run check`。`REPLAY_VERSION` を 1 つ上げる。レビューは段の終わりに `model: "opus"` の reviewer 1 回（決定性: `pickMove` に乱数が無いこと、陥没の溶岩と柵の `lockedTiles` の後始末、`bossLog` の積み方）。`ppnpm run qa:probe --bosses` を隔離 worktree で回して 6 章の表を見る。資料は段の終わりにまとめて: `CODE_MAP.md`（`bossDeepLord.ts` / `qa/bossMetrics.ts` / `qa/bossProbe.ts` の 3 行。8a の 4 行と合わせて新規 7）、`docs/recipes/enemy.md` に「ボス」の 5 行（`pickMove` / `followUp` / `BOSS_THREATS` / 署名の技 / 固有の報酬）、`docs/GLOSSARY.md`（6 章 1 の語）、`docs/BALANCE.md`（`BOSS.rules` / `deepLord` / `ARC` の追加）、`docs/ARCHITECTURE.md`（`GameStatus "cleared"`・`bossLog`・版の一覧）、`meta/tips.ts`（ボスの隙・第三の顔）、`IDEAS.md` の「現状」、`docs/ideas/README.md` の Q6 の行、`CHANGELOG.md`、`HANDOFF.md`。
 
 ---
 
@@ -363,11 +363,11 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 
 **フル QA とボスの計測に足す表**（F）
 
-撃破の秒・被弾の目標と比べるのは `qa:probe -- --bosses`（`src/qa/probe.md`「## ボス」）だけ。フル QA の装備は itemLevel 20 固定で章ボスの階では深度相応の 3〜4 倍の火力になるので、フル QA の「## ボス」は参考として読む（実プレイの推定はスライム王で約 30〜45 秒）。
+撃破の秒・被弾の目標と比べるのは `qa:probe --bosses`（`src/qa/probe.md`「## ボス」）だけ。フル QA の装備は itemLevel 20 固定で章ボスの階では深度相応の 3〜4 倍の火力になるので、フル QA の「## ボス」は参考として読む（実プレイの推定はスライム王で約 30〜45 秒）。
 
 | 指標 | どこで | 目標 |
 | --- | --- | --- |
-| ボスごとの撃破時間の中央値（bot、深度相応の装備） | `qa:probe -- --bosses`・フル QA | 章 1: 40〜90 秒 / 章 2・3: 60〜120 秒 / 章 4: 80〜150 秒 / 最深の主: 120〜200 秒 |
+| ボスごとの撃破時間の中央値（bot、深度相応の装備） | `qa:probe --bosses`・フル QA | 章 1: 40〜90 秒 / 章 2・3: 60〜120 秒 / 章 4: 80〜150 秒 / 最深の主: 120〜200 秒 |
 | ボスごとの被弾の中央値と、ボス戦で死んだ割合 | 同上 | 被弾 3〜8。ボス戦の死は全死亡の 2〜3 割（章ボスが関門になり、壁にならない） |
 | 1 戦のダウン回数（自傷 + 怯み） | `bossLog.downs` | 2 回以上（全ボス） |
 | 行為で進んだ段階の割合（分裂体・追い詰め・引火・激突・門柱） | probe | 3〜6 割（HP だけで進むなら行為の数を下げる） |
@@ -399,7 +399,7 @@ export function pushBossRecord(state: GameState, e: Enemy): void;      // boss.t
 - `BossHooks` に `chainWindupMul`（連撃の続きの予備動作の倍をボスごとに変える）・`recoverTime`（硬直の秒）を足した。`signatureOf(key, move, hooks)`（署名の技の組み立て）と `noteBossDown`（ダウン回数を `bossLog` へ）が `bossKit.ts` / `bossRecord.ts` に入った
 - `deepLord.json` の新しい葉: `beamLength` / `collapseMinInner` / `collapseFade` / `handFall`（2-6 の一覧に無い）
 - 撃破の後始末は `settleThiefKingRoom`（柵・地雷）/ `settleMirrorKnightRoom`（写し身と姿見）/ `settleDeepLordRoom`（門柱・崩れる床の予約・借りた地雷）。残ると部屋の封鎖が解けない（レビューで見つかった不具合）
-- ボスの QA（F）は取り込み済み（`qa/bossMetrics.ts` / `qa/bossProbe.ts`、フル QA の「## ボス」、`qa:probe -- --bosses`、bot は `bossArmorBlocks` の敵を狙わない）。結果: 撃破は目標より速い・深度相応の装備の bot は最深の主に 5/5 で倒れる・盗賊王 / 油壺の王 / 鏡の騎士は行為で進む段階が 0%（数値は `src/qa/probe.md` の「## ボス」）
+- ボスの QA（F）は取り込み済み（`qa/bossMetrics.ts` / `qa/bossProbe.ts`、フル QA の「## ボス」、`qa:probe --bosses`、bot は `bossArmorBlocks` の敵を狙わない）。結果: 撃破は目標より速い・深度相応の装備の bot は最深の主に 5/5 で倒れる・盗賊王 / 油壺の王 / 鏡の騎士は行為で進む段階が 0%（数値は `src/qa/probe.md` の「## ボス」）
 
 ## 参照（絶対パス）
 

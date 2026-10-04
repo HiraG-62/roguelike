@@ -443,7 +443,7 @@ interface BoonDef {
 | `src/data/weaponForms.ts` / `src/data/reforges.ts`（最小 Edit） | `keywords: KeywordProfile` |
 | `src/core/replay.ts`（最小 Edit） | alloc イベントの削除、`REPLAY_VERSION` |
 
-### 3-2. balance JSON（`_fields` を親に 1 回。`npm run balance:gen`）
+### 3-2. balance JSON（`_fields` を親に 1 回。`pnpm run balance:gen`）
 
 | ブロック | 中身 |
 | --- | --- |
@@ -504,7 +504,7 @@ interface BoonDef {
 | `qa/simulation.test.ts`（`BoonMetrics` の core / lineage、`ALLOC`）、`qa/bot.ts` | 提示の出所と振り分け | `stairs` を `exit:<lineage>` に、`drainAttributePoints` 削除 |
 | `system/runEvents.test.ts` / `contractors.test.ts` / `specialRooms.test.ts`（`resonance` 部屋） | 祝福 key の変更・共鳴炉 | key を差し替え |
 | `meta/tips.test.ts` | 項目の増減 | — |
-| `npm run audit:docs` | `CODE_MAP.md` の「（`KEYSTONES`、37 種）」などの件数、`GLOSSARY` の旧用語（結び・星座・陰画・拮抗・振り分け・真髄） | 資料を直す（検査は緩めない） |
+| `pnpm run audit:docs` | `CODE_MAP.md` の「（`KEYSTONES`、37 種）」などの件数、`GLOSSARY` の旧用語（結び・星座・陰画・拮抗・振り分け・真髄） | 資料を直す（検査は緩めない） |
 
 ### 3-6. セーブの移行（v2 は切らない）
 
@@ -524,7 +524,7 @@ step の中で保存している既存の負債（`system/loot.ts:248`、`skills
 
 ### 前置き（統合役、各段の頭）: 共有の型を先に 1 コミット
 
-`core/rules.ts` / `core/events.ts` / `core/state.ts` / `loot/types.ts` / `skills/types.ts` の型だけを足し（挙動は変えない）、`npm run check` を通してからレーンを走らせる。
+`core/rules.ts` / `core/events.ts` / `core/state.ts` / `loot/types.ts` / `skills/types.ts` の型だけを足し（挙動は変えない）、`pnpm run check` を通してからレーンを走らせる。
 
 ### 7a. 祝福の骨格（遊べる: 出口で系譜を選び、系譜の 3 枚から選ぶ。中身は今の祝福のまま）
 
@@ -575,7 +575,7 @@ step の中で保存している既存の負債（`system/loot.ts:248`、`skills
 
 **ここで初めて数値を合わせる**（性質の中身が変わる前に合わせても無駄になる）。balance-tuner 1 レーン + 統合役。
 
-- 手順: `npm run qa:probe` → 地力 ÷ 敵の生命（`probe.md:501`）を見ながら `INNATE.budget.perDepth`（0.35 → 0.5 前後）と `FLUX.globalScale`、性質の増の曲線の上端を上げ、深度 10 で 0.85、20 で 0.85〜0.9 に。次に被弾で死ぬまでの回数 10〜14 → 4〜7 は **`ENEMY_SCALE.damagePerDepth`（0.05 → 0.08 前後）** と `INNATE.armor.perPoint` を下げる（守りが厚いのは地金の防御行の予算が大きいため）。相乗の倍 Π は「死亡時の内訳」で観測だけ（章 2 で ×1.5〜3、章 4 で ×5〜12 が目標だが札の枚数で自然に出るはず。足りなければ `gradeMagnitudeMul`）
+- 手順: `pnpm run qa:probe` → 地力 ÷ 敵の生命（`probe.md:501`）を見ながら `INNATE.budget.perDepth`（0.35 → 0.5 前後）と `FLUX.globalScale`、性質の増の曲線の上端を上げ、深度 10 で 0.85、20 で 0.85〜0.9 に。次に被弾で死ぬまでの回数 10〜14 → 4〜7 は **`ENEMY_SCALE.damagePerDepth`（0.05 → 0.08 前後）** と `INNATE.armor.perPoint` を下げる（守りが厚いのは地金の防御行の予算が大きいため）。相乗の倍 Π は「死亡時の内訳」で観測だけ（章 2 で ×1.5〜3、章 4 で ×5〜12 が目標だが札の枚数で自然に出るはず。足りなければ `gradeMagnitudeMul`）
 - フル QA（隔離 worktree）: 到達深度・踏破率（目標: 標準の bot で「クリアがちょっと難しい」= 踏破率 10〜20%）、系譜の提示率・札の構成・昇華到達率・融合成立率・錬磨回数、スキル由来与ダメ比率 55〜65%、符の使用分布、装備の有無の到達差（2.63 → 1.5 以下）、共鳴の段数の分布
 - REPLAY 31（数値を変えたら）
 

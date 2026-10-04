@@ -1,11 +1,11 @@
 ---
 name: check
-description: npm run check（tsc → vitest → vite build）を実行して結果を要約する。作業完了の確認に使う。
+description: pnpm run check（tsc → vitest → vite build）を実行して結果を要約する。作業完了の確認に使う。
 ---
 
 # /check
 
-1. `npm run check` を実行する（timeout 600000 ms）
+1. `pnpm run check` を実行する（timeout 600000 ms）
 2. 出力から次を拾う
    - どの段（tsc / vitest / vite build）まで通ったか
    - vitest の `Test Files` と `Tests` の行（成功 / 失敗 / skip の件数）

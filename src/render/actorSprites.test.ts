@@ -80,7 +80,7 @@ describe("actorSprites: 全ジョブの体", () => {
 
 /**
  * 手に持つ絵がまだ無い武器種（描画は 24x24 の体と HELD の持ち手に落ちる）。
- * pixel-artist レーンが scripts/actor/ に足して `npm run actor:gen` したら消す。
+ * pixel-artist レーンが scripts/actor/ に足して `pnpm run actor:gen` したら消す。
  * 投擲物のクナイ・手裏剣は段 7 で描いたので空
  */
 const UNDRAWN_WEAPONS: readonly MovesetKey[] = [];

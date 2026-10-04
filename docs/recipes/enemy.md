@@ -1,6 +1,6 @@
 # レシピ: 敵
 
-0. 数値（HP・速度・予告・怯み耐性・防御など）は `src/data/balance/enemies/` の `stats/<key>.json` / `combat/<key>.json` / `defense/enemies/<key>.json` を足して `npm run balance:gen`（無いと `...N.key` で tsc が落ちる）。項目の意味は各ディレクトリの `_index.json` の `_fields` を読む。新しい項目を足したら `_fields` にも 1 行
+0. 数値（HP・速度・予告・怯み耐性・防御など）は `src/data/balance/enemies/` の `stats/<key>.json` / `combat/<key>.json` / `defense/enemies/<key>.json` を足して `pnpm run balance:gen`（無いと `...N.key` で tsc が落ちる）。項目の意味は各ディレクトリの `_index.json` の `_fields` を読む。新しい項目を足したら `_fields` にも 1 行
 1. `src/data/enemies.ts`: `EnemyBehavior` に追加（既存 behavior の流用なら不要）、`ENEMIES` に `EnemyDef`（`name` は日本語、`minDepth` / `weight` / `windup` はテレグラフが読める長さ）。既存の敵の色替え + 挙動 1 つの追加なら新規 behavior を作らず `EnemyDef.recolor`（元のスプライトと behavior を流用し、色と 1 挙動だけ差し替える）。`data/enemyDefense.ts` の `ENEMY_ATTACK` と `data/enemyCombat.ts` にも 1 行（無いと起動時に例外）。商人・壺のような置物は `EnemyDef.merchant` / `container` を付けて図鑑・陣の計測・気付き・撃破数から外す
 2. `src/system/behaviors/`: `families.ts` に家族（`Rusher` / `Charger` / `Keeper` / `Flyer` / `Stationary` / `BossDriven`）を継いだクラスを 1 つ書き、`registry.ts` の `BEHAVIORS` に登録（`Record<EnemyBehavior, …>` なので漏れは型エラー）。既存の家族で足りるなら家族をそのまま登録。クラスは状態を持たない（凍結される。作業領域は `e.ai`）。予告・出だし・持続・終わりなど段の中身は移行中のため `src/system/enemies.ts` の behavior の分岐に書く（`docs/ideas/oop-migration.md`）。AI の数値は tuning の `ENEMY_AI`。個別 behavior の処理は `enemyBehaviors.ts`、死骸・取り巻き・気力奪取などの横断的な仕組みは `enemyTraits.ts`
    - **章で覚える技**: 連撃・離脱・後退射撃を深度で覚えさせるなら `src/data/balance/enemies/ENEMY_TEMPO.json` の `depthStages.<敵の key>` に段を 1 つ（`{ minDepth, followUp?, retreatMul?, windupMoveMul? }`。`system/enemyStages.ts`）。連撃の続きの予備動作は最初からコミット（怯まない）
@@ -23,4 +23,4 @@
 - **予告の図解**: 新しい敵でも `system/telegraphDiagram.ts` が敵データ（予告の形・`windup` / `strikeTime` / `recover`）から自動で導く。手書きの表は持たない。ボスは `BOSS_THREATS` の段階ごとの間合いも出る
 - **予告の形と色**: 新しい敵の予告は `system/threat.ts` の `threatShapes` が持つ形（線・光線・十字・輪・扇・折れ線）から選ぶ。新しい形を足すなら `threat.ts`（形と `threatensPlayer`）と `render/telegraphLayer.ts`（筆）の両方。色は「黄 = 下絵（まだ止められる）/ 赤 = 墨入れ（必ず来る）」の 2 つだけで、敵の色・粒・印が横取りしない（`data/signs.ts` の符号表と `signs.test.ts`）。予備動作の唸り `enemyWindup` は精鋭とボスだけ（並の敵は `audio/narimono.ts` が止める）
 
-最後に `npm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。
+最後に `pnpm run check`。関係するファイルの役割は `docs/CODE_MAP.md`、数値は `docs/BALANCE.md`、表示文字列は `docs/GLOSSARY.md`。

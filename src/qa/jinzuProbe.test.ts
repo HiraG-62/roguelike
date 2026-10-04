@@ -13,7 +13,7 @@ import {
 // @types/node が無いため process の型は自前で最小限だけ宣言する
 declare const process: { env: Record<string, string | undefined> };
 
-/** SIM_PROBE=jinzu: 試し陣を 3 方針で測って probe.md の「## 本陣と陣図」の節にする（`npm run qa:probe -- --jinzu`） */
+/** SIM_PROBE=jinzu: 試し陣を 3 方針で測って probe.md の「## 本陣と陣図」の節にする（`ppnpm run qa:probe --jinzu`） */
 const PROBE_JINZU = process.env.SIM_PROBE === "jinzu";
 const JINZU_START = "<<<QA_PROBE_JINZU_START>>>";
 const JINZU_END = "<<<QA_PROBE_JINZU_END>>>";

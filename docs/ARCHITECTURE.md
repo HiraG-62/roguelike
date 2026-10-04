@@ -169,4 +169,4 @@ GameState
 
 - 各モジュールの隣に `*.test.ts`（Vitest、名前は日本語）
 - `system/testHelpers.ts` はテスト専用
-- `qa/simulation.test.ts`: 既定は縮小版（5 seed × 20,000 step）で例外・NaN・壁めり込み・id 重複を検査。`npm run qa:full` でフル版を回し `qa/report.md` を更新
+- `qa/simulation.test.ts`: 既定は縮小版（5 seed × 20,000 step）で例外・NaN・壁めり込み・id 重複を検査。`pnpm run qa:full` でフル版を回し `qa/report.md` を更新

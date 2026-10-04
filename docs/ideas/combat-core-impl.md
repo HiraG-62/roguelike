@@ -19,7 +19,7 @@
 - **連撃の段数の拡張（6〜8 段）は段取り 5 に回す**。今の型は N 段を既に許す（`steps` は任意長、最終段の判定は `hookCombo` で長さから決まる）ので仕組み上の障害は無いが、右レーンを同じ段数にする規約・段ごとの絵（`fxMotions`）・HUD/詳細欄の収まりが「型の設計」と不可分
 - `REPLAY_VERSION` は **12 → 13 を 1 回だけ**上げる（`parryPressed` のビット追加 + 進行が変わる更新の束）
 - レーンは 4 本（A 敵のコミットと予告 / B プレイヤーの重さ・ダッシュ・ヒットストップ・カウンター / C 受け流し / D 回復・処刑の既定値）。共有ファイルへの最小 Edit を 3 章に列挙
-- QA の物差しは既に `src/qa/combatProbe.ts` + `probe.md`（段取り 1 の成果）にある。基準値: slime 深度 1・連打 bot で 完遂率 12% / ヒットストップ 34% / 撃破 1.06 秒 / 被弾 7.0 回/60 秒（`src/qa/probe.md:18`）。改修後に `npm run qa:probe` で同じ表を出して 5 章のつまみで合わせる
+- QA の物差しは既に `src/qa/combatProbe.ts` + `probe.md`（段取り 1 の成果）にある。基準値: slime 深度 1・連打 bot で 完遂率 12% / ヒットストップ 34% / 撃破 1.06 秒 / 被弾 7.0 回/60 秒（`src/qa/probe.md:18`）。改修後に `pnpm run qa:probe` で同じ表を出して 5 章のつまみで合わせる
 
 ---
 
@@ -105,7 +105,7 @@
 - **色**: `attackCommitted(e)`（2-1 の純関数）が false なら `TELEGRAPH.readyColor`（黄）、true なら `TELEGRAPH.commitColor`（赤）。頭上の `!`（`renderer.ts:1470`）も同じ色に
 - 新規 `src/render/telegraphLineUi.ts`（`chargeLineUi.ts` と同じ作り）: `drawStrikeLine(ctx, state, e, tele)`。`renderer.ts:1473` の `if (tele?.kind === "line") this.drawChargeLine(e);` を差し替え、`drawChargeLine`（1954-1963）と `CHARGER_LINE_LEN/ALPHA`（400-401）を消す（renderer.ts は最小 Edit）。`chargeLineUi.ts`（二度突きの折れ線）も色だけコミット色に合わせる
 
-**JSON**: 新規 `src/data/balance/feel/TELEGRAPH.json`（`feel/_index.json` の `_order` に追加、`npm run balance:gen`、`tuning.ts` に `export const TELEGRAPH = BALANCE.feel.TELEGRAPH`）
+**JSON**: 新規 `src/data/balance/feel/TELEGRAPH.json`（`feel/_index.json` の `_order` に追加、`pnpm run balance:gen`、`tuning.ts` に `export const TELEGRAPH = BALANCE.feel.TELEGRAPH`）
 ```json
 { "_note": "敵の予告の線（render/telegraphLineUi.ts）。見た目だけでロジックに効かない",
   "_fields": { "readyColor": "予備動作の前半（怯ませられる）の色", "commitColor": "コミット後（必ず出る）の色", "lineAlpha": "線の不透明度(0..1)", "lineWidth": "線の太さ px", "minLength": "線の最短 px", "maxLength": "線の最長 px" },
@@ -236,7 +236,7 @@ readonly weight: WeaponWeight;
 - `core/state.ts` は A と C が別のインターフェースに 1〜2 行ずつ足す。`combat.ts` は B（`showHit`）と C（`damagePlayer`/`PlayerHitResult`）で行が離れている。統合前に `git diff` で両者が残っているか確認
 - 順序: **A と C の接点**（`strike()` の `isStaggered` ガード）は A が先に入れる。B は独立。D はいつでも
 - REPLAY_VERSION は C だけが上げる（他レーンは上げない）
-- 統合役が `npm run balance:gen`（新規 JSON 3 つ: TELEGRAPH / weightClass / PARRY）と `npm run check`、`npm run qa:probe` で 5 章のつまみ合わせに入る
+- 統合役が `pnpm run balance:gen`（新規 JSON 3 つ: TELEGRAPH / weightClass / PARRY）と `pnpm run check`、`pnpm run qa:probe` で 5 章のつまみ合わせに入る
 
 ---
 
@@ -275,7 +275,7 @@ readonly weight: WeaponWeight;
 
 1. **受け流しの既定キー**（R に置き restart を P へ / パッド RB）: ユーザーに聞く。代案は「F を受け流し、奥義を R」。決めた後で `docs/GLOSSARY.md` と `tips.ts` を合わせる
 2. **扇子の重さ**: 3-2 の例では「中」。今の `attackMoveMul` 1.0 の手触りを残すなら「軽」。段取り 5 で扇の型を決めるまでの暫定として軽で提案。ユーザー確認
-3. **ダッシュの取り消し禁止中に押した入力の扱い**: 今回は捨てる（spec は無言）。手触りで不満が出たら `dashQueued`（発生の終わりまで 1 回だけ先行入力）を B の追加項目に。`npm run dev` で大剣を振りながらダッシュ連打して確認
+3. **ダッシュの取り消し禁止中に押した入力の扱い**: 今回は捨てる（spec は無言）。手触りで不満が出たら `dashQueued`（発生の終わりまで 1 回だけ先行入力）を B の追加項目に。`pnpm run dev` で大剣を振りながらダッシュ連打して確認
 4. **銃の家系の重さの効き方**: `isAttacking` は近接の振りだけなので、長銃・砲の「左の射撃中に止まる」は今回は起きない（右レーンの振りとダッシュ取り消しだけ）。射撃中の移動倍率を重さで縛るかは段取り 5（銃の型）で決める。`player.ts:745-753` と `updateShooting` を読んで確認
 5. **`strikeSlotsFull` の待ち**（`enemies.ts:599-602`。予備動作の終わりで 0.1 秒ずつ延ばす）はコミット窓を延ばす。同時攻撃の上限を変える段取り 3 で一緒に見る。`probe.md` の集団の表で「完遂率」が 1 対 1 より落ちないか
 6. **受け流しで止めた strike の後始末**: `touchPlayer` が `parried` を返したとき `strike()` が `endStrike` へ進まないか（A の `isStaggered` ガードで塞ぐ想定）。`parry.test.ts` に「受け流された敵の phase が chase で attackCooldown が入っている」を必ず入れる

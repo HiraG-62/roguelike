@@ -1,6 +1,6 @@
 /**
  * バランス数値のディレクトリ（src/data/balance/<ファイル>/…）を走査し、全 JSON を明示的な import で組み立てる
- * `src/data/balance/assembled.gen.ts` を書き出す（`npm run balance:gen`）。
+ * `src/data/balance/assembled.gen.ts` を書き出す（`pnpm run balance:gen`）。
  * import.meta.glob ではなく明示の import にするのは、JSON ごとの厳密な型推論を BALANCE の型へそのまま通すため。
  *
  * 配置の決まり（docs/BALANCE.md「ファイルの配置」）:
@@ -118,7 +118,7 @@ function scanDir(abs, ctx) {
       rewriteOrder(indexAbs, finalOrder);
       ctx.log.push(`${rel(indexAbs)}: ${ORDER_KEY} の末尾へ足した: ${missing.join(", ")}`);
     } else {
-      ctx.problems.push(`${rel(indexAbs)}: ${ORDER_KEY} に無い key: ${missing.join(", ")}（npm run balance:gen で末尾へ足す）`);
+      ctx.problems.push(`${rel(indexAbs)}: ${ORDER_KEY} に無い key: ${missing.join(", ")}（pnpm run balance:gen で末尾へ足す）`);
     }
   }
 
@@ -201,7 +201,7 @@ export function assembleBalance({ write = false } = {}) {
     .sort()
     .map((f) => `  ${JSON.stringify(f)},`);
   const text = [
-    "// 自動生成（scripts/balance-assemble.mjs）。手で直さない。JSON を足したり消したりしたら `npm run balance:gen`",
+    "// 自動生成（scripts/balance-assemble.mjs）。手で直さない。JSON を足したり消したりしたら `pnpm run balance:gen`",
     "// 配置の決まりは docs/BALANCE.md「ファイルの配置」",
     ...importLines,
     "",
@@ -220,7 +220,7 @@ export function checkBalanceAssembly() {
   const { text, problems } = assembleBalance({ write: false });
   if (problems.length > 0) return problems;
   const current = existsSync(OUT_FILE) ? readFileSync(OUT_FILE, "utf8").replace(/\r\n/g, "\n") : "";
-  if (current !== text) return [`${rel(OUT_FILE)} が JSON のディレクトリと食い違っている（npm run balance:gen で作り直す）`];
+  if (current !== text) return [`${rel(OUT_FILE)} が JSON のディレクトリと食い違っている（pnpm run balance:gen で作り直す）`];
   return [];
 }
 

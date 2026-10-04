@@ -1,6 +1,6 @@
 /**
  * バージョンを上げる（`node scripts/bump.mjs patch|minor|major [--note "..."]`）。
- * package.json / package-lock.json / src/version.ts / CHANGELOG.md を更新し、
+ * package.json / src/version.ts / CHANGELOG.md を更新し、
  * その 4 ファイルだけを `chore: v0.0.2α` の形でコミットして `v0.0.2` タグを付ける。
  *
  * ルール（CLAUDE.md「バージョニング」）:
@@ -23,7 +23,6 @@ import path from "node:path";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FILES = {
   pkg: "package.json",
-  lock: "package-lock.json",
   version: "src/version.ts",
   changelog: "CHANGELOG.md",
 };
@@ -115,10 +114,10 @@ function updateVersionTs(text, semverText, display, phase) {
     .replace(/RELEASE_PHASE: ReleasePhase = "[^"]*"/, `RELEASE_PHASE: ReleasePhase = "${phase}"`);
 }
 
-function updateJsonVersion(text, semverText, isLock) {
+// pnpm-lock.yaml はプロジェクト自身の版を持たないので、書き換えるのは package.json だけ
+function updateJsonVersion(text, semverText) {
   const json = JSON.parse(text);
   json.version = semverText;
-  if (isLock && json.packages?.[""]) json.packages[""].version = semverText;
   return JSON.stringify(json, null, JSON_INDENT) + "\n";
 }
 
@@ -137,8 +136,7 @@ if (opts.git) {
 }
 
 const updates = {
-  [FILES.pkg]: updateJsonVersion(pkgText, semverText, false),
-  [FILES.lock]: updateJsonVersion(read(FILES.lock), semverText, true),
+  [FILES.pkg]: updateJsonVersion(pkgText, semverText),
   [FILES.version]: updateVersionTs(versionTs, semverText, display, phase),
   [FILES.changelog]: updateChangelog(read(FILES.changelog), display, opts.notes),
 };

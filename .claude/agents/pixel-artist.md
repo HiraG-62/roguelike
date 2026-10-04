@@ -23,15 +23,15 @@ model: opus
 - 輪郭は `k`（#1a1a24）で全周を閉じる。光源は左上。論理 48px 以上・密度 2 以上は `PALETTE_RAMPS` の 5 段（ハイライト → 明 → 基本 → 暗 → 最暗）、それ以外は明部・基本色・暗部の 3 段（小文字 / 大文字の対）。白 `1` は艶の点と眼だけ
 - 頭上は論理 2 行（密度 2 なら 4 行）を空け、歩き原画の足は最下段。見た目の芯は論理中央 12px（密度 2 なら 24 ドット）に寄せる
 - 再配色種（`EnemyDef.recolor`）の swap 元の文字だけで体色を塗る。新色は既存で段が組めないときだけ `PALETTE` に足す（空き文字を grep）
-- **描いたら見る**: `npm run sprite -- render <key>,<key>.windup,<key>.strike --out art/<key>.png --grid` を Read で開き、形・向き・段の見え方を確かめてから直す（拡大率は既定でキーごとに `8 / 密度` なので密度が違っても見た目の大きさは揃う）。1 回で終わらせず、見る → 直す を 2〜3 周する。参考絵があれば `--beside` で並べる
-- **点検**: `npm run sprite -- lint <key>` の注意（輪郭の穴・頭上・3 段 / 5 段崩れ。密度に合わせて自動で判定が変わる）を潰す
-- 細かな手直しや輪郭・色替えの一括処理は Aseprite（MCP サーバー `aseprite`）が速い: `npm run sprite -- strip <key> --out art/<key>.png --ase art/<key>.aseprite` で `.aseprite` にし、`draw_pixels_at` / `outline_cel` / `replace_color` / `render_onion_skin` で編集、`npm run sprite -- import art/<key>.aseprite --name <NAME>` で `Frame` のリテラルに戻して貼る。`PALETTE` の色以外は置かない
-- 形の案が浮かばないときは Spriteloom で下絵の案を出してよい（`npm run sprite -- gen "<主題>" --out art/<key>.gen.png`。サーバーが起動していなければ使わずに進む）。案は参考で、様式書に合わせて必ず描き直す
+- **描いたら見る**: `ppnpm run sprite render <key>,<key>.windup,<key>.strike --out art/<key>.png --grid` を Read で開き、形・向き・段の見え方を確かめてから直す（拡大率は既定でキーごとに `8 / 密度` なので密度が違っても見た目の大きさは揃う）。1 回で終わらせず、見る → 直す を 2〜3 周する。参考絵があれば `--beside` で並べる
+- **点検**: `ppnpm run sprite lint <key>` の注意（輪郭の穴・頭上・3 段 / 5 段崩れ。密度に合わせて自動で判定が変わる）を潰す
+- 細かな手直しや輪郭・色替えの一括処理は Aseprite（MCP サーバー `aseprite`）が速い: `ppnpm run sprite strip <key> --out art/<key>.png --ase art/<key>.aseprite` で `.aseprite` にし、`draw_pixels_at` / `outline_cel` / `replace_color` / `render_onion_skin` で編集、`ppnpm run sprite import art/<key>.aseprite --name <NAME>` で `Frame` のリテラルに戻して貼る。`PALETTE` の色以外は置かない
+- 形の案が浮かばないときは Spriteloom で下絵の案を出してよい（`ppnpm run sprite gen "<主題>" --out art/<key>.gen.png`。サーバーが起動していなければ使わずに進む）。案は参考で、様式書に合わせて必ず描き直す
 - 32 / 48 の大きな絵は、楕円・角丸矩形を Aseprite の `draw_ellipse_at` / `draw_rectangle_at` で下描きしてから顔・武器・模様を手で足すと崩れにくい
 
 ## テスト
-- `npx vitest run src/render/sprites.test.ts` が寸法・パレット文字・空フレーム・敵スプライトの存在・様式書の決まり（頭上 2 行・最下段・ポーズの有無）を検査する。必要なら `MIN_FRAMES` / `ADDED_KEYS` / `<FAMILY>_KEYS` に追記
-- 最後に `npm run check`
+- `pnpm exec vitest run src/render/sprites.test.ts` が寸法・パレット文字・空フレーム・敵スプライトの存在・様式書の決まり（頭上 2 行・最下段・ポーズの有無）を検査する。必要なら `MIN_FRAMES` / `ADDED_KEYS` / `<FAMILY>_KEYS` に追記
+- 最後に `pnpm run check`
 
 ## 報告形式
 1. 追加・変更したキー（サイズ・フレーム数・用途）と、確認に使った PNG のパス

@@ -1,12 +1,12 @@
 /**
- * 地図の見た目の確認用の撮影（docs/ideas/map-visual-impl.md 5-2 節）。`npm run map:shot`。
+ * 地図の見た目の確認用の撮影（docs/ideas/map-visual-impl.md 5-2 節）。`pnpm run map:shot`。
  * vite を子で起こし、tools/map-shot.html（src/tools/mapShot.ts）を playwright の Chromium で開いて 1920x1080 で撮る。
  *
- *   npm run map:shot                          既定の 14 枚を map-shot-out へ
- *   npm run map:shot -- --out <dir>           出力先を変える（リポジトリの外を推奨）
- *   npm run map:shot -- --only d7-rooms       1 枚だけ
- *   npm run map:shot -- --query "depth=9&kind=mine&seed=3&layout=court&tx=40&ty=30"   任意のクエリで 1 枚（名前は custom）
- *   npm run map:shot -- --bench [--only name] 撮らずに ?bench=1 で地図の描画と焼きの平均 ms を表示する
+ *   pnpm run map:shot                          既定の 14 枚を map-shot-out へ
+ *   ppnpm run map:shot --out <dir>           出力先を変える（リポジトリの外を推奨）
+ *   ppnpm run map:shot --only d7-rooms       1 枚だけ
+ *   ppnpm run map:shot --query "depth=9&kind=mine&seed=3&layout=court&tx=40&ty=30"   任意のクエリで 1 枚（名前は custom）
+ *   ppnpm run map:shot --bench [--only name] 撮らずに ?bench=1 で地図の描画と焼きの平均 ms を表示する
  *
  * playwright と vite の用意は browser-tools.mjs（playwright は PLAYWRIGHT_MODULE → リポジトリ → `npm root -g` の順。
  * Chromium は PLAYWRIGHT_BROWSERS_PATH。クラウドでは /opt/pw-browsers。vite がすでに起きていれば使い回す）。

@@ -9,7 +9,7 @@ description: スキル石または刻印符を追加する。相性表の更新�
 2. `docs/ideas/skills.md` / `docs/ideas/skills-expansion.md` の案に近いものがあれば、その仕様を起点にする
 3. 決める: 日本語名 / key / tags / resource（気力型 manaCost か再使用型 cooldown）/ minInterval / exclusiveGroup（本動作を持つ近接・移動系は body）/ 攻撃ジャンルと属性（SKILL_ATTACK）/ 威力の Scaling と poise / 既存の刻印符との相性（付く・付かない）
 4. implementer を起動（下の雛形）。見た目が要るなら pixel-artist を並列で
-5. 報告後に `npm run check`
+5. 報告後に `pnpm run check`
 
 ## implementer への雛形
 ```
@@ -23,7 +23,7 @@ description: スキル石または刻印符を追加する。相性表の更新�
 - src/skills/combos.ts（連携を足す場合）
 - src/skills/skills.test.ts、src/system/skills.test.ts
 ## 最小 Edit のみ許可
-- src/data/balance/skills/: 数値（スキルごとのファイルを足したら `npm run balance:gen`。SKILL 経由で読む。union 文字列を含む表だけ src/skills/reshapes.ts）
+- src/data/balance/skills/: 数値（スキルごとのファイルを足したら `pnpm run balance:gen`。SKILL 経由で読む。union 文字列を含む表だけ src/skills/reshapes.ts）
 - src/render/skillHud.ts / src/render/renderer.ts: 表示の追加分のみ
 - src/audio/sfxNames.ts / src/audio/sfxLayers.ts: 新しい効果音が要る場合のみ
 ## 先に読む
@@ -36,7 +36,7 @@ description: スキル石または刻印符を追加する。相性表の更新�
 ## 完了条件
 - src/skills/skills.test.ts の FORBIDDEN（相性表）を更新し、全組み合わせのテストが通る
 - 発動・気力 / 再使用時間・刻印符の効果のテスト（日本語）
-- npm run check が通る
+- pnpm run check が通る
 ## 報告形式
 docs/AI_WORKFLOW.md の雛形の報告形式
 ```

@@ -1,6 +1,6 @@
 /**
  * バランス数値(JSON)の読み込み・_note の剥ぎ取り・ハッシュ化。
- * JSON は src/data/balance/<ファイル>/ のディレクトリに分かれ、assembled.gen.ts(npm run balance:gen)が元の 1 ファイルの形に組み立てる。
+ * JSON は src/data/balance/<ファイル>/ のディレクトリに分かれ、assembled.gen.ts(pnpm run balance:gen)が元の 1 ファイルの形に組み立てる。
  * data/tuning.ts などはここから `BALANCE.<file>.<ブロック名>` を再 export するだけで、
  * 既存の参照経路(`PLAYER.dash.speed` など)は変えない。設計は docs/ideas/data-externalization.md
  */

@@ -22,7 +22,7 @@ import { buildGearPowerSection, fittedEquipment, measureGearPower, type GearPowe
 
 /**
  * 1 対 1 / 集団の「連打」計測（docs/ideas/core-synthesis.md 9 章 段取り 1、encounter-core.md 12 章 Q0）。
- * 戦闘の核を変える前後で同じ物差しを当てるための道具で、結果は src/qa/probe.md（`npm run qa:probe`）。
+ * 戦闘の核を変える前後で同じ物差しを当てるための道具で、結果は src/qa/probe.md（`pnpm run qa:probe`）。
  * ゲームのロジックは変えず、実際の step() を回して数えるだけ。
  * system/testHelpers.ts は本体から import してはいけないので、必要な部屋づくりはここに持つ。
  */
@@ -476,7 +476,7 @@ const WEAPON_PROBE_FULL: WeaponProbeSetup = {
   bot: "mashDodge",
 };
 
-/** `npm run qa:probe` の重い版 */
+/** `pnpm run qa:probe` の重い版 */
 export const FULL_PROBE_CONFIG: ProbeConfig = {
   enemies: ["slime", "bat", "eye", "boar", "knight", "skeleton", "wolf", "spearman"],
   depths: [1, 5, 10, 15, 20],
@@ -495,7 +495,7 @@ export const FULL_PROBE_CONFIG: ProbeConfig = {
   weaponProbe: WEAPON_PROBE_FULL,
 };
 
-/** `npm run test` の縮小版（健全性の確認だけ。数分の計測はしない） */
+/** `pnpm run test` の縮小版（健全性の確認だけ。数分の計測はしない） */
 export const SMOKE_PROBE_CONFIG: ProbeConfig = {
   enemies: ["slime", "skeleton"],
   depths: [1],
@@ -673,7 +673,7 @@ export function buildProbeReport(cfg: ProbeConfig, result: ProbeResult): string 
   lines.push("# 戦闘の基準値（連打シミュレーション）");
   lines.push("");
   lines.push(
-    `\`npm run qa:probe\` が生成。プレイヤーが敵に殴りかかり続ける。装備は「なし」（既定の剣。基準の物差し）と「深度相応」（下の読み方）の 2 通り。` +
+    `\`pnpm run qa:probe\` が生成。プレイヤーが敵に殴りかかり続ける。装備は「なし」（既定の剣。基準の物差し）と「深度相応」（下の読み方）の 2 通り。` +
       `1 回 ${cfg.seconds} 秒 × seed ${cfg.seeds.length}（${cfg.seeds.join(", ")}）の合計から出した。` +
       "戦闘の核を変える前後で同じ表を出して比べる（core-synthesis.md 9 章 段取り 1）。",
   );
@@ -826,7 +826,7 @@ function ratioCell(r: number | null, tolerance: number): string {
   return `${r.toFixed(2)}${Math.abs(r - 1) > tolerance ? "*" : ""}`;
 }
 
-/** 武器種 × 敵の節（見出し込み）。重いので `npm run qa:probe -- --weapons` だけでも出せるよう、報告全体から切り出してある */
+/** 武器種 × 敵の節（見出し込み）。重いので `ppnpm run qa:probe --weapons` だけでも出せるよう、報告全体から切り出してある */
 export function buildWeaponSection(cfg: ProbeConfig, rows: readonly WeaponProbeRow[]): string[] {
   if (rows.length === 0) return [];
   const setup = cfg.weaponProbe;

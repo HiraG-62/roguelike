@@ -1,5 +1,5 @@
 /**
- * バランス数値の辞書（docs/BALANCE_DICTIONARY.md）を書き出す（`npm run balance:dict`）。
+ * バランス数値の辞書（docs/BALANCE_DICTIONARY.md）を書き出す（`pnpm run balance:dict`）。
  * 組み立ては TS（src/data/balance/dictionary.ts）にあるので、BALANCE_DICT_WRITE=1 を付けて dictionary.test.ts を走らせて書かせる
  */
 import { spawn } from "node:child_process";

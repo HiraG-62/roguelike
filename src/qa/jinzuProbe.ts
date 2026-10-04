@@ -14,7 +14,7 @@ import { botInput, createBotState } from "./bot";
 import { fittedEquipment } from "./gearPower";
 
 /**
- * 試し陣の計測（docs/ideas/jinzu-impl.md・D03 5-2。`npm run qa:probe -- --jinzu` が probe.md の「## 本陣と陣図」の節を作る）。
+ * 試し陣の計測（docs/ideas/jinzu-impl.md・D03 5-2。`ppnpm run qa:probe --jinzu` が probe.md の「## 本陣と陣図」の節を作る）。
  * `HONJIN.trial` と同じ盤（深度 4・鶴翼の本陣）を createGame で作り、深度相応の装備のプレイヤーを本陣の部屋の中へ置いて、
  * bot の方針を 3 つ回す。ゲームのロジックは変えず、実際の step() を回して陣図の段の遷移と被弾を数えるだけ。同じ seed なら同じ結果。
  * - 無視: 今の qa/bot.ts のまま（陣図を読まない。予備動作の windup / strike だけを見て避ける）

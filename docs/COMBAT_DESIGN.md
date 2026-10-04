@@ -1111,9 +1111,9 @@ export interface HitOptions {
 - `applyStats` に `addRunAttributes` → `deriveAttributes` の呼び出しを入れる。基礎値なら全派生が 0 なので挙動は変わらない
 - レーンを跨いで呼ばれる関数の口だけ先に入れる: `statusEffects.ts` に `applyStatus`（段階 0 では何もせず false）と `hasStatus`（本実装）、`combat.ts` の `rollOutgoing` に第 5 引数 `opts?: { skill?: boolean }`（段階 0 では読まない）と `HitOptions.poise` / `ignoreSuperArmor`（段階 0 では読まない）、`PlayerStats.bulletCut`（既定 0）
 - `FrameInput` の 4 フィールドと `replay.ts`、`REPLAY_VERSION = 3`
-- 完了条件: `npm run check` 通過、リプレイテストと QA 縮小版が現行と同じ結果
+- 完了条件: `pnpm run check` 通過、リプレイテストと QA 縮小版が現行と同じ結果
 
-**段階 1（並列 4 レーン）**。全レーンとも `npm run check` を単独で通すこと。共有ファイル（`core/state.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts`）は最小の Edit のみ。
+**段階 1（並列 4 レーン）**。全レーンとも `pnpm run check` を単独で通すこと。共有ファイル（`core/state.ts` / `data/tuning.ts` / `render/renderer.ts` / `main.ts`）は最小の Edit のみ。
 
 | レーン | 所有ファイル | 中身 | 完了条件 | テスト観点 |
 | --- | --- | --- | --- | --- |
@@ -1132,14 +1132,14 @@ export interface HitOptions {
 | レーン | 所有ファイル | 中身 | 完了条件 | テスト観点 |
 | --- | --- | --- | --- | --- |
 | **L5 装備の追随** | `src/loot/affixes.ts` / `src/loot/colors.ts` / `src/loot/describe.ts` / `src/loot/named.ts` / `src/loot/triggers.ts` / `src/system/keystones.ts` | 属性の性質 5 種と変換 5 種、`statusProcs` を持つ性質 6 種、「弾斬り」、誓約 2 種（「過負荷」`ks_overdraw`: 気力不足を生命で払う 1 気力 = 0.5 生命、スキル威力 −10% /「静寂の誓い」`ks_silentVow`: 通常攻撃で気力が戻らない、自然回復 ×3、スキル威力 +30%。排他グループ `mana`）、トリガーの invuln 生成上限、ツールチップの動詞 | 新性質が生成・集計・表示される | 期待値曲線、色、`computeStats` での加算、誓約の排他、describe の文言 |
-| **L6 QA** | `src/qa/bot.ts` / `src/qa/simulation.test.ts` / `src/qa/report.md` | bot が 4 スロットを気力を見て撃つ、振り分けを選ぶ、パッド LB シフトは不要。計測: スキル由来与ダメ比率、1 対 1 被弾数、深度別到達率、気力不足の不発回数 | `npm run qa:full` が完走し report に新指標 | 指標が C-2 / B-7 の目標範囲に入るか（外れたら数値を tuning で直す） |
+| **L6 QA** | `src/qa/bot.ts` / `src/qa/simulation.test.ts` / `src/qa/report.md` | bot が 4 スロットを気力を見て撃つ、振り分けを選ぶ、パッド LB シフトは不要。計測: スキル由来与ダメ比率、1 対 1 被弾数、深度別到達率、気力不足の不発回数 | `pnpm run qa:full` が完走し report に新指標 | 指標が C-2 / B-7 の目標範囲に入るか（外れたら数値を tuning で直す） |
 | **L7 敵と祝福の追加** | `src/system/enemies.ts` / `src/system/boss.ts` / `src/system/boons.ts`（段階 1 の後なので競合しない） | 連携ずらし、深度による予備動作短縮（60% 下限のクランプ）、連続攻撃 5 種、祝福 A-5 の 3 種と E-5 の 4 種 | 各敵の連続攻撃に予備動作がある | 予備動作が基準の 60% を下回らない、連続攻撃の 2 撃目にも予備動作、祝福のルール |
 
 **段階 3（統合役）**: B-7 の近接・射撃の基礎値 −20%、`docs/GLOSSARY.md`（1 章の用語、「スタガー」→「怯み」）、`docs/DESIGN_PRINCIPLES.md` 4 の例示、`IDEAS.md` の現状、`docs/ARCHITECTURE.md` の型の関係、`CHANGELOG.md`。
 
 ### F-3. 全体の完了条件
 
-1. `npm run check` 通過、リプレイテスト（`core/replay.test.ts`）が新しい版で通る
+1. `pnpm run check` 通過、リプレイテスト（`core/replay.test.ts`）が新しい版で通る
 2. `rg '"stagger"' src` で `EnemyPhase` と `HitOptions.stagger` の参照が 0（状態異常 kind の `"stagger"` を除く）
 3. 基礎値のステータスで、全攻撃・全スキルの威力が段階 0 前と一致するテスト（`attributes.test.ts` に表で持つ）
 4. QA フル: 深度 1〜3 の到達率が現行比 −10〜−20%、1 対 1 被弾が 60 秒で 1〜3 回、スキル由来与ダメ 55〜65%

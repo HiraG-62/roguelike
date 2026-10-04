@@ -1,6 +1,6 @@
 /**
  * エージェント資料（CLAUDE.md / docs/CODE_MAP.md / docs/recipes / .claude/agents / .claude/skills / docs/AI_WORKFLOW.md）が
- * コードの現状からずれていないかを機械で検査する（`npm run audit:docs`。`npm run check` の最初の段）。
+ * コードの現状からずれていないかを機械で検査する（`pnpm run audit:docs`。`pnpm run check` の最初の段）。
  *
  * 検査するのは「実在するか」「数が合うか」「登録されているか」だけ。説明文の正しさは
  * `/agent-docs`（人と Agent の仕事）。ここで落ちたら資料を直す。検査を緩めない。
@@ -12,7 +12,7 @@
  * 5. .claude/skills / .claude/agents / docs/recipes が CLAUDE.md に登録され、frontmatter が形式どおり
  * 6. 用語集で置き換えた旧用語が「旧〜」の形以外で残っていない
  * 7. CLAUDE.md が行数の上限を超えていない（詳細は docs/ 側へ分けて参照させる）
- * 8. バランス数値の組み立て（src/data/balance/assembled.gen.ts）が JSON のディレクトリと食い違っていない（`npm run balance:gen`）
+ * 8. バランス数値の組み立て（src/data/balance/assembled.gen.ts）が JSON のディレクトリと食い違っていない（`pnpm run balance:gen`）
  * 9. docs/HANDOFF.md が行数の上限を超えていない（現在地は上書きし、積み残しは docs/BACKLOG.md へ）
  * 10. docs/ideas/ 直下の md が docs/ideas/README.md の早見表に載っている
  */

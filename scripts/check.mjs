@@ -1,8 +1,8 @@
 /**
- * 型検査 → テスト → ビルドを順に実行する（`npm run check`）。
- * どれかが失敗した時点で非 0 で終了する。`--fast`（`npm run check:fast`）は並列レーンの途中確認用で、
+ * 型検査 → テスト → ビルドを順に実行する（`pnpm run check`）。
+ * どれかが失敗した時点で非 0 で終了する。`--fast`（`pnpm run check:fast`）は並列レーンの途中確認用で、
  * 重い QA シミュレーション（src/qa/simulation.test.ts）・Electron の型検査・ビルドを省く。コミット前は必ず全段を回す。Windows でも動くよう、シェルを介さず
- * node で各ツールのエントリを直接起動する（npx / cross-env に依存しない）。
+ * node で各ツールのエントリを直接起動する（pnpm exec / cross-env に依存しない）。
  */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -39,4 +39,4 @@ for (const step of STEPS) {
   }
   console.log(`[check] ${step.label} OK（${seconds}s）`);
 }
-console.log(FAST ? "\n[check] 速い検査は成功（コミット前は npm run check を回す）" : "\n[check] すべて成功");
+console.log(FAST ? "\n[check] 速い検査は成功（コミット前は pnpm run check を回す）" : "\n[check] すべて成功");
