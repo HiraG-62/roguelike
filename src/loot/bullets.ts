@@ -86,7 +86,10 @@ function artBullets(): BulletDef[] {
     for (const s of MOVESETS[key].steps2) {
       if (s.kind === "volley") out.push(s.throw.bullet);
     }
-    for (const c of movesetCasts(MOVESETS[key])) out.push(c.throw.bullet);
+    for (const c of movesetCasts(MOVESETS[key])) {
+      out.push(c.throw.bullet);
+      if (c.releaseThrow) out.push(c.releaseThrow.bullet);
+    }
   }
   return out;
 }

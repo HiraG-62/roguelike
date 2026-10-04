@@ -72,7 +72,7 @@ import {
   artLocksActions,
   artMoveMul,
   castOverride,
-  emitArtVolley,
+  emitCast,
   endArtHold,
   finishArtHold,
   isInstantStep,
@@ -350,7 +350,9 @@ export function meleeStep(
   const base = stepDef(moveset, step, dashStrike, chargeLevel, branch, lane);
   if (!base) return undefined;
   const level = chargeLevel > 0 ? meleeChargeOf(moveset)?.levels[chargeLevel - 1] : undefined;
-  return scaleStep(stats, base, moveset, level, release);
+  // 戦意の放出の振りは、段が戦意あり用の段（releaseStep）を持てばそちらを振る
+  const chosen = release && base.releaseStep ? base.releaseStep : base;
+  return scaleStep(stats, chosen, moveset, level, release);
 }
 
 /**
@@ -1135,7 +1137,7 @@ function beginSwing(state: GameState, spec: SwingSpec): void {
   a.bufferedLane = "primary";
   // 右レーンの振りの段は振り始めに再使用と付随効果（零距離砲の反動・起爆）を立てる
   const laneDef = spec.lane === "secondary" && spec.branch < 0 && spec.chargeLevel === 0 && !spec.dashStrike ? moveset.steps2[spec.step] : undefined;
-  if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef);
+  if (laneDef?.kind === "swing") onLaneSwingStart(state, laneDef, release !== undefined);
   // 振り始めで三点の続きを捨てる（振りの最中に撃ち続けない）。派生の弾の三点は振り始めの後（onBranchStart）に積むので残る
   p.shotBurst.queue.length = 0;
   a.hitIds.clear();
@@ -1186,7 +1188,7 @@ function updateAttack(state: GameState, dt: number): void {
       spawnTrail(state, step);
       noteShapeSwing(state);
       // 詠唱の弾は active の瞬間に 1 回だけ（予約のまま捨てられた振りでは出さない）
-      if (step.cast) emitArtVolley(state, step.cast.throw, castOverride(state, a.lane));
+      if (step.cast) emitCast(state, step.cast, castOverride(state, a.lane));
       break;
     case "active":
       a.phase = "recover";
@@ -1888,10 +1890,18 @@ function fireVolley(state: GameState, level: number, aim?: number): void {
   // 千本（苦無の放出）は扇に投げ、刺さりの上限を超えて全部刺さる
   const senbon = moments.release && formOf(playerMoveset(state)).key === "dart" ? KUNAI_SENBON : undefined;
   const override: VolleyOverride = { lane: "primary", ...moments, ...pellets, ...steady, ...(senbon ? { fan: { count: senbon.count, spreadDeg: senbon.spreadDeg } } : {}) };
-  emitVolley(state, senbon && shot.pin ? { ...shot, pin: { ...shot.pin, max: senbon.pinMax } } : shot, level, aim, override);
+  // 放出の 1 発は武器種の戦意あり用の数値（MovesetDef.releaseShot）を器の弾に重ねる
+  const fired = moments.release ? releaseShotOf(playerMoveset(state), shot) : shot;
+  emitVolley(state, senbon && fired.pin ? { ...fired, pin: { ...fired.pin, max: senbon.pinMax } } : fired, level, aim, override);
   // 装薬の反動は詰めた段の距離だけ後ろへ跳ぶ（押しの速さは減衰で距離 = 速さ / KNOCK_DECAY。動きの当たりで壁に止まる）
   if (powder) p.knock = add(p.knock, scale(p.facing, -powder.recoilPx * KNOCK_DECAY));
-  queueBurst(state, shot, [0], override);
+  queueBurst(state, fired, [0], override);
+}
+
+/** 放出の 1 発の弾（器の弾に武器種の releaseShot を浅く重ねる。無ければ器の弾のまま） */
+export function releaseShotOf(moveset: MovesetDef, shot: BulletDef): BulletDef {
+  if (!moveset.releaseShot || Object.keys(moveset.releaseShot).length === 0) return shot;
+  return { ...shot, ...moveset.releaseShot };
 }
 
 /** 射撃 1 回の後の再使用の秒（連射の速さ・血の契約・持続の奥義を掛ける） */
@@ -1995,7 +2005,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
         ...(override.applies && override.applies.length > 0 ? { applies: override.applies } : {}),
         ...(override.lane ? { lane: override.lane } : {}),
         // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
-        ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
+        ...(override.release ? { release: { ...override.release, ...shot.releaseHit }, firedAt: state.time } : {}),
         ...(pointBlank ? { pointBlank: true } : {}),
         ...(shot.hitstop !== undefined ? { hitstop: shot.hitstop } : {}),
       });

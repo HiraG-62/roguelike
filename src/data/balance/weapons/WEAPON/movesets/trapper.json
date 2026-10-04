@@ -93,8 +93,25 @@
         "mana": 2,
         "shape": { "kind": "circle" },
         "hitstop": 2,
-        "trail": "#ffb040"
-      }
+        "trail": "#ffb040",
+        "releaseStep": {
+          "windup": 0.03,
+          "active": 0.1,
+          "recover": 0.24,
+          "scaling": { "base": 4.5, "dex": 0.45, "vit": 0.35 },
+          "poiseRatio": { "dex": 0.27 },
+          "poise": 9,
+          "reach": 0,
+          "size": 24,
+          "knockback": 200,
+          "heavy": false,
+          "mana": 2,
+          "shape": { "kind": "circle" },
+          "hitstop": 2,
+          "trail": "#ffb040"
+        }
+      },
+      "releaseExtras": { "detonateMines": true }
     }
   ],
   "branches": {

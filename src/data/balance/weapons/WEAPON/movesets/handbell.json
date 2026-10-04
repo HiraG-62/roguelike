@@ -90,7 +90,24 @@
         "shape": { "kind": "circle" },
         "hitstop": 2,
         "shake": 1.5,
-        "trail": "#fff4c0"
+        "trail": "#fff4c0",
+        "releaseStep": {
+          "windup": 0.12,
+          "active": 0.1,
+          "recover": 0.3,
+          "scaling": { "base": 4.44, "spi": 0.381, "mnd": 0.317 },
+          "poiseRatio": { "spi": 0.152, "mnd": 0.127 },
+          "poise": 10.1,
+          "reach": 0,
+          "size": 40,
+          "knockback": 200,
+          "heavy": false,
+          "mana": 4,
+          "shape": { "kind": "circle" },
+          "hitstop": 2,
+          "shake": 1.5,
+          "trail": "#fff4c0"
+        }
       }
     },
     {

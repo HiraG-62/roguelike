@@ -116,7 +116,25 @@
           "hitstop": 3,
           "shake": 2,
           "trail": "#e0fff0",
-          "cutsBullets": true
+          "cutsBullets": true,
+          "releaseStep": {
+            "windup": 0.08,
+            "active": 0.1,
+            "recover": 0.2,
+            "scaling": { "base": 3.51, "mnd": 0.409, "dex": 0.234 },
+            "poiseRatio": { "mnd": 0.14, "dex": 0.14 },
+            "poise": 9.3,
+            "reach": 44,
+            "size": 44,
+            "knockback": 460,
+            "heavy": false,
+            "mana": 4,
+            "shape": { "kind": "arc", "deg": 120 },
+            "hitstop": 3,
+            "shake": 2,
+            "trail": "#e0fff0",
+            "cutsBullets": true
+          }
         }
       }
     },

@@ -7,7 +7,8 @@
     "chainSec": 0.5,
     "bufferSec": 0.4,
     "bothHandsSec": 0.05,
-    "unload": { "spreadDeg": 7, "damageMul": 1, "selfKnock": 140 }
+    "unload": { "spreadDeg": 7, "damageMul": 1, "selfKnock": 140 },
+    "releaseUnload": { "spreadDeg": 7, "damageMul": 1, "selfKnock": 140 }
   },
   "dashAttack": {
     "windup": 0.03,

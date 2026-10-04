@@ -290,6 +290,8 @@ function unload(state: GameState, rounds: readonly number[]): void {
   if (r) noteRelease(state, r.units);
   const shot = ultimateShot(state, currentShot(state.stats));
   const release = r && r.units > 0 ? { release: { finisher: r.finisher, crit: r.crit } } : {};
+  // 戦意を使った撃ち尽くしは戦意あり用の数値（hands.releaseUnload）で撃つ
+  const u = r && r.units > 0 ? H.releaseUnload : H.unload;
   const left = rounds[LEFT] ?? 0;
   const right = rounds[RIGHT] ?? 0;
   for (const hand of HANDS) {
@@ -300,13 +302,13 @@ function unload(state: GameState, rounds: readonly number[]): void {
     emitShotRounds(
       state,
       shot,
-      { count: spent, spreadDeg: H.unload.spreadDeg },
+      { count: spent, spreadDeg: u.spreadDeg },
       {
         lane: handLane(hand),
         hand,
-        damageMul: H.unload.damageMul * (r?.mul.damageMul ?? 1),
+        damageMul: u.damageMul * (r?.mul.damageMul ?? 1),
         pierceBonus: r?.mul.pierceAdd ?? 0,
-        angleOffset: shift * H.unload.spreadDeg * DEG_TO_RAD,
+        angleOffset: shift * u.spreadDeg * DEG_TO_RAD,
         recoil: false,
         steady: true,
         ...release,
@@ -316,7 +318,7 @@ function unload(state: GameState, rounds: readonly number[]): void {
   // 撃ち切った手は spendRounds が込め始める。残りが無く撃たなかった手も込めへ
   for (const hand of HANDS) startReload(state, hand);
   const p = state.player;
-  p.knock = sub(p.knock, scale(p.facing, H.unload.selfKnock));
+  p.knock = sub(p.knock, scale(p.facing, u.selfKnock));
   addHeadLabel(state, p.body.pos, UNLOAD_LABEL, FEEL.branchTextColor, FEEL.branchTextLife);
   pushSfx(state, "branch");
 }

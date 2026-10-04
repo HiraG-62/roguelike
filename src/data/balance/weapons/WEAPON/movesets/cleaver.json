@@ -221,7 +221,25 @@
         "hitstop": 7,
         "shake": 4,
         "lunge": 8,
-        "trail": "#ffffff"
+        "trail": "#ffffff",
+        "releaseStep": {
+          "windup": 0.32,
+          "active": 0.12,
+          "recover": 0.58,
+          "scaling": { "base": 31.24, "str": 2.859, "vit": 0.919 },
+          "poiseRatio": { "str": 1.899 },
+          "poise": 63.3,
+          "reach": 14,
+          "size": 22,
+          "knockback": 420,
+          "heavy": true,
+          "mana": 6.5,
+          "shape": { "kind": "box" },
+          "hitstop": 7,
+          "shake": 4,
+          "lunge": 8,
+          "trail": "#ffffff"
+        }
       }
     }
   ],

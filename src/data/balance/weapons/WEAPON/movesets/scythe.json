@@ -177,7 +177,24 @@
         "shape": { "kind": "arc", "deg": 120 },
         "hitstop": 5,
         "shake": 3,
-        "trail": "#e0c0ff"
+        "trail": "#e0c0ff",
+        "releaseStep": {
+          "windup": 0.28,
+          "active": 0.14,
+          "recover": 0.54,
+          "scaling": { "base": 23.99, "str": 1.319, "dex": 0.48, "spi": 2.159 },
+          "poiseRatio": { "str": 0.72, "spi": 0.72 },
+          "poise": 48,
+          "reach": 32,
+          "size": 28.5,
+          "knockback": 260,
+          "heavy": true,
+          "mana": 6.5,
+          "shape": { "kind": "arc", "deg": 120 },
+          "hitstop": 5,
+          "shake": 3,
+          "trail": "#e0c0ff"
+        }
       }
     }
   ],
