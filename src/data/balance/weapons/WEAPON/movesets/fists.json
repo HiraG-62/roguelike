@@ -250,7 +250,26 @@
         "hitstop": 2,
         "shake": 2,
         "lunge": 8,
-        "trail": "#ffb080"
+        "trail": "#ffb080",
+        "releaseStep": {
+          "windup": 0.12,
+          "active": 0.24,
+          "recover": 0.4,
+          "scaling": { "base": 0.94, "str": 0.094, "dex": 0.094, "vit": 0.094 },
+          "poiseRatio": { "str": 0.085, "vit": 0.085 },
+          "poise": 5.7,
+          "reach": 10.5,
+          "size": 15,
+          "knockback": 120,
+          "heavy": true,
+          "mana": 5,
+          "shape": { "kind": "box" },
+          "hits": 6,
+          "hitstop": 2,
+          "shake": 2,
+          "lunge": 8,
+          "trail": "#ffb080"
+        }
       }
     }
   ],

@@ -116,6 +116,8 @@ export interface HitOptions {
   impact?: DamageImpact;
   /** 終撃のヒットストップの底上げ（武器の重さの hitstopFinisher。省略は FEEL.hitstopFinisher） */
   finisherHitstop?: number;
+  /** 画面揺れの底上げ（px。放出の弾の BulletDef.releaseHit.shake）。省略は普通の命中の揺れ */
+  shake?: number;
   /** 戦意を使った放出の一撃（system/morale.ts。onFinisher の tag） */
   release?: boolean;
   /** 当てたレーン（双撃の判定。近接の振り・レーンの弾だけ。system/moments.ts） */
@@ -354,7 +356,7 @@ function showHit(state: GameState, enemy: Enemy, amount: number, dir: Vec, color
   // 出端は読みの報酬なので上限の例外（止めの表: 出端 5）
   if (opts.counterStop === true) steps = Math.max(steps, FEEL.hitstopCounter);
   hitstop(state, steps);
-  shake(state, heavy ? FEEL.shakeHeavy : FEEL.shakeLight);
+  shake(state, Math.max(heavy ? FEEL.shakeHeavy : FEEL.shakeLight, opts.shake ?? 0));
   // 重撃は攻撃方向へカメラを押す（docs/ideas/combat-feel-design.md D-3）
   if (heavy) cameraKick(state, dir, FEEL.kickHeavy);
 }

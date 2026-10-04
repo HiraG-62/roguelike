@@ -198,7 +198,33 @@
             "duration": 1,
             "potency": 0
           }
-        ]
+        ],
+        "releaseStep": {
+          "windup": 0.17,
+          "active": 0.1,
+          "recover": 0.42,
+          "scaling": { "base": 14, "dex": 1.259, "mnd": 0.551, "spi": 0.551 },
+          "poiseRatio": { "dex": 0.755 },
+          "poise": 25.2,
+          "reach": 64,
+          "size": 6,
+          "knockback": 200,
+          "heavy": false,
+          "mana": 5.5,
+          "shape": { "kind": "thrust" },
+          "hitstop": 4,
+          "shake": 2,
+          "trail": "#ffffff",
+          "applies": [
+            {
+              "_id": "fear",
+              "kind": "fear",
+              "stacks": 1,
+              "duration": 1,
+              "potency": 0
+            }
+          ]
+        }
       }
     }
   ],

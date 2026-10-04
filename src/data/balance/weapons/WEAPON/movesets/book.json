@@ -184,7 +184,23 @@
         "mana": 6.5,
         "shape": { "kind": "circle" },
         "hitstop": 2,
-        "trail": "#f0e8ff"
+        "trail": "#f0e8ff",
+        "releaseStep": {
+          "windup": 0.15,
+          "active": 0.08,
+          "recover": 0.29,
+          "scaling": { "base": 4.16, "mnd": 0.416, "spi": 0.347 },
+          "poiseRatio": { "mnd": 0.139, "spi": 0.111 },
+          "poise": 8.3,
+          "reach": 0,
+          "size": 32,
+          "knockback": 160,
+          "heavy": false,
+          "mana": 6.5,
+          "shape": { "kind": "circle" },
+          "hitstop": 2,
+          "trail": "#f0e8ff"
+        }
       }
     },
     {

@@ -121,7 +121,24 @@
           "shape": { "kind": "box" },
           "hitstop": 5,
           "shake": 2.5,
-          "lunge": 26
+          "lunge": 26,
+          "releaseStep": {
+            "windup": 0.1,
+            "active": 0.11,
+            "recover": 0.24,
+            "scaling": { "base": 5.35, "str": 0.401, "vit": 0.268, "def": 0.401 },
+            "poiseRatio": { "vit": 0.803 },
+            "poise": 26.8,
+            "reach": 9.5,
+            "size": 19.5,
+            "knockback": 400,
+            "heavy": true,
+            "mana": 4,
+            "shape": { "kind": "box" },
+            "hitstop": 5,
+            "shake": 2.5,
+            "lunge": 26
+          }
         }
       }
     },

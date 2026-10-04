@@ -26,7 +26,24 @@
       "shape": { "kind": "thrust" },
       "hitstop": 2,
       "lunge": 4,
-      "trail": "#e0f0ff"
+      "trail": "#e0f0ff",
+      "releaseStep": {
+        "windup": 0.12,
+        "active": 0.07,
+        "recover": 0.2,
+        "scaling": { "base": 5.15, "str": 0.257, "dex": 0.643 },
+        "poiseRatio": { "str": 0.154, "dex": 0.154 },
+        "poise": 10.3,
+        "reach": 38,
+        "size": 10,
+        "knockback": 180,
+        "heavy": false,
+        "mana": 4.5,
+        "shape": { "kind": "thrust" },
+        "hitstop": 2,
+        "lunge": 4,
+        "trail": "#e0f0ff"
+      }
     },
     {
       "_id": "primary2.thrust",
@@ -44,7 +61,24 @@
       "shape": { "kind": "thrust" },
       "hitstop": 2,
       "lunge": 4,
-      "trail": "#e0f0ff"
+      "trail": "#e0f0ff",
+      "releaseStep": {
+        "windup": 0.12,
+        "active": 0.07,
+        "recover": 0.2,
+        "scaling": { "base": 5.32, "str": 0.266, "dex": 0.665 },
+        "poiseRatio": { "str": 0.16, "dex": 0.16 },
+        "poise": 10.6,
+        "reach": 40,
+        "size": 10,
+        "knockback": 180,
+        "heavy": false,
+        "mana": 4.5,
+        "shape": { "kind": "thrust" },
+        "hitstop": 2,
+        "lunge": 4,
+        "trail": "#e0f0ff"
+      }
     },
     {
       "_id": "primary3.thrustX2",
@@ -62,7 +96,24 @@
       "shape": { "kind": "thrust" },
       "hits": 2,
       "hitstop": 2,
-      "trail": "#e0f0ff"
+      "trail": "#e0f0ff",
+      "releaseStep": {
+        "windup": 0.14,
+        "active": 0.12,
+        "recover": 0.23,
+        "scaling": { "base": 4.12, "str": 0.206, "dex": 0.48 },
+        "poiseRatio": { "str": 0.124, "dex": 0.124 },
+        "poise": 8.2,
+        "reach": 40,
+        "size": 10,
+        "knockback": 120,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "thrust" },
+        "hits": 2,
+        "hitstop": 2,
+        "trail": "#e0f0ff"
+      }
     },
     {
       "_id": "primary4.heavyThrust",
@@ -81,7 +132,25 @@
       "hitstop": 5,
       "shake": 2,
       "lunge": 10,
-      "trail": "#ffffff"
+      "trail": "#ffffff",
+      "releaseStep": {
+        "windup": 0.19,
+        "active": 0.1,
+        "recover": 0.37,
+        "scaling": { "base": 13.59, "str": 0.509, "dex": 1.189, "mnd": 0.509 },
+        "poiseRatio": { "str": 0.459, "dex": 0.459 },
+        "poise": 30.6,
+        "reach": 42.5,
+        "size": 12,
+        "knockback": 320,
+        "heavy": true,
+        "mana": 7.5,
+        "shape": { "kind": "thrust" },
+        "hitstop": 5,
+        "shake": 2,
+        "lunge": 10,
+        "trail": "#ffffff"
+      }
     }
   ],
   "dashAttack": {

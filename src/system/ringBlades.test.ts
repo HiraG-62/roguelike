@@ -6,13 +6,13 @@ import { dist } from "../core/vec";
 import { FORM, PLAYER, ULTIMATE } from "../data/tuning";
 import { ultimateDef } from "../data/ultimates";
 import { formOf } from "../data/weaponForms";
-import { MOVESETS, type ThrowArtDef } from "../data/weapons";
+import { type CastDef, MOVESETS, type ThrowArtDef } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
 import { moraleMax, moraleReleaseMin } from "./morale";
 import { canStartParry } from "./parry";
 import { emitVolley, isDashing } from "./player";
 import { ringsInFlight } from "./projectiles";
-import { emitArtVolley } from "./weaponArts";
+import { emitArtVolley, emitCast } from "./weaponArts";
 import { weaponHitName } from "../audio/weaponHitNames";
 import { arena, placeEnemy, withInput } from "./testHelpers";
 import { tryUltimate, ultimateMoveset } from "./ultimates";
@@ -42,12 +42,20 @@ function maxRangeOf(key: string): number {
   return PLAYER.shoot.speed * b.speedMul * PLAYER.shoot.life * b.lifeMul;
 }
 
-/** 右の連撃の投げの段（movesets/ringBlades.json の steps2） */
-function comboThrow(key: string): ThrowArtDef {
+/** 戦意あり用の弾の半径（テストで差し替える値） */
+const RELEASE_RADIUS = 9;
+
+/** 右の連撃の投げの cast（movesets/ringBlades.json の steps2） */
+function comboCast(key: string): CastDef {
   for (const s of MOVESETS.ringBlades.steps2) {
-    if (s.kind === "swing" && s.step.cast?.key === key) return s.step.cast.throw;
+    if (s.kind === "swing" && s.step.cast?.key === key) return s.step.cast;
   }
   throw new Error(`${key} の投げが無い`);
+}
+
+/** 右の連撃の投げの段の普段の弾 */
+function comboThrow(key: string): ThrowArtDef {
+  return comboCast(key).throw;
 }
 
 /** 左の射撃と同じ弾の出し方（レーンは左）。aim は照準の距離 */
@@ -283,6 +291,72 @@ describe("往復の戦意", () => {
     expect(moraleMax(state), "上限").toBe(4);
     expect(formOf(MOVESETS.ringBlades).morale.release, "放出は右の強化投げ").toEqual({ kind: "laneStep", keys: ["ringHurl"] });
     expect(moraleReleaseMin(state), "満ちるのは 4").toBe(4);
+  });
+});
+
+describe("放出の投げの手応え（releaseHit）", () => {
+  const STOP = 20;
+  const SHAKE = 15;
+
+  /** 強化投げの弾の手応えを差し替えて、カーソルの上の敵へ投げる。release を渡すと放出の投げ */
+  function hitWith(release: boolean): GameState {
+    const state = arena(5, RING_STATS);
+    const foe = tough(placeEnemy(state, "boar", 60));
+    const pin = { ...foe.body.pos };
+    const t = comboCast("ringHurl").releaseThrow ?? comboThrow("ringHurl");
+    const throwDef: ThrowArtDef = { ...t, bullet: { ...t.bullet, releaseHit: { hitstop: STOP, shake: SHAKE } } };
+    emitArtVolley(state, throwDef, release ? { release: { finisher: true, crit: false } } : {});
+    for (let i = 0; i < MAX_STEPS && foe.hp === TOUGH_HP; i++) {
+      state.hitstop = 0;
+      state.camera.shake = 0;
+      step(state, withInput({}), FIXED_DT);
+      foe.body.pos = { ...pin };
+    }
+    expect(foe.hp, "当たった").toBeLessThan(TOUGH_HP);
+    return state;
+  }
+
+  it("放出の投げの命中は releaseHit のヒットストップと画面揺れまで底上げする", () => {
+    const state = hitWith(true);
+    expect(state.hitstop, "ヒットストップ").toBe(STOP);
+    expect(state.camera.shake, "画面揺れ").toBeGreaterThanOrEqual(SHAKE - 1);
+  });
+
+  it("放出でない投げには効かない", () => {
+    const state = hitWith(false);
+    expect(state.hitstop, "ヒットストップ").toBeLessThan(STOP);
+    expect(state.camera.shake, "画面揺れ").toBeLessThan(SHAKE - 1);
+  });
+
+  it("強化投げの戦意あり用の弾は今と同じ手応え（止め 9・揺れは普通の命中）を JSON に持つ", () => {
+    expect(comboCast("ringHurl").releaseThrow?.bullet.releaseHit).toEqual({ hitstop: 9, shake: 2.5 });
+  });
+});
+
+describe("戦意あり用の投げ（releaseThrow）", () => {
+  /** 強化投げの cast の戦意あり用の弾だけ、枚数（2 枚投げを外して 1 枚）と半径を変える */
+  function testCast(): CastDef {
+    const c = comboCast("ringHurl");
+    const rt = c.releaseThrow ?? c.throw;
+    const { pair: _pair, ...single } = rt.bullet;
+    return { ...c, releaseThrow: { ...rt, bullet: { ...single, radius: RELEASE_RADIUS } } };
+  }
+
+  it("放出の振りは戦意あり用の弾を投げ、放出でない振りは普段の弾を投げる", () => {
+    const released = arena(5, RING_STATS);
+    emitCast(released, testCast(), { release: { finisher: true, crit: false } });
+    const big = playerShots(released);
+    expect(big.length, "戦意あり用は 1 枚").toBe(1);
+    expect(big[0]?.radius, "戦意あり用の半径").toBe(RELEASE_RADIUS);
+    const plain = arena(5, RING_STATS);
+    emitCast(plain, testCast(), {});
+    expect(playerShots(plain).length, "普段は 2 枚").toBe(2);
+  });
+
+  it("強化投げの cast は戦意あり用の弾を持ち、弾の表にも別の key で載る", () => {
+    const c = comboCast("ringHurl");
+    expect(c.releaseThrow, "戦意あり用").toBeDefined();
+    expect(bulletDef("cast.ringHurl.release").key).toBe("cast.ringHurl.release");
   });
 });
 

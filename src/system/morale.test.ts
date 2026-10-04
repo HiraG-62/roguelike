@@ -241,7 +241,8 @@ describe("戦意: 長銃（狙い）", () => {
     expect(kinds(events, "onRelease")[0]?.amount, "狙いをすべて使う").toBe(units);
     expect(shot.damage / normal.damage, "威力").toBeCloseTo(1 + FORM.rifle.perUnit.damageMul * units);
     expect(shot.pierceLeft - normal.pierceLeft, "貫通").toBe(Math.floor(FORM.rifle.perUnit.pierceAdd * units + EPS));
-    expect(shot.release, "放出の弾（終撃・会心）").toEqual({ finisher: true, crit: true });
+    // 手応え（長銃の releaseShot の releaseHit）も一緒に持つ
+    expect(shot.release, "放出の弾（終撃・会心）").toMatchObject({ finisher: true, crit: true });
     expect(normal.release, "普通の弾は放出でない").toBeUndefined();
     expect(state.player.morale.value).toBe(0);
   });

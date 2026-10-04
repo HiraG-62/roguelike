@@ -198,7 +198,34 @@
             "duration": 1.5,
             "potency": 0
           }
-        ]
+        ],
+        "releaseStep": {
+          "windup": 0.16,
+          "active": 0.09,
+          "recover": 0.45,
+          "scaling": { "base": 9.88, "str": 0.794, "dex": 1.588 },
+          "poiseRatio": { "str": 0.424, "dex": 0.424 },
+          "poise": 28.2,
+          "reach": 20,
+          "size": 20,
+          "knockback": 220,
+          "heavy": true,
+          "mana": 7.5,
+          "shape": { "kind": "arc", "deg": 120 },
+          "hitstop": 4,
+          "shake": 2,
+          "lunge": 6,
+          "trail": "#ffffff",
+          "applies": [
+            {
+              "_id": "broken",
+              "kind": "broken",
+              "stacks": 1,
+              "duration": 1.5,
+              "potency": 0
+            }
+          ]
+        }
       }
     }
   ],

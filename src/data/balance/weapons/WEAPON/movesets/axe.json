@@ -244,7 +244,35 @@
             "potency": 1.5,
             "ratio": { "str": 0.045 }
           }
-        ]
+        ],
+        "releaseStep": {
+          "windup": 0.31,
+          "active": 0.12,
+          "recover": 0.65,
+          "scaling": { "base": 26.3, "str": 2.583, "dex": 1.526 },
+          "poiseRatio": { "str": 1.315, "spi": 0.587 },
+          "poise": 63.4,
+          "reach": 17.5,
+          "size": 24,
+          "knockback": 380,
+          "heavy": true,
+          "mana": 7.5,
+          "shape": { "kind": "box" },
+          "hitstop": 6,
+          "shake": 3.5,
+          "lunge": 8,
+          "trail": "#ffffff",
+          "applies": [
+            {
+              "_id": "bleed",
+              "kind": "bleed",
+              "stacks": 2,
+              "duration": 4,
+              "potency": 1.5,
+              "ratio": { "str": 0.045 }
+            }
+          ]
+        }
       }
     }
   ],

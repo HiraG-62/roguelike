@@ -842,7 +842,9 @@ function patchStep(st: MeleeStepDef, s: SustainDef): MeleeStepDef {
     pull: p.pull ?? st.pull,
     trail: p.trail ?? st.trail,
     applies: extra.length > 0 ? [...(st.applies ?? []), ...extra] : st.applies,
-    cast: st.cast ? { ...st.cast, throw: moreCasts(st.cast.throw, p) } : st.cast,
+    cast: st.cast ? { ...st.cast, throw: moreCasts(st.cast.throw, p), ...(st.cast.releaseThrow ? { releaseThrow: moreCasts(st.cast.releaseThrow, p) } : {}) } : st.cast,
+    // 戦意あり用の段にも同じ持続の差し替えを掛ける
+    ...(st.releaseStep ? { releaseStep: patchStep(st.releaseStep, s) } : {}),
   };
 }
 

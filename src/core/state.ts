@@ -649,7 +649,7 @@ export interface Projectile {
   /** 撃ったレーン（双撃の判定。system/moments.ts）。未指定 = レーンに属さない弾（スキルなど） */
   lane?: ButtonKey;
   /** 放出の弾（長銃の満ちた 1 発など）。finisher = 終撃になる、crit = 必ず会心。未指定 = 放出でない */
-  release?: { finisher: boolean; crit: boolean };
+  release?: { finisher: boolean; crit: boolean; hitstop?: number; shake?: number };
   /** 放出の弾を撃った state.time（出端の判定: 撃った時に敵が下絵だったか）。放出の弾だけが持つ */
   firedAt?: number;
   /** 零距離で撃った短銃の弾（盾持ちの盾を抜ける。撃った時に 1 回だけ測る）。未指定 = 偽 */

@@ -31,7 +31,23 @@
         "mana": 5.5,
         "shape": { "kind": "thrust" },
         "lunge": 10,
-        "trail": "#c0e0ff"
+        "trail": "#c0e0ff",
+        "releaseStep": {
+          "windup": 0.12,
+          "active": 0.08,
+          "recover": 0.24,
+          "scaling": { "base": 7.88, "str": 0.606, "dex": 0.379 },
+          "poiseRatio": { "str": 0.242, "dex": 0.167 },
+          "poise": 13.6,
+          "reach": 30,
+          "size": 12,
+          "knockback": 160,
+          "heavy": false,
+          "mana": 5.5,
+          "shape": { "kind": "thrust" },
+          "lunge": 10,
+          "trail": "#c0e0ff"
+        }
       }
     },
     {
