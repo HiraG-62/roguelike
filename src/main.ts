@@ -50,8 +50,10 @@ import { drawInventoryUi } from "./render/inventoryUi";
 import { drawBudUi } from "./render/budUi";
 import { drawQuestHud } from "./render/questHud";
 import { loadImageAtlas } from "./render/imageAtlas";
+import { actorArtLoading } from "./render/actorSprites";
+import { fxArtLoading } from "./render/fxSprites";
 import { SHEETS, TILE_SPRITES } from "./data/tiles";
-import { Renderer } from "./render/renderer";
+import { Renderer, type WorldPrep } from "./render/renderer";
 import {
   drawDeathSummary,
   drawHistoryScreen,
@@ -128,7 +130,7 @@ import {
   type Settings,
 } from "./ui/settings";
 import { createInventoryUi, updateInventoryUi } from "./ui/inventory";
-import { TEXT, drawText, textLineHeight, wrapText } from "./render/pixelText";
+import { TEXT, drawText, pixelText, textLineHeight, wrapText } from "./render/pixelText";
 import { drawOriginScreen } from "./render/originUi";
 import {
   activateOriginCursor,
@@ -151,7 +153,7 @@ import { carriedQuest, codexPages, isQuestKey, loadoutKeywords, lockedJobs, lock
 import { loadQuests, saveQuests } from "./meta/questStore";
 import { currentTitleLabel, evaluateAchievements, loadAchievements, noteJobPlayed, saveAchievements, selectTitle } from "./meta/achievements";
 import { ACHIEVEMENT_TITLE_TAB, achievementTabs, codexListTabs, metaSummaryLines, questBoardTabs, questStatusLine, titleIdOfEntry } from "./meta/screens";
-import { tipsListTabs } from "./meta/tips";
+import { tipEntries, tipsListTabs } from "./meta/tips";
 import { type ManualUi, createManualUi, restartManualUiDemo, stepManualUi, syncManualDemo } from "./ui/weaponManual";
 import { drawWeaponManual } from "./render/weaponManualUi";
 import { stepManualDemo } from "./system/manualDemo";
@@ -173,7 +175,13 @@ import { availableSpots, builtFacilities, facilityBuiltBanner, newlyBuilt } from
 import { addDonation, donatedOf, loadHub, markFacilitiesSeen, saveHub } from "./meta/hubStore";
 import { type TownLook, townLook } from "./meta/townLook";
 import { drawHubOverlay } from "./render/hubUi";
-import { drawRackScreen } from "./render/rackUi";
+import type { TownHubView } from "./render/townScene";
+import { type LoadingArt, LoadingScreenLayer } from "./render/loadingScreenUi";
+import { primeWeaponIcons } from "./render/weaponIcons";
+import { figureReady } from "./render/attireFigure";
+import { styleFor } from "./render/mapTheme";
+import { type LoadingPlace, type LoadingScreen, beginLoading, confirmLoading, loadingReleased, loadingShowsWorld, stepLoading } from "./ui/loadingScreen";
+import { drawRackScreen, primeRackShots } from "./render/rackUi";
 import type { MovesetKey, WeaponGroup } from "./data/weapons";
 import { altarTabs, createHoldLatch, hubOpenFor, hubProgressSource, latchedHold, openInventoryAt, resetHoldLatch, trialKeyOfEntry } from "./ui/hubFlow";
 import {
@@ -346,7 +354,12 @@ let dropInfoHintTimer = 0;
 
 const renderer = new Renderer(canvas);
 // PNG 取り込み（未ロード中はピクセルマップのまま。フォントの読み込みと同じ流儀でループを待たない）
-void loadImageAtlas(TILE_SPRITES, SHEETS).then((atlas) => renderer.setAtlas(atlas));
+/** 地形の PNG を読み終えたか（失敗したシートはピクセルマップのまま。読み終えるまで画面を出さない） */
+let tilesLoaded = false;
+void loadImageAtlas(TILE_SPRITES, SHEETS).then((atlas) => {
+  renderer.setAtlas(atlas);
+  tilesLoaded = true;
+});
 const inventoryUi = createInventoryUi();
 const sfx = new SfxPlayer();
 let lastAim: { x: number; y: number } | null = null;
@@ -1431,12 +1444,18 @@ function rackLabels(session: HubSession): { trialWeapon: string | null; loaned: 
   return { trialWeapon, loaned: loaned.length > 0 ? loaned.join(" / ") : null, trialUltimate: trialUltimateName(session) };
 }
 
-function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
-  const s = session.state;
+/** 拠点の景色（台・町の配置と見た目）。描画（setHubView）と先に焼き上げる準備（prepareAssets）が同じものを使う */
+function hubTownView(session: HubSession): TownHubView {
   const h = session.hub;
   // 景色は openHub / returnToHub が導く。拠点を開かずに描く経路が万一あっても、町なしの旧来の描画へは落とさない
   const look = hubTown ?? (hubTown = townLook(hubSource(), loadHub()));
-  const spots = { spots: h.layout.spots, available: h.available, near: h.near, town: { layout: h.layout, look } };
+  return { spots: h.layout.spots, available: h.available, near: h.near, town: { layout: h.layout, look } };
+}
+
+function drawHubScreen(ctx: CanvasRenderingContext2D, session: HubSession): void {
+  const s = session.state;
+  const h = session.hub;
+  const spots = hubTownView(session);
   // 台はマップの物なので world 層で描く（HUD や装備画面より下）。拠点以外の描画に残らないよう描いたら外す
   renderer.setHubView(spots);
   // メニュー・設定を重ねている間は照準を描かない
@@ -1949,8 +1968,303 @@ function updateCursorVisibility(cur: GameState | null): void {
   canvas.style.cursor = wantVisible ? "default" : "none";
 }
 
+/** 今の画面が本編の描画（renderer.render）で描く世界と、拠点ならその景色 */
+interface WorldOnScreen {
+  state: GameState;
+  town: TownHubView | null;
+  /** 読み込み画面の題箋に書く行き先 */
+  place: LoadingPlace;
+}
+
+function hubWorld(): WorldOnScreen | null {
+  return hub ? { state: hub.state, town: hubTownView(hub), place: { kind: "hub" } } : null;
+}
+
+function runWorld(s: GameState | null, place?: LoadingPlace): WorldOnScreen | null {
+  return s ? { state: s, town: null, place: place ?? { kind: "floor", depth: s.depth, floorKind: s.floorKind } } : null;
+}
+
+/** 今の画面が描く世界。世界を描かない画面は null（描画の分岐と揃える） */
+function worldOnScreen(): WorldOnScreen | null {
+  switch (screen) {
+    case "hub":
+    case "hubMenu":
+      return hubWorld();
+    case "dojo":
+      return runWorld(dojo?.state ?? null, { kind: "dojo" });
+    case "hallFight":
+      return runWorld(hallFight?.run.state ?? null, { kind: "hall" });
+    case "replay":
+      return runWorld(replay?.session.state ?? null);
+    case "playing":
+    case "paused":
+      return runWorld(state);
+    case "settings":
+    case "keybinds":
+      if (returnScreen === "title") return null;
+      return returnScreen === "hubMenu" ? hubWorld() : runWorld(state);
+    default:
+      return null;
+  }
+}
+
+/**
+ * 描画の準備（画像・フォントの読み込み、地図を丸ごと焼くこと、拠点の町の層）が残っているか。残っている間は更新も描画も止めて前の画面を残す
+ * （初めて見えたときから完全な姿で見せる。欠けた地図・代わりのピクセルマップ・手続きの絵・24x24 の体・代替フォントを見せない）。
+ * 準備を進めるのは描画の側で 1 フレームに 1 回（prepareAssets）。更新の側はその結果（assetsHeld）と、まだ準備を確かめていない世界かを見る
+ */
+let assetsHeld = true;
+/** 最後に準備が済んだと確かめた世界（画面が替わった直後の更新で、確かめる前の世界を進めない） */
+let preparedWorld: GameState | null = null;
+let preparedMap: GameState["map"] | null = null;
+
+/** 地図を描いている間に出す読み込み画面「絵巻」（docs/ideas/loading-screen.md）。出していなければ null */
+let loading: { screen: LoadingScreen; art: LoadingArt } | null = null;
+const loadingLayer = new LoadingScreenLayer();
+/** 読み込み画面の時計（描画側の実時間。ゲームの時刻は止まっている） */
+let lastRenderAt = performance.now();
+/** 1 フレームの経過の上限（タブを戻した直後などに読み込み画面の段取りが飛ばないように） */
+const LOADING_DT_MAX = 0.1;
+
+interface AssetsPrep {
+  held: boolean;
+  world: WorldOnScreen | null;
+  prep: WorldPrep | null;
+}
+
+/** 画面の部品が専用に持つ絵（武器掛けのアイコンと器の弾の札・装束の人影）の読み込みを、描く前に始める */
+function primeScreenArt(world: WorldOnScreen | null): void {
+  primeWeaponIcons();
+  if (screen === "rack") primeRackShots(rackCardList);
+  const s = world?.state ?? state;
+  if (s) figureReady(s);
+}
+
+function prepareAssets(): AssetsPrep {
+  if (!tilesLoaded || !pixelText().isSettled()) return { held: true, world: null, prep: null };
+  const world = worldOnScreen();
+  primeScreenArt(world);
+  const prep = world ? renderer.prepareWorld(world.state, world.town) : null;
+  if (prep?.pending === true) return { held: true, world, prep };
+  preparedWorld = world?.state ?? null;
+  preparedMap = world?.state.map ?? null;
+  // 装束の人影・武器掛けのアイコン・弾の札の bank（描いたときに読み始める）
+  return { held: actorArtLoading() || fxArtLoading(), world, prep };
+}
+
+/** 読み込み画面の絵（章の様式と階の種類。拠点は町、稽古の間・御堂は添え物なし） */
+function loadingArtOf(world: WorldOnScreen): LoadingArt {
+  const s = world.state;
+  if (world.place.kind === "hub") return { style: "town", floorKind: null, seed: s.seed };
+  const floorKind = world.place.kind === "floor" ? world.place.floorKind : null;
+  return { style: styleFor(s.depth, s.floorKind), floorKind, seed: (s.seed + s.depth) >>> 0 };
+}
+
+/**
+ * 地図を描き始めたら読み込み画面を出し、段取りを進める。描き終えて薄れている間は後ろに階の画面を描く。
+ * 戻り値は「階の画面を描かない」（読み込み画面だけを描く）か
+ */
+function stepLoadingScreen(p: AssetsPrep, dt: number): boolean {
+  if (!loading && p.world && p.prep && !p.prep.mapReady) {
+    loading = { screen: beginLoading(p.world.place, p.world.state.seed, tipEntries()), art: loadingArtOf(p.world) };
+  }
+  if (!loading) return false;
+  stepLoading(loading.screen, dt, p.prep?.progress ?? 1, !p.held);
+  return !loadingShowsWorld(loading.screen);
+}
+
+function drawLoadingOverlay(ctx: CanvasRenderingContext2D): void {
+  if (!loading) return;
+  loadingLayer.draw(ctx, loading.screen, loading.art);
+  if (loadingReleased(loading.screen)) loading = null;
+}
+
+/**
+ * 読み込み画面の間の入力: 朱印の後のクリック / 決定だけを受け付ける。読み込み中に押した分も毎フレーム読み捨てる
+ * （押しておいたクリックで朱印の直後に飛ばさない・ゲームへ持ち越さない）
+ */
+function takeLoadingInput(ls: LoadingScreen): void {
+  const frame = input.snapshot();
+  menuKeys.drain();
+  if (frame.clickPressed || frame.confirmPressed) confirmLoading(ls);
+}
+
+function assetsPendingForUpdate(): boolean {
+  if (assetsHeld || loading !== null) return true;
+  const world = worldOnScreen();
+  return world !== null && (world.state !== preparedWorld || world.state.map !== preparedMap);
+}
+
+/** 今の画面を描く（読み込み画面が薄れる間は、この上に重ねる） */
+function renderScreen(): void {
+  // タイトル等は render を通らないので、ここで論理座標の transform を掛ける
+  renderer.beginFrame();
+  const ctx = renderer.context;
+  updateCursorVisibility(state);
+
+  if (screen === "title") {
+    drawTitle(ctx, titleTime, seedInput, titleView());
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "hub" && hub) {
+    drawHubScreen(ctx, hub);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (hub && (screen === "hubMenu" || ((screen === "settings" || screen === "keybinds") && returnScreen === "hubMenu"))) {
+    drawHubScreen(ctx, hub);
+    if (screen === "hubMenu") drawPauseMenu(ctx, pauseCursor, "", "hub");
+    else if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+    else drawKeybindsOverlay(ctx);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "rack" && rackHost) {
+    drawRackFrame(ctx, rackHost);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "dojo" && dojo) {
+    drawDojoScreen(ctx, dojo);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "dojoBoard") {
+    drawDojoBoard(ctx, { ui: dojoBoardUi, config: dojoConfig, rowGap: dojoBoardRowGap(textLineHeight(TEXT.SMALL)) });
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "altar") {
+    drawListScreen(ctx, { title: ALTAR_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: ALTAR_HINT });
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "hall") {
+    drawListScreen(ctx, { title: HALL_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: HALL_LIST_HINT });
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "hallFight" && hallFight) {
+    drawHallFight(ctx, hallFight);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "questChoice") {
+    drawQuestChoice(ctx, questChoiceUi, questSave, titleTime);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "carryBack" && carryBack) {
+    drawCarryBack(ctx, carryBack.ui, carryBack.run, carryBack.time, carryBackRowGap(textLineHeight(TEXT.SMALL)));
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "codex" || screen === "questBoard" || screen === "achievements" || screen === "tips") {
+    drawListScreen(ctx, {
+      title: LIST_SCREEN_TITLE[screen],
+      tabs: listTabs,
+      ui: listUi,
+      rowGap: listRowGap(textLineHeight(TEXT.SMALL)),
+      hint: LIST_SCREEN_HINT[screen],
+      detailSide: screen === "tips",
+    });
+    if (diagramKey !== null) {
+      const def = enemyDef(diagramKey);
+      drawTelegraphDiagram(ctx, def, telegraphDiagram(def), renderer.atlasSprite(def.sprite));
+    }
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "manual" && manualUi) {
+    drawWeaponManual(ctx, renderer, { ui: manualUi, hint: MANUAL_HINT });
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "origin") {
+    drawOriginScreen(ctx, originUi, titleTime, originRowGap(textLineHeight(TEXT.SMALL)));
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if (screen === "history") {
+    drawHistoryScreen(ctx, {
+      history: profile.meta.history ?? [],
+      cursor: historyCursor,
+      replayStatus: (i) => {
+        const entry = profile.meta.history?.[i];
+        if (entry === undefined) return "none";
+        return replayAvailability(findReplayForEntry(replays, entry));
+      },
+      message: historyMessage,
+    });
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+  if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
+    drawTitle(ctx, titleTime, seedInput, titleView());
+    if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+    else drawKeybindsOverlay(ctx);
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+
+  if (screen === "replay" && replay) {
+    const session = replay.session;
+    renderGame(session.state, session.lastInput.aimScreen);
+    drawReplayHud(
+      ctx,
+      {
+        speed: replay.speed,
+        progress: replayProgress(session),
+        finished: isReplayFinished(session),
+        seedText: session.data.seedText,
+      },
+      replay.clock,
+    );
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+
+  const cur = state;
+  if (!cur) {
+    drawTitle(ctx, titleTime, seedInput, titleView());
+    drawGamepadConnectedHint(ctx);
+    return;
+  }
+
+  renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
+
+  if (!inventoryUi.open) drawBudUi(ctx, cur);
+  if (!inventoryUi.open) drawQuestHud(ctx, cur);
+  if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
+  if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
+  if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
+  if (screen === "keybinds") drawKeybindsOverlay(ctx);
+  if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
+    drawDeathSummary(ctx, {
+      itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),
+      bestCombo: cur.combo.best,
+      bossesDefeated,
+      metaLines: deathMetaLines,
+      reportLines: deathReportLines,
+    });
+  }
+  drawGamepadConnectedHint(ctx);
+  drawDropInfoHint(ctx);
+}
+
 startLoop(
   (dt) => {
+    if (loading) {
+      takeLoadingInput(loading.screen);
+      return;
+    }
+    if (assetsPendingForUpdate()) {
+      // 画像を待って止めている間の入力は読み捨てる（読み終えた後の最初の更新に、攻撃や画面の操作として持ち越さない）
+      input.snapshot();
+      menuKeys.drain();
+      return;
+    }
     const frame = input.snapshot((state ?? hallFight?.run.state ?? (screen === "dojo" ? dojo?.state : undefined) ?? hub?.state)?.camera.offset);
     const hotkeys = processMenuKeys(menuKeys.drain(), seedInput);
     keyboardEscape = hotkeys.escape;
@@ -2419,159 +2733,18 @@ startLoop(
     }
   },
   () => {
-    // タイトル等は render を通らないので、ここで論理座標の transform を掛ける
-    renderer.beginFrame();
-    const ctx = renderer.context;
-    updateCursorVisibility(state);
-
-    if (screen === "title") {
-      drawTitle(ctx, titleTime, seedInput, titleView());
-      drawGamepadConnectedHint(ctx);
+    const now = performance.now();
+    const dt = Math.min(LOADING_DT_MAX, Math.max(0, (now - lastRenderAt) / 1000));
+    lastRenderAt = now;
+    const prep = prepareAssets();
+    assetsHeld = prep.held;
+    if (stepLoadingScreen(prep, dt)) {
+      renderer.beginFrame();
+      drawLoadingOverlay(renderer.context);
       return;
     }
-    if (screen === "hub" && hub) {
-      drawHubScreen(ctx, hub);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (hub && (screen === "hubMenu" || ((screen === "settings" || screen === "keybinds") && returnScreen === "hubMenu"))) {
-      drawHubScreen(ctx, hub);
-      if (screen === "hubMenu") drawPauseMenu(ctx, pauseCursor, "", "hub");
-      else if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
-      else drawKeybindsOverlay(ctx);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "rack" && rackHost) {
-      drawRackFrame(ctx, rackHost);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "dojo" && dojo) {
-      drawDojoScreen(ctx, dojo);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "dojoBoard") {
-      drawDojoBoard(ctx, { ui: dojoBoardUi, config: dojoConfig, rowGap: dojoBoardRowGap(textLineHeight(TEXT.SMALL)) });
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "altar") {
-      drawListScreen(ctx, { title: ALTAR_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: ALTAR_HINT });
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "hall") {
-      drawListScreen(ctx, { title: HALL_TITLE, tabs: listTabs, ui: listUi, rowGap: listRowGap(textLineHeight(TEXT.SMALL)), hint: HALL_LIST_HINT });
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "hallFight" && hallFight) {
-      drawHallFight(ctx, hallFight);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "questChoice") {
-      drawQuestChoice(ctx, questChoiceUi, questSave, titleTime);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "carryBack" && carryBack) {
-      drawCarryBack(ctx, carryBack.ui, carryBack.run, carryBack.time, carryBackRowGap(textLineHeight(TEXT.SMALL)));
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "codex" || screen === "questBoard" || screen === "achievements" || screen === "tips") {
-      drawListScreen(ctx, {
-        title: LIST_SCREEN_TITLE[screen],
-        tabs: listTabs,
-        ui: listUi,
-        rowGap: listRowGap(textLineHeight(TEXT.SMALL)),
-        hint: LIST_SCREEN_HINT[screen],
-        detailSide: screen === "tips",
-      });
-      if (diagramKey !== null) {
-        const def = enemyDef(diagramKey);
-        drawTelegraphDiagram(ctx, def, telegraphDiagram(def), renderer.atlasSprite(def.sprite));
-      }
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "manual" && manualUi) {
-      drawWeaponManual(ctx, renderer, { ui: manualUi, hint: MANUAL_HINT });
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "origin") {
-      drawOriginScreen(ctx, originUi, titleTime, originRowGap(textLineHeight(TEXT.SMALL)));
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if (screen === "history") {
-      drawHistoryScreen(ctx, {
-        history: profile.meta.history ?? [],
-        cursor: historyCursor,
-        replayStatus: (i) => {
-          const entry = profile.meta.history?.[i];
-          if (entry === undefined) return "none";
-          return replayAvailability(findReplayForEntry(replays, entry));
-        },
-        message: historyMessage,
-      });
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-    if ((screen === "settings" || screen === "keybinds") && returnScreen === "title") {
-      drawTitle(ctx, titleTime, seedInput, titleView());
-      if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
-      else drawKeybindsOverlay(ctx);
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-
-    if (screen === "replay" && replay) {
-      const session = replay.session;
-      renderGame(session.state, session.lastInput.aimScreen);
-      drawReplayHud(
-        ctx,
-        {
-          speed: replay.speed,
-          progress: replayProgress(session),
-          finished: isReplayFinished(session),
-          seedText: session.data.seedText,
-        },
-        replay.clock,
-      );
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-
-    const cur = state;
-    if (!cur) {
-      drawTitle(ctx, titleTime, seedInput, titleView());
-      drawGamepadConnectedHint(ctx);
-      return;
-    }
-
-    renderGame(cur, inventoryUi.open || screen !== "playing" ? null : lastAim);
-
-    if (!inventoryUi.open) drawBudUi(ctx, cur);
-    if (!inventoryUi.open) drawQuestHud(ctx, cur);
-    if (inventoryUi.open) drawInventoryUi(ctx, cur, inventoryUi);
-    if (screen === "paused") drawPauseMenu(ctx, pauseCursor, questStatusLine(cur));
-    if (screen === "settings") drawSettingsScreen(ctx, settings, settingsCursor, true);
-    if (screen === "keybinds") drawKeybindsOverlay(ctx);
-    if (runOver(cur) && cur.deathTimer > DEATH_INPUT_DELAY) {
-      drawDeathSummary(ctx, {
-        itemSummary: summarizeRunItems(foundItems(cur.profile), runStartedAt),
-        bestCombo: cur.combo.best,
-        bossesDefeated,
-        metaLines: deathMetaLines,
-        reportLines: deathReportLines,
-      });
-    }
-    drawGamepadConnectedHint(ctx);
-    drawDropInfoHint(ctx);
+    if (assetsHeld && !loading) return;
+    renderScreen();
+    drawLoadingOverlay(renderer.context);
   },
 );

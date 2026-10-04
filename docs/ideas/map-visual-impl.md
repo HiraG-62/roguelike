@@ -26,9 +26,8 @@
 | `CHUNK_DOTS` | 512 | チャンクの一辺のドット数 |
 | `LIP_DOTS` | 6 | 手前の縁が床へ張り出す量（論理 3px） |
 | `LIP_TOP_DOTS` | 14 | 縁の層に積む、南の壁の天面の帯（論理 7px） |
-| `BAKE_ROWS_PER_FRAME` | 32 | 1 フレームに焼くドット行（時間ではなく行で区切る = 実時間に依存しない） |
-| `BAKE_ROWS_BOOST` | 8 | 階の切り替えの黒帯中・画面内の未焼きがあるときの倍率 |
-| `CHUNK_CACHE_MAX` | 20 | 持つチャンクの上限（LRU） |
+| `BAKE_ROWS_PER_FRAME` | 32 | 描画の中で焼き進めるドット行（撮影・計測の道具向け。ゲームは先に焼き上げるので普段は焼かない。時間ではなく行で区切る = 実時間に依存しない） |
+| `PREPARE_ROWS_PER_FRAME` | 512 | 先に焼き上げる間（main.ts が画面を止めている間）に 1 フレームで焼くドット行（約 1 チャンク） |
 
 ```ts
 export type MapStyle = "moss" | "temple" | "castleFire" | "castleFrost" | "deep" | "final";
@@ -72,9 +71,10 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 ### 1-3. チャンクの焼き方と作り直す時機
 
 - 1 チャンク = 16x16 マス = 512x512 ドットの `ground` canvas と `lip` canvas。`putImageData` で 1 回だけ載せ、描くときは world の座標系で `drawImage(c, cx*256, cy*256, 256, 256)`（RENDER_SCALE 4 の下でちょうど 2 倍の最近傍。カメラは整数 px なのでドットがずれない）
-- 欲しいチャンク = 画面 + 周り 128px（先読み）。画面内で未焼きのものから、カメラの中心に近い順に `BAKE_ROWS_PER_FRAME` 行ずつ焼く。黒帯（`wipeActive`）中と画面内が未焼きのときは `BOOST` 倍
-- 未焼きのチャンクが画面に入ったら、その範囲だけ「マスごとの平塗り」（床 fB / 壁 tB / 穴の本体色、`fillRect` 256 回以下）で埋める。黒い穴は出さない
-- 作り直しの判定は描画側だけで行う（state に印を足さない）。画面内のチャンクについて毎フレーム「チャンク + 周り 2 マスの分類（壁 / 穴 / 通れる）の簡易ハッシュ」を取り（9 チャンク × 400 マスの読み出し、数十 µs）、焼いた時の値と違えば作り直す。`state.map` の同一性が変わったら全部捨てる。`map.shallow` は生成時に固定なので鍵に入れない
+- **階（地図）を丸ごと先に焼く**（2026-10-05）。地図かテーマが替わったら、main.ts の `prepareAssets` が更新も描画も止めて前の画面を残し、`MapChunkCache.prepare` で全チャンクを 1 フレーム `PREPARE_ROWS_PER_FRAME` 行ずつ焼き上げてから見せる。初めて見えたときから欠けた所が無い。持つのは今の地図の全チャンクで上限（LRU）は無い。地図が替わったら前の地図のチャンクの canvas は使い回しに回し、新しい地図を焼き上げた時点で余りを手放す
+- 拠点の町の層（`TownLayer`。石畳の道・建物の絵）も同じく、出来上がるまで画面を止める（`TownLayer.prepare` が true を返すまで）
+- 先に焼かない道具（撮影・計測）向けに、描画の中でも未焼きを画面の近い順に `BAKE_ROWS_PER_FRAME` 行ずつ焼く。未焼きのチャンクが画面に入ったら、その範囲だけ「マスごとの平塗り」（床 fB / 壁 tB / 穴の本体色、`fillRect` 256 回以下）で埋める。黒い穴は出さない（ゲームでは先に焼き上げるので出ない）
+- 作り直しの判定は描画側だけで行う（state に印を足さない）。画面内のチャンクについて毎フレーム「チャンク + 周り 2 マスの分類（壁 / 穴 / 通れる）の簡易ハッシュ」を取り（9 チャンク × 400 マスの読み出し、数十 µs）、焼いた時の値と違えば作り直す（画面 + 先読みの 128px の内なら同期で焼き直す。全部持っているので画面外でも欠けたままにしない）。`state.map` の同一性が変わったら全部捨てる。`map.shallow` は生成時に固定なので鍵に入れない
 - 実際に分類が変わるのは隠し部屋が開くとき（`src/system/hiddenRoom.ts:117-119` の Wall → Floor）だけ。階段の出現（`boss.ts:426`・`specialRooms.ts:1303`）・泉（`roomTypes.ts:307`）は「通れる」のままなので作り直さない（階段と泉は上から毎フレーム描く）。**画面内のチャンクの分類が変わったら同期で焼き直す**（まれな出来事。1 回 25ms 以下を目標）
 - 封鎖の扉（`state.lockedTiles`）・地形（`state.terrain`）・扉の印・伏兵の暗い床・隠し部屋のひびは焼かない
 - 拠点（`state.sandbox`）は門前町の様式 `town` の焼き付け（`drawTownGround`。旧来の Puny のタイルの描画は 2026-10-02 に削除）
@@ -83,8 +83,8 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 
 - 測った値（見本のコードを node に移して 16x16 チャンクを焼いた。この Agent の scratchpad で実測）: 見本どおりの `distField` 込みで 苔 72ms / 寺院 35ms / 炎 36ms。距離変換を列の連なりに替えると 苔 51 / 寺院 22 / 炎 26 / 異界 34ms。内訳は形 12ms・苔の床の模様 25ms（`vor` と `vnoise` の 2 回）
 - 目標: 全テーマで **1 チャンク 25ms 以下**（node）。苔は `vor` の特徴点の前計算と `vnoise` の格子値のキャッシュで半分になる見込み。32 行 / フレームで 1 フレーム約 1.6ms（焼いているフレームだけ）
-- 歩き（120px/s）で新しいチャンクの列（3〜4 枚、約 100ms 分）が要るのは 256px ごと = 約 2 秒ごと。先読みの 128px のうちに 32 行 / フレームで間に合う。ダッシュ（400px/s）が続いたときだけ平塗りが一瞬見えることがある
-- メモリ: 1 チャンク 1MiB（ground）+ 1MiB（lip）。画面内は最大 3x3 = 9、先読み込みで 12〜16、上限 20 で最大 40MiB。地形のアトラス 約 2.3MiB（9 種 × 16 形 × 4 変種 × 32x32 ドット）、光と lip の作業用 canvas（960x540）3 枚で 6MiB。合計 50MiB 以下
+- 1 階はおよそ 200x115 マス = チャンク 84〜112 枚（2026-10-05 の実測。ボス階は 8 枚）。1 チャンク約 35ms（node）で、階に入るときの待ちは約 3 秒。焼き上げた後は焼かないので、ダッシュしても平塗りは見えない
+- メモリ: 1 チャンク 1MiB（ground）+ 1MiB（lip。縁のあるチャンクだけ）。1 階で最大 約 200MiB。前の階の分は次の階を焼き上げたら手放す。地形のアトラス 約 2.3MiB（9 種 × 16 形 × 4 変種 × 32x32 ドット）、光と lip の作業用 canvas（960x540）3 枚で 6MiB。合計 50MiB 以下
 - 毎フレーム（焼いていないとき）: 地図の blit 6〜9 回 + lip 6〜9 回と合成 2 回 + 光の層（塗り 1 回・光源 48 個以下・合成 2 回）+ 地形 dual-grid（画面の頂点 約 560 のうち地形のある所だけ。普通は 150 回以下）+ 上描き（階段・泉・扉・印）。今の `drawTiles` は画面の全マス約 550 回の `drawImage`（`renderer.ts:1105-1145`）なので、**今より軽くなる**
 
 ### 1-5. 壁の側面と体の前後
@@ -236,7 +236,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 - 注意: 見本の `THEMES` の `dark` は使わない（MAP_LIGHT の値）。章 4 の壁は 2-1 節のとおり天面 → 奈落
 
 **L1b チャンクと結線**（implementer、M）
-- 所有: `src/render/mapChunks.ts`（`MapChunkCache`: 欲しいチャンクの算出・分類のハッシュ・LRU・行の予算での焼き・平塗りの代わり・`drawGround(ctx, view)` / `drawLip(ctx, view)` / `lightsIn(view)` / `settle(view)`。canvas に触らない部分〔`chunkPlan`・`chunkChecksum`〕は純関数にして `mapChunks.test.ts`）、`src/tools/mapShot.ts` と `tools/map-shot.html`（5-2 節）、`scripts/map-shot.mjs`
+- 所有: `src/render/mapChunks.ts`（`MapChunkCache`: 欲しいチャンクの算出・分類のハッシュ・行の予算での焼き（2026-10-05 に LRU をやめ、階を丸ごと先に焼く `prepare` に替えた）・平塗りの代わり・`drawGround(ctx, view)` / `drawLip(ctx, view)` / `lightsIn(view)` / `settle(view)`。canvas に触らない部分〔`chunkPlan`・`chunkChecksum`〕は純関数にして `mapChunks.test.ts`）、`src/tools/mapShot.ts` と `tools/map-shot.html`（5-2 節）、`scripts/map-shot.mjs`
 - 最小 Edit: `renderer.ts`（`drawTiles` を「拠点 → `drawTilesLegacy`、それ以外 → `MapChunkCache.drawGround`」に分け、階段・泉・扉の印・封鎖・ひび・伏兵の床を `drawTileOverlays` へ移す。`drawWorldLayer` で `drawTerrainLayer` の後に `drawTileOverlays` を呼ぶ。`settleMap(state)` を public で足す）、`layers.ts`（`LAYER_CONTENTS.world` に `drawTileOverlays`）、`package.json`（`"map:shot": "node scripts/map-shot.mjs"`）
 - 完了条件: 段 0 の仮の焼き付けで全階が平塗りで描け、拠点は今と同じ。`map-shot` で 12 枚撮れる
 
@@ -288,7 +288,7 @@ export interface ChunkBakeJob { readonly done: boolean; step(rows: number): void
 | `dualGrid.test.ts` | 角の 16 通りの網羅（孤立・縦横の縁・外角・内角）、地図の外は壁、左右反転で形も反転、頂点の距離が床で 0・壁の奥ほど増える |
 | `mapTheme.test.ts` | 深度 1〜25 × 9 バイオームで必ずテーマが決まる、章 1 は側面 16・章 2/3 は 32、暗さが章 1 < 2 < 3 < 4、深みの変異で配色が変わる、**地図の色が予告の色（`TELEGRAPH` の黄 / 赤、`#ff4040`）と RGB 距離 60 以上離れている** |
 | `mapBake.test.ts` | 決定性: 同じ地図で 2 回焼いて同じ画素、同じ seed で別に作った 2 つの state でも同じ画素。`state.rng` を偽物に替えて焼いても一度も呼ばれない（`flaskHud.test.ts:121-128` の形）。`step` の行数を 1 / 7 / 全部 で同じ画素。**隣り合う 2 チャンクと、同じ範囲を 1 枚で焼いた結果の継ぎ目が一致**。lip は南の壁の手前にだけ出る。性能: 全テーマで 1 チャンク 250ms 以下（負荷で落ちない緩い上限。目標の 25ms は ms を出力して統合役が見る） |
-| `mapChunks.test.ts` | 欲しいチャンクの算出（画面 + 128px、最大 16）、分類の変化（壁 → 床）でハッシュが変わる・階段の出現では変わらない、LRU が 20 を超えない、未焼きは平塗りの対象になる |
+| `mapChunks.test.ts` | 欲しいチャンクの算出（画面 + 128px、最大 16）、分類の変化（壁 → 床）でハッシュが変わる・階段の出現では変わらない、prepare で地図の全チャンクが焼き上がる・地図を替えたら前の地図の分を手放す、未焼きは平塗りの対象になる |
 | `terrainTex.test.ts` | 種類 × 16 形 × 4 変種の画素が決定的、形 0 は全透明・形 15 は全不透明、水の章の穴を水と数える |
 | `mapLight.test.ts` | 光源が画面外を含まない・`maxLights` で切る、暗闇の階でも `DarknessLayer` の対象は変わらない |
 | `mapDecor.test.ts` | 置き場所の分類、除外のマス（部屋の中心・扉・階段）に置かない、章 1 に和の置物が出ない、背の高い置物は壁際だけ |

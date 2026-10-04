@@ -1,3 +1,4 @@
+import { actorArtLoading } from "./actorSprites";
 import { KEYWORD_DEFS, type Keyword, profileKeywords } from "../core/keywords";
 import type { GameState } from "../core/state";
 import { RELIC_GLYPHS } from "../data/sprites/attire";
@@ -138,8 +139,8 @@ function wornForMini(state: Readonly<GameState>, slot: LootSlot, trying: Readonl
 
 function drawMiniParts(ctx: CanvasRenderingContext2D, state: Readonly<GameState>, ui: Readonly<InventoryUi>, view: Readonly<CandidatesView>, entry: Readonly<CandidateEntry> | null): void {
   drawPedestal(ctx, MINI_FEET, MINI_ZOOM);
-  // 体の絵が読めるまでは今までのドット絵の人形で代わりに描く
-  if (!drawAttireFigure(ctx, state, MINI_FEET, MINI_ZOOM, ui.time, true)) drawFigure(ctx, MINI_FIGURE.x, MINI_FIGURE.y, MINI_FIGURE.scale, true);
+  // 体の絵が無い・読めなかったときは今までのドット絵の人形。読み込み中は出さない（main.ts が読み終えるまで画面を止める）
+  if (!drawAttireFigure(ctx, state, MINI_FEET, MINI_ZOOM, ui.time, true) && !actorArtLoading()) drawFigure(ctx, MINI_FIGURE.x, MINI_FIGURE.y, MINI_FIGURE.scale, true);
   const tryNow = blinkOn(ui.time, TRY_PERIOD);
   const changing = changingSlot(view, entry);
   for (const slot of Object.keys(MINI_PARTS) as LootSlot[]) {

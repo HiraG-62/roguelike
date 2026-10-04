@@ -96,6 +96,8 @@ export class PixelText {
   private tintScratch: HTMLCanvasElement | null = null;
   private tintedCount = 0;
   private ready: boolean;
+  /** フォントの読み込みが終わったか（読めても失敗しても true。main.ts は決着まで画面を出さない） */
+  private settled: boolean;
   private measureCtx: CanvasRenderingContext2D | null = null;
   /** フォントの読み込み前に warm で頼まれた字（読み込み後に焼く） */
   private pendingWarm = "";
@@ -105,17 +107,25 @@ export class PixelText {
   constructor(private readonly env: PixelTextEnv) {
     this.glyphSheet = this.newGlyphSheet();
     this.ready = env.isFontReady();
+    this.settled = this.ready;
     if (this.ready) return;
     env
       .loadFont()
       .then(() => this.onFontLoaded())
       .catch(() => {
         /* ロード失敗時は uiFont フォールバックのまま */
+      })
+      .finally(() => {
+        this.settled = true;
       });
   }
 
   isReady(): boolean {
     return this.ready;
+  }
+
+  isSettled(): boolean {
+    return this.settled;
   }
 
   /** 論理 px → デバイス px の倍率を明示設定する（リサイズ時に k*dpr を渡す） */

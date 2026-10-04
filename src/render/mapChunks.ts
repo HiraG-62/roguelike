@@ -7,11 +7,10 @@ import { buildVertexDepth, type VertexDepth } from "./dualGrid";
 import { createChunkBake } from "./mapBake";
 import { buildDecorExclude } from "./mapDecor";
 import {
-  BAKE_ROWS_BOOST,
   BAKE_ROWS_PER_FRAME,
-  CHUNK_CACHE_MAX,
   CHUNK_DOTS,
   CHUNK_TILES,
+  PREPARE_ROWS_PER_FRAME,
   type BakeOutput,
   type ChunkBakeJob,
   type MapLight,
@@ -114,20 +113,9 @@ export function flatTileRange(
   return { tx0, ty0, tx1, ty1 };
 }
 
-/** 上限を超えたぶんを、最後に使った順に古いほうから捨てる対象にする。今のフレームで使ったものは捨てない */
-export function lruVictims(entries: readonly { key: number; lastUsed: number }[], max: number, currentFrame: number): number[] {
-  const over = entries.length - max;
-  if (over <= 0) return [];
-  return entries
-    .filter((e) => e.lastUsed < currentFrame)
-    .sort((a, b) => a.lastUsed - b.lastUsed || a.key - b.key)
-    .slice(0, over)
-    .map((e) => e.key);
-}
-
-/** 1 フレームの焼きの予算（ドット行）。黒帯中で画面内に未焼きがあるときだけ BOOST 倍 */
-export function bakeBudget(wipe: boolean, inViewUnbaked: boolean): number {
-  return BAKE_ROWS_PER_FRAME * (wipe && inViewUnbaked ? BAKE_ROWS_BOOST : 1);
+/** 地図の全チャンク（先に焼き上げるときの順。並びは問わない） */
+function wholeMapPlan(map: GameMap): ChunkPlanEntry[] {
+  return chunkPlan({ x: 0, y: 0, w: 0, h: 0 }, map.width, map.height, Number.POSITIVE_INFINITY);
 }
 
 /** 画素列から canvas を作る（既定）。reuse があればその canvas に書き直す。テストでは差し替える */
@@ -149,9 +137,6 @@ function canvasFromPixels(pixels: Uint32Array, reuse: HTMLCanvasElement | null):
   return canvas;
 }
 
-/** 手放したチャンクの canvas を取っておく数の上限（床と縁で 2 枚ずつ） */
-const SPARE_MAX = CHUNK_CACHE_MAX * 2;
-
 interface Chunk {
   key: number;
   cx: number;
@@ -163,7 +148,6 @@ interface Chunk {
   ground: HTMLCanvasElement | null;
   lip: HTMLCanvasElement | null;
   lights: readonly MapLight[];
-  lastUsed: number;
 }
 
 interface FlatColors {
@@ -194,12 +178,16 @@ export class MapChunkCache {
   /** 置物を置かないマスの印（地図ごとに 1 回。焼きへ渡す） */
   private exclude: Uint8Array | null = null;
   private flat: FlatColors | null = null;
-  private frame = 0;
   private rowsThisFrame = 0;
   private plan: ChunkPlanEntry[] = [];
+  /** 地図の全チャンクの数（bind で決まる） */
+  private total = 0;
+  /** 焼き上がったチャンクの数 */
+  private baked = 0;
   private readonly lightBuf: MapLight[] = [];
   /**
-   * 手放したチャンクの canvas（512x512）。LRU や階の切り替えで捨てては作り直すと、GC の後始末で 50ms ほど止まることがあったので使い回す
+   * 前の地図のチャンクの canvas（512x512）。階の切り替えで捨てては作り直すと、GC の後始末で 50ms ほど止まることがあったので
+   * 次の地図の焼きで使い回し、次の地図を焼き上げた時点で余りを手放す
    */
   private readonly spare: HTMLCanvasElement[] = [];
 
@@ -212,9 +200,12 @@ export class MapChunkCache {
 
   /** 焼き上がっているチャンクの数 */
   get bakedCount(): number {
-    let n = 0;
-    for (const c of this.chunks.values()) if (c.ground) n++;
-    return n;
+    return this.baked;
+  }
+
+  /** 今の地図を焼き上げた割合（0..1。読み込み画面の進み具合） */
+  get progress(): number {
+    return this.total > 0 ? this.baked / this.total : 1;
   }
 
   /** 直近の update / settle で焼いたドット行（開発用の計測に使う） */
@@ -227,42 +218,52 @@ export class MapChunkCache {
     return this.plan.some((e) => e.inView && !this.chunks.get(e.key)?.ground);
   }
 
+  /** この地図とテーマの全チャンクを焼き上げているか（焼き進めない） */
+  ready(map: GameMap, theme: MapTheme): boolean {
+    return this.map === map && this.themeKey === theme.key && this.baked === this.total;
+  }
+
   /** 手元に取っておいた使い回しの canvas の数（テスト用） */
   get spareCount(): number {
     return this.spare.length;
   }
 
-  /** 全部捨てる（地図かテーマが変わったとき）。canvas は使い回しに回す */
+  /** 全部捨てる（地図かテーマが変わったとき）。canvas は次の地図の焼きの使い回しに回す */
   clear(): void {
     for (const chunk of this.chunks.values()) this.release(chunk);
     this.chunks.clear();
     this.plan = [];
     this.lightBuf.length = 0;
+    this.baked = 0;
   }
 
   /**
-   * 毎フレーム 1 回、描く前に呼ぶ。地図の差し替えを検出し、分類が変わったチャンクを直し、
-   * 予算の行数だけ未焼きを焼く。wipe = 階の切り替えの黒帯中
+   * 地図の全チャンクを rows 行ぶん焼き進め、焼き上がったら true。main.ts は true になるまで画面を止めて毎フレーム呼ぶ
+   * （初めて見えたときから欠けた所が無いように、階を丸ごと先に焼く）
    */
-  update(map: GameMap, theme: MapTheme, view: MapView, wipe: boolean): void {
+  prepare(map: GameMap, theme: MapTheme, rows: number = PREPARE_ROWS_PER_FRAME): boolean {
     this.bind(map, theme);
-    this.frame++;
     this.rowsThisFrame = 0;
-    this.plan = chunkPlan(view, map.width, map.height);
-    for (const entry of this.plan) this.refresh(map, theme, entry);
-    this.bakeWithin(map, theme, bakeBudget(wipe, this.hasUnbakedInView()));
-    this.evict();
+    if (this.baked < this.total) this.bakeWithin(map, theme, wholeMapPlan(map), rows);
+    return this.baked === this.total;
   }
 
-  /** 欲しいチャンクを全部、予算なしで焼き上げる（撮影・ベンチの前。ゲーム中は使わない） */
-  settle(map: GameMap, theme: MapTheme, view: MapView): void {
+  /**
+   * 毎フレーム 1 回、描く前に呼ぶ。地図の差し替えを検出し、画面 + 先読みの内で分類が変わったチャンクを直す。
+   * 先に焼き上げていなければ（撮影・計測の道具）、画面に近い順に予算の行数だけ焼く
+   */
+  update(map: GameMap, theme: MapTheme, view: MapView): void {
     this.bind(map, theme);
-    this.frame++;
     this.rowsThisFrame = 0;
     this.plan = chunkPlan(view, map.width, map.height);
     for (const entry of this.plan) this.refresh(map, theme, entry);
-    this.bakeWithin(map, theme, Number.POSITIVE_INFINITY);
-    this.evict();
+    if (this.baked < this.total) this.bakeWithin(map, theme, chunkPlan(view, map.width, map.height, Number.POSITIVE_INFINITY), BAKE_ROWS_PER_FRAME);
+  }
+
+  /** 地図の全チャンクを予算なしで焼き上げる（撮影・ベンチ・狭い実演の窓） */
+  settle(map: GameMap, theme: MapTheme, view: MapView): void {
+    this.update(map, theme, view);
+    this.prepare(map, theme, Number.POSITIVE_INFINITY);
   }
 
   /** 焼いた床・壁・穴を描く。未焼きの範囲はマスごとの平塗り。ctx はワールド座標（カメラの平行移動済み） */
@@ -326,20 +327,20 @@ export class MapChunkCache {
     this.depth = buildVertexDepth(map);
     this.exclude = buildDecorExclude(map);
     this.flat = flatColorsOf(theme.palette);
+    this.total = Math.ceil(map.width / CHUNK_TILES) * Math.ceil(map.height / CHUNK_TILES);
   }
 
-  /** 焼いた時と分類が違うチャンクを直す。画面内は同期で焼き直し、画面外は捨てて予算で焼き直す */
+  /** 焼き上がったチャンクで、焼いた時と分類が違うものを同期で焼き直す（まれな出来事。全部持っているので欠けたままにしない） */
   private refresh(map: GameMap, theme: MapTheme, entry: ChunkPlanEntry): void {
     const chunk = this.chunks.get(entry.key);
-    if (!chunk) return;
-    chunk.lastUsed = this.frame;
+    if (!chunk?.ground) return;
     if (chunk.sum === chunkChecksum(map, entry.cx, entry.cy)) return;
     this.release(chunk);
     this.chunks.delete(entry.key);
+    this.baked--;
     // 隠し部屋が開くなど分類が変わったら、頂点の距離と置物の除外の印も作り直す（まれな出来事）
     this.depth = buildVertexDepth(map);
     this.exclude = buildDecorExclude(map);
-    if (!entry.inView) return;
     const fresh = this.begin(map, theme, entry);
     this.advance(fresh, Number.POSITIVE_INFINITY);
   }
@@ -362,16 +363,15 @@ export class MapChunkCache {
       ground: null,
       lip: null,
       lights: [],
-      lastUsed: this.frame,
     };
     this.chunks.set(entry.key, chunk);
     return chunk;
   }
 
-  /** 予算（ドット行）を使い切るまで、計画の順に未焼きを焼く */
-  private bakeWithin(map: GameMap, theme: MapTheme, budget: number): void {
+  /** 予算（ドット行）を使い切るまで、order の順に未焼きを焼く */
+  private bakeWithin(map: GameMap, theme: MapTheme, order: readonly ChunkPlanEntry[], budget: number): void {
     let rows = budget;
-    for (const entry of this.plan) {
+    for (const entry of order) {
       if (rows <= 0) return;
       const existing = this.chunks.get(entry.key);
       if (existing?.ground) continue;
@@ -403,22 +403,14 @@ export class MapChunkCache {
     chunk.lip = hasPixels(out.lip) ? this.makeImage(out.lip, this.spare.pop() ?? null) : null;
     chunk.lights = out.lights;
     chunk.job = null;
+    this.baked++;
+    // 地図を焼き上げたら、前の地図から取り置いた canvas の余りを手放す（前の階のぶんを持ち続けない）
+    if (this.baked === this.total) this.spare.length = 0;
   }
 
-  private evict(): void {
-    if (this.chunks.size <= CHUNK_CACHE_MAX) return;
-    for (const key of lruVictims([...this.chunks.values()], CHUNK_CACHE_MAX, this.frame)) {
-      const chunk = this.chunks.get(key);
-      if (chunk) this.release(chunk);
-      this.chunks.delete(key);
-    }
-  }
-
-  /** チャンクの canvas を使い回しに回す（上限を超えた分は捨てる） */
+  /** チャンクの canvas を使い回しに回す */
   private release(chunk: Chunk): void {
-    for (const canvas of [chunk.ground, chunk.lip]) {
-      if (canvas && this.spare.length < SPARE_MAX) this.spare.push(canvas);
-    }
+    for (const canvas of [chunk.ground, chunk.lip]) if (canvas) this.spare.push(canvas);
     chunk.ground = null;
     chunk.lip = null;
   }

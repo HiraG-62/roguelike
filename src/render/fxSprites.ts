@@ -151,11 +151,22 @@ export interface FxDrawOpts {
   alpha?: number;
 }
 
+/** 作られたすべての bank（本編・武器掛けの弾の札がそれぞれ持つ） */
+const fxBanks = new Set<FxSpriteBank>();
+
+/** どこかの bank が読み込み中か（main.ts はこの間ゲームを止める） */
+export function fxArtLoading(): boolean {
+  for (const bank of fxBanks) if (bank.isLoading()) return true;
+  return false;
+}
+
 /** アトラスの読み込みと、配色したフレームのキャッシュ */
 export class FxSpriteBank {
   private readonly images = new Map<string, HTMLImageElement>();
   /** 読み込み中・読み込み済み・失敗したアトラス（同じアトラスを二度読まない） */
   private readonly requested = new Set<string>();
+  /** 読み込み中のアトラス（読めたか失敗したら外す） */
+  private readonly loading = new Set<string>();
   private readonly cells = new Map<string, HTMLCanvasElement | null>();
   private readonly ramps = new Map<FxRampKey, [number, number, number][]>();
   /** 今の武器種・奥義のアトラス（focus の並びを連結した key。同じなら何もしない） */
@@ -163,7 +174,9 @@ export class FxSpriteBank {
   private focused = new Set<string>();
 
   /** baseUrl は public/ の置き場所（ページからの相対。main.ts の他の PNG と同じ流儀で空文字） */
-  constructor(private readonly baseUrl = "") {}
+  constructor(private readonly baseUrl = "") {
+    fxBanks.add(this);
+  }
 
   /**
    * 今の武器種（と奥義）のアトラスを読み始め、それ以外のアトラスと配色のキャッシュを捨てる。
@@ -177,6 +190,7 @@ export class FxSpriteBank {
     this.focused = new Set(keep);
     for (const key of [...this.images.keys()]) if (!this.focused.has(key)) this.images.delete(key);
     for (const key of [...this.requested]) if (!this.focused.has(key)) this.requested.delete(key);
+    for (const key of [...this.loading]) if (!this.focused.has(key)) this.loading.delete(key);
     this.cells.clear();
     for (const atlas of keep) this.request(atlas);
   }
@@ -186,8 +200,13 @@ export class FxSpriteBank {
     return this.images.has(atlas);
   }
 
+  /** focus したアトラスに読み込み中のものがあるか（main.ts はこの間ゲームを止め、手続きの描画を見せない） */
+  isLoading(): boolean {
+    return this.loading.size > 0;
+  }
+
   /**
-   * 読み込み済みか。まだなら読み始めて false（読めるまで呼び出し側は手続きの描画）。
+   * 読み込み済みか。まだなら読み始めて false（読めなかったアトラスと読み込み前の実演は手続きの描画）。
    * 今の武器種のものでないアトラス（持ち替える前に撃った弾など）は読まない（読んでは捨てるのを繰り返さない）
    */
   has(key: FxSheetKey): boolean {
@@ -200,6 +219,7 @@ export class FxSpriteBank {
   private request(atlas: string): void {
     if (this.requested.has(atlas) || !isAtlasKey(atlas)) return;
     this.requested.add(atlas);
+    this.loading.add(atlas);
     const img = new Image();
     img.src = `${this.baseUrl}${FX_ATLASES[atlas].url}`;
     img
@@ -212,7 +232,8 @@ export class FxSpriteBank {
       })
       .catch(() => {
         // 読めなければ手続きの描画のまま（requested に残して読み直さない）
-      });
+      })
+      .finally(() => this.loading.delete(atlas));
   }
 
   /**

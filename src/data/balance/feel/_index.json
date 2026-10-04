@@ -17,6 +17,7 @@
     "MAP_LIGHT",
     "FLOAT_TEXT",
     "MANUAL",
-    "PARRY_POSE"
+    "PARRY_POSE",
+    "LOADING"
   ]
 }

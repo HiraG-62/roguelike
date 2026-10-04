@@ -599,11 +599,13 @@ export class TownLayer {
 
   /**
    * 拠点を開いた時と TownLook.key が変わった時に作り直す。道は 1 フレームに ROAD_DOTS_PER_FRAME ドットずつ焼き、
-   * 物の絵は 1 フレームに TOWN_ART_PER_FRAME 枚まで作る（出来るまで道は無し・物は仮の箱）。毎フレーム呼んでよい
+   * 物の絵は 1 フレームに TOWN_ART_PER_FRAME 枚まで作る。全部出来たら true（それまで main.ts が画面を止めるので、道の無い町・仮の箱は見せない）。
+   * 毎フレーム呼んでよい
    */
-  prepare(view: TownHubView): void {
+  prepare(view: TownHubView): boolean {
     this.sync(view);
     this.advance();
+    return this.pendingCount === 0;
   }
 
   /**

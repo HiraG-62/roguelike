@@ -25,7 +25,7 @@ import {
 } from "../ui/rackScreen";
 import { COLOR_BAR_EMPTY, COLOR_BORDER, COLOR_DIM, COLOR_SELECTED, COLOR_TEXT, fillRectPx, strokeRectPx } from "./lootUiParts";
 import { TEXT, drawText, textLineHeight, truncateText, wrapText } from "./pixelText";
-import { ACTOR_ART_SCALE, type ActorCell } from "./actorSprites";
+import { ACTOR_ART_SCALE, type ActorCell, actorArtLoading } from "./actorSprites";
 import type { Sprite } from "./sprites";
 import { ICON_BOX_H, weaponIconCell, weaponIconSize } from "./weaponIcons";
 import { BULLET_FX, movesetAtlas, rampOfElement } from "./fxMotions";
@@ -112,7 +112,7 @@ function drawCard(ctx: CanvasRenderingContext2D, view: RackScreenView, card: Rac
   }
 }
 
-/** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（読めていない間は旧い 12px の絵） */
+/** 武器種の絵を出す。手に持つ絵から切り出したものを枠の中央に等倍で置く（絵が無い・読めなかったときは旧い 12px の絵） */
 function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card: RackCard, r: Rect): void {
   if (card.kind === "back") return;
   // 器のカードは、和紙の札にその器の弾が飛ぶ絵（札が無ければ武器種の絵）
@@ -124,7 +124,7 @@ function drawCardIcon(ctx: CanvasRenderingContext2D, view: RackScreenView, card:
   if (card.kind === "clear") ctx.globalAlpha = 0.5;
   const cell = weaponIconCell(moveset);
   if (cell) drawHeldIcon(ctx, cell, r);
-  else drawLegacyIcon(ctx, view, moveset, r);
+  else if (!actorArtLoading()) drawLegacyIcon(ctx, view, moveset, r);
   ctx.globalAlpha = prevAlpha;
 }
 
@@ -141,6 +141,12 @@ const SHOT_MAX_SCALE = 3;
 const SHOT_ANGLE = 0;
 /** 弾の飛ぶ絵は 1 武器種ずつしか並ばないので、開いている家系のアトラスだけを持つ専用の bank */
 const shotBank = new FxSpriteBank();
+
+/** 並んでいる器のカードの弾の絵のアトラスを読み始める（main.ts が描く前に呼ぶ。家系を開いた 1 フレーム目に空の札を見せない） */
+export function primeRackShots(cards: readonly RackCard[]): void {
+  const moveset = cards.find((c) => c.kind === "base" && c.base !== null && c.moveset !== null)?.moveset;
+  if (moveset) shotBank.focus([movesetAtlas(moveset)]);
+}
 
 /**
  * 器のカードの絵: 和紙の札に、その器の弾が飛ぶ絵（ゲーム内と同じエフェクトのスプライト・同じ墨の配色）を重ねる。

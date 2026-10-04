@@ -43,13 +43,26 @@ export function actorAnchor(key: string, dir: number, frame: number, name: strin
   return { x: a[0] ?? 0, y: a[1] ?? 0 };
 }
 
+/** 作られたすべての bank（本編・装束の人影・武器掛けのアイコンがそれぞれ持つ） */
+const actorBanks = new Set<ActorSpriteBank>();
+
+/** どこかの bank が読み込み中か（main.ts はこの間ゲームを止める。UI は代わりの絵を出さない） */
+export function actorArtLoading(): boolean {
+  for (const bank of actorBanks) if (bank.isLoading()) return true;
+  return false;
+}
+
 export class ActorSpriteBank {
   private readonly images = new Map<string, HTMLImageElement>();
   private readonly requested = new Set<string>();
+  /** 読み込み中のアトラス（読めたか失敗したら外す） */
+  private readonly loading = new Set<string>();
   private current = "";
   private focused = new Set<string>();
 
-  constructor(private readonly baseUrl = "") {}
+  constructor(private readonly baseUrl = "") {
+    actorBanks.add(this);
+  }
 
   /** 今のジョブの体・武器種のアトラスを読み始め、それ以外を捨てる */
   focus(atlases: readonly (string | undefined)[]): void {
@@ -60,7 +73,13 @@ export class ActorSpriteBank {
     this.focused = new Set(keep);
     for (const key of [...this.images.keys()]) if (!this.focused.has(key)) this.images.delete(key);
     for (const key of [...this.requested]) if (!this.focused.has(key)) this.requested.delete(key);
+    for (const key of [...this.loading]) if (!this.focused.has(key)) this.loading.delete(key);
     for (const atlas of keep) this.request(atlas);
+  }
+
+  /** focus したアトラスに読み込み中のものがあるか（main.ts はこの間ゲームを止め、24x24 の体を見せない） */
+  isLoading(): boolean {
+    return this.loading.size > 0;
   }
 
   /** アトラスが読めているか（読めていなければ読み始める） */
@@ -73,6 +92,7 @@ export class ActorSpriteBank {
   private request(atlas: string): void {
     if (this.requested.has(atlas) || !isActorAtlas(atlas)) return;
     this.requested.add(atlas);
+    this.loading.add(atlas);
     const img = new Image();
     img.src = `${this.baseUrl}${ACTOR_ATLASES[atlas].url}`;
     img
@@ -82,7 +102,8 @@ export class ActorSpriteBank {
       })
       .catch(() => {
         // 読めなければ今までの 24x24 の体のまま
-      });
+      })
+      .finally(() => this.loading.delete(atlas));
   }
 
   /** シートの 1 フレーム。読めていない・無いフレームは undefined */
