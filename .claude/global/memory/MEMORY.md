@@ -11,3 +11,4 @@
 - [GPU measurement](gpu-measurement.md) — 描画の計測は GPU で（headless は既定で CPU 描画。GPU_ARGS を付ける）
 - [Cloud session sync](cloud-session-sync.md) — グローバル設定と memory は .claude/global/ に写す。memory を変えたら npm run sync:claude
 - [Worktree 削除と node_modules](worktree-remove-node-modules.md) — エージェント worktree を消したら本体の node_modules が空になった。消す前にジャンクションを外す
+- [Electron only](electron-only.md) — 動かすのは Electron だけ。ブラウザ版の制約・分岐は考慮しない
