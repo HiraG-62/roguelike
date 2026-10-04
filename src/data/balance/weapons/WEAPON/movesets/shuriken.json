@@ -7,7 +7,7 @@
       "_id": "primary1.starToss",
       "windup": 0.06,
       "active": 0.05,
-      "recover": 0.26,
+      "recover": 1,
       "scaling": { "base": 1 },
       "poise": 0,
       "reach": 0,
@@ -37,7 +37,7 @@
               "driveMul": 1,
               "staggerAt": 8
             },
-            "burst": { "count": 3, "interval": 0.07 },
+            "burst": { "count": 3, "interval": 0.1 },
             "look": { "color": "#d8e0f0" }
           },
           "scaling": { "base": 1.6, "dex": 0.25 },
@@ -52,7 +52,7 @@
       "_id": "primary2.starToss2",
       "windup": 0.06,
       "active": 0.05,
-      "recover": 0.26,
+      "recover": 1.0,
       "scaling": { "base": 1 },
       "poise": 0,
       "reach": 0,
@@ -97,7 +97,7 @@
       "_id": "primary3.bigStar",
       "windup": 0.1,
       "active": 0.06,
-      "recover": 0.24,
+      "recover": 1.0,
       "scaling": { "base": 1 },
       "poise": 0,
       "reach": 0,
@@ -159,7 +159,7 @@
       "step": {
         "windup": 0.06,
         "active": 0.05,
-        "recover": 0.29,
+        "recover": 1.0,
         "scaling": { "base": 1 },
         "poise": 0,
         "reach": 0,
@@ -207,7 +207,7 @@
       "step": {
         "windup": 0.06,
         "active": 0.05,
-        "recover": 0.29,
+        "recover": 1.0,
         "scaling": { "base": 1 },
         "poise": 0,
         "reach": 0,
@@ -255,7 +255,7 @@
       "step": {
         "windup": 0.1,
         "active": 0.06,
-        "recover": 0.29,
+        "recover": 1.0,
         "scaling": { "base": 1 },
         "poise": 0,
         "reach": 0,
