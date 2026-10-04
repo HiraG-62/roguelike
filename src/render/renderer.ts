@@ -1,6 +1,6 @@
 import { kingSlimeLift, kingSlimePose } from "../system/bossKingSlime";
 import { RENDER_SCALE, VIEW_H, VIEW_W, screenToWorld } from "../core/view";
-import { type BossState, type EliteKind, type Enemy, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, type ShapeFx, runOver } from "../core/state";
+import { type BossState, type EliteKind, type Enemy, type EnemyPhase, type FloorKind, type GameState, type Hazard, type Particle, type Player, type Projectile, type RoomKind, type RoomState, type ShapeFx, runOver } from "../core/state";
 import type { GameMap } from "../map/grid";
 import { enemyDef, spriteBaseKey } from "../data/enemies";
 import { reaperBodyVisible } from "../system/reaperVariants";
@@ -65,7 +65,7 @@ import { equippedSkillKeys } from "../system/runSetup";
 import { ringsInFlight } from "../system/projectiles";
 import { drawPins } from "./pinsUi";
 import { EFFECTS, FLOAT_TEXT, FX_ATTACK, PARRY, PARRY_POSE, TELEGRAPH } from "../data/tuning";
-import { type HitShape, MOVESETS, lobHeight, meleeChargeOf, shootsPrimary } from "../data/weapons";
+import { type HitShape, MOVESETS, lobHeight, meleeChargeOf, movesetCasts, shootsPrimary } from "../data/weapons";
 import { BULLETS, currentBullet } from "../loot/bullets";
 import { type Item, TRAIT_COLOR_HEX } from "../loot/types";
 import {
@@ -109,17 +109,18 @@ import { telegraphColor, telegraphLineDir } from "./telegraphLineUi";
 import { telegraphPose } from "./telegraphPose";
 import { drawBlastSprite, drawShotSprite } from "./fxShots";
 import { drawThrownProjectile, drawThrownSkillAir, heldThrownRect, projectileLook, thrownAngle, thrownScale } from "./thrownLook";
-import { drawUltimateAir, drawUltimateGround, ultimateSpritesReady } from "./fxUltimate";
+import { drawUltimateAir, drawUltimateGround, ultimateRamp, ultimateSpritesReady } from "./fxUltimate";
 import { drawSkillFxAir, drawSkillFxGround, skillSpritesReady } from "./fxSkill";
 import { drawAttackAir, drawAttackGround, drawBulletTrail, drawParryMarks, drawParticleFx, drawShapeFx, drawSlashTrail, PLAYER_SHOT_LIFT, playerShotAge, setPlayerMuzzle } from "./fxAttack";
-import { type FxDrawOpts, type FxRampKey, FxSpriteBank, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
+import { type FxDrawOpts, type FxRampKey, FxSpriteBank, type FxWarmJob, fitScale, loopFrame, rampGlow, sheetDef, snapArt, swingFrame } from "./fxSprites";
 import { ACTOR_ART_SCALE, type ActorCell, ActorSpriteBank, actorAnchor, actorDir, actorSheet, armColors, bodyAtlas, weaponAtlas, weaponOffGrip, weaponRope, weaponStanceMeta, weaponStepArt } from "./actorSprites";
 import { ropePixels, ropePoints } from "./whipRope";
 import { type ArmInk, type HeldPart, type IaiMotion, type Pt, type RigPose, type SheathPart, type Stance, armPixels, attackClip, bodyClip, guardContact, handPixels, isBackpedal, recoilOf, restBlendOf, elbowOf, solveRig, stanceFromMeta, SWING_ART_UNTIL, stepArtInUse } from "./playerRig";
 import { type ParryMotion, parryMotion } from "./parryMotion";
 import { drawParrySpark } from "./parrySpark";
 import { type BarrierLook, barrierFront, drawParryBarrier } from "./parryBarrier";
-import { type FxMotion, type FxPivot, MOVESET_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
+import { FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
+import { type FxMotion, type FxPivot, MOVESET_FX, SKILL_FX, mirrorFlip, motionFx, movesetAtlas, rampOfElement, skillAtlases, ultimateAtlas } from "./fxMotions";
 import { trailFade } from "./fxMath";
 import { TownLayer, type TownHubView } from "./townScene";
 import { drawFieldPickup } from "./coinUi";
@@ -667,6 +668,16 @@ function pick<T>(arr: readonly T[], i: number): T | undefined {
   return arr[i % arr.length];
 }
 
+/**
+ * 読み込み画面の間に、1 フレームでエフェクトの配色に使う時間（ms）と、その間に 1 回で進める枚数。
+ * 描画側の実時間で区切る（見た目の準備だけでロジックには効かない）。地図の焼きと合わせて 1 フレーム 50ms ほどに収める
+ */
+const FX_WARM_MS_PER_FRAME = 30;
+const FX_WARM_CELLS_PER_STEP = 8;
+/** 敵の重ね描きの色（予告の朱・冷え・燃え）。読み込み画面の間に色付きの絵を作っておく */
+const ENEMY_WARM_TINTS = [TELEGRAPH.shuColor, STATUS.chillColor, STATUS.burnColor] as const;
+const ENEMY_WARM_PHASES: readonly EnemyPhase[] = ["idle", "windup", "strike"];
+
 /** 描く世界の準備の進み（prepareWorld） */
 export interface WorldPrep {
   /** 準備が残っている（ゲームを止める） */
@@ -701,6 +712,8 @@ export class Renderer {
   private lastMap: GameMap | null = null;
   private lastTime = 0;
   private wipeActive = false;
+  /** 敵の色付きの絵を作っておいた地図（読み込み画面の間に 1 回） */
+  private tintWarmedMap: GameState["map"] | null = null;
   private bossRef: BossState | null = null;
   private bossStage = 1;
   private bossPhaseFlashAt = Number.NEGATIVE_INFINITY;
@@ -1280,12 +1293,68 @@ export class Renderer {
    * main.ts は pending が false になるまでゲームを進めず描画もしない（初めて見えたときから欠けた所・代わりの絵を見せない）。
    * 地図を描いている間（mapReady が false）は読み込み画面を出す。1 フレームに 1 回だけ呼ぶ
    */
-  prepareWorld(state: GameState, town: TownHubView | null): WorldPrep {
+  prepareWorld(state: GameState, town: TownHubView | null, warm: boolean): WorldPrep {
     this.focusArt(state, true);
     const mapReady = town
       ? this.mapChunks.prepare(town.town.layout.ground, townTheme()) && this.townLayer.prepare(town)
       : this.mapChunks.prepare(state.map, this.mapTheme(state));
-    return { pending: !mapReady || this.artLoading(), mapReady, progress: this.mapChunks.progress };
+    const artReady = !this.artLoading();
+    // 読み込み画面の間だけ、攻撃のエフェクトの配色と敵の色付きの絵を作っておく（初めて振った・見たときにその場で作らない）
+    let warmed = true;
+    if (warm && artReady) {
+      this.warmEnemyTints(state);
+      const jobs = this.fxWarmJobs(state);
+      const start = performance.now();
+      do warmed = this.fxBank.warm(jobs, FX_WARM_CELLS_PER_STEP);
+      while (!warmed && performance.now() - start < FX_WARM_MS_PER_FRAME);
+    }
+    const progress = warm ? (this.mapChunks.progress + (artReady ? this.fxBank.warmProgress : 0)) / 2 : this.mapChunks.progress;
+    return { pending: !mapReady || !artReady || !warmed, mapReady, progress };
+  }
+
+  /**
+   * 今の装備で描くエフェクトのシートと配色: 武器種の絵は振り・技・弾の属性の配色（と無属性の墨）、
+   * 奥義の絵は奥義の属性、スキル石の絵はその表の配色と属性の配色
+   */
+  private fxWarmJobs(state: GameState): FxWarmJob[] {
+    const moveset = playerMoveset(state);
+    const melee = rampOfElement(hitElement(state, "melee", false));
+    const ranged = rampOfElement(hitElement(state, "ranged", false));
+    const castRamps = movesetCasts(moveset).map((c) => rampOfElement(c.throw.attack?.element ?? "none"));
+    const ult = chosenUltimate(state);
+    const plan = new Map<string, Set<FxRampKey>>();
+    const add = (atlas: string | undefined, ramps: readonly FxRampKey[]): void => {
+      if (atlas === undefined) return;
+      const set = plan.get(atlas) ?? new Set<FxRampKey>();
+      for (const r of ramps) set.add(r);
+      plan.set(atlas, set);
+    };
+    add(movesetAtlas(moveset.key), ["steel", melee, ranged, ...castRamps]);
+    add(ultimateAtlas(ult.moveset), [ultimateRamp(ult.key)]);
+    for (const key of equippedSkillKeys(state)) {
+      const own = SKILL_FX[key]?.ramp ?? "steel";
+      for (const atlas of skillAtlases(key)) add(atlas, [own, melee]);
+    }
+    const jobs: FxWarmJob[] = [];
+    for (const [key, sheet] of Object.entries(FX_SHEETS) as [FxSheetKey, (typeof FX_SHEETS)[FxSheetKey]][]) {
+      const ramps = plan.get(sheet.atlas);
+      if (ramps) for (const ramp of ramps) jobs.push({ sheet: key, ramp });
+    }
+    return jobs;
+  }
+
+  /** この階の敵の色付きの絵（予告の朱・冷え・燃えと精鋭の気配）を作っておく。地図ごとに 1 回 */
+  private warmEnemyTints(state: GameState): void {
+    if (this.tintWarmedMap === state.map) return;
+    this.tintWarmedMap = state.map;
+    for (const e of state.enemies) {
+      const def = enemyDef(e.defKey);
+      for (const phase of ENEMY_WARM_PHASES) {
+        const key = enemySpriteKey(def.sprite, phase, (k) => k in this.atlas);
+        for (const color of ENEMY_WARM_TINTS) this.tinted(key, color);
+      }
+      if (e.elite) this.tinted(SPR.eliteAura, eliteDrawColor(e.elite));
+    }
   }
 
   /** 今のジョブの体と武器種の高精細の絵が読めているか（撮影ツールが待つため。読めていなければ読み始める） */

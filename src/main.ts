@@ -2044,7 +2044,8 @@ function prepareAssets(): AssetsPrep {
   if (!tilesLoaded || !pixelText().isSettled()) return { held: true, world: null, prep: null };
   const world = worldOnScreen();
   primeScreenArt(world);
-  const prep = world ? renderer.prepareWorld(world.state, world.town) : null;
+  // 攻撃のエフェクトの配色と敵の色付きの絵は、読み込み画面を出している間だけ先に作る（付け替えの一瞬の止まりを長くしない）
+  const prep = world ? renderer.prepareWorld(world.state, world.town, loading !== null) : null;
   if (prep?.pending === true) return { held: true, world, prep };
   preparedWorld = world?.state ?? null;
   preparedMap = world?.state.map ?? null;

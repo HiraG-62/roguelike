@@ -160,6 +160,28 @@ export function fxArtLoading(): boolean {
   return false;
 }
 
+/** 読み込み画面の間に配色しておくシートと配色（warm） */
+export interface FxWarmJob {
+  sheet: FxSheetKey;
+  ramp: FxRampKey;
+}
+
+interface FxWarmCell {
+  key: FxSheetKey;
+  dir: number;
+  frame: number;
+  ramp: FxRampKey;
+}
+
+/** 配色したフレームの鍵（先頭はシートの key。focus で外れたアトラスの分だけ捨てるのに使う） */
+function cellId(key: FxSheetKey, dir: number, frame: number, ramp: FxRampKey): string {
+  return `${key}|${dir}|${frame}|${ramp}`;
+}
+
+function cellSheet(id: string): FxSheetKey {
+  return id.slice(0, id.indexOf("|")) as FxSheetKey;
+}
+
 /** アトラスの読み込みと、配色したフレームのキャッシュ */
 export class FxSpriteBank {
   private readonly images = new Map<string, HTMLImageElement>();
@@ -172,6 +194,12 @@ export class FxSpriteBank {
   /** 今の武器種・奥義のアトラス（focus の並びを連結した key。同じなら何もしない） */
   private current = "";
   private focused = new Set<string>();
+  /** 先に配色する仕事の列（warm）。jobs と focus が変わったら作り直す */
+  private warmId = "";
+  private warmQueue: FxWarmCell[] = [];
+  private warmIndex = 0;
+  /** 先に配色する間だけ持つアトラスの画素（1 枚ごとに画像から読み直さない。作り終えたら捨てる） */
+  private readonly atlasData = new Map<string, ImageData | null>();
 
   /** baseUrl は public/ の置き場所（ページからの相対。main.ts の他の PNG と同じ流儀で空文字） */
   constructor(private readonly baseUrl = "") {
@@ -179,7 +207,7 @@ export class FxSpriteBank {
   }
 
   /**
-   * 今の武器種（と奥義）のアトラスを読み始め、それ以外のアトラスと配色のキャッシュを捨てる。
+   * 今の武器種（と奥義）のアトラスを読み始め、それ以外のアトラスとその配色のキャッシュを捨てる（残るアトラスの配色は持ち越す）。
    * 1 アトラスは展開すると数十 MB あるので、装備中の武器種の分だけを持つ（docs/ideas/fx-sprites.md 7 章）
    */
   focus(atlases: readonly (string | undefined)[]): void {
@@ -191,8 +219,71 @@ export class FxSpriteBank {
     for (const key of [...this.images.keys()]) if (!this.focused.has(key)) this.images.delete(key);
     for (const key of [...this.requested]) if (!this.focused.has(key)) this.requested.delete(key);
     for (const key of [...this.loading]) if (!this.focused.has(key)) this.loading.delete(key);
-    this.cells.clear();
+    for (const id of [...this.cells.keys()]) if (!this.focused.has(FX_SHEETS[cellSheet(id)]?.atlas ?? "")) this.cells.delete(id);
     for (const atlas of keep) this.request(atlas);
+  }
+
+  /**
+   * jobs のシートを全方向・全コマ、その配色で作っておく（読み込み画面の間。初めて振ったときにその場で作らない）。
+   * 1 回に maxCells 枚まで進め、全部作ったら true。読み込み中のアトラスは待ち、focus の外・読めなかったアトラスは飛ばす
+   */
+  warm(jobs: readonly FxWarmJob[], maxCells: number): boolean {
+    const id = `${this.current}#${jobs.map((j) => `${j.sheet}|${j.ramp}`).join(",")}`;
+    if (id !== this.warmId) this.planWarm(id, jobs);
+    let made = 0;
+    while (this.warmIndex < this.warmQueue.length && made < maxCells) {
+      const q = this.warmQueue[this.warmIndex];
+      if (!q) break;
+      const sheet = FX_SHEETS[q.key];
+      if (this.loading.has(sheet.atlas)) return false;
+      const cell = this.images.has(sheet.atlas) ? cellOf(sheet, q.dir, q.frame) : undefined;
+      if (cell && !this.cells.has(cellId(q.key, q.dir, q.frame, q.ramp))) {
+        this.cellCanvas(q.key, sheet, q.dir, q.frame, cell, q.ramp);
+        made++;
+      }
+      this.warmIndex++;
+    }
+    const done = this.warmIndex >= this.warmQueue.length;
+    if (done) this.atlasData.clear();
+    return done;
+  }
+
+  /** 先に配色する仕事の進み（0..1） */
+  get warmProgress(): number {
+    return this.warmQueue.length > 0 ? this.warmIndex / this.warmQueue.length : 1;
+  }
+
+  private planWarm(id: string, jobs: readonly FxWarmJob[]): void {
+    this.warmId = id;
+    this.warmIndex = 0;
+    this.warmQueue = [];
+    for (const job of jobs) {
+      const sheet = FX_SHEETS[job.sheet];
+      if (!this.focused.has(sheet.atlas)) continue;
+      for (let dir = 0; dir < sheet.dirs; dir++) {
+        for (let frame = 0; frame < sheet.frames; frame++) if (cellOf(sheet, dir, frame)) this.warmQueue.push({ key: job.sheet, dir, frame, ramp: job.ramp });
+      }
+    }
+  }
+
+  /** アトラス全体の画素（先に配色する間だけ）。読めなければ null（1 枚ずつ画像から読む） */
+  private pixelsOf(atlas: string): ImageData | null {
+    const hit = this.atlasData.get(atlas);
+    if (hit !== undefined) return hit;
+    const img = this.images.get(atlas);
+    let data: ImageData | null = null;
+    if (img) {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const g = canvas.getContext("2d", { willReadFrequently: true });
+      if (g) {
+        g.drawImage(img, 0, 0);
+        data = g.getImageData(0, 0, canvas.width, canvas.height);
+      }
+    }
+    this.atlasData.set(atlas, data);
+    return data;
   }
 
   /** アトラスが読み込み済みか（読み始めはしない） */
@@ -284,11 +375,13 @@ export class FxSpriteBank {
   }
 
   private cellCanvas(key: FxSheetKey, sheet: FxSheetDef, dir: number, frame: number, cell: FxCell, ramp: FxRampKey): HTMLCanvasElement | null {
-    const id = `${key}|${dir}|${frame}|${ramp}`;
+    const id = cellId(key, dir, frame, ramp);
     const hit = this.cells.get(id);
     if (hit !== undefined) return hit;
     const img = this.images.get(sheet.atlas);
-    const made = img ? recolorCell(img, cell, this.rampRgb(ramp), rampHalo(ramp)) : null;
+    // 先に配色している間はアトラスの画素をまとめて読んだものから写す（1 枚ごとの読み出しで止まらない）
+    const pixels = this.atlasData.size > 0 || this.warmIndex < this.warmQueue.length ? this.pixelsOf(sheet.atlas) : null;
+    const made = !img ? null : recolorCell(pixels ?? img, cell, this.rampRgb(ramp), rampHalo(ramp));
     this.cells.set(id, made);
     return made;
   }
@@ -320,7 +413,7 @@ function primeReadback(img: HTMLImageElement): void {
  * アトラスから 1 フレームを切り出し、段の灰色を配色の色へ写す。
  * 墨の滲み（halo）の幅だけ四方に広げた canvas に描き、線の周りの透明なドットに滲みの色を薄く置く（左右上下対称なので上下反転してもずれない）
  */
-function recolorCell(img: HTMLImageElement, cell: FxCell, ramp: readonly [number, number, number][], halo: FxHalo): HTMLCanvasElement | null {
+function recolorCell(src: HTMLImageElement | ImageData, cell: FxCell, ramp: readonly [number, number, number][], halo: FxHalo): HTMLCanvasElement | null {
   const pad = Math.max(0, Math.ceil(halo.r));
   const w = cell.w + pad * 2;
   const h = cell.h + pad * 2;
@@ -329,8 +422,14 @@ function recolorCell(img: HTMLImageElement, cell: FxCell, ramp: readonly [number
   canvas.height = h;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  ctx.drawImage(img, cell.x, cell.y, cell.w, cell.h, pad, pad, cell.w, cell.h);
-  const image = ctx.getImageData(0, 0, w, h);
+  let image: ImageData;
+  if (src instanceof ImageData) {
+    image = ctx.createImageData(w, h);
+    copyRect(src, cell, image, pad);
+  } else {
+    ctx.drawImage(src, cell.x, cell.y, cell.w, cell.h, pad, pad, cell.w, cell.h);
+    image = ctx.getImageData(0, 0, w, h);
+  }
   const data = image.data;
   const opaque = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
@@ -351,6 +450,14 @@ function recolorCell(img: HTMLImageElement, cell: FxCell, ramp: readonly [number
 }
 
 /** 透明なドットのうち、線から pad 以内のものに滲みの色を置く（近いほど濃い） */
+/** アトラスの画素から cell の矩形を、四方に pad ずつ広げた作業面へ写す */
+function copyRect(src: ImageData, cell: FxCell, dst: ImageData, pad: number): void {
+  for (let y = 0; y < cell.h; y++) {
+    const from = ((cell.y + y) * src.width + cell.x) * 4;
+    dst.data.set(src.data.subarray(from, from + cell.w * 4), ((y + pad) * dst.width + pad) * 4);
+  }
+}
+
 function paintHalo(data: Uint8ClampedArray, opaque: Uint8Array, w: number, h: number, pad: number, halo: FxHalo): void {
   const rgb = hexRgb(halo.color);
   for (let y = 0; y < h; y++) {

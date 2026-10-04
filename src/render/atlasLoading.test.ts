@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTOR_ATLASES } from "../data/actorSheets.gen";
-import { FX_ATLASES } from "../data/fxSheets.gen";
+import { FX_ATLASES, FX_SHEETS, type FxSheetKey } from "../data/fxSheets.gen";
 import { ActorSpriteBank, actorArtLoading } from "./actorSprites";
-import { FxSpriteBank, fxArtLoading } from "./fxSprites";
+import { FxSpriteBank, cellOf, fxArtLoading } from "./fxSprites";
 
 /** decode を外から解決・失敗させられる Image の代役 */
 interface PendingDecode {
@@ -101,5 +101,42 @@ describe("全 bank の読み込み中の判定", () => {
     await flush();
     expect(actorArtLoading()).toBe(false);
     expect(fxArtLoading()).toBe(false);
+  });
+});
+
+describe("FxSpriteBank: 読み込み画面の間に配色を作っておく（warm）", () => {
+  const sheetKey = (Object.keys(FX_SHEETS) as FxSheetKey[]).find((k) => FX_SHEETS[k].atlas === FX_ATLAS) ?? ("" as FxSheetKey);
+  const otherKey = (Object.keys(FX_SHEETS) as FxSheetKey[]).find((k) => FX_SHEETS[k].atlas !== FX_ATLAS) ?? ("" as FxSheetKey);
+  const cells = (key: FxSheetKey): number => {
+    const sheet = FX_SHEETS[key];
+    let n = 0;
+    for (let d = 0; d < sheet.dirs; d++) for (let f = 0; f < sheet.frames; f++) if (cellOf(sheet, d, f)) n++;
+    return n;
+  };
+
+  it("読み終えたアトラスの全方向・全コマを、1 回に maxCells 枚まで作り、作り終えたら true", async () => {
+    const bank = new FxSpriteBank();
+    bank.focus([FX_ATLAS]);
+    decodes[0]?.resolve();
+    await flush();
+    const total = cells(sheetKey);
+    const per = 5;
+    let calls = 0;
+    while (!bank.warm([{ sheet: sheetKey, ramp: "steel" }], per) && calls < 10000) calls++;
+    expect(calls + 1, "maxCells ずつ進む").toBe(Math.max(1, Math.ceil(total / per)));
+    expect(bank.warmProgress).toBe(1);
+  });
+
+  it("読み込み中のアトラスは待つ（進まない）", () => {
+    const bank = new FxSpriteBank();
+    bank.focus([FX_ATLAS]);
+    expect(bank.warm([{ sheet: sheetKey, ramp: "steel" }], 5)).toBe(false);
+    expect(bank.warmProgress).toBe(0);
+  });
+
+  it("持っていないアトラス（focus の外）の分は作らない", () => {
+    const bank = new FxSpriteBank();
+    bank.focus([FX_ATLAS]);
+    expect(bank.warm([{ sheet: otherKey, ramp: "steel" }], 5)).toBe(true);
   });
 });
