@@ -15,7 +15,12 @@
   "countByChapter": [0, 2, 2, 3],
   "countByDepth": { "4": 1 },
   "max": 4,
-  "formationsByChapter": [["craneWing"], ["craneWing", "fishScale", "arrowhead"], ["craneWing", "fishScale", "arrowhead"], ["craneWing", "fishScale", "arrowhead"]],
+  "formationsByChapter": [
+    ["craneWing"],
+    ["craneWing", "fishScale", "arrowhead"],
+    ["craneWing", "fishScale", "arrowhead"],
+    ["craneWing", "fishScale", "arrowhead"]
+  ],
   "minSpacing": 320,
   "minRoomOrder": 0.3,
   "leaderExclude": ["shielded", "bulwark", "evasive", "commanding"],

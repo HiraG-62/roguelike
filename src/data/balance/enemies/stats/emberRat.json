@@ -12,13 +12,6 @@
   "minDepth": 4,
   "weight": 1.5,
   "dropChance": 0.03,
-  "swarm": {
-    "min": 2,
-    "max": 3
-  },
-  "explode": {
-    "radius": 28,
-    "damage": 14,
-    "color": "#ff5020"
-  }
+  "swarm": { "min": 2, "max": 3 },
+  "explode": { "radius": 28, "damage": 14, "color": "#ff5020" }
 }

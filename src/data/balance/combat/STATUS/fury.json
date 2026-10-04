@@ -1,6 +1,1 @@
-{
-  "duration": 4,
-  "poiseMul": 1.5,
-  "damageMul": 1.15,
-  "takenMul": 1.2
-}
+{ "duration": 4, "poiseMul": 1.5, "damageMul": 1.15, "takenMul": 1.2 }

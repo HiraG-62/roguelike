@@ -8,8 +8,37 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "gain": {"tipHit": 1},
-  "perUnit": {"damageMul": 0.1, "poiseMul": 0.1, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
+  "gain": { "tipHit": 1 },
+  "perUnit": {
+    "damageMul": 0.1,
+    "poiseMul": 0.1,
+    "reachMul": 0,
+    "hitsAdd": 0,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  },
   "tipCutsBullets": true,
-  "cast": {"key": "pierceThrust", "throw": {"bullet": {"cooldownMul": 1, "damageMul": 1, "speedMul": 1.6, "lifeMul": 0.45, "radius": 3, "poiseMul": 1, "recoilMul": 0, "pellets": 0, "spreadDeg": 0, "pierceBonus": 99, "look": {"color": "#f0f0ff", "trail": "#a0c0ff", "particles": 2}}, "scaling": {"base": 6, "str": 0.25, "dex": 0.5, "mnd": 0.25}, "poiseRatio": {"str": 0.2, "dex": 0.2}, "poise": 12, "count": 1, "spreadDeg": 0}}
+  "cast": {
+    "key": "pierceThrust",
+    "throw": {
+      "bullet": {
+        "cooldownMul": 1,
+        "damageMul": 1,
+        "speedMul": 1.6,
+        "lifeMul": 0.45,
+        "radius": 3,
+        "poiseMul": 1,
+        "recoilMul": 0,
+        "pellets": 0,
+        "spreadDeg": 0,
+        "pierceBonus": 99,
+        "look": { "color": "#f0f0ff", "trail": "#a0c0ff", "particles": 2 }
+      },
+      "scaling": { "base": 6, "str": 0.25, "dex": 0.5, "mnd": 0.25 },
+      "poiseRatio": { "str": 0.2, "dex": 0.2 },
+      "poise": 12,
+      "count": 1,
+      "spreadDeg": 0
+    }
+  }
 }

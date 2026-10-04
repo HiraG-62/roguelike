@@ -1,7 +1,4 @@
 {
   "body": "caster",
-  "resist": {
-    "dark": 25,
-    "light": -50
-  }
+  "resist": { "dark": 25, "light": -50 }
 }

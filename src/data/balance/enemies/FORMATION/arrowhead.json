@@ -8,12 +8,37 @@
     "leaderSeat": "rear",
     "strokeSec": 0.5,
     "strokes": [
-      { "squad": "head", "path": "thrust", "pass": 0, "beyond": 60 },
-      { "squad": "tail", "path": "thrust", "pass": 20, "beyond": 60 }
+      {
+        "_id": "head",
+        "squad": "head",
+        "path": "thrust",
+        "pass": 0,
+        "beyond": 60
+      },
+      {
+        "_id": "tail",
+        "squad": "tail",
+        "path": "thrust",
+        "pass": 20,
+        "beyond": 60
+      }
     ]
   },
   "slots": [
-    { "role": "charge", "grade": "strong", "share": 0.3, "min": 0, "max": 1 },
-    { "role": "charge", "grade": "normal", "share": 0.7, "min": 3 }
+    {
+      "_id": "charge.strong",
+      "role": "charge",
+      "grade": "strong",
+      "share": 0.3,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "_id": "charge.normal",
+      "role": "charge",
+      "grade": "normal",
+      "share": 0.7,
+      "min": 3
+    }
   ]
 }

@@ -1,5 +1,1 @@
-{
-  "maxStacks": 3,
-  "duration": 5,
-  "shockRadiusMul": 1.5
-}
+{ "maxStacks": 3, "duration": 5, "shockRadiusMul": 1.5 }

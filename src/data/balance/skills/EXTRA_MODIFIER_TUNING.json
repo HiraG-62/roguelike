@@ -1,13 +1,71 @@
 {
   "_note": "刻印符の循環（段取り 7c。docs/ideas/skills-7c-plan.md 4 章）。気力・再使用の回し方を変える。数値は仮",
-  "bloodPrice": { "_fields": { "hpPerMana": "足りない気力 1 あたりに払う生命（最大生命に対する割合）" }, "hpPerMana": 0.004 },
-  "spillover": { "_fields": { "fullMul": "気力満タンで撃った時の威力の倍率" }, "fullMul": 1.3 },
-  "streak": { "_fields": { "stepMul": "同じスロットを続けて撃つたびに足す威力の割合（0.1 = +10%）", "maxStacks": "足す回数の上限" }, "stepMul": 0.1, "maxStacks": 5 },
-  "refund": { "_fields": { "perHit": "命中 1 回ごとに返す気力（払った気力に対する割合）", "cap": "1 回の発動で返す上限（払った気力に対する割合。1 = 払った額まで）", "damageMul": "威力の倍率" }, "perHit": 0.15, "cap": 1, "damageMul": 0.9 },
-  "overheat": { "_fields": { "stepMul": "続けて撃つたびに足す威力の割合", "maxStacks": "暴発するまでの続けて撃つ回数", "window": "続けて撃ったとみなす間隔の秒", "lockTime": "暴発の後に撃てない秒", "hpFraction": "暴発で失う生命（最大生命に対する割合。1 未満にはならない）" }, "stepMul": 0.15, "maxStacks": 5, "window": 2, "lockTime": 1.5, "hpFraction": 0.05 },
-  "patience": { "_fields": { "perSec": "撃たずに待った 1 秒ごとに足す威力の割合", "cap": "足す割合の上限" }, "perSec": 0.1, "cap": 1 },
-  "sympathy": { "_fields": { "window": "他のスロットを撃ってからこの秒以内なら直後とみなす", "damageMul": "直後に撃った時の威力の倍率" }, "window": 1.5, "damageMul": 1.3 },
-  "desperate": { "_fields": { "maxCut": "生命が 0 に近いときの負担の減り（0.6 = 負担 ×0.4）。減った生命の割合に比例する" }, "maxCut": 0.6 },
-  "offering": { "_fields": { "energyCost": "払う奥義ゲージ", "damageMul": "払えた時の威力・効果量の倍率" }, "energyCost": 15, "damageMul": 1.5 },
-  "ledger": { "_fields": { "every": "この発数ごとに 1 発が無料（気力・再使用を払わない）" }, "every": 10 }
+  "bloodPrice": {
+    "_fields": { "hpPerMana": "足りない気力 1 あたりに払う生命（最大生命に対する割合）" },
+    "hpPerMana": 0.004
+  },
+  "spillover": {
+    "_fields": { "fullMul": "気力満タンで撃った時の威力の倍率" },
+    "fullMul": 1.3
+  },
+  "streak": {
+    "_fields": {
+      "stepMul": "同じスロットを続けて撃つたびに足す威力の割合（0.1 = +10%）",
+      "maxStacks": "足す回数の上限"
+    },
+    "stepMul": 0.1,
+    "maxStacks": 5
+  },
+  "refund": {
+    "_fields": {
+      "perHit": "命中 1 回ごとに返す気力（払った気力に対する割合）",
+      "cap": "1 回の発動で返す上限（払った気力に対する割合。1 = 払った額まで）",
+      "damageMul": "威力の倍率"
+    },
+    "perHit": 0.15,
+    "cap": 1,
+    "damageMul": 0.9
+  },
+  "overheat": {
+    "_fields": {
+      "stepMul": "続けて撃つたびに足す威力の割合",
+      "maxStacks": "暴発するまでの続けて撃つ回数",
+      "window": "続けて撃ったとみなす間隔の秒",
+      "lockTime": "暴発の後に撃てない秒",
+      "hpFraction": "暴発で失う生命（最大生命に対する割合。1 未満にはならない）"
+    },
+    "stepMul": 0.15,
+    "maxStacks": 5,
+    "window": 2,
+    "lockTime": 1.5,
+    "hpFraction": 0.05
+  },
+  "patience": {
+    "_fields": { "perSec": "撃たずに待った 1 秒ごとに足す威力の割合", "cap": "足す割合の上限" },
+    "perSec": 0.1,
+    "cap": 1
+  },
+  "sympathy": {
+    "_fields": {
+      "window": "他のスロットを撃ってからこの秒以内なら直後とみなす",
+      "damageMul": "直後に撃った時の威力の倍率"
+    },
+    "window": 1.5,
+    "damageMul": 1.3
+  },
+  "desperate": {
+    "_fields": {
+      "maxCut": "生命が 0 に近いときの負担の減り（0.6 = 負担 ×0.4）。減った生命の割合に比例する"
+    },
+    "maxCut": 0.6
+  },
+  "offering": {
+    "_fields": { "energyCost": "払う奥義ゲージ", "damageMul": "払えた時の威力・効果量の倍率" },
+    "energyCost": 15,
+    "damageMul": 1.5
+  },
+  "ledger": {
+    "_fields": { "every": "この発数ごとに 1 発が無料（気力・再使用を払わない）" },
+    "every": 10
+  }
 }

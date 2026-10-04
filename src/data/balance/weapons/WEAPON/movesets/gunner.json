@@ -3,15 +3,130 @@
   "reloadMoveMul": 0.85,
   "weight": "light",
   "muzzleOffset": 3,
-  "hands": {"chainSec": 0.5, "bufferSec": 0.4, "bothHandsSec": 0.05, "unload": {"spreadDeg": 7, "damageMul": 1, "selfKnock": 140}},
-  "dashAttack": {"windup":0.03,"active":0.1,"recover":0.2,"scaling":{"base":4,"dex":0.8},"poise":8,"reach":0,"size":36,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"circle"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},
+  "hands": {
+    "chainSec": 0.5,
+    "bufferSec": 0.4,
+    "bothHandsSec": 0.05,
+    "unload": { "spreadDeg": 7, "damageMul": 1, "selfKnock": 140 }
+  },
+  "dashAttack": {
+    "windup": 0.03,
+    "active": 0.1,
+    "recover": 0.2,
+    "scaling": { "base": 4, "dex": 0.8 },
+    "poise": 8,
+    "reach": 0,
+    "size": 36,
+    "knockback": 180,
+    "heavy": false,
+    "mana": 3,
+    "shape": { "kind": "circle" },
+    "hits": 1,
+    "hitstop": 2,
+    "trail": "#ffe0a0"
+  },
   "steps": [
-    {"windup":0.04,"active":0.1,"recover":0.22,"scaling":{"base":5,"str":0.4,"dex":0.6},"poise":12,"reach":10,"size":16,"knockback":260,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":1,"hitstop":2,"trail":"#ffe0a0"},
-    {"windup":0.06,"active":0.12,"recover":0.3,"scaling":{"base":8,"str":0.6,"dex":0.8},"poise":18,"reach":0,"size":36,"knockback":320,"heavy":true,"mana":4,"shape":{"kind":"circle"},"hits":1,"hitstop":3,"trail":"#ffe0a0"}
+    {
+      "_id": "primary1.strike",
+      "windup": 0.04,
+      "active": 0.1,
+      "recover": 0.22,
+      "scaling": { "base": 5, "str": 0.4, "dex": 0.6 },
+      "poise": 12,
+      "reach": 10,
+      "size": 16,
+      "knockback": 260,
+      "heavy": false,
+      "mana": 3,
+      "shape": { "kind": "box" },
+      "hits": 1,
+      "hitstop": 2,
+      "trail": "#ffe0a0"
+    },
+    {
+      "_id": "primary2.heavySpin",
+      "windup": 0.06,
+      "active": 0.12,
+      "recover": 0.3,
+      "scaling": { "base": 8, "str": 0.6, "dex": 0.8 },
+      "poise": 18,
+      "reach": 0,
+      "size": 36,
+      "knockback": 320,
+      "heavy": true,
+      "mana": 4,
+      "shape": { "kind": "circle" },
+      "hits": 1,
+      "hitstop": 3,
+      "trail": "#ffe0a0"
+    }
   ],
   "steps2": [
-    {"kind":"swing","key":"gunnerButt","step":{"windup":0.03,"active":0.1,"recover":0.24,"scaling":{"base":4.5,"dex":0.9},"poise":9,"reach":9.5,"size":16,"knockback":180,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":1,"hitstop":2,"trail":"#ffe0a0"}},
-    {"kind":"volley","key":"spinShot","cooldown":0,"throw":{"bullet":{"cooldownMul":1.6,"damageMul":0.55,"speedMul":0.9,"lifeMul":0.4,"radius":2,"poiseMul":0.8,"recoilMul":5,"pellets":2,"spreadDeg":9,"pierceBonus":0},"scaling":{"base":1.9,"dex":0.25},"poise":3,"count":2,"spreadDeg":30}},
-    {"kind":"swing","key":"emptyHandStrike","step":{"windup":0.03,"active":0.08,"recover":0.2,"scaling":{"base":4,"dex":0.8},"poise":8,"reach":9,"size":16,"knockback":160,"heavy":false,"mana":3,"shape":{"kind":"box"},"hits":1,"hitstop":2,"trail":"#ffe0a0"}}
+    {
+      "_id": "secondary1.gunnerButt",
+      "kind": "swing",
+      "key": "gunnerButt",
+      "step": {
+        "windup": 0.03,
+        "active": 0.1,
+        "recover": 0.24,
+        "scaling": { "base": 4.5, "dex": 0.9 },
+        "poise": 9,
+        "reach": 9.5,
+        "size": 16,
+        "knockback": 180,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "box" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      }
+    },
+    {
+      "_id": "secondary2.spinShot",
+      "kind": "volley",
+      "key": "spinShot",
+      "cooldown": 0,
+      "throw": {
+        "bullet": {
+          "cooldownMul": 1.6,
+          "damageMul": 0.55,
+          "speedMul": 0.9,
+          "lifeMul": 0.4,
+          "radius": 2,
+          "poiseMul": 0.8,
+          "recoilMul": 5,
+          "pellets": 2,
+          "spreadDeg": 9,
+          "pierceBonus": 0
+        },
+        "scaling": { "base": 1.9, "dex": 0.25 },
+        "poise": 3,
+        "count": 2,
+        "spreadDeg": 30
+      }
+    },
+    {
+      "_id": "secondary3.emptyHandStrike",
+      "kind": "swing",
+      "key": "emptyHandStrike",
+      "step": {
+        "windup": 0.03,
+        "active": 0.08,
+        "recover": 0.2,
+        "scaling": { "base": 4, "dex": 0.8 },
+        "poise": 8,
+        "reach": 9,
+        "size": 16,
+        "knockback": 160,
+        "heavy": false,
+        "mana": 3,
+        "shape": { "kind": "box" },
+        "hits": 1,
+        "hitstop": 2,
+        "trail": "#ffe0a0"
+      }
+    }
   ]
 }

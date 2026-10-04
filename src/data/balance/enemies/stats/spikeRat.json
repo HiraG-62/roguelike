@@ -12,8 +12,5 @@
   "minDepth": 2,
   "weight": 3,
   "dropChance": 0.04,
-  "swarm": {
-    "min": 3,
-    "max": 4
-  }
+  "swarm": { "min": 3, "max": 4 }
 }

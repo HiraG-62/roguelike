@@ -39,9 +39,5 @@
   "slotMinPeers": 2,
   "slotRange": 140,
   "shooterBackstepMul": 0.5,
-  "retreatAfterStrike": {
-    "wolf": 1.5,
-    "spikeRat": 1.5,
-    "thief": 1.5
-  }
+  "retreatAfterStrike": { "wolf": 1.5, "spikeRat": 1.5, "thief": 1.5 }
 }

@@ -8,6 +8,13 @@
   "decayDelaySec": 1.2,
   "decayPerSec": 40,
   "releaseCrit": false,
-  "gain": {"meleeHit": 6},
-  "perUnit": {"damageMul": 0.015, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0}
+  "gain": { "meleeHit": 6 },
+  "perUnit": {
+    "damageMul": 0.015,
+    "poiseMul": 0,
+    "reachMul": 0,
+    "hitsAdd": 0,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  }
 }

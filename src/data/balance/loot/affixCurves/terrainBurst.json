@@ -1,17 +1,5 @@
 [
-  {
-    "depth": 24,
-    "min": 26,
-    "max": 32
-  },
-  {
-    "depth": 12,
-    "min": 17,
-    "max": 21
-  },
-  {
-    "depth": 1,
-    "min": 10,
-    "max": 13
-  }
+  { "_id": "depth24", "depth": 24, "min": 26, "max": 32 },
+  { "_id": "depth12", "depth": 12, "min": 17, "max": 21 },
+  { "_id": "depth1", "depth": 1, "min": 10, "max": 13 }
 ]

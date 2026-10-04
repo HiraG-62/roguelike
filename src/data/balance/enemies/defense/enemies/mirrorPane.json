@@ -1,7 +1,4 @@
 {
   "body": "fixture",
-  "resist": {
-    "light": 50,
-    "none": -25
-  }
+  "resist": { "light": 50, "none": -25 }
 }

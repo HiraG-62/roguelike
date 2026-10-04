@@ -1,4 +1,16 @@
 {
-  "base": { "head": 2, "armor": 3, "boots": 2, "ring": 1, "amulet": 1 },
-  "perPoint": { "head": 0.4, "armor": 0.65, "boots": 0.4, "ring": 0.22, "amulet": 0.22 }
+  "base": {
+    "head": 2,
+    "armor": 3,
+    "boots": 2,
+    "ring": 1,
+    "amulet": 1
+  },
+  "perPoint": {
+    "head": 0.4,
+    "armor": 0.65,
+    "boots": 0.4,
+    "ring": 0.22,
+    "amulet": 0.22
+  }
 }

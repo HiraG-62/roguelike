@@ -17,5 +17,11 @@
   "maxSteps": 3,
   "stepMul": 1.15,
   "ringEaseMax": 2,
-  "statPerStep": { "dash": 0.08, "just": 0.05, "mana": 0.1, "heal": 1, "ward": 0.05 }
+  "statPerStep": {
+    "dash": 0.08,
+    "just": 0.05,
+    "mana": 0.1,
+    "heal": 1,
+    "ward": 0.05
+  }
 }

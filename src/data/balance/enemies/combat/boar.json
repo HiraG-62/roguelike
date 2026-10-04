@@ -1,5 +1,1 @@
-{
-  "poise": 60,
-  "staggerTime": 0.6,
-  "superArmorMul": 0.25
-}
+{ "poise": 60, "staggerTime": 0.6, "superArmorMul": 0.25 }

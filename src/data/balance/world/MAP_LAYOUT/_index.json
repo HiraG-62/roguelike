@@ -39,30 +39,17 @@
   },
   "chapterMul": [
     {
+      "_id": "chapter1",
       "cavern": 1.5,
       "drunk": 1.3,
       "river": 1.2,
       "court": 0.6
     },
-    {
-      "court": 1.5,
-      "prefab": 1.4,
-      "ring": 1.2
-    },
-    {
-      "river": 1.3,
-      "terrace": 1.4,
-      "ring": 1.2
-    },
-    {
-      "isle": 1.5,
-      "terrace": 1.3
-    }
+    { "_id": "chapter2", "court": 1.5, "prefab": 1.4, "ring": 1.2 },
+    { "_id": "chapter3", "river": 1.3, "terrace": 1.4, "ring": 1.2 },
+    { "_id": "chapter4", "isle": 1.5, "terrace": 1.3 }
   ],
-  "deepMul": {
-    "isle": 2,
-    "terrace": 1.5
-  },
+  "deepMul": { "isle": 2, "terrace": 1.5 },
   "minDepth": {
     "cavern": 1,
     "river": 1,
@@ -77,10 +64,7 @@
   "previewWidth": 64,
   "previewHeight": 40,
   "unitExp": 0.65,
-  "areaScale": {
-    "court": 0.85,
-    "prefab": 0.9
-  },
+  "areaScale": { "court": 0.85, "prefab": 0.9 },
   "validate": {
     "minRooms": 8,
     "roomMinTiles": 24,
@@ -90,5 +74,25 @@
     "lordFill": 0.6
   },
   "minNodeTiles": 6,
-  "_order": ["weight", "chapterMul", "deepMul", "minDepth", "repeatMul", "previewWidth", "previewHeight", "unitExp", "areaScale", "validate", "minNodeTiles", "cavern", "river", "ring", "court", "drunk", "isle", "terrace", "prefab"]
+  "_order": [
+    "weight",
+    "chapterMul",
+    "deepMul",
+    "minDepth",
+    "repeatMul",
+    "previewWidth",
+    "previewHeight",
+    "unitExp",
+    "areaScale",
+    "validate",
+    "minNodeTiles",
+    "cavern",
+    "river",
+    "ring",
+    "court",
+    "drunk",
+    "isle",
+    "terrace",
+    "prefab"
+  ]
 }

@@ -27,18 +27,8 @@
       "tollRatio": 0.3,
       "color": "#e0c048"
     },
-    "twin": {
-      "minDepth": 12,
-      "speedMul": 0.75,
-      "spread": 140
-    },
-    "shadow": {
-      "shades": 5,
-      "respawn": 8,
-      "ring": 120
-    },
-    "silent": {
-      "moveThreshold": 8
-    }
+    "twin": { "minDepth": 12, "speedMul": 0.75, "spread": 140 },
+    "shadow": { "shades": 5, "respawn": 8, "ring": 120 },
+    "silent": { "moveThreshold": 8 }
   }
 }

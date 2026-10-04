@@ -1,7 +1,4 @@
 {
   "body": "soft",
-  "resist": {
-    "ice": 25,
-    "fire": -50
-  }
+  "resist": { "ice": 25, "fire": -50 }
 }

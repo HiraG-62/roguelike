@@ -38,5 +38,25 @@
   "offerCount": 3,
   "inputDelay": 0.35,
   "textColor": "#ffb060",
-  "_order": ["perRun", "offerCount", "inputDelay", "textColor", "blade", "flurry", "crusher", "hewer", "polearm", "chain", "bulwark", "warfan", "rod", "pistol", "rifle", "artillery", "powder", "tome", "bell"]
+  "_order": [
+    "perRun",
+    "offerCount",
+    "inputDelay",
+    "textColor",
+    "blade",
+    "flurry",
+    "crusher",
+    "hewer",
+    "polearm",
+    "chain",
+    "bulwark",
+    "warfan",
+    "rod",
+    "pistol",
+    "rifle",
+    "artillery",
+    "powder",
+    "tome",
+    "bell"
+  ]
 }

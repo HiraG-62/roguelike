@@ -26,5 +26,15 @@
     "min": "このスロットの最少人数（役割に合う敵がいれば予算に依らずこの人数は置く）",
     "max": "このスロットの最多人数（省略で上限なし）"
   },
-  "_order": ["fishScale", "craneWing", "geese", "column", "crescent", "circle", "lookout", "arrowhead", "yoke"]
+  "_order": [
+    "fishScale",
+    "craneWing",
+    "geese",
+    "column",
+    "crescent",
+    "circle",
+    "lookout",
+    "arrowhead",
+    "yoke"
+  ]
 }

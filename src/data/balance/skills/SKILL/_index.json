@@ -18,5 +18,26 @@
   "defaultCastRange": 120,
   "castWallProbe": 2,
   "fullManaEpsilon": 0.01,
-  "_order": ["slots", "slotLinks", "manaFlashTime", "variantCountWeights", "variantPrecision", "inputBuffer", "notReadyTextInterval", "stashCapacity", "defaultCastRange", "castWallProbe", "fullManaEpsilon", "parry", "bloodPact", "gravityWell", "mines", "haste", "chainHook", "frostField", "modifier", "drop"]
+  "_order": [
+    "slots",
+    "slotLinks",
+    "manaFlashTime",
+    "variantCountWeights",
+    "variantPrecision",
+    "inputBuffer",
+    "notReadyTextInterval",
+    "stashCapacity",
+    "defaultCastRange",
+    "castWallProbe",
+    "fullManaEpsilon",
+    "parry",
+    "bloodPact",
+    "gravityWell",
+    "mines",
+    "haste",
+    "chainHook",
+    "frostField",
+    "modifier",
+    "drop"
+  ]
 }

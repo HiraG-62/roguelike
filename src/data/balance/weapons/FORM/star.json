@@ -8,7 +8,14 @@
   "decayDelaySec": 0,
   "decayPerSec": 0,
   "releaseCrit": false,
-  "gain": {"pinStagger": 1},
-  "perUnit": {"damageMul": 0, "poiseMul": 0, "reachMul": 0, "hitsAdd": 0, "knockbackMul": 0, "pierceAdd": 0},
-  "timed": {"sec": 2, "attackSpeedMul": 2}
+  "gain": { "pinStagger": 1 },
+  "perUnit": {
+    "damageMul": 0,
+    "poiseMul": 0,
+    "reachMul": 0,
+    "hitsAdd": 0,
+    "knockbackMul": 0,
+    "pierceAdd": 0
+  },
+  "timed": { "sec": 2, "attackSpeedMul": 2 }
 }

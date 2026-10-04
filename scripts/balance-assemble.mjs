@@ -16,6 +16,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { formatBalanceJson } from "./balance-format.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BALANCE_DIR = join(ROOT, "src/data/balance");
@@ -41,16 +42,11 @@ function rel(abs) {
   return relative(ROOT, abs).split("\\").join("/");
 }
 
-/** `_order` の配列を 1 行で書く（生成時に書き直す形と移行時の形をそろえる） */
-export function formatOrder(keys) {
-  return `[${keys.map((k) => JSON.stringify(k)).join(", ")}]`;
-}
-
-/** `_index.json` の `_order` だけを書き換える（手で整えた他の行の書式を崩さない） */
+/** `_index.json` の `_order` を書き換え、balance-format.mjs の書式（1 項目 1 行）で書き直す */
 function rewriteOrder(indexAbs, keys) {
-  const text = readFileSync(indexAbs, "utf8");
-  const next = text.replace(/"_order"\s*:\s*\[[^\]]*\]/, `"${ORDER_KEY}": ${formatOrder(keys)}`);
-  writeFileSync(indexAbs, next);
+  const index = JSON.parse(readFileSync(indexAbs, "utf8"));
+  index[ORDER_KEY] = keys;
+  writeFileSync(indexAbs, formatBalanceJson(index));
 }
 
 /**

@@ -12,9 +12,5 @@
   "minDepth": 7,
   "weight": 2,
   "dropChance": 0.18,
-  "laserBeams": {
-    "count": 3,
-    "spreadDeg": 22,
-    "followWindup": 0.45
-  }
+  "laserBeams": { "count": 3, "spreadDeg": 22, "followWindup": 0.45 }
 }

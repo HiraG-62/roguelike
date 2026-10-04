@@ -24,9 +24,5 @@
       "vulnerable": 0
     }
   },
-  "mark": {
-    "offsetY": 6,
-    "size": 5,
-    "unknownColor": "#a0a0a0"
-  }
+  "mark": { "offsetY": 6, "size": 5, "unknownColor": "#a0a0a0" }
 }

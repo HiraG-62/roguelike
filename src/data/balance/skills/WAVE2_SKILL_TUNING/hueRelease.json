@@ -1,5 +1,29 @@
 {
   "_note": "色解き: 照準の周りの彩痕を、色に対応する状態異常で弾けさせる（色爆）。comboAreaMul は彩刻→色解きの連携の範囲倍率。5 色を解くので係数は 5 ステータスすべてを参照する（段取り 7c で五彩の礫・極意が消えた後の唯一の 5 種参照。基礎値での威力 10・Σ係数 1.2 は据え置き）",
-  "cost": 18, "minInterval": 0.6, "poise": 12, "maxRange": 140, "radius": 50, "damage": { "base": 4, "str": 0.2, "dex": 0.2, "vit": 0.2, "mnd": 0.2, "spi": 0.4 }, "poiseRatio": { "str": 0.06, "dex": 0.06, "vit": 0.06, "mnd": 0.06, "spi": 0.12 }, "hueMul": 1.5,
-  "knockback": 60, "burnPotency": 3, "shockPotency": 2, "vulnerableTime": 3, "comboAreaMul": 1.5
+  "cost": 18,
+  "minInterval": 0.6,
+  "poise": 12,
+  "maxRange": 140,
+  "radius": 50,
+  "damage": {
+    "base": 4,
+    "str": 0.2,
+    "dex": 0.2,
+    "vit": 0.2,
+    "mnd": 0.2,
+    "spi": 0.4
+  },
+  "poiseRatio": {
+    "str": 0.06,
+    "dex": 0.06,
+    "vit": 0.06,
+    "mnd": 0.06,
+    "spi": 0.12
+  },
+  "hueMul": 1.5,
+  "knockback": 60,
+  "burnPotency": 3,
+  "shockPotency": 2,
+  "vulnerableTime": 3,
+  "comboAreaMul": 1.5
 }

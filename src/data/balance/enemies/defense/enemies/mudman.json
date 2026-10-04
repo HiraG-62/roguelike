@@ -1,7 +1,5 @@
 {
   "body": "soft",
   "biome": "swamp",
-  "resist": {
-    "none": 25
-  }
+  "resist": { "none": 25 }
 }

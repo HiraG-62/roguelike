@@ -1,6 +1,1 @@
-{
-  "tongueLength": 90,
-  "tongueDamage": 16,
-  "biteSpeedMul": 5,
-  "color": "#e04848"
-}
+{ "tongueLength": 90, "tongueDamage": 16, "biteSpeedMul": 5, "color": "#e04848" }

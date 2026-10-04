@@ -37,12 +37,46 @@
   "telegraphRange": 260,
   "batCoordDelay": 0.15,
   "depthStages": {
-    "slime": [{ "minDepth": 4, "followUp": { "count": 1, "windup": 0.25, "onWallOnly": false } }],
-    "skeleton": [{ "minDepth": 5, "followUp": { "count": 1, "windup": 0.4, "onWallOnly": false } }],
-    "knight": [{ "minDepth": 1, "followUp": { "count": 1, "windup": 0.3, "onWallOnly": false } }],
-    "boar": [{ "minDepth": 6, "followUp": { "count": 1, "windup": 0.35, "onWallOnly": true } }],
-    "golem": [{ "minDepth": 1, "followUp": { "count": 1, "windup": 0.5, "onWallOnly": false } }],
-    "spearman": [{ "minDepth": 6, "retreatMul": 1.5 }],
-    "bomber": [{ "minDepth": 6, "windupMoveMul": -0.5 }]
+    "slime": [
+      {
+        "_id": "depth4",
+        "minDepth": 4,
+        "followUp": { "count": 1, "windup": 0.25, "onWallOnly": false }
+      }
+    ],
+    "skeleton": [
+      {
+        "_id": "depth5",
+        "minDepth": 5,
+        "followUp": { "count": 1, "windup": 0.4, "onWallOnly": false }
+      }
+    ],
+    "knight": [
+      {
+        "_id": "depth1",
+        "minDepth": 1,
+        "followUp": { "count": 1, "windup": 0.3, "onWallOnly": false }
+      }
+    ],
+    "boar": [
+      {
+        "_id": "depth6",
+        "minDepth": 6,
+        "followUp": { "count": 1, "windup": 0.35, "onWallOnly": true }
+      }
+    ],
+    "golem": [
+      {
+        "_id": "depth1",
+        "minDepth": 1,
+        "followUp": { "count": 1, "windup": 0.5, "onWallOnly": false }
+      }
+    ],
+    "spearman": [
+      { "_id": "depth6", "minDepth": 6, "retreatMul": 1.5 }
+    ],
+    "bomber": [
+      { "_id": "depth6", "minDepth": 6, "windupMoveMul": -0.5 }
+    ]
   }
 }

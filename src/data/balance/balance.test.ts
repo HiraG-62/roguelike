@@ -30,7 +30,8 @@ import {
   world as worldJson,
 } from "./assembled.gen";
 import { BALANCE, BALANCE_HASH } from "./index";
-import { diffKeySets, undocumentedLeaves, validateBalanceShape, validateFieldDocs } from "./validate";
+import { diffKeySets, undocumentedLeaves, validateBalanceShape, validateFieldDocs, validateRowIds } from "./validate";
+import { formatBalanceText } from "../../../scripts/balance-format.mjs";
 
 describe("BALANCE", () => {
   it("_note を剥がして readonly の値を返す", () => {
@@ -78,6 +79,25 @@ function rowKeys(table: object): string[] {
 describe("各 JSON の形", () => {
   it.each(JSON_FILES)("%s が汎用検査を通る(有限数・null 無し・_note は文字列)", (file, json) => {
     expect(validateBalanceShape(json, file)).toEqual([]);
+  });
+
+  it.each(JSON_FILES)("%s の配列の要素がすべて名札 _id を持つ（どの段・どの行か読めるように）", (file, json) => {
+    expect(validateRowIds(json, file)).toEqual([]);
+  });
+});
+
+describe("JSON の書式（1 項目 1 行）", () => {
+  const RAW_JSON: Record<string, string> = import.meta.glob("./**/*.json", { query: "?raw", import: "default", eager: true });
+
+  it("すべての JSON が整形済み（ずれたら npm run balance:fmt）", () => {
+    expect(Object.keys(RAW_JSON)).toHaveLength(BALANCE_SOURCE_FILES.length);
+    const unformatted = Object.entries(RAW_JSON)
+      .filter(([, raw]) => {
+        const text = raw.replace(/\r\n/g, "\n");
+        return formatBalanceText(text) !== text;
+      })
+      .map(([path]) => path);
+    expect(unformatted).toEqual([]);
   });
 });
 

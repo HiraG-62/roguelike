@@ -1,12 +1,21 @@
 {
   "grandShell": {
-    "blast": { "distance": 110, "radius": 60, "scaling": { "base": 40, "str": 2, "mnd": 2 }, "poise": 80, "poiseRatio": { "str": 1, "mnd": 1 }, "knockback": 450, "heavy": true }
+    "blast": {
+      "distance": 110,
+      "radius": 60,
+      "scaling": { "base": 40, "str": 2, "mnd": 2 },
+      "poise": 80,
+      "poiseRatio": { "str": 1, "mnd": 1 },
+      "knockback": 450,
+      "heavy": true
+    }
   },
   "fullSalvo": {
     "packedShot": { "pelletsAdd": 6, "damageMul": 2, "selfKnock": 1400 }
   },
   "powderKeg": {
-    "drainPerSec": 12.5, "minSec": 1,
+    "drainPerSec": 12.5,
+    "minSec": 1,
     "mul": { "fireRate": 1.2 },
     "shot": { "pelletsAdd": 1, "damageMul": 1.1 },
     "pointBlank": { "range": 60, "mul": 1.6 }

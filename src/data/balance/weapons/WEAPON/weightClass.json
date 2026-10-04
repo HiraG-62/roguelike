@@ -14,7 +14,46 @@
     "finisherGuardBreak": "重さの補償: 終撃が堅守（騎士の盾）を崩す（真偽）。カウンターは重さによらず崩す",
     "hitstopFinisher": "終撃の命中のヒットストップの底上げ（ステップ。60Hz）。FEEL.hitstopFinisher を重さで上書きする"
   },
-  "light": { "moveMulMin": 0.6, "moveMulMax": 0.8, "finisherMoveMul": -1, "lockActive": false, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 0, "finisherKnockbackMul": 1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
-  "medium": { "moveMulMin": 0.3, "moveMulMax": 0.5, "finisherMoveMul": 0.2, "lockActive": true, "lockRecoverRatio": 0, "recoverMul": 1, "damageMul": 1, "poiseMul": 1, "hitstop": 1, "finisherKnockbackMul": 1.1, "finisherGuardBreak": false, "hitstopFinisher": 9 },
-  "heavy": { "moveMulMin": 0.2, "moveMulMax": 0.3, "finisherMoveMul": 0.15, "lockActive": true, "lockRecoverRatio": 0.5, "recoverMul": 1, "damageMul": 1.1, "poiseMul": 1.5, "hitstop": 2, "finisherKnockbackMul": 1.4, "finisherGuardBreak": true, "hitstopFinisher": 9 }
+  "light": {
+    "moveMulMin": 0.6,
+    "moveMulMax": 0.8,
+    "finisherMoveMul": -1,
+    "lockActive": false,
+    "lockRecoverRatio": 0,
+    "recoverMul": 1,
+    "damageMul": 1,
+    "poiseMul": 1,
+    "hitstop": 0,
+    "finisherKnockbackMul": 1,
+    "finisherGuardBreak": false,
+    "hitstopFinisher": 9
+  },
+  "medium": {
+    "moveMulMin": 0.3,
+    "moveMulMax": 0.5,
+    "finisherMoveMul": 0.2,
+    "lockActive": true,
+    "lockRecoverRatio": 0,
+    "recoverMul": 1,
+    "damageMul": 1,
+    "poiseMul": 1,
+    "hitstop": 1,
+    "finisherKnockbackMul": 1.1,
+    "finisherGuardBreak": false,
+    "hitstopFinisher": 9
+  },
+  "heavy": {
+    "moveMulMin": 0.2,
+    "moveMulMax": 0.3,
+    "finisherMoveMul": 0.15,
+    "lockActive": true,
+    "lockRecoverRatio": 0.5,
+    "recoverMul": 1,
+    "damageMul": 1.1,
+    "poiseMul": 1.5,
+    "hitstop": 2,
+    "finisherKnockbackMul": 1.4,
+    "finisherGuardBreak": true,
+    "hitstopFinisher": 9
+  }
 }

@@ -25,14 +25,5 @@
   "readyTimeoutSec": 2,
   "previewZoom": 1.5,
   "pressFlashSec": 0.25,
-  "foeDistanceCandidates": [
-    16,
-    24,
-    32,
-    48,
-    64,
-    96,
-    128,
-    160
-  ]
+  "foeDistanceCandidates": [16, 24, 32, 48, 64, 96, 128, 160]
 }

@@ -32,6 +32,23 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 各ブロックの `_note` に「なぜこの値か」と単位が書いてある。設計の詳細は `docs/ideas/data-externalization.md`。
 
+## 書式と行の名札（`_id`）
+
+**書式は 1 項目 1 行**。値だけの小さいオブジェクト・配列（4 項目以下で、全角を 2 字に数えて 100 字に収まるもの。`{ "base": 1.6, "dex": 0.25 }` や `["primary", "secondary"]`）だけは 1 行に畳む。手で直したあとは `npm run balance:fmt`（`scripts/balance-format.mjs`）で整える。`balance:gen` が書き直す `_order` も同じ書式になる。整形がずれていると `balance.test.ts` が落ちる。
+
+**配列の要素（オブジェクト）には必ず `_id` を先頭に置く**。配列は何番目かでしか区別できず、人の手で調整するときにどの行動・どの段か読めないため。`_` で始まるので `_note` と同じく読み込み時に剥がされ、挙動にも数値の版（`BALANCE_HASH`）にも効かない。形は英数の語をドットでつないだもの（`^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)*$`）で、文章にしない。同じ配列の中で重ねない。オブジェクトのキーがすでに名札になる所（`branches.<key>`・`dashAttack`・敵の表の行）には置かない。検査は `validate.ts` の `validateRowIds`。
+
+| 配列 | `_id` の形 | 例 |
+| --- | --- | --- |
+| 左の連撃 `steps`（剣は `weapons/PLAYER_MELEE.json`） | `primary<段>.<技>`。技は投げ物なら `cast.key`、それ以外は形（`arc` → `slash` / `box` → `strike` / `thrust` → `thrust` / `circle` は自分の周りなら `spin`・前に出すなら `slam`）に重い段は `heavy`、多段は `X<回数>` | `primary4.heavySlash` / `primary3.strikeX3` / `primary1.starToss` |
+| 右の連撃 `steps2` | `secondary<段>.<段の key>` | `secondary2.starFan2` |
+| 状態異常の付与 `applies` | 状態異常の `kind` | `bleed` |
+| 溜めの段 `levels`・ボスの段階 `stages` | `level<n>` / `stage<n>` | `level2` / `stage1` |
+| 深度で引く表（性質の曲線・`depthScale`・`depthStages`） | `depth<深度>` | `depth8` |
+| 陣形のスロット `slots` / 陣図の画 `strokes` | `<役割>.<格>` / 隊の名前 | `vanguard.elite` / `outerLeft` |
+| 章ごとの表（`chapters` / `chapterMul`） | `chapter<n>`（ボスを持つなら `.<ボスの key>`） | `chapter2.thiefKing` |
+| 連打の段（`comboTiers`） | `combo<しきい値>` | `combo25` |
+
 ## 項目の意味を読む / 書く
 
 **読む**: 項目の意味は、同じブロックの先頭にある `_fields` に「項目名 → 説明（意味。単位。目安）」で書いてある。敵のように同じ形の行が並ぶ表では、表の先頭に 1 回だけ書き、行（`slime` など）はそれを引き継ぐ。行の中に `_fields` があれば、その行だけの説明が優先。`swarm.min` のようなドット表記は、行の中の `swarm` の中の `min` を指す。`resist` のようにオブジェクト名だけの説明は、その中の項目全部に効く。
@@ -62,7 +79,7 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 全部 `src/data/balance/**/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`npm run check` は通さなくても `npm run dev` は動くが、変える前に一度 `npm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
 
 **武器の振りの速さを変える**（例: 大剣の 1 段目を速くする）:
-1. `src/data/balance/weapons/WEAPON/movesets/greatsword.json` を開き、`steps` の配列を探す（1 段 1 行）
+1. `src/data/balance/weapons/WEAPON/movesets/greatsword.json` を開き、`steps` の配列から 1 段目（`"_id": "primary1.…"`）を探す
 2. 1 段目の `"windup"`（振りかぶり）・`"active"`（当たり判定が出ている秒数）・`"recover"`（硬直）を小さくする。単位は秒（`weapons/_index.json` の `_note` に凡例、項目の意味は `weapons/WEAPON/_index.json` の `_fields`）
 3. 保存 → dev サーバが再読み込み。3 段目だけ・特定の派生（`branches`）だけ変えたいときも同じ配列の中の該当オブジェクトを探して編集する
 

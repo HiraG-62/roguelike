@@ -1,4 +1,9 @@
 {
-  "flurryHoard": { "max": 160, "releaseMin": 100, "decayPerSec": 0, "perUnit": {"hitsAdd": 0.02} },
+  "flurryHoard": {
+    "max": 160,
+    "releaseMin": 100,
+    "decayPerSec": 0,
+    "perUnit": { "hitsAdd": 0.02 }
+  },
   "flurryTwin": { "hitsMul": 2, "sizeMul": 1.25 }
 }

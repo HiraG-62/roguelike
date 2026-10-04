@@ -4,11 +4,7 @@
   "baseRegen": 0.6,
   "idleRegenMul": 1.5,
   "combatRadius": 140,
-  "onMelee": [
-    3,
-    3,
-    5
-  ],
+  "onMelee": [3, 3, 5],
   "meleeTargetCap": 2,
   "onDashAttack": 3,
   "onCounterMul": 2,

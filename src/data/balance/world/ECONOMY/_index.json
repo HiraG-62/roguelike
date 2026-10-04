@@ -4,5 +4,18 @@
     "chapterMul": "章が 1 つ進むごとに稼ぎ（と値段）の平均に掛ける倍率。倍率（1 = 等倍）。章 n は chapterMul^(n−1)"
   },
   "chapterMul": 1.3,
-  "_order": ["chapterMul", "coin", "container", "income", "spill", "key", "flask", "market", "price", "donation", "bet", "build"]
+  "_order": [
+    "chapterMul",
+    "coin",
+    "container",
+    "income",
+    "spill",
+    "key",
+    "flask",
+    "market",
+    "price",
+    "donation",
+    "bet",
+    "build"
+  ]
 }

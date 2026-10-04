@@ -22,12 +22,19 @@
   },
   "sigma": { "base": 0.12, "perDepth": 0.05, "max": 1, "perBoost": 0.1 },
   "flux": { "lowScale": 0.4, "highScale": 0.8, "min": -0.4, "maxConversion": 0.5 },
-  "inversion": { "minDepth": 13, "baseChance": 0.04, "chancePerDepth": 0.01, "maxChance": 0.15, "magnitudeMin": 0.2, "magnitudeMax": 0.9 },
+  "inversion": {
+    "minDepth": 13,
+    "baseChance": 0.04,
+    "chancePerDepth": 0.01,
+    "maxChance": 0.15,
+    "magnitudeMin": 0.2,
+    "magnitudeMax": 0.9
+  },
   "class": { "calmLimit": 0.07, "waverLimit": 0.21 },
   "globalScale": 0.8,
   "depthScale": [
-    { "depth": 1, "scale": 0.75 },
-    { "depth": 5, "scale": 0.85 },
-    { "depth": 10, "scale": 1 }
+    { "_id": "depth1", "depth": 1, "scale": 0.75 },
+    { "_id": "depth5", "depth": 5, "scale": 0.85 },
+    { "_id": "depth10", "depth": 10, "scale": 1 }
   ]
 }

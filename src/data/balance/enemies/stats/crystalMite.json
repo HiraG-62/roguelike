@@ -12,14 +12,7 @@
   "minDepth": 3,
   "weight": 2,
   "dropChance": 0.03,
-  "swarm": {
-    "min": 3,
-    "max": 5
-  },
-  "explode": {
-    "radius": 24,
-    "damage": 12,
-    "color": "#60e0f0"
-  },
+  "swarm": { "min": 3, "max": 5 },
+  "explode": { "radius": 24, "damage": 12, "color": "#60e0f0" },
   "deathMana": 5
 }

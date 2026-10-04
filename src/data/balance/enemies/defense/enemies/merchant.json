@@ -1,6 +1,4 @@
 {
   "body": "soft",
-  "resist": {
-    "lightning": -25
-  }
+  "resist": { "lightning": -25 }
 }

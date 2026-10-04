@@ -14,7 +14,12 @@
   },
   "floorsPerChapter": 5,
   "maxChapter": 4,
-  "chapters": [{ "boss": "kingSlime" }, { "boss": "thiefKing" }, { "boss": "oilKing" }, { "boss": "mirrorKnight" }],
+  "chapters": [
+    { "_id": "chapter1.kingSlime", "boss": "kingSlime" },
+    { "_id": "chapter2.thiefKing", "boss": "thiefKing" },
+    { "_id": "chapter3.oilKing", "boss": "oilKing" },
+    { "_id": "chapter4.mirrorKnight", "boss": "mirrorKnight" }
+  ],
   "lordSkipFirstFloor": true,
   "restFountain": true,
   "finalBoss": "deepLord",

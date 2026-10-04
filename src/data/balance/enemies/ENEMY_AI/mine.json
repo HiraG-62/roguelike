@@ -1,6 +1,1 @@
-{
-  "trigger": 16,
-  "radius": 30,
-  "damage": 16,
-  "color": "#ff6060"
-}
+{ "trigger": 16, "radius": 30, "damage": 16, "color": "#ff6060" }

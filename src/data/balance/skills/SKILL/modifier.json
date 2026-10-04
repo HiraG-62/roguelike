@@ -1,13 +1,92 @@
 {
   "_note": "刻印符の変形（段取り 7c。docs/ideas/skills-7c-plan.md 4 章）。数値は仮。循環は EXTRA_MODIFIER_TUNING、行為の列・起点・連動は WAVE2_MODIFIER_TUNING",
-  "delay": { "_fields": { "time": "撃ってから出るまでの秒", "damageMul": "遅れて出た発動の威力の倍率（1 = 等倍）" }, "time": 2, "damageMul": 1.5 },
-  "echo": { "_fields": { "delay": "もう一度出るまでの秒", "damageMul": "写しの威力の倍率", "burdenMul": "負担（コスト / 再使用）の倍率" }, "delay": 0.5, "damageMul": 0.5, "burdenMul": 1.25 },
-  "charge": { "_note": "溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる", "_fields": { "maxTime": "溜めの上限秒", "minTime": "これ未満の短押しは溜め無しで撃つ（秒）", "maxDamageMul": "溜めきった時の威力の倍率", "maxAreaMul": "溜めきった時の範囲の倍率", "moveMul": "溜め中の移動の倍率" }, "maxTime": 1.2, "minTime": 0.15, "maxDamageMul": 2.2, "maxAreaMul": 1.5, "moveMul": 0.6 },
-  "pierce": { "_fields": { "count": "弾・鎖が追加で抜ける敵の数" }, "count": 2 },
-  "tether": { "_fields": { "damageMul": "威力の倍率（ノックバックが逆向きになる代わり）" }, "damageMul": 0.9 },
-  "focus": { "_fields": { "areaMul": "範囲の倍率", "damageMul": "威力の倍率" }, "areaMul": 0.5, "damageMul": 1.6 },
-  "ghost": { "_fields": { "delay": "撃った時の自分の位置からもう一度出るまでの秒", "damageMul": "写しの威力の倍率", "burdenMul": "負担の倍率" }, "delay": 0.3, "damageMul": 0.6, "burdenMul": 1.2 },
-  "chain": { "_fields": { "range": "命中した敵から次の敵へ跳べる距離。px", "damageMul": "跳んだ先への威力（元の命中の基礎威力に対する倍率）", "maxPerCast": "1 回の発動で跳べる回数" }, "range": 60, "damageMul": 0.5, "maxPerCast": 3 },
-  "burst": { "_fields": { "radius": "命中点の小爆発の半径。px", "damageMul": "小爆発の威力（元の命中の基礎威力に対する倍率）", "maxPerCast": "1 回の発動で起きる小爆発の回数" }, "radius": 24, "damageMul": 0.4, "maxPerCast": 4 },
-  "leyline": { "_note": "地形化: 命中した位置に攻撃の属性の地形（1回の発動でmaxPerCastか所まで）", "_fields": { "burdenMul": "負担の倍率", "radius": "地形の半径。px", "time": "地形の持続秒", "maxPerCast": "1 回の発動で置く地形の数" }, "burdenMul": 1.15, "radius": 10, "time": 4, "maxPerCast": 3 }
+  "delay": {
+    "_fields": {
+      "time": "撃ってから出るまでの秒",
+      "damageMul": "遅れて出た発動の威力の倍率（1 = 等倍）"
+    },
+    "time": 2,
+    "damageMul": 1.5
+  },
+  "echo": {
+    "_fields": {
+      "delay": "もう一度出るまでの秒",
+      "damageMul": "写しの威力の倍率",
+      "burdenMul": "負担（コスト / 再使用）の倍率"
+    },
+    "delay": 0.5,
+    "damageMul": 0.5,
+    "burdenMul": 1.25
+  },
+  "charge": {
+    "_note": "溜め: 離した瞬間に発動。押していた秒数(0..maxTime)に応じて威力・範囲が伸びる",
+    "_fields": {
+      "maxTime": "溜めの上限秒",
+      "minTime": "これ未満の短押しは溜め無しで撃つ（秒）",
+      "maxDamageMul": "溜めきった時の威力の倍率",
+      "maxAreaMul": "溜めきった時の範囲の倍率",
+      "moveMul": "溜め中の移動の倍率"
+    },
+    "maxTime": 1.2,
+    "minTime": 0.15,
+    "maxDamageMul": 2.2,
+    "maxAreaMul": 1.5,
+    "moveMul": 0.6
+  },
+  "pierce": {
+    "_fields": { "count": "弾・鎖が追加で抜ける敵の数" },
+    "count": 2
+  },
+  "tether": {
+    "_fields": { "damageMul": "威力の倍率（ノックバックが逆向きになる代わり）" },
+    "damageMul": 0.9
+  },
+  "focus": {
+    "_fields": { "areaMul": "範囲の倍率", "damageMul": "威力の倍率" },
+    "areaMul": 0.5,
+    "damageMul": 1.6
+  },
+  "ghost": {
+    "_fields": {
+      "delay": "撃った時の自分の位置からもう一度出るまでの秒",
+      "damageMul": "写しの威力の倍率",
+      "burdenMul": "負担の倍率"
+    },
+    "delay": 0.3,
+    "damageMul": 0.6,
+    "burdenMul": 1.2
+  },
+  "chain": {
+    "_fields": {
+      "range": "命中した敵から次の敵へ跳べる距離。px",
+      "damageMul": "跳んだ先への威力（元の命中の基礎威力に対する倍率）",
+      "maxPerCast": "1 回の発動で跳べる回数"
+    },
+    "range": 60,
+    "damageMul": 0.5,
+    "maxPerCast": 3
+  },
+  "burst": {
+    "_fields": {
+      "radius": "命中点の小爆発の半径。px",
+      "damageMul": "小爆発の威力（元の命中の基礎威力に対する倍率）",
+      "maxPerCast": "1 回の発動で起きる小爆発の回数"
+    },
+    "radius": 24,
+    "damageMul": 0.4,
+    "maxPerCast": 4
+  },
+  "leyline": {
+    "_note": "地形化: 命中した位置に攻撃の属性の地形（1回の発動でmaxPerCastか所まで）",
+    "_fields": {
+      "burdenMul": "負担の倍率",
+      "radius": "地形の半径。px",
+      "time": "地形の持続秒",
+      "maxPerCast": "1 回の発動で置く地形の数"
+    },
+    "burdenMul": 1.15,
+    "radius": 10,
+    "time": 4,
+    "maxPerCast": 3
+  }
 }

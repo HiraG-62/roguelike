@@ -1,21 +1,96 @@
 {
   "_note": "刻印符の変形のうち、技の行為の列（分裂・旋回・重ね打ち・戻り刃・軌跡）・起点（照準起点・足元起点・据え置き）・発動の時機（終撃連動・応手連動）を変えるもの（段取り 7c）。数値は仮",
-  "_fields": { "reshapeLinkCost": "型替え符（照準起点・足元起点・据え置き）が使うリンクの本数", "reshapeWeight": "型替え符の抽選の重み（ほかの符は 1）" },
-  "split": { "_fields": { "countMul": "弾の数の倍率（扇は同じ数に分ける）", "spreadDeg": "分けた弾・扇の間隔（度）", "damageMul": "1 つあたりの威力の倍率" }, "countMul": 3, "spreadDeg": 20, "damageMul": 0.5 },
-  "orbit": { "_fields": { "radius": "自分の周りを回る半径。px", "turnRate": "回る速さ（ラジアン / 秒）", "life": "回り続ける秒", "pierceAdd": "足す貫通数（回っている間に何体も当てる）", "rehit": "同じ敵にもう一度当たれるまでの秒" }, "radius": 30, "turnRate": 7, "life": 2.5, "pierceAdd": 8, "rehit": 0.5 },
-  "tripleHit": { "_fields": { "hitsMul": "1 体に当てる回数の倍率", "damageMul": "1 段あたりの威力の倍率" }, "hitsMul": 3, "damageMul": 0.4 },
-  "recall": { "_fields": { "lifeMul": "弾の寿命の倍率（行きの秒は元の寿命のまま、残りが帰り）", "pierceAdd": "足す貫通数（帰りにも当てる）" }, "lifeMul": 2.2, "pierceAdd": 2 },
-  "trail": { "_fields": { "radius": "通り道に置く地形の半径。px", "time": "地形の持続秒", "step": "地形を置く間隔。px" }, "radius": 10, "time": 3, "step": 16 },
+  "_fields": {
+    "reshapeLinkCost": "型替え符（照準起点・足元起点・据え置き）が使うリンクの本数",
+    "reshapeWeight": "型替え符の抽選の重み（ほかの符は 1）"
+  },
+  "split": {
+    "_fields": {
+      "countMul": "弾の数の倍率（扇は同じ数に分ける）",
+      "spreadDeg": "分けた弾・扇の間隔（度）",
+      "damageMul": "1 つあたりの威力の倍率"
+    },
+    "countMul": 3,
+    "spreadDeg": 20,
+    "damageMul": 0.5
+  },
+  "orbit": {
+    "_fields": {
+      "radius": "自分の周りを回る半径。px",
+      "turnRate": "回る速さ（ラジアン / 秒）",
+      "life": "回り続ける秒",
+      "pierceAdd": "足す貫通数（回っている間に何体も当てる）",
+      "rehit": "同じ敵にもう一度当たれるまでの秒"
+    },
+    "radius": 30,
+    "turnRate": 7,
+    "life": 2.5,
+    "pierceAdd": 8,
+    "rehit": 0.5
+  },
+  "tripleHit": {
+    "_fields": { "hitsMul": "1 体に当てる回数の倍率", "damageMul": "1 段あたりの威力の倍率" },
+    "hitsMul": 3,
+    "damageMul": 0.4
+  },
+  "recall": {
+    "_fields": {
+      "lifeMul": "弾の寿命の倍率（行きの秒は元の寿命のまま、残りが帰り）",
+      "pierceAdd": "足す貫通数（帰りにも当てる）"
+    },
+    "lifeMul": 2.2,
+    "pierceAdd": 2
+  },
+  "trail": {
+    "_fields": {
+      "radius": "通り道に置く地形の半径。px",
+      "time": "地形の持続秒",
+      "step": "地形を置く間隔。px"
+    },
+    "radius": 10,
+    "time": 3,
+    "step": 16
+  },
   "toTarget": {
     "_note": "照準起点: 技は自分起点の行為を照準地点へ移す。手書きの近接は刃が照準地点へ飛んで着いた所で発動（thrown）、置くものは照準地点へ投げ込んで着いた瞬間に起動（lobbed）",
-    "_fields": { "thrown.flight": "近接の刃が照準地点へ飛ぶ秒", "thrown.knockbackMul": "近接を飛ばした時のノックバックの倍率", "lobbed.durationMul": "投げ込んだ置くものの持続の倍率", "lobbed.timeMul": "投げ込んだ置くものの起動までの時間の倍率", "lobbed.damageMul": "投げ込んだ置くものの威力の倍率" },
+    "_fields": {
+      "thrown.flight": "近接の刃が照準地点へ飛ぶ秒",
+      "thrown.knockbackMul": "近接を飛ばした時のノックバックの倍率",
+      "lobbed.durationMul": "投げ込んだ置くものの持続の倍率",
+      "lobbed.timeMul": "投げ込んだ置くものの起動までの時間の倍率",
+      "lobbed.damageMul": "投げ込んだ置くものの威力の倍率"
+    },
     "thrown": { "flight": 0.3, "knockbackMul": 0.5 },
     "lobbed": { "durationMul": 0.3, "timeMul": 0.3, "damageMul": 1.2 }
   },
-  "toNova": { "_note": "足元起点: 照準地点ではなく自分の足元で起きる", "_fields": { "areaMul": "範囲の倍率" }, "areaMul": 1.3 },
-  "linger": { "_note": "据え置き（旧 罠化）: 照準地点に留まり、敵が近付くとその位置から最寄りの敵へ向けて発動", "_fields": { "arm": "置いてから起動するまでの秒", "life": "起動を待つ上限の秒", "trigger": "敵が近付いたとみなす半径。px", "maxAlive": "同時に置ける数（超えたら古いものから消える）", "damageMul": "発動の威力の倍率" }, "arm": 0.5, "life": 12, "trigger": 18, "maxAlive": 3, "damageMul": 1.1 },
-  "autoFinisher": { "_fields": { "dedupe": "この秒以内の終撃の命中は同じ終撃とみなして 1 回だけ撃つ" }, "dedupe": 0.3 },
-  "autoRiposte": { "_fields": { "dedupe": "この秒以内の応手は同じ応手とみなして 1 回だけ撃つ" }, "dedupe": 0.3 },
+  "toNova": {
+    "_note": "足元起点: 照準地点ではなく自分の足元で起きる",
+    "_fields": { "areaMul": "範囲の倍率" },
+    "areaMul": 1.3
+  },
+  "linger": {
+    "_note": "据え置き（旧 罠化）: 照準地点に留まり、敵が近付くとその位置から最寄りの敵へ向けて発動",
+    "_fields": {
+      "arm": "置いてから起動するまでの秒",
+      "life": "起動を待つ上限の秒",
+      "trigger": "敵が近付いたとみなす半径。px",
+      "maxAlive": "同時に置ける数（超えたら古いものから消える）",
+      "damageMul": "発動の威力の倍率"
+    },
+    "arm": 0.5,
+    "life": 12,
+    "trigger": 18,
+    "maxAlive": 3,
+    "damageMul": 1.1
+  },
+  "autoFinisher": {
+    "_fields": { "dedupe": "この秒以内の終撃の命中は同じ終撃とみなして 1 回だけ撃つ" },
+    "dedupe": 0.3
+  },
+  "autoRiposte": {
+    "_fields": { "dedupe": "この秒以内の応手は同じ応手とみなして 1 回だけ撃つ" },
+    "dedupe": 0.3
+  },
   "reshapeLinkCost": 2,
   "reshapeWeight": 0.25
 }

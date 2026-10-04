@@ -4,9 +4,35 @@
   "weight": 2,
   "spacing": 22,
   "slots": [
-    { "role": "vanguard", "grade": "normal", "share": 0.3, "min": 1 },
-    { "role": "shooter", "grade": "elite", "share": 0.2, "min": 0, "max": 1 },
-    { "role": "shooter", "grade": "normal", "share": 0.35, "min": 2 },
-    { "role": "disruptor", "grade": "normal", "share": 0.15, "min": 0, "max": 1 }
+    {
+      "_id": "vanguard.normal",
+      "role": "vanguard",
+      "grade": "normal",
+      "share": 0.3,
+      "min": 1
+    },
+    {
+      "_id": "shooter.elite",
+      "role": "shooter",
+      "grade": "elite",
+      "share": 0.2,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "_id": "shooter.normal",
+      "role": "shooter",
+      "grade": "normal",
+      "share": 0.35,
+      "min": 2
+    },
+    {
+      "_id": "disruptor.normal",
+      "role": "disruptor",
+      "grade": "normal",
+      "share": 0.15,
+      "min": 0,
+      "max": 1
+    }
   ]
 }

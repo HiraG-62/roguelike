@@ -12,9 +12,5 @@
   "minDepth": 5,
   "weight": 3,
   "dropChance": 0.09,
-  "volley": {
-    "count": 3,
-    "spreadDeg": 30,
-    "speedMul": 0.7
-  }
+  "volley": { "count": 3, "spreadDeg": 30, "speedMul": 0.7 }
 }

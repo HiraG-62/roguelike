@@ -7,17 +7,74 @@
     "leaderSeat": "rear",
     "strokeSec": 0.7,
     "strokes": [
-      { "squad": "front", "path": "thrust", "pass": 0, "beyond": 40 },
-      { "squad": "midLeft", "path": "thrust", "pass": 18, "beyond": 30 },
-      { "squad": "midRight", "path": "thrust", "pass": 18, "beyond": 30 },
-      { "squad": "backLeft", "path": "thrust", "pass": 34, "beyond": 30 },
-      { "squad": "backRight", "path": "thrust", "pass": 34, "beyond": 30 }
+      {
+        "_id": "front",
+        "squad": "front",
+        "path": "thrust",
+        "pass": 0,
+        "beyond": 40
+      },
+      {
+        "_id": "midLeft",
+        "squad": "midLeft",
+        "path": "thrust",
+        "pass": 18,
+        "beyond": 30
+      },
+      {
+        "_id": "midRight",
+        "squad": "midRight",
+        "path": "thrust",
+        "pass": 18,
+        "beyond": 30
+      },
+      {
+        "_id": "backLeft",
+        "squad": "backLeft",
+        "path": "thrust",
+        "pass": 34,
+        "beyond": 30
+      },
+      {
+        "_id": "backRight",
+        "squad": "backRight",
+        "path": "thrust",
+        "pass": 34,
+        "beyond": 30
+      }
     ]
   },
   "slots": [
-    { "role": "vanguard", "grade": "strong", "share": 0.3, "min": 0, "max": 1 },
-    { "role": "vanguard", "grade": "elite", "share": 0.2, "min": 0, "max": 1 },
-    { "role": "vanguard", "grade": "normal", "share": 0.35, "min": 2 },
-    { "role": "charge", "grade": "normal", "share": 0.15, "min": 0, "max": 2 }
+    {
+      "_id": "vanguard.strong",
+      "role": "vanguard",
+      "grade": "strong",
+      "share": 0.3,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "_id": "vanguard.elite",
+      "role": "vanguard",
+      "grade": "elite",
+      "share": 0.2,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "_id": "vanguard.normal",
+      "role": "vanguard",
+      "grade": "normal",
+      "share": 0.35,
+      "min": 2
+    },
+    {
+      "_id": "charge.normal",
+      "role": "charge",
+      "grade": "normal",
+      "share": 0.15,
+      "min": 0,
+      "max": 2
+    }
   ]
 }

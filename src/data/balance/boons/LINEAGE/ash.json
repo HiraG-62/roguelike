@@ -15,7 +15,13 @@
   "emberSeed": { "dpsRatio": 0.4, "duration": 3 },
   "ashCircle": { "radius": 24, "duration": 4, "increased": 0.2 },
   "fireWalk": { "radius": 20, "duration": 3 },
-  "firePillar": { "dpsRatio": 0.3, "duration": 3, "ratio": 0.6, "radius": 32, "icd": 0.6 },
+  "firePillar": {
+    "dpsRatio": 0.3,
+    "duration": 3,
+    "ratio": 0.6,
+    "radius": 32,
+    "icd": 0.6
+  },
   "scorchedEarth": { "detonateMul": 1.5, "radius": 160 },
   "wildfire": { "potency": 0.5, "radius": 32, "duration": 3, "icd": 0.3 },
   "burnSpread": { "potency": 1, "radius": 40, "duration": 3 },

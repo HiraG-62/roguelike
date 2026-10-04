@@ -63,7 +63,7 @@ electron/    Electron 版の main / preload / IPC
 1. **ロジックと描画の分離**: system は state を読み書きし、render は読むだけ。描画から state を書き換えない
 2. **描画で `state.rng` を消費しない**。見た目のばらつきは `renderMath.ts` の座標ハッシュ
 3. **決定性**: 同じ seed + 同じ FrameInput 列 → 同じ結果。`Math.random`（`audio/synth.ts` の揺らぎ以外）と実時間に依存しない。`Date.now()` は id / `foundAt` の `now` 引数だけ。`core/replay.test.ts` を壊さない
-4. **バランス数値は `src/data/balance/**/*.json`**（ブロック名 + `_note`）。ロジックは `data/tuning.ts` / `skills/data.ts` の再 export 経由で読み、直書きしない。union 文字列・key・表示名・関数は TS。置き場所と境界は `docs/BALANCE.md`。項目の意味は `_fields`（親に 1 回、行は引き継ぐ。新しい数値には 1 行足す）
+4. **バランス数値は `src/data/balance/**/*.json`**（ブロック名 + `_note`）。ロジックは `data/tuning.ts` / `skills/data.ts` の再 export 経由で読み、直書きしない。union 文字列・key・表示名・関数は TS。置き場所と境界は `docs/BALANCE.md`。項目の意味は `_fields`（親に 1 回、行は引き継ぐ。新しい数値には 1 行足す）。配列の要素には英語の名札 `_id`（`primary4.heavySlash`。文章にしない）、書式は 1 項目 1 行（`npm run balance:fmt`）
 5. **フォント**: UI 文字は **すべて** `render/pixelText.ts` の `drawText` / `textWidth` / `wrapText` / `truncateText`。`ctx.fillText` / `measureText` / `ctx.font` と等幅前提の文字数計算は禁止。行高は `Math.max(定数, textLineHeight())`
 6. **座標は 480x270 の論理座標**（`core/view.ts`）。描画は `RENDER_SCALE`（4）倍のバックバッファに描き、スプライトは `SPRITE_DOTS`（`data/sprites/dots.ts`）の密度を持つが論理寸法で描く。距離の表示は `core/units.ts` の `formatMeters`（10px = 1m）
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts

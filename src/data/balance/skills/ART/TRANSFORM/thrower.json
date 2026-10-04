@@ -1,1 +1,10 @@
-{ "arcShotCount": 3, "arcShotSpreadDeg": 15, "arcShotPierce": 1, "lineShotPierce": 3, "shotSpeed": 280, "shotLife": 0.45, "shotRadius": 4, "damageMul": 0.8 }
+{
+  "arcShotCount": 3,
+  "arcShotSpreadDeg": 15,
+  "arcShotPierce": 1,
+  "lineShotPierce": 3,
+  "shotSpeed": 280,
+  "shotLife": 0.45,
+  "shotRadius": 4,
+  "damageMul": 0.8
+}
