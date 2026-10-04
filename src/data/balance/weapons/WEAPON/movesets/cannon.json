@@ -86,8 +86,26 @@
         "shape": { "kind": "circle" },
         "hitstop": 6,
         "shake": 5,
-        "trail": "#ffc070"
-      }
+        "trail": "#ffc070",
+        "releaseStep": {
+          "windup": 0.05,
+          "active": 0.1,
+          "recover": 0.3,
+          "scaling": { "base": 9, "str": 0.45, "vit": 0.65 },
+          "poiseRatio": { "vit": 0.81 },
+          "poise": 27,
+          "reach": 0,
+          "size": 44,
+          "knockback": 420,
+          "heavy": true,
+          "mana": 3,
+          "shape": { "kind": "circle" },
+          "hitstop": 6,
+          "shake": 5,
+          "trail": "#ffc070"
+        }
+      },
+      "releaseExtras": { "selfKnock": 900 }
     }
   ],
   "branches": {

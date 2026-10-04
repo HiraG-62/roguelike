@@ -174,6 +174,46 @@
             "poise": 16,
             "count": 1,
             "spreadDeg": 0
+          },
+          "releaseThrow": {
+            "bullet": {
+              "cooldownMul": 1,
+              "damageMul": 1,
+              "speedMul": 0.7,
+              "lifeMul": 0.9,
+              "radius": 4,
+              "poiseMul": 1,
+              "recoilMul": 0,
+              "pellets": 0,
+              "spreadDeg": 0,
+              "pierceBonus": 2,
+              "arc": {
+                "catchRadius": 6,
+                "range": 64,
+                "out": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                },
+                "back": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                }
+              },
+              "pair": { "offset": 6 },
+              "releaseHit": { "hitstop": 9, "shake": 2.5 },
+              "look": { "color": "#ffffff", "trail": "#e0f8ff" }
+            },
+            "scaling": { "base": 7.5, "dex": 0.75, "str": 0.22 },
+            "poiseRatio": { "dex": 0.5 },
+            "poise": 16,
+            "count": 1,
+            "spreadDeg": 0
           }
         }
       }

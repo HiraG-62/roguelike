@@ -418,6 +418,8 @@ describe("振り直しで基礎値の値は変わらない", () => {
       if (GUNNER_HANDS_TABLE.test(path)) continue;
       // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
       if (path.startsWith(ART_PATH)) continue;
+      // 戦意あり用の段（releaseStep）は放出を別に調整するための段の写しなので、元の段と同じ扱い
+      if (path.includes(".releaseStep.")) continue;
       expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
       expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
     }

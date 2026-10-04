@@ -91,6 +91,11 @@ export interface TipDef {
 }
 
 export interface MeleeStepDef {
+  /**
+   * 戦意の放出で振るときの段（丸ごと。省略はこの段のまま）。型の放出の倍率（FORM の perUnit）はこの上に掛かる。
+   * 放出になる段だけが読む（system/player.ts の meleeStep）
+   */
+  readonly releaseStep?: MeleeStepDef;
   readonly windup: number;
   readonly active: number;
   readonly recover: number;
@@ -154,6 +159,11 @@ export interface CastDef {
   readonly key: string;
   readonly name: string;
   readonly throw: ThrowArtDef;
+  /**
+   * 戦意の放出の振りで投げる弾（戦輪の強化投げの大輪）。省略は throw のまま。型の放出の倍率（FORM の perUnit）はこの上に掛かる。
+   * 弾の key は `cast.<key>.release`
+   */
+  readonly releaseThrow?: ThrowArtDef;
 }
 
 /** 左クリック（攻撃 1）= primary、右クリック（攻撃 2）= secondary。docs/ideas/ougi-and-dual-actions.md 4 章 */
@@ -204,6 +214,8 @@ export interface SwingActionStep {
   readonly desc?: string;
   readonly cooldown?: number;
   readonly extras?: StrikeExtras;
+  /** 戦意の放出で振るときの付随効果（零距離砲の反動・起爆など）。省略は extras のまま */
+  readonly releaseExtras?: StrikeExtras;
 }
 
 /**
@@ -384,6 +396,11 @@ export interface MovesetDef {
   readonly waitForReturn?: true;
   /** この武器種を持つ間のダッシュの再使用時間の倍率（手裏剣。system/player.ts の dashCooldownTime） */
   readonly dashCooldownMul?: number;
+  /**
+   * 戦意の放出で撃つ左の 1 発に重ねる弾の数値（苦無の千本・長銃の満ちた 1 発。装備の器の弾の上に浅く重ねる）。
+   * 省略・空は器の弾のまま。型の放出の倍率（FORM の perUnit）と千本の扇（FORM.dart.senbon）はこの上に掛かる
+   */
+  readonly releaseShot?: Partial<BulletNumbers>;
 }
 
 export interface BulletChargeLevelDef {
@@ -424,6 +441,8 @@ export interface BulletDef {
   readonly recoilMul: number;
   /** 命中のヒットストップ（ステップ）。省略は FEEL.hitstopBullet。戦輪の弧の区間の hitstop があればそちらが優先 */
   readonly hitstop?: number;
+  /** 戦意の放出で投げたときの命中の手応え（戦輪の大輪）。放出でない投げには効かない（ReleaseHitDef） */
+  readonly releaseHit?: ReleaseHitDef;
   /** projectileCount に足す弾数（散弾） */
   readonly pellets: number;
   /** 複数弾の扇の間隔（度） */
@@ -467,6 +486,15 @@ export interface BulletDef {
   readonly keywords: KeywordProfile;
   /** 攻撃ジャンルと属性（docs/COMBAT_DESIGN.md A-8）。敵の防御 / 魔防のどちらで受けるかを決める */
   readonly attack: AttackProfile;
+}
+
+/**
+ * 放出の弾の命中の手応え（BulletDef.releaseHit）。hitstop = ヒットストップの底上げ（ステップ。終撃になる放出だけに効く。
+ * 省略は FEEL.hitstopFinisher）、shake = 画面揺れの底上げ（px。省略は普通の命中の揺れ）
+ */
+export interface ReleaseHitDef {
+  readonly hitstop?: number;
+  readonly shake?: number;
 }
 
 /** 敵に刺さる飛び物の種類（描画の絵と、刺さり崩しを数える単位） */
@@ -734,14 +762,17 @@ export function reviveStep(raw: unknown): MeleeStepDef {
   if (!isRecord(r.scaling) || typeof r.scaling.base !== "number") throw new Error(`段に scaling が無い: ${JSON.stringify(raw)}`);
   const step = { ...r, shape: hitShape(r.shape), scaling: meleeScaling(r.scaling as Scaling) } as unknown as MeleeStepDef;
   const withApplies = rawApplies ? { ...step, applies: rawApplies.map(statusApply) } : step;
-  return r.cast === undefined ? withApplies : { ...withApplies, cast: reviveCast(r.cast) };
+  const withCast = r.cast === undefined ? withApplies : { ...withApplies, cast: reviveCast(r.cast) };
+  return r.releaseStep === undefined ? withCast : { ...withCast, releaseStep: reviveStep(r.releaseStep) };
 }
 
 /** 段の cast（{ key, throw }）。名前は CAST_NAMES、素性と絵は CAST_VOLLEY（無ければ射撃・物理）。弾の key は `cast.<key>` */
 export function reviveCast(raw: unknown): CastDef {
   if (!isRecord(raw) || typeof raw.key !== "string" || raw.key === "") throw new Error(`不正な cast: ${JSON.stringify(raw)}`);
   const name = CAST_NAMES[raw.key] ?? raw.key;
-  return { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
+  const cast: CastDef = { key: raw.key, name, throw: reviveThrowAs(raw.throw, `cast.${raw.key}`, name, CAST_VOLLEY[raw.key]) };
+  if (raw.releaseThrow === undefined) return cast;
+  return { ...cast, releaseThrow: reviveThrowAs(raw.releaseThrow, `cast.${raw.key}.release`, name, CAST_VOLLEY[raw.key]) };
 }
 
 function reviveSteps(raw: unknown): MeleeStepDef[] {
@@ -837,7 +868,17 @@ function reviveActionStep(raw: unknown): ActionStepDef {
   const window = chainWindow === undefined ? {} : { chainWindow };
   switch (raw.kind) {
     case "swing":
-      return { kind: "swing", step: reviveStep(raw.step), key: key || undefined, name: key ? name : undefined, desc: desc || undefined, cooldown, extras: reviveExtras(raw) };
+      const releaseExtras = isRecord(raw.releaseExtras) ? reviveExtras(raw.releaseExtras) : undefined;
+      return {
+        kind: "swing",
+        step: reviveStep(raw.step),
+        key: key || undefined,
+        name: key ? name : undefined,
+        desc: desc || undefined,
+        cooldown,
+        extras: reviveExtras(raw),
+        ...(releaseExtras ? { releaseExtras } : {}),
+      };
     case "hold":
       return { kind: "hold", key, name, desc, cooldown, hold: reviveHold(raw.hold), ...window };
     case "volley":
@@ -1559,6 +1600,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     primary: "shot",
     steps2: reviveLane(W.longarm.steps2),
     branches: reviveBranches(W.longarm.branches),
+    releaseShot: W.longarm.releaseShot,
     keywords: kw(["ranged", "bullet", "stagger"], [], ["wall"]),
     attack: attack("ranged", "physical"),
   }),
@@ -1751,6 +1793,7 @@ export const MOVESETS: Readonly<Record<MovesetKey, MovesetDef>> = {
     primary: "shot",
     steps2: reviveLane(W.kunai.steps2),
     branches: reviveBranches(W.kunai.branches),
+    releaseShot: W.kunai.releaseShot,
     keywords: kw(["ranged", "bullet", "melee"], [], ["stagger"]),
     attack: attack("ranged", "physical"),
   }),
@@ -1952,6 +1995,8 @@ export function movesetCasts(moveset: MovesetDef): CastDef[] {
   const out: CastDef[] = [];
   for (const s of steps) {
     if (s?.cast) out.push(s.cast);
+    // 戦意あり用の段（releaseStep）の cast も弾の表に載せる
+    if (s?.releaseStep?.cast) out.push(s.releaseStep.cast);
   }
   return out;
 }

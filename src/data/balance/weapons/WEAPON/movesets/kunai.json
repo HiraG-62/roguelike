@@ -140,5 +140,8 @@
         "trail": "#d0e0ff"
       }
     }
+  },
+  "releaseShot": {
+    "releaseHit": { "hitstop": 9 }
   }
 }

@@ -5,6 +5,7 @@ import { FORM, WEAPON } from "../data/tuning";
 import {
   type ActionStepDef,
   type BulletDef,
+  type CastDef,
   type GrindDef,
   type ButtonKey,
   type BranchDef,
@@ -304,6 +305,12 @@ export function castOverride(state: GameState, lane: ButtonKey): ArtVolleyOverri
   return { lane, ...releaseOverride(swingShotRelease(state)) };
 }
 
+/** 振りの詠唱（cast）の弾を出す。放出の振りで、戦意あり用の弾（CastDef.releaseThrow）があればそちらを投げる */
+export function emitCast(state: GameState, cast: CastDef, over: ArtVolleyOverride): boolean {
+  const t = over.release && cast.releaseThrow ? cast.releaseThrow : cast.throw;
+  return emitArtVolley(state, t, over);
+}
+
 /**
  * 弾を出す段（斧の投擲・杖の魔弾・乱れ撃ち）。弾は段自身が持ち（ThrowArtDef.bullet）、威力・怯み値・弾数は段のもの。
  * 射撃扱い（射撃の性質・onRangedHit が乗る）。出したら true
@@ -343,10 +350,12 @@ function inheritedGrind(state: GameState, bullet: Readonly<BulletDef>): { grind:
   return { grind: base.grind, damageMul: base.damageMul };
 }
 
-/** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す */
-export function onLaneSwingStart(state: GameState, s: SwingActionStep): void {
+/** 右レーンの振りの段を振り始めたとき（player.ts の beginSwing から）。再使用を立て、付随効果（零距離砲の反動・起爆）を出す。release は放出の振り */
+export function onLaneSwingStart(state: GameState, s: SwingActionStep, release = false): void {
   startCooldown(state, s);
-  if (s.extras) applyStrikeExtras(state, s.extras);
+  // 戦意の放出の振りは、戦意あり用の付随効果（releaseExtras）があればそちらを出す
+  const extras = release ? (s.releaseExtras ?? s.extras) : s.extras;
+  if (extras) applyStrikeExtras(state, extras);
 }
 
 /** 派生を振り始めたとき（player.ts の startBranch から）。付随効果と弾（二連・光条など）を出す */

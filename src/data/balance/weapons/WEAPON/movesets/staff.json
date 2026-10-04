@@ -61,7 +61,24 @@
       "shape": { "kind": "thrust" },
       "hitstop": 2,
       "lunge": 6,
-      "trail": "#a0c0ff"
+      "trail": "#a0c0ff",
+      "releaseStep": {
+        "windup": 0.12,
+        "active": 0.09,
+        "recover": 0.2,
+        "scaling": { "base": 5.77, "str": 0.33, "mnd": 0.66 },
+        "poiseRatio": { "str": 0.297, "mnd": 0.297 },
+        "poise": 19.8,
+        "reach": 33,
+        "size": 12,
+        "knockback": 200,
+        "heavy": false,
+        "mana": 7,
+        "shape": { "kind": "thrust" },
+        "hitstop": 2,
+        "lunge": 6,
+        "trail": "#a0c0ff"
+      }
     },
     {
       "_id": "primary4.spin",

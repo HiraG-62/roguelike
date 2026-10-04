@@ -178,5 +178,8 @@
       },
       "shots": { "count": 1, "damageMul": 1 }
     }
+  },
+  "releaseShot": {
+    "releaseHit": { "hitstop": 9 }
   }
 }

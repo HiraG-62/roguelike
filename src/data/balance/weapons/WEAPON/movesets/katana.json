@@ -115,7 +115,25 @@
           "hitstop": 6,
           "shake": 3,
           "lunge": 12,
-          "trail": "#c0e0ff"
+          "trail": "#c0e0ff",
+          "releaseStep": {
+            "windup": 0.11,
+            "active": 0.08,
+            "recover": 0.51,
+            "scaling": { "base": 8.88, "dex": 0.761, "mnd": 0.888 },
+            "poiseRatio": { "dex": 0.266, "mnd": 0.266 },
+            "poise": 17.8,
+            "reach": 60,
+            "size": 14,
+            "knockback": 260,
+            "heavy": true,
+            "mana": 7.5,
+            "shape": { "kind": "thrust" },
+            "hitstop": 6,
+            "shake": 3,
+            "lunge": 12,
+            "trail": "#c0e0ff"
+          }
         },
         "levels": [
           {

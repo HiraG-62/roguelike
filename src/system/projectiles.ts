@@ -412,6 +412,9 @@ function strikeEnemy(state: GameState, pr: Projectile, e: Enemy): number {
     impact: shotImpact(pr, heavy),
     // 放出の弾（終撃）とレーン（双撃）は system/moments.ts が読む
     finisher: pr.release?.finisher,
+    // 放出の弾の手応え（BulletDef.releaseHit。戦輪の大輪）
+    finisherHitstop: pr.release?.hitstop,
+    shake: pr.release?.shake,
     release: pr.release !== undefined,
     lane: pr.lane,
     inscribes: inscribesInk(pr),
