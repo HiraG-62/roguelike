@@ -1,10 +1,10 @@
-- [Delegate to subagents](delegate-to-subagents.md) — メインは Opus、高度な推論は Fable（architect/reviewer/brainstormer）、設計済みの実装と定型は Sonnet（implementer/qa-runner/localizer）、ドット絵・数値調整は Opus
+- [Delegate to subagents](delegate-to-subagents.md) — メインは Opus、設計判断・診断・ドット絵は Opus（architect/pixel-artist）、設計済みの実装と定型は Sonnet、Fable は超思考が要るときだけ上書き
 - [Autonomous overnight progress](autonomous-overnight-progress.md) — 確認なしで進める。攻撃キーは左手側（Q/E）、右側キー不可
 - [Roguelike hack-and-slash vision](roguelike-hack-and-slash-vision.md) — リアルタイムアクション + PoE 風永続装備（無限バリエーション）の融合方針
 - [Versioning rule](versioning-rule.md) — x.xx.xx、メジャーはユーザー指示のみ、α 期間は 0.0.xxα、/bump で更新
 - [Content volume policy](content-volume-policy.md) — 出たアイデアは明らかに不要なもの以外すべて実装、波に分けて量産
-- [User memo dir](user-memo-dir.md) — memo/YYYYMMDD-N.md にユーザーのアイデア。開始時に読み「優先的」からレーン化
-- [Handoff file](handoff-file.md) — セッション開始時は docs/HANDOFF.md を最初に読む（進行中レーン・次の候補）
+- [User memo dir](user-memo-dir.md) — memo/YYYYMMDD-N.md にユーザーのアイデア。開始時に読み「優先的」からレーン化。中身もファイル名も変えない
+- [Handoff file](handoff-file.md) — セッション開始時は docs/HANDOFF.md を最初に読む。現在地は上書き（積み増さない）、積み残しは docs/BACKLOG.md
 - [Balance data in JSON](balance-data-json.md) — 調整用の数値はユーザーが触れる JSON に置く。コードに数値を混ぜない。配列の要素に英語の _id（文章にしない）、1 項目 1 行（balance:fmt）
 - [Fun over release](fun-over-release.md) — 方向性は面白さ最優先。Steam 発売の段取り・マーケは求められたときだけ
 - [Ink world direction](ink-world-direction.md) — 世界観は墨が主軸（2026-10-02）。ストーリー・正典はまだ触れない

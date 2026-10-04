@@ -8,11 +8,10 @@
 
 ## ユーザー共通ルールと記憶（クラウドセッション向け）
 
-ローカルの `~/.claude` にあるユーザーの共通ルールと自動メモリを `.claude/global/` に写してある。
+ローカルの `~/.claude` にあるユーザーの共通ルールと自動メモリを `.claude/global/` に写してある。クラウドでは SessionStart hook（`scripts/claude-session-context.mjs`）が `PREFERENCES.md` とメモリの索引を文脈に載せる（ローカルは Claude Code が元を読むので載せない。二重に読ませないため `@` で取り込まない）。
 
-@.claude/global/PREFERENCES.md
-
-- `.claude/global/memory/MEMORY.md` が自動メモリの索引。セッション開始時に読み、関係するメモリ本文を開く。`docs/HANDOFF.md` → `memo/` の順で現在地を掴む
+- 索引から関係するメモリ本文（`.claude/global/memory/`）を開く。現在地は `docs/HANDOFF.md` → `memo/` の順で掴む
+- **パッケージマネージャは npm**（`package-lock.json`）。共通ルールの「pnpm を使う」はこのプロジェクトでは当てはめない
 - `.claude/global/` は **手で直さない**。ローカルで memory やグローバル CLAUDE.md を変えたら `npm run sync:claude` で写し直してコミットする。クラウド側で覚えるべきことは `docs/HANDOFF.md` の「ユーザーに聞くこと / 引き継ぎ」に書く
 
 ## コマンド
@@ -124,7 +123,8 @@ CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/agents/`・`.claude/
 
 | ファイル | 内容 |
 | --- | --- |
-| `docs/HANDOFF.md` | **セッション開始時に最初に読む**: 現在地・進行中のレーン・次の候補・ユーザーに聞くこと |
+| `docs/HANDOFF.md` | **セッション開始時に最初に読む**: 現在地・進行中のレーン・次の候補・ユーザーに聞くこと（100 行以内。現在地は上書き） |
+| `docs/BACKLOG.md` / `docs/archive/` | 積み残しの一覧（次の作業を選ぶときに開く）/ 役目を終えた資料の置き場（過去の引き継ぎなど。普段は読まない） |
 | `docs/CODE_MAP.md` | 層ごとのファイルの役割（コードの地図） |
 | `docs/recipes/*.md` | 要素の足し方 |
 | `docs/ARCHITECTURE.md` | データフロー・型の関係・決定性とリプレイ・永続化キー |

@@ -8,7 +8,7 @@
  * - ~/.claude/projects/<このリポジトリ>/memory/*.md → .claude/global/memory/（自動メモリ。MEMORY.md が索引）
  *
  * 使い方: `npm run sync:claude`。ローカルで memory やグローバル CLAUDE.md を変えたあとに実行してコミットする。
- * クラウド側は `CLAUDE.md` が `.claude/global/` を @import で読むので、これだけで同じ文脈が載る。
+ * クラウド側は SessionStart hook（`scripts/claude-session-context.mjs`）が `.claude/global/` を読むので、これだけで同じ文脈が載る。
  *
  * オプション:
  *   --check   書き換えず、差分があるファイル名だけ表示して非 0 で終わる

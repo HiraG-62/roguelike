@@ -3,7 +3,7 @@
 このプロジェクトのルールの本体は `CLAUDE.md` にある。ここには写さない（二重管理で食い違わせないため）。作業の前に必ず次を読んで従うこと。
 
 1. `CLAUDE.md`: プロジェクト概要・コマンド・コードの地図・**不変条件**・レシピの索引・コミットと PR の作法
-2. `.claude/global/PREFERENCES.md`: ユーザー共通のルール（`CLAUDE.md` の `@` 取り込みは Codex では展開されないので直接読む）
+2. `.claude/global/PREFERENCES.md`: ユーザー共通のルール（Claude Code はグローバル設定か SessionStart hook で読むが、Codex には載らないので直接読む）
 3. 足す要素に対応する `docs/recipes/*.md`、触る層の `docs/CODE_MAP.md`。表示文字列を書くなら `docs/GLOSSARY.md`
 
 ## Codex で特に守ること
