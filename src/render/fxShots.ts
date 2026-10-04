@@ -9,6 +9,7 @@ import { ultimateDef } from "../data/ultimates";
 import { FX_ATTACK } from "../data/tuning";
 import { type FxRampKey, type FxSpriteBank, fitScale, lifeFrame, loopFrame, rampGlow, sheetDef } from "./fxSprites";
 import { BULLET_FX, type BulletFx, ULTIMATE_FX, rampOfElement } from "./fxMotions";
+import { bulletArtKey } from "../data/weapons";
 import type { GlowFn } from "./fxAttack";
 
 /** 弾ごとに繰り返しの位相をずらす（同時に撃った弾が同じコマで揃って見えないように） */
@@ -23,7 +24,7 @@ export function shotFx(pr: Projectile): BulletFx | undefined {
     if (own) return own;
   }
   const key = shotBulletOf(pr);
-  return key === undefined ? undefined : BULLET_FX.get(key);
+  return key === undefined ? undefined : BULLET_FX.get(bulletArtKey(key));
 }
 
 /**

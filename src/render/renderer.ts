@@ -78,6 +78,7 @@ import {
   offhandOffset,
   phaseProgress,
   playerBodyPose,
+  hasSlash,
   slashVisual,
   slashWeight,
   swingSign,
@@ -2813,6 +2814,8 @@ export class Renderer {
     const step = currentMeleeStep(state);
     if (!step) return;
     if (this.drawSwingSprite(state, p, step)) return;
+    // 専用の絵の無い投げるだけの段（戦輪の近投げ・強化投げなど）は、手続きの斬撃の光を手元に出さない
+    if (!hasSlash(step)) return;
     const moveset = playerMoveset(state);
     const anchor = meleeAnchor(p, step);
     const finalStep = p.attack.branch < 0 && !p.dashStrike && p.attack.step >= moveset.steps.length - 1;

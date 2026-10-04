@@ -6,7 +6,7 @@
  */
 import type { GameState, Projectile } from "../core/state";
 import type { Vec } from "../core/vec";
-import type { MovesetKey } from "../data/weapons";
+import { type MovesetKey, bulletArtKey } from "../data/weapons";
 import { type ThrownShape, thrownSpriteKey } from "../data/sprites/weapons";
 import type { EchoCast } from "../skills/types";
 import { shotBulletOf, ultimateShotOf } from "../system/effects";
@@ -135,7 +135,7 @@ export function projectileLook(pr: Projectile): ThrownLook | undefined {
   const byUlt = ult ? ULTIMATE_LOOK[ult.key] : undefined;
   if (byUlt) return byUlt;
   const key = shotBulletOf(pr);
-  return key === undefined ? undefined : BULLET_LOOK[key];
+  return key === undefined ? undefined : BULLET_LOOK[bulletArtKey(key)];
 }
 
 /** 技の弾の見た目（key は弾を出したスキルの CastParams.skillKey）。武器を投げる技は今の武器種で引く */

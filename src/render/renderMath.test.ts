@@ -15,6 +15,7 @@ import {
   turnedAttackDir,
   visualFacing,
   slashVisual,
+  hasSlash,
   slashWeight,
   swingSign,
   weaponGrip,
@@ -619,6 +620,20 @@ describe("今の振りの右レーンの段の key（段ごとの持ち替えの
     expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, charging: true }, true, false), "溜め中").toBeUndefined();
     expect(activeLaneStepKey(MOVESETS.sidearm.steps2, a, true, true), "ダッシュ攻撃").toBeUndefined();
     expect(activeLaneStepKey(MOVESETS.sidearm.steps2, { ...a, step: 99 }, true, false), "段が無い").toBeUndefined();
+  });
+});
+
+describe("斬撃を描く段", () => {
+  it("当たり判定のない投げの段（戦輪の近投げ・強化投げ）は斬撃を描かない", () => {
+    const swing = (key: string) => {
+      const lane = MOVESETS.ringBlades.steps2.find((s) => s.key === key);
+      if (lane?.kind !== "swing") throw new Error(`振りの段ではない: ${key}`);
+      return lane.step;
+    };
+    expect(hasSlash(swing("ringToss")), "近投げ").toBe(false);
+    expect(hasSlash(swing("ringHurl")), "強化投げ").toBe(false);
+    expect(hasSlash(swing("ringSweep")), "薙ぎは描く").toBe(true);
+    expect(hasSlash(swing("ringSweep2")), "大きさだけの段も描く").toBe(true);
   });
 });
 

@@ -9,6 +9,7 @@ import { MODIFIERS, SKILL_DEFS } from "../skills/data";
 import { markShotBullet, withUltimateFx } from "../system/effects";
 import { arena } from "../system/testHelpers";
 import { actorAnchor, actorSheet } from "./actorSprites";
+import { shotFx } from "./fxShots";
 import {
   BULLET_LOOK,
   MOVESET_THROWN_LOOK,
@@ -94,11 +95,26 @@ describe("投げた武器の見た目の表（弾・奥義・技の key → 絵�
     for (const look of looks) expect(SPRITES[look?.sprite ?? ""], look?.sprite).toBeDefined();
   });
 
+  it("戦意の放出の投げ（releaseThrow）も、ふだんの投げと同じ絵とエフェクトで飛ぶ", () => {
+    const art = (key: string) => {
+      const pr = shot("player");
+      markShotBullet(pr, key);
+      return { look: projectileLook(pr), fx: shotFx(pr) };
+    };
+    for (const m of MOVESET_KEYS) {
+      for (const cast of movesetCasts(MOVESETS[m])) {
+        if (!cast.releaseThrow) continue;
+        expect(art(cast.releaseThrow.bullet.key), `${m} ${cast.releaseThrow.bullet.key}`).toEqual(art(cast.throw.bullet.key));
+      }
+    }
+    expect(art("cast.ringHurl.release").fx, "戦輪の強化投げの放出は墨の絵").toBeDefined();
+  });
+
   it("表の key は実在する（弾の key・奥義・スキル・武器種）", () => {
     const bulletKeys = new Set<string>([
       ...BASES.map((b) => b.key),
       ...MOVESET_KEYS.flatMap((m) => MOVESETS[m].steps2.flatMap((s) => (s.kind === "volley" ? [`art.${s.key}`] : []))),
-      ...MOVESET_KEYS.flatMap((m) => movesetCasts(MOVESETS[m]).map((c) => c.throw.bullet.key)),
+      ...MOVESET_KEYS.flatMap((m) => movesetCasts(MOVESETS[m]).flatMap((c) => [c.throw.bullet.key, ...(c.releaseThrow ? [c.releaseThrow.bullet.key] : [])])),
     ]);
     for (const key of Object.keys(BULLET_LOOK)) expect(bulletKeys.has(key), `弾 ${key}`).toBe(true);
     const ultKeys = new Set(MOVESET_KEYS.flatMap((m) => ULTIMATES[m].map((u) => u.key)));
