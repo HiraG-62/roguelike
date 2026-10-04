@@ -32,7 +32,7 @@ main.ts ── core/loop.ts startLoop（固定 60Hz, FIXED_DT）
 
 画面遷移（タイトル・ポーズ・設定・履歴・死亡サマリー）のロジックは `src/ui/title.ts`、装備画面（装束と紋。頁の積み重ね）は `src/ui/inventory.ts` と `menuState.ts` などの `src/ui/menu*.ts`、頁ごとのファイルは `docs/CODE_MAP.md` の ui 節。どちらも DOM 非依存でテストされる。
 
-拠点（`docs/ideas/hub-design.md`）: タイトルの Enter → 拠点 → 井戸 → 起点画面 → 依頼の 3 択 → ラン。死亡画面の T とポーズの「拠点へ」は拠点へ戻り、拠点の Esc はタイトルへ。拠点の台は既存の画面（装備画面の各タブ・一覧画面・起点画面・履歴）を開き、その画面の Esc は拠点へ戻る（`main.ts` の `menuReturn`。タイトルから開いたときはタイトルへ）。台と画面の対応表・祭壇の一覧・長押しの判定は `src/ui/hubFlow.ts`。拠点の `GameState`（`sandbox`）は `main.ts` の `state` とは別の変数に持ち、リプレイの記録は従来どおり `beginRun` の後に始まる（拠点での装備変更はラン開始時のスナップショットに入る）。
+拠点（`docs/ideas/hub-design.md`）: タイトルの Enter → 拠点 → 井戸 → 起点画面 → 依頼の 3 択 → ラン。死亡画面の T とポーズの「拠点へ」は拠点へ戻り、拠点の Esc は拠点のメニュー（再開・設定・Tips ノート・武器指南書・タイトルに戻る・ゲームを終了する。`main.ts` の `hubMenu` 画面、項目は `ui/title.ts` の `HUB_MENU_ITEMS`）を開き、タイトルへはそこから戻る（装備画面を閉じる Esc の連打で抜けないため）。拠点の台は既存の画面（装備画面の各タブ・一覧画面・起点画面・履歴）を開き、その画面の Esc は拠点へ戻る（`main.ts` の `menuReturn`。タイトルから開いたときはタイトルへ）。台と画面の対応表・祭壇の一覧・長押しの判定は `src/ui/hubFlow.ts`。拠点の `GameState`（`sandbox`）は `main.ts` の `state` とは別の変数に持ち、リプレイの記録は従来どおり `beginRun` の後に始まる（拠点での装備変更はラン開始時のスナップショットに入る）。
 
 戦闘再設計（`docs/COMBAT_DESIGN.md`）で入った主要システム: `system/attributes.ts`（ステータスの実効値・威力計算 `scaled`。`applyStats` から `deriveAttributes` として呼ぶ）、`system/mana.ts`（気力の増減。`core/game.ts` の `step` から `refillMana` / `tickMana` を直接呼ぶ）、`system/poise.ts`（怯みの蓄積・減衰・堅守・処刑・背面の一撃。`combat.ts` / `enemies.ts` / `elites.ts` / `statusEffects.ts` から呼ばれ、独立した `step` ステップは持たない）、`system/statusEffects.ts`（34 種の状態異常。`step` のパイプラインに `updateStatusEffects` として入っている）。
 

@@ -686,7 +686,9 @@ describe("武器 Wave 4 の武器種（docs/ideas/weapons-wave4.md 2〜5 章）"
     for (const b of BASES.filter((x) => x.moveset === "ringBlades")) expect(bulletDef(b.key).arc, `${b.key} の弾は弧で戻る`).toBeDefined();
     expect(bulletDef("fangRings").grind, "牙輪は食い込む").toBeDefined();
     expect(bulletDef("ringBlades").grind, "輪刃は食い込まない").toBeUndefined();
-    expect(bulletDef("fangRings").lifeMul, "牙輪の射程は輪刃より短い").toBeLessThan(bulletDef("ringBlades").lifeMul);
+    // 射程は速さ × 寿命で決まる（寿命だけで比べると、速さで差を付ける調整で落ちる）
+    const reachMul = (key: string): number => bulletDef(key).speedMul * bulletDef(key).lifeMul;
+    expect(reachMul("fangRings"), "牙輪の射程は輪刃より短い").toBeLessThan(reachMul("ringBlades"));
   });
 
   it("クナイ・手裏剣は投擲物の群。クナイは左で器の弾を投げ、手裏剣は左右とも振りが弾を投げる", () => {
