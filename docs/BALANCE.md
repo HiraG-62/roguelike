@@ -79,7 +79,7 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 ## 数値の変え方
 
-全部 `src/data/balance/**/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`pnpm run check` は通さなくても `pnpm run dev` は動くが、変える前に一度 `pnpm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。
+全部 `src/data/balance/**/*.json` を直接編集する。保存すると Vite が自動で再読み込みする（5.1。ラン中はタイトルへ戻る）。`pnpm run check` は通さなくても `pnpm run dev` は動くが、変える前に一度 `pnpm run check` で今の状態がクリーンか確かめておくと、自分の変更で壊れたのか元から壊れていたのか切り分けやすい。数値を変えて落ちたテストが制約（刃先・確率の合計など）以外なら、それはテストの側の書き方の問題（`docs/TESTING.md`）。
 
 **武器の振りの速さを変える**（例: 大剣の 1 段目を速くする）:
 1. `src/data/balance/weapons/WEAPON/movesets/greatsword.json` を開き、`steps` の配列から 1 段目（`"_id": "primary1.…"`）を探す

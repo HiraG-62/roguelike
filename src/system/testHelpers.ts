@@ -94,3 +94,46 @@ export function interactAt(state: GameState, pos: Vec): void {
   state.player.body.pos = { ...pos };
   pressInteract(state, pos);
 }
+
+/** withTuning の上書き。読み取り専用のバランスの型でも書けるよう readonly を外し、入れ子は一部だけ書ける（配列は添字で `{ 1: … }`） */
+export type TuningPatch<T> = T extends readonly (infer E)[]
+  ? { [index: number]: TuningPatch<E> }
+  : T extends object
+    ? { -readonly [K in keyof T]?: TuningPatch<T[K]> }
+    : T;
+
+function isPlainObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
+
+/** patch を target へ入れ子ごとに書き、元に戻す手順を restores へ積む（葉だけ差し替えるので、ロジックが握った参照も新しい値を読む） */
+function applyPatch(target: object, patch: object, restores: (() => void)[]): void {
+  for (const [key, value] of Object.entries(patch)) {
+    const current: unknown = Reflect.get(target, key);
+    if (isPlainObject(current) && isPlainObject(value)) {
+      applyPatch(current, value, restores);
+      continue;
+    }
+    const had = Object.prototype.hasOwnProperty.call(target, key);
+    restores.push(() => {
+      if (had) Reflect.set(target, key, current);
+      else Reflect.deleteProperty(target, key);
+    });
+    Reflect.set(target, key, value);
+  }
+}
+
+/**
+ * バランスの数値を fn の間だけ上書きする（docs/TESTING.md「振る舞いのテストは数値を固定する」）。
+ * 仕組みのテストを本番の JSON の値から切り離すため。ロジックが実際に読むオブジェクト（data/tuning.ts の再 export など）を渡す。
+ * モジュールの読み込み時に計算済みの定数には効かない。fn は同期のみ（終わった時点で必ず元へ戻す）
+ */
+export function withTuning<T extends object, R>(target: T, patch: TuningPatch<T>, fn: () => R): R {
+  const restores: (() => void)[] = [];
+  try {
+    applyPatch(target, patch, restores);
+    return fn();
+  } finally {
+    for (let i = restores.length - 1; i >= 0; i--) restores[i]?.();
+  }
+}

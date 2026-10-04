@@ -22,6 +22,7 @@
 | `pnpm run check` | audit:docs → tsc → vitest → vite build。1 つでも失敗で非 0。**作業完了の判定はこれ** |
 | `pnpm run check:fast` | 並列レーンの途中確認用。QA シミュレーション・Electron の型検査・ビルドを省く（コミット前は `check`） |
 | `pnpm run test` | vitest run（QA シミュレーションは縮小版だけ走る） |
+| `pnpm run test:perturb` | バランスの小数を ×1.1 で読んでテストを回し、数値の調整で落ちるテストを数える（`--mul 0.9` / ファイル指定。落ちてよいのは制約のテストだけ） |
 | `pnpm run audit:docs` | エージェント資料とコードのずれを検査（`check` の最初の段でも走る） |
 | `pnpm run fx:gen` | エフェクトのスプライトを生成（`scripts/fx/`、1 武器種 約 30 秒）。`--atlas <武器種>` でその武器種だけ、`--only <key> --preview <dir>` で確認用 PNG だけ |
 | `pnpm run sprite` | ドット絵の作業台（`scripts/sprite/cli.mjs`）: `render`（確認用 PNG）/ `lint`（様式書の点検）/ `strip --ase`（Aseprite へ）/ `import`（PNG・.aseprite → `Frame` リテラル）/ `palette` / `gen`（Spriteloom で下絵の案）。手順は `docs/recipes/sprite.md` |
@@ -68,7 +69,7 @@ electron/    Electron 版の main / preload / IPC
 7. **効果音**: ロジックは `pushSfx(state, name)` で名前を積むだけ。再生は main.ts
 8. **永続化**: `src/save/backend.ts` の `saveStorage()` 経由で、各ストア（loot/profile・craftingStore・skills/persistence・ui/settings・ui/replayStore・meta/*Store）からのみ触る。step の中では触らない。壊れたデータは黙って既定へ。キーの形式を変えるなら `v2` を切る
 9. **型と作法**: `any` 禁止。`noUncheckedIndexedAccess` 有効なので添字結果の undefined を扱う。マジックナンバーは定数化、早期リターン、関数は単一責任。コメントは日本語で「なぜ」
-10. **テスト**: Vitest。`it` / `describe` 名とメッセージは日本語。新しい仕組みには必ずテスト。テスト専用ヘルパーは `system/testHelpers.ts` / `meta/testStorage.ts` / `audio/testAudioMock.ts`（本体から import しない）
+10. **テスト**: Vitest。**バランスの数値を写さない**（関係と仕組みを守り、仕組みのテストは `withTuning` で数値を固定する。`docs/TESTING.md`）。`it` / `describe` 名とメッセージは日本語。新しい仕組みには必ずテスト。テスト専用ヘルパーは `system/testHelpers.ts` / `meta/testStorage.ts` / `audio/testAudioMock.ts`（本体から import しない）
 11. **UI の方針**: 単一指標（DPS・アイテムスコア）を出さない。ツールチップは「何ができるか」を語る（`docs/DESIGN_PRINCIPLES.md`）。仕組み・用語の説明は UI に書かず `meta/tips.ts`（Tips ノート）に足す。キー名は `core/input.ts` の `keyLabel` で組み、固定で書かない
 12. **用語**: 表示文字列は `docs/GLOSSARY.md`（世界観語の対応表・表示文字列の書き方）に従う。ラベル・浮き文字は体言止め（「奥義終了」。「奥義が終わった」にしない。`system/floatingText.test.ts` が検査）。内部 key は変えない。新語を作ったら GLOSSARY に 1 行足し、迷ったらユーザーに聞く
 
@@ -131,6 +132,7 @@ CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/agents/`・`.claude/
 | `docs/ARCHITECTURE.md` | データフロー・型の関係・決定性とリプレイ・永続化キー |
 | `docs/AI_WORKFLOW.md` | 設計 → 並列実装 → レビュー → QA → 統合の手順、Agent プロンプト雛形、モデルの使い分け |
 | `docs/BALANCE.md` | バランス数値（JSON）の置き場所と変え方 |
+| `docs/TESTING.md` | テストの書き方（数値の調整で壊れないテスト・`withTuning`・`test:perturb`） |
 | `docs/BALANCE_DICTIONARY.md` | バランス数値の全項目の辞書（`_fields` から `pnpm run balance:dict` で生成） |
 | `docs/STATS_AND_SCALING.md` | ステータスと係数の共通の決まり（武器・スキル・状態異常を足すときに必ず従う） |
 | `docs/DESIGN_PRINCIPLES.md` / `docs/COMBAT_DESIGN.md` / `docs/LOOT_DESIGN.md` | ゲームデザインの原則 / 戦闘設計（攻撃と怯み・ジャンル・属性・ジョブ・気力・回復）/ 装備システムの設計 |

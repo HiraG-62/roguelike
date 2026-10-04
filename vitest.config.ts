@@ -1,4 +1,4 @@
-import { configDefaults, defineConfig } from "vitest/config";
+import { configDefaults, defineConfig, type Plugin } from "vitest/config";
 
 /**
  * テスト全体を並列で回すと、マップを生成してステップを回す重めのテスト（リプレイ・ランイベント・生成）が
@@ -19,7 +19,37 @@ const IGNORED = [".claude/**"];
 /** `pnpm run check:fast`（scripts/check.mjs が VITEST_FAST=1 を渡す）で省く重いテスト。projects には CLI の --exclude が効かないのでここで外す */
 const FAST_EXCLUDE = process.env.VITEST_FAST === "1" ? ["src/qa/simulation.test.ts"] : [];
 
+/**
+ * `pnpm run test:perturb`（scripts/test-perturb.mjs が BALANCE_PERTURB=<倍率> を渡す）で、バランス JSON の小数をすべて倍率で動かして読む。
+ * 数値を少し変えただけで落ちるテスト（数値の写し・指紋）を見つけるため（docs/TESTING.md）。整数は個数・フレーム数が多いので動かさない
+ */
+const PERTURB = Number(process.env.BALANCE_PERTURB ?? "");
+const BALANCE_JSON = /[\\/]src[\\/]data[\\/]balance[\\/].*\.json$/;
+const PERTURB_DIGITS = 6;
+
+function perturbValue(value: unknown, key: string): unknown {
+  if (key.startsWith("_")) return value;
+  if (Array.isArray(value)) return value.map((item) => perturbValue(item, ""));
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, perturbValue(v, k)]));
+  }
+  if (typeof value === "number" && !Number.isInteger(value)) return Number((value * PERTURB).toFixed(PERTURB_DIGITS));
+  return value;
+}
+
+function balancePerturbPlugin(): Plugin {
+  return {
+    name: "balance-perturb",
+    enforce: "pre",
+    transform(code, id) {
+      if (!BALANCE_JSON.test(id)) return null;
+      return { code: JSON.stringify(perturbValue(JSON.parse(code), "")), map: null };
+    },
+  };
+}
+
 export default defineConfig({
+  plugins: Number.isFinite(PERTURB) && PERTURB > 0 ? [balancePerturbPlugin()] : [],
   test: {
     testTimeout: TEST_TIMEOUT_MS,
     // 変換結果のファイルキャッシュ（fsModuleCache）は使わない。消したファイルを指す古い結果が残って落ちることがあり、縮むのも 1 割未満だった（2026-09-30）

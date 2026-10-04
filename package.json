@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:perturb": "node scripts/test-perturb.mjs",
     "check": "node scripts/check.mjs",
     "check:fast": "node scripts/check.mjs --fast",
     "qa:full": "node scripts/qa-full.mjs",
