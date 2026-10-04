@@ -5,5 +5,9 @@
 - [Content volume policy](content-volume-policy.md) — 出たアイデアは明らかに不要なもの以外すべて実装、波に分けて量産
 - [User memo dir](user-memo-dir.md) — memo/YYYYMMDD-N.md にユーザーのアイデア。開始時に読み「優先的」からレーン化
 - [Handoff file](handoff-file.md) — セッション開始時は docs/HANDOFF.md を最初に読む（進行中レーン・次の候補）
-- [Balance data in JSON](balance-data-json.md) — 調整用の数値はユーザーが触れる JSON に置く。コードに数値を混ぜない
+- [Balance data in JSON](balance-data-json.md) — 調整用の数値はユーザーが触れる JSON に置く。コードに数値を混ぜない。配列の要素に英語の _id（文章にしない）、1 項目 1 行（balance:fmt）
+- [Fun over release](fun-over-release.md) — 方向性は面白さ最優先。Steam 発売の段取り・マーケは求められたときだけ
+- [Ink world direction](ink-world-direction.md) — 世界観は墨が主軸（2026-10-02）。ストーリー・正典はまだ触れない
+- [GPU measurement](gpu-measurement.md) — 描画の計測は GPU で（headless は既定で CPU 描画。GPU_ARGS を付ける）
 - [Cloud session sync](cloud-session-sync.md) — グローバル設定と memory は .claude/global/ に写す。memory を変えたら npm run sync:claude
+- [Worktree 削除と node_modules](worktree-remove-node-modules.md) — エージェント worktree を消したら本体の node_modules が空になった。消す前にジャンクションを外す
