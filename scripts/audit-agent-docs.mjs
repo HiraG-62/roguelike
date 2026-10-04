@@ -13,6 +13,8 @@
  * 6. 用語集で置き換えた旧用語が「旧〜」の形以外で残っていない
  * 7. CLAUDE.md が行数の上限を超えていない（詳細は docs/ 側へ分けて参照させる）
  * 8. バランス数値の組み立て（src/data/balance/assembled.gen.ts）が JSON のディレクトリと食い違っていない（`npm run balance:gen`）
+ * 9. docs/HANDOFF.md が行数の上限を超えていない（現在地は上書きし、積み残しは docs/BACKLOG.md へ）
+ * 10. docs/ideas/ 直下の md が docs/ideas/README.md の早見表に載っている
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -26,6 +28,12 @@ const DOC_FILES = ["CLAUDE.md", "docs/CODE_MAP.md", "docs/AI_WORKFLOW.md"];
 const RECIPES_DIR = "docs/recipes";
 /** CLAUDE.md は入口の索引。これを超えたら docs/ 側へ分割する */
 const MAX_CLAUDE_LINES = 150;
+/** 引き継ぎは毎セッション読む。節を積み増すとすぐ膨らむので上限で止める */
+const HANDOFF_FILE = "docs/HANDOFF.md";
+const MAX_HANDOFF_LINES = 100;
+/** 案と設計書の置き場。索引に載らないファイルが増えると、何がどこにあるか分からなくなる */
+const IDEAS_DIR = "docs/ideas";
+const IDEAS_INDEX = "docs/ideas/README.md";
 const SKILLS_DIR = ".claude/skills";
 const AGENTS_DIR = ".claude/agents";
 /** 識別子を探す範囲 */
@@ -224,6 +232,25 @@ function checkClaudeLength() {
   if (n > MAX_CLAUDE_LINES) note("CLAUDE.md", `${n} 行（上限 ${MAX_CLAUDE_LINES}）。詳細は docs/（CODE_MAP / recipes / AI_WORKFLOW）へ分けて、ここには参照だけ残す`);
 }
 
+// ---------- 9. HANDOFF.md の長さ ----------
+function checkHandoffLength() {
+  const abs = join(ROOT, HANDOFF_FILE);
+  if (!existsSync(abs)) return;
+  const n = readFileSync(abs, "utf8").split("\n").length;
+  if (n > MAX_HANDOFF_LINES) note(HANDOFF_FILE, `${n} 行（上限 ${MAX_HANDOFF_LINES}）。現在地は上書きし、積み残しは docs/BACKLOG.md、固まった運用は docs/AI_WORKFLOW.md へ移す`);
+}
+
+// ---------- 10. docs/ideas の索引 ----------
+function checkIdeasIndex() {
+  const indexAbs = join(ROOT, IDEAS_INDEX);
+  if (!existsSync(indexAbs)) return;
+  const index = readFileSync(indexAbs, "utf8");
+  for (const name of readdirSync(join(ROOT, IDEAS_DIR))) {
+    if (!name.endsWith(".md") || name === basename(IDEAS_INDEX)) continue;
+    if (!index.includes("`" + name + "`")) note(IDEAS_INDEX, `${IDEAS_DIR}/${name} が早見表に無い。種類に合う表へ 1 行足す`);
+  }
+}
+
 // ---------- 6. 旧用語 ----------
 function checkStaleTerms({ rel, text }) {
   for (const term of STALE_TERMS) {
@@ -249,6 +276,8 @@ checkMapCoverage();
 checkCounts();
 checkRegistrations();
 checkClaudeLength();
+checkHandoffLength();
+checkIdeasIndex();
 checkBalanceAssemblyUpToDate();
 
 if (problems.length === 0) {

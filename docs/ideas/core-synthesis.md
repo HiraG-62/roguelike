@@ -1,11 +1,11 @@
 # 三つの核の統合: レビューの反映・相関・次のアイデア
 
 作成日: 2026-09-30
-前提: ユーザーが `docs/reviews/` に 3 つの設計書のレビューを入れた（`build-core.review.md` 42 か所 / `encounter-core.review.md` 32 か所 / `economy-core.review.md` 14 か所）。依頼は「すべてまとめて、相関も含めて、またアイデアを練りたい」。
+前提: ユーザーが `docs/archive/reviews/` に 3 つの設計書のレビューを入れた（`build-core.review.md` 42 か所 / `encounter-core.review.md` 32 か所 / `economy-core.review.md` 14 か所）。依頼は「すべてまとめて、相関も含めて、またアイデアを練りたい」。
 
 この文書は `docs/ideas/build-core.md`・`encounter-core.md`・`economy-core.md` を上書きしない。レビューで決まったこと・変わったことをここに集め、3 つの文書をまたぐ相関と新しいアイデアを足す。
 
-**2026-09-30 追記**: この文書へのレビュー（`docs/reviews/core-synthesis.review.md`、14 か所）で 10 章の全項目が承認された。名前は 2-2 の案（「融合」だけ代案の「融合」）で確定し、3 文書の用語を付け直して冒頭に「この文書が優先する節」を足した。レビューで足された指摘は 3-1・3-2・3-8・3-13・8 章に反映した。**3 文書と食い違うときはこの文書が優先する**。
+**2026-09-30 追記**: この文書へのレビュー（`docs/archive/reviews/core-synthesis.review.md`、14 か所）で 10 章の全項目が承認された。名前は 2-2 の案（「融合」だけ代案の「融合」）で確定し、3 文書の用語を付け直して冒頭に「この文書が優先する節」を足した。レビューで足された指摘は 3-1・3-2・3-8・3-13・8 章に反映した。**3 文書と食い違うときはこの文書が優先する**。
 
 印の参照は「B12」= build-core の Mark 12、「E17」= encounter-core の Mark 17、「$4」= economy-core の Mark 4。
 

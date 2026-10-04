@@ -1,6 +1,6 @@
 # S7 診断書: アイデアの棚卸しとユーザーの決定
 
-調査日 2026-10-02。読んだもの: `docs/HANDOFF.md`（1・2・4・5 章）、`IDEAS.md`「現状」、`docs/ideas/README.md` のチェックリスト、`memo/*.md`、`docs/reviews/*.review.md`（ユーザーのメモ欄）、`docs/ideas/*.md` の「却下 / 見送り / やらないこと」節、`CHANGELOG.md` の [Unreleased]、`src/qa/report.md`・`src/qa/probe.md`。資料とコードが食い違う所はコードで確かめた。
+調査日 2026-10-02。読んだもの: `docs/HANDOFF.md`（1・2・4・5 章）、`IDEAS.md`「現状」、`docs/ideas/README.md` のチェックリスト、`memo/*.md`、`docs/archive/reviews/*.review.md`（ユーザーのメモ欄）、`docs/ideas/*.md` の「却下 / 見送り / やらないこと」節、`CHANGELOG.md` の [Unreleased]、`src/qa/report.md`・`src/qa/probe.md`。資料とコードが食い違う所はコードで確かめた。
 
 ## 1. 何があるか（骨格と遊びの流れ）
 

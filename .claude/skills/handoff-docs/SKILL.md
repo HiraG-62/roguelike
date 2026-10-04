@@ -1,6 +1,6 @@
 ---
 name: handoff-docs
-description: このプロジェクトの引き継ぎ文書（docs/HANDOFF.md、IDEAS.md の「現状」、docs/ideas/README.md のチェックリスト）を最新の実装に合わせて更新する。
+description: このプロジェクトの引き継ぎ文書（docs/HANDOFF.md、docs/BACKLOG.md、IDEAS.md の「現状」、docs/ideas/README.md のチェックリスト）を最新の実装に合わせて更新する。
 ---
 
 # /handoff-docs
@@ -9,8 +9,10 @@ description: このプロジェクトの引き継ぎ文書（docs/HANDOFF.md、I
    - `git log --oneline -- docs/HANDOFF.md IDEAS.md` で前回更新コミットを探し、`git log --oneline <そのコミット>..HEAD`
    - 未コミット変更は `git status --short`
 2. `docs/HANDOFF.md` を更新する（次のセッションが最初に読む。詳細は書かず「いまどこで、何が動いていて、次に何をするか」だけ）
-   - 見出しの日付と版、「現在地」の HEAD・check の状態・稼働中のレーン
-   - 「次の候補」から済んだものを消し、新しく分かった積み残しを足す
+   - **節を積み増さない**。見出しの日付と版を直し、「現在地」は前の内容を消して **上書き** する（経緯は `CHANGELOG.md` にある）。「進行中のレーン」の表も今の状態だけ
+   - 「次の候補」は上位の数件だけ。済んだものを消し、新しく分かった積み残しは `docs/BACKLOG.md` の一番上の節へ足す（BACKLOG の済んだ行も消す）
+   - 「ユーザーに聞くこと」は未回答だけ。回答をもらった行は消し、決定は該当の設計文書か「変わらない方針」へ
+   - 固まった運用は `docs/AI_WORKFLOW.md` へ移す。全体で 100 行以内（`npm run audit:docs` が検査）
    - クラウドセッションで新しく覚えるべきことは memory ではなくここの「ユーザーに聞くこと / 引き継ぎ」に書く
 3. `IDEAS.md` の「現状（日付 時点）」節を更新する
    - 日付を今日に
