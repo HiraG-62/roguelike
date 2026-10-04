@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "delay": "狙う位置の遅れ。秒（この秒数前のプレイヤーの位置を狙う）",
+    "sampleInterval": "プレイヤーの位置を記録する間隔。秒",
+    "radius": "炸裂の半径。px",
+    "damage": "炸裂のダメージ（深度で伸びる基準値）",
+    "keepAway": "プレイヤーとの距離をこの付近に保つ。px",
+    "color": "炸裂の色（#RRGGBB）"
+  },
   "delay": 1.5,
   "sampleInterval": 0.1,
   "radius": 26,

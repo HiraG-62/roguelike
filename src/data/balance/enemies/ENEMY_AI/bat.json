@@ -1,1 +1,10 @@
-{ "zigzagFreq": 9, "zigzagAmount": 0.9, "retreatMul": 1.2 }
+{
+  "_fields": {
+    "zigzagFreq": "ふらつきの速さ（ラジアン/秒）。大きいほど細かく左右に振れる",
+    "zigzagAmount": "ふらつきの幅。前へ進む向きに対する横向きの強さ（1 = 前進と同じ強さ）",
+    "retreatMul": "攻撃の後の隙の間に離れる速さ。歩く速さに対する倍率（一撃離脱）"
+  },
+  "zigzagFreq": 9,
+  "zigzagAmount": 0.9,
+  "retreatMul": 1.2
+}

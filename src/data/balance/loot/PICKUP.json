@@ -1,1 +1,8 @@
-{ "focusRadius": 14, "reach": 48 }
+{
+  "focusRadius": 14,
+  "reach": 48,
+  "_fields": {
+    "focusRadius": "照準の注目の半径: 照準点（または照準線）からこの距離以内の床のものを注目して拾える。px",
+    "reach": "拾える距離（プレイヤーからこの距離以内）。px（10px = 1m）"
+  }
+}

@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "threshold": "凍結中に冷気が入った回数がこれに達すると氷棺になる",
+    "shardRadius": "氷棺の砕きで氷の破片が届く半径（px）",
+    "shardHpRatio": "破片のダメージ = 砕けた敵の最大生命 × この割合〔0..1〕。上限は shardMax",
+    "shardMax": "破片のダメージの上限",
+    "shardPoise": "破片が周囲の敵に入れる怯み値",
+    "thawRadius": "氷棺が燃焼で解けたとき水たまりを置く半径（px）"
+  },
   "threshold": 3,
   "shardRadius": 50,
   "shardHpRatio": 0.15,

@@ -1,1 +1,4 @@
-{ "keepAway": 90 }
+{
+  "_fields": { "keepAway": "プレイヤーとの距離をこの付近に保つ。px（山なりに吐く蛙）" },
+  "keepAway": 90
+}

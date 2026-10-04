@@ -9,7 +9,7 @@
 - オブジェクト名だけの行（`resist` など）は、その中の項目すべてに効く
 - （未記入） は `_fields` に説明がまだ無い項目
 
-項目 3859（うち（未記入） 1829）
+項目 3672（うち（未記入） 0）
 
 ## combat/MANA
 
@@ -17,22 +17,22 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `baseMax` | （未記入） |
-| `baseRegen` | （未記入） |
-| `idleRegenMul` | （未記入） |
-| `combatRadius` | （未記入） |
-| `onMelee` | （未記入） |
-| `meleeTargetCap` | （未記入） |
-| `onDashAttack` | （未記入） |
-| `onCounterMul` | （未記入） |
-| `onJust` | （未記入） |
-| `onKill` | （未記入） |
-| `attackGainMulMax` | （未記入） |
-| `attackGainScale` | （未記入） |
-| `costMulMin` | （未記入） |
-| `maxMin` | （未記入） |
-| `startFull` | （未記入） |
-| `descendRefill` | （未記入） |
+| `baseMax` | 気力の最大値の基礎（精神が base のとき。精神・装備・祝福で増減し、下限は maxMin） |
+| `baseRegen` | 気力の自然回復（毎秒）の基礎。戦闘中の値で、精神 1 点ごとに mndManaRegen が足される |
+| `idleRegenMul` | 戦っていない間（封鎖中の部屋が無く、combatRadius 内に敵がいない）の自然回復の倍率〔1 = 等倍〕 |
+| `combatRadius` | 戦闘中とみなす敵との距離（px）。この内側に生きた敵がいるか、封鎖中の部屋があると戦闘中 |
+| `onMelee` | 剣の近接 1〜3 段目（段の順）の命中 1 体あたりの気力の回収。attackGainScale を掛けてから戻る |
+| `meleeTargetCap` | 1 回の振りで気力を数える敵の数の上限（体）。薙ぎ払いで一気に満たさないための頭打ち |
+| `onDashAttack` | ダッシュ攻撃（剣）の命中 1 体あたりの気力の回収 |
+| `onCounterMul` | 出端（カウンター）の命中で戻る気力の倍率〔1 = 等倍〕 |
+| `onJust` | ジャスト回避 1 回で戻る気力 |
+| `onKill` | 敵を 1 体倒すごとに戻る気力。装備・祝福の加算と気力の獲得の倍率が掛かる |
+| `attackGainMulMax` | 通常攻撃の回収に掛かる倍率（誓約・祝福・性質の積）の上限〔1 = 等倍〕 |
+| `attackGainScale` | 武器の命中（近接の段・ダッシュ攻撃・弾）の回収に掛ける素の倍率〔1 = 等倍〕。段ごとの値を書き換えずに全体を絞る口 |
+| `costMulMin` | スキルの気力コストの倍率の下限〔1 = 等倍〕。性質・祝福で下げてもこれより安くならない |
+| `maxMin` | 最大気力の下限。精神を下げてもこれより減らない |
+| `startFull` | ラン開始時に気力を満タンにするか（true / false） |
+| `descendRefill` | 階へ降りたとき、最大気力のこの割合まで補給する。割合〔0..1〕。既に上回っていれば減らさない |
 
 ## combat/HEAL
 
@@ -40,9 +40,9 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `sustainWindow` | （未記入） |
-| `sustainCapRatio` | （未記入） |
-| `killHealMinCombo` | （未記入） |
+| `sustainWindow` | 戦闘中の回復（命中時・撃破時・祝福の撃破回復）の合計を数える窓（秒）。窓の最初の回復から数える |
+| `sustainCapRatio` | 窓の中で戻れる合計の上限。最大生命に対する割合〔0..1。0.04 = 4%〕 |
+| `killHealMinCombo` | 撃破時の回復が働くコンボ数の下限。これ未満の撃破では戻らない |
 | `descendHealRatio` | 初めて着いた階へ降りたとき、失った生命（maxHp - hp）のうちこの割合を回復する。割合(0..1) |
 | `heartChanceByChapter` | 部屋を制圧したときにハートを落とす確率を章ごとに（1 章から順。章より深い階は最後の値）。割合(0..1)。試練の部屋は確定。章が進むほど絞る（回復は瓶と泉へ） |
 
@@ -52,8 +52,8 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `innerRatio` | （未記入） |
-| `edgeMul` | （未記入） |
+| `innerRatio` | 爆心から等倍で届く範囲。爆発の半径に対する割合〔0..1〕。これより外は縁へ向けて線形に弱まる |
+| `edgeMul` | 縁（半径の端）での倍率〔1 = 等倍〕。ダメージ・怯み値・ノックバックに掛かる |
 
 ## combat/STATUS
 
@@ -61,162 +61,162 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `burnDuration` | （未記入） |
-| `burnParticleInterval` | （未記入） |
-| `burnColor` | （未記入） |
-| `chillColor` | （未記入） |
-| `chillDuration` | （未記入） |
-| `maxSlow` | （未記入） |
-| `onHitIcd` | （未記入） |
-| `shockRadius` | （未記入） |
-| `shockMaxTargets` | （未記入） |
-| `shockColor` | （未記入） |
-| `explodeRadius` | （未記入） |
-| `explodeColor` | （未記入） |
-| `explodeKnockback` | （未記入） |
-| `fxLife` | （未記入） |
-| `ccWindow` | （未記入） |
-| `ccBudget` | （未記入） |
-| `chill.slowPerStack` | （未記入） |
-| `chill.maxStacks` | （未記入） |
-| `chill.playerMaxStacks` | （未記入） |
-| `chill.duration` | （未記入） |
-| `chill.bossMaxSlow` | （未記入） |
-| `freeze.duration` | （未記入） |
-| `freeze.shatterDamageMul` | （未記入） |
-| `freeze.shatterPoise` | （未記入） |
-| `freeze.chillImmuneAfter` | （未記入） |
-| `shock.interval` | （未記入） |
-| `shock.radius` | （未記入） |
-| `shock.maxStacks` | （未記入） |
-| `shock.duration` | （未記入） |
-| `paralyze.duration` | （未記入） |
-| `paralyze.bossDuration` | （未記入） |
-| `paralyze.shockImmuneAfter` | （未記入） |
-| `poison.hpRatioPerSec` | （未記入） |
-| `poison.bossHpRatioPerSec` | （未記入） |
-| `poison.playerHpRatioPerSec` | （未記入） |
-| `poison.maxStacks` | （未記入） |
-| `poison.playerMaxStacks` | （未記入） |
-| `poison.duration` | （未記入） |
-| `bleed.distance` | （未記入） |
-| `bleed.maxStacks` | （未記入） |
-| `bleed.duration` | （未記入） |
-| `bleed.poisonMul` | （未記入） |
-| `vulnerable.mul` | （未記入） |
-| `vulnerable.duration` | （未記入） |
-| `weaken.mul` | （未記入） |
-| `weaken.duration` | （未記入） |
-| `fear.duration` | （未記入） |
-| `fear.immuneAfter` | （未記入） |
-| `fear.wispMul` | （未記入） |
-| `silence.enemyDuration` | （未記入） |
-| `silence.playerDuration` | （未記入） |
-| `vaporizeRatio` | （未記入） |
-| `burnMaxStacks` | （未記入） |
-| `reactionIcd` | （未記入） |
-| `lastEndedWindow` | （未記入） |
-| `statusCountCap` | （未記入） |
-| `totalStacksCap` | （未記入） |
-| `goodCountCap` | （未記入） |
-| `wet.maxStacks` | （未記入） |
-| `wet.duration` | （未記入） |
-| `wet.shockRadiusMul` | （未記入） |
-| `soaked.duration` | （未記入） |
-| `soaked.slow` | （未記入） |
-| `oiled.duration` | （未記入） |
-| `blaze.duration` | （未記入） |
-| `blaze.dpsMul` | （未記入） |
-| `blaze.minDps` | （未記入） |
-| `blaze.spreadRadius` | （未記入） |
-| `blaze.spreadInterval` | （未記入） |
-| `corrode.maxStacks` | （未記入） |
-| `corrode.duration` | （未記入） |
-| `corrode.poisePerStack` | （未記入） |
-| `corrode.playerTakenPerStack` | （未記入） |
-| `brand.maxStacks` | （未記入） |
-| `brand.duration` | （未記入） |
-| `brand.damagePerStack` | （未記入） |
-| `brand.poisePerStack` | （未記入） |
-| `brand.staggeredMul` | （未記入） |
-| `broken.duration` | （未記入） |
-| `broken.poiseMul` | （未記入） |
-| `broken.staggerMul` | （未記入） |
-| `doom.duration` | （未記入） |
-| `doom.ratio` | （未記入） |
-| `doom.vulnerableRatio` | （未記入） |
-| `siphon.duration` | （未記入） |
-| `siphon.manaPerHit` | （未記入） |
-| `siphon.silencedMul` | （未記入） |
-| `siphon.manaPerSecOnKill` | （未記入） |
-| `hue.duration` | （未記入） |
-| `hue.takenMul` | （未記入） |
-| `hue.burstBurnRatio` | （未記入） |
-| `hue.burstChill` | （未記入） |
-| `hue.burstHeal` | （未記入） |
-| `hue.burstDoomDuration` | （未記入） |
-| `scorch.duration` | （未記入） |
-| `scorch.dpsMul` | （未記入） |
-| `scorch.spreadRadius` | （未記入） |
-| `scorch.spreadInterval` | （未記入） |
-| `scorch.vaporizeMul` | （未記入） |
-| `venom.duration` | （未記入） |
-| `venom.damageMul` | （未記入） |
-| `venom.deathTerrainRadius` | （未記入） |
-| `hemorrhage.duration` | （未記入） |
-| `hemorrhage.perSec` | （未記入） |
-| `encase.threshold` | （未記入） |
-| `encase.shardRadius` | （未記入） |
-| `encase.shardHpRatio` | （未記入） |
-| `encase.shardMax` | （未記入） |
-| `encase.shardPoise` | （未記入） |
-| `encase.thawRadius` | （未記入） |
-| `exposed.threshold` | （未記入） |
-| `exposed.duration` | （未記入） |
-| `exposed.mul` | （未記入） |
-| `enfeeble.threshold` | （未記入） |
-| `enfeeble.duration` | （未記入） |
-| `enfeeble.mul` | （未記入） |
-| `haste.duration` | （未記入） |
-| `haste.moveMul` | （未記入） |
-| `haste.extendOnHit` | （未記入） |
-| `haste.maxTime` | （未記入） |
-| `haste.chillExtend` | （未記入） |
-| `harden.duration` | （未記入） |
-| `harden.takenMul` | （未記入） |
-| `harden.moveMul` | （未記入） |
-| `harden.iceArmorPerChill` | （未記入） |
-| `wrath.maxStacks` | （未記入） |
-| `wrath.duration` | （未記入） |
-| `wrath.poisePerStack` | （未記入） |
-| `wrath.onHurt` | （未記入） |
-| `wrath.onStagger` | （未記入） |
-| `fury.duration` | （未記入） |
-| `fury.poiseMul` | （未記入） |
-| `fury.damageMul` | （未記入） |
-| `fury.takenMul` | （未記入） |
-| `charged.maxStacks` | （未記入） |
-| `charged.duration` | （未記入） |
-| `charged.damage` | （未記入） |
-| `charged.wetRadiusMul` | （未記入） |
-| `charged.wetSelfDamage` | （未記入） |
-| `steam.radius` | （未記入） |
-| `steam.weakenDuration` | （未記入） |
-| `conduct.radiusMul` | （未記入） |
-| `conduct.extraTargets` | （未記入） |
-| `conduct.damage` | （未記入） |
-| `kindle.dps` | （未記入） |
-| `kindle.duration` | （未記入） |
-| `quench.chillBonus` | （未記入） |
-| `miasma.terrainRadius` | （未記入） |
-| `miasma.radius` | （未記入） |
-| `miasma.duration` | （未記入） |
-| `shatterBleed.perStackSec` | （未記入） |
-| `shatterBleed.spreadRadius` | （未記入） |
-| `cauterize.perStackSec` | （未記入） |
-| `cauterize.playerMul` | （未記入） |
-| `panic.bleedMul` | （未記入） |
-| `lacerate.extraStacks` | （未記入） |
+| `burnDuration` | 燃焼の標準の持続（秒）。装備の確率付与・スキル・延焼が付ける燃焼に使う |
+| `burnParticleInterval` | 燃えている者が炎の粒を出す間隔（ステップ。1 ステップ = 1/60 秒。見た目だけ） |
+| `burnColor` | 燃焼の表示色（炎の粒・闇の中の灯り・燃える敵の色味） |
+| `chillColor` | 冷気の表示色（氷の粒・凍った敵の色味・砕きの浮き文字） |
+| `chillDuration` | 装備の確率付与（冷気）が付ける冷気の持続（秒）。スキル・祝福・地形が付ける冷気は chill.duration |
+| `maxSlow` | 冷気・浸水による移動の遅さの上限。割合〔0..1。0.8 = 最大 80% 遅い〕。ボスは chill.bossMaxSlow が優先 |
+| `onHitIcd` | 同じ敵に装備の確率付与（燃焼・冷気・感電・状態異常）を判定し直せるまでの秒。多段ヒットでの乱発を防ぐ |
+| `shockRadius` | 連鎖雷が次の敵を探す半径（px。10px = 1m）。拡散・帯電の半径の基準 |
+| `shockMaxTargets` | 連鎖雷が飛ぶ敵の数の上限（体） |
+| `shockColor` | 感電・連鎖雷の稲妻の色 |
+| `explodeRadius` | 装備の爆発（撃破時の確率爆発・トリガー）の標準の半径（px） |
+| `explodeColor` | 爆発の表示色 |
+| `explodeKnockback` | 爆発が敵を押し飛ばす強さ（px/秒）。距離減衰を掛ける |
+| `fxLife` | 反応・爆発・連鎖の輪や線を表示する秒（見た目だけ） |
+| `ccWindow` | 行動停止系（怯み・凍結・麻痺）の拘束上限を数える窓（秒）。窓の最初の拘束から数える |
+| `ccBudget` | 窓の中で 1 体が行動停止にされる合計秒の上限。超える分は切り詰める（永久拘束の防止） |
+| `chill.slowPerStack` | 冷気 1 重ねあたりの遅さ。割合〔0..1。0.12 = 12% 遅い〕。maxSlow で頭打ち |
+| `chill.maxStacks` | 敵の冷気の重ねの上限。ボス以外は上限まで重なると凍結する |
+| `chill.playerMaxStacks` | プレイヤーの冷気の重ねの上限 |
+| `chill.duration` | 冷気の標準の持続（秒）。スキル・祝福・地形・反応が付ける冷気に使う |
+| `chill.bossMaxSlow` | ボスの冷気による遅さの上限。割合〔0..1〕 |
+| `freeze.duration` | 凍結の持続（秒）。冷気が上限まで重なって凍るときの長さ |
+| `freeze.shatterDamageMul` | 凍結中の敵を砕く一撃のダメージ倍率〔1 = 等倍〕 |
+| `freeze.shatterPoise` | 砕きの一撃に足される怯み値 |
+| `freeze.chillImmuneAfter` | 凍結が解けてから冷気が付かない秒 |
+| `shock.interval` | 感電が周囲へ連鎖する周期（秒） |
+| `shock.radius` | 感電の連鎖が次の敵を探す半径（px。濡れていれば wet.shockRadiusMul 倍） |
+| `shock.maxStacks` | 感電の重ねの上限。ボス以外は上限まで重なると麻痺する |
+| `shock.duration` | 感電の持続（秒） |
+| `paralyze.duration` | 麻痺の持続（秒）。感電が上限まで重なって痺れるときの長さ |
+| `paralyze.bossDuration` | ボスの麻痺の持続の上限（秒） |
+| `paralyze.shockImmuneAfter` | 麻痺が解けてから感電が付かない秒 |
+| `poison.hpRatioPerSec` | 毒の毎秒ダメージ。敵の最大生命に対する 1 重ねあたりの割合〔0.01 = 1%/秒〕 |
+| `poison.bossHpRatioPerSec` | ボスに対する同じ割合。通常の敵との比でボスだけ弱める |
+| `poison.playerHpRatioPerSec` | プレイヤーに対する同じ割合（自分の最大生命に対する 1 重ねあたり） |
+| `poison.maxStacks` | 敵の毒の重ねの上限（腐食の重ねぶん上限が伸びる） |
+| `poison.playerMaxStacks` | プレイヤーの毒の重ねの上限 |
+| `poison.duration` | 毒の標準の持続（秒） |
+| `bleed.distance` | 出血がダメージを入れる移動距離の刻み（px。10px = 1m）。この距離を動くたびに 威力 × 重ね が入る |
+| `bleed.maxStacks` | 出血の重ねの上限（腐食中は lacerate.extraStacks が足される） |
+| `bleed.duration` | 出血の標準の持続（秒） |
+| `bleed.poisonMul` | 毒が付いている間の出血ダメージの倍率〔1 = 等倍〕 |
+| `vulnerable.mul` | 脆弱中に受けるダメージの倍率〔1 = 等倍。1.2 = +20%〕。プレイヤーも同じ |
+| `vulnerable.duration` | 脆弱の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `weaken.mul` | 弱体中に与えるダメージの減り。割合〔0..1。0.25 = 25% 減る。倍率は 1 − この値〕。プレイヤーも同じ |
+| `weaken.duration` | 弱体の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `fear.duration` | 恐怖の標準の持続（秒）。性質の会心付与などが使う |
+| `fear.immuneAfter` | 恐怖が解けてから恐怖が付かない秒 |
+| `fear.wispMul` | 鬼火が受ける恐怖の持続の倍率〔1 = 等倍〕 |
+| `silence.enemyDuration` | 敵の沈黙の持続（秒）。付与側が持続を直接指定するため、現状この値は読まれない |
+| `silence.playerDuration` | プレイヤーの沈黙の持続（秒）。付与側が持続を直接指定するため、現状この値は読まれない |
+| `vaporizeRatio` | 蒸発で即時に与える割合。燃焼の残りダメージ（毎秒 × 残り秒）に対する割合〔0..1〕 |
+| `burnMaxStacks` | 敵の燃焼の重ねの上限（プレイヤーは 1） |
+| `reactionIcd` | 同じ対象に同じ反応（蒸気・急冷・拡散・炎上・引火・毒霧・焼灼・奮起）が再び起きるまでの秒 |
+| `lastEndedWindow` | 「直前に消えた状態異常」を参照できる秒（統一ルールの語彙）。これより前に消えたものは返さない |
+| `statusCountCap` | 異常数（付いている悪い状態異常の種類数）として数える上限（ルールの語彙） |
+| `totalStacksCap` | 総スタック（悪い状態異常の重ねの合計）として数える上限（ルールの語彙） |
+| `goodCountCap` | 良い状態の数として数える上限（ルールの語彙） |
+| `wet.maxStacks` | 濡れの重ねの上限。上限まで重なると浸水になる |
+| `wet.duration` | 濡れの持続（秒） |
+| `wet.shockRadiusMul` | 濡れた敵の感電が連鎖する半径の倍率（shock.radius に掛ける） |
+| `soaked.duration` | 浸水の持続（秒） |
+| `soaked.slow` | 浸水による移動の遅さ。割合〔0..1。0.3 = 30% 遅い〕。maxSlow で頭打ち |
+| `oiled.duration` | 油膜の持続（秒） |
+| `blaze.duration` | 炎上の持続（秒） |
+| `blaze.dpsMul` | 炎上の毎秒ダメージ = 元の燃焼の毎秒ダメージ × この倍率〔1 = 等倍〕 |
+| `blaze.minDps` | 炎上の毎秒ダメージの下限。元の燃焼が弱くてもこれ以上入る |
+| `blaze.spreadRadius` | 延焼の半径（px）。周囲の油膜の敵へ燃焼を移す |
+| `blaze.spreadInterval` | 延焼の周期（秒） |
+| `corrode.maxStacks` | 腐食の重ねの上限 |
+| `corrode.duration` | 腐食の標準の持続（秒） |
+| `corrode.poisePerStack` | 敵が受ける怯み値の増え。1 重ねあたりの割合〔0.08 = +8%〕 |
+| `corrode.playerTakenPerStack` | プレイヤーが受けるダメージの増え。1 重ねあたりの割合〔0.03 = +3%〕 |
+| `brand.maxStacks` | 烙印の重ねの上限 |
+| `brand.duration` | 烙印の持続（秒） |
+| `brand.damagePerStack` | 起爆ダメージの 1 重ねあたり。付与側が威力を持てばそちらが優先 |
+| `brand.poisePerStack` | 起爆で入る怯み値の 1 重ねあたり |
+| `brand.staggeredMul` | 怯み中の敵への起爆ダメージの倍率〔1 = 等倍〕 |
+| `broken.duration` | 崩勢の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `broken.poiseMul` | 崩勢中の敵が受ける怯み値の倍率〔1 = 等倍〕 |
+| `broken.staggerMul` | 崩勢中の敵が怯むときの怯みの長さの倍率〔1 = 等倍〕 |
+| `doom.duration` | 宣告の持続（秒）。時間切れで起爆する |
+| `doom.ratio` | 時間切れで与えるダメージ。付与中に減った生命に対する割合〔0..1〕 |
+| `doom.vulnerableRatio` | 脆弱中の敵に起爆するときの割合〔0..1〕 |
+| `siphon.duration` | 吸魔の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `siphon.manaPerHit` | 吸魔の敵への命中 1 回で戻る気力 |
+| `siphon.silencedMul` | 沈黙中の敵への命中で戻る気力の倍率〔1 = 等倍〕 |
+| `siphon.manaPerSecOnKill` | 吸魔の敵を倒したとき、吸魔の残り秒 1 秒あたりに戻る気力 |
+| `hue.duration` | 彩痕の持続（秒） |
+| `hue.takenMul` | 彩痕の色が共鳴している敵が受けるダメージの倍率〔1 = 等倍〕 |
+| `hue.burstBurnRatio` | 色爆（crimson）で与えるダメージ。燃焼の残りダメージに対する倍率〔1 = 等倍〕 |
+| `hue.burstChill` | 色爆（azure）で付ける冷気の重ね数 |
+| `hue.burstHeal` | 色爆（jade）で自分が回復する生命 |
+| `hue.burstDoomDuration` | 色爆（umbra）で付ける宣告の持続（秒） |
+| `scorch.duration` | 灼熱の持続（秒） |
+| `scorch.dpsMul` | 灼熱中の燃焼の毎秒ダメージの倍率〔1 = 等倍〕 |
+| `scorch.spreadRadius` | 灼熱が周囲の敵へ燃焼を広げる半径（px） |
+| `scorch.spreadInterval` | 灼熱の延焼の周期（秒） |
+| `scorch.vaporizeMul` | 灼熱中の蒸発ダメージの倍率〔1 = 等倍〕 |
+| `venom.duration` | 猛毒の持続（秒） |
+| `venom.damageMul` | 猛毒中の毒ダメージの倍率〔1 = 等倍〕 |
+| `venom.deathTerrainRadius` | 猛毒の敵を倒したとき毒沼を残す半径（px） |
+| `hemorrhage.duration` | 大出血の持続（秒） |
+| `hemorrhage.perSec` | 大出血の毎秒ダメージ = 元の出血の威力 × 重ね × この値 |
+| `encase.threshold` | 凍結中に冷気が入った回数がこれに達すると氷棺になる |
+| `encase.shardRadius` | 氷棺の砕きで氷の破片が届く半径（px） |
+| `encase.shardHpRatio` | 破片のダメージ = 砕けた敵の最大生命 × この割合〔0..1〕。上限は shardMax |
+| `encase.shardMax` | 破片のダメージの上限 |
+| `encase.shardPoise` | 破片が周囲の敵に入れる怯み値 |
+| `encase.thawRadius` | 氷棺が燃焼で解けたとき水たまりを置く半径（px） |
+| `exposed.threshold` | 脆弱を付いている間に付け直した回数がこれに達すると露呈になる |
+| `exposed.duration` | 露呈の持続（秒） |
+| `exposed.mul` | 露呈中の敵が受けるダメージの倍率（脆弱込み）〔1 = 等倍。1.4 = +40%〕 |
+| `enfeeble.threshold` | 弱体を付いている間に付け直した回数がこれに達すると無力になる |
+| `enfeeble.duration` | 無力の持続（秒） |
+| `enfeeble.mul` | 無力中の敵が与えるダメージの倍率〔1 = 等倍。0.5 = 半分〕 |
+| `haste.duration` | 加速の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `haste.moveMul` | 加速中の移動速度の倍率〔1 = 等倍〕 |
+| `haste.extendOnHit` | 攻撃が当たるたびに加速が延びる秒 |
+| `haste.maxTime` | 加速の残り秒の上限（延長しても超えない） |
+| `haste.chillExtend` | 奮起: 加速中に冷気が付こうとすると、冷気の代わりに加速が延びる秒 |
+| `harden.duration` | 硬化の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `harden.takenMul` | 硬化中に受けるダメージの倍率〔1 = 等倍〕 |
+| `harden.moveMul` | 硬化中の移動速度の倍率〔1 = 等倍〕 |
+| `harden.iceArmorPerChill` | 氷鎧: 冷気 1 重ねごとに takenMul から引く量（受けるダメージがさらに減る） |
+| `wrath.maxStacks` | 怒気の重ねの上限。上限まで重なると激昂になる |
+| `wrath.duration` | 怒気の持続（秒） |
+| `wrath.poisePerStack` | 与える怯み値の増え。1 重ねあたりの割合〔0.1 = +10%〕 |
+| `wrath.onHurt` | 被弾したときに足す怒気の重ね数 |
+| `wrath.onStagger` | 怒気が付いている間に自分が怯んだとき足す重ね数（逆上） |
+| `fury.duration` | 激昂の持続（秒） |
+| `fury.poiseMul` | 激昂中に与える怯み値の倍率〔1 = 等倍〕 |
+| `fury.damageMul` | 激昂中に与えるダメージの倍率〔1 = 等倍〕 |
+| `fury.takenMul` | 激昂中に受けるダメージの倍率〔1 = 等倍〕 |
+| `charged.maxStacks` | 帯電の重ねの上限（近接の命中 1 回ごとに 1 重ね使う） |
+| `charged.duration` | 帯電の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない |
+| `charged.damage` | 放電の連鎖雷ダメージ。付与側が威力を持てばそちらが優先 |
+| `charged.wetRadiusMul` | 自分が濡れているときの放電の半径の倍率（shockRadius に掛ける） |
+| `charged.wetSelfDamage` | 濡れたまま放電したとき、自分が受けるダメージ |
+| `steam.radius` | 蒸気が周囲の敵を弱体にする半径（px） |
+| `steam.weakenDuration` | 蒸気が付ける弱体の持続（秒） |
+| `conduct.radiusMul` | 拡散（濡れた敵への感電）の連鎖の半径の倍率（shockRadius に掛ける） |
+| `conduct.extraTargets` | 拡散で連鎖の敵の数に足す数（shockMaxTargets に加算） |
+| `conduct.damage` | 感電に威力が無いときの拡散のダメージ |
+| `kindle.dps` | 引火で付く燃焼の毎秒ダメージ。延焼で付ける燃焼の下限も兼ねる |
+| `kindle.duration` | 引火で付く燃焼の持続（秒） |
+| `quench.chillBonus` | 急冷で冷気に足す重ね数（濡れが上限なら冷気を上限まで積む） |
+| `miasma.terrainRadius` | 毒霧が残す毒沼の半径（px） |
+| `miasma.radius` | 毒霧が毒を移す周囲の半径（px） |
+| `miasma.duration` | 毒沼の持続（秒） |
+| `shatterBleed.perStackSec` | 砕血で出血を即時ダメージにする倍率。ダメージ = 重ね × max(1, 威力) × 出血の残り秒 × この値 |
+| `shatterBleed.spreadRadius` | 砕血で出血を移す近くの敵を探す半径（px） |
+| `cauterize.perStackSec` | 焼灼で出血を即時ダメージにする倍率。ダメージ = 重ね × max(1, 威力) × 出血の残り秒 × この値 |
+| `cauterize.playerMul` | 自分に起きた焼灼のダメージの倍率〔1 = 等倍〕 |
+| `panic.bleedMul` | 恐慌: 恐怖中の敵の出血ダメージの倍率〔1 = 等倍〕 |
+| `lacerate.extraStacks` | 裂傷: 腐食中に出血の重ねの上限へ足す数 |
 | `wound.maxStacks` | 重ねられる上限（刃斧の戦意「傷」の上限 FORM.hewer.max と揃える） |
 | `inkMark.maxStacks` | 重ねられる上限（書の左の 3 段で満ちる数） |
 | `inkMark.radiusBase` | 読んだときの円の半径の基礎（px） |
@@ -241,20 +241,20 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `base` | （未記入） |
-| `knee1` | （未記入） |
-| `slope1` | （未記入） |
-| `knee2` | （未記入） |
-| `slope2` | （未記入） |
-| `dexMove` | （未記入） |
-| `dexDashCooldown` | （未記入） |
-| `dexDashCooldownMin` | （未記入） |
-| `vitMaxHp` | （未記入） |
-| `vitStatusTaken` | （未記入） |
-| `vitStatusTakenBase` | （未記入） |
-| `vitStatusTakenMin` | （未記入） |
-| `mndMaxMana` | （未記入） |
-| `mndManaRegen` | （未記入） |
+| `base` | 各ステータス（力・器用・体力・精神・防御など）の初期値。派生の効果は base からの差で決まる |
+| `knee1` | 逓減の 1 つ目の折れ点。ここまでは実効値 = ステータスの値 |
+| `slope1` | knee1〜knee2 の間で 1 点あたり実効値に足される量〔1 = 等倍〕 |
+| `knee2` | 逓減の 2 つ目の折れ点 |
+| `slope2` | knee2 を超えた分で 1 点あたり実効値に足される量〔1 = 等倍〕 |
+| `dexMove` | 器用 1 点（base からの差）あたりの移動速度の増え。割合〔0.005 = +0.5%〕 |
+| `dexDashCooldown` | 器用 1 点あたりのダッシュのクールタイムの短縮。割合〔0.01 = 1% 短い〕 |
+| `dexDashCooldownMin` | ダッシュのクールタイムの倍率の下限〔0.7 = 最大 30% 短縮〕 |
+| `vitMaxHp` | 体力 1 点あたりの最大生命の増え |
+| `vitStatusTaken` | 体力 1 点あたりの状態異常の持続の縮み。受ける持続の倍率 = vitStatusTakenBase ÷ (vitStatusTakenBase + この値 × 点数) |
+| `vitStatusTakenBase` | 状態異常の持続の縮みを決める式の分母の基準。大きいほど 1 点の効きが鈍い |
+| `vitStatusTakenMin` | 受ける状態異常の持続の倍率の下限〔0.5 = 最大で半分まで〕 |
+| `mndMaxMana` | 精神 1 点あたりの最大気力の増え |
+| `mndManaRegen` | 精神 1 点あたりの気力の自然回復の増え（毎秒） |
 | `defArmor` | 防御 def の実効値 1 点あたり、防御力（PlayerStats.armor）に足す量 |
 | `defWarding` | 防御 def の実効値 1 点あたり、魔防（PlayerStats.warding）に足す量 |
 
@@ -264,30 +264,30 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `decayDelay` | （未記入） |
-| `decayRate` | （未記入） |
-| `guardedTime` | （未記入） |
-| `guardedMul` | （未記入） |
-| `bossGuardedTime` | （未記入） |
-| `bossGuardedMul` | （未記入） |
-| `bossPoiseGrowth` | （未記入） |
-| `bossPoiseGrowthMax` | （未記入） |
-| `bossDownDamageMul` | （未記入） |
-| `eliteMul` | （未記入） |
-| `knockbackUnstaggered` | （未記入） |
-| `blockMul` | （未記入） |
+| `decayDelay` | 最後に怯み値を受けてから、怯み値が減り始めるまでの秒 |
+| `decayRate` | 怯み値の減る速さ。毎秒、耐性（怯みの上限）に対する割合〔0..1〕 |
+| `guardedTime` | 怯みが解けた後の堅守の秒。堅守の間は怯み値を受けにくい |
+| `guardedMul` | 堅守中に受ける怯み値の倍率〔1 = 等倍〕。背面の一撃は無視する |
+| `bossGuardedTime` | ボスの堅守の秒（ダウンが解けた後） |
+| `bossGuardedMul` | ボスの堅守中に受ける怯み値の倍率〔1 = 等倍〕 |
+| `bossPoiseGrowth` | ボスがダウンするたびに耐性が伸びる倍率（ダウンした回数の乗）〔1 = 伸びない〕 |
+| `bossPoiseGrowthMax` | ボスの耐性の伸びの上限の倍率〔1 = 等倍〕 |
+| `bossDownDamageMul` | ダウン中のボスが受けるダメージの倍率〔1 = 等倍〕 |
+| `eliteMul` | エリート（迅速を除く）の耐性の倍率〔1 = 等倍〕 |
+| `knockbackUnstaggered` | 怯んでいない敵のノックバックの倍率〔1 = 等倍〕。殴って射程外へ逃がさないための絞り |
+| `blockMul` | 盾持ちが正面で受けた近接の怯み値の倍率〔1 = 等倍〕。溢れるとガードブレイク |
 | `shotBlockMul` | 盾持ちが正面で受けた弾の怯み値の倍率（近接の blockMul と同じ値から始める。撃ち続ければ盾が崩れる） |
-| `chargerWallStagger` | （未記入） |
-| `executeHpRatio` | （未記入） |
+| `chargerWallStagger` | 突進する敵が壁にぶつかって自分が怯む秒 |
+| `executeHpRatio` | 処刑できる生命の割合の基礎。最大生命に対する割合〔0..1〕。怯み中でこれ以下の敵が対象 |
 | `executeHpRatioMax` | 処刑の閾値の上限。ビルドで executeHpRatio を伸ばしてもこれを超えない（core-synthesis 3-7） |
-| `executeMinPoise` | （未記入） |
-| `executeMana` | （未記入） |
-| `executeFearRadius` | （未記入） |
-| `executeFearDuration` | （未記入） |
-| `backstabDot` | （未記入） |
-| `backstabMul` | （未記入） |
-| `spreadRadius` | （未記入） |
-| `spreadPoise` | （未記入） |
+| `executeMinPoise` | 処刑に要る一撃の怯み値の下限（近接 3 段目など重い一撃だけが通る） |
+| `executeMana` | 処刑で戻る気力 |
+| `executeFearRadius` | 処刑で周囲の敵を怯えさせる半径（px） |
+| `executeFearDuration` | 処刑で周囲の敵に付ける恐怖の秒 |
+| `backstabDot` | 背面とみなす向きの内積の閾値〔-1..1〕。敵の攻撃の向きと、敵からプレイヤーへの向きの内積がこれより小さいと背面。小さいほど真後ろに限る |
+| `backstabMul` | 背面の一撃が与える怯み値の倍率〔1 = 等倍〕 |
+| `spreadRadius` | 怯んだ瞬間に周囲の敵へ怯み値を伝える半径（px） |
+| `spreadPoise` | 怯みの伝播で周囲の敵に入る怯み値（伝播先からはさらに伝播しない） |
 
 ## combat/PARRY
 
@@ -309,9 +309,9 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `hybridMix` | （未記入） |
-| `enemyDefenseMin` | （未記入） |
-| `enemyDefenseMax` | （未記入） |
+| `hybridMix` | 混成の攻撃が魔防の軽減率に振る割合〔0..1〕。0 で防御のみ、1 で魔防のみ、0.5 で半々 |
+| `enemyDefenseMin` | 敵の防御・魔防（軽減 %）の下限。負は弱点 |
+| `enemyDefenseMax` | 敵の防御・魔防（軽減 %）の上限 |
 
 ## combat/ELEMENT
 
@@ -319,29 +319,24 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `resistMin` | （未記入） |
-| `resistMax` | （未記入） |
-| `resistKnee` | （未記入） |
-| `resistSlope` | （未記入） |
-| `enemyResistMin` | （未記入） |
-| `enemyResistMax` | （未記入） |
-| `weakColor` | （未記入） |
-| `resistColor` | （未記入） |
-| `textScale` | （未記入） |
-| `textLife` | （未記入） |
-| `textDedupeRadius` | （未記入） |
-| `affinity.chance` | （未記入） |
-| `affinity.duration` | （未記入） |
-| `affinity.minShare` | （未記入） |
-| `affinity.potency.burn` | （未記入） |
-| `affinity.potency.chill` | （未記入） |
-| `affinity.potency.shock` | （未記入） |
-| `affinity.potency.poison` | （未記入） |
-| `affinity.potency.weaken` | （未記入） |
-| `affinity.potency.vulnerable` | （未記入） |
-| `mark.offsetY` | （未記入） |
-| `mark.size` | （未記入） |
-| `mark.unknownColor` | （未記入） |
+| `resistMin` | プレイヤーの属性耐性（%）の下限。負は弱点 |
+| `resistMax` | プレイヤーの属性耐性（%）の上限 |
+| `resistKnee` | 耐性（%）がこの値を超えた分を resistSlope で鈍らせる（ソフトキャップの折れ点） |
+| `resistSlope` | resistKnee を超えた分に掛ける倍率〔1 = 等倍〕 |
+| `enemyResistMin` | 敵の属性耐性（%）の下限。負は弱点 |
+| `enemyResistMax` | 敵の属性耐性（%）の上限 |
+| `weakColor` | 「弱点」の浮き文字の色 |
+| `resistColor` | 「耐性」の浮き文字の色 |
+| `textScale` | 弱点・耐性の浮き文字の大きさの倍率〔1 = 等倍〕 |
+| `textLife` | 弱点・耐性の浮き文字を出す秒 |
+| `textDedupeRadius` | 弱点・耐性の同じ文字をこの半径（px）の内側では重ねて出さない |
+| `affinity.chance` | 属性が主体の攻撃が当たったとき、その属性と関係の深い状態異常が付く確率〔0..1〕 |
+| `affinity.duration` | 属性の親和で付く状態異常の持続（秒） |
+| `affinity.minShare` | 親和が働くのに要る、その属性の割合の下限〔0..1〕。無属性・混成の薄い属性では働かない |
+| `affinity.potency` | 親和で付く状態異常の威力。0 はその状態異常の既定値（燃焼は毎秒ダメージ、感電は連鎖ダメージ） |
+| `mark.offsetY` | 弱点・耐性の浮き文字を敵の上へずらす距離（px） |
+| `mark.size` | 敵の属性印の 1 マスの大きさ（px） |
+| `mark.unknownColor` | 未発見の属性を示す「？」の色 |
 
 ## combat/TERRAIN
 
@@ -349,52 +344,32 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `tickInterval` | （未記入） |
-| `water.wetStacks` | （未記入） |
-| `oil.oiledStacks` | （未記入） |
-| `lava.damage` | （未記入） |
-| `lava.enemyDamage` | （未記入） |
-| `lava.burnDps` | （未記入） |
-| `lava.burnDuration` | （未記入） |
-| `bog.poisonDuration` | （未記入） |
-| `bog.corrodeEvery` | （未記入） |
-| `ice.chillEvery` | （未記入） |
-| `ice.chillDuration` | （未記入） |
-| `ice.accel` | （未記入） |
-| `fire.burnDps` | （未記入） |
-| `fire.burnDuration` | （未記入） |
-| `fire.oilBurnTime` | （未記入） |
-| `fire.grassBurnTime` | （未記入） |
-| `fire.spreadOil` | （未記入） |
-| `fire.spreadGrass` | （未記入） |
-| `placedDuration.none` | （未記入） |
-| `placedDuration.water` | （未記入） |
-| `placedDuration.oil` | （未記入） |
-| `placedDuration.lava` | （未記入） |
-| `placedDuration.bog` | （未記入） |
-| `placedDuration.ice` | （未記入） |
-| `placedDuration.grass` | （未記入） |
-| `placedDuration.fire` | （未記入） |
-| `placedDuration.mud` | （未記入） |
-| `placedDuration.smoke` | （未記入） |
-| `placedDuration.rubble` | （未記入） |
-| `gen.patchesBase` | （未記入） |
-| `gen.patchesPerDepth` | （未記入） |
-| `gen.patchesMax` | （未記入） |
-| `gen.radiusMin` | （未記入） |
-| `gen.radiusMax` | （未記入） |
-| `gen.minDepth.water` | （未記入） |
-| `gen.minDepth.grass` | （未記入） |
-| `gen.minDepth.oil` | （未記入） |
-| `gen.minDepth.ice` | （未記入） |
-| `gen.minDepth.bog` | （未記入） |
-| `gen.minDepth.lava` | （未記入） |
-| `gen.weight.water` | （未記入） |
-| `gen.weight.grass` | （未記入） |
-| `gen.weight.oil` | （未記入） |
-| `gen.weight.ice` | （未記入） |
-| `gen.weight.bog` | （未記入） |
-| `gen.weight.lava` | （未記入） |
+| `tickInterval` | 地形が上に立つ者へ効果を与える周期（秒）。chillEvery・corrodeEvery はこの周期の数 |
+| `water.wetStacks` | 水の上で周期ごとに足す濡れの重ね数 |
+| `oil.oiledStacks` | 油の上で周期ごとに足す油膜の重ね数 |
+| `lava.damage` | プレイヤーが溶岩で周期ごとに受ける即時ダメージ（ダッシュ中・無敵中は受けない） |
+| `lava.enemyDamage` | 敵が溶岩で周期ごとに受ける即時ダメージ |
+| `lava.burnDps` | 溶岩で付く燃焼の毎秒ダメージ |
+| `lava.burnDuration` | 溶岩で付く燃焼の持続（秒） |
+| `bog.poisonDuration` | 沼で周期ごとに付く毒（1 重ね）の持続（秒） |
+| `bog.corrodeEvery` | 沼で腐食を 1 重ね付ける間隔（周期の数） |
+| `ice.chillEvery` | 氷床で冷気を 1 重ね付ける間隔（周期の数） |
+| `ice.chillDuration` | 氷床で付く冷気の持続（秒） |
+| `ice.accel` | 氷床の上で入力へ追従する速さ（1/秒）。小さいほど滑る |
+| `fire.burnDps` | 炎の上で付く燃焼の毎秒ダメージ |
+| `fire.burnDuration` | 炎の上で付く燃焼の持続（秒） |
+| `fire.oilBurnTime` | 油が燃えている秒 |
+| `fire.grassBurnTime` | 草が燃えている秒 |
+| `fire.spreadOil` | 燃え始めた油の炎が、隣の油・草へ燃え移るまでの秒 |
+| `fire.spreadGrass` | 燃え始めた草（置いた炎を含む）の炎が、隣の油・草へ燃え移るまでの秒 |
+| `placedDuration` | スキル・反応・祝福が置いた地形の既定の持続（秒）。地形の種類ごと。0 は消えない |
+| `gen.patchesBase` | フロアに自然配置する地形の塊の数の基礎（深度 1 のとき） |
+| `gen.patchesPerDepth` | 深度が 1 増えるごとに増える塊の数。小数は合計の端数を切り捨てる |
+| `gen.patchesMax` | 地形の塊の数の上限 |
+| `gen.radiusMin` | 地形の塊の半径の下限（タイル） |
+| `gen.radiusMax` | 地形の塊の半径の上限（タイル） |
+| `gen.minDepth` | その地形が自然配置に出始める深度（泥は TERRAIN_MUD_SMOKE.mud.genMinDepth） |
+| `gen.weight` | 自然配置で選ばれる重み（大きいほど出やすい。泥は TERRAIN_MUD_SMOKE.mud.genWeight） |
 
 ## combat/TERRAIN_MUD_SMOKE
 
@@ -402,14 +377,14 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `mud.moveMul` | （未記入） |
-| `mud.bakeParalyze` | （未記入） |
-| `mud.bakeColor` | （未記入） |
-| `mud.bakeParticles` | （未記入） |
-| `mud.genMinDepth` | （未記入） |
-| `mud.genWeight` | （未記入） |
-| `smoke.puffColor` | （未記入） |
-| `smoke.puffParticles` | （未記入） |
+| `mud.moveMul` | 泥の上の歩きの速度の倍率〔1 = 等倍〕（ダッシュ中は掛からない） |
+| `mud.bakeParalyze` | 火で固まった泥のセルに立っていた敵が麻痺する秒（プレイヤーは止まらない） |
+| `mud.bakeColor` | 泥が固まったときの粒の色 |
+| `mud.bakeParticles` | 泥が固まったときに敵 1 体ごとに散らす粒の数 |
+| `mud.genMinDepth` | 泥が自然配置に出始める深度 |
+| `mud.genWeight` | 泥が自然配置で選ばれる重み（TERRAIN.gen.weight と同じ尺度） |
+| `smoke.puffColor` | 弾が煙に入って消えるときの粒の色 |
+| `smoke.puffParticles` | 弾が煙に入って消えるときに散らす粒の数 |
 
 ## combat/TERRAIN_RUBBLE
 
@@ -417,14 +392,14 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `duration` | （未記入） |
-| `fallDelay` | （未記入） |
-| `fallDamage` | （未記入） |
-| `perDepth` | （未記入） |
-| `fallStagger` | （未記入） |
-| `bossPoise` | （未記入） |
-| `color` | （未記入） |
-| `particles` | （未記入） |
+| `duration` | 崩れる床の持続（秒）。実際の持続は置く側が指定し、この値を読むのはテストだけ（既定は TERRAIN.placedDuration.rubble） |
+| `fallDelay` | 敵が乗り続けて床が抜けるまでの秒（誰も乗っていないと 0 に戻る） |
+| `fallDamage` | 床が抜けたとき乗っていた敵が受けるダメージの基礎 |
+| `perDepth` | 深度 1 ごとに落下ダメージへ足す割合〔0.08 = +8%〕 |
+| `fallStagger` | 落ちた敵（ボス以外）が怯む秒 |
+| `bossPoise` | 落ちたボスに入る怯み値（ボスは怯まず怯み値だけ入る） |
+| `color` | 床が抜けたときの粒の色 |
+| `particles` | 床が抜けたときに散らす粒の数 |
 
 ## combat/PLAYER
 
@@ -432,35 +407,34 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `radius` | （未記入） |
-| `maxHp` | （未記入） |
-| `speed` | （未記入） |
-| `attackMoveMul` | （未記入） |
-| `staggerMoveMul` | （未記入） |
-| `dash.time` | （未記入） |
-| `dash.speed` | （未記入） |
-| `dash.cooldown` | （未記入） |
-| `dash.graceInvuln` | （未記入） |
-| `dash.invulnTime` | （未記入） |
-| `hurtInvuln` | （未記入） |
-| `hurtKnockback` | （未記入） |
-| `comboLockout` | （未記入） |
-| `recoverCancel` | （未記入） |
-| `shoot.cooldown` | （未記入） |
-| `shoot.speed` | （未記入） |
-| `shoot.scaling.base` | （未記入） |
-| `shoot.scaling.dex` | （未記入） |
-| `shoot.poise` | （未記入） |
-| `shoot.life` | （未記入） |
-| `shoot.radius` | （未記入） |
-| `shoot.recoil` | （未記入） |
-| `maxEnergy` | （未記入） |
-| `projectileSpreadDeg` | （未記入） |
-| `critHitstopBonus` | （未記入） |
-| `critTextScale` | （未記入） |
-| `critColor` | （未記入） |
-| `overclockHpCost` | （未記入） |
-| `overclockShootInterval` | （未記入） |
+| `radius` | プレイヤーの当たり半径（px） |
+| `maxHp` | 最大生命の基礎（体力・装備・祝福で増減する） |
+| `speed` | 移動速度の基礎（px/秒）。器用・装備で倍率が掛かる |
+| `attackMoveMul` | 攻撃中の移動速度の倍率の旧既定〔1 = 等倍〕。現状は読まれず、武器種ごとの attackMoveMul（重さの帯で丸める）が使われる |
+| `staggerMoveMul` | 怯み中の移動速度の倍率〔1 = 等倍〕。怯み中は攻撃・射撃・ダッシュが出せない |
+| `dash.time` | ダッシュの時間（秒）。ダッシュ距離の倍率が掛かる |
+| `dash.speed` | ダッシュの速さ（px/秒）。距離 = 速さ × 時間 |
+| `dash.cooldown` | ダッシュの再使用までの秒。クールタイムの倍率（器用・装備・流儀）が掛かる |
+| `dash.graceInvuln` | ダッシュが終わった直後に残す無敵の秒（0 で残さない） |
+| `dash.invulnTime` | ダッシュの無敵の秒（装備の加算はダッシュ時間まで） |
+| `hurtInvuln` | 被弾した直後の無敵の秒 |
+| `hurtKnockback` | 被弾でプレイヤーが押される強さ（px/秒） |
+| `comboLockout` | 連撃の最終段の後、左で撃つ武器種が射撃できるようになるまでの間（秒） |
+| `recoverCancel` | 振りの戻りの残りがこの割合を切ると、次段の先行入力で前倒しに終えられる。割合〔0..1〕。段ごとの cancel で上書き |
+| `shoot.cooldown` | 弾の発射間隔の基礎（秒）。弾ごとの倍率・攻撃速度が掛かる |
+| `shoot.speed` | 弾の速さ（px/秒）。弾ごとの倍率が掛かる |
+| `shoot.scaling` | 弾 1 発の威力の係数表（base + Σ 係数 × ステータス）。弾が係数を持たなければこれを使う |
+| `shoot.poise` | 弾 1 発の怯み値の基礎。弾ごとの倍率・怯み値の倍率が掛かる |
+| `shoot.life` | 弾の寿命（秒）。射程 = 速さ × 寿命 |
+| `shoot.radius` | 弾の当たり半径（px） |
+| `shoot.recoil` | 撃ったとき後ろへ押される強さ（px/秒）。弾ごとの倍率が掛かる |
+| `maxEnergy` | 奥義ゲージの最大 |
+| `projectileSpreadDeg` | 複数の弾を扇に並べるときの既定の間隔（度）。弾ごとに上書きできる |
+| `critHitstopBonus` | 会心の命中のヒットストップに足すステップ数（1 ステップ = 1/60 秒） |
+| `critTextScale` | 会心の数字の大きさの倍率〔1 = 等倍〕 |
+| `critColor` | 会心の数字の色 |
+| `overclockHpCost` | 過負荷（刻印）で、振り 1 回・射撃の払いごとに失う生命（最低 1 は残る） |
+| `overclockShootInterval` | 過負荷で射撃が生命を払う間隔（発数）。近接は毎振り払う |
 
 ## combat/ACTION
 
@@ -469,21 +443,21 @@
 | 項目 | 意味 |
 | --- | --- |
 | `*` | 出端の命中。damageMul = 威力の倍、poiseMul = 怯み値の倍（下絵に絞った報酬。連打でも出た頃の 1 から 1.5 へ）、color / particles = 命中点の粒 |
-| `*.slowmo` | （未記入） |
-| `*.flash` | （未記入） |
-| `*.color` | （未記入） |
-| `*.textScale` | （未記入） |
-| `*.textLife` | （未記入） |
-| `*.textOffsetY` | （未記入） |
-| `*.ringRadius` | （未記入） |
-| `*.ringLife` | （未記入） |
-| `*.particles` | （未記入） |
-| `*.window` | （未記入） |
-| `*.perHitRatio` | （未記入） |
-| `*.poolRatio` | （未記入） |
-| `*.damage` | （未記入） |
-| `*.poise` | （未記入） |
-| `*.hitstop` | （未記入） |
+| `*.color` | 演出（粒・輪・浮き文字）の色 |
+| `*.particles` | 発動点に散らす粒の数 |
+| `*.slowmo` | ラストキルのスローの秒 |
+| `*.flash` | ラストキルの画面のフラッシュの強さ〔0..1〕 |
+| `*.textScale` | 浮き文字の大きさの倍率〔1 = 等倍〕 |
+| `*.textLife` | 浮き文字を出す秒 |
+| `*.textOffsetY` | 浮き文字を敵の上へずらす距離（px） |
+| `*.ringRadius` | 広がる輪の半径（px） |
+| `*.ringLife` | 輪を表示する秒 |
+| `*.window` | 被弾後に取り戻せる猶予（秒）。切れると取り戻せる分は消え、猶予中の追加被弾は分を足して猶予を延ばす |
+| `*.perHitRatio` | 近接の命中 1 回で取り戻す量。被弾ダメージに対する割合〔0..1〕 |
+| `*.poolRatio` | 取り戻せる総量。被弾ダメージに対する割合〔0..1〕 |
+| `*.damage` | 壁叩きつけの追加ダメージ |
+| `*.poise` | 壁叩きつけの怯み値（強靭を無視。怯み値の倍率が掛かる） |
+| `*.hitstop` | 壁叩きつけのヒットストップのステップ数（1 ステップ = 1/60 秒） |
 
 ## combat/ENERGY
 
@@ -503,218 +477,199 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `strikerHoldTime` | （未記入） |
-| `knockDecay` | （未記入） |
-| `knight.blockArcDeg` | （未記入） |
-| `knight.blockColor` | （未記入） |
-| `knight.blockPushback` | （未記入） |
-| `knight.lungeSpeedMul` | （未記入） |
-| `bomber.keepAway` | （未記入） |
-| `bomber.fuse` | （未記入） |
-| `bomber.radius` | （未記入） |
-| `bomber.damage` | （未記入） |
-| `bomber.throwDist` | （未記入） |
-| `bomber.color` | （未記入） |
-| `bomber.deathFuse` | （未記入） |
-| `laser.width` | （未記入） |
-| `laser.length` | （未記入） |
-| `laser.damage` | （未記入） |
-| `laser.thinRatio` | （未記入） |
-| `laser.color` | （未記入） |
-| `golem.ringRadius` | （未記入） |
-| `golem.ringTime` | （未記入） |
-| `golem.ringThickness` | （未記入） |
-| `golem.damage` | （未記入） |
-| `golem.color` | （未記入） |
-| `bat.zigzagFreq` | （未記入） |
-| `bat.zigzagAmount` | （未記入） |
-| `bat.retreatMul` | （未記入） |
-| `wisp.deathExplodeRadius` | （未記入） |
-| `wisp.deathExplodeDamage` | （未記入） |
-| `wisp.deathExplodeFuse` | （未記入） |
-| `wisp.color` | （未記入） |
-| `volley.bulletLife` | （未記入） |
-| `volley.bulletRadius` | （未記入） |
-| `flank.minDist` | （未記入） |
-| `timid.fleeMul` | （未記入） |
-| `timid.color` | （未記入） |
-| `deathBurst.life` | （未記入） |
-| `rockfall.count` | （未記入） |
-| `rockfall.spread` | （未記入） |
-| `rockfall.radius` | （未記入） |
-| `rockfall.damage` | （未記入） |
-| `rockfall.fuse` | （未記入） |
-| `kamikaze.color` | （未記入） |
-| `echoStriker.delay` | （未記入） |
-| `echoStriker.sampleInterval` | （未記入） |
-| `echoStriker.radius` | （未記入） |
-| `echoStriker.damage` | （未記入） |
-| `echoStriker.keepAway` | （未記入） |
-| `echoStriker.color` | （未記入） |
-| `packLeader.fearTime` | （未記入） |
-| `conductor.bulletCount` | （未記入） |
-| `conductor.spreadDeg` | （未記入） |
-| `conductor.bulletSpeed` | （未記入） |
-| `conductor.bulletDamage` | （未記入） |
-| `conductor.keepAway` | （未記入） |
-| `conductor.color` | （未記入） |
-| `manaLeech.steal` | （未記入） |
-| `manaLeech.returnMul` | （未記入） |
-| `corpse.lifetime` | （未記入） |
-| `corpse.max` | （未記入） |
-| `scavenger.seekRadius` | （未記入） |
-| `scavenger.eatRange` | （未記入） |
-| `scavenger.eatTime` | （未記入） |
-| `scavenger.maxGrowth` | （未記入） |
-| `scavenger.hpPerGrowth` | （未記入） |
-| `scavenger.damagePerGrowth` | （未記入） |
-| `scavenger.radiusPerGrowth` | （未記入） |
-| `scavenger.color` | （未記入） |
-| `graveBell.rings` | （未記入） |
-| `graveBell.color` | （未記入） |
-| `silencer.radius` | （未記入） |
-| `silencer.duration` | （未記入） |
-| `silencer.keepAway` | （未記入） |
-| `silencer.color` | （未記入） |
-| `frostCrusher.ringRadius` | （未記入） |
-| `frostCrusher.damage` | （未記入） |
-| `frostCrusher.color` | （未記入） |
-| `twinShade.reviveTime` | （未記入） |
-| `twinShade.reviveHpRatio` | （未記入） |
-| `twinShade.color` | （未記入） |
-| `mimic.tongueLength` | （未記入） |
-| `mimic.tongueDamage` | （未記入） |
-| `mimic.biteSpeedMul` | （未記入） |
-| `mimic.color` | （未記入） |
-| `hollowArmor.ringRadius` | （未記入） |
-| `hollowArmor.damage` | （未記入） |
-| `hollowArmor.breakStagger` | （未記入） |
-| `hollowArmor.color` | （未記入） |
-| `terrainSeed.delay` | （未記入） |
-| `friendlyBlastMul` | （未記入） |
-| `silencedAttackManaMul` | （未記入） |
-| `lobber.keepAway` | （未記入） |
-| `oiler.dropInterval` | （未記入） |
-| `oiler.dropRadius` | （未記入） |
-| `bellImp.radius` | （未記入） |
-| `bellImp.rallyTime` | （未記入） |
-| `bellImp.hasteMul` | （未記入） |
-| `bellImp.keepAway` | （未記入） |
-| `bellImp.color` | （未記入） |
-| `banner.radius` | （未記入） |
-| `banner.takenMul` | （未記入） |
-| `banner.rallyTime` | （未記入） |
-| `banner.keepAway` | （未記入） |
-| `banner.color` | （未記入） |
-| `charged.radius` | （未記入） |
-| `charged.time` | （未記入） |
-| `charged.deathChainDamage` | （未記入） |
-| `charged.contactShock` | （未記入） |
-| `charged.color` | （未記入） |
-| `burrower.burrowSpeedMul` | （未記入） |
-| `burrower.emergeRadius` | （未記入） |
-| `burrower.damage` | （未記入） |
-| `burrower.exposeTime` | （未記入） |
-| `burrower.dustInterval` | （未記入） |
-| `burrower.color` | （未記入） |
-| `dropper.noticeRange` | （未記入） |
-| `dropper.radius` | （未記入） |
-| `dropper.damage` | （未記入） |
-| `dropper.color` | （未記入） |
-| `absorber.radius` | （未記入） |
-| `absorber.maxShots` | （未記入） |
-| `absorber.spreadDeg` | （未記入） |
-| `absorber.bulletSpeed` | （未記入） |
-| `absorber.bulletDamage` | （未記入） |
-| `absorber.color` | （未記入） |
-| `homunculus.blasts` | （未記入） |
-| `homunculus.spread` | （未記入） |
-| `homunculus.radius` | （未記入） |
-| `homunculus.damage` | （未記入） |
-| `homunculus.fallbackDuration` | （未記入） |
-| `homunculus.keepAway` | （未記入） |
-| `homunculus.color` | （未記入） |
-| `scribeImp.keepAway` | （未記入） |
-| `scribeImp.bulletCount` | （未記入） |
-| `scribeImp.spreadDeg` | （未記入） |
-| `scribeImp.bulletSpeed` | （未記入） |
-| `scribeImp.bulletDamage` | （未記入） |
-| `scribeImp.ringRadius` | （未記入） |
-| `scribeImp.ringDamage` | （未記入） |
-| `scribeImp.blastCount` | （未記入） |
-| `scribeImp.blastSpread` | （未記入） |
-| `scribeImp.blastRadius` | （未記入） |
-| `scribeImp.blastDamage` | （未記入） |
-| `scribeImp.color` | （未記入） |
-| `crossGolem.length` | （未記入） |
-| `crossGolem.damage` | （未記入） |
-| `windSprite.range` | （未記入） |
-| `windSprite.arcDeg` | （未記入） |
-| `windSprite.push` | （未記入） |
-| `windSprite.maxPush` | （未記入） |
-| `windSprite.bulletPush` | （未記入） |
-| `windSprite.keepAway` | （未記入） |
-| `windSprite.color` | （未記入） |
-| `mineLayer.dropInterval` | （未記入） |
-| `mineLayer.max` | （未記入） |
-| `mineLayer.keepAway` | （未記入） |
-| `mine.trigger` | （未記入） |
-| `mine.radius` | （未記入） |
-| `mine.damage` | （未記入） |
-| `mine.color` | （未記入） |
-| `chainWarden.length` | （未記入） |
-| `chainWarden.pull` | （未記入） |
-| `chainWarden.pullDamage` | （未記入） |
-| `chainWarden.slamWindup` | （未記入） |
-| `chainWarden.slamRadius` | （未記入） |
-| `chainWarden.slamDamage` | （未記入） |
-| `chainWarden.color` | （未記入） |
-| `hollow.freezeArcDeg` | （未記入） |
-| `hollow.color` | （未記入） |
-| `flameEater.seekRadius` | （未記入） |
-| `flameEater.eatRadius` | （未記入） |
-| `flameEater.eatCooldown` | （未記入） |
-| `flameEater.heal` | （未記入） |
-| `flameEater.radiusPerGrowth` | （未記入） |
-| `flameEater.maxGrowth` | （未記入） |
-| `flameEater.color` | （未記入） |
-| `spore.cooldown` | （未記入） |
-| `spore.radius` | （未記入） |
-| `swampWisp.speedMul` | （未記入） |
-| `iceTrail.radius` | （未記入） |
-| `giantToad.tongueLength` | （未記入） |
-| `giantToad.pull` | （未記入） |
-| `giantToad.biteRadius` | （未記入） |
-| `giantToad.biteDamage` | （未記入） |
-| `giantToad.pondRadius` | （未記入） |
-| `giantToad.color` | （未記入） |
-| `forgeMaster.keepAway` | （未記入） |
-| `forgeMaster.bladeCount` | （未記入） |
-| `forgeMaster.spreadDeg` | （未記入） |
-| `forgeMaster.bladeSpeed` | （未記入） |
-| `forgeMaster.bladeDamage` | （未記入） |
-| `forgeMaster.fireRadius` | （未記入） |
-| `forgeMaster.enrageMul` | （未記入） |
-| `forgeMaster.anvilBreakStagger` | （未記入） |
-| `forgeMaster.color` | （未記入） |
-| `turretMaster.turrets` | （未記入） |
-| `turretMaster.turretBreakStagger` | （未記入） |
-| `turretMaster.orbSpeed` | （未記入） |
-| `turretMaster.orbDamage` | （未記入） |
-| `turretMaster.color` | （未記入） |
-| `turret.bulletSpeed` | （未記入） |
-| `turret.bulletDamage` | （未記入） |
-| `basilisk.range` | （未記入） |
-| `basilisk.arcDeg` | （未記入） |
-| `basilisk.stillSpeed` | （未記入） |
-| `basilisk.chillEvery` | （未記入） |
-| `basilisk.biteTime` | （未記入） |
-| `basilisk.color` | （未記入） |
-| `shadowStalker.behind` | （未記入） |
-| `shadowStalker.radius` | （未記入） |
-| `shadowStalker.damage` | （未記入） |
-| `shadowStalker.exposeTime` | （未記入） |
-| `shadowStalker.color` | （未記入） |
+| `strikerHoldTime` | 同時攻撃の上限（ENEMY_TEMPO.strikerBase など）で待たされた敵が、予備動作に入れるかを見直す間隔。秒。短いほど空きに素早く入る。目安 0.1 |
+| `knockDecay` | ノックバックの速度が減る速さ。毎秒 exp(-この値) 倍に落ちる（1/秒）。大きいほど吹き飛びがすぐ止まる。目安 9〜12 |
+| `knight.blockArcDeg` | 盾で受ける正面の角度（全体の広さ。度）。向いている方向を中心にこの範囲内から来た攻撃は受けられる |
+| `knight.blockColor` | ブロック・ガードブレイク・敗走の浮き文字と粒の色、盾の発光の色（#RRGGBB） |
+| `knight.blockPushback` | 盾で受けたときに後ろへ押される初速（px/秒。knockDecay で減衰する） |
+| `knight.lungeSpeedMul` | 攻撃中の踏み込みの速さ。歩く速さに対する倍率（1 = 等倍） |
+| `bomber.keepAway` | プレイヤーとの距離がこれより近いと下がる。px |
+| `bomber.fuse` | 投げた爆弾が爆ぜるまでの導火線の秒。この間が避ける猶予。ほかの爆弾（地形の種・投げ物の既定）の導火線も共通でこの値 |
+| `bomber.radius` | 爆弾の爆発の半径。px（影の予告も同じ大きさ） |
+| `bomber.damage` | 爆発のダメージ（深度で伸びる基準値） |
+| `bomber.throwDist` | 爆弾を投げる距離。自分から狙う向きへの px。壁の中なら自分の足元に置く |
+| `bomber.color` | 爆発の粒・爆弾の描画の色（#RRGGBB） |
+| `bomber.deathFuse` | 爆弾を持った敵が倒れて落とす爆弾の導火線。秒（その場で爆ぜず、予告を挟む） |
+| `laser.width` | 光線の太さ。px（当たり判定の半径はこの半分） |
+| `laser.length` | 光線の届く長さ。px。狙う向きへ、壁で止まるまで |
+| `laser.damage` | 光線のダメージ（深度で伸びる基準値） |
+| `laser.thinRatio` | 現在どこからも読まれていない値 |
+| `laser.color` | 光線・照射の粒の色（#RRGGBB） |
+| `golem.ringRadius` | 衝撃波の輪が広がりきる半径。px |
+| `golem.ringTime` | 衝撃波が広がりきるまでの秒 |
+| `golem.ringThickness` | 衝撃波の当たる縁の幅。px。縁だけに判定があるのでダッシュで抜けられる |
+| `*.damage` | 衝撃波のダメージ（深度で伸びる基準値） |
+| `golem.color` | 衝撃波の輪・粒の色（#RRGGBB） |
+| `bat.zigzagFreq` | ふらつきの速さ（ラジアン/秒）。大きいほど細かく左右に振れる |
+| `bat.zigzagAmount` | ふらつきの幅。前へ進む向きに対する横向きの強さ（1 = 前進と同じ強さ） |
+| `bat.retreatMul` | 攻撃の後の隙の間に離れる速さ。歩く速さに対する倍率（一撃離脱） |
+| `wisp.deathExplodeRadius` | 倒したときに落とす爆弾の半径。px。描画はこの半径と導火線で出どころを見分ける |
+| `wisp.deathExplodeDamage` | 倒したときの爆発のダメージ（深度では伸びない固定値） |
+| `wisp.deathExplodeFuse` | 倒してから爆ぜるまでの秒（予告の間） |
+| `wisp.color` | 鬼火の発光・火花の色（#RRGGBB） |
+| `volley.bulletLife` | 敵の弾の寿命。秒（弾に寿命の指定が無いときの既定） |
+| `volley.bulletRadius` | 敵の弾の半径。px（弾に半径の指定が無いときの既定） |
+| `flank.minDist` | 回り込み（flank を持つ敵）をする最小の距離。px。プレイヤーがこれより遠いうちだけ横へ回り、近づいたら直進する |
+| `timid.fleeMul` | 逃げる速さ。歩く速さに対する倍率（1 = 等倍） |
+| `timid.color` | 消えるときの粒・浮き文字の色（#RRGGBB） |
+| `deathBurst.life` | 死に際に撃つ弾の寿命。秒 |
+| `rockfall.count` | 壁に激突したときに落ちる石の数 |
+| `rockfall.spread` | 石がプレイヤーの周りに散らばる最大距離。px（中心はプレイヤー） |
+| `rockfall.radius` | 石 1 つの爆発の半径。px |
+| `rockfall.damage` | 石のダメージ（深度で伸びる基準値） |
+| `rockfall.fuse` | 石が落ちるまでの秒（影の予告の間） |
+| `kamikaze.color` | 現在どこからも読まれていない値（爆発の色は敵の定義 explode.color が持つ） |
+| `echoStriker.delay` | 狙う位置の遅れ。秒（この秒数前のプレイヤーの位置を狙う） |
+| `echoStriker.sampleInterval` | プレイヤーの位置を記録する間隔。秒 |
+| `echoStriker.radius` | 炸裂の半径。px |
+| `*.keepAway` | プレイヤーとの距離をこの付近に保つ。px |
+| `*.color` | 炸裂の色（#RRGGBB） |
+| `packLeader.fearTime` | 群れの長・楽団長が倒れたとき、取り巻きが恐怖で逃げ回る秒 |
+| `conductor.bulletCount` | 指揮棒の一振りで撃つ弾の数（扇状） |
+| `conductor.spreadDeg` | 扇の広がり（全体の角度。度） |
+| `*.bulletSpeed` | 弾の速さ。px/秒 |
+| `*.bulletDamage` | 弾 1 発のダメージ（深度で伸びる基準値） |
+| `conductor.color` | 弾の色（#RRGGBB） |
+| `manaLeech.steal` | 噛みついたときに奪う気力の量（持っている分まで） |
+| `manaLeech.returnMul` | 倒したときにプレイヤーへ返す気力の倍率（奪った量 × この値。1 = 等倍） |
+| `corpse.lifetime` | 死骸が残る秒（骨拾い・墓守の鐘・貪食のが使う） |
+| `corpse.max` | 同時に残る死骸の上限。超えると古いものから消える |
+| `scavenger.seekRadius` | 死骸を探す範囲。px（同じ部屋の死骸だけ） |
+| `scavenger.eatRange` | 死骸に触れて食べ始められる距離。px（体の半径に足す） |
+| `scavenger.eatTime` | 食べている間の隙の秒 |
+| `scavenger.maxGrowth` | 育つ段の上限（食べるたびに 1 段） |
+| `scavenger.hpPerGrowth` | 1 段育つごとに増える最大生命の割合（0..1） |
+| `scavenger.damagePerGrowth` | 1 段育つごとに増える接触ダメージの割合（0..1） |
+| `*.radiusPerGrowth` | 1 段育つごとに増える体の半径。px |
+| `scavenger.color` | 成長の浮き文字・粒の色（#RRGGBB） |
+| `graveBell.rings` | 死骸を 1 体蘇らせるまでに鳴らす回数（頭上の数字が減っていく） |
+| `graveBell.color` | 鐘の輪・数字・蘇生の文字の色（#RRGGBB） |
+| `silencer.radius` | 足元の円が炸裂する半径。px（影の予告も同じ） |
+| `silencer.duration` | 炸裂に巻き込んだときの沈黙の秒 |
+| `silencer.color` | 炸裂の輪・粒の色（#RRGGBB） |
+| `frostCrusher.ringRadius` | 砕きの衝撃波が広がる半径。px |
+| `frostCrusher.damage` | 砕きのダメージ（深度で伸びる基準値） |
+| `frostCrusher.color` | 衝撃波の粒の色（#RRGGBB） |
+| `twinShade.reviveTime` | 片方が倒れてから、生き残った方が相方を蘇らせるまでの秒 |
+| `twinShade.reviveHpRatio` | 蘇った相方の生命の割合（最大生命に対して。0..1） |
+| `twinShade.color` | 蘇生の浮き文字・粒の色（#RRGGBB） |
+| `mimic.tongueLength` | 舌（短い光線）の届く長さ。px |
+| `mimic.tongueDamage` | 舌のダメージ（深度では伸びない固定値） |
+| `mimic.biteSpeedMul` | 噛みつきの突進の速さ。歩く速さに対する倍率。写本の小悪魔の突進・石化の蜥蜴の噛みつきも同じ値を使う |
+| `hollowArmor.ringRadius` | 鎧の衝撃波が広がる半径。px |
+| `hollowArmor.breakStagger` | 鎧が割れて亡霊になった瞬間の隙の秒（怯み） |
+| `hollowArmor.color` | 鎧割れの粒・浮き文字・衝撃波の粒の色（#RRGGBB） |
+| `terrainSeed.delay` | 地形の予告の影が出てから、地形が実際に置かれるまでの秒 |
+| `friendlyBlastMul` | 敵の爆発・炸裂が他の敵に当たるときのダメージ倍率（1 = 等倍。敵同士の巻き込み） |
+| `silencedAttackManaMul` | 沈黙中の通常攻撃で気力が溜まる量の倍率（1 = 等倍）。スキルを撃てない代わりの上乗せ。性質などの上限（MANA.attackGainMulMax）の外で掛かる |
+| `lobber.keepAway` | プレイヤーとの距離をこの付近に保つ。px（山なりに吐く蛙） |
+| `oiler.dropInterval` | 走りながら油を撒く間隔。秒 |
+| `oiler.dropRadius` | 撒く油の半径。px |
+| `bellImp.radius` | 鐘の号令が届く範囲。px |
+| `bellImp.rallyTime` | 号令を受けた敵の攻撃加速が続く秒 |
+| `bellImp.hasteMul` | 攻撃加速中、次の攻撃までの待ち時間が減る速さの倍率（2 = 2 倍速。予備動作は縮まない） |
+| `bellImp.color` | 号令の輪・浮き文字の色（#RRGGBB） |
+| `banner.radius` | 旗を立てたときに広がる輪の大きさ。px（加護の範囲は敵の定義 aura.radius） |
+| `banner.takenMul` | 旗の加護を受けた敵の被ダメージの倍率（1 = 等倍。小さいほど硬い） |
+| `banner.rallyTime` | 加護が毎ステップ掛け直され、範囲を出てから切れるまでの秒 |
+| `banner.keepAway` | 現在どこからも読まれていない値 |
+| `banner.color` | 旗を立てたときの輪の色（#RRGGBB） |
+| `charged.radius` | 現在どこからも読まれていない値 |
+| `charged.time` | 現在どこからも読まれていない値 |
+| `charged.deathChainDamage` | 帯電した敵が倒れたときに走る連鎖雷のダメージ |
+| `charged.contactShock` | 帯電した敵の接触で付く感電の秒 |
+| `charged.color` | 帯電の鼓舞の輪の色（#RRGGBB） |
+| `burrower.burrowSpeedMul` | 潜っている間の移動の速さの倍率（1 = 等倍） |
+| `burrower.emergeRadius` | 飛び出したときの炸裂の半径。px（影の予告も同じ） |
+| `burrower.damage` | 飛び出しの炸裂のダメージ（深度で伸びる基準値） |
+| `burrower.exposeTime` | 飛び出したあと、姿を晒して動けない秒（反撃の機会） |
+| `burrower.dustInterval` | 潜行中に盛り上がる土を出す間隔。秒 |
+| `burrower.color` | 土煙・炸裂の色（#RRGGBB） |
+| `dropper.noticeRange` | 現在どこからも読まれていない値 |
+| `dropper.radius` | 天井から落ちたときの炸裂の半径。px（影の予告も同じ） |
+| `dropper.damage` | 落下の炸裂のダメージ（深度で伸びる基準値） |
+| `absorber.radius` | プレイヤーの弾を吸い込む範囲。px |
+| `absorber.maxShots` | 溜められる弾の数の上限 |
+| `absorber.spreadDeg` | 吐き返す扇の広がり（全体の角度。度） |
+| `absorber.bulletSpeed` | 吐き返す弾の速さ。px/秒 |
+| `absorber.color` | 吸う線・吐き返す弾の色（#RRGGBB） |
+| `homunculus.blasts` | 炸裂の数。1 つはプレイヤーの足元、残りはその周りに等間隔 |
+| `homunculus.spread` | 周りの炸裂の、プレイヤーからの距離。px |
+| `homunculus.radius` | 炸裂 1 つの半径。px |
+| `homunculus.damage` | 炸裂 1 つのダメージ（深度で伸びる基準値） |
+| `homunculus.fallbackDuration` | 返す状態異常の持続。秒 |
+| `homunculus.color` | 炸裂・吸い取りの線・浮き文字の色（#RRGGBB） |
+| `scribeImp.bulletCount` | 弾（遠距離のスキルの写し）の数 |
+| `scribeImp.spreadDeg` | 弾の扇の広がり（全体の角度。度） |
+| `scribeImp.ringRadius` | 輪（範囲のスキルの写し）の半径。px |
+| `scribeImp.ringDamage` | 輪のダメージ（深度で伸びる基準値） |
+| `scribeImp.blastCount` | 設置の炸裂（設置スキルの写し）の数。1 つはプレイヤーの足元、残りはその周り |
+| `scribeImp.blastSpread` | 周りの炸裂の、プレイヤーからの距離。px |
+| `scribeImp.blastRadius` | 設置の炸裂 1 つの半径。px |
+| `scribeImp.blastDamage` | 設置の炸裂 1 つのダメージ（深度で伸びる基準値） |
+| `scribeImp.color` | 写しの技の色・「模倣」の浮き文字の色（#RRGGBB） |
+| `crossGolem.length` | 十字の線 1 本の長さ。px（壁で止まる） |
+| `crossGolem.damage` | 線のダメージ（深度で伸びる基準値） |
+| `windSprite.range` | 風の届く距離。px |
+| `windSprite.arcDeg` | 風の扇の広がり（全体の角度。度） |
+| `windSprite.push` | 風に当たっている間、プレイヤー・敵が押される加速。px/秒 を毎秒足す（px/秒²） |
+| `windSprite.maxPush` | 風で押される速さの上限。px/秒 |
+| `windSprite.bulletPush` | 風に当たった弾が曲がる加速。px/秒² |
+| `windSprite.color` | 風の粒の色（#RRGGBB） |
+| `mineLayer.dropInterval` | 地雷を置く間隔。秒 |
+| `mineLayer.max` | 同時に残せる地雷の数。超えている間は置かない |
+| `mine.trigger` | 踏んだとみなす距離。px（プレイヤーか、撒いた本人以外の敵の体の縁から） |
+| `mine.radius` | 炸裂の半径。px（影の予告も同じ） |
+| `chainWarden.length` | 鎖の届く長さ。px（予告の線も同じ） |
+| `chainWarden.pull` | 鎖が当たったときの引き寄せの初速。px/秒 |
+| `chainWarden.pullDamage` | 鎖が当たったときのダメージ（深度で伸びる基準値） |
+| `chainWarden.slamWindup` | 引き寄せたあと、叩きつけに入る予備動作の秒（大蝦蟇の叩きつけも同じ値） |
+| `chainWarden.slamRadius` | 叩きつけの衝撃波の半径。px |
+| `chainWarden.slamDamage` | 叩きつけのダメージ（深度で伸びる基準値） |
+| `chainWarden.color` | 鎖の線・叩きつけの粒の色（#RRGGBB） |
+| `hollow.freezeArcDeg` | プレイヤーの向きの正面から、左右それぞれこの角度（度）以内にいると固まる（コードは半角として読む） |
+| `flameEater.seekRadius` | 燃えている床・敵を探す範囲。px |
+| `flameEater.eatRadius` | 食べられる距離。px（体の半径に足す） |
+| `flameEater.eatCooldown` | 食べたあと、次に食べるまでの秒 |
+| `flameEater.heal` | 1 回食べて回復する最大生命の割合（0..1） |
+| `flameEater.maxGrowth` | 育つ段の上限（食べるたびに 1 段。壁際で育てなければ回復だけ） |
+| `flameEater.color` | 捕食の線・浮き文字・粒の色（#RRGGBB） |
+| `spore.cooldown` | 被弾したあと胞子（小さな地形）を出す間隔の下限。秒 |
+| `spore.radius` | 胞子の地形の半径。px |
+| `swampWisp.speedMul` | 現在どこからも読まれていない値（沼での速さは敵の定義 terrainSpeed が持つ） |
+| `iceTrail.radius` | 突進の跡に残る氷床の半径。px |
+| `giantToad.tongueLength` | 舌の届く長さ。px（予告の線も同じ） |
+| `giantToad.pull` | 舌が当たったときの引き寄せの初速。px/秒 |
+| `giantToad.biteRadius` | 噛みつきの衝撃波の半径と、吐く弾の着弾の半径。px |
+| `giantToad.biteDamage` | 噛みつきのダメージ（深度で伸びる基準値）。吐く弾はこの半分 |
+| `giantToad.pondRadius` | 湧いたときに作る浅瀬の半径。px（吐く弾の着弾の浅瀬はこの半分） |
+| `giantToad.color` | 噛みつき・着弾の粒の色（#RRGGBB） |
+| `forgeMaster.bladeCount` | 金床を叩いて飛ばす刃の数（扇状） |
+| `forgeMaster.spreadDeg` | 刃の扇の広がり（全体の角度。度） |
+| `forgeMaster.bladeSpeed` | 刃の速さ。px/秒 |
+| `forgeMaster.bladeDamage` | 刃 1 枚のダメージ（深度で伸びる基準値） |
+| `forgeMaster.fireRadius` | 叩くたびに金床の周りへ置く炎の半径。px |
+| `forgeMaster.enrageMul` | 金床を壊されて怒っている間、攻撃間隔に掛かる倍率（1 未満で短くなる） |
+| `forgeMaster.anvilBreakStagger` | 金床を壊されたときの隙の秒（怯み） |
+| `forgeMaster.color` | 刃・「金床破壊」の浮き文字の色（#RRGGBB） |
+| `turretMaster.turrets` | 置く砲台の数。部屋の四隅から順に置き、足りなければ砲台長の周り |
+| `turretMaster.turretBreakStagger` | 砲台が 1 つ壊れるたびの隙の秒（怯み） |
+| `turretMaster.orbSpeed` | 砲台長の弾の速さ。px/秒 |
+| `turretMaster.orbDamage` | 弾 1 発のダメージ（深度で伸びる基準値） |
+| `turretMaster.color` | 砲台長の弾・浮き文字の色（#RRGGBB） |
+| `turret.bulletSpeed` | 砲台の弾の速さ。px/秒 |
+| `turret.bulletDamage` | 弾のダメージ（深度で伸びる基準値） |
+| `basilisk.range` | 睨みの扇の届く距離。px |
+| `basilisk.arcDeg` | 睨みの扇の広がり（全体の角度。度） |
+| `basilisk.stillSpeed` | これ以下の速さを「止まっている」とみなす。px/秒 |
+| `basilisk.chillEvery` | 睨みの中で、止まっているプレイヤーに冷気が付く間隔。秒 |
+| `basilisk.biteTime` | 噛みつきの突進が続く秒 |
+| `basilisk.color` | 冷気の粒の色（#RRGGBB） |
+| `shadowStalker.behind` | プレイヤーの向きの背後へ回り込む距離。px |
+| `shadowStalker.radius` | 斬りの炸裂の半径。px（影の予告も同じ） |
+| `shadowStalker.damage` | 斬りのダメージ（深度で伸びる基準値） |
+| `shadowStalker.exposeTime` | 斬ったあと、姿を晒して動けない秒（反撃の機会） |
+| `shadowStalker.color` | 潜る粒・炸裂の色（#RRGGBB） |
 | `leaper.maxLeap` | 跳躍（leaper）で一度に跳ぶ最大の距離。px。着地点はプレイヤーの位置をこの距離までで切った点 |
 | `leaper.radius` | 着地で当たる円の半径。px（予備動作の始まりから着地まで、同じ大きさの影で予告する） |
 | `leaper.particles` | 着地の土煙の粒の数 |
@@ -725,11 +680,11 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `windupDepthStep` | （未記入） |
-| `windupDepthMin` | （未記入） |
-| `windupFloor` | （未記入） |
-| `coordRadius` | （未記入） |
-| `coordCooldownMax` | （未記入） |
+| `windupDepthStep` | 深度 1 つごとに予備動作が短くなる割合（1 階を基準に、深度 − 1 倍。割合 0..1）。小さいほど深層でも読みやすい。目安 0.01〜0.02 |
+| `windupDepthMin` | 深度による予備動作の倍率の下限（1 = 短くならない。倍率）。深度の短縮はここで止まる。目安 0.7〜0.8 |
+| `windupFloor` | 深度・迅速エリート・ボスの段階を掛け合わせても、予備動作が基準のこの倍率を下回らない（倍率。テレグラフが読めなくなるのを防ぐ）。目安 0.6 |
+| `coordRadius` | 連携ずらしで「近く」とみなす範囲。px |
+| `coordCooldownMax` | 連携ずらしで待たせる対象にする、攻撃までの待ち時間の上限。秒（これより長く待っている敵は、そもそもすぐ攻撃しないので動かさない） |
 | `commitRatio` | 予備動作の残りがこの割合を切ったら怯み値が溜まらず、攻撃は必ず出る（コミット。受け流しだけが止める）。割合(0..1)。0 で従来どおり、1 で予備動作中は一切怯まない。目安 0.5〜0.7 |
 | `aimLockSec` | 狙いが固まる残り秒の下限: 予備動作の残りがこの秒（と aimLockRatio 側の長い方）を切ったら、以後は向きを変えず、固まった向きに撃つ。予告の線もそこで止まる。秒。目安 0.15〜0.3 |
 | `aimLockRatio` | 狙いが固まる残りの割合: 予備動作の全体 × この割合も固まる残りになる（長い予備動作ほど早めに固まる）。割合(0..1)。固まる残り秒 = min(予備動作の全体, max(aimLockSec, 全体 × aimLockRatio))。0 で aimLockSec だけ。目安 0.25〜0.45 |
@@ -740,7 +695,7 @@
 | `telegraphWindow` | 予告の見やすさの上限: 予備動作に入ってからこの秒の間を「予告が出たばかり」とみなす。秒 |
 | `telegraphCap` | 予告が出たばかり（telegraphWindow 未満）の敵がこの数以上いたら、新しい予備動作は telegraphWindow だけ待つ。ボスは数えない |
 | `telegraphRange` | 予告の見やすさの上限に数える敵の範囲。プレイヤーからの px |
-| `batCoordDelay` | （未記入） |
+| `batCoordDelay` | 蝙蝠どうしの連携ずらしで待たせる秒（coordDelay の蝙蝠版。群れで来るので短い） |
 | `depthStages` | 章で技を覚える段（docs/ideas/jin-impl.md 2-4）。敵の定義 key ごとの段の列（minDepth の昇順）。深度が minDepth 以上の段が全部効き、同じ技は後の段が上書きする |
 | `depthStages.*[].minDepth` | この段の技を覚える最小の深度 |
 | `depthStages.*[].followUp` | 連撃: 1 撃目のあとに予備動作を挟んで続ける |
@@ -756,63 +711,63 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `minDepth` | （未記入） |
-| `baseChance` | （未記入） |
-| `chancePerDepth` | （未記入） |
-| `maxChance` | （未記入） |
-| `scoreMul` | （未記入） |
-| `dropMul` | （未記入） |
-| `hpMul` | （未記入） |
-| `speedMul` | （未記入） |
-| `windupMul` | （未記入） |
-| `shieldRatio` | （未記入） |
-| `shieldBreakStagger` | （未記入） |
-| `explodeRadius` | （未記入） |
-| `explodeDamage` | （未記入） |
-| `explodeFuse` | （未記入） |
-| `explodeColor` | （未記入） |
-| `reflectColor` | （未記入） |
-| `reflectDamage` | （未記入） |
-| `linkColor` | （未記入） |
-| `auraAlpha` | （未記入） |
-| `echoWindup` | （未記入） |
-| `bulwarkPoiseMul` | （未記入） |
-| `bulwarkStaggerMul` | （未記入） |
-| `bulwarkVulnerableTime` | （未記入） |
-| `retaliateDelay` | （未記入） |
-| `retaliateRadius` | （未記入） |
-| `retaliateDamage` | （未記入） |
-| `prismaticImmune` | （未記入） |
-| `timedClock` | （未記入） |
-| `timedPoiseMul` | （未記入） |
-| `parasiteCount` | （未記入） |
-| `parasiteHp` | （未記入） |
-| `anchoredSpeedMul` | （未記入） |
-| `devourRange` | （未記入） |
-| `devourHeal` | （未記入） |
-| `packedCount` | （未記入） |
-| `packedHpRatio` | （未記入） |
-| `packedOffset` | （未記入） |
-| `searingInterval` | （未記入） |
-| `searingRadius` | （未記入） |
-| `searingDuration` | （未記入） |
-| `hexRadius` | （未記入） |
-| `commandRadius` | （未記入） |
-| `commandCooldownMax` | （未記入） |
-| `evadeDist` | （未記入） |
-| `evadeCooldown` | （未記入） |
-| `chainCount` | （未記入） |
-| `chainRadius` | （未記入） |
-| `chainChillTime` | （未記入） |
-| `chainTouchIcd` | （未記入） |
-| `chainWidth` | （未記入） |
-| `pairMinDepth` | （未記入） |
-| `pairChance` | （未記入） |
-| `pyreInterval` | （未記入） |
-| `pyreRadius` | （未記入） |
-| `hexDrain` | （未記入） |
-| `evadeHasteDistMul` | （未記入） |
-| `evadeHasteCooldownMul` | （未記入） |
+| `minDepth` | 精鋭が出始める最小の深度 |
+| `baseChance` | 最小の深度での精鋭の確率（割合 0..1。通常の敵 1 体ごとの抽選） |
+| `chancePerDepth` | 最小の深度から深度 1 つ進むごとに増える確率（割合 0..1） |
+| `maxChance` | 精鋭の確率の上限（割合 0..1） |
+| `scoreMul` | 撃破スコアの倍率（通常の敵 = 1。コンボ倍率が乗る） |
+| `dropMul` | 追加ドロップの抽選の倍率（通常のドロップ確率に対して。通常ぶんと別に残りを抽選） |
+| `hpMul` | 最大生命の倍率（通常の敵 = 1） |
+| `speedMul` | 迅速・刻限（時計切れ）の移動の速さの倍率 |
+| `windupMul` | 迅速・刻限（時計切れ）の予備動作の倍率（1 未満で短い。ENEMY_TEMPO.windupFloor が下限） |
+| `shieldRatio` | 障壁の量。最大生命に対する割合（0..1。生命に上乗せして持つ） |
+| `shieldBreakStagger` | 障壁が割れたときの隙の秒（怯み） |
+| `explodeRadius` | 爆裂が倒れたあとに落とす爆弾の半径。px（敵にも当たる） |
+| `explodeDamage` | 爆裂の爆発のダメージ（深度では伸びない固定値） |
+| `explodeFuse` | 倒れてから爆ぜるまでの秒（予告の間） |
+| `explodeColor` | 爆裂の爆弾の描画色（#RRGGBB） |
+| `reflectColor` | 反射で返した弾の色（#RRGGBB） |
+| `reflectDamage` | 反射で返した弾のダメージ（固定値） |
+| `linkColor` | 連結の相方との光の線の色（#RRGGBB） |
+| `auraAlpha` | 精鋭の周りのオーラの最も濃い不透明度（0..1。脈打つ） |
+| `echoWindup` | 残響の 2 回目の攻撃の予備動作の秒（1 回目と同じ攻撃をもう 1 度出す） |
+| `bulwarkPoiseMul` | 堅牢の怯み値の上限の倍率（怯みにくい） |
+| `bulwarkStaggerMul` | 堅牢が怯んだときの怯みの長さの倍率（怯むと長く脆い） |
+| `bulwarkVulnerableTime` | 堅牢が怯んだときに付く脆弱の秒 |
+| `retaliateDelay` | 報復が怯んでから衝撃波を返すまでの秒（予告の輪が縮む間） |
+| `retaliateRadius` | 報復の衝撃波の半径。px |
+| `retaliateDamage` | 報復の衝撃波のダメージ（固定値） |
+| `prismaticImmune` | 分光が状態異常を受けたあと、同じ種類を付け直せない秒（怯み・堅守を除く） |
+| `timedClock` | 刻限の時計の秒。切れると迅速と同じ速さになる |
+| `timedPoiseMul` | 刻限の時計が切れたときの怯み値の上限の倍率 |
+| `parasiteCount` | 寄生が倒れたときに湧く寄生虫（小さな蝙蝠）の数 |
+| `parasiteHp` | 寄生虫の生命（固定値） |
+| `anchoredSpeedMul` | 不動の移動の速さの倍率（1 未満で遅い） |
+| `devourRange` | 貪食が死骸を吸える距離。px（同じ部屋の死骸） |
+| `devourHeal` | 死骸 1 体を吸って回復する最大生命の割合（0..1） |
+| `packedCount` | 群長が連れて湧く同じ種類の小型の数 |
+| `packedHpRatio` | 群長の小型の生命の割合（元の敵に対して。0..1） |
+| `packedOffset` | 群長の小型・寄生虫が湧く、親からの距離。px |
+| `searingInterval` | 灼熱が通った跡に炎を置く間隔。秒 |
+| `searingRadius` | 灼熱の跡の炎の半径。px |
+| `searingDuration` | 灼熱の跡の炎が残る秒 |
+| `hexRadius` | 封魔の輪の半径。px。輪の中ではマナの自然回復が止まる |
+| `commandRadius` | 号令が届く範囲。px（自分が予備動作に入った瞬間に周りを動かす） |
+| `commandCooldownMax` | 号令で動かす対象にする、攻撃までの待ち時間の上限。秒（すぐ攻撃できる敵だけ） |
+| `evadeDist` | 見切りの跳ぶ距離。px（スキル・溜め攻撃に反応して横へ） |
+| `evadeCooldown` | 見切りの跳びの間隔。秒 |
+| `chainCount` | 鎖縛が同時に鎖でつなぐ敵の数（近い順） |
+| `chainRadius` | 鎖縛が鎖でつなぐ範囲。px |
+| `chainChillTime` | 鎖に触れたときの冷気の秒 |
+| `chainTouchIcd` | 鎖に続けて触れても冷気が付く最短の間隔。秒 |
+| `chainWidth` | 鎖の当たりの太さ。px（線の半径） |
+| `pairMinDepth` | 修飾子が 2 つ重なる（炎の柱・封魔の障壁・逃げ足）ようになる最小の深度 |
+| `pairChance` | 最小の深度以降、精鋭が修飾子 2 つ重なりになる確率（割合 0..1） |
+| `pyreInterval` | 炎の柱（灼熱の + 不動の）が足元に炎を置く間隔。秒 |
+| `pyreRadius` | 炎の柱の炎の半径。px |
+| `hexDrain` | 封魔の障壁（封魔の + 障壁の）で、障壁が残っている間、輪の中のマナが減る速さ。マナ/秒 |
+| `evadeHasteDistMul` | 逃げ足（見切りの + 迅速の）の跳ぶ距離の倍率 |
+| `evadeHasteCooldownMul` | 逃げ足の跳びの間隔の倍率（1 未満で頻繁に跳ぶ） |
 
 ## enemies/ELITE_GREEDY
 
@@ -820,16 +775,16 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `seekRadius` | （未記入） |
-| `grabRadius` | （未記入） |
-| `carryMax` | （未記入） |
-| `runMul` | （未記入） |
-| `fleeRadius` | （未記入） |
-| `stuckRatio` | （未記入） |
-| `cornerFightTime` | （未記入） |
-| `bonusDrops` | （未記入） |
-| `dropSpread` | （未記入） |
-| `color` | （未記入） |
+| `seekRadius` | 床の遺物・スキル石を探す範囲。px（視線が通る物のうち一番近い物。封鎖する部屋では自室の中だけ） |
+| `grabRadius` | 拾える距離。px |
+| `carryMax` | 同時に抱えられる物の数。満たすと拾いに行かず逃げる |
+| `runMul` | 拾いに行く・逃げる速さ。歩く速さに対する倍率 |
+| `fleeRadius` | プレイヤーがこの距離より近いと逃げる。px（離れたらその場で待つ） |
+| `stuckRatio` | 逃げ道が塞がったと判断する、進めた距離の割合（想定の移動距離に対して。0..1）。これ未満で追い詰められたとみなす |
+| `cornerFightTime` | 追い詰められたとき、普通の敵として戦う秒 |
+| `bonusDrops` | 撃破したときの追加ドロップの数（抱えていた物とは別） |
+| `dropSpread` | 抱えていた物を落とすとき、倒れた場所の周りに並べる距離。px |
+| `color` | 拾う浮き文字・粒・オーラの色（#RRGGBB） |
 
 ## enemies/DOUBLE_CHARGE
 
@@ -837,13 +792,13 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `overshoot` | （未記入） |
-| `leg1Min` | （未記入） |
-| `leg1Max` | （未記入） |
-| `leg2Len` | （未記入） |
-| `turnDeg` | （未記入） |
-| `lineAlpha` | （未記入） |
-| `secondAlpha` | （未記入） |
+| `overshoot` | 1 本目の突進が、プレイヤーの位置より先まで走る距離。px |
+| `leg1Min` | 1 本目の突進の最短の長さ。px |
+| `leg1Max` | 1 本目の突進の最長の長さ。px（壁があればその手前で曲がる） |
+| `leg2Len` | 2 本目の突進の長さ。px（先の壁には激突する） |
+| `turnDeg` | 2 本目へ曲がる角度（度）。左右どちらかは抽選 |
+| `lineAlpha` | 現在どこからも読まれていない値 |
+| `secondAlpha` | 現在どこからも読まれていない値 |
 
 ## enemies/BOSS
 
@@ -851,25 +806,25 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `interval` | （未記入） |
-| `roomMinW` | （未記入） |
-| `roomMinH` | （未記入） |
-| `introTime` | （未記入） |
-| `defeatSlowmo` | （未記入） |
-| `rareDrops` | （未記入） |
-| `rareDropBoost` | （未記入） |
-| `rareDropAttempts` | （未記入） |
+| `interval` | 章ボス（major）が出る階の間隔。この倍数の階が章ボスの階になる |
+| `roomMinW` | 章ボスの階の最後の部屋（ボス部屋）の最小の幅。タイル |
+| `roomMinH` | 章ボスの階の最後の部屋（ボス部屋）の最小の高さ。タイル |
+| `introTime` | ボスの登場演出の秒（この間は戦闘が始まらない） |
+| `defeatSlowmo` | 章ボスを倒したときのスローモーションの秒 |
+| `rareDrops` | 章ボスを倒したときに出るレア以上の装備の数 |
+| `rareDropBoost` | 章ボスのドロップの品質補正（装備生成の rarityBoost。大きいほど高い品質が出やすい） |
+| `rareDropAttempts` | レア以上が出るまで引き直す最大の回数（ドロップ 1 個ごと） |
 | `kingSlime.jumpRise` | 高い跳躍: 跳んでから影の真上に着くまでの秒（下絵。深度で縮めない） |
 | `kingSlime.jumpHover` | 高い跳躍: 影の真上で止まる秒（下絵。深度で縮む） |
 | `kingSlime.phase2Hover` | 段階 2 以降の滞空の秒（jumpHover の代わり） |
 | `kingSlime.jumpFall` | 高い跳躍: 落ちる秒（墨入れ。深度で縮めない = 墨入れを見てからの猶予を一定にする） |
 | `kingSlime.dropDown` | 墜落（下絵のうちに打たれた跳躍）のダウンの秒 |
 | `kingSlime.dropsToSplit` | 段階 1 の墜落がこの回数で、生命に関わらず分裂する |
-| `kingSlime.shockRadius` | （未記入） |
-| `kingSlime.shockDamage` | （未記入） |
-| `kingSlime.phase2Ratio` | （未記入） |
-| `kingSlime.splitCount` | （未記入） |
-| `kingSlime.phase2SpeedMul` | （未記入） |
+| `kingSlime.shockRadius` | 跳躍の着地の衝撃波の半径。px（着地点の影も同じ。真下の潰しはこの 0.4 倍） |
+| `kingSlime.shockDamage` | 着地の衝撃波・真下の潰しのダメージ（深度で伸びる基準値） |
+| `kingSlime.phase2Ratio` | 第 2 段階（分裂）へ進む生命の割合（保険。墜落が dropsToSplit 回溜まれば先に進む。0..1） |
+| `kingSlime.splitCount` | 分裂で出る体の数（うち 1 体が冠スライム） |
+| `kingSlime.phase2SpeedMul` | 第 2 段階以降の移動の速さの倍率（1 = 等倍） |
 | `kingSlime.crownHpRatio` | 冠スライムの生命 = 王の最大生命 × この値 |
 | `kingSlime.crownShade` | 冠スライムが隠れる、王から見てプレイヤーの反対側の距離（px） |
 | `kingSlime.crownDown` | 冠落ち（冠スライムを倒した）のダウンの秒 |
@@ -894,121 +849,118 @@
 | `kingSlime.waveDamage` | 膨張の衝撃波 1 つのダメージ（深度で伸びる） |
 | `kingSlime.cornerSafeRatio` | 膨張の衝撃波の半径 = 中央から部屋の最も近い角までの距離 × この値（四隅だけ安全） |
 | `kingSlime.inflateRecover` | 膨張の後の硬直の秒 |
-| `boneLord.bulletSpeed` | （未記入） |
-| `boneLord.bulletDamage` | （未記入） |
-| `boneLord.bulletDirs` | （未記入） |
-| `boneLord.volleys` | （未記入） |
-| `boneLord.volleyInterval` | （未記入） |
-| `boneLord.volleySpin` | （未記入） |
-| `boneLord.wallDuration` | （未記入） |
-| `boneLord.wallLength` | （未記入） |
-| `boneLord.wallHp` | （未記入） |
-| `boneLord.wallBlastRadius` | （未記入） |
-| `boneLord.teleportRatio` | （未記入） |
-| `boneLord.teleportInterval` | （未記入） |
-| `boneLord.color` | （未記入） |
-| `twinKnights.lungeSpeedMul` | （未記入） |
-| `twinKnights.arrowSpeed` | （未記入） |
-| `twinKnights.arrowDamage` | （未記入） |
-| `twinKnights.arrowCount` | （未記入） |
-| `twinKnights.arrowSpreadDeg` | （未記入） |
-| `twinKnights.rageArrowCount` | （未記入） |
-| `twinKnights.keepAway` | （未記入） |
-| `twinKnights.bereavedWindupMul` | （未記入） |
-| `twinKnights.rageRatio` | （未記入） |
-| `twinKnights.rageIntervalMul` | （未記入） |
-| `twinKnights.color` | （未記入） |
-| `frostGiant.slamRadius` | （未記入） |
-| `frostGiant.slamDamage` | （未記入） |
-| `frostGiant.slamCoreRatio` | （未記入） |
-| `frostGiant.phase2Ratio` | （未記入） |
-| `frostGiant.phase3Ratio` | （未記入） |
-| `frostGiant.icicleCount` | （未記入） |
-| `frostGiant.icicleRadius` | （未記入） |
-| `frostGiant.icicleDamage` | （未記入） |
-| `frostGiant.icicleFall` | （未記入） |
-| `frostGiant.icicleSpread` | （未記入） |
-| `frostGiant.pillarCount` | （未記入） |
-| `frostGiant.pillarDistance` | （未記入） |
-| `frostGiant.armorBreakDown` | （未記入） |
-| `frostGiant.color` | （未記入） |
-| `oilKing.jarCount` | （未記入） |
-| `oilKing.jarSpread` | （未記入） |
-| `oilKing.jarRadius` | （未記入） |
-| `oilKing.jarBlast` | （未記入） |
-| `oilKing.jarDamage` | （未記入） |
-| `oilKing.jarFall` | （未記入） |
-| `oilKing.chargeSpeedMul` | （未記入） |
-| `oilKing.chargeTime` | （未記入） |
-| `oilKing.wallStagger` | （未記入） |
-| `oilKing.fireBombRadius` | （未記入） |
-| `oilKing.fireBombDamage` | （未記入） |
-| `oilKing.trailInterval` | （未記入） |
-| `oilKing.trailRadius` | （未記入） |
-| `oilKing.slamRadius` | （未記入） |
-| `oilKing.slamDamage` | （未記入） |
-| `oilKing.igniteStagger` | （未記入） |
-| `oilKing.igniteCooldown` | （未記入） |
-| `oilKing.phase2Ratio` | （未記入） |
-| `oilKing.phase3Ratio` | （未記入） |
+| `boneLord.bulletSpeed` | 回転弾幕の弾の速さ。px/秒 |
+| `boneLord.bulletDamage` | 弾 1 発のダメージ（深度で伸びる基準値） |
+| `boneLord.bulletDirs` | 1 回の斉射で放射状に撃つ弾の数 |
+| `boneLord.volleys` | 弾幕 1 回の攻撃で斉射する回数 |
+| `boneLord.volleyInterval` | 斉射の間隔。秒（攻撃の長さ = volleys × この値） |
+| `boneLord.volleySpin` | 斉射ごとに弾の向きをずらす角度。ラジアン（回転して見える） |
+| `boneLord.wallDuration` | 骨の壁が残る秒 |
+| `boneLord.wallLength` | 骨の壁の長さ。タイル（狙いと直交する列。端数は切り捨てて中心の左右に並べる） |
+| `boneLord.wallHp` | 骨の壁の耐久。攻撃で削れる。敵を壁に叩きつけたときはこの値のダメージで壁ごと崩れる |
+| `boneLord.wallBlastRadius` | 現在どこからも読まれていない値 |
+| `boneLord.teleportRatio` | 激怒（テレポート連発）へ進む生命の割合（0..1） |
+| `boneLord.teleportInterval` | 激怒中にテレポートする間隔。秒 |
+| `boneLord.color` | 骨の弾・壁の粒・テレポートの演出の色（#RRGGBB） |
+| `*.lungeSpeedMul` | 突進の速さ。歩く速さに対する倍率 |
+| `twinKnights.arrowSpeed` | 矢の速さ。px/秒 |
+| `twinKnights.arrowDamage` | 矢 1 本のダメージ（深度で伸びる基準値） |
+| `twinKnights.arrowCount` | 矢の扇の本数（通常） |
+| `twinKnights.arrowSpreadDeg` | 矢の扇の広がり（全体の角度。度。激昂中は 2 倍） |
+| `twinKnights.rageArrowCount` | 激昂中の矢の扇の本数 |
+| `twinKnights.keepAway` | 弓の距離。プレイヤーとの距離をこの付近に保つ。px（突進の間は寄る） |
+| `twinKnights.bereavedWindupMul` | 相方を失った方の予備動作の倍率（1 超で長い） |
+| `twinKnights.rageRatio` | 相方を失ったあと、激昂へ進む生命の割合（0..1） |
+| `twinKnights.rageIntervalMul` | 激昂中の攻撃間隔の倍率（1 未満で短い） |
+| `twinKnights.color` | 矢・段階の浮き文字の色（#RRGGBB） |
+| `frostGiant.slamRadius` | 叩きつけの衝撃波の半径。px |
+| `*.slamDamage` | 叩きつけのダメージ（深度で伸びる基準値） |
+| `frostGiant.slamCoreRatio` | 真下の潰しの半径の割合（slamRadius に対して。0..1）。中心に立っていると衝撃波とは別に当たる |
+| `frostGiant.phase2Ratio` | 第 2 段階（つらら）へ進む生命の割合（0..1） |
+| `frostGiant.phase3Ratio` | 第 3 段階（氷の鎧）へ進む生命の割合（0..1） |
+| `frostGiant.icicleCount` | つららの数（1 つはプレイヤーの足元、残りはその周り） |
+| `frostGiant.icicleRadius` | つらら 1 つの半径。px（影の予告も同じ） |
+| `frostGiant.icicleDamage` | つらら 1 つのダメージ（深度で伸びる基準値） |
+| `frostGiant.icicleFall` | つららが影から落ちるまでの秒（そのまま予備動作になる。深度で縮む） |
+| `frostGiant.icicleSpread` | 足元以外のつららが散らばる最大距離。px |
+| `frostGiant.pillarCount` | 第 3 段階で立つ氷柱の数（すべて割ると鎧が砕けてダウン） |
+| `frostGiant.pillarDistance` | 氷柱を置く巨人からの距離。px（壁に掛かるなら手前へ寄せる） |
+| `frostGiant.armorBreakDown` | 鎧が砕けたときのダウンの秒 |
+| `frostGiant.color` | つらら・鎧割れの粒・段階の浮き文字の色（#RRGGBB） |
+| `oilKing.jarCount` | 油壺の数（1 つはプレイヤーの足元、残りはその周り） |
+| `oilKing.jarSpread` | 足元以外の油壺が散らばる距離。px |
+| `oilKing.jarRadius` | 油壺が落ちた跡の油の半径。px（影の予告も同じ） |
+| `oilKing.jarBlast` | 油壺の割れる炸裂の半径。px |
+| `oilKing.jarDamage` | 油壺 1 つのダメージ（深度で伸びる基準値） |
+| `oilKing.jarFall` | 油壺が影から落ちるまでの秒（そのまま予備動作になる。深度で縮む） |
+| `oilKing.chargeSpeedMul` | 突進の速さ。歩く速さに対する倍率 |
+| `oilKing.chargeTime` | 突進が続く秒 |
+| `*.wallStagger` | 突進が壁に激突したときのダウンの秒 |
+| `oilKing.fireBombRadius` | 火炎瓶の炸裂の半径。px（影の予告も同じ。着地点の周りの油に引火する） |
+| `oilKing.fireBombDamage` | 火炎瓶のダメージ（深度で伸びる基準値） |
+| `oilKing.trailInterval` | 突進の跡に油を残す間隔。秒（第 3 段階） |
+| `oilKing.trailRadius` | 突進の跡の油の半径。px |
+| `oilKing.slamRadius` | 叩きつけの衝撃波の半径。px（予告の輪も同じ。足元の油に引火する） |
+| `oilKing.igniteStagger` | 燃える床で引火したときのダウンの秒 |
+| `oilKing.igniteCooldown` | 引火で怯む間隔の下限。秒（続けて怯まない） |
+| `oilKing.phase2Ratio` | 第 2 段階（火）へ進む生命の割合（0..1） |
+| `oilKing.phase3Ratio` | 第 3 段階（油まみれ）へ進む生命の割合（保険。引火が ignitesToDrench 回溜まれば先に進む。0..1） |
 | `oilKing.ignitesToDrench` | 第 2 段階: 王を燃える床へ誘って引火させると第 3 段階（油まみれ）へ進む回数（生命に関わらず） |
 | `oilKing.chargeChain` | 第 3 段階: 突進が壁に当たらなければ続けて出す回数 |
-| `oilKing.color` | （未記入） |
-| `broodMother.eggCount` | （未記入） |
-| `broodMother.eggHatch` | （未記入） |
-| `broodMother.eggSpread` | （未記入） |
-| `broodMother.layTime` | （未記入） |
-| `broodMother.biteSpeedMul` | （未記入） |
-| `broodMother.biteTime` | （未記入） |
-| `broodMother.jumpTime` | （未記入） |
-| `broodMother.landRadius` | （未記入） |
-| `broodMother.landDamage` | （未記入） |
-| `broodMother.acidRadius` | （未記入） |
-| `broodMother.swarmInterval` | （未記入） |
-| `broodMother.swarmCount` | （未記入） |
-| `broodMother.eggBreakPoise` | （未記入） |
-| `broodMother.phase2Ratio` | （未記入） |
-| `broodMother.phase3Ratio` | （未記入） |
-| `broodMother.color` | （未記入） |
-| `librarian.keepAway` | （未記入） |
-| `librarian.shelfLength` | （未記入） |
-| `librarian.shelfFall` | （未記入） |
-| `librarian.pageCount` | （未記入） |
-| `librarian.pageSpread` | （未記入） |
-| `librarian.pageSpeed` | （未記入） |
-| `librarian.pageDamage` | （未記入） |
-| `librarian.readTime` | （未記入） |
-| `librarian.readDropStagger` | （未記入） |
-| `librarian.thunderCount` | （未記入） |
-| `librarian.thunderSpread` | （未記入） |
-| `librarian.thunderRadius` | （未記入） |
-| `librarian.thunderDamage` | （未記入） |
-| `librarian.pullRadius` | （未記入） |
-| `librarian.pullForce` | （未記入） |
-| `librarian.pullRingDamage` | （未記入） |
-| `librarian.toppleLength` | （未記入） |
-| `librarian.toppleSpacing` | （未記入） |
-| `librarian.toppleRadius` | （未記入） |
-| `librarian.toppleDamage` | （未記入） |
-| `librarian.toppleFall` | （未記入） |
-| `librarian.phase2Ratio` | （未記入） |
-| `librarian.phase3Ratio` | （未記入） |
-| `librarian.color` | （未記入） |
-| `mirrorKnight.lungeSpeedMul` | （未記入） |
-| `mirrorKnight.lungeTime` | （未記入） |
-| `mirrorKnight.wallStagger` | （未記入） |
-| `mirrorKnight.waveCount` | （未記入） |
-| `mirrorKnight.waveSpread` | （未記入） |
-| `mirrorKnight.waveSpeed` | （未記入） |
-| `mirrorKnight.waveDamage` | （未記入） |
-| `mirrorKnight.reflectDamage` | （未記入） |
-| `mirrorKnight.procDuration` | （未記入） |
-| `mirrorKnight.procMax` | （未記入） |
-| `mirrorKnight.images` | （未記入） |
-| `mirrorKnight.imageHpRatio` | （未記入） |
-| `mirrorKnight.imageGuardMul` | （未記入） |
-| `mirrorKnight.phase2Ratio` | （未記入） |
-| `mirrorKnight.phase3Ratio` | （未記入） |
+| `oilKing.color` | 段階の浮き文字・壁激突の演出の色（#RRGGBB） |
+| `broodMother.eggCount` | 1 回の産卵で産む卵の数（場に残る卵の上限までに切り詰める） |
+| `broodMother.eggHatch` | 卵が孵るまでの秒（割ると母に怯み値が入る） |
+| `broodMother.eggSpread` | 卵を産む母からの距離。px |
+| `broodMother.layTime` | 産卵の予備動作の秒（無防備。深度で縮む） |
+| `broodMother.biteSpeedMul` | 噛みつきの突進の速さ。歩く速さに対する倍率 |
+| `broodMother.biteTime` | 噛みつきの突進が続く秒 |
+| `broodMother.jumpTime` | 跳躍の滞空の秒（着地点の影が出ている） |
+| `broodMother.landRadius` | 跳躍の着地の衝撃波の半径。px（影の予告も同じ） |
+| `broodMother.landDamage` | 着地の衝撃波のダメージ（深度で伸びる基準値） |
+| `broodMother.acidRadius` | 着地点に残す酸の沼の半径。px |
+| `broodMother.swarmInterval` | 第 3 段階で壁際から群れが湧く間隔。秒 |
+| `broodMother.swarmCount` | 群れ 1 回で湧く数 |
+| `broodMother.eggBreakPoise` | 卵を割られたとき、母に入る怯み値 |
+| `broodMother.phase2Ratio` | 第 2 段階（羽）へ進む生命の割合（0..1） |
+| `broodMother.phase3Ratio` | 第 3 段階（崩壊）へ進む生命の割合（0..1） |
+| `broodMother.color` | 段階の浮き文字の色（#RRGGBB） |
+| `librarian.keepAway` | プレイヤーとの距離をこの付近に保つ。px |
+| `librarian.shelfLength` | 本棚の列の長さ。タイル（司書とプレイヤーの間に、狙いと直交して並ぶ） |
+| `librarian.shelfFall` | 本棚が影から立つまでの秒（そのまま予備動作になる。深度で縮む） |
+| `librarian.pageCount` | 頁の弾の数（扇状） |
+| `librarian.pageSpread` | 頁の扇の広がり（全体の角度。度） |
+| `librarian.pageSpeed` | 頁の弾の速さ。px/秒 |
+| `librarian.pageDamage` | 頁 1 枚のダメージ（深度で伸びる基準値） |
+| `librarian.readTime` | 禁書を読む予備動作の秒（読む間に沈黙・怯みで本を落とす。深度で縮む） |
+| `librarian.readDropStagger` | 読みを途切れさせられて本を落としたときのダウンの秒 |
+| `librarian.thunderCount` | 雷の数（1 つはプレイヤーの足元、残りはその周り） |
+| `librarian.thunderSpread` | 足元以外の雷が散らばる距離。px |
+| `librarian.thunderRadius` | 雷 1 つの半径。px（影の予告も同じ） |
+| `librarian.thunderDamage` | 雷 1 つのダメージ（深度で伸びる基準値） |
+| `librarian.pullRadius` | 引力（禁書）が届く範囲。px（予告の輪も同じ） |
+| `librarian.pullForce` | 引力で引き寄せる初速。px/秒 |
+| `librarian.pullRingDamage` | 引力の直後に足元で広がる衝撃波のダメージ（深度で伸びる基準値） |
+| `librarian.toppleLength` | 倒れる本棚の数（プレイヤーを通る、司書からの向きと直交する列） |
+| `librarian.toppleSpacing` | 倒れる本棚の間隔。px |
+| `librarian.toppleRadius` | 倒れる本棚 1 つの炸裂の半径。px（影の予告も同じ） |
+| `librarian.toppleDamage` | 倒れる本棚 1 つのダメージ（深度で伸びる基準値） |
+| `librarian.toppleFall` | 倒れる本棚が影から倒れるまでの秒（そのまま予備動作になる。深度で縮む） |
+| `librarian.phase2Ratio` | 第 2 段階（禁書）へ進む生命の割合（0..1） |
+| `librarian.phase3Ratio` | 第 3 段階（倒れる本棚）へ進む生命の割合（0..1） |
+| `librarian.color` | 禁書・引力の輪・段階の浮き文字の色（#RRGGBB） |
+| `mirrorKnight.lungeTime` | 突進が続く秒 |
+| `mirrorKnight.waveCount` | 剣の波の弾の数（扇状） |
+| `mirrorKnight.waveSpread` | 剣の波の扇の広がり（全体の角度。度） |
+| `mirrorKnight.waveSpeed` | 剣の波の速さ。px/秒 |
+| `mirrorKnight.waveDamage` | 剣の波 1 発のダメージ（深度で伸びる基準値） |
+| `mirrorKnight.reflectDamage` | 現在どこからも読まれていない値（弾を跳ね返す処理は盾を向けるだけで、返す弾のダメージは持たない） |
+| `mirrorKnight.procDuration` | 第 2 段階から、接触に乗せて返す状態異常の持続。秒 |
+| `mirrorKnight.procMax` | 返す状態異常の種類の上限（装備が付ける状態異常から写す） |
+| `mirrorKnight.images` | 第 3 段階で同時に立つ写し身の数 |
+| `mirrorKnight.imageHpRatio` | 写し身 1 体の生命の割合（本体の最大生命に対して。0..1） |
+| `mirrorKnight.imageGuardMul` | 写し身が残っている間に、本体が受けるダメージの倍率（1 未満で硬い） |
+| `mirrorKnight.phase2Ratio` | 第 2 段階（模写）へ進む生命の割合（保険。盾割れが slamsToCrack 回溜まれば先に進む。0..1） |
+| `mirrorKnight.phase3Ratio` | 第 3 段階（姿見）へ進む生命の割合（0..1） |
 | `mirrorKnight.slamsToCrack` | 第 1 段階: 突進の壁激突がこの回数で HP に関わらず第 2 段階（盾割れ）へ進む |
 | `mirrorKnight.bashRange` | 盾打ちの扇の届く距離（px）。予告の扇と同じ |
 | `mirrorKnight.bashHalfDeg` | 盾打ちの扇の半角（度） |
@@ -1021,36 +973,35 @@
 | `mirrorKnight.paneOffset` | 姿見を部屋の中央から左右へ置く距離（px） |
 | `mirrorKnight.imageReform` | 姿見が残っているとき、倒された写し身が戻るまでの秒 |
 | `mirrorKnight.paneDown` | 姿見を割ったときの騎士のダウンの秒（鏡割れ） |
-| `mirrorKnight.color` | （未記入） |
-| `thiefKing.keepAway` | （未記入） |
-| `thiefKing.fleeSpeedMul` | （未記入） |
-| `thiefKing.stuckRatio` | （未記入） |
-| `thiefKing.cornerRadius` | （未記入） |
-| `thiefKing.cornerTime` | （未記入） |
-| `thiefKing.cornerStagger` | （未記入） |
-| `thiefKing.cornerCooldown` | （未記入） |
-| `thiefKing.knifeCount` | （未記入） |
-| `thiefKing.rageKnifeCount` | （未記入） |
-| `thiefKing.knifeSpreadDeg` | （未記入） |
-| `thiefKing.knifeSpeed` | （未記入） |
-| `thiefKing.knifeDamage` | （未記入） |
-| `thiefKing.knifeRange` | （未記入） |
-| `thiefKing.mineCount` | （未記入） |
-| `thiefKing.mineCountLate` | （未記入） |
-| `thiefKing.mineSpread` | （未記入） |
-| `thiefKing.mineFall` | （未記入） |
-| `thiefKing.mineMax` | （未記入） |
-| `thiefKing.smokeFall` | （未記入） |
-| `thiefKing.smokeRadius` | （未記入） |
-| `thiefKing.smokeDamage` | （未記入） |
-| `thiefKing.smokeTime` | （未記入） |
-| `thiefKing.dashSpeedMul` | （未記入） |
-| `thiefKing.dashTime` | （未記入） |
-| `thiefKing.wallStagger` | （未記入） |
-| `thiefKing.minions` | （未記入） |
-| `thiefKing.minionSpread` | （未記入） |
-| `thiefKing.phase2Ratio` | （未記入） |
-| `thiefKing.phase3Ratio` | （未記入） |
+| `mirrorKnight.color` | 剣の波・盾打ちの粒・段階の浮き文字の色（#RRGGBB） |
+| `thiefKing.keepAway` | プレイヤーからこの距離まで離れて逃げる。px（第 1・2 段階） |
+| `thiefKing.fleeSpeedMul` | 逃げる速さ。歩く速さに対する倍率 |
+| `thiefKing.stuckRatio` | 逃げる向きに進めた距離がこの割合（想定の移動距離に対して。0..1）を下回ると、塞がれた（追い詰められかけ）とみなす |
+| `thiefKing.cornerRadius` | 追い詰められかけになる、プレイヤーとの距離の上限。px |
+| `thiefKing.cornerTime` | 追い詰められた状態が続いてダウンするまでの秒 |
+| `thiefKing.cornerStagger` | 追い詰められたときのダウンの秒 |
+| `thiefKing.cornerCooldown` | 追い詰めのダウンの間隔の下限。秒 |
+| `thiefKing.knifeCount` | ナイフの扇の本数（通常） |
+| `thiefKing.rageKnifeCount` | 第 3 段階（開き直り）のナイフの扇の本数 |
+| `thiefKing.knifeSpreadDeg` | ナイフの扇の広がり（全体の角度。度。地雷の並べ方は 2 倍の広がり） |
+| `thiefKing.knifeSpeed` | ナイフの速さ。px/秒 |
+| `thiefKing.knifeDamage` | ナイフ 1 本のダメージ（深度で伸びる基準値） |
+| `thiefKing.knifeRange` | ナイフの予告の扇の届く距離。px（弾の飛距離ではない） |
+| `thiefKing.mineCount` | 第 1 段階で 1 回に置く地雷の数 |
+| `thiefKing.mineCountLate` | 第 2 段階以降で 1 回に置く地雷の数 |
+| `thiefKing.mineSpread` | 地雷を置く、王からの距離。px（扇状に並べる） |
+| `thiefKing.mineFall` | 地雷が影から落ちるまでの秒（予備動作。深度で縮む） |
+| `thiefKing.mineMax` | 場に残せる地雷の数の上限（超えると置かない） |
+| `thiefKing.smokeFall` | 煙玉の予備動作の秒（深度で縮む） |
+| `thiefKing.smokeRadius` | 煙玉の炸裂と煙の半径。px（影の予告も同じ） |
+| `thiefKing.smokeDamage` | 煙玉の炸裂のダメージ（深度で伸びる基準値） |
+| `thiefKing.smokeTime` | 煙が残る秒 |
+| `thiefKing.dashSpeedMul` | 突進の速さ。歩く速さに対する倍率 |
+| `thiefKing.dashTime` | 突進が続く秒 |
+| `thiefKing.minions` | 取り巻きの盗賊の数。[戦闘開始, 第 2 段階へ進んだとき, 第 3 段階へ進んだとき] |
+| `thiefKing.minionSpread` | 取り巻きが湧く、王からの距離。px |
+| `thiefKing.phase2Ratio` | 第 2 段階（罠）へ進む生命の割合（0..1） |
+| `thiefKing.phase3Ratio` | 第 3 段階（開き直り）へ進む生命の割合（保険。追い詰めのダウンが cornersToRage 回溜まれば先に進む。0..1） |
 | `thiefKing.cornersToRage` | 第 2 段階の間に追い詰めでダウンさせるとこの回数で生命に関わらず第 3 段階（開き直り）へ |
 | `thiefKing.fenceLen` | 第 2 段階の始まりに立てる柵の L 字の 1 辺のタイル数（角を共有する） |
 | `thiefKing.fenceHp` | 柵 1 マスの耐久（爆発・弾・叩きつけで削れる） |
@@ -1058,7 +1009,7 @@
 | `thiefKing.retreatMul` | 第 1・2 段階の硬直の間にプレイヤーから離れる速さ（def.speed の倍。一撃離脱） |
 | `thiefKing.dashChain` | 第 3 段階の突進が壁に当たらなかったときに続けて突進する回数 |
 | `thiefKing.rageKnifeChain` | 第 3 段階の短剣（怒りの扇）を続けて投げる回数 |
-| `thiefKing.color` | （未記入） |
+| `thiefKing.color` | ナイフ・煙・ダウンの演出・段階の浮き文字の色（#RRGGBB） |
 | `rules.nearDist` | プレイヤーとの距離がこれ未満なら「近い」（px） |
 | `rules.farDist` | プレイヤーとの距離がこれを超えると「遠い」（px） |
 | `rules.stillSpeed` | 1 ステップの移動がこの速さ × dt 未満なら静止とみなす（px/s） |
@@ -1109,7 +1060,7 @@
 | `deepLord.handRadius` | 奈落の手の炸裂の半径（px） |
 | `deepLord.handDamage` | 奈落の手のダメージ（深度で伸びる） |
 | `deepLord.borrowRecoil` | 借りた技の後のダウンの秒（反動） |
-| `deepLord.color` | （未記入） |
+| `deepLord.color` | 深みの主の段階・ダウンの浮き文字、炸裂の色（#RRGGBB） |
 
 ## enemies/FLOOR_LORD
 
@@ -1242,35 +1193,35 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `appearAfter` | （未記入） |
-| `appearPerRoom` | （未記入） |
-| `warnMargin` | （未記入） |
-| `speed` | （未記入） |
-| `radius` | （未記入） |
-| `damage` | （未記入） |
-| `spawnDist` | （未記入） |
-| `color` | （未記入） |
-| `variants.chain.minDepth` | （未記入） |
-| `variants.chain.speedMul` | （未記入） |
-| `variants.chain.interval` | （未記入） |
-| `variants.chain.charge` | （未記入） |
-| `variants.chain.length` | （未記入） |
-| `variants.chain.width` | （未記入） |
-| `variants.chain.pull` | （未記入） |
-| `variants.chain.damage` | （未記入） |
-| `variants.chain.color` | （未記入） |
-| `variants.collector.speedMul` | （未記入） |
-| `variants.collector.offerRadius` | （未記入） |
-| `variants.collector.offerTime` | （未記入） |
-| `variants.collector.tollRatio` | （未記入） |
-| `variants.collector.color` | （未記入） |
-| `variants.twin.minDepth` | （未記入） |
-| `variants.twin.speedMul` | （未記入） |
-| `variants.twin.spread` | （未記入） |
-| `variants.shadow.shades` | （未記入） |
-| `variants.shadow.respawn` | （未記入） |
-| `variants.shadow.ring` | （未記入） |
-| `variants.silent.moveThreshold` | （未記入） |
+| `appearAfter` | 死神が出るまでの猶予の基準。秒（フロアの広さの倍率 ^ MAP_SIZE.graceAreaExp を掛けて、部屋数ぶんを足す） |
+| `appearPerRoom` | 猶予に足す、部屋 1 つあたりの秒（宝箱・祠・台座の部屋は数えない） |
+| `warnMargin` | 出現のこの秒前から HUD に残り時間を出す。秒 |
+| `speed` | 追跡の速さ。px/秒（壁を抜けて直進する） |
+| `radius` | 本体の半径。px |
+| `damage` | 接触ダメージ（無敵・常に接触するのでジャスト回避は成立しない） |
+| `spawnDist` | 出現する位置のプレイヤーからの距離。px |
+| `color` | 本体・出現の粒・警告文の色（#RRGGBB） |
+| `variants.chain.minDepth` | 鎖の死神が出る最小の深度 |
+| `variants.chain.speedMul` | 鎖の死神の追跡の速さの倍率（speed に掛かる） |
+| `variants.chain.interval` | 鎖を投げる間隔。秒 |
+| `variants.chain.charge` | 鎖を投げる前の予告線の秒（この間は止まる） |
+| `variants.chain.length` | 鎖の届く長さ。px |
+| `variants.chain.width` | 鎖の太さ。px（当たり判定の半径はこの半分） |
+| `variants.chain.pull` | 鎖が当たったときの引き寄せの初速。px/秒 |
+| `variants.chain.damage` | 鎖が当たったときのダメージ |
+| `variants.chain.color` | 鎖の線の色（#RRGGBB） |
+| `variants.collector.speedMul` | 取り立て屋の追跡の速さの倍率（speed に掛かる） |
+| `variants.collector.offerRadius` | 取り立て屋が止まって待つ輪の半径。px（この中に留まると取り立てが進む） |
+| `variants.collector.offerTime` | 輪の中に留まって取り立てられるまでの秒 |
+| `variants.collector.tollRatio` | 取り立てる生命の割合（現在の生命に対して。0..1。1 は残る） |
+| `variants.collector.color` | 輪・取り立ての粒と浮き文字の色（#RRGGBB） |
+| `variants.twin.minDepth` | 双子の死神が出る最小の深度 |
+| `variants.twin.speedMul` | 双子の死神の追跡の速さの倍率（speed に掛かる） |
+| `variants.twin.spread` | 現在どこからも読まれていない値（片割れはプレイヤーを挟んだ反対側に出る） |
+| `variants.shadow.shades` | 影の死神が同時に出す影の数 |
+| `variants.shadow.respawn` | 倒された影の数を戻す間隔。秒 |
+| `variants.shadow.ring` | 影が湧く、プレイヤーからの距離。px |
+| `variants.silent.moveThreshold` | プレイヤーの速さがこれを超えている間だけ近づく。px/秒（止まっている間は近づかない） |
 
 ## enemies/NEMESIS
 
@@ -1560,7 +1511,7 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `chargeRingColors` | （未記入） |
+| `chargeRingColors` | 溜めの段階（1 段目から）ごとの輪・武器の色。段階が足りなければ白 |
 | `chargeRingRadius` | 溜めの環の半径（px。描画） |
 | `chargeRingStep` | 溜めの環の段ごとの広がり（px。描画） |
 | `chainWindow` | 派生の入力列を保つ秒（振り終わりから。振っている間は減らない）。この間に次を押せば左右共有の段カウンタも続く。目安 0.3〜0.5。右レーンの段に置くと、その段を出した後の窓だけを上書きする（再使用・laneGap より十分長く） |
@@ -1568,8 +1519,8 @@
 | `trailLife` | 振りの残像の線が残る秒 |
 | `movesets.*.attackMoveMul` | 攻撃中の移動速度の倍率（1 = 等倍）。実際は weightClass の帯（weight の moveMulMin〜Max）に丸めて使う |
 | `movesets.*.weight` | 武器の重さ（light / medium / heavy）。係数は weightClass.json の同名の行。決め方は docs/recipes/weapon.md |
-| `movesets.*.steps2[].kind` | （未記入） |
-| `movesets.*.steps2[].key` | （未記入） |
+| `movesets.*.steps2[].kind` | 右の連撃の段の種類（swing = 振り / hold = 構え / volley = 弾 / charge = 溜め） |
+| `movesets.*.steps2[].key` | 右の段の key。HUD の技名（「右: 返し斬り」）と再使用の数え分けに使う |
 | `movesets.*.steps2[].cooldown` | 右レーンの段の再使用の秒（段の key ごとに数える）。0 は制限なし |
 | `movesets.*.steps2[].hold` | 押している間の構え。moveMul は移動の倍率、maxSec は自動で解く秒、parry は受け流し（windowSec 窓の秒 / recoverSec 外した硬直 / staggerPoise 相手に入れる怯み値）、guard は盾の構え（arcDeg 前方の角度 / damageMul 被ダメ倍率 / energyGain 受けるたびの奥義ゲージ）、release は離した振り、releaseNext はその後の段 |
 | `movesets.*.*.step.windup` | 振りの予備動作の秒（攻撃速度で割る） |
@@ -1585,8 +1536,8 @@
 | `movesets.*.*.step.mana` | 命中 1 体ごとの気力回収 |
 | `movesets.*.*.step.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
 | `movesets.*.*.step.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
-| `movesets.*.steps2[].step.trail` | （未記入） |
-| `movesets.*.branches.*.sequence` | （未記入） |
+| `movesets.*.*.step.trail` | active に入った瞬間に引く残像の線の色（派生・右の連撃の段） |
+| `movesets.*.branches.*.sequence` | 派生が起きる入力列（末尾がこれと一致したら次の振りを派生に差し替える。primary = 左 / secondary = 右） |
 | `movesets.*.*.*.*.windup` | 振りの予備動作の秒（攻撃速度で割る） |
 | `movesets.*.*.*.*.active` | 当たり判定が出ている秒 |
 | `movesets.*.*.*.*.recover` | 振った後の硬直の秒。後半は先行入力で打ち切れる（PLAYER.recoverCancel）。右レーンの段は左の同じ段番号の 1.2 倍が目安 |
@@ -1602,7 +1553,7 @@
 | `movesets.*.*.*.*.hitstop` | ヒットストップ（ステップ。60Hz） |
 | `movesets.*.*.*.*.shake` | 命中時の画面揺れ |
 | `movesets.*.*.*.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
-| `movesets.*.branches.*.step.trail` | （未記入） |
+| `movesets.*.*.*.step.trail` | active に入った瞬間に引く残像の線の色（派生・右の連撃の段） |
 | `movesets.*.branches.*.next` | 派生の後に続ける段（0 始まり。左右共有の段カウンタ）。省略はフィニッシュ |
 | `movesets.*.branches.*.step.hits` | 1 振りの多段ヒット数（active を等分する） |
 | `movesets.*.*.windup` | 振りの予備動作の秒（攻撃速度で割る） |
@@ -1620,7 +1571,7 @@
 | `movesets.*.*.hitstop` | ヒットストップ（ステップ。60Hz） |
 | `movesets.*.*.shake` | 命中時の画面揺れ |
 | `movesets.*.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
-| `movesets.*.steps[].trail` | （未記入） |
+| `movesets.*.steps[].trail` | active に入った瞬間に引く残像の線の色 |
 | `movesets.*.dashAttack` | ダッシュ攻撃の振り（項目は段と同じ） |
 | `*.*.charge` | 溜め。moveMul は溜め中の移動の倍率、step は離して出す振り、levels は段（time 秒で届き、damageMul / poiseMul / reachMul 倍）。近接の溜めの reachMul は 1（届く距離は刃先のまま。刀の居合を除く） |
 | `movesets.*.*.step.hitstop` | ヒットストップ（ステップ。60Hz） |
@@ -1641,7 +1592,7 @@
 | `movesets.*.*.throw` | 近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度）） |
 | `movesets.*.*.*.throw` | 近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度）） |
 | `movesets.*.steps[].applies[]` | 命中した敵に付ける状態異常（kind 種類 / stacks 重ねる数 / duration 秒 / potency 効果量 / ratio 効果量のステータス係数） |
-| `movesets.*.steps[].cast.key` | （未記入） |
+| `movesets.*.steps[].cast.key` | 段が撃つ弾（cast）の key。HUD の技名（CAST_NAMES）と弾の数値（cast.<key>）を引く |
 | `movesets.*.steps[].cast.throw.bullet.cooldownMul` | 射撃間隔の倍率（大きいほど遅い） |
 | `movesets.*.steps[].cast.throw.bullet.damageMul` | 1 発の威力の倍率 |
 | `movesets.*.steps[].cast.throw.bullet.speedMul` | 弾速の倍率 |
@@ -1652,6 +1603,7 @@
 | `movesets.*.steps[].cast.throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.*.*.*.*.spreadDeg` | 複数弾の扇の間隔（度） |
 | `movesets.*.steps[].cast.throw.bullet.pierceBonus` | 貫通の追加回数 |
+| `movesets.*.steps[].cast.throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.*.*.*.spreadDeg` | 複数弾の扇の間隔（度） |
 | `movesets.*.steps[].cast.throw.bullet.lob` | 曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px） |
 | `movesets.*.*.*.*.*.*.radius` | 弾の半径（px） |
@@ -1665,8 +1617,9 @@
 | `movesets.*.steps2[].throw.bullet.recoilMul` | 撃った反動の倍率 |
 | `movesets.*.steps2[].throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.*.*.*.pierceBonus` | 貫通の追加回数 |
+| `movesets.*.steps2[].throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.*.*.spreadDeg` | 複数弾の扇の間隔（度） |
-| `movesets.*.branches.*.step.cast.key` | （未記入） |
+| `movesets.*.branches.*.step.cast.key` | 段が撃つ弾（cast）の key。HUD の技名（CAST_NAMES）と弾の数値（cast.<key>）を引く |
 | `movesets.*.branches.*.step.cast.throw` | 近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度）） |
 | `movesets.*.branches.*.step.cast.throw.bullet.cooldownMul` | 射撃間隔の倍率（大きいほど遅い） |
 | `movesets.*.branches.*.step.cast.throw.bullet.damageMul` | 1 発の威力の倍率 |
@@ -1678,6 +1631,7 @@
 | `movesets.*.branches.*.step.cast.throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.branches.*.step.cast.throw.bullet.spreadDeg` | 複数弾の扇の間隔（度） |
 | `movesets.*.branches.*.step.cast.throw.bullet.pierceBonus` | 貫通の追加回数 |
+| `movesets.*.branches.*.step.cast.throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.branches.*.step.cast.throw.scaling` | 威力の係数（base + ステータス × 係数。docs/COMBAT_DESIGN.md A-10）。左右の同じ段番号は基礎値（各 5）で同じ秒間威力が目安 |
 | `movesets.*.branches.*.step.cast.throw.poise` | 1 ヒットの怯み値（ステータスが基礎値のとき） |
 | `movesets.*.branches.*.step.cast.throw.poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
@@ -1714,7 +1668,8 @@
 | `movesets.*.steps2[].charge.spinning.step.mana` | 命中 1 体ごとの気力回収 |
 | `movesets.*.steps2[].charge.spinning.step.shape` | 当たり判定の形（kind は box / arc / thrust / circle）。arc は deg に扇の中心角（度） |
 | `movesets.*.steps2[].charge.spinning.step.hitstop` | ヒットストップ（ステップ。60Hz） |
-| `movesets.*.steps2[].step.cast.key` | （未記入） |
+| `movesets.*.steps2[].charge.spinning.step.trail` | active に入った瞬間に引く残像の線の色（派生・右の連撃の段） |
+| `movesets.*.steps2[].step.cast.key` | 段が撃つ弾（cast）の key。HUD の技名（CAST_NAMES）と弾の数値（cast.<key>）を引く |
 | `movesets.*.steps2[].step.cast.throw` | 近接の段では敵を背後へ放る（真偽）。右レーンの弾の段では出す弾（bullet は弾の数値、scaling / poise / poiseRatio は技の威力と怯み値、count は弾数、spreadDeg は扇の間隔（度）） |
 | `movesets.*.steps2[].step.cast.throw.bullet.cooldownMul` | 射撃間隔の倍率（大きいほど遅い） |
 | `movesets.*.steps2[].step.cast.throw.bullet.damageMul` | 1 発の威力の倍率 |
@@ -1725,16 +1680,13 @@
 | `movesets.*.steps2[].step.cast.throw.bullet.pellets` | 1 回に足す弾数（散弾） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pierceBonus` | 貫通の追加回数 |
 | `movesets.*.steps2[].step.cast.throw.bullet.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
+| `movesets.*.steps2[].step.cast.throw.bullet.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `movesets.*.steps2[].step.cast.throw.poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
 | `movesets.*.steps2[].step.cast.throw.bullet.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
 | `movesets.*.steps[].cutsBullets` | active の間、弾返し・弾斬りが無くても敵弾を消す |
 | `movesets.*.dashAttack.invuln` | 振り始めから付く無敵（秒） |
 | `movesets.*.*.*.*.cutsBullets` | active の間、弾返し・弾斬りが無くても敵弾を消す |
-| `movesets.*.steps2[].step.drivePins` | （未記入） |
-| `movesets.*.branches.shadowPin.sequence` | （未記入） |
-| `movesets.*.branches.shadowPin.step.trail` | （未記入） |
-| `movesets.*.branches.farThrow.sequence` | （未記入） |
-| `movesets.*.branches.farThrow.step.trail` | （未記入） |
+| `movesets.*.steps2[].step.drivePins` | 命中した敵に刺さっている飛び物を叩き込む（クナイ）。true = 全部、数 = 古い順にその本数だけ |
 | `movesets.*.dashCooldownMul` | その武器種を持つ間のダッシュの再使用時間の倍率（手裏剣 2 = 倍に伸びる代わりに、敵を倒すとダッシュの回数がすべて戻る） |
 | `movesets.*.steps[].cast.throw.bullet.pin` | 弾（bullet）が刺さる弾になる（手裏剣・クナイ）。kind = 絵と数える種類（shuriken / kunai）、max = 1 体に刺さったままでいられる本数（超えたら古い順に抜く）、sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率、staggerAt = 同じ敵にこの本数刺さると怯ませて刺さりを消す（省略は崩さない。戦意 pinStagger が溜まる） |
 | `movesets.*.steps[].cast.throw.bullet.burst` | 三点（count 1 押しの弾数 / interval 間隔の秒） |
@@ -1764,7 +1716,7 @@
 | `jobBranches.*.hitstop` | ヒットストップ（ステップ。60Hz） |
 | `jobBranches.*.shake` | 命中時の画面揺れ |
 | `jobBranches.*.lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
-| `jobBranches.*.trail` | （未記入） |
+| `jobBranches.*.trail` | ジョブ派生の振りの残像の線の色 |
 | `jobBranches.*.applies[]` | 命中した敵に付ける状態異常（kind 種類 / stacks 重ねる数 / duration 秒 / potency 効果量 / ratio 効果量のステータス係数） |
 | `bullets.*.cooldownMul` | 射撃間隔の倍率（大きいほど遅い） |
 | `bullets.*.damageMul` | 1 発の威力の倍率 |
@@ -1784,7 +1736,7 @@
 | `bullets.*.burst` | 三点（count 1 押しの弾数 / interval 間隔の秒） |
 | `bullets.*.lob` | 曲射（blastRadius 炸裂の半径 px / minRange 最短の着弾距離 px / peak 見かけの山の高さ px） |
 | `bullets.*.pin` | 弾（bullet）が刺さる弾になる（手裏剣・クナイ）。kind = 絵と数える種類（shuriken / kunai）、max = 1 体に刺さったままでいられる本数（超えたら古い順に抜く）、sec = 刺さってから抜けるまでの秒、driveMul = 叩き込みの追撃の倍率、staggerAt = 同じ敵にこの本数刺さると怯ませて刺さりを消す（省略は崩さない。戦意 pinStagger が溜まる） |
-| `bullets.*.look.color` | （未記入） |
+| `bullets.*.look.color` | 弾と発射の粒の色（設置弾・曲射の色が優先） |
 | `bullets.*.arc` | 弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る |
 | `bullets.*.pair` | 2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する |
 | `bullets.*.grind` | 食い込む弾（牙輪・大手裏剣。sec 食い込んで回る秒 / hits その間に当てる回数。最初に当たった敵で止まり、当て終えると戻る） |
@@ -1809,38 +1761,32 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `[].windup` | （未記入） |
-| `[].active` | （未記入） |
-| `[].recover` | （未記入） |
-| `[].scaling.base` | （未記入） |
-| `[].scaling.str` | （未記入） |
-| `[].scaling.dex` | （未記入） |
-| `[].poiseRatio.str` | （未記入） |
-| `[].poiseRatio.dex` | （未記入） |
-| `[].poise` | （未記入） |
-| `[].reach` | （未記入） |
-| `[].size` | （未記入） |
-| `[].knockback` | （未記入） |
-| `[].heavy` | （未記入） |
-| `[].lunge` | （未記入） |
+| `[].windup` | 振りの予備動作の秒（攻撃速度で割る） |
+| `[].active` | 当たり判定が出ている秒 |
+| `[].recover` | 振った後の硬直の秒。後半は先行入力で打ち切れる（PLAYER.recoverCancel） |
+| `[].scaling` | 威力の係数（base + ステータス × 係数。docs/COMBAT_DESIGN.md A-10） |
+| `[].poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
+| `[].poise` | 1 ヒットの怯み値（ステータスが基礎値のとき） |
+| `[].reach` | 当たり判定の距離（px）。box / circle は中心までの距離、arc は半径、thrust は長さ。外縁（box / circle は reach + size / 2）は振った武器の先端まで（data/meleeReach.test.ts。docs/recipes/weapon.md） |
+| `[].size` | 当たり判定の大きさ（px）。box は一辺、circle は直径、thrust は幅 |
+| `[].knockback` | ノックバックの速さ（px/秒） |
+| `[].heavy` | 重い振り（重いヒットストップと壁叩きつけ） |
+| `[].lunge` | windup + active の間に攻撃方向へ踏み込む距離（px） |
 
 ## weapons/ACTION_DASH_ATTACK
 
 | 項目 | 意味 |
 | --- | --- |
-| `windup` | （未記入） |
-| `active` | （未記入） |
-| `recover` | （未記入） |
-| `scaling.base` | （未記入） |
-| `scaling.str` | （未記入） |
-| `scaling.dex` | （未記入） |
-| `poiseRatio.str` | （未記入） |
-| `poiseRatio.dex` | （未記入） |
-| `poise` | （未記入） |
-| `reach` | （未記入） |
-| `size` | （未記入） |
-| `knockback` | （未記入） |
-| `heavy` | （未記入） |
+| `windup` | 振りの予備動作の秒（攻撃速度で割る） |
+| `active` | 当たり判定が出ている秒 |
+| `recover` | 振った後の硬直の秒。後半は先行入力で打ち切れる（PLAYER.recoverCancel） |
+| `scaling` | 威力の係数（base + ステータス × 係数。docs/COMBAT_DESIGN.md A-10） |
+| `poiseRatio` | 怯み値のステータス係数。合計は怯み値 × 3% / 点が目安（2〜4%） |
+| `poise` | 1 ヒットの怯み値（ステータスが基礎値のとき） |
+| `reach` | 当たり判定の距離（px）。box / circle は中心までの距離、arc は半径、thrust は長さ。外縁（box / circle は reach + size / 2）は振った武器の先端まで（data/meleeReach.test.ts。docs/recipes/weapon.md） |
+| `size` | 当たり判定の大きさ（px）。box は一辺、circle は直径、thrust は幅 |
+| `knockback` | ノックバックの速さ（px/秒） |
+| `heavy` | 重い振り（重いヒットストップと壁叩きつけ） |
 
 ## weapons/FORM
 
@@ -1945,108 +1891,80 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `slots` | （未記入） |
+| `slots` | スキルのスロット数（個）。HUD・装着画面・保存の loadout の長さを決める。slotLinks の長さと合わせる |
 | `slotLinks` | スロットごとのリンク数（先頭がスキル 1）。そのスロットに付けられるラン内の刻印符の本数。石ごとには持たない（型替え符は linkCost 本ぶん使う） |
-| `manaFlashTime` | （未記入） |
+| `manaFlashTime` | 気力不足で不発になったとき、気力ゲージを光らせる秒 |
 | `variantCountWeights` | 変異軸の本数（0 / 1 / 2 本）の重み。2026-10-02 に「変異なし」をやめて必ず 1 本以上にした（スキルの持つ軸が 1 本なら 1 本） |
-| `variantPrecision` | （未記入） |
-| `inputBuffer` | （未記入） |
-| `notReadyTextInterval` | （未記入） |
+| `variantPrecision` | 変異の値（-1..1）を丸める刻みの逆数。100 = 0.01 刻み。0 は得失が無いので 1 刻みぶんに直す |
+| `inputBuffer` | ダッシュ・近接の最中に押したスキルを覚えておく先行入力の秒。切れると捨てる |
+| `notReadyTextInterval` | 「気力不足」などの浮き文字を続けて出さない最短の間隔（秒） |
 | `stashCapacity` | スキル石の倉庫の上限（個）。保存データの歯止めだけで、遊びの上の意味は持たせない（遺物の STASH_CAPACITY と同じ 400） |
 | `defaultCastRange` | 照準地点の既定の射程。px。照準の射程表（CAST_RANGE）に無いスキル・技の上限と、照準が無いときの正面の距離。目安 120（破片弾の最大射程と同じ） |
 | `castWallProbe` | 照準地点を壁の手前で止めるときの刻み。px。小さいほど壁際まで寄る（旧 グレネードの wallProbe） |
 | `fullManaEpsilon` | 気力が満タンとみなす誤差の許容（気力の量）。刻印符「溢れ」の判定に使う（旧 満月の砲の fullEpsilon） |
-| `parry.cooldown` | （未記入） |
-| `parry.minInterval` | （未記入） |
-| `parry.poise` | （未記入） |
-| `parry.window` | （未記入） |
-| `parry.failLock` | （未記入） |
-| `parry.successRefund` | （未記入） |
-| `parry.radius` | （未記入） |
-| `parry.damage.base` | （未記入） |
-| `parry.damage.vit` | （未記入） |
-| `parry.damage.mnd` | （未記入） |
-| `parry.damage.spi` | （未記入） |
-| `parry.poiseRatio.vit` | （未記入） |
-| `parry.poiseRatio.mnd` | （未記入） |
-| `parry.poiseRatio.spi` | （未記入） |
-| `parry.knockback` | （未記入） |
-| `parry.catchPad` | （未記入） |
-| `bloodPact.cooldown` | （未記入） |
-| `bloodPact.minInterval` | （未記入） |
-| `bloodPact.hpFraction` | （未記入） |
-| `bloodPact.duration` | （未記入） |
-| `bloodPact.speedMul` | （未記入） |
-| `bloodPact.lifesteal` | （未記入） |
-| `bloodPact.buff.base` | （未記入） |
-| `bloodPact.buff.vit` | （未記入） |
-| `bloodPact.buff.spi` | （未記入） |
-| `gravityWell.cost` | （未記入） |
-| `gravityWell.minInterval` | （未記入） |
-| `gravityWell.poise` | （未記入） |
-| `gravityWell.maxRange` | （未記入） |
-| `gravityWell.duration` | （未記入） |
-| `gravityWell.radius` | （未記入） |
-| `gravityWell.pull` | （未記入） |
-| `gravityWell.core` | （未記入） |
-| `gravityWell.tickEvery` | （未記入） |
-| `gravityWell.tickDamage.base` | （未記入） |
-| `gravityWell.tickDamage.spi` | （未記入） |
-| `gravityWell.poiseRatio.spi` | （未記入） |
-| `gravityWell.burstDamage.base` | （未記入） |
-| `gravityWell.burstDamage.mnd` | （未記入） |
-| `gravityWell.burstDamage.spi` | （未記入） |
-| `gravityWell.burstKnockback` | （未記入） |
-| `gravityWell.silenceTime` | （未記入） |
-| `mines.cost` | （未記入） |
-| `mines.minInterval` | （未記入） |
-| `mines.poise` | （未記入） |
-| `mines.arm` | （未記入） |
-| `mines.life` | （未記入） |
-| `mines.maxAlive` | （未記入） |
-| `mines.trigger` | （未記入） |
-| `mines.radius` | （未記入） |
-| `mines.damage.base` | （未記入） |
-| `mines.knockback` | （未記入） |
-| `haste.cooldown` | （未記入） |
-| `haste.minInterval` | （未記入） |
-| `haste.duration` | （未記入） |
-| `haste.moveBonus` | （未記入） |
-| `haste.exhaust` | （未記入） |
-| `haste.buff.base` | （未記入） |
-| `haste.buff.dex` | （未記入） |
-| `chainHook.cost` | （未記入） |
-| `chainHook.minInterval` | （未記入） |
-| `chainHook.poise` | （未記入） |
-| `chainHook.range` | （未記入） |
-| `chainHook.extendTime` | （未記入） |
-| `chainHook.recover` | （未記入） |
-| `chainHook.hitPad` | （未記入） |
-| `chainHook.damage.base` | （未記入） |
-| `chainHook.damage.str` | （未記入） |
-| `chainHook.damage.dex` | （未記入） |
-| `chainHook.poiseRatio.str` | （未記入） |
-| `chainHook.poiseRatio.dex` | （未記入） |
-| `chainHook.knockback` | （未記入） |
-| `chainHook.landGap` | （未記入） |
-| `chainHook.bleedStacks` | （未記入） |
-| `chainHook.bleedTime` | （未記入） |
-| `chainHook.bleedPotency` | （未記入） |
-| `chainHook.bleedPotencyRatio.dex` | （未記入） |
-| `frostField.cost` | （未記入） |
-| `frostField.minInterval` | （未記入） |
-| `frostField.poise` | （未記入） |
-| `frostField.maxRange` | （未記入） |
-| `frostField.duration` | （未記入） |
-| `frostField.radius` | （未記入） |
-| `frostField.tickEvery` | （未記入） |
-| `frostField.tickDamage.base` | （未記入） |
-| `frostField.tickDamage.mnd` | （未記入） |
-| `frostField.tickDamage.spi` | （未記入） |
-| `frostField.slow` | （未記入） |
-| `frostField.maxSlow` | （未記入） |
-| `frostField.chillTime` | （未記入） |
-| `frostField.selfMoveMul` | （未記入） |
+| `parry.cooldown` | 再使用時間（秒）。成功すると successRefund の割合だけ戻る |
+| `*.minInterval` | このスロットの連打下限（秒） |
+| `parry.poise` | 反撃の基礎怯み値。最終値は poiseRatio の上乗せと怯み倍率が掛かる |
+| `parry.window` | 構えの受け付け秒（この間は無敵。刻印符の時間倍率が掛かる）。受け止めなければ failLock の硬直に入る |
+| `parry.failLock` | 受け止めに失敗した後の硬直（秒）。この間は動けず、ダッシュもスキルも出せない |
+| `parry.successRefund` | 受け止め成功で戻す再使用時間の割合（0..1）。全回復だと構え直しで固め続けられるため一部だけ |
+| `parry.radius` | 受け止め成功時の反撃の半径（px）。刻印符の範囲倍率が掛かる |
+| `parry.damage` | 反撃の威力の係数表（Scaling。base + 係数 × ステータス実効値） |
+| `parry.poiseRatio` | 反撃の怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `parry.knockback` | 反撃のノックバックの強さ（px/秒） |
+| `parry.catchPad` | 敵弾・突進中の敵に触れたとみなす距離の余白（px）。自分の半径に足す |
+| `*.cooldown` | 再使用時間（秒） |
+| `bloodPact.hpFraction` | 発動で払う生命（最大生命に対する割合）。生命は 1 未満にならない |
+| `bloodPact.duration` | 強化の持続（秒）。刻印符の持続倍率が掛かる |
+| `bloodPact.speedMul` | 攻撃速度と連射に掛ける倍率（1 = 等倍）。上乗せ分（倍率 − 1）に buff の効果量が掛かる |
+| `bloodPact.lifesteal` | 与ダメージに対する回復の割合（0..1）。buff の効果量が掛かる |
+| `bloodPact.buff` | 強化の効果量の係数表（ステータスが基礎値で 1。上乗せ分と回復の両方に掛かる） |
+| `*.cost` | 気力型の消費（気力） |
+| `gravityWell.poise` | 終わりの破裂の基礎怯み値（引き寄せの tick は怯ませない） |
+| `*.maxRange` | 照準地点の最大射程（px）。壁の手前で止まる |
+| `gravityWell.duration` | 引き寄せている秒。刻印符の持続倍率が掛かり、切れると破裂する |
+| `gravityWell.radius` | 引き寄せ・破裂の半径（px）。刻印符の範囲倍率が掛かる |
+| `gravityWell.pull` | 敵と敵弾を中心へ引く速さ（px/秒）。効果量の倍率が掛かる。ボスは弱まる |
+| `gravityWell.core` | 引き寄せの止まる中心からの距離（px）。これより内側へは寄せない |
+| `gravityWell.tickEvery` | 継続ダメージと沈黙の付け直しの間隔（秒） |
+| `*.tickDamage` | 継続ダメージ 1 回の威力の係数表（Scaling） |
+| `gravityWell.poiseRatio` | 破裂の怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `gravityWell.burstDamage` | 終わりの破裂の威力の係数表（Scaling） |
+| `gravityWell.burstKnockback` | 破裂のノックバックの強さ（px/秒） |
+| `gravityWell.silenceTime` | 継続のたびに付け直す沈黙の秒。tick 間隔より少し長くして、引いている間は切れないようにする |
+| `mines.poise` | 爆発の基礎怯み値（爆風の端ほど弱まる） |
+| `mines.arm` | 置いてから起動するまでの秒。刻印符の時間倍率が掛かる |
+| `mines.life` | 起動しなかった地雷が消えるまでの秒。刻印符の持続倍率が掛かる |
+| `mines.maxAlive` | 同時に置ける数。刻印符の回数の上乗せで増減し、超えると古いものから不発で消える |
+| `mines.trigger` | 敵がこの半径（px）に入ると爆発する。敵の半径に足して判定する |
+| `mines.radius` | 爆発の半径（px）。刻印符の範囲倍率が掛かる |
+| `mines.damage` | 爆発の威力の係数表（Scaling。ステータスで伸びない）。爆風の端ほど弱まる |
+| `mines.knockback` | 爆発のノックバックの強さ（px/秒）。爆風の端ほど弱まる |
+| `haste.duration` | 加速の持続（秒）。刻印符の持続倍率が掛かる |
+| `haste.moveBonus` | 移動速度の上乗せ（0.3 = +30%）。buff の効果量が掛かる。加速中はダッシュのチャージが常に満タン |
+| `haste.exhaust` | 加速が切れた後にダッシュできない秒（反動） |
+| `haste.buff` | 効果量の係数表（ステータスが基礎値で 1。moveBonus に掛かる） |
+| `chainHook.poise` | 引き寄せた敵への基礎怯み値 |
+| `chainHook.range` | 鎖の最大射程（px）。刻印符の範囲倍率が掛かる |
+| `chainHook.extendTime` | 鎖が伸びきるまでの秒。刻印符の時間倍率が掛かる。伸びる間は動けない |
+| `chainHook.recover` | 伸びきった後の硬直（秒） |
+| `chainHook.hitPad` | 鎖の先端の当たりの余白（px）。敵の半径に足す |
+| `chainHook.damage` | 命中の威力の係数表（Scaling） |
+| `chainHook.poiseRatio` | 怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `chainHook.knockback` | 命中のノックバックの強さ（px/秒） |
+| `chainHook.landGap` | 引き寄せた敵を自分の前に置くときの隙間（px）。互いの半径に足す。ボスは引かれず自分が寄る |
+| `chainHook.bleedStacks` | 付ける出血の重ね |
+| `chainHook.bleedTime` | 付ける出血の持続（秒） |
+| `chainHook.bleedPotency` | 付ける出血の効果量（10px あたりのダメージ） |
+| `chainHook.bleedPotencyRatio` | 出血の効果量の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `frostField.poise` | 基礎怯み値（0 = 怯ませない） |
+| `frostField.duration` | 地帯の持続（秒）。刻印符の持続倍率が掛かる |
+| `frostField.radius` | 地帯の半径（px）。刻印符の範囲倍率が掛かる |
+| `frostField.tickEvery` | 継続ダメージと冷気を付ける間隔（秒） |
+| `frostField.slow` | 冷気 1 スタックの遅さ（割合 0..1。移動速度の下がる割合）。効果量の倍率が掛かる |
+| `frostField.maxSlow` | 遅さの上限（割合 0..1） |
+| `frostField.chillTime` | 付ける冷気の持続（秒）。tick ごとに付け直し、地帯を出ると切れる |
+| `frostField.selfMoveMul` | 地帯の中に立つ自分の移動倍率（1 = 等倍） |
 | `modifier.*.time` | 撃ってから出るまでの秒 |
 | `modifier.*.damageMul` | 遅れて出た発動の威力の倍率（1 = 等倍） |
 | `modifier.*.delay` | もう一度出るまでの秒 |
@@ -2061,20 +1979,16 @@
 | `modifier.*.range` | 命中した敵から次の敵へ跳べる距離。px |
 | `modifier.*.maxPerCast` | 1 回の発動で跳べる回数 |
 | `modifier.*.radius` | 命中点の小爆発の半径。px |
-| `drop.stoneOnKill` | （未記入） |
-| `drop.stoneOnDepth` | （未記入） |
-| `drop.runeOnRoomClear` | （未記入） |
-| `drop.stoneColor` | （未記入） |
-| `drop.runeColor` | （未記入） |
-| `drop.runeOffsetX` | （未記入） |
-| `drop.depthOffsetY` | （未記入） |
-| `drop.runeOnKill.normal` | （未記入） |
-| `drop.runeOnKill.elite` | （未記入） |
-| `drop.runeOnKill.boss` | （未記入） |
-| `drop.runeOnKill.library` | （未記入） |
-| `drop.runeOnKill.nest` | （未記入） |
-| `drop.runeOnKillPerDepth` | （未記入） |
-| `drop.runeOnKillDepthCap` | （未記入） |
+| `drop.stoneOnKill` | 敵を倒したときにスキル石が落ちる確率（0..1） |
+| `drop.stoneOnDepth` | 初めて着いた階層でスキル石が落ちる確率（0..1）。往復では抽選しない |
+| `drop.runeOnRoomClear` | 部屋を片付けたときに刻印符が落ちる確率（0..1） |
+| `drop.stoneColor` | スキル石の表示色（床の石・ログ・ツールチップ） |
+| `drop.runeColor` | 刻印符の表示色 |
+| `drop.runeOffsetX` | 部屋クリアの刻印符を部屋の中心から右へずらす距離（px）。壁に埋まるなら中心に置く |
+| `drop.depthOffsetY` | 階層到達のスキル石を自分の足元から下へずらす距離（px） |
+| `drop.runeOnKill` | 撃破時の刻印符が落ちる確率（0..1）。出どころ（通常 / エリート / ボス / 図書館 / 巣窟）ごと |
+| `drop.runeOnKillPerDepth` | 通常の敵の撃破で刻印符が落ちる確率に、深度 1 ごとに足す確率（0..1） |
+| `drop.runeOnKillDepthCap` | 深度による上乗せの上限（0..1）。通常の敵の確率は runeOnKill.normal + この上限まで |
 
 ## skills/EXTRA_SKILL_TUNING
 
@@ -2082,87 +1996,80 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `*.cost` | （未記入） |
-| `*.minInterval` | （未記入） |
-| `*.poise` | （未記入） |
-| `*.maxRange` | （未記入） |
-| `*.radius` | （未記入） |
-| `*.pickRadius` | （未記入） |
-| `*.durationMul` | （未記入） |
-| `*.minDuration` | （未記入） |
-| `*.poiseEmpty` | （未記入） |
-| `*.speed` | （未記入） |
-| `*.life` | （未記入） |
+| `*.cost` | 気力型の消費（気力） |
+| `*.minInterval` | このスロットの連打下限（秒） |
+| `*.poise` | 基礎怯み値。最終値は poiseRatio の上乗せと怯み倍率が掛かる。刺し穿ち・恨み返し・傷返しなど技ごとの増減は各項目を参照 |
+| `*.maxRange` | 照準地点の最大射程（px）。壁の手前で止まる |
+| `*.radius` | 効く範囲の半径（px。刻印符の範囲倍率が掛かる）。弾の技（綻び・毒の収穫・追い討ち・剥奪・砲台）は弾の当たりの半径で、範囲倍率は掛からない |
+| `*.pickRadius` | 伝染: 照準地点の近くで写し元にする敵を探す半径（px） |
+| `*.durationMul` | 伝染: 写す状態異常の持続の倍率（元の残り秒に掛ける） |
+| `*.minDuration` | 写した状態異常の持続の下限（秒）。伝染は写し先、傷返しは敵へ付け直すときの下限 |
+| `*.poiseEmpty` | 綻び: 外す状態異常が 0 種のときの怯み値 |
+| `*.speed` | 弾の速さ（px/秒） |
+| `*.life` | 弾の寿命（秒）。置く技（爆薬樽・剣の墓標・砲台）は置いたものが残る秒で、刻印符の持続倍率が掛かる |
 | `*.damage` | 1 ヒットの威力の係数表（Scaling。base + 係数 × ステータス実効値） |
-| `*.poiseRatio.mnd` | （未記入） |
-| `*.poiseRatio.spi` | （未記入） |
-| `*.perKind.base` | （未記入） |
-| `*.perKind.mnd` | （未記入） |
-| `*.perKind.spi` | （未記入） |
-| `*.knockback` | （未記入） |
-| `*.comboRadius` | （未記入） |
-| `*.burstRadius` | （未記入） |
-| `*.burnRatio` | （未記入） |
-| `*.poisePerBurn` | （未記入） |
-| `*.maxPoise` | （未記入） |
-| `*.maxAlive` | （未記入） |
-| `*.size` | （未記入） |
-| `*.meleeReach` | （未記入） |
-| `*.meleeHalfAngle` | （未記入） |
-| `*.rollSpeed` | （未記入） |
-| `*.rollTime` | （未記入） |
-| `*.burnTime` | （未記入） |
-| `*.burnPotency` | （未記入） |
-| `*.poiseRatio.str` | （未記入） |
-| `*.spinGap` | （未記入） |
-| `*.spinShow` | （未記入） |
-| `*.halfAngle` | （未記入） |
-| `*.chillStacks` | （未記入） |
-| `*.shardRadius` | （未記入） |
-| `*.shardDamage.base` | （未記入） |
-| `*.shardDamage.str` | （未記入） |
-| `*.comboChill` | （未記入） |
-| `*.comboAreaMul` | （未記入） |
-| `*.poiseRatio.vit` | （未記入） |
-| `*.healPerStack` | （未記入） |
-| `*.healCapRatio` | （未記入） |
-| `*.bossMul` | （未記入） |
-| `*.range` | （未記入） |
-| `*.perStack` | （未記入） |
-| `*.lineMul` | （未記入） |
-| `*.lineHalfWidth` | （未記入） |
-| `*.count` | （未記入） |
-| `*.spreadRad` | （未記入） |
-| `*.poiseRatio.dex` | （未記入） |
-| `*.fearPoiseMul` | （未記入） |
-| `*.fearDamageMul` | （未記入） |
-| `*.unsilencedMul` | （未記入） |
-| `*.unsilencedPoise` | （未記入） |
-| `*.silenceTime` | （未記入） |
-| `*.length` | （未記入） |
-| `*.halfWidth` | （未記入） |
-| `*.poiseMul` | （未記入） |
-| `*.buffMul` | （未記入） |
-| `*.maxBuffTime` | （未記入） |
-| `*.fullAt` | （未記入） |
-| `*.maxBonus` | （未記入） |
-| `*.heavyCostAt` | （未記入） |
-| `*.heavyCostMul` | （未記入） |
-| `*.comboPerStage` | （未記入） |
-| `*.maxStages` | （未記入） |
-| `*.gap` | （未記入） |
-| `*.window` | （未記入） |
-| `*.hurtMul` | （未記入） |
-| `*.poisePerHurt` | （未記入） |
-| `*.cooldown` | （未記入） |
-| `*.rewind` | （未記入） |
-| `*.record` | （未記入） |
-| `*.healRatio` | （未記入） |
-| `*.invuln` | （未記入） |
-| `*.duration` | （未記入） |
-| `*.manaPerHit` | （未記入） |
-| `*.shotLife` | （未記入） |
-| `*.aimReach` | （未記入） |
+| `*.poiseRatio` | 怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `*.perKind` | 綻び: 外した状態異常 1 種ごとに足す威力の係数表（Scaling） |
+| `*.knockback` | ノックバックの強さ（px/秒） |
+| `*.comboRadius` | 綻び: 伝染 → 綻びの連携で、命中した敵の周りの敵も綻ばせる半径（px） |
+| `*.burstRadius` | 燃え種爆ぜ: 燃焼を消費した敵 1 体ごとの爆発の半径（px。範囲倍率が掛かる） |
+| `*.burnRatio` | 燃え種爆ぜ: 燃焼の残りダメージ（効果量 × 残り秒）のうち爆発の威力に足す割合（0..1） |
+| `*.poisePerBurn` | 燃え種爆ぜ: 燃焼の残りダメージ 1 あたりに足す怯み値 |
+| `*.maxPoise` | 怯み値の上限。燃え種爆ぜは燃焼の残りで、恨み返しは受けたダメージで増えるぶんの頭打ち |
+| `*.maxAlive` | 同時に置ける数。刻印符の回数の上乗せで増減し、超えると古いものから消える |
+| `*.size` | 爆薬樽: 樽の大きさ（px。弾・敵・壁に触れる半径） |
+| `*.meleeReach` | 爆薬樽: 近接で叩ける距離（px。近接の届きの倍率が掛かり、樽の大きさを足す） |
+| `*.meleeHalfAngle` | 爆薬樽: 叩ける角度（攻撃の向きから左右へ。ラジアン） |
+| `*.rollSpeed` | 爆薬樽: 叩かれて転がる速さ（px/秒） |
+| `*.rollTime` | 爆薬樽: 転がる秒。壁や敵に当たるか転がり終えると爆発する |
+| `*.burnTime` | 爆薬樽: 爆発で付ける燃焼の持続（秒） |
+| `*.burnPotency` | 爆薬樽: 爆発で付ける燃焼の効果量（燃焼の目安 3） |
+| `*.spinGap` | 剣の墓標: 回った直後に次の回転を受け付けない間隔（秒）。1 回の振りで何度も回らないため |
+| `*.spinShow` | 剣の墓標: 回転の演出の長さ（秒） |
+| `*.halfAngle` | 扇の開き（中心から左右へ。ラジアン） |
+| `*.chillStacks` | 砕氷槌: 命中した敵に付ける冷気の重ね |
+| `*.shardRadius` | 砕氷槌: 凍結を砕いた破片が周りの敵へ届く半径（px。範囲倍率が掛かる） |
+| `*.shardDamage` | 砕氷槌: 破片の威力の係数表（Scaling。怯ませず冷気だけ付く） |
+| `*.comboChill` | 砕氷槌: 氷結地帯 → 砕氷槌の連携で足す冷気の重ね |
+| `*.comboAreaMul` | 連携時の範囲の倍率（1 = 等倍） |
+| `*.healPerStack` | 血抜き: 消費した出血 1 スタック × 効果量あたりの回復量（生命） |
+| `*.healCapRatio` | 血抜き: 1 回の回復の上限（最大生命に対する割合） |
+| `*.bossMul` | 毒の収穫: ボスに対する毒の残りダメージの倍率（1 = 等倍） |
+| `*.range` | 放電: 感電中の敵を探す距離（px。範囲倍率が掛かる） |
+| `*.perStack` | 放電: 感電 1 スタックごとの威力の上乗せ割合（0.25 = +25%） |
+| `*.lineMul` | 放電: 戻り道の線上にいる敵（感電していない）への威力の倍率（1 = 等倍） |
+| `*.lineHalfWidth` | 放電: 戻り道の線の半幅（px） |
+| `*.count` | 追い討ち: 撃つ短刀の本数（刻印符の回数の上乗せで増える） |
+| `*.spreadRad` | 追い討ち: 短刀の隣り合う間隔（ラジアン） |
+| `*.fearPoiseMul` | 追い討ち: 恐怖中の敵への怯み値の倍率（恐怖は消費する） |
+| `*.fearDamageMul` | 追い討ち: 恐怖中の敵への威力の倍率（1 = 等倍） |
+| `*.unsilencedMul` | 処断: 沈黙していない敵への威力の倍率（1 = 等倍） |
+| `*.unsilencedPoise` | 処断: 沈黙していない敵への怯み値 |
+| `*.silenceTime` | 処断: 付ける沈黙の秒 |
+| `*.length` | 突きの長さ（px。近接の届きと範囲の倍率が掛かる。壁で止まる） |
+| `*.halfWidth` | 突きの当たりの半幅（px）。巻き戻しは戻り道の線の半幅（範囲倍率が掛かる） |
+| `*.poiseMul` | 刺し穿ち: 脆弱を消費した突きの怯み値の倍率 |
+| `*.buffMul` | 剥奪: 弱体を奪ったときの自分の与ダメ倍率（1.2 = +20%） |
+| `*.maxBuffTime` | 剥奪: 与ダメ強化の持続の上限（秒。奪った弱体の残り秒まで） |
+| `*.fullAt` | 背水の一閃: 失った生命の割合がこれ以上で威力の上乗せが最大（0..1。0.7 = 生命 30% 以下） |
+| `*.maxBonus` | 背水の一閃: 威力の最大の上乗せ（1.5 = 最大 ×2.5）。失った生命の割合に比例して伸びる |
+| `*.heavyCostAt` | 背水の一閃: 生命の割合がこれ以上だと heavyCostMul の負担が掛かる（0..1） |
+| `*.heavyCostMul` | 背水の一閃: 生命が多いときの消費（気力）の倍率（1 = 等倍） |
+| `*.comboPerStage` | 連環撃: コンボ数がこの数増えるごとに突きが 1 段増える |
+| `*.maxStages` | 連環撃: 突きの段数の上限 |
+| `*.gap` | 連環撃: 突きの段ごとの間隔（秒。時間倍率が掛かる）。1 段も当たらないとコンボが途切れる |
+| `*.window` | 恨み返し: 返す対象にする受けたダメージの集計秒（直近この秒の合計） |
+| `*.hurtMul` | 恨み返し: 受けたダメージを返す倍率 |
+| `*.poisePerHurt` | 恨み返し: 受けたダメージ 1 あたりに足す怯み値 |
+| `*.cooldown` | 再使用型の再使用時間（秒） |
+| `*.rewind` | 巻き戻し: 戻る先の秒（この秒以内でいちばん古い記録の位置へ戻る） |
+| `*.record` | 巻き戻し: 位置と生命を記録する間隔（秒） |
+| `*.healRatio` | 巻き戻し: 戻った間に失った生命のうち取り戻す割合（0..1。効果量の倍率が掛かる） |
+| `*.invuln` | 巻き戻し: 戻った直後の無敵の秒 |
+| `*.duration` | 湧き石: 石が残る秒。刻印符の持続倍率が掛かる |
+| `*.manaPerHit` | 湧き石: 石の半径内で近接が当たるごとに余分に戻る気力（効果量の倍率が掛かる） |
+| `*.shotLife` | 砲台: 砲台が撃つ弾の寿命（秒） |
+| `*.aimReach` | 砲台: 狙う点を自分の向きのこの距離先に置く（px）。号令の狙いの敵がいればそちら |
 
 ## skills/EXTRA_MODIFIER_TUNING
 
@@ -2191,23 +2098,15 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `hookWhirl.window` | （未記入） |
-| `hookWhirl.areaMul` | （未記入） |
-| `parryRail.window` | （未記入） |
-| `parryRail.damageMul` | （未記入） |
-| `parryRail.aimMul` | （未記入） |
-| `diveQuake.window` | （未記入） |
-| `diveQuake.windupMul` | （未記入） |
-| `diveQuake.areaMul` | （未記入） |
-| `contagionUnravel.window` | （未記入） |
-| `frostBreaker.window` | （未記入） |
-| `shadowExploit.window` | （未記入） |
-| `reelStomp.window` | （未記入） |
-| `reelStomp.areaMul` | （未記入） |
-| `reelStomp.poiseMul` | （未記入） |
-| `color` | （未記入） |
-| `textScale` | （未記入） |
-| `textLife` | （未記入） |
+| `*.window` | 先に撃つスキルを撃ってから、この秒以内に撃つと連携になる（秒） |
+| `*.areaMul` | 連携時の範囲の倍率（1 = 等倍） |
+| `parryRail.damageMul` | 連携時の威力の倍率（1 = 等倍） |
+| `parryRail.aimMul` | 返し撃ち: 連携時の時間倍率（撃つまでの予備動作の長さに掛かる。0 = 待たずに出る） |
+| `diveQuake.windupMul` | 連携時の予備動作の時間倍率（小さいほど速い） |
+| `reelStomp.poiseMul` | 連携時の怯み値の倍率（1 = 等倍） |
+| `color` | 連携の表示色（HUD の連携の印） |
+| `textScale` | 連携の浮き文字の拡大率（今は読まれない） |
+| `textLife` | 連携の浮き文字の表示秒（今は読まれない） |
 
 ## skills/WAVE2_SKILL_TUNING
 
@@ -2215,59 +2114,48 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `*.cost` | （未記入） |
-| `*.minInterval` | （未記入） |
-| `*.poise` | （未記入） |
-| `*.maxRange` | （未記入） |
-| `*.radius` | （未記入） |
-| `*.terrainRadius` | （未記入） |
-| `*.terrainTime` | （未記入） |
-| `*.damage.base` | （未記入） |
-| `*.damage.mnd` | （未記入） |
-| `*.damage.spi` | （未記入） |
-| `*.poiseRatio.mnd` | （未記入） |
-| `*.poiseRatio.spi` | （未記入） |
-| `*.knockback` | （未記入） |
-| `*.wetStacks` | （未記入） |
-| `*.damage.str` | （未記入） |
-| `*.length` | （未記入） |
-| `*.halfWidth` | （未記入） |
-| `*.probeStep` | （未記入） |
-| `*.clearRadius` | （未記入） |
-| `*.perCell` | （未記入） |
-| `*.maxBonus` | （未記入） |
-| `*.damage.vit` | （未記入） |
-| `*.poiseRatio.str` | （未記入） |
-| `*.poiseRatio.vit` | （未記入） |
-| `*.drawRadius` | （未記入） |
-| `*.selfBurnCells` | （未記入） |
-| `*.speed` | （未記入） |
-| `*.life` | （未記入） |
-| `*.radiusPerCell` | （未記入） |
-| `*.maxRadius` | （未記入） |
-| `*.burnPotency` | （未記入） |
-| `*.halfAngle` | （未記入） |
-| `*.brandStacks` | （未記入） |
-| `*.plainMul` | （未記入） |
-| `*.comboStacks` | （未記入） |
-| `*.freezeBase` | （未記入） |
-| `*.freezePerStack` | （未記入） |
-| `*.iceTime` | （未記入） |
-| `*.comboAreaMul` | （未記入） |
-| `*.comboFreezeMul` | （未記入） |
-| `*.damage.dex` | （未記入） |
-| `*.poiseRatio.dex` | （未記入） |
-| `*.hueMul` | （未記入） |
-| `*.shockPotency` | （未記入） |
-| `*.vulnerableTime` | （未記入） |
-| `*.pickRadius` | （未記入） |
-| `*.maxAlive` | （未記入） |
-| `*.tickEvery` | （未記入） |
-| `*.lineHalfWidth` | （未記入） |
-| `*.tickDamage.base` | （未記入） |
-| `*.tickDamage.mnd` | （未記入） |
-| `*.tickDamage.spi` | （未記入） |
-| `*.tickPoise` | （未記入） |
+| `*.cost` | 気力型の消費（気力） |
+| `*.minInterval` | このスロットの連打下限（秒） |
+| `*.poise` | 基礎怯み値（0 = 怯ませない）。最終値は poiseRatio の上乗せと怯み倍率が掛かる |
+| `*.maxRange` | 照準地点の最大射程（px）。壁の手前で止まる |
+| `*.radius` | 効く範囲の半径（px。刻印符の範囲倍率が掛かる）。火吸いは火球の基礎の半径（吸ったマスで増える）、泥沼は泥の上の敵に怯み値を入れる領域の半径 |
+| `*.terrainRadius` | 置く地形（水・油・泥）の半径（px。範囲倍率が掛かる） |
+| `*.terrainTime` | 置く地形が残る秒（持続倍率が掛かる）。泥沼は怯み値を入れる領域が残る秒も兼ねる |
+| `*.damage` | 1 ヒットの威力の係数表（Scaling。base + 係数 × ステータス実効値） |
+| `*.poiseRatio` | 怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `*.knockback` | ノックバックの強さ（px/秒） |
+| `*.wetStacks` | 水瓶: 範囲の敵に付ける濡れの重ね |
+| `*.length` | 地均し: 前方の帯の長さ（px。範囲倍率が掛かる。壁で止まる） |
+| `*.halfWidth` | 地均し: 帯の半幅（px。範囲倍率が掛かる） |
+| `*.probeStep` | 地形を探る刻み（px）。地均しは帯の上、瞬凍は設定のみで今は読まれない |
+| `*.clearRadius` | 地均し: 1 か所で消す地形の半径（px）。今は読まれない（探る刻み probeStep ごとに 1 マスを消す） |
+| `*.perCell` | 砕いた・吸った 1 マスごとの威力の上乗せ割合（地均し・火吸い。0.08 = +8%） |
+| `*.maxBonus` | マスの数による威力の上乗せの上限（割合。0.8 = 最大 +80%） |
+| `*.drawRadius` | 火吸い: 炎の床を吸い込む半径（px。範囲倍率が掛かる） |
+| `*.selfBurnCells` | 火吸い: 自分の燃焼を吸ったとき、何マスぶんに数えるか |
+| `*.speed` | 火球の速さ（px/秒。時間倍率で割る） |
+| `*.life` | 火球の寿命（秒）。結界杭は杭が残る秒（持続倍率が掛かる） |
+| `*.radiusPerCell` | 火吸い: 吸ったマス 1 つごとに増える火球の半径（px） |
+| `*.maxRadius` | 火吸い: 火球の基礎の半径の上限（px。範囲倍率はこの後に掛かる） |
+| `*.burnPotency` | 付ける燃焼の効果量（燃焼の目安 3）。移ろい刃は炎の斬撃、色解きは紅の彩痕を解いたとき |
+| `*.halfAngle` | 扇の開き（中心から左右へ。ラジアン） |
+| `*.brandStacks` | 焼き印: 命中した敵に付ける烙印の重ね |
+| `*.plainMul` | 烙火: 烙印の無い敵への威力の倍率（1 = 等倍） |
+| `*.comboStacks` | 烙火: 焼き印 → 烙火の連携で足す烙印の重ね |
+| `*.freezeBase` | 瞬凍: 凍結の基礎の秒（濡れの重ねで伸びる） |
+| `*.freezePerStack` | 瞬凍: 濡れ 1 スタックごとに足す凍結の秒 |
+| `*.iceTime` | 瞬凍: 水たまりが氷床になって残る秒（持続倍率が掛かる） |
+| `*.comboAreaMul` | 連携時の範囲の倍率（水瓶 → 瞬凍・彩刻 → 色解き。1 = 等倍） |
+| `*.comboFreezeMul` | 瞬凍: 水瓶 → 瞬凍の連携で凍結の秒に掛ける倍率（1 = 等倍） |
+| `*.hueMul` | 色解き: 彩痕の付いた敵への威力の倍率（1 = 等倍。彩痕の無い敵は 1 倍で、色に合う状態異常も付かない） |
+| `*.shockPotency` | 付ける感電の効果量（感電の目安 2）。移ろい刃は雷の斬撃、色解きは金の彩痕を解いたとき |
+| `*.vulnerableTime` | 付ける脆弱の秒。色解きは影の彩痕を解いたとき、結界杭は杭の囲みの内側の敵へ周期ごとに付け直す |
+| `*.pickRadius` | 宣告: 照準地点の近くで中心にする敵を探す半径（px）。敵がいなければ不発 |
+| `*.maxAlive` | 結界杭: 同時に置ける杭の数（下限 2。刻印符の回数の上乗せで増える）。超えると古い杭から消える |
+| `*.tickEvery` | 周期ダメージ・怯み値を入れる間隔（秒） |
+| `*.lineHalfWidth` | 結界杭: 杭を結ぶ線の当たりの半幅（px。範囲倍率が掛かる） |
+| `*.tickDamage` | 周期ダメージ 1 回の威力の係数表（Scaling。泥沼は泥の上の敵に入れる） |
+| `*.tickPoise` | 泥沼: 周期ごとに泥の上の敵へ入れる怯み値 |
 
 ## skills/WAVE2_MODIFIER_TUNING
 
@@ -2310,10 +2198,10 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `*.window` | （未記入） |
-| `*.damageMul` | （未記入） |
-| `*.areaMul` | （未記入） |
-| `*.poiseMul` | （未記入） |
+| `*.window` | 先に撃つスキルを撃ってから、この秒以内に撃つと連携になる（秒）。0 は時間を見ない（変身中の十字斬り） |
+| `*.damageMul` | 連携時の威力の倍率（1 = 等倍） |
+| `*.areaMul` | 連携時の範囲の倍率（1 = 等倍） |
+| `*.poiseMul` | 連携時の怯み値の倍率（1 = 等倍） |
 
 ## skills/WEAR_TUNING
 
@@ -2323,8 +2211,8 @@
 | --- | --- |
 | `milestones` | 芽が出る手動の発動回数の節目（古い順）。回 |
 | `perRunPerStone` | 同じ石に 1 ランで出す芽の上限（個）。上限で止めた節目は次のランの最初の発動で芽になる |
-| `powerPerBud` | （未記入） |
-| `color` | （未記入） |
+| `powerPerBud` | 芽 1 つぶんの威力・効果量の上乗せ割合（0.1 = +10%） |
+| `color` | 使い込みの表示色（芽のログ・ツールチップの 1 行） |
 
 ## skills/FORM_TUNING
 
@@ -2332,7 +2220,7 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `recoverMoveMul` | （未記入） |
+| `recoverMoveMul` | 変身が解けた後の反動の間の移動倍率（1 = 等倍）。反動の秒は変身ごとの recover |
 
 ## skills/WAVE3_SKILL_TUNING
 
@@ -2340,39 +2228,34 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `*.cooldown` | （未記入） |
-| `*.minInterval` | （未記入） |
-| `*.poise` | （未記入） |
-| `*.duration` | （未記入） |
-| `*.recover` | （未記入） |
-| `*.attackMoveMul` | （未記入） |
-| `*.bleedStacks` | （未記入） |
-| `*.bleedPotency` | （未記入） |
-| `*.howlRadius` | （未記入） |
-| `*.howlCooldown` | （未記入） |
-| `*.fearDuration` | （未記入） |
-| `*.outgoingMul` | （未記入） |
-| `*.passPad` | （未記入） |
-| `*.cost` | （未記入） |
-| `*.shellInterval` | （未記入） |
-| `*.damage.base` | （未記入） |
-| `*.damage.dex` | （未記入） |
-| `*.damage.vit` | （未記入） |
-| `*.damage.mnd` | （未記入） |
-| `*.poiseRatio.dex` | （未記入） |
-| `*.poiseRatio.vit` | （未記入） |
-| `*.poiseRatio.mnd` | （未記入） |
-| `*.speed` | （未記入） |
-| `*.life` | （未記入） |
-| `*.radius` | （未記入） |
-| `*.knockback` | （未記入） |
-| `*.recoil` | （未記入） |
-| `*.moveMul` | （未記入） |
-| `*.drainPerSec` | （未記入） |
-| `*.burnPotency` | （未記入） |
-| `*.burnDuration` | （未記入） |
-| `*.selfBurnPotency` | （未記入） |
-| `*.selfBurnDuration` | （未記入） |
+| `*.cooldown` | 再使用時間（秒）。変身全体で共有の待ちにもなる |
+| `*.minInterval` | このスロットの連打下限（秒） |
+| `*.poise` | スキルの基礎怯み値。変身中の近接は型の段の怯み値で打つので、砲身化の弾だけに効く |
+| `*.duration` | 変身の持続（秒）。刻印符の持続倍率が掛かる |
+| `*.recover` | 変身が解けた後の反動の秒。この間は移動が FORM_TUNING の recoverMoveMul 倍になる |
+| `*.attackMoveMul` | 変身中の近接の振りの間の移動倍率（1 = 等倍。武器の重さの帯に丸めて使う） |
+| `*.bleedStacks` | 付ける出血の重ね。狼化は噛みつきごと、霊体化は解けたときにすり抜けた敵すべてへ |
+| `*.bleedPotency` | 付ける出血の効果量（10px あたりのダメージ。効果量の倍率が掛かる） |
+| `*.howlRadius` | 狼化: 遠吠えが恐怖を付ける半径（px。範囲倍率が掛かる） |
+| `*.howlCooldown` | 狼化: 遠吠えの再使用の秒 |
+| `*.fearDuration` | 狼化: 遠吠えで付ける恐怖の秒（状態異常の持続倍率が掛かる。STATUS.fear.duration と同じ値） |
+| `*.outgoingMul` | 霊体化: 変身中の与ダメージの倍率（0.3 = ×0.3） |
+| `*.passPad` | 霊体化: すり抜けた（重なった）とみなす距離の余白（px）。互いの半径に足す |
+| `*.cost` | 気力型の消費（気力）。砲身化は 1 発ごと、業火の化身は構えるときの 1 回 |
+| `*.shellInterval` | 砲身化: 砲撃の間隔（秒。連打の下限。間隔倍率が掛かる） |
+| `*.damage` | 砲撃の威力の係数表（Scaling） |
+| `*.poiseRatio` | 砲撃の怯み値の上乗せ（ステータスが基礎値の 5 から 1 点ずれるごとの増減） |
+| `*.speed` | 砲撃の弾の速さ（px/秒） |
+| `*.life` | 砲撃の弾の寿命（秒） |
+| `*.radius` | 砲撃の弾の当たりの半径（px。範囲倍率が掛かる） |
+| `*.knockback` | 砲撃のノックバックの強さ（px/秒） |
+| `*.recoil` | 砲身化: 撃つたびに後ろへ押される速さ（px/秒） |
+| `*.moveMul` | 鉄塊化: 変身中の移動倍率（1 = 等倍） |
+| `*.drainPerSec` | 業火の化身: 維持するために毎秒払う気力（負担倍率が掛かる）。払えなくなると解ける |
+| `*.burnPotency` | 業火の化身: 近接・射撃が付ける燃焼の効果量（燃焼の目安 3。効果量の倍率が掛かる） |
+| `*.burnDuration` | 業火の化身: 付ける燃焼の秒（状態異常の持続倍率が掛かる。STATUS.burnDuration と同じ値） |
+| `*.selfBurnPotency` | 業火の化身: 気力が尽きて解けたとき自分に付く燃焼の効果量 |
+| `*.selfBurnDuration` | 業火の化身: 気力が尽きて解けたとき自分に付く燃焼の秒 |
 
 ## skills/SHAPE_TUNING
 
@@ -2380,9 +2263,9 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `uptimeCap` | （未記入） |
-| `afterRatio` | （未記入） |
-| `color` | （未記入） |
+| `uptimeCap` | 変身の稼働率の上限（割合 0..1）。afterRatio の根拠（afterRatio = 1 / uptimeCap − 1）で、コードは afterRatio だけ読む |
+| `afterRatio` | 変身が解けたとき、変身していた秒にこの倍率を掛けた秒だけ共有の待ちを伸ばす（倍率）。どう積んでも稼働率が uptimeCap を超えない |
+| `color` | 変身の共通の表示色（今は読まれない。変身ごとの色はコード側） |
 
 ## skills/ART
 
@@ -2515,84 +2398,78 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `choiceCount` | （未記入） |
-| `cursedChance` | （未記入） |
-| `inputDelay` | （未記入） |
-| `tagBonus` | （未記入） |
-| `cursedColor` | （未記入） |
-| `waveSpeed` | （未記入） |
-| `waveLife` | （未記入） |
-| `waveRadius` | （未記入） |
-| `wavePierce` | （未記入） |
-| `waveColor` | （未記入） |
-| `guardColor` | （未記入） |
-| `shatterShards` | （未記入） |
-| `shatterSpeed` | （未記入） |
-| `shatterLife` | （未記入） |
-| `shatterColor` | （未記入） |
-| `bloodManaHpRatio` | （未記入） |
-| `bloodManaCostMul` | （未記入） |
-| `choiceCountWithCurse` | （未記入） |
-| `givesTagBonus` | （未記入） |
-| `affinityWeightMul` | （未記入） |
-| `passCutReach` | （未記入） |
-| `passCutRatio` | （未記入） |
-| `passCutPoise` | （未記入） |
-| `eclipseWindow` | （未記入） |
-| `eclipseMinSlots` | （未記入） |
-| `ruleTextColor` | （未記入） |
-| `ruleTerrainRadius` | （未記入） |
-| `ruleDashRefillText` | （未記入） |
-| `ruleTextScale` | （未記入） |
-| `ruleTextLife` | （未記入） |
-| `ruleMinIcd` | （未記入） |
+| `choiceCount` | 階段で降りたときの祝福の提示で並べる札の枚数（呪い付きの枠を含む）。枚 |
+| `cursedChance` | 提示に呪い付きの札が混ざる確率。割合（0..1） |
+| `inputDelay` | 提示を開いてから選択を受け付けるまでの待ち（誤爆防止）。秒 |
+| `tagBonus` | すでに持つ祝福と同じタグを持つ札の抽選の重みへの上乗せ（重み = 基礎 × (1 + これ × 一致したタグの数 + givesTagBonus × 食わせるタグの数)）。倍率の加算 |
+| `cursedColor` | 呪い付きの札の枠・文字の色 |
+| `waveSpeed` | Rule 効果 wave の衝撃波の速さ。px/秒 |
+| `waveLife` | 衝撃波の寿命。秒 |
+| `waveRadius` | 衝撃波の当たりの半径。px |
+| `wavePierce` | 衝撃波が貫通できる敵の数（実質無制限）。体 |
+| `waveColor` | 衝撃波の色 |
+| `guardColor` | 不退の構えなど防ぎの輪の色 |
+| `shatterShards` | Rule 効果 shards の氷の破片の数の既定（効果側で count を指定すればそちら）。個 |
+| `shatterSpeed` | 氷の破片の速さ。px/秒 |
+| `shatterLife` | 氷の破片の寿命。秒 |
+| `shatterColor` | 氷の破片と砕けの粒子の色 |
+| `bloodManaHpRatio` | 血の対価が効く生命の割合（最大生命のこの割合以下の間）。割合（0..1） |
+| `bloodManaCostMul` | 血の対価が効いている間のスキルの気力コストの倍率（1 = 等倍） |
+| `choiceCountWithCurse` | 呪いを受けて札が増えたときの提示の上限枚数。枚 |
+| `givesTagBonus` | 持つ祝福が出す（食わせる）タグを持つ札の、抽選の重みへの上乗せ（1 タグにつき）。倍率の加算 |
+| `affinityWeightMul` | 今の構成の飢えた語を埋める札の抽選の重みの倍率（1 = 等倍） |
+| `passCutReach` | 抜き胴: ダッシュ中の自分の半径に足す、敵に当たる範囲。px |
+| `passCutRatio` | 抜き胴: 重なった敵への威力。近接 1 段目の威力に掛ける割合。格で伸びる |
+| `passCutPoise` | 抜き胴: 重なった敵に与える怯み値 |
+| `eclipseWindow` | 四重奏: 装着中のスキルを全て撃ったあと、気力が戻る間の長さ。秒 |
+| `eclipseMinSlots` | 四重奏が成り立つ装着中のスキルの最小数。枠 |
+| `ruleTextColor` | Rule の浮き文字・鎖の線・色指定のない効果の色 |
+| `ruleTerrainRadius` | Rule の地形の効果（置く・火をつける・広げる）の半径の既定。px（10px = 1m） |
+| `ruleDashRefillText` | ダッシュの回数を戻す Rule 効果の浮き文字（体言止め） |
+| `ruleTextScale` | Rule の浮き文字の大きさの倍率（1 = 等倍） |
+| `ruleTextLife` | Rule の浮き文字が出ている時間。秒 |
+| `ruleMinIcd` | 確定発動の Rule の内部 CD の下限（連鎖の暴走防止）。秒。数えだけ・直接の効果は 0 のまま |
 | `ruleCoinShot.speed` | 投銭（Rule 効果 coinShot）の銭の弾の速さ。px/秒 |
 | `ruleCoinShot.life` | 投銭の銭の弾の寿命。秒 |
 | `ruleCoinShot.radius` | 投銭の銭の弾の当たりの半径。px |
 | `ruleCoinShot.color` | 投銭の銭の弾の色 |
-| `roamerKillMemory` | （未記入） |
+| `roamerKillMemory` | さまよう敵が倒れてから、撃破の照合のために覚えておく時間。秒 |
 | `gradeMagnitudeMul` | 格（並・大祝福・神威・至高・極致）ごとの効果量の倍率の列。添字 = 格 − 1。至高・極致は錬磨でだけ届く |
 | `gradeRadiusMul` | 格ごとの半径の倍率の列。添字 = 格 − 1 |
 | `gradeIcdMul` | 格ごとの ICD の倍率の列（direct の Rule には掛けず、ruleMinIcd を下限に残す）。添字 = 格 − 1 |
-| `gradeGrandBase` | （未記入） |
-| `gradeGrandPerDepth` | （未記入） |
-| `gradeGrandMax` | （未記入） |
-| `gradeDivineBase` | （未記入） |
-| `gradeDivinePerDepth` | （未記入） |
-| `gradeDivineMax` | （未記入） |
-| `gradeBoostChallenge` | （未記入） |
-| `gradeBoostAfterBoss` | （未記入） |
-| `gradeBoostCurseCard` | （未記入） |
-| `gradeBoostTrialSeeker` | （未記入） |
-| `gradeColor.grand` | （未記入） |
-| `gradeColor.divine` | （未記入） |
-| `gradeColor.supreme` | （未記入） |
-| `gradeColor.pinnacle` | （未記入） |
+| `gradeGrandBase` | 大祝福が出る確率の基準（深度 2 の値）。割合（0..1）。深度 1 つごとに gradeGrandPerDepth が足され、gradeGrandMax で止まる |
+| `gradeGrandPerDepth` | 大祝福の確率の、深度 1 つごとの上乗せ。割合（0..1） |
+| `gradeGrandMax` | 大祝福の確率の上限。割合（0..1） |
+| `gradeDivineBase` | 神威が出る確率の基準（深度 2 の値）。割合（0..1） |
+| `gradeDivinePerDepth` | 神威の確率の、深度 1 つごとの上乗せ。割合（0..1） |
+| `gradeDivineMax` | 神威の確率の上限。割合（0..1） |
+| `gradeBoostChallenge` | 試練の制圧で開いた提示の格の下駄。段 |
+| `gradeBoostAfterBoss` | ボス階の直後に階段で降りた提示の格の下駄。段 |
+| `gradeBoostCurseCard` | 呪いを受けて増えた札の格の下駄。段 |
+| `gradeBoostTrialSeeker` | 試練の徒（Rule 効果 offerBoons）が提示の格を上げる段数。段 |
+| `gradeColor` | 格ごとの表示色（grand = 大祝福 / divine = 神威 / supreme = 至高 / pinnacle = 極致） |
 | `graceSlots` | 加護の枠: 1 つの行動（左 / 右 / ダッシュ / スキル / 奥義）に宿せる加護の枚数。枚 |
 | `graceSlotsMax` | 加護の枠の上限（昇華で開く 3 枠目を含む）。枚 |
 | `baseWeight` | 札の種類を持たない祝福（呪い付き・芯）と真髄の、系譜を問わない提示での抽選の重み（加護・摂理・研鑽・融合は cardWeight） |
 | `cardWeight` | 札の種類ごとの抽選の重み（加護 / 摂理 / 研鑽。融合は摂理として数える）。系譜の提示では真髄・融合は確定枠でだけ出る |
 | `graceFreeMul` | 系譜の提示で、その行動の枠に空きがある加護の重みに掛ける倍率 |
-| `cardColor.grace` | （未記入） |
-| `cardColor.law` | （未記入） |
-| `cardColor.temper` | （未記入） |
-| `cardColor.apex` | （未記入） |
+| `cardColor` | 札の種類ごとの表示色（grace = 加護 / law = 摂理 / temper = 研鑽 / apex = 昇華） |
 | `apexMinCards` | 昇華が次の系譜の提示の 1 枚目に確定で入る、その系譜の札（融合を含む）の枚数。枚 |
 | `temperOfferCount` | 錬磨の提示に並べる札の上限（格を上げられる札が少なければ全部）。枚 |
-| `coreDepth` | （未記入） |
-| `coreChoiceCount` | （未記入） |
-| `coreTagBonus` | （未記入） |
-| `curseEaterGradeShiftPerCurse` | （未記入） |
-| `curseEaterMaxShift` | （未記入） |
-| `tempoPerStack` | （未記入） |
-| `tempoCap` | （未記入） |
-| `tempoWindowMul` | （未記入） |
-| `bloodLoopLifeOnHit` | （未記入） |
-| `mirageCharges` | （未記入） |
-| `mirageCooldownMul` | （未記入） |
-| `mirageBlastRatio` | （未記入） |
-| `mirageBlastRadius` | （未記入） |
-| `mirageMoveMul` | （未記入） |
+| `coreDepth` | 芯を提示する深度（その深度の最初の提示が芯だけの選択になる）。階 |
+| `coreChoiceCount` | 芯の提示で並べる札の枚数。枚 |
+| `coreTagBonus` | すでに持つ芯とタグを共有する札の抽選の重みの倍率（1 = 等倍） |
+| `curseEaterGradeShiftPerCurse` | 芯 呪い喰い: 持つ呪い付き 1 つにつき、大祝福・神威が出る確率へ足す量。割合（0..1） |
+| `curseEaterMaxShift` | 呪い喰いの確率の加算の上限。割合（0..1） |
+| `tempoPerStack` | 芯 拍の刻: コンボ 1 につき与ダメージへ足す割合（0.02 = +2%） |
+| `tempoCap` | 拍の刻の与ダメージの上乗せの上限。割合（0.8 = +80%） |
+| `tempoWindowMul` | 拍の刻の代償: コンボの猶予の倍率（FEEL.comboWindow に加算分を足した全体に掛ける。小さいほど短い） |
+| `bloodLoopLifeOnHit` | 芯 血の巡り: 与ダメージのうち生命として回収する割合。%（表示単位） |
+| `mirageCharges` | 芯 逃げ水: 増えるダッシュの回数。回 |
+| `mirageCooldownMul` | 逃げ水: ダッシュの再使用時間の倍率（1 = 等倍） |
+| `mirageBlastRatio` | 逃げ水: ダッシュの終わりの爆発の威力。近接 1 段目の威力に掛ける割合 |
+| `mirageBlastRadius` | 逃げ水: ダッシュの終わりの爆発の半径。px（10px = 1m） |
+| `mirageMoveMul` | 逃げ水の代償: 移動速度の倍率（1 = 等倍） |
 | `glassDamageMore` | 芯 硝子の刃: 与ダメージの倍（more。1.3 = ×1.3）。全タグに掛かる |
 | `glassDamageTakenMul` | 硝子の刃の代償: 被ダメージの倍率（damageTakenMul に掛ける） |
 | `heavyPoiseMul` | 芯 重心: 敵への怯み値の倍率（poiseDamageMul に掛ける） |
@@ -2742,9 +2619,9 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `STASH_CAPACITY` | （未記入） |
-| `ARMOR_K` | （未記入） |
-| `ARMOR_MAX_REDUCTION` | （未記入） |
+| `STASH_CAPACITY` | 倉庫（装備の stash）に入る装備の最大数。個。超えると拾っても入らない |
+| `ARMOR_K` | 防御 / 魔防の軽減の逓減式 値 / (値 + K) の K。大きいほど軽減が伸びにくい。値と同じ単位。K と同じ値で軽減 50% |
+| `ARMOR_MAX_REDUCTION` | 防御 / 魔防による被ダメージ軽減の上限。割合（0..1） |
 
 ## loot/LOOT_DROP
 
@@ -2752,25 +2629,25 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `depthChanceBonus` | （未記入） |
-| `mobDropMulByDepth` | （未記入） |
-| `roamingDropMul` | （未記入） |
-| `eliteDropMul` | （未記入） |
-| `roomClearChanceByDepth` | （未記入） |
-| `depthArrivalChance` | （未記入） |
-| `itemLevelSpread` | （未記入） |
-| `rarityBoostPerDepth` | （未記入） |
-| `roomClearRarityBoost` | （未記入） |
-| `depthArrivalRarityBoost` | （未記入） |
-| `scatter` | （未記入） |
-| `arrivalOffset` | （未記入） |
+| `depthChanceBonus` | 撃破ドロップ確率の、深度 1 つごとの上乗せ（敵ごとの dropChance に足す）。割合（0..1） |
+| `mobDropMulByDepth` | 通常敵の撃破ドロップ確率に掛ける倍率の列。添字 0 = 深度 1（表より深ければ最後の値）。倍率 |
+| `roamingDropMul` | さまよう敵の撃破ドロップ確率の倍率（通常敵に重ねて掛かる）。倍率 |
+| `eliteDropMul` | 精鋭の撃破ドロップ確率の倍率（深度の表は掛けない。ボス・巣窟の主は絞らない）。倍率 |
+| `roomClearChanceByDepth` | 部屋の制圧の報酬が出る確率の列。添字 0 = 深度 1。割合（0..1） |
+| `depthArrivalChance` | 階に降りたとき、プレイヤーの少し前に装備が 1 個出る確率。割合（0..1） |
+| `itemLevelSpread` | 床の装備の itemLevel を、深度に足す幅（0 〜 これの整数をランダムに足す）。レベル |
+| `rarityBoostPerDepth` | 深度ごとの揺らぎの増幅の伸び（現在コードから参照されていない） |
+| `roomClearRarityBoost` | 部屋の制圧・特別な報酬の装備の揺らぎの増幅（大きいほど「荒い」遺物が出る） |
+| `depthArrivalRarityBoost` | 階の到着ボーナスの装備の揺らぎの増幅 |
+| `scatter` | 落ちた装備・スキル石が元の位置から弾ける最大の距離。px |
+| `arrivalOffset` | 階の到着ボーナスの装備が、プレイヤーの右にずれて出る距離。px |
 
 ## loot/PICKUP
 
 | 項目 | 意味 |
 | --- | --- |
-| `focusRadius` | （未記入） |
-| `reach` | （未記入） |
+| `focusRadius` | 照準の注目の半径: 照準点（または照準線）からこの距離以内の床のものを注目して拾える。px |
+| `reach` | 拾える距離（プレイヤーからこの距離以内）。px（10px = 1m） |
 
 ## loot/RESONANCE
 
@@ -2803,29 +2680,29 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `blinkRadius` | （未記入） |
-| `blinkDamage` | （未記入） |
-| `blinkColor` | （未記入） |
-| `gamblerMin` | （未記入） |
-| `gamblerMax` | （未記入） |
-| `vampireLeechPct` | （未記入） |
-| `overdrawHpPerMana` | （未記入） |
-| `overdrawMinHp` | （未記入） |
-| `unshakenDamageBonus` | （未記入） |
-| `unshakenPoiseToDamage` | （未記入） |
-| `readPoiseMul` | （未記入） |
-| `readOffWindupDamageMul` | （未記入） |
-| `chantAttackDamageMul` | （未記入） |
-| `chantManaMul` | （未記入） |
-| `chantSkillBonus` | （未記入） |
-| `contagionDamageMul` | （未記入） |
-| `contagionRadius` | （未記入） |
-| `pacifistMercyHp` | （未記入） |
-| `pacifistPoiseMul` | （未記入） |
-| `bladeOathRangePx` | （未記入） |
-| `bladeOathNearMul` | （未記入） |
-| `bladeOathFarMul` | （未記入） |
-| `bladeOathAttackSpeedBonus` | （未記入） |
+| `blinkRadius` | 瞬歩: 着地点の爆発の半径。px（10px = 1m） |
+| `blinkDamage` | 瞬歩: 着地点の爆発のダメージ（固定値） |
+| `blinkColor` | 瞬歩: 出発点の粒子の色 |
+| `gamblerMin` | 賭博師: 1 命中ごとのランダムな与ダメージの倍の下限。倍率 |
+| `gamblerMax` | 賭博師: 1 命中ごとのランダムな与ダメージの倍の上限。倍率 |
+| `vampireLeechPct` | 吸血: 与ダメージのうち回復に回す割合。%（表示単位） |
+| `overdrawHpPerMana` | 過負荷: 不足した気力 1 を払うのに要る生命。生命 |
+| `overdrawMinHp` | 過負荷: 生命で払った後に残らなければならない生命の最小。これ未満になる払いは撃てない。生命 |
+| `unshakenDamageBonus` | 揺るがぬ誓い: 近接・射撃・スキルの与ダメージの上乗せ。割合（0.35 = +35%） |
+| `unshakenPoiseToDamage` | 揺るがぬ誓い: 怯み値の上昇分（1 を超える分）のうち与ダメージへ換える割合。割合（0..1） |
+| `readPoiseMul` | 読み勝ちの誓い: 予告が下絵の間に振り始めた近接の怯み値の倍。倍率 |
+| `readOffWindupDamageMul` | 読み勝ちの誓い: 予告の下絵の間に振り始めていない近接の与ダメージの倍。倍率（0.7 = −30%） |
+| `chantAttackDamageMul` | 詠唱の誓い: 近接・射撃の与ダメージの倍。倍率（0.3 = −70%） |
+| `chantManaMul` | 詠唱の誓い: 通常攻撃の命中で戻る気力に掛ける倍率 |
+| `chantSkillBonus` | 詠唱の誓い: スキル威力の上乗せ。割合（0.5 = +50%） |
+| `contagionDamageMul` | 病みの誓い: 近接・射撃の与ダメージの倍。倍率（0.6 = −40%） |
+| `contagionRadius` | 病みの誓い: 倒れた敵の状態異常が移る範囲の半径。px（10px = 1m） |
+| `pacifistMercyHp` | 不殺: 怯んでいない敵に残す生命の下限（これ未満にならない）。生命 |
+| `pacifistPoiseMul` | 不殺: 与える怯み値の倍。倍率 |
+| `bladeOathRangePx` | 近間の誓い: 近い / 遠いの境目。px（10px = 1m） |
+| `bladeOathNearMul` | 近間の誓い: 境目以内の敵への与ダメージの倍。倍率 |
+| `bladeOathFarMul` | 近間の誓い: 境目より遠い敵への与ダメージの倍。倍率 |
+| `bladeOathAttackSpeedBonus` | 近間の誓い: 攻撃速度の上乗せ。割合（0.2 = +20%） |
 | `mushinIdleSec` | 虚心: 攻撃を当てずにこの秒がたつと、次の 1 撃が倍になる。秒 |
 | `mushinMul` | 虚心: 溜めた 1 撃の与ダメージの倍。倍率 |
 | `instantRadius` | 刹那: 見切りの瞬間に凍らせる範囲の半径。px |
@@ -2888,46 +2765,46 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `icd` | （未記入） |
-| `shockwaveRadius` | （未記入） |
-| `shockwaveKnockback` | （未記入） |
-| `shockwaveColor` | （未記入） |
-| `nearbyRadius` | （未記入） |
-| `bulletSpeed` | （未記入） |
-| `bulletLife` | （未記入） |
-| `bulletColor` | （未記入） |
-| `comboThreshold` | （未記入） |
-| `percent` | （未記入） |
-| `defaultDuration` | （未記入） |
-| `invulnMax` | （未記入） |
-| `manaLowRatio` | （未記入） |
-| `multiStatusKinds` | （未記入） |
-| `extendMax` | （未記入） |
-| `volleySpread` | （未記入） |
-| `inflictHaltMax` | （未記入） |
-| `inflictBurnDps` | （未記入） |
-| `inflictBleed` | （未記入） |
-| `inflictShock` | （未記入） |
-| `trait.manaShieldMul` | （未記入） |
-| `trait.manaShieldColor` | （未記入） |
-| `trait.staggerQuakeRadius` | （未記入） |
-| `trait.wedgeRatio` | （未記入） |
-| `trait.minMul` | （未記入） |
-| `trait.comboBreakMin` | （未記入） |
-| `trait.comboBreakCap` | （未記入） |
-| `trait.stakeMax` | （未記入） |
-| `trait.stakeColor` | （未記入） |
-| `trait.inheritDuration` | （未記入） |
-| `trait.lowHpRatio` | （未記入） |
-| `trait.spreadCloseRange` | （未記入） |
-| `trait.alternateWindow` | （未記入） |
-| `trait.terrainBlastRadius` | （未記入） |
-| `trait.terrainBlastStatusSec` | （未記入） |
-| `trait.terrainBlastIcd` | （未記入） |
-| `trait.burningKillFireRadius` | （未記入） |
-| `trait.iceTrailRadius` | （未記入） |
-| `trait.rapidBrandSec` | （未記入） |
-| `trait.elementMinMul` | （未記入） |
+| `icd` | 装備のトリガーの内部クールダウン（同じトリガー定義ごと）。秒。演出の輪の長さにも使う |
+| `shockwaveRadius` | トリガー・性質の衝撃波の半径。px（10px = 1m） |
+| `shockwaveKnockback` | 衝撃波のノックバックの強さ。px/秒相当 |
+| `shockwaveColor` | 衝撃波・崩れの反響の輪の色 |
+| `nearbyRadius` | トリガーの「周囲の敵」の範囲・Rule 効果の範囲の既定の半径。px（10px = 1m） |
+| `bulletSpeed` | トリガー・Rule の弾の速さ。px/秒 |
+| `bulletLife` | トリガー・Rule の弾の寿命。秒 |
+| `bulletColor` | トリガーの弾（一斉射撃など）の色 |
+| `comboThreshold` | トリガー条件「コンボが多い」が成り立つコンボ数（この数以上）。コンボ |
+| `percent` | トリガーの効果量（%）を割合へ直す除数（100 固定） |
+| `defaultDuration` | 持続を指定しないトリガー・Rule 効果の持続の既定。秒 |
+| `invulnMax` | トリガーの無敵の持続の上限。秒 |
+| `manaLowRatio` | トリガー条件「気力が少ない」が成り立つ割合（最大気力のこれ未満）。割合（0..1） |
+| `multiStatusKinds` | トリガー条件「複数の状態異常」が成り立つ、敵に付いた状態異常の種類数（この数以上）。種類 |
+| `extendMax` | 状態異常の延長トリガーで、残り秒がこれ以上には延びない上限。秒 |
+| `volleySpread` | 一斉射撃の弾 1 本ごとの扇の角度の間隔。ラジアン |
+| `inflictHaltMax` | トリガーで付ける行動停止系（凍結・麻痺など）の 1 回の長さの上限。秒 |
+| `inflictBurnDps` | トリガー・性質で付ける燃焼の強さ。毎秒のダメージ |
+| `inflictBleed` | トリガー・性質で付ける出血の強さ（出血の効果量） |
+| `inflictShock` | トリガー・性質で付ける感電の強さ（感電の連鎖のダメージ） |
+| `trait.manaShieldMul` | 身代わり: 気力を払えたときの被ダメージの倍率。倍率（0.5 = 半減） |
+| `trait.manaShieldColor` | 身代わりの浮き文字の色 |
+| `trait.staggerQuakeRadius` | 崩れの反響: 怯ませた敵の周囲へ怯み値を与える半径。px（10px = 1m） |
+| `trait.wedgeRatio` | 楔: 敵の怯み値がこの割合以上たまっているときに怯み値の増が効く。割合（0..1） |
+| `trait.minMul` | 増の合計（1 + Σ増）の下限の倍率。代償の − を積んでも 0 にしない |
+| `trait.comboBreakMin` | 余韻斬り: 衝撃波が出る、途切れたコンボ数の最小。コンボ |
+| `trait.comboBreakCap` | 余韻斬り: 衝撃波の威力に数えるコンボ数の上限。コンボ |
+| `trait.stakeMax` | 杭: 敵に刺さる杭の最大数。本 |
+| `trait.stakeColor` | 杭の浮き文字・輪の色 |
+| `trait.inheritDuration` | 形見: 受け継いだ状態異常を付ける秒。秒 |
+| `trait.lowHpRatio` | 血の署名: スキルの再使用が速く明ける、生命の割合（最大生命のこれ未満の間）。割合（0..1） |
+| `trait.spreadCloseRange` | 散弾の至近の増が効く距離（この距離以内の敵）。px（10px = 1m） |
+| `trait.alternateWindow` | 天秤: 手替えの重なりが続く猶予（手替えのたびに戻る）。秒 |
+| `trait.terrainBlastRadius` | 地脈の炸裂: 状態異常を付ける範囲の半径。px（10px = 1m） |
+| `trait.terrainBlastStatusSec` | 地脈の炸裂: 付ける状態異常の秒。秒 |
+| `trait.terrainBlastIcd` | 地脈の炸裂の内部クールダウン（連鎖で爆ぜ続けない）。秒 |
+| `trait.burningKillFireRadius` | 残り火: 燃えている敵の撃破で置く火の半径。px |
+| `trait.iceTrailRadius` | 霜の轍: ダッシュ中に置く氷床の半径。px |
+| `trait.rapidBrandSec` | 連射の烙印: 付ける烙印の秒。秒 |
+| `trait.elementMinMul` | 属性の倍率（弱点刺し・通電）の下限。倍率 |
 | `trait.momentWindowSec` | 応手・双撃・先制の後に条件の族の増が効く窓。秒 |
 | `trait.moraleEvery` | 性質「戦意 N につき」の N。戦意 |
 | `trait.comboEvery` | 性質「コンボ N につき」の N。コンボ数 |
@@ -2986,11 +2863,11 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `*[].depth` | （未記入） |
-| `*[].min` | （未記入） |
-| `*[].max` | （未記入） |
-| `*[].min2` | （未記入） |
-| `*[].max2` | （未記入） |
+| `*[].depth` | 期待値曲線の点の深度（この深度で、その幅の中央が期待値。点の間は線形補間、最後の点より深ければ外挿）。深度 |
+| `*[].min` | その深度での性質の値の下限（表示単位。% など） |
+| `*[].max` | その深度での性質の値の上限（表示単位） |
+| `*[].min2` | 2 つ目の値（value2）を持つ性質の、その深度での下限 |
+| `*[].max2` | 2 つ目の値（value2）を持つ性質の、その深度での上限 |
 
 ## loot/bases
 
@@ -3062,129 +2939,105 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `treasureChance` | （未記入） |
-| `treasureItemsMin` | （未記入） |
-| `treasureItemsMax` | （未記入） |
-| `treasureRarityBoost` | （未記入） |
-| `treasureItemSpread` | （未記入） |
-| `treasureCoinParticles` | （未記入） |
-| `treasureCoinColor` | （未記入） |
-| `challengeMinDepth` | （未記入） |
-| `challengeChance` | （未記入） |
-| `challengeWaves` | （未記入） |
-| `challengeWaveMul` | （未記入） |
-| `challengeRareBoost` | （未記入） |
-| `challengeRareAttempts` | （未記入） |
-| `challengeColor` | （未記入） |
-| `fountainRadius` | （未記入） |
-| `shrineColor` | （未記入） |
-| `cursedEliteRolls` | （未記入） |
-| `cursedColor` | （未記入） |
-| `ambushMinDepth` | （未記入） |
-| `ambushChance` | （未記入） |
-| `ambushMax` | （未記入） |
-| `ambushEnemyMul` | （未記入） |
-| `extraMax` | （未記入） |
-| `extra.*.chance` | （未記入） |
-| `extra.*.minDepth` | （未記入） |
-| `propRadius` | （未記入） |
-| `propSpacing` | （未記入） |
-| `propLabelRange` | （未記入） |
-| `altarColor` | （未記入） |
-| `libraryColor` | （未記入） |
-| `arenaWaves` | （未記入） |
-| `arenaWaveMul` | （未記入） |
-| `arenaColor` | （未記入） |
-| `gambleCoinCost` | （未記入） |
-| `gambleCoinWinMul` | （未記入） |
-| `gambleUses` | （未記入） |
-| `gambleColor` | （未記入） |
+| `treasureChance` | 宝物庫の部屋がその階に 1 つ出る確率。割合〔0..1〕。深度 1 から抽選 |
+| `treasureItemsMin` | 宝物庫に入ったとき床に出る遺物の最小個数。個 |
+| `treasureItemsMax` | 宝物庫に入ったとき床に出る遺物の最大個数（最小との間の一様乱数）。個 |
+| `treasureRarityBoost` | 宝物庫の遺物の揺らぎの増幅（loot の rarityBoost）。大きいほど荒い遺物・名のある遺物が出やすい。0 で通常 |
+| `treasureItemSpread` | 宝物庫で遺物を部屋の中心から散らす距離。px |
+| `treasureCoinParticles` | 宝物庫に入ったときの銭の粒子（演出）の数。個 |
+| `treasureCoinColor` | 宝物庫の色（粒子・浮き文字・ログ・扉） |
+| `challengeMinDepth` | 試練の部屋が出る最小の深度 |
+| `challengeChance` | 試練の部屋がその階に 1 つ出る確率。割合〔0..1〕。challengeMinDepth 以降で抽選 |
+| `challengeWaves` | 試練の波の数。全波を倒すまで封鎖が解けない |
+| `challengeWaveMul` | 試練 1 波の敵数の倍率（その階の通常の敵数に掛ける。1 = 等倍） |
+| `challengeRareBoost` | 試練の報酬（rare 以上の遺物）の揺らぎの増幅（loot の rarityBoost）。大きいほど荒い遺物が出やすい |
+| `challengeRareAttempts` | 試練の報酬で rare 以上が出るまで引き直す上限回数。回 |
+| `challengeColor` | 試練・伏兵の部屋の色（波の浮き文字・扉） |
+| `fountainRadius` | 泉に触れて回復できる半径。px |
+| `shrineColor` | 泉の色（粒子・浮き文字・扉） |
+| `cursedEliteRolls` | 呪われた部屋で通常の敵 1 体ごとにエリート抽選を引く回数（1 回目は通常の抽選なので、追加は 1 引いた数）。大きいほど精鋭だらけ |
+| `cursedColor` | 呪い（次の部屋が呪われる表示・護衛失敗）の色 |
+| `ambushMinDepth` | 伏兵の部屋が出る最小の深度 |
+| `ambushChance` | 伏兵になれる部屋 1 つごとの確率。割合〔0..1〕 |
+| `ambushMax` | 1 階に置く伏兵の部屋の最大数。個 |
+| `ambushEnemyMul` | 伏兵の部屋で入った瞬間に湧く敵数の倍率（通常の増援 ROOM.reinforcementRatio の代わりに、その階の敵数へ掛ける。1 = 等倍） |
+| `extraMax` | 1 階に置く追加の部屋の種類（extra）の最大数。個 |
+| `extra` | 追加の部屋の種類ごとの出方。キーが部屋の種類 |
+| `extra.*.chance` | その種類の部屋に割り当てる確率。割合〔0..1〕。extraMax に届くまで順に抽選 |
+| `extra.*.minDepth` | その種類の部屋が出る最小の深度 |
+| `propRadius` | 台座・レバーなどの小物に触れて使える半径。px |
+| `propSpacing` | 部屋の中心に横並びで置く台座・遺物の間隔。タイル数 |
+| `propLabelRange` | 台座の名前を表示する距離。px |
+| `altarColor` | 祭壇（誓約）の色 |
+| `libraryColor` | 図書館（刻印符）の色 |
+| `arenaWaves` | 闘技場の波の数 |
+| `arenaWaveMul` | 闘技場 1 波の敵数の倍率（その階の通常の敵数に掛ける。1 = 等倍） |
+| `arenaColor` | 闘技場の色 |
+| `gambleCoinCost` | 賭け台 1 回の銭の代価。銭 |
+| `gambleCoinWinMul` | 賭けの当たり「銭」で戻る額の倍率（gambleCoinCost に掛ける。1 = 等倍） |
+| `gambleUses` | 賭けの部屋で賭けられる回数。回 |
+| `gambleColor` | 賭けの部屋の色 |
 | `gambleWeights.item` | 賭け台の当たり「遺物」（gambleRarityBoost で底上げ）の重み。相対値 |
 | `gambleWeights.hearts` | 当たり「ハート」（gambleHearts 個）の重み。相対値 |
 | `gambleWeights.rune` | 当たり「刻印符」の重み。相対値 |
 | `gambleWeights.ambush` | 外れ「伏兵」（部屋に増援が湧く）の重み。相対値 |
 | `gambleWeights.curse` | 外れ「呪い」（次の部屋が呪われる）の重み。相対値 |
 | `gambleWeights.coins` | 当たり「銭」（gambleCoinCost × gambleCoinWinMul）の重み。相対値 |
-| `gambleRarityBoost` | （未記入） |
-| `gambleHearts` | （未記入） |
-| `forgeEchoes` | （未記入） |
-| `forgeBurnDuration` | （未記入） |
-| `forgeBurnDps` | （未記入） |
-| `forgeColor` | （未記入） |
-| `exchangeItems` | （未記入） |
-| `exchangeMul` | （未記入） |
-| `exchangeColor` | （未記入） |
-| `curseShrineColor` | （未記入） |
-| `resonanceBonusDrops` | （未記入） |
-| `escortHpMul` | （未記入） |
-| `escortRadius` | （未記入） |
-| `escortDps` | （未記入） |
-| `escortColor` | （未記入） |
-| `escapeSpeed` | （未記入） |
-| `escapeLavaTime` | （未記入） |
-| `escapeTickInterval` | （未記入） |
-| `escapeColor` | （未記入） |
-| `reaperNestDepthBonus` | （未記入） |
-| `nestHpMul` | （未記入） |
-| `nestElites` | （未記入） |
-| `nestColor` | （未記入） |
-| `mirrorHpMul` | （未記入） |
-| `mirrorBoonsPerElite` | （未記入） |
-| `mirrorEliteMax` | （未記入） |
-| `mirrorColor` | （未記入） |
-| `watchtowerReaperCost` | （未記入） |
-| `watchtowerColor` | （未記入） |
-| `vaultCoinCost` | （未記入） |
-| `vaultDrops` | （未記入） |
-| `vaultColor` | （未記入） |
-| `elementAltarChoices` | （未記入） |
-| `elementAltarShare` | （未記入） |
-| `elementAltarColor` | （未記入） |
-| `dummyCount` | （未記入） |
-| `dummySpacing` | （未記入） |
-| `dummyColor` | （未記入） |
-| `fogRoomRadius` | （未記入） |
-| `fogRoomColor` | （未記入） |
-| `tideRoomSpeed` | （未記入） |
-| `tideRoomInterval` | （未記入） |
-| `tideRoomWaterTime` | （未記入） |
-| `tideRoomColor` | （未記入） |
-| `invertHallItems` | （未記入） |
-| `invertHallAttempts` | （未記入） |
-| `invertHallColor` | （未記入） |
-| `hordeMinDepth` | （未記入） |
-| `hordeSecondDepth` | （未記入） |
-| `hordeChance` | （未記入） |
-| `hordeMinTiles` | （未記入） |
-| `hordeWaves` | （未記入） |
-| `hordeWaveMul` | （未記入） |
-| `hordeColor` | （未記入） |
-| `locks.normal` | （未記入） |
-| `locks.treasure` | （未記入） |
-| `locks.challenge` | （未記入） |
-| `locks.shrine` | （未記入） |
-| `locks.ambush` | （未記入） |
-| `locks.altar` | （未記入） |
-| `locks.library` | （未記入） |
-| `locks.arena` | （未記入） |
-| `locks.gamble` | （未記入） |
-| `locks.forge` | （未記入） |
-| `locks.exchange` | （未記入） |
-| `locks.curseShrine` | （未記入） |
-| `locks.resonance` | （未記入） |
-| `locks.escort` | （未記入） |
-| `locks.escape` | （未記入） |
-| `locks.reaperNest` | （未記入） |
-| `locks.nest` | （未記入） |
-| `locks.mirror` | （未記入） |
-| `locks.watchtower` | （未記入） |
-| `locks.horde` | （未記入） |
-| `locks.vault` | （未記入） |
-| `locks.elementAltar` | （未記入） |
-| `locks.dummyHall` | （未記入） |
-| `locks.fogRoom` | （未記入） |
-| `locks.tideRoom` | （未記入） |
-| `locks.invertHall` | （未記入） |
+| `gambleRarityBoost` | 賭けの当たり「遺物」の揺らぎの増幅（loot の rarityBoost）。0 で通常 |
+| `gambleHearts` | 賭けの当たり「ハート」で出るハートの数。個 |
+| `forgeEchoes` | 鍛冶場の金床を打つと得る残響の量（装備の性質で最も多い色。クラフトの所持へ加わる）。点 |
+| `forgeBurnDuration` | 鍛冶場の金床を打ったときに自分へ付く燃焼の持続。秒 |
+| `forgeBurnDps` | 鍛冶場の金床を打ったときに自分へ付く燃焼の毎秒ダメージ。HP/秒 |
+| `forgeColor` | 鍛冶場の色 |
+| `exchangeItems` | 交換所の台座の周りに置く遺物の数。個（置かれた遺物を残響へ換える） |
+| `exchangeMul` | 交換所で遺物を残響へ換えるときの倍率（遺物の残響量に掛け、切り上げ。1 = 等倍） |
+| `exchangeColor` | 交換所の色 |
+| `curseShrineColor` | 呪いの祠の色 |
+| `resonanceBonusDrops` | 共鳴炉で語が共鳴しているときの追加の報酬の個数。個 |
+| `escortHpMul` | 護衛対象（捕らわれ人）の最大 HP の倍率（プレイヤーの最大 HP に掛ける。1 = 等倍） |
+| `escortRadius` | 捕らわれ人の周り、敵が近くにいるとみなす半径。px |
+| `escortDps` | 捕らわれ人の周りの敵 1 体あたりが毎秒削る HP。HP/秒（体数に比例） |
+| `escortColor` | 護衛の色（対象・HUD） |
+| `escapeSpeed` | 逃走の部屋で崩れる床（溶岩）が広がる速さ。px/秒 |
+| `escapeLavaTime` | 逃走の部屋で 1 回置く溶岩が残る時間。秒 |
+| `escapeTickInterval` | 逃走の部屋で溶岩を置き直す間隔。秒 |
+| `escapeColor` | 逃走の色（床崩れの文字・扉） |
+| `reaperNestDepthBonus` | 死神の巣の宝箱の遺物の深度への上乗せ（itemLevel = 深度 + この値）。深い遺物ほど強い |
+| `nestHpMul` | 巣の主の HP の倍率（1 = 等倍） |
+| `nestElites` | 巣の部屋の設定値（現状コードから参照されていない） |
+| `nestColor` | 巣の色 |
+| `mirrorHpMul` | 鏡像の最大 HP の倍率（プレイヤーの最大 HP に掛ける。1 = 等倍） |
+| `mirrorBoonsPerElite` | 鏡像のエリート修飾子 1 段に必要な持っている祝福の数。個 |
+| `mirrorEliteMax` | 鏡像のエリート修飾子の段数の上限（祝福の数 ÷ mirrorBoonsPerElite の切り捨てとの小さい方）。段 |
+| `mirrorColor` | 鏡の色 |
+| `watchtowerReaperCost` | 見張り台の鐘を鳴らすと進む、死神が来るまでの階の経過時間。秒（地図が分かる代わりに死神を早める） |
+| `watchtowerColor` | 見張り台の色 |
+| `vaultCoinCost` | 封印庫を銭で開けるときの代価（鍵でも開く）。銭 |
+| `vaultDrops` | 封印庫を開けて出る遺物の数。個 |
+| `vaultColor` | 封印庫の色 |
+| `elementAltarChoices` | 属性の祭壇で提示する属性の数。個 |
+| `elementAltarShare` | 属性の祭壇の加護で、その階の間その属性に割り当てる割合〔0..1〕 |
+| `elementAltarColor` | 属性の祭壇の色（属性の色が無いとき） |
+| `dummyCount` | 訓練場に置く的の数。個 |
+| `dummySpacing` | 訓練場の的の間隔。タイル数 |
+| `dummyColor` | 訓練場の色 |
+| `fogRoomRadius` | 霧の部屋の中で見える半径（プレイヤーの周り）。px |
+| `fogRoomColor` | 霧の部屋の色 |
+| `tideRoomSpeed` | 潮の部屋で水が広がる速さ。px/秒 |
+| `tideRoomInterval` | 潮の部屋で水を置き直す間隔。秒 |
+| `tideRoomWaterTime` | 潮の部屋で 1 回置く水が残る時間。秒 |
+| `tideRoomColor` | 潮の部屋の色 |
+| `invertHallItems` | 反転の間の卓の周りに置く遺物の数。個 |
+| `invertHallAttempts` | 反転の間で遺物 1 つを反転させる性質を引き直す上限回数。回 |
+| `invertHallColor` | 反転の間の色 |
+| `hordeMinDepth` | 巣窟が出る最小の深度（1 つ目） |
+| `hordeSecondDepth` | 巣窟が 2 つまで出るようになる深度（それ未満は最大 1 つ） |
+| `hordeChance` | 巣窟 1 つごとの出る確率。割合〔0..1〕 |
+| `hordeMinTiles` | 巣窟にできる部屋の最小の広さ。タイル数 |
+| `hordeWaves` | 巣窟の波の数 |
+| `hordeWaveMul` | 巣窟 1 波の敵数の倍率（その階の通常の敵数に掛ける。1 = 等倍） |
+| `hordeColor` | 巣窟の色（浮き文字・ログ・扉） |
+| `locks` | 部屋の種類ごとに、入ると封鎖する（敵を倒すまで出られない）か。true で封鎖。キーが部屋の種類 |
 
 ## world/FLOOR_KIND
 
@@ -3253,125 +3106,101 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `minDepth` | （未記入） |
-| `warnTime` | （未記入） |
-| `cooldown` | （未記入） |
-| `lockChance.reinforce` | （未記入） |
-| `lockChance.blackout` | （未記入） |
-| `lockChance.meteor` | （未記入） |
-| `lockChance.manaDrought` | （未記入） |
-| `lockChance.shrink` | （未記入） |
-| `lockChance.timeRift` | （未記入） |
-| `lockChance.curseVoice` | （未記入） |
-| `lockChance.duel` | （未記入） |
-| `lockChance.sluggish` | （未記入） |
-| `lockChance.flood` | （未記入） |
-| `lockChance.silence` | （未記入） |
-| `lockChance.reactionSurge` | （未記入） |
-| `lockChance.thunderstorm` | （未記入） |
-| `floorChance.bounty` | （未記入） |
-| `floorChance.bloodMoon` | （未記入） |
-| `floorChance.frenzyMoon` | （未記入） |
-| `floorChance.fog` | （未記入） |
-| `floorChance.elementStorm` | （未記入） |
-| `fogBiomeChance` | （未記入） |
-| `timedAfter` | （未記入） |
-| `checkInterval` | （未記入） |
-| `timedChance.quake` | （未記入） |
-| `timedChance.curseWind` | （未記入） |
-| `timedChance.reaperPass` | （未記入） |
-| `timedChance.echoVein` | （未記入） |
-| `timedChance.bats` | （未記入） |
-| `timedChance.lifeFlow` | （未記入） |
-| `timedChance.thiefChase` | （未記入） |
-| `clearChance.treasureRain` | （未記入） |
-| `clearChance.momentum` | （未記入） |
-| `clearChance.boonReroll` | （未記入） |
-| `reinforceMul` | （未記入） |
-| `reinforceBonusTime` | （未記入） |
-| `bountyScore` | （未記入） |
-| `blackoutMax` | （未記入） |
-| `quake.duration` | （未記入） |
-| `quake.interval` | （未記入） |
-| `quake.telegraph` | （未記入） |
-| `quake.radius` | （未記入） |
-| `quake.damage` | （未記入） |
-| `quake.spread` | （未記入） |
-| `meteor.duration` | （未記入） |
-| `meteor.interval` | （未記入） |
-| `meteor.telegraph` | （未記入） |
-| `meteor.radius` | （未記入） |
-| `meteor.damage` | （未記入） |
-| `meteor.spread` | （未記入） |
-| `impactEnemyMul` | （未記入） |
-| `rainItems` | （未記入） |
-| `rainHearts` | （未記入） |
-| `rainSpread` | （未記入） |
-| `rainRarityBoost` | （未記入） |
-| `manaDrainPerSec` | （未記入） |
-| `riftTime` | （未記入） |
-| `riftRadius` | （未記入） |
-| `riftFreeze` | （未記入） |
-| `fogDuration` | （未記入） |
-| `fogRadius` | （未記入） |
-| `curseWindShow` | （未記入） |
-| `bloodMoonHeal` | （未記入） |
-| `bloodMoonHpMul` | （未記入） |
-| `shrinkHpMul` | （未記入） |
-| `shrinkExtraMul` | （未記入） |
-| `momentumWindow` | （未記入） |
-| `momentumSpeedMul` | （未記入） |
-| `momentumSpeedTime` | （未記入） |
-| `warnColor` | （未記入） |
-| `activeColor` | （未記入） |
-| `impactColor` | （未記入） |
-| `sluggish.dashCdMul` | （未記入） |
-| `sluggish.dashDamageMul` | （未記入） |
-| `sluggish.buffTime` | （未記入） |
-| `flood.duration` | （未記入） |
-| `flood.interval` | （未記入） |
-| `flood.growth` | （未記入） |
-| `flood.maxRadius` | （未記入） |
-| `flood.terrainTime` | （未記入） |
-| `duel.holdTime` | （未記入） |
-| `duel.fearTime` | （未記入） |
-| `silenceTime` | （未記入） |
-| `surge.radius` | （未記入） |
-| `surge.damage` | （未記入） |
-| `surge.perDepth` | （未記入） |
-| `surge.icd` | （未記入） |
-| `surge.color` | （未記入） |
-| `thunder.duration` | （未記入） |
-| `thunder.interval` | （未記入） |
-| `thunder.telegraph` | （未記入） |
-| `thunder.radius` | （未記入） |
-| `thunder.damage` | （未記入） |
-| `thunder.spread` | （未記入） |
-| `thunder.shockStacks` | （未記入） |
-| `thunder.shockDuration` | （未記入） |
-| `thunder.color` | （未記入） |
-| `curseVoiceCombo` | （未記入） |
-| `elementStormShare` | （未記入） |
-| `reaperPass.minRatio` | （未記入） |
-| `reaperPass.speed` | （未記入） |
-| `reaperPass.span` | （未記入） |
-| `reaperPass.radius` | （未記入） |
-| `reaperPass.damage` | （未記入） |
-| `reaperPass.echoes` | （未記入） |
-| `lifeFlow.duration` | （未記入） |
-| `lifeFlow.ratio` | （未記入） |
-| `bats.duration` | （未記入） |
-| `bats.count` | （未記入） |
-| `bats.manaPerKill` | （未記入） |
-| `vein.uses` | （未記入） |
-| `vein.echoes` | （未記入） |
-| `vein.reinforce` | （未記入） |
-| `vein.color` | （未記入） |
-| `thief.duration` | （未記入） |
-| `thief.searchRadius` | （未記入） |
-| `thief.spawnOffset` | （未記入） |
-| `thief.rarityBoost` | （未記入） |
-| `thief.color` | （未記入） |
+| `minDepth` | ランイベントが起き始める深度。それより浅い階では何も起きない |
+| `warnTime` | 予告（HUD の 1 行 + 効果音）から本番が始まるまでの秒。全イベント共通。プレイヤーが対処を考える猶予 |
+| `cooldown` | 部屋の枠のイベントが終わってから次の部屋のイベントを抽選するまでの秒 |
+| `lockChance` | 部屋に入って封鎖した瞬間に、そのイベントが起きる確率（割合〔0..1〕）。キーがイベント。表の上から順に 1 つずつ抽選し、最初に当たったものが起きる |
+| `floorChance` | 階に入った瞬間に、その階全体のイベントが起きる確率（割合〔0..1〕）。キーがイベント。表の順に抽選し、最初に当たったものが起きる |
+| `fogBiomeChance` | 霧のバイオーム（沼・草原・氷河）での霧の確率（割合〔0..1〕）。他では floorChance.fog |
+| `timedAfter` | 階に入ってから最初の時間経過の抽選までの秒 |
+| `checkInterval` | 時間経過で起きるイベントを抽選する間隔。秒（timedAfter の後） |
+| `timedChance` | 抽選のたびにそのイベントが起きる確率（割合〔0..1〕）。キーがイベント。表の順に抽選し、最初に当たったものが起きる |
+| `clearChance` | 部屋を制圧した瞬間に、そのイベントが起きる確率（割合〔0..1〕）。キーがイベント。表の順に抽選し、最初に当たったものが起きる |
+| `reinforceMul` | 増援イベントで追加で湧く敵数の倍率（その階の通常の敵数に掛ける。1 = 等倍） |
+| `reinforceBonusTime` | 増援を倒しきったときに報酬が出る制限時間。秒（増援が現れてからの経過） |
+| `bountyScore` | 賞金首を仕留めたときに加わるスコア。点 |
+| `blackoutMax` | 停電の最長の持続。秒 |
+| `quake.duration` | 地震の持続。秒 |
+| `quake.interval` | 地震で落下物の予告を置く間隔。秒 |
+| `quake.telegraph` | 地震の落下物の予告から着弾までの秒。短いほど避けにくい |
+| `quake.radius` | 地震の落下物の爆発の半径。px |
+| `quake.damage` | 地震の落下物がプレイヤーに与えるダメージ |
+| `quake.spread` | 地震の落下物がプレイヤーの周りどこまでに落ちるか。px |
+| `meteor.duration` | 流星群の持続。秒 |
+| `meteor.interval` | 流星群で落下物の予告を置く間隔。秒 |
+| `meteor.telegraph` | 流星群の落下物の予告から着弾までの秒 |
+| `meteor.radius` | 流星群の落下物の爆発の半径。px |
+| `meteor.damage` | 流星群の落下物がプレイヤーに与えるダメージ |
+| `meteor.spread` | 流星群の落下物がプレイヤーの周りどこまでに落ちるか。px |
+| `impactEnemyMul` | 落下物・落雷が敵に当たるときのダメージ倍率（プレイヤーへの damage に掛ける。1 = 等倍） |
+| `rainItems` | 宝の雨で降る遺物の数。個 |
+| `rainHearts` | 宝の雨で降るハートの数。個 |
+| `rainSpread` | 宝の雨の落下位置の、部屋の中心からの距離。px |
+| `rainRarityBoost` | 宝の雨の遺物の揺らぎの増幅（loot の rarityBoost）。0 で通常 |
+| `manaDrainPerSec` | 気力枯渇の間、気力が毎秒減る量。気力/秒 |
+| `riftTime` | 刻の裂け目が出ている最長の時間。秒。触れると敵が凍って敵弾が消える |
+| `riftRadius` | 刻の裂け目の当たり半径。px |
+| `riftFreeze` | 刻の裂け目に触れたとき敵が凍る時間。秒 |
+| `fogDuration` | 霧のイベントの持続。秒 |
+| `fogRadius` | 霧の間に見える半径（プレイヤーの周り）。px |
+| `curseWindShow` | 呪いの風の表示の持続。秒（呪いそのものは次の部屋まで残る） |
+| `bloodMoonHeal` | 血の月の間、敵を 1 体倒すごとの回復量。HP |
+| `bloodMoonHpMul` | 血の月の間、湧く敵の HP の倍率（1 = 等倍） |
+| `shrinkHpMul` | 縮みの呪いで部屋の敵の HP に掛ける倍率（0.5 = 半分） |
+| `shrinkExtraMul` | 縮みの呪いで追加で湧く敵数の倍率（部屋の通常の敵数に掛ける。1 = 等倍） |
+| `momentumWindow` | 勢いの風が待つ時間。秒。この間に次の部屋へ飛び込むと発動 |
+| `momentumSpeedMul` | 勢いの風で飛び込んだときの移動速度の倍率（1 = 等倍） |
+| `momentumSpeedTime` | 勢いの風の移動速度アップの持続。秒 |
+| `warnColor` | 予告・失敗のログの色 |
+| `activeColor` | イベントの本番・成功のログと浮き文字の色 |
+| `impactColor` | 落下物（地震・流星群）の予告円の色 |
+| `sluggish.dashCdMul` | 鈍重でダッシュに入った瞬間にダッシュの再使用待ちへ掛ける倍率（2 = 倍に伸びる） |
+| `sluggish.dashDamageMul` | 鈍重でダッシュ直後の一撃の与ダメージ倍率（1 = 等倍） |
+| `sluggish.buffTime` | 鈍重の重い一撃の効く時間。秒（ダッシュの終わりから） |
+| `flood.duration` | 地形の氾濫の持続。秒 |
+| `flood.interval` | 地形の氾濫で水・油を置き直す間隔。秒 |
+| `flood.growth` | 地形の氾濫の広がる速さ。px/秒（開始半径 16px から） |
+| `flood.maxRadius` | 地形の氾濫の最大の半径。px |
+| `flood.terrainTime` | 地形の氾濫で 1 回置く水・油が残る時間。秒 |
+| `duel.holdTime` | 決闘で名乗った敵以外が動けない（麻痺して手を出さない）時間。秒 |
+| `duel.fearTime` | 決闘に勝ったあと残りの敵が怯える時間。秒 |
+| `silenceTime` | 静寂で部屋の敵に付ける沈黙の持続。秒 |
+| `surge.radius` | 反応の共振で反応が起きた点から敵へ弾ける半径。px |
+| `surge.damage` | 反応の共振の基礎ダメージ（深度で伸びる。深度 0 のとき） |
+| `surge.perDepth` | 反応の共振のダメージが深度 1 つごとに伸びる割合（damage × (1 + 深度 × この値)） |
+| `surge.icd` | 反応の共振が再び弾けるまでの間隔。秒 |
+| `surge.color` | 反応の共振の弾ける粒子の色 |
+| `thunder.duration` | 雷鳴の刻の持続。秒 |
+| `thunder.interval` | 雷鳴の刻で落雷の予告を置く間隔。秒 |
+| `thunder.telegraph` | 雷鳴の刻の予告から落雷までの秒 |
+| `thunder.radius` | 落雷の半径。px |
+| `thunder.damage` | 落雷がプレイヤーに与えるダメージ（敵には impactEnemyMul 倍） |
+| `thunder.spread` | 落雷がプレイヤーの周りどこまでに落ちるか。px |
+| `thunder.shockStacks` | 落雷が敵に付ける感電の層数 |
+| `thunder.shockDuration` | 落雷が敵に付ける感電の持続。秒 |
+| `thunder.color` | 落雷の粒子の色 |
+| `curseVoiceCombo` | 呪詛の声に応える（呪いが 1 つ解ける）のに制圧までに要るコンボ数。回 |
+| `elementStormShare` | 属性の嵐でその階の与ダメージのうち嵐の属性になる割合〔0..1〕 |
+| `reaperPass.minRatio` | 死神の通り道が起きるのに要る階の経過時間（死神が現れるまでの猶予に対する割合〔0..1〕）。死神が出ていない階でだけ |
+| `reaperPass.speed` | 通り道を死神が駆ける速さ。px/秒 |
+| `reaperPass.span` | 通り道の中心から端までの長さ。px（全長は 2 倍） |
+| `reaperPass.radius` | 死神の当たり半径。px |
+| `reaperPass.damage` | 死神に触れたときのダメージ（1 回だけ） |
+| `reaperPass.echoes` | 通り過ぎたあとに得る冥の残響の量。点 |
+| `lifeFlow.duration` | 生命の逆流の持続。秒 |
+| `lifeFlow.ratio` | 生命の逆流で回復を気力へ、気力の増えを生命へ流すときの割合（1 = 等量） |
+| `bats.duration` | 蝙蝠の渡りの持続。秒 |
+| `bats.count` | 蝙蝠の渡りで湧く蝙蝠の数。体 |
+| `bats.manaPerKill` | 蝙蝠の渡りの間、敵を 1 体倒すごとに戻る気力 |
+| `vein.uses` | 残響の鉱脈を掘れる回数。回 |
+| `vein.echoes` | 鉱脈を 1 回掘るごとに得る残響の量（色は鉱脈ごとの乱数）。点 |
+| `vein.reinforce` | 鉱脈を 1 回掘るごとに湧く増援の数。体 |
+| `vein.color` | 残響の鉱脈の色 |
+| `thief.duration` | 盗賊の追跡の持続。秒 |
+| `thief.searchRadius` | 盗賊が狙える床の遺物を探す、プレイヤーからの半径。px |
+| `thief.spawnOffset` | 盗賊が狙った遺物の向こう側に湧く距離。px |
+| `thief.rarityBoost` | 盗賊を仕留めたときに返ってくる遺物の揺らぎの増幅（loot の rarityBoost） |
+| `thief.color` | 盗賊の「狙われている」印と逃走の粒子の色 |
 
 ## world/LINGER
 
@@ -3418,55 +3247,47 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `minDepth` | （未記入） |
-| `appearChance` | （未記入） |
-| `weights.notary` | （未記入） |
-| `weights.peddler` | （未記入） |
-| `weights.mender` | （未記入） |
-| `weights.seer` | （未記入） |
-| `weights.bookie` | （未記入） |
-| `weights.bard` | （未記入） |
-| `weights.smith` | （未記入） |
-| `weights.guide` | （未記入） |
-| `weights.ferryman` | （未記入） |
-| `standOffset` | （未記入） |
-| `offerOffset` | （未記入） |
-| `offerSpacing` | （未記入） |
-| `greetRange` | （未記入） |
-| `color` | （未記入） |
-| `pactColor` | （未記入） |
-| `pactSlayerKills` | （未記入） |
-| `pactSwiftTime` | （未記入） |
-| `pactSwiftPenalty` | （未記入） |
+| `minDepth` | 契約者が階の入口に立ち始める深度。ボスを倒した次の階は確率に関わらず必ず立つ |
+| `appearChance` | 契約者がその階に立つ確率。割合〔0..1〕。minDepth 以降 |
+| `weights` | 契約者の種類ごとの出やすさ。キーが契約者。相対値（合計に対する割合で選ばれる） |
+| `standOffset` | 契約者が部屋の中心から立つ距離（上か下）。タイル数 |
+| `offerOffset` | 契約者の台座が部屋の中心から離れる距離（契約者と同じ側）。タイル数 |
+| `offerSpacing` | 契約者の台座どうしの間隔。タイル数 |
+| `greetRange` | 契約者が挨拶して台座の名前を出す距離。px |
+| `color` | 契約者の台座・浮き文字・ログの色 |
+| `pactColor` | 契約の成立・果たす・破れるときの文字とログの色 |
+| `pactSlayerKills` | 契約「狩り」が次の階までに倒すよう求める敵の数。体 |
+| `pactSwiftTime` | 契約「疾走」が次の階へ着くまでに許す時間。秒（契約した時点から） |
+| `pactSwiftPenalty` | 契約「疾走」が破れたとき、次の階で死神が早まる秒数。秒 |
 | `pactSwiftTempers` | 契約「疾風」を果たした報酬: 次の階の到着時に出る錬磨の提示の回数 |
-| `peddlerItemCost` | （未記入） |
-| `peddlerItemBoost` | （未記入） |
-| `peddlerEchoCost` | （未記入） |
-| `peddlerEchoes` | （未記入） |
-| `peddlerSalveCost` | （未記入） |
-| `peddlerSalveHeal` | （未記入） |
-| `menderStitchCost` | （未記入） |
-| `menderStitchHeal` | （未記入） |
-| `menderUncurseCost` | （未記入） |
-| `menderCleanseCost` | （未記入） |
-| `seerReadCost` | （未記入） |
-| `seerWardCost` | （未記入） |
-| `seerMapCost` | （未記入） |
-| `bookieLifeCost` | （未記入） |
-| `bookieLifeWinChance` | （未記入） |
-| `bardTaleCost` | （未記入） |
-| `bardTales` | （未記入） |
-| `bardWitnessTime` | （未記入） |
-| `smithCost` | （未記入） |
-| `smithShare` | （未記入） |
-| `smithChoices` | （未記入） |
-| `guideForkCost` | （未記入） |
-| `guideRevealCost` | （未記入） |
-| `ferryLifeCost` | （未記入） |
-| `ferryCoinCost` | （未記入） |
-| `ferryTime` | （未記入） |
-| `ferryMaxUses` | （未記入） |
-| `lifeFloor` | （未記入） |
+| `peddlerItemCost` | 行商人の遺物の代価。銭 |
+| `peddlerItemBoost` | 行商人の遺物の揺らぎの増幅（loot の rarityBoost）。0 で通常 |
+| `peddlerEchoCost` | 行商人の残響の代価。銭 |
+| `peddlerEchoes` | 行商人から買う残響の量（色は乱数）。点 |
+| `peddlerSalveCost` | 行商人の刻印符の代価。銭 |
+| `peddlerSalveHeal` | コードから参照されていない数値（旧・薬の回復量） |
+| `menderStitchCost` | 癒し手の「傷を縫う」の代価。銭 |
+| `menderStitchHeal` | 「傷を縫う」で回復する割合〔0..1〕（最大生命に対して） |
+| `menderUncurseCost` | 癒し手の「呪いを解く」の代価。銭 |
+| `menderCleanseCost` | 癒し手の「清め」（悪い状態異常と、次の部屋の呪いを消す）の代価。銭 |
+| `seerReadCost` | 占い師の「次の階を読む」の代価。銭 |
+| `seerWardCost` | 占い師の「凶兆を払う」（次の階を穏やかにする）の代価。銭 |
+| `seerMapCost` | 占い師の「この階を見通す」（階の地図が分かる）の代価。銭 |
+| `bookieLifeCost` | 賭け師の「生命を賭ける」で払う割合〔0..1〕（最大生命に対して）。勝敗に関わらず払う |
+| `bookieLifeWinChance` | 「生命を賭ける」に勝つ確率。割合〔0..1〕。勝つと rare 以上の遺物 |
+| `bardTaleCost` | 語り部の「来歴を語る」の代価。銭 |
+| `bardTales` | 「来歴を語る」で装備に刻まれる来歴の数。回 |
+| `bardWitnessTime` | 語り部の「見届ける」が効く時間。秒（この間、部屋の制圧が来歴に 2 回刻まれる。無料） |
+| `smithCost` | 鍛冶屋の属性の焼き付けの代価。銭 |
+| `smithShare` | 焼き付けた属性が与ダメージに占める割合〔0..1〕（この探索の間） |
+| `smithChoices` | 鍛冶屋が提示する属性の数。個 |
+| `guideForkCost` | 案内人の「分かれ道を増やす」（階段が増える）の代価。銭 |
+| `guideRevealCost` | 案内人の「階段を教わる」の代価。銭 |
+| `ferryLifeCost` | 渡し守に生命で時を買うときに払う割合〔0..1〕（最大生命に対して） |
+| `ferryCoinCost` | 渡し守に銭で時を買うときの代価。銭 |
+| `ferryTime` | 渡し守が死神を遠ざける秒数（階の経過時間を戻す。出ている死神は一度去る）。秒 |
+| `ferryMaxUses` | 渡し守を 1 ランで使える回数。回 |
+| `lifeFloor` | 生命を払う取引（賭け・渡し守）で最低限残る生命。HP（これを下回る取引はできない） |
 
 ## world/RUN_MOD
 
@@ -4051,102 +3872,94 @@
 | `hitstopLight` | 通常命中のヒットストップの既定（ステップ。60Hz。段・重さが持たないときの値）。3→1（core-synthesis 3-6。止まる時間を絞り、重い命中だけ止める） |
 | `hitstopNormalMax` | 通常命中（怯ませていない・終撃でない・会心でない）のヒットストップの上限（ステップ）。段の JSON の hitstop がこれを超えても切り詰める。0 で通常命中は止まらない。目安 0〜1 |
 | `hitstopCounter` | 出端（下絵の間に振り始めた近接 / 撃った放出の弾の命中）のヒットストップ（ステップ）。通常命中の上限 hitstopNormalMax の例外で、読みの報酬として止める |
-| `hitstopHeavy` | （未記入） |
+| `hitstopHeavy` | 重い命中（怯ませた一撃・重撃）・被弾・奥義の命中のヒットストップ（ステップ。60Hz）。段の JSON が hitstop を持たない重い段の既定でもある |
 | `hitstopKill` | 普通の撃破のヒットストップ（ステップ）。6→3（読み合いの手直し。手数のテンポを守る） |
 | `hitstopKillMark` | 節目の撃破（陣の最後の 1 体・大将・精鋭・ボス）のヒットストップ（ステップ） |
-| `hitstopFinisher` | （未記入） |
-| `shakeLight` | （未記入） |
-| `shakeHeavy` | （未記入） |
-| `shakeHurt` | （未記入） |
-| `shakeSpecial` | （未記入） |
-| `kickHeavy` | （未記入） |
-| `kickDecay` | （未記入） |
-| `justDodgeSlowmo` | （未記入） |
-| `slowmoScale` | （未記入） |
-| `comboWindow` | （未記入） |
-| `branchTextScale` | （未記入） |
-| `branchTextLife` | （未記入） |
-| `branchTextColor` | （未記入） |
-| `swingImpact` | （未記入） |
+| `hitstopFinisher` | 終撃（連撃の最後の一撃）のヒットストップの下限（ステップ）。武器の重さが hitstopFinisher を持てばそちらが優先 |
+| `shakeLight` | 軽い画面揺れの振れ幅（通常の命中・敵のレーザーなど軽い攻撃）。px。大きいほど揺れる（毎秒 22px ずつ減る） |
+| `shakeHeavy` | 重い画面揺れの振れ幅（怯ませた命中・敵の撃破・ボスの着地など）。px |
+| `shakeHurt` | 被弾の画面揺れの振れ幅。px |
+| `shakeSpecial` | 特別な画面揺れの振れ幅（奥義・ボスの大技・ラストキルなど）。px |
+| `kickHeavy` | 重撃・撃破で攻撃方向へカメラを押す量。px。kickDecay で戻る |
+| `kickDecay` | カメラのキックが戻る速さ（毎秒 exp(−これ) 倍に減衰。大きいほどすぐ戻る）。1/秒 |
+| `justDodgeSlowmo` | ジャストの回避・見切りで発生するスローモーションの長さ（実時間）。秒 |
+| `slowmoScale` | スローモーション中の時間の進み。倍率（1 = 等倍、0.3 = 3 割の速さ） |
+| `comboWindow` | コンボが途切れるまでの猶予（命中のたびに戻る）。秒。コンボの猶予加算（comboWindowBonus）はこれに足される |
+| `branchTextScale` | 派生名・技名の頭上ラベルの大きさの倍率（1 = 等倍） |
+| `branchTextLife` | 派生名・技名の頭上ラベルが出ている時間。秒 |
+| `branchTextColor` | 派生名・技名の頭上ラベルの色 |
+| `swingImpact` | 近接の命中の直後、攻撃方向へ一瞬伸びる（振りの勢いの見た目）時間。秒 |
 
 ## feel/EFFECTS
 
 | 項目 | 意味 |
 | --- | --- |
-| `maxParticles` | （未記入） |
-| `maxTexts` | （未記入） |
-| `maxShapes` | （未記入） |
-| `maxDeaths` | （未記入） |
-| `maxMarks` | （未記入） |
-| `statusKindsPerEnemy` | （未記入） |
-| `statusParticlesPerKind` | （未記入） |
-| `statusTintAlpha` | （未記入） |
-| `death.life.burst` | （未記入） |
-| `death.life.ash` | （未記入） |
-| `death.life.shatter` | （未記入） |
-| `death.life.discharge` | （未記入） |
-| `death.life.melt` | （未記入） |
-| `death.life.blood` | （未記入） |
-| `death.life.sever` | （未記入） |
-| `death.life.void` | （未記入） |
-| `death.life.holy` | （未記入） |
-| `death.particles` | （未記入） |
-| `death.shardSpeed` | （未記入） |
-| `death.ashRise` | （未記入） |
-| `death.severGap` | （未記入） |
-| `death.dischargeHop` | （未記入） |
-| `death.bloodSpeed` | （未記入） |
-| `hitSpark.count` | （未記入） |
-| `hitSpark.speed` | （未記入） |
-| `hitSpark.life` | （未記入） |
-| `comboTiers[].min` | （未記入） |
-| `comboTiers[].scale` | （未記入） |
-| `comboTiers[].color` | （未記入） |
-| `comboMilestones` | （未記入） |
-| `clearWave.life` | （未記入） |
-| `clearWave.speed` | （未記入） |
-| `clearWave.band` | （未記入） |
-| `clearWave.alpha` | （未記入） |
-| `clearWave.color` | （未記入） |
-| `clearWave.edgeAlpha` | （未記入） |
-| `eliteBurst.life` | （未記入） |
-| `eliteBurst.radius` | （未記入） |
-| `eliteBurst.tintAlpha` | （未記入） |
-| `eliteBurst.particles` | （未記入） |
-| `bossLight.life` | （未記入） |
-| `bossLight.rays` | （未記入） |
-| `bossLight.rayWidth` | （未記入） |
-| `bossLight.alpha` | （未記入） |
-| `bossLight.color` | （未記入） |
-| `justRing.life` | （未記入） |
-| `justRing.radius` | （未記入） |
-| `justRing.lines` | （未記入） |
-| `justRing.color` | （未記入） |
-| `synergyGlow.life` | （未記入） |
-| `synergyGlow.radius` | （未記入） |
-| `synergyGlow.color` | （未記入） |
-| `weakCrack.life` | （未記入） |
-| `weakCrack.size` | （未記入） |
-| `weakCrack.lines` | （未記入） |
-| `weakCrack.color` | （未記入） |
-| `critFlash.life` | （未記入） |
-| `doorSlam.life` | （未記入） |
-| `doorSlam.drop` | （未記入） |
-| `doorSlam.color` | （未記入） |
-| `doorSlam.hordeColor` | （未記入） |
-| `chargeUp.life` | （未記入） |
-| `chargeUp.radius` | （未記入） |
-| `dropBeam.life` | （未記入） |
-| `dropBeam.height` | （未記入） |
-| `dropBeam.width` | （未記入） |
-| `dashGhost.interval` | （未記入） |
-| `dashGhost.life` | （未記入） |
-| `dashGhost.alpha` | （未記入） |
-| `dashGhost.color` | （未記入） |
-| `floorCard.delay` | （未記入） |
-| `floorCard.fadeIn` | （未記入） |
-| `floorCard.hold` | （未記入） |
-| `floorCard.fadeOut` | （未記入） |
+| `maxParticles` | 同時に出せる粒の数の上限（超えると古い順に捨てる）。個 |
+| `maxTexts` | 同時に出せる浮き文字の数の上限。個 |
+| `maxShapes` | 同時に出せる輪・線の数の上限。個 |
+| `maxDeaths` | 同時に再生する死に方の演出の数の上限。個 |
+| `maxMarks` | 同時に置ける演出の印（見切りの輪・光柱など）の数の上限。個 |
+| `statusKindsPerEnemy` | 敵 1 体に見た目を描く状態異常の種類の上限（優先順）。種類 |
+| `statusParticlesPerKind` | 状態異常 1 種類あたりに敵へ乗せる粒の数。個 |
+| `statusTintAlpha` | 状態異常で敵のスプライトを染める色の濃さ（脈打つ）。割合（0..1） |
+| `death.life` | 死に方ごとの演出の長さ（burst は粒だけで演出なし = 0）。秒 |
+| `death.particles` | 死に方の演出で散る粒の数の基準。個 |
+| `death.shardSpeed` | 砕け散りの破片の速さ。px/秒 |
+| `death.ashRise` | 灰の昇る速さ（粒はこの 2 倍）。px/秒 |
+| `death.severGap` | 両断の 2 つの半身が離れる距離。px |
+| `death.dischargeHop` | 放電で敵が跳ねる高さ。px |
+| `death.bloodSpeed` | 出血の飛沫の速さ。px/秒 |
+| `hitSpark.count` | 属性の命中の火花の粒の数の基準（属性により加減）。個 |
+| `hitSpark.speed` | 属性の命中の火花の速さの基準。px/秒 |
+| `hitSpark.life` | 属性の命中の火花の寿命の基準。秒 |
+| `comboTiers[].min` | コンボ数の段: この数以上でダメージ数字の色が変わる。コンボ |
+| `comboTiers[].scale` | コンボ数の段の大きさの倍率（1 = 等倍） |
+| `comboTiers[].color` | コンボ数の段のダメージ数字・節目の輪の色 |
+| `comboMilestones` | 節目の輪と音が出るコンボ数の一覧。コンボ |
+| `clearWave.life` | 部屋の制圧の床の光の波が消えるまでの時間。秒 |
+| `clearWave.speed` | 制圧の波が広がる速さ。px/秒 |
+| `clearWave.band` | 制圧の波の前線の手前で光る幅。px |
+| `clearWave.alpha` | 制圧の波の床の光の濃さ。割合（0..1） |
+| `clearWave.color` | 制圧の波の色 |
+| `clearWave.edgeAlpha` | 塊の縁（壁際）の床の光の濃さ。割合（0..1） |
+| `eliteBurst.life` | 精鋭の撃破の輪・画面の色が消えるまでの時間。秒 |
+| `eliteBurst.radius` | 精鋭の撃破の輪の最大の半径。px |
+| `eliteBurst.tintAlpha` | 精鋭の撃破で画面全体にかかる色の濃さ（最初の値、消えるまで薄くなる）。割合（0..1） |
+| `eliteBurst.particles` | 精鋭の撃破で散る粒の数。個 |
+| `bossLight.life` | ボス撃破の光が消えるまでの時間。秒 |
+| `bossLight.rays` | ボス撃破の光条の本数。本 |
+| `bossLight.rayWidth` | 光条 1 本の開き（片側）。ラジアン |
+| `bossLight.alpha` | ボス撃破の光の濃さ（最初の値、消えるまで薄くなる）。割合（0..1） |
+| `bossLight.color` | ボス撃破の光条の色 |
+| `justRing.life` | 見切りの輪・コンボの節目の輪が消えるまでの時間。秒 |
+| `justRing.radius` | 見切りの輪の最大の半径。px |
+| `justRing.lines` | 見切りの輪の外へ走る放射線の本数。本 |
+| `justRing.color` | 見切りの輪の色 |
+| `synergyGlow.life` | 連携が成立したときの残光が消えるまでの時間。秒 |
+| `synergyGlow.radius` | 連携の残光の半径。px |
+| `synergyGlow.color` | 連携の残光の色 |
+| `weakCrack.life` | 弱点の命中の割れが消えるまでの時間。秒 |
+| `weakCrack.size` | 弱点の割れのひびの最大の長さ。px |
+| `weakCrack.lines` | 弱点の割れのひびの本数。本 |
+| `weakCrack.color` | 弱点の割れの色 |
+| `critFlash.life` | 会心の命中で敵が反転して光る時間。秒 |
+| `doorSlam.life` | 部屋の封鎖で扉に格子が落ちる演出の時間。秒 |
+| `doorSlam.drop` | 封鎖の格子が落ちてくる高さ。px |
+| `doorSlam.color` | 封鎖の格子の色 |
+| `doorSlam.hordeColor` | 巣窟の封鎖の格子の色 |
+| `chargeUp.life` | 溜めの段が上がったときの輪が消えるまでの時間。秒 |
+| `chargeUp.radius` | 溜めの段の輪の最大の半径。px |
+| `dropBeam.life` | 装備が落ちたときの光柱が消えるまでの時間。秒 |
+| `dropBeam.height` | 装備の光柱の高さ。px |
+| `dropBeam.width` | 装備の光柱の幅。px |
+| `dashGhost.interval` | ダッシュ中に残像を置く間隔。秒 |
+| `dashGhost.life` | ダッシュの残像が消えるまでの時間。秒 |
+| `dashGhost.alpha` | ダッシュの残像の濃さ（最初の値、消えるまで薄くなる）。割合（0..1） |
+| `dashGhost.color` | ダッシュの残像の染めの色 |
+| `floorCard.delay` | 階に着いてから名札が出始めるまでの待ち。秒 |
+| `floorCard.fadeIn` | 階の名札が現れるまでの時間。秒 |
+| `floorCard.hold` | 階の名札が出たままの時間。秒 |
+| `floorCard.fadeOut` | 階の名札が消えるまでの時間。秒 |
 
 ## feel/MINIMAP
 
@@ -4162,83 +3975,83 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `maxEvents` | （未記入） |
-| `slash.thickness` | （未記入） |
-| `slash.widthMul` | （未記入） |
-| `slash.heavyMul` | （未記入） |
-| `slash.tailRatio` | （未記入） |
-| `slash.segments` | （未記入） |
-| `slash.alpha` | （未記入） |
-| `slash.glowAlpha` | （未記入） |
-| `slash.coreAlpha` | （未記入） |
-| `slash.coreFrom` | （未記入） |
-| `slash.fadeTime` | （未記入） |
-| `slash.tipGlow` | （未記入） |
-| `slash.heavyTipGlow` | （未記入） |
-| `slash.thrustWidth` | （未記入） |
-| `hitSpark.life` | （未記入） |
-| `hitSpark.length` | （未記入） |
-| `hitSpark.width` | （未記入） |
-| `hitSpark.critMul` | （未記入） |
-| `hitSpark.weakMul` | （未記入） |
-| `hitSpark.heavyMul` | （未記入） |
-| `hitSpark.sparks` | （未記入） |
-| `hitSpark.sparkSpeed` | （未記入） |
-| `hitSpark.glow` | （未記入） |
-| `hitSpark.critColor` | （未記入） |
-| `impact.life` | （未記入） |
-| `impact.rays` | （未記入） |
-| `impact.length` | （未記入） |
-| `impact.ring` | （未記入） |
-| `impact.killMul` | （未記入） |
-| `impact.fizzleLife` | （未記入） |
-| `muzzle.life` | （未記入） |
-| `muzzle.length` | （未記入） |
-| `muzzle.width` | （未記入） |
-| `muzzle.glow` | （未記入） |
-| `muzzle.spreadWidthMul` | （未記入） |
-| `muzzle.chargeMul` | （未記入） |
-| `muzzle.pierceLengthMul` | （未記入） |
-| `bullet.trailTime` | （未記入） |
-| `bullet.maxTrail` | （未記入） |
-| `bullet.glow` | （未記入） |
-| `bullet.glowAlpha` | （未記入） |
-| `bullet.coreAlpha` | （未記入） |
-| `bullet.trailAlpha` | （未記入） |
-| `bullet.pierceTrailMul` | （未記入） |
-| `bullet.chargeGlowMul` | （未記入） |
-| `bullet.enemyGlowAlpha` | （未記入） |
-| `bullet.enemyColor` | （未記入） |
-| `blast.life` | （未記入） |
-| `blast.flashEnd` | （未記入） |
-| `blast.fireEnd` | （未記入） |
-| `blast.fireCore` | （未記入） |
-| `blast.smokeColor` | （未記入） |
-| `blast.smokeAlpha` | （未記入） |
-| `blast.debris` | （未記入） |
-| `blast.debrisColor` | （未記入） |
-| `blast.debrisReach` | （未記入） |
-| `blast.scorchLife` | （未記入） |
-| `blast.scorchAlpha` | （未記入） |
-| `blast.scorchColor` | （未記入） |
-| `blast.scorchRatio` | （未記入） |
-| `blast.embers` | （未記入） |
-| `blast.emberSpeed` | （未記入） |
-| `ring.flashTime` | （未記入） |
-| `ring.flashAlpha` | （未記入） |
-| `ring.glowWidth` | （未記入） |
-| `ring.glowAlpha` | （未記入） |
-| `bolt.segments` | （未記入） |
-| `bolt.jitter` | （未記入） |
-| `bolt.branches` | （未記入） |
-| `bolt.branchRatio` | （未記入） |
-| `bolt.glowWidth` | （未記入） |
-| `bolt.glowAlpha` | （未記入） |
-| `bolt.flicker` | （未記入） |
-| `particle.streakTime` | （未記入） |
-| `particle.streakMinSpeed` | （未記入） |
-| `particle.emberHot` | （未記入） |
-| `particle.emberCool` | （未記入） |
+| `maxEvents` | 同時に出せる攻撃エフェクトの出来事（命中の線・着弾・銃口の閃光）の数の上限（超えると古い順に捨てる）。個 |
+| `slash.thickness` | 斬撃の軌跡の基本の厚み。px |
+| `slash.widthMul` | 武器種ごとの軌跡の太さにこの倍率を掛けて厚みに足す。倍率 |
+| `slash.heavyMul` | 重い段・終撃・溜めの軌跡の厚みの倍率（1 = 等倍） |
+| `slash.tailRatio` | 軌跡の尾の長さ。振り幅に対する割合（1 = 振り始めまで全部残す） |
+| `slash.segments` | 軌跡の帯を折る区切りの数（半周ごと。大きいほど滑らか）。個 |
+| `slash.alpha` | 軌跡の色の帯の濃さ。割合（0..1） |
+| `slash.glowAlpha` | 軌跡の加算の光の帯の濃さ。割合（0..1） |
+| `slash.coreAlpha` | 軌跡の白い芯の濃さ。割合（0..1） |
+| `slash.coreFrom` | 白い芯が出始める位置（尾 0 → 先端 1 の割合）。割合（0..1） |
+| `slash.fadeTime` | 振り終わってから軌跡の尾が消えるまでの時間。秒 |
+| `slash.tipGlow` | 軌跡の先端の光の半径。px |
+| `slash.heavyTipGlow` | 重い段の軌跡の先端の光の半径。px |
+| `slash.thrustWidth` | 突きの軌跡の幅（現在コードから参照されていない） |
+| `hitSpark.life` | 近接の命中の斬り裂き線が消えるまでの時間（会心は 1.3 倍）。秒 |
+| `hitSpark.length` | 斬り裂き線の長さ（光の線の半分）。px |
+| `hitSpark.width` | 斬り裂き線の太さ。px |
+| `hitSpark.critMul` | 会心のときの斬り裂き線の大きさの倍率（1 = 等倍） |
+| `hitSpark.weakMul` | 弱点のときの斬り裂き線の大きさの倍率（1 = 等倍） |
+| `hitSpark.heavyMul` | 重い命中のときの斬り裂き線の大きさの倍率（1 = 等倍） |
+| `hitSpark.sparks` | 斬り裂き線に添える火花の粒の数（会心・弱点は 2 倍）。個 |
+| `hitSpark.sparkSpeed` | 斬り裂き線の火花の速さ。px/秒 |
+| `hitSpark.glow` | 命中の光の半径（着弾の光にも使う）。px |
+| `hitSpark.critColor` | 会心の斬り裂き線の色 |
+| `impact.life` | 射撃・スキルの命中の着弾が消えるまでの時間（会心は 1.3 倍）。秒 |
+| `impact.rays` | 着弾の放射の本数（会心は 1.6 倍）。本 |
+| `impact.length` | 着弾の放射の長さ。px |
+| `impact.ring` | 着弾の広がる輪の最終の半径。px |
+| `impact.killMul` | 撃破の着弾の寿命と大きさの倍率（1 = 等倍） |
+| `impact.fizzleLife` | 弾が尽きて消えるときの煙が消えるまでの時間。秒 |
+| `muzzle.life` | 銃口の閃光が消えるまでの時間。秒 |
+| `muzzle.length` | 銃口の閃光の前方の炎の長さ。px |
+| `muzzle.width` | 銃口の閃光の炎の幅。px |
+| `muzzle.glow` | 銃口の閃光の光の半径。px |
+| `muzzle.spreadWidthMul` | 散弾の閃光の幅の倍率（1 = 等倍） |
+| `muzzle.chargeMul` | 溜め撃ちの閃光の大きさの倍率（1 = 等倍）。着弾の大きさにも使う |
+| `muzzle.pierceLengthMul` | 貫通弾の閃光の長さの倍率（1 = 等倍） |
+| `bullet.trailTime` | 弾の尾の長さ（速さ × この秒）。秒 |
+| `bullet.maxTrail` | 弾の尾の長さの上限。px |
+| `bullet.glow` | 弾の光の半径の基準（弾の半径が足される）。px |
+| `bullet.glowAlpha` | 弾の光の濃さ。割合（0..1） |
+| `bullet.coreAlpha` | 弾の尾の白い芯の濃さ。割合（0..1） |
+| `bullet.trailAlpha` | 弾の尾の色の濃さ。割合（0..1） |
+| `bullet.pierceTrailMul` | 貫通弾の尾の長さの倍率（1 = 等倍） |
+| `bullet.chargeGlowMul` | 溜め撃ちの弾の光の半径の倍率（1 = 等倍） |
+| `bullet.enemyGlowAlpha` | 敵の弾の光の濃さ。割合（0..1） |
+| `bullet.enemyColor` | 敵の弾の光の色 |
+| `blast.life` | 爆発の演出の最短の長さ（輪はこれ以上に延ばされる）。秒 |
+| `blast.flashEnd` | 爆発の寿命のうち閃光が終わる割合。割合（0..1） |
+| `blast.fireEnd` | 爆発の寿命のうち火球が終わる割合（閃光の後）。割合（0..1） |
+| `blast.fireCore` | 火球の芯の色 |
+| `blast.smokeColor` | 爆発の煙の輪の色 |
+| `blast.smokeAlpha` | 爆発の煙の輪の濃さ。割合（0..1） |
+| `blast.debris` | 爆発の破片の数。個 |
+| `blast.debrisColor` | 爆発の破片の色（3 つに 1 つは爆発の色） |
+| `blast.debrisReach` | 破片が飛ぶ距離（爆発の半径に対する倍率） |
+| `blast.scorchLife` | 爆発の焦げ跡が消えるまでの時間。秒 |
+| `blast.scorchAlpha` | 焦げ跡の濃さ（最初の値、消えるまで薄くなる）。割合（0..1） |
+| `blast.scorchColor` | 焦げ跡の色 |
+| `blast.scorchRatio` | 焦げ跡の半径（爆発の半径に対する割合）。割合（0..1） |
+| `blast.embers` | 爆発で上へ散る火の粉の数。個 |
+| `blast.emberSpeed` | 爆発の火の粉の速さ。px/秒 |
+| `ring.flashTime` | 輪が生まれた瞬間に中を薄く光らせる時間。秒 |
+| `ring.flashAlpha` | 輪の中の光の濃さ（最初の値、消えるまで薄くなる）。割合（0..1） |
+| `ring.glowWidth` | 輪の外側の淡い光の帯の太さ。px |
+| `ring.glowAlpha` | 輪の外側の光の帯の濃さ。割合（0..1） |
+| `bolt.segments` | 稲妻を折る区切りの数。個 |
+| `bolt.jitter` | 稲妻の折れ目のずらし幅。px |
+| `bolt.branches` | 稲妻から分かれる枝の数。本 |
+| `bolt.branchRatio` | 稲妻の枝の長さ（本線の長さに対する割合）。割合（0..1） |
+| `bolt.glowWidth` | 稲妻の光の帯の太さ（雷以外の線にも使う）。px |
+| `bolt.glowAlpha` | 稲妻の光の帯の濃さ（雷以外の線には半分で使う）。割合（0..1） |
+| `bolt.flicker` | 稲妻の形が瞬く速さ。1/秒 |
+| `particle.streakTime` | 速い粒が速度の向きに尾を引く長さ（速さ × この秒）。秒 |
+| `particle.streakMinSpeed` | 粒が尾を引き始める速さの下限。px/秒 |
+| `particle.emberHot` | 炎の粒の最初の（熱い）色 |
+| `particle.emberCool` | 炎の粒の最後の（冷めた）色 |
 | `sprite.swingFade` | 振り終わり（recover）で崩れのフレームを流し切る時間。秒。0.15〜0.3 |
 | `sprite.hitLife` | 命中（軽）の絵を流し切る時間。秒 |
 | `sprite.hitHeavyLife` | 命中（重い段・会心・弱点）の絵を流し切る時間。秒 |
@@ -4259,56 +4072,56 @@
 
 | 項目 | 意味 |
 | --- | --- |
-| `gain` | （未記入） |
-| `defaultVolume` | （未記入） |
-| `lookahead` | （未記入） |
-| `crossfade` | （未記入） |
-| `percFade` | （未記入） |
-| `resolveTime` | （未記入） |
-| `bossDownTempoMul` | （未記入） |
-| `resyncGap` | （未記入） |
+| `gain` | 音楽全体の出力の係数（音量の設定にこれを掛けて鳴らす。効果音との釣り合い）。倍率（1 = 等倍） |
+| `defaultVolume` | 音楽の音量の既定（設定が無いとき）。割合（0..1） |
+| `lookahead` | 音楽の拍を先読みして予約する長さ。秒。長いほど途切れにくいが、曲の切り替えが遅れる |
+| `crossfade` | 曲の切り替え・停止のクロスフェードの長さ。秒 |
+| `percFade` | 戦闘と平常でパーカッションが出入りするフェードの長さ。秒 |
+| `resolveTime` | 戦闘が終わったときに鳴らす解決の和音の長さ。秒 |
+| `bossDownTempoMul` | ボスが倒れたとき（ダウン中）の曲のテンポの倍率（1 = 等倍）。大きいほど速い |
+| `resyncGap` | 拍の予約がこの秒数より遅れたら、今から打ち直す（長い停止の後の追いつき防止）。秒 |
 
 ## feel/FX_WAVE3
 
 | 項目 | 意味 |
 | --- | --- |
-| `counterMono.time` | （未記入） |
-| `counterMono.strength` | （未記入） |
-| `damageText.*.color` | （未記入） |
-| `damageText.*.scale` | （未記入） |
-| `damageText.*.ticks` | （未記入） |
-| `damageText.*.life` | （未記入） |
-| `damageText.*.rise` | （未記入） |
-| `damageText.*.interval` | （未記入） |
-| `damageText.*.maxTallies` | （未記入） |
-| `damageText.*.burn` | （未記入） |
-| `damageText.*.poison` | （未記入） |
-| `damageText.*.bleed` | （未記入） |
-| `damageText.*.other` | （未記入） |
-| `mantle.rx` | （未記入） |
-| `mantle.ry` | （未記入） |
-| `mantle.footY` | （未記入） |
-| `mantle.alpha` | （未記入） |
-| `mantle.pulseSpeed` | （未記入） |
-| `mantle.motes` | （未記入） |
-| `mantle.moteSpeed` | （未記入） |
-| `mantle.moteAlpha` | （未記入） |
-| `keystoneAura.radius` | （未記入） |
-| `keystoneAura.alpha` | （未記入） |
-| `keystoneAura.spin` | （未記入） |
-| `keystoneAura.gap` | （未記入） |
-| `budBloom.life` | （未記入） |
-| `budBloom.height` | （未記入） |
-| `budBloom.width` | （未記入） |
-| `budBloom.particles` | （未記入） |
-| `budBloom.speed` | （未記入） |
-| `budBloom.color` | （未記入） |
-| `budBloom.leafColor` | （未記入） |
-| `budBloom.leafSize` | （未記入） |
-| `inscribe.life` | （未記入） |
-| `inscribe.radius` | （未記入） |
-| `inscribe.particles` | （未記入） |
-| `inscribe.color` | （未記入） |
+| `counterMono.time` | カウンター成立で画面が白黒になる時間（だんだん色が戻る）。秒 |
+| `counterMono.strength` | 白黒の濃さ（最初の値）。割合（0..1。1 で完全に白黒） |
+| `damageText.*.color` | 弱点の命中のダメージ文字の色 |
+| `damageText.*.scale` | 弱点の命中のダメージ文字の大きさの倍率（1 = 等倍） |
+| `damageText.*.ticks` | 反応を起こした直後、この tick 数以内の素性なしのダメージを反応のダメージとみなす。tick（60Hz） |
+| `damageText.*.life` | 継続ダメージの数字が出ている時間。秒 |
+| `damageText.*.rise` | 継続ダメージの数字が昇る速さ。px/秒 |
+| `damageText.*.interval` | 継続ダメージを束ねて 1 つの数字にする間隔。秒 |
+| `damageText.*.maxTallies` | 束ねている継続ダメージ（敵ごと）の同時の上限。個 |
+| `damageText.*.burn` | 炎の継続ダメージの数字の色 |
+| `damageText.*.poison` | 毒の継続ダメージの数字の色 |
+| `damageText.*.bleed` | 出血の継続ダメージの数字の色 |
+| `damageText.*.other` | その他の継続ダメージの数字の色 |
+| `mantle.rx` | 共鳴のまとい（足元の薄い楕円）の横の半径。px |
+| `mantle.ry` | 共鳴のまといの縦の半径。px |
+| `mantle.footY` | まといの中心が自分の位置から下へずれる距離（足元）。px |
+| `mantle.alpha` | まといの楕円の濃さ（脈打つ）。割合（0..1） |
+| `mantle.pulseSpeed` | まといの脈打つ速さ（sin の角速度）。ラジアン/秒 |
+| `mantle.motes` | 共鳴の語 1 つあたりに縁を回る粒の数。個 |
+| `mantle.moteSpeed` | まといの縁を粒が回る速さ。ラジアン/秒 |
+| `mantle.moteAlpha` | まといの粒の濃さ。割合（0..1） |
+| `keystoneAura.radius` | 誓約のオーラの輪の半径。px |
+| `keystoneAura.alpha` | 誓約のオーラの濃さ。割合（0..1） |
+| `keystoneAura.spin` | 誓約のオーラが回る速さ。ラジアン/秒 |
+| `keystoneAura.gap` | 誓約のオーラの弧と弧のあき。ラジアン |
+| `budBloom.life` | 芽吹きの光柱・双葉が消えるまでの時間。秒 |
+| `budBloom.height` | 芽吹きの光柱の高さ。px |
+| `budBloom.width` | 芽吹きの光柱の幅。px |
+| `budBloom.particles` | 芽吹きで上へ散る双葉の粒の数。個 |
+| `budBloom.speed` | 芽吹きの粒の速さ。px/秒 |
+| `budBloom.color` | 芽吹きの光柱・光の色 |
+| `budBloom.leafColor` | 芽吹きの双葉と粒の色 |
+| `budBloom.leafSize` | 芽吹きの双葉の大きさ。px |
+| `inscribe.life` | 銘が刻まれたときの輪が消えるまでの時間。秒 |
+| `inscribe.radius` | 銘の輪の最大の半径。px |
+| `inscribe.particles` | 銘が刻まれたときに散る粒の数。個 |
+| `inscribe.color` | 銘の輪・粒の色 |
 | `debanaSplash.life` | 出端の墨の飛沫が消えるまでの長さ（秒）。文字を出さない代わりに出端を見せる |
 | `debanaSplash.radius` | 飛沫が届く半径（論理 px） |
 | `debanaSplash.drops` | 飛び散る墨の粒の数 |
@@ -4323,24 +4136,24 @@
 | `lordPull.spin` | 演出の間に渦が回る量（回転数） |
 | `lordPull.glow` | 章の色の光の半径（論理 px） |
 | `lordPull.ringWidth` | 章の色の輪の太さ（論理 px） |
-| `lordPull.inkColor` | （未記入） |
+| `lordPull.inkColor` | 主の間への引き込みの渦の墨の粒の色（章の色が引けないときの輪の色にも使う） |
 | `lordPull.chapterColors` | 章 1〜4 の渦の縁と浮き文字の色（章が足りなければ最後の色） |
-| `heartbeat.slow` | （未記入） |
-| `heartbeat.fast` | （未記入） |
-| `heartbeat.warnMin` | （未記入） |
-| `heartbeat.warnMax` | （未記入） |
-| `heartbeat.chaseMin` | （未記入） |
-| `heartbeat.near` | （未記入） |
-| `heartbeat.far` | （未記入） |
+| `heartbeat.slow` | 死神が遠い・警告の始まりのときの鼓動の間隔。秒 |
+| `heartbeat.fast` | 死神が最も近いときの鼓動の間隔。秒 |
+| `heartbeat.warnMin` | 警告の始まりでの死神の近さ（鼓動の速さを決める）。割合（0..1） |
+| `heartbeat.warnMax` | 警告の終わり（出現の直前）での死神の近さ。割合（0..1） |
+| `heartbeat.chaseMin` | 死神が出現して far 以遠にいるときの近さ。割合（0..1） |
+| `heartbeat.near` | 死神がこの距離以内で近さが最大（1）になる。px（10px = 1m） |
+| `heartbeat.far` | 死神がこの距離以遠で近さが最小（chaseMin）になる。px（10px = 1m） |
 
 ## feel/SFX_WAVE3
 
 | 項目 | 意味 |
 | --- | --- |
-| `muffle.cutoff` | （未記入） |
-| `muffle.open` | （未記入） |
-| `muffle.closeTime` | （未記入） |
-| `muffle.openTime` | （未記入） |
+| `muffle.cutoff` | スローモーション中に音楽へかけるローパスの遮断周波数。Hz。低いほどこもる |
+| `muffle.open` | 通常時のローパスの遮断周波数（実質素通し）。Hz |
+| `muffle.closeTime` | スロー開始でこもらせるまでの時間。秒 |
+| `muffle.openTime` | スロー終了でこもりが開くまでの時間（ゆっくり開いて「戻った」手応えを出す）。秒 |
 
 ## feel/TELEGRAPH
 
@@ -4550,8 +4363,8 @@
 | --- | --- |
 | `common.cost` | 奥義 1 回に要る奥義ゲージ。common.cost が既定、defs.<武器種>.<名前>.cost で奥義ごとに上書き（PLAYER.maxEnergy 以下。data/ultimates.test.ts）。一撃はこの量を払い、持続はゲージが尽きるまで続く。目安 一撃の大技 100、軽い一撃・持続 80〜90 |
 | `common.invuln` | 出した後（突進は踏み込みの間）の無敵の秒。目安 0.1〜0.5 |
-| `common.textColor` | （未記入） |
-| `common.endTextColor` | （未記入） |
+| `common.textColor` | 奥義の発動の輪・稲妻・突進の軌跡の色（奥義ごとの trail が無いとき） |
+| `common.endTextColor` | 持続型の奥義が終わったときの浮き文字の色 |
 | `common.autoAimDeg` | 着弾の奥義（大砲撃・焼夷弾など）の自動照準。照準方向からこの角度（度）以内の最も近い敵へ着弾点を寄せる。0 で寄せない。目安 20〜45 |
 | `common.autoAimRangeMul` | 自動照準で拾う敵の距離の上限（着弾距離に対する倍率）。目安 1〜2 |
 | `defs.*.*.*.radius` | 周囲攻撃（nova）・着弾の爆発（blast）・引き寄せ（pull）・纏い（aura）の半径（px。10px = 1m）。nova / pull / aura には burstRadiusMul が掛かる。目安 30〜80 |

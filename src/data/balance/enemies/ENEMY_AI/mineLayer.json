@@ -1,1 +1,10 @@
-{ "dropInterval": 2, "max": 4, "keepAway": 110 }
+{
+  "_fields": {
+    "dropInterval": "地雷を置く間隔。秒",
+    "max": "同時に残せる地雷の数。超えている間は置かない",
+    "keepAway": "プレイヤーとの距離をこの付近に保つ。px"
+  },
+  "dropInterval": 2,
+  "max": 4,
+  "keepAway": 110
+}

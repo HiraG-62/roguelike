@@ -1,4 +1,10 @@
 {
+  "_fields": {
+    "window": "先に撃つスキルを撃ってから、この秒以内に撃つと連携になる（秒）。0 は時間を見ない（変身中の十字斬り）",
+    "damageMul": "連携時の威力の倍率（1 = 等倍）",
+    "areaMul": "連携時の範囲の倍率（1 = 等倍）",
+    "poiseMul": "連携時の怯み値の倍率（1 = 等倍）"
+  },
   "waterFreeze": { "window": 2.5 },
   "oilScorch": { "window": 3, "damageMul": 1.2 },
   "brandChain": { "window": 2 },

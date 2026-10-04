@@ -1,1 +1,6 @@
-{ "color": "#ff8030" }
+{
+  "_fields": {
+    "color": "現在どこからも読まれていない値（爆発の色は敵の定義 explode.color が持つ）"
+  },
+  "color": "#ff8030"
+}

@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "bulletCount": "指揮棒の一振りで撃つ弾の数（扇状）",
+    "spreadDeg": "扇の広がり（全体の角度。度）",
+    "bulletSpeed": "弾の速さ。px/秒",
+    "bulletDamage": "弾 1 発のダメージ（深度で伸びる基準値）",
+    "keepAway": "プレイヤーとの距離をこの付近に保つ。px",
+    "color": "弾の色（#RRGGBB）"
+  },
   "bulletCount": 5,
   "spreadDeg": 60,
   "bulletSpeed": 105,

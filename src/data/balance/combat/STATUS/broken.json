@@ -1,1 +1,10 @@
-{ "duration": 3, "poiseMul": 1.3, "staggerMul": 1.5 }
+{
+  "_fields": {
+    "duration": "崩勢の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない",
+    "poiseMul": "崩勢中の敵が受ける怯み値の倍率〔1 = 等倍〕",
+    "staggerMul": "崩勢中の敵が怯むときの怯みの長さの倍率〔1 = 等倍〕"
+  },
+  "duration": 3,
+  "poiseMul": 1.3,
+  "staggerMul": 1.5
+}

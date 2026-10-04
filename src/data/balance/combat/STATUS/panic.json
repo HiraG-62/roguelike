@@ -1,1 +1,4 @@
-{ "bleedMul": 2 }
+{
+  "_fields": { "bleedMul": "恐慌: 恐怖中の敵の出血ダメージの倍率〔1 = 等倍〕" },
+  "bleedMul": 2
+}

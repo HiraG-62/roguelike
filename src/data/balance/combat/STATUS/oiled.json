@@ -1,1 +1,4 @@
-{ "duration": 6 }
+{
+  "_fields": { "duration": "油膜の持続（秒）" },
+  "duration": 6
+}

@@ -1,1 +1,8 @@
-{ "perStackSec": 4, "spreadRadius": 60 }
+{
+  "_fields": {
+    "perStackSec": "砕血で出血を即時ダメージにする倍率。ダメージ = 重ね × max(1, 威力) × 出血の残り秒 × この値",
+    "spreadRadius": "砕血で出血を移す近くの敵を探す半径（px）"
+  },
+  "perStackSec": 4,
+  "spreadRadius": 60
+}

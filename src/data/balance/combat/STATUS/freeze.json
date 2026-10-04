@@ -1,1 +1,12 @@
-{ "duration": 1.2, "shatterDamageMul": 1.5, "shatterPoise": 20, "chillImmuneAfter": 3 }
+{
+  "_fields": {
+    "duration": "凍結の持続（秒）。冷気が上限まで重なって凍るときの長さ",
+    "shatterDamageMul": "凍結中の敵を砕く一撃のダメージ倍率〔1 = 等倍〕",
+    "shatterPoise": "砕きの一撃に足される怯み値",
+    "chillImmuneAfter": "凍結が解けてから冷気が付かない秒"
+  },
+  "duration": 1.2,
+  "shatterDamageMul": 1.5,
+  "shatterPoise": 20,
+  "chillImmuneAfter": 3
+}

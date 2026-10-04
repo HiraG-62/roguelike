@@ -1,1 +1,10 @@
-{ "threshold": 3, "duration": 4, "mul": 0.5 }
+{
+  "_fields": {
+    "threshold": "弱体を付いている間に付け直した回数がこれに達すると無力になる",
+    "duration": "無力の持続（秒）",
+    "mul": "無力中の敵が与えるダメージの倍率〔1 = 等倍。0.5 = 半分〕"
+  },
+  "threshold": 3,
+  "duration": 4,
+  "mul": 0.5
+}

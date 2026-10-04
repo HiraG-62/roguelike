@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "duration": "炎上の持続（秒）",
+    "dpsMul": "炎上の毎秒ダメージ = 元の燃焼の毎秒ダメージ × この倍率〔1 = 等倍〕",
+    "minDps": "炎上の毎秒ダメージの下限。元の燃焼が弱くてもこれ以上入る",
+    "spreadRadius": "延焼の半径（px）。周囲の油膜の敵へ燃焼を移す",
+    "spreadInterval": "延焼の周期（秒）"
+  },
   "duration": 4,
   "dpsMul": 2,
   "minDps": 4,

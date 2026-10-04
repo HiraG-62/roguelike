@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "duration": "彩痕の持続（秒）",
+    "takenMul": "彩痕の色が共鳴している敵が受けるダメージの倍率〔1 = 等倍〕",
+    "burstBurnRatio": "色爆（crimson）で与えるダメージ。燃焼の残りダメージに対する倍率〔1 = 等倍〕",
+    "burstChill": "色爆（azure）で付ける冷気の重ね数",
+    "burstHeal": "色爆（jade）で自分が回復する生命",
+    "burstDoomDuration": "色爆（umbra）で付ける宣告の持続（秒）"
+  },
   "duration": 6,
   "takenMul": 1.15,
   "burstBurnRatio": 1,

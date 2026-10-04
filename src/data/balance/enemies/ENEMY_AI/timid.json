@@ -1,1 +1,8 @@
-{ "fleeMul": 1, "color": "#f8d848" }
+{
+  "_fields": {
+    "fleeMul": "逃げる速さ。歩く速さに対する倍率（1 = 等倍）",
+    "color": "消えるときの粒・浮き文字の色（#RRGGBB）"
+  },
+  "fleeMul": 1,
+  "color": "#f8d848"
+}

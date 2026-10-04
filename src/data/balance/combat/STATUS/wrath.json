@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "maxStacks": "怒気の重ねの上限。上限まで重なると激昂になる",
+    "duration": "怒気の持続（秒）",
+    "poisePerStack": "与える怯み値の増え。1 重ねあたりの割合〔0.1 = +10%〕",
+    "onHurt": "被弾したときに足す怒気の重ね数",
+    "onStagger": "怒気が付いている間に自分が怯んだとき足す重ね数（逆上）"
+  },
   "maxStacks": 5,
   "duration": 6,
   "poisePerStack": 0.1,

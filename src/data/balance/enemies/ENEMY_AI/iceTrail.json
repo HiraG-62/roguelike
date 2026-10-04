@@ -1,1 +1,4 @@
-{ "radius": 8 }
+{
+  "_fields": { "radius": "突進の跡に残る氷床の半径。px" },
+  "radius": 8
+}

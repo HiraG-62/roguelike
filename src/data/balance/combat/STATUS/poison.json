@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "hpRatioPerSec": "毒の毎秒ダメージ。敵の最大生命に対する 1 重ねあたりの割合〔0.01 = 1%/秒〕",
+    "bossHpRatioPerSec": "ボスに対する同じ割合。通常の敵との比でボスだけ弱める",
+    "playerHpRatioPerSec": "プレイヤーに対する同じ割合（自分の最大生命に対する 1 重ねあたり）",
+    "maxStacks": "敵の毒の重ねの上限（腐食の重ねぶん上限が伸びる）",
+    "playerMaxStacks": "プレイヤーの毒の重ねの上限",
+    "duration": "毒の標準の持続（秒）"
+  },
   "hpRatioPerSec": 0.01,
   "bossHpRatioPerSec": 0.003,
   "playerHpRatioPerSec": 0.005,

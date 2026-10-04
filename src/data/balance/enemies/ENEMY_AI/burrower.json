@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "burrowSpeedMul": "潜っている間の移動の速さの倍率（1 = 等倍）",
+    "emergeRadius": "飛び出したときの炸裂の半径。px（影の予告も同じ）",
+    "damage": "飛び出しの炸裂のダメージ（深度で伸びる基準値）",
+    "exposeTime": "飛び出したあと、姿を晒して動けない秒（反撃の機会）",
+    "dustInterval": "潜行中に盛り上がる土を出す間隔。秒",
+    "color": "土煙・炸裂の色（#RRGGBB）"
+  },
   "burrowSpeedMul": 1.4,
   "emergeRadius": 20,
   "damage": 14,

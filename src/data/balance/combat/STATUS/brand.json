@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "maxStacks": "烙印の重ねの上限",
+    "duration": "烙印の持続（秒）",
+    "damagePerStack": "起爆ダメージの 1 重ねあたり。付与側が威力を持てばそちらが優先",
+    "poisePerStack": "起爆で入る怯み値の 1 重ねあたり",
+    "staggeredMul": "怯み中の敵への起爆ダメージの倍率〔1 = 等倍〕"
+  },
   "maxStacks": 5,
   "duration": 4,
   "damagePerStack": 6,

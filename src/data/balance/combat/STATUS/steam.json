@@ -1,1 +1,8 @@
-{ "radius": 40, "weakenDuration": 2 }
+{
+  "_fields": {
+    "radius": "蒸気が周囲の敵を弱体にする半径（px）",
+    "weakenDuration": "蒸気が付ける弱体の持続（秒）"
+  },
+  "radius": 40,
+  "weakenDuration": 2
+}

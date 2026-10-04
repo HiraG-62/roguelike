@@ -2,7 +2,21 @@
   "_note": "ステータス（docs/COMBAT_DESIGN.md A）。base は基礎値、knee/slope は逓減、他は 1 点あたりの割合・数値。行動の強さはステータスではなく行動ごとの係数で伸ばす（A-10）ので、ここには体の性能（移動・ダッシュ・生命・状態異常への抵抗・気力・防御力・魔防）だけを置く",
   "_fields": {
     "defArmor": "防御 def の実効値 1 点あたり、防御力（PlayerStats.armor）に足す量",
-    "defWarding": "防御 def の実効値 1 点あたり、魔防（PlayerStats.warding）に足す量"
+    "defWarding": "防御 def の実効値 1 点あたり、魔防（PlayerStats.warding）に足す量",
+    "base": "各ステータス（力・器用・体力・精神・防御など）の初期値。派生の効果は base からの差で決まる",
+    "knee1": "逓減の 1 つ目の折れ点。ここまでは実効値 = ステータスの値",
+    "slope1": "knee1〜knee2 の間で 1 点あたり実効値に足される量〔1 = 等倍〕",
+    "knee2": "逓減の 2 つ目の折れ点",
+    "slope2": "knee2 を超えた分で 1 点あたり実効値に足される量〔1 = 等倍〕",
+    "dexMove": "器用 1 点（base からの差）あたりの移動速度の増え。割合〔0.005 = +0.5%〕",
+    "dexDashCooldown": "器用 1 点あたりのダッシュのクールタイムの短縮。割合〔0.01 = 1% 短い〕",
+    "dexDashCooldownMin": "ダッシュのクールタイムの倍率の下限〔0.7 = 最大 30% 短縮〕",
+    "vitMaxHp": "体力 1 点あたりの最大生命の増え",
+    "vitStatusTaken": "体力 1 点あたりの状態異常の持続の縮み。受ける持続の倍率 = vitStatusTakenBase ÷ (vitStatusTakenBase + この値 × 点数)",
+    "vitStatusTakenBase": "状態異常の持続の縮みを決める式の分母の基準。大きいほど 1 点の効きが鈍い",
+    "vitStatusTakenMin": "受ける状態異常の持続の倍率の下限〔0.5 = 最大で半分まで〕",
+    "mndMaxMana": "精神 1 点あたりの最大気力の増え",
+    "mndManaRegen": "精神 1 点あたりの気力の自然回復の増え（毎秒）"
   },
   "base": 5,
   "knee1": 20,

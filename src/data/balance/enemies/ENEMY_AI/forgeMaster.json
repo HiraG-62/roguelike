@@ -1,4 +1,15 @@
 {
+  "_fields": {
+    "keepAway": "プレイヤーとの距離をこの付近に保つ。px",
+    "bladeCount": "金床を叩いて飛ばす刃の数（扇状）",
+    "spreadDeg": "刃の扇の広がり（全体の角度。度）",
+    "bladeSpeed": "刃の速さ。px/秒",
+    "bladeDamage": "刃 1 枚のダメージ（深度で伸びる基準値）",
+    "fireRadius": "叩くたびに金床の周りへ置く炎の半径。px",
+    "enrageMul": "金床を壊されて怒っている間、攻撃間隔に掛かる倍率（1 未満で短くなる）",
+    "anvilBreakStagger": "金床を壊されたときの隙の秒（怯み）",
+    "color": "刃・「金床破壊」の浮き文字の色（#RRGGBB）"
+  },
   "keepAway": 100,
   "bladeCount": 3,
   "spreadDeg": 40,

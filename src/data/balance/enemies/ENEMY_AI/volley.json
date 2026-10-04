@@ -1,1 +1,8 @@
-{ "bulletLife": 3, "bulletRadius": 3 }
+{
+  "_fields": {
+    "bulletLife": "敵の弾の寿命。秒（弾に寿命の指定が無いときの既定）",
+    "bulletRadius": "敵の弾の半径。px（弾に半径の指定が無いときの既定）"
+  },
+  "bulletLife": 3,
+  "bulletRadius": 3
+}

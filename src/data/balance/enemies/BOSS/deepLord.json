@@ -34,7 +34,8 @@
     "handFall": "奈落の手の影が出てから落ちるまでの秒",
     "handRadius": "奈落の手の炸裂の半径（px）",
     "handDamage": "奈落の手のダメージ（深度で伸びる）",
-    "borrowRecoil": "借りた技の後のダウンの秒（反動）"
+    "borrowRecoil": "借りた技の後のダウンの秒（反動）",
+    "color": "深みの主の段階・ダウンの浮き文字、炸裂の色（#RRGGBB）"
   },
   "pillarInset": 3,
   "pillarDown": 2,

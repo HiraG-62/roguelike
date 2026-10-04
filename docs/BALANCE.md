@@ -72,7 +72,8 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 **書く**: 新しい数値の項目を足したら、そのブロック（表なら表の先頭）の `_fields` にも 1 行足す。説明は「意味。単位（秒 / px / 倍率〔1 = 等倍〕/ 割合〔0..1〕/ %〔表示単位〕）。目安 / 範囲」の順で、用語は `docs/GLOSSARY.md`。推測で書かず、その数値を読む system のコードで効き方を確かめる。「なぜこの値か（QA の履歴）」は `_fields` ではなく `_note` に書く。
 
-- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値の数は最上位のディレクトリ（`combat` など）ごとに基準値（`UNDOCUMENTED_BASELINE`）以下でなければ落ちる。説明を書き足したら基準値を実測まで下げる（上げない）。`enemies/` の `stats` / `combat` / `defense` と `jobs/` は説明の無い項目 0
+- 検査（`src/data/balance/balance.test.ts`）: `_fields` にある項目が JSON に無ければ（名前の打ち間違い・項目を消した）落ちる。説明の無い数値・真偽は全ディレクトリで 0（基準値 `UNDOCUMENTED_BASELINE` はすべて 0。上げない）。新しい項目を足したら `_fields` も書き、`npm run balance:dict` で辞書を生成し直す
+- 配列がルートのファイル（`weapons/PLAYER_MELEE.json` など）は `_fields` を置けないので、親のディレクトリの `_index.json` の `_fields` に書く（項目名の末尾で引かれる）
 - 雛形: `node scripts/balance-fields.mjs src/data/enemies.ts EnemyDef` のように TS の型名を渡すと、JSDoc から `_fields` の雛形を出す。単位と目安を足してから貼る
 - `_fields` は `_note` と同じく読み込み時に剥がされるので、足しても数値の版（`BALANCE_HASH`）は変わらない
 

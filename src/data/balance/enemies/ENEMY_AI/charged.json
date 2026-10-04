@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "radius": "現在どこからも読まれていない値",
+    "time": "現在どこからも読まれていない値",
+    "deathChainDamage": "帯電した敵が倒れたときに走る連鎖雷のダメージ",
+    "contactShock": "帯電した敵の接触で付く感電の秒",
+    "color": "帯電の鼓舞の輪の色（#RRGGBB）"
+  },
   "radius": 60,
   "time": 5,
   "deathChainDamage": 8,

@@ -1,4 +1,18 @@
 {
+  "_fields": {
+    "keepAway": "プレイヤーとの距離をこの付近に保つ。px",
+    "bulletCount": "弾（遠距離のスキルの写し）の数",
+    "spreadDeg": "弾の扇の広がり（全体の角度。度）",
+    "bulletSpeed": "弾の速さ。px/秒",
+    "bulletDamage": "弾 1 発のダメージ（深度で伸びる基準値）",
+    "ringRadius": "輪（範囲のスキルの写し）の半径。px",
+    "ringDamage": "輪のダメージ（深度で伸びる基準値）",
+    "blastCount": "設置の炸裂（設置スキルの写し）の数。1 つはプレイヤーの足元、残りはその周り",
+    "blastSpread": "周りの炸裂の、プレイヤーからの距離。px",
+    "blastRadius": "設置の炸裂 1 つの半径。px",
+    "blastDamage": "設置の炸裂 1 つのダメージ（深度で伸びる基準値）",
+    "color": "写しの技の色・「模倣」の浮き文字の色（#RRGGBB）"
+  },
   "keepAway": 120,
   "bulletCount": 5,
   "spreadDeg": 50,

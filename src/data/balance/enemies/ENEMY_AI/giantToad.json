@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "tongueLength": "舌の届く長さ。px（予告の線も同じ）",
+    "pull": "舌が当たったときの引き寄せの初速。px/秒",
+    "biteRadius": "噛みつきの衝撃波の半径と、吐く弾の着弾の半径。px",
+    "biteDamage": "噛みつきのダメージ（深度で伸びる基準値）。吐く弾はこの半分",
+    "pondRadius": "湧いたときに作る浅瀬の半径。px（吐く弾の着弾の浅瀬はこの半分）",
+    "color": "噛みつき・着弾の粒の色（#RRGGBB）"
+  },
   "tongueLength": 130,
   "pull": 420,
   "biteRadius": 30,

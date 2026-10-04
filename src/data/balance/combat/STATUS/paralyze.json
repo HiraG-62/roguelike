@@ -1,1 +1,10 @@
-{ "duration": 0.5, "bossDuration": 0.2, "shockImmuneAfter": 3 }
+{
+  "_fields": {
+    "duration": "麻痺の持続（秒）。感電が上限まで重なって痺れるときの長さ",
+    "bossDuration": "ボスの麻痺の持続の上限（秒）",
+    "shockImmuneAfter": "麻痺が解けてから感電が付かない秒"
+  },
+  "duration": 0.5,
+  "bossDuration": 0.2,
+  "shockImmuneAfter": 3
+}

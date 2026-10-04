@@ -72,7 +72,16 @@
     "arc": "弧で飛ぶ弾（戦輪。bulge 弧の頂点の横のふくらみ px / catchRadius 帰りに手元のこの距離で収まる px / range 固定の射程 px〔連撃の近投げ。省略はカーソルの距離。最大射程 = 速さ × 寿命で頭打ち〕）。口元から弧でカーソルまで飛び、反対側の弧で手元へ戻る",
     "pair": "2 枚投げ（戦輪。offset 口元から進む向きに直交する上下へずらす距離 px）。1 回の射撃で体の上下から 1 枚ずつ出し、弧が逆に膨らんでカーソルで交差する",
     "meleeDamageScale": "近接の段の威力の係数表（base と全係数）に復元時に掛ける。銃の弾・スキル・奥義は対象外。base と係数を同率で下げるのでステータス 1 点あたりの伸び率は変わらない。倍率（1 = 等倍）",
-    "unarmed": "素手（右手が空のときの拳の型）。damageMul は近接の威力の倍率（1 = 等倍）"
+    "unarmed": "素手（右手が空のときの拳の型）。damageMul は近接の威力の倍率（1 = 等倍）",
+    "chargeRingColors": "溜めの段階（1 段目から）ごとの輪・武器の色。段階が足りなければ白",
+    "steps.trail": "active に入った瞬間に引く残像の線の色",
+    "step.trail": "active に入った瞬間に引く残像の線の色（派生・右の連撃の段）",
+    "drivePins": "命中した敵に刺さっている飛び物を叩き込む（クナイ）。true = 全部、数 = 古い順にその本数だけ",
+    "cast.key": "段が撃つ弾（cast）の key。HUD の技名（CAST_NAMES）と弾の数値（cast.<key>）を引く",
+    "steps2.kind": "右の連撃の段の種類（swing = 振り / hold = 構え / volley = 弾 / charge = 溜め）",
+    "steps2.key": "右の段の key。HUD の技名（「右: 返し斬り」）と再使用の数え分けに使う",
+    "sequence": "派生が起きる入力列（末尾がこれと一致したら次の振りを派生に差し替える。primary = 左 / secondary = 右）",
+    "look.color": "弾と発射の粒の色（設置弾・曲射の色が優先）"
   },
   "chargeRingColors": ["#ffffff", "#ffd75f", "#ff9040", "#ff4060"],
   "chargeRingRadius": 9,

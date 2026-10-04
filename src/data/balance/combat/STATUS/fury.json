@@ -1,1 +1,12 @@
-{ "duration": 4, "poiseMul": 1.5, "damageMul": 1.15, "takenMul": 1.2 }
+{
+  "_fields": {
+    "duration": "激昂の持続（秒）",
+    "poiseMul": "激昂中に与える怯み値の倍率〔1 = 等倍〕",
+    "damageMul": "激昂中に与えるダメージの倍率〔1 = 等倍〕",
+    "takenMul": "激昂中に受けるダメージの倍率〔1 = 等倍〕"
+  },
+  "duration": 4,
+  "poiseMul": 1.5,
+  "damageMul": 1.15,
+  "takenMul": 1.2
+}

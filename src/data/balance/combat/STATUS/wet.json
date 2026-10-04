@@ -1,1 +1,10 @@
-{ "maxStacks": 3, "duration": 5, "shockRadiusMul": 1.5 }
+{
+  "_fields": {
+    "maxStacks": "濡れの重ねの上限。上限まで重なると浸水になる",
+    "duration": "濡れの持続（秒）",
+    "shockRadiusMul": "濡れた敵の感電が連鎖する半径の倍率（shock.radius に掛ける）"
+  },
+  "maxStacks": 3,
+  "duration": 5,
+  "shockRadiusMul": 1.5
+}

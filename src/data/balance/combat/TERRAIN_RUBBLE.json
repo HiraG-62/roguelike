@@ -1,5 +1,15 @@
 {
   "_note": "地形「崩れる床」（docs/ideas/status-and-terrain.md 3 章 #9・2-2）",
+  "_fields": {
+    "duration": "崩れる床の持続（秒）。実際の持続は置く側が指定し、この値を読むのはテストだけ（既定は TERRAIN.placedDuration.rubble）",
+    "fallDelay": "敵が乗り続けて床が抜けるまでの秒（誰も乗っていないと 0 に戻る）",
+    "fallDamage": "床が抜けたとき乗っていた敵が受けるダメージの基礎",
+    "perDepth": "深度 1 ごとに落下ダメージへ足す割合〔0.08 = +8%〕",
+    "fallStagger": "落ちた敵（ボス以外）が怯む秒",
+    "bossPoise": "落ちたボスに入る怯み値（ボスは怯まず怯み値だけ入る）",
+    "color": "床が抜けたときの粒の色",
+    "particles": "床が抜けたときに散らす粒の数"
+  },
   "duration": 5,
   "fallDelay": 1,
   "fallDamage": 14,

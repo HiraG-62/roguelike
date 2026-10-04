@@ -1,1 +1,10 @@
-{ "duration": 2, "immuneAfter": 6, "wispMul": 2 }
+{
+  "_fields": {
+    "duration": "恐怖の標準の持続（秒）。性質の会心付与などが使う",
+    "immuneAfter": "恐怖が解けてから恐怖が付かない秒",
+    "wispMul": "鬼火が受ける恐怖の持続の倍率〔1 = 等倍〕"
+  },
+  "duration": 2,
+  "immuneAfter": 6,
+  "wispMul": 2
+}

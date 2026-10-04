@@ -1,5 +1,11 @@
 {
   "_note": "追加敵の行動パラメータ。同時攻撃の上限は ENEMY_TEMPO(strikerBase / strikerPerAwake)へ移した(jin-impl.md 2-8)。strikerHoldTime: 上限で待たされた予備動作の再判定の間隔。knockDecay は docs/ideas/combat-feel-design.md D-2(system/enemies.ts の局所定数をここへ移した)",
+  "_fields": {
+    "strikerHoldTime": "同時攻撃の上限（ENEMY_TEMPO.strikerBase など）で待たされた敵が、予備動作に入れるかを見直す間隔。秒。短いほど空きに素早く入る。目安 0.1",
+    "knockDecay": "ノックバックの速度が減る速さ。毎秒 exp(-この値) 倍に落ちる（1/秒）。大きいほど吹き飛びがすぐ止まる。目安 9〜12",
+    "friendlyBlastMul": "敵の爆発・炸裂が他の敵に当たるときのダメージ倍率（1 = 等倍。敵同士の巻き込み）",
+    "silencedAttackManaMul": "沈黙中の通常攻撃で気力が溜まる量の倍率（1 = 等倍）。スキルを撃てない代わりの上乗せ。性質などの上限（MANA.attackGainMulMax）の外で掛かる"
+  },
   "strikerHoldTime": 0.1,
   "knockDecay": 9,
   "friendlyBlastMul": 1,

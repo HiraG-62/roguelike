@@ -1,5 +1,10 @@
 {
   "_note": "攻撃ジャンルの係数（system/elementCombat.ts）。比率は 0..1、範囲は %。ジャンルは敵の防御 / 魔防のどちらで受けるかだけを決め、参照ステータスは縛らない（A-10）",
+  "_fields": {
+    "hybridMix": "混成の攻撃が魔防の軽減率に振る割合〔0..1〕。0 で防御のみ、1 で魔防のみ、0.5 で半々",
+    "enemyDefenseMin": "敵の防御・魔防（軽減 %）の下限。負は弱点",
+    "enemyDefenseMax": "敵の防御・魔防（軽減 %）の上限"
+  },
   "hybridMix": 0.5,
   "enemyDefenseMin": -50,
   "enemyDefenseMax": 75

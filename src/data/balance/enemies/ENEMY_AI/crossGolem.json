@@ -1,1 +1,8 @@
-{ "length": 110, "damage": 20 }
+{
+  "_fields": {
+    "length": "十字の線 1 本の長さ。px（壁で止まる）",
+    "damage": "線のダメージ（深度で伸びる基準値）"
+  },
+  "length": 110,
+  "damage": 20
+}

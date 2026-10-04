@@ -1,1 +1,12 @@
-{ "blockArcDeg": 120, "blockColor": "#c0d0ff", "blockPushback": 40, "lungeSpeedMul": 6 }
+{
+  "_fields": {
+    "blockArcDeg": "盾で受ける正面の角度（全体の広さ。度）。向いている方向を中心にこの範囲内から来た攻撃は受けられる",
+    "blockColor": "ブロック・ガードブレイク・敗走の浮き文字と粒の色、盾の発光の色（#RRGGBB）",
+    "blockPushback": "盾で受けたときに後ろへ押される初速（px/秒。knockDecay で減衰する）",
+    "lungeSpeedMul": "攻撃中の踏み込みの速さ。歩く速さに対する倍率（1 = 等倍）"
+  },
+  "blockArcDeg": 120,
+  "blockColor": "#c0d0ff",
+  "blockPushback": 40,
+  "lungeSpeedMul": 6
+}

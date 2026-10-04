@@ -30,7 +30,12 @@
     "biteRadius": "噛みの当たりの半径（px）。影も同じ",
     "biteDamage": "噛みのダメージ（深度で伸びる）",
     "biteMissDown": "呑み損ね（噛みを受け流された）のダウンの秒",
-    "inflateRecover": "膨張の後の硬直の秒"
+    "inflateRecover": "膨張の後の硬直の秒",
+    "shockRadius": "跳躍の着地の衝撃波の半径。px（着地点の影も同じ。真下の潰しはこの 0.4 倍）",
+    "shockDamage": "着地の衝撃波・真下の潰しのダメージ（深度で伸びる基準値）",
+    "phase2Ratio": "第 2 段階（分裂）へ進む生命の割合（保険。墜落が dropsToSplit 回溜まれば先に進む。0..1）",
+    "splitCount": "分裂で出る体の数（うち 1 体が冠スライム）",
+    "phase2SpeedMul": "第 2 段階以降の移動の速さの倍率（1 = 等倍）"
   },
   "jumpRise": 0.25,
   "jumpHover": 0.35,

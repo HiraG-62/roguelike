@@ -1,1 +1,12 @@
-{ "ringRadius": 60, "damage": 22, "breakStagger": 2, "color": "#c8c8d0" }
+{
+  "_fields": {
+    "ringRadius": "鎧の衝撃波が広がる半径。px",
+    "damage": "衝撃波のダメージ（深度で伸びる基準値）",
+    "breakStagger": "鎧が割れて亡霊になった瞬間の隙の秒（怯み）",
+    "color": "鎧割れの粒・浮き文字・衝撃波の粒の色（#RRGGBB）"
+  },
+  "ringRadius": 60,
+  "damage": 22,
+  "breakStagger": 2,
+  "color": "#c8c8d0"
+}

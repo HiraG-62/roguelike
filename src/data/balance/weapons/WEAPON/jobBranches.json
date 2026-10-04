@@ -1,4 +1,5 @@
 {
+  "_fields": { "trail": "ジョブ派生の振りの残像の線の色" },
   "swordsman": {
     "windup": 0.05,
     "active": 0.14,

@@ -1,4 +1,19 @@
 {
+  "_fields": {
+    "bulletSpeed": "回転弾幕の弾の速さ。px/秒",
+    "bulletDamage": "弾 1 発のダメージ（深度で伸びる基準値）",
+    "bulletDirs": "1 回の斉射で放射状に撃つ弾の数",
+    "volleys": "弾幕 1 回の攻撃で斉射する回数",
+    "volleyInterval": "斉射の間隔。秒（攻撃の長さ = volleys × この値）",
+    "volleySpin": "斉射ごとに弾の向きをずらす角度。ラジアン（回転して見える）",
+    "wallDuration": "骨の壁が残る秒",
+    "wallLength": "骨の壁の長さ。タイル（狙いと直交する列。端数は切り捨てて中心の左右に並べる）",
+    "wallHp": "骨の壁の耐久。攻撃で削れる。敵を壁に叩きつけたときはこの値のダメージで壁ごと崩れる",
+    "wallBlastRadius": "現在どこからも読まれていない値",
+    "teleportRatio": "激怒（テレポート連発）へ進む生命の割合（0..1）",
+    "teleportInterval": "激怒中にテレポートする間隔。秒",
+    "color": "骨の弾・壁の粒・テレポートの演出の色（#RRGGBB）"
+  },
   "bulletSpeed": 110,
   "bulletDamage": 10,
   "bulletDirs": 8,

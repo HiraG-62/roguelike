@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "turrets": "置く砲台の数。部屋の四隅から順に置き、足りなければ砲台長の周り",
+    "turretBreakStagger": "砲台が 1 つ壊れるたびの隙の秒（怯み）",
+    "orbSpeed": "砲台長の弾の速さ。px/秒",
+    "orbDamage": "弾 1 発のダメージ（深度で伸びる基準値）",
+    "color": "砲台長の弾・浮き文字の色（#RRGGBB）"
+  },
   "turrets": 4,
   "turretBreakStagger": 1,
   "orbSpeed": 90,

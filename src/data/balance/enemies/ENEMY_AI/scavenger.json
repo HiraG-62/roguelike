@@ -1,4 +1,14 @@
 {
+  "_fields": {
+    "seekRadius": "死骸を探す範囲。px（同じ部屋の死骸だけ）",
+    "eatRange": "死骸に触れて食べ始められる距離。px（体の半径に足す）",
+    "eatTime": "食べている間の隙の秒",
+    "maxGrowth": "育つ段の上限（食べるたびに 1 段）",
+    "hpPerGrowth": "1 段育つごとに増える最大生命の割合（0..1）",
+    "damagePerGrowth": "1 段育つごとに増える接触ダメージの割合（0..1）",
+    "radiusPerGrowth": "1 段育つごとに増える体の半径。px",
+    "color": "成長の浮き文字・粒の色（#RRGGBB）"
+  },
   "seekRadius": 180,
   "eatRange": 10,
   "eatTime": 1,

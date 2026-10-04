@@ -1,1 +1,10 @@
-{ "duration": 4, "damageMul": 1.5, "deathTerrainRadius": 24 }
+{
+  "_fields": {
+    "duration": "猛毒の持続（秒）",
+    "damageMul": "猛毒中の毒ダメージの倍率〔1 = 等倍〕",
+    "deathTerrainRadius": "猛毒の敵を倒したとき毒沼を残す半径（px）"
+  },
+  "duration": 4,
+  "damageMul": 1.5,
+  "deathTerrainRadius": 24
+}

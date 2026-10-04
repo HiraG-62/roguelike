@@ -1,4 +1,10 @@
 {
+  "_fields": {
+    "deathExplodeRadius": "倒したときに落とす爆弾の半径。px。描画はこの半径と導火線で出どころを見分ける",
+    "deathExplodeDamage": "倒したときの爆発のダメージ（深度では伸びない固定値）",
+    "deathExplodeFuse": "倒してから爆ぜるまでの秒（予告の間）",
+    "color": "鬼火の発光・火花の色（#RRGGBB）"
+  },
   "deathExplodeRadius": 26,
   "deathExplodeDamage": 10,
   "deathExplodeFuse": 0.35,

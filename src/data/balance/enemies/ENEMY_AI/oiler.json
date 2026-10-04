@@ -1,1 +1,5 @@
-{ "dropInterval": 1.4, "dropRadius": 14 }
+{
+  "_fields": { "dropInterval": "走りながら油を撒く間隔。秒", "dropRadius": "撒く油の半径。px" },
+  "dropInterval": 1.4,
+  "dropRadius": 14
+}

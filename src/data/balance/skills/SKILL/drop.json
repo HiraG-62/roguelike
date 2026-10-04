@@ -1,5 +1,17 @@
 {
   "_note": "runeOnKill は撃破時の刻印符ドロップ率（rollRuneDrop）。刻印符は所持品として残るので部屋クリアの 0.3 より薄く、エリート・ボス・図書館・巣窟の敵は厚くする（docs/COMBAT_DESIGN.md B-10）。runeOnKillPerDepth は深度 1 ごとの加算（通常の敵だけ、上限 runeOnKillDepthCap）",
+  "_fields": {
+    "stoneOnKill": "敵を倒したときにスキル石が落ちる確率（0..1）",
+    "stoneOnDepth": "初めて着いた階層でスキル石が落ちる確率（0..1）。往復では抽選しない",
+    "runeOnRoomClear": "部屋を片付けたときに刻印符が落ちる確率（0..1）",
+    "stoneColor": "スキル石の表示色（床の石・ログ・ツールチップ）",
+    "runeColor": "刻印符の表示色",
+    "runeOffsetX": "部屋クリアの刻印符を部屋の中心から右へずらす距離（px）。壁に埋まるなら中心に置く",
+    "depthOffsetY": "階層到達のスキル石を自分の足元から下へずらす距離（px）",
+    "runeOnKill": "撃破時の刻印符が落ちる確率（0..1）。出どころ（通常 / エリート / ボス / 図書館 / 巣窟）ごと",
+    "runeOnKillPerDepth": "通常の敵の撃破で刻印符が落ちる確率に、深度 1 ごとに足す確率（0..1）",
+    "runeOnKillDepthCap": "深度による上乗せの上限（0..1）。通常の敵の確率は runeOnKill.normal + この上限まで"
+  },
   "stoneOnKill": 0.03,
   "stoneOnDepth": 0.2,
   "runeOnRoomClear": 0.3,

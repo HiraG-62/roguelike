@@ -1,3 +1,9 @@
 {
-  "muffle": { "cutoff": 520, "open": 20000, "closeTime": 0.05, "openTime": 0.3 }
+  "muffle": { "cutoff": 520, "open": 20000, "closeTime": 0.05, "openTime": 0.3 },
+  "_fields": {
+    "muffle.cutoff": "スローモーション中に音楽へかけるローパスの遮断周波数。Hz。低いほどこもる",
+    "muffle.open": "通常時のローパスの遮断周波数（実質素通し）。Hz",
+    "muffle.closeTime": "スロー開始でこもらせるまでの時間。秒",
+    "muffle.openTime": "スロー終了でこもりが開くまでの時間（ゆっくり開いて「戻った」手応えを出す）。秒"
+  }
 }

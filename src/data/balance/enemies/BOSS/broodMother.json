@@ -1,4 +1,22 @@
 {
+  "_fields": {
+    "eggCount": "1 回の産卵で産む卵の数（場に残る卵の上限までに切り詰める）",
+    "eggHatch": "卵が孵るまでの秒（割ると母に怯み値が入る）",
+    "eggSpread": "卵を産む母からの距離。px",
+    "layTime": "産卵の予備動作の秒（無防備。深度で縮む）",
+    "biteSpeedMul": "噛みつきの突進の速さ。歩く速さに対する倍率",
+    "biteTime": "噛みつきの突進が続く秒",
+    "jumpTime": "跳躍の滞空の秒（着地点の影が出ている）",
+    "landRadius": "跳躍の着地の衝撃波の半径。px（影の予告も同じ）",
+    "landDamage": "着地の衝撃波のダメージ（深度で伸びる基準値）",
+    "acidRadius": "着地点に残す酸の沼の半径。px",
+    "swarmInterval": "第 3 段階で壁際から群れが湧く間隔。秒",
+    "swarmCount": "群れ 1 回で湧く数",
+    "eggBreakPoise": "卵を割られたとき、母に入る怯み値",
+    "phase2Ratio": "第 2 段階（羽）へ進む生命の割合（0..1）",
+    "phase3Ratio": "第 3 段階（崩壊）へ進む生命の割合（0..1）",
+    "color": "段階の浮き文字の色（#RRGGBB）"
+  },
   "eggCount": 3,
   "eggHatch": 4,
   "eggSpread": 70,

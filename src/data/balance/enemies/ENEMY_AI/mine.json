@@ -1,1 +1,12 @@
-{ "trigger": 16, "radius": 30, "damage": 16, "color": "#ff6060" }
+{
+  "_fields": {
+    "trigger": "踏んだとみなす距離。px（プレイヤーか、撒いた本人以外の敵の体の縁から）",
+    "radius": "炸裂の半径。px（影の予告も同じ）",
+    "damage": "炸裂のダメージ（深度で伸びる基準値）",
+    "color": "炸裂の色（#RRGGBB）"
+  },
+  "trigger": 16,
+  "radius": 30,
+  "damage": 16,
+  "color": "#ff6060"
+}

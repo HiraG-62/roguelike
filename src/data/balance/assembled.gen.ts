@@ -947,6 +947,7 @@ export const combat = {
   "BLAST_FALLOFF": j_combat_BLAST_FALLOFF,
   "STATUS": {
     "_note": j_combat_STATUS__index["_note"],
+    "_fields": j_combat_STATUS__index["_fields"],
     "burnDuration": j_combat_STATUS__index["burnDuration"],
     "burnParticleInterval": j_combat_STATUS__index["burnParticleInterval"],
     "burnColor": j_combat_STATUS__index["burnColor"],
@@ -1031,6 +1032,7 @@ export const enemies = {
   "_note": j_enemies__index["_note"],
   "ENEMY_AI": {
     "_note": j_enemies_ENEMY_AI__index["_note"],
+    "_fields": j_enemies_ENEMY_AI__index["_fields"],
     "strikerHoldTime": j_enemies_ENEMY_AI__index["strikerHoldTime"],
     "knockDecay": j_enemies_ENEMY_AI__index["knockDecay"],
     "knight": j_enemies_ENEMY_AI_knight,
@@ -1094,6 +1096,7 @@ export const enemies = {
   "DOUBLE_CHARGE": j_enemies_DOUBLE_CHARGE,
   "BOSS": {
     "_note": j_enemies_BOSS__index["_note"],
+    "_fields": j_enemies_BOSS__index["_fields"],
     "interval": j_enemies_BOSS__index["interval"],
     "roomMinW": j_enemies_BOSS__index["roomMinW"],
     "roomMinH": j_enemies_BOSS__index["roomMinH"],
@@ -1487,6 +1490,7 @@ export const feel = {
   "_note": j_feel__index["_note"],
   "FEEL": j_feel_FEEL,
   "EFFECTS": {
+    "_fields": j_feel_EFFECTS__index["_fields"],
     "maxParticles": j_feel_EFFECTS__index["maxParticles"],
     "maxTexts": j_feel_EFFECTS__index["maxTexts"],
     "maxShapes": j_feel_EFFECTS__index["maxShapes"],
@@ -1515,6 +1519,7 @@ export const feel = {
   "MINIMAP": j_feel_MINIMAP,
   "FX_ATTACK": {
     "_note": j_feel_FX_ATTACK__index["_note"],
+    "_fields": j_feel_FX_ATTACK__index["_fields"],
     "maxEvents": j_feel_FX_ATTACK__index["maxEvents"],
     "slash": j_feel_FX_ATTACK_slash,
     "hitSpark": j_feel_FX_ATTACK_hitSpark,
@@ -1743,6 +1748,7 @@ export const skills = {
   "COMBO_TUNING": j_skills_COMBO_TUNING,
   "WAVE2_SKILL_TUNING": {
     "_note": j_skills_WAVE2_SKILL_TUNING__index["_note"],
+    "_fields": j_skills_WAVE2_SKILL_TUNING__index["_fields"],
     "waterJar": j_skills_WAVE2_SKILL_TUNING_waterJar,
     "oilPot": j_skills_WAVE2_SKILL_TUNING_oilPot,
     "levelGround": j_skills_WAVE2_SKILL_TUNING_levelGround,
@@ -1835,6 +1841,7 @@ export const ultimates = {
 
 export const weapons = {
   "_note": j_weapons__index["_note"],
+  "_fields": j_weapons__index["_fields"],
   "WEAPON": {
     "_fields": j_weapons_WEAPON__index["_fields"],
     "chargeRingColors": j_weapons_WEAPON__index["chargeRingColors"],
@@ -1938,6 +1945,7 @@ export const world = {
   "_note": j_world__index["_note"],
   "ROOM": j_world_ROOM,
   "ROOM_KIND": {
+    "_fields": j_world_ROOM_KIND__index["_fields"],
     "treasureChance": j_world_ROOM_KIND__index["treasureChance"],
     "treasureItemsMin": j_world_ROOM_KIND__index["treasureItemsMin"],
     "treasureItemsMax": j_world_ROOM_KIND__index["treasureItemsMax"],
@@ -2035,6 +2043,7 @@ export const world = {
   "CAVE": j_world_CAVE,
   "ROAM": j_world_ROAM,
   "RUN_EVENT": {
+    "_fields": j_world_RUN_EVENT__index["_fields"],
     "minDepth": j_world_RUN_EVENT__index["minDepth"],
     "warnTime": j_world_RUN_EVENT__index["warnTime"],
     "cooldown": j_world_RUN_EVENT__index["cooldown"],

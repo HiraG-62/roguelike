@@ -1,5 +1,17 @@
 {
   "_note": "精鋭修飾子「強欲の」(docs/ideas/enemies.md M12)。src/system/elites.ts が読む",
+  "_fields": {
+    "seekRadius": "床の遺物・スキル石を探す範囲。px（視線が通る物のうち一番近い物。封鎖する部屋では自室の中だけ）",
+    "grabRadius": "拾える距離。px",
+    "carryMax": "同時に抱えられる物の数。満たすと拾いに行かず逃げる",
+    "runMul": "拾いに行く・逃げる速さ。歩く速さに対する倍率",
+    "fleeRadius": "プレイヤーがこの距離より近いと逃げる。px（離れたらその場で待つ）",
+    "stuckRatio": "逃げ道が塞がったと判断する、進めた距離の割合（想定の移動距離に対して。0..1）。これ未満で追い詰められたとみなす",
+    "cornerFightTime": "追い詰められたとき、普通の敵として戦う秒",
+    "bonusDrops": "撃破したときの追加ドロップの数（抱えていた物とは別）",
+    "dropSpread": "抱えていた物を落とすとき、倒れた場所の周りに並べる距離。px",
+    "color": "拾う浮き文字・粒・オーラの色（#RRGGBB）"
+  },
   "seekRadius": 160,
   "grabRadius": 10,
   "carryMax": 2,

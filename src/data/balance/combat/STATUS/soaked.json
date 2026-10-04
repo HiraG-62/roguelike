@@ -1,1 +1,8 @@
-{ "duration": 4, "slow": 0.3 }
+{
+  "_fields": {
+    "duration": "浸水の持続（秒）",
+    "slow": "浸水による移動の遅さ。割合〔0..1。0.3 = 30% 遅い〕。maxSlow で頭打ち"
+  },
+  "duration": 4,
+  "slow": 0.3
+}

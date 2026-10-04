@@ -1,1 +1,4 @@
-{ "extraStacks": 2 }
+{
+  "_fields": { "extraStacks": "裂傷: 腐食中に出血の重ねの上限へ足す数" },
+  "extraStacks": 2
+}

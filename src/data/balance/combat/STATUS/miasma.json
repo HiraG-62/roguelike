@@ -1,1 +1,10 @@
-{ "terrainRadius": 24, "radius": 50, "duration": 4 }
+{
+  "_fields": {
+    "terrainRadius": "毒霧が残す毒沼の半径（px）",
+    "radius": "毒霧が毒を移す周囲の半径（px）",
+    "duration": "毒沼の持続（秒）"
+  },
+  "terrainRadius": 24,
+  "radius": 50,
+  "duration": 4
+}

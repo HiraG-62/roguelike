@@ -1,1 +1,10 @@
-{ "duration": 4, "ratio": 0.3, "vulnerableRatio": 0.5 }
+{
+  "_fields": {
+    "duration": "宣告の持続（秒）。時間切れで起爆する",
+    "ratio": "時間切れで与えるダメージ。付与中に減った生命に対する割合〔0..1〕",
+    "vulnerableRatio": "脆弱中の敵に起爆するときの割合〔0..1〕"
+  },
+  "duration": 4,
+  "ratio": 0.3,
+  "vulnerableRatio": 0.5
+}

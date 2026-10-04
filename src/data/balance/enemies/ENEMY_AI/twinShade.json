@@ -1,1 +1,10 @@
-{ "reviveTime": 3, "reviveHpRatio": 0.6, "color": "#b090ff" }
+{
+  "_fields": {
+    "reviveTime": "片方が倒れてから、生き残った方が相方を蘇らせるまでの秒",
+    "reviveHpRatio": "蘇った相方の生命の割合（最大生命に対して。0..1）",
+    "color": "蘇生の浮き文字・粒の色（#RRGGBB）"
+  },
+  "reviveTime": 3,
+  "reviveHpRatio": 0.6,
+  "color": "#b090ff"
+}

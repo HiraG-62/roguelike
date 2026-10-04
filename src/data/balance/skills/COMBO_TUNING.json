@@ -1,5 +1,16 @@
 {
   "_note": "連携（docs/ideas/skills-expansion.md 4章）の受付秒（window）と効果。段取り 7c で後が技（共通技）になった連携は倍率（apply）だけを持つ",
+  "_fields": {
+    "window": "先に撃つスキルを撃ってから、この秒以内に撃つと連携になる（秒）",
+    "areaMul": "連携時の範囲の倍率（1 = 等倍）",
+    "damageMul": "連携時の威力の倍率（1 = 等倍）",
+    "aimMul": "返し撃ち: 連携時の時間倍率（撃つまでの予備動作の長さに掛かる。0 = 待たずに出る）",
+    "windupMul": "連携時の予備動作の時間倍率（小さいほど速い）",
+    "poiseMul": "連携時の怯み値の倍率（1 = 等倍）",
+    "color": "連携の表示色（HUD の連携の印）",
+    "textScale": "連携の浮き文字の拡大率（今は読まれない）",
+    "textLife": "連携の浮き文字の表示秒（今は読まれない）"
+  },
   "hookWhirl": { "window": 0.8, "areaMul": 1.2 },
   "parryRail": { "window": 1, "damageMul": 1.5, "aimMul": 0 },
   "diveQuake": { "window": 0.6, "windupMul": 0.05, "areaMul": 1.2 },

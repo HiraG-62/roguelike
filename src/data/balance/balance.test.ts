@@ -211,18 +211,18 @@ describe("装備のキー集合(段 4)", () => {
 
 /**
  * 説明の無い数値・真偽の葉の数の基準値（docs/ideas/oop-migration.md 3.2）。
- * 書き足したら実測まで下げる。上げてはいけない（新しい項目を足したら _fields にも 1 行書く）
+ * 全ディレクトリで 0（2026-10-04 に全項目を書き終えた）。上げてはいけない（新しい項目を足したら _fields にも 1 行書く）
  */
 const UNDOCUMENTED_BASELINE: Readonly<Record<string, number>> = {
-  "combat": 370,
-  "enemies": 451,
-  "skills": 1250,
-  "boons": 382,
+  "combat": 0,
+  "enemies": 0,
+  "skills": 0,
+  "boons": 0,
   "jobs": 0,
-  "weapons": 168,
-  "loot": 3155,
-  "world": 309,
-  "feel": 215,
+  "weapons": 0,
+  "loot": 0,
+  "world": 0,
+  "feel": 0,
   "ultimates": 0,
 };
 

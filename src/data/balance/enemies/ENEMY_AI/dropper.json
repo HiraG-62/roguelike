@@ -1,1 +1,12 @@
-{ "noticeRange": 70, "radius": 22, "damage": 14, "color": "#5a4a40" }
+{
+  "_fields": {
+    "noticeRange": "現在どこからも読まれていない値",
+    "radius": "天井から落ちたときの炸裂の半径。px（影の予告も同じ）",
+    "damage": "落下の炸裂のダメージ（深度で伸びる基準値）",
+    "color": "炸裂の色（#RRGGBB）"
+  },
+  "noticeRange": 70,
+  "radius": 22,
+  "damage": 14,
+  "color": "#5a4a40"
+}

@@ -1,1 +1,4 @@
-{ "chillBonus": 2 }
+{
+  "_fields": { "chillBonus": "急冷で冷気に足す重ね数（濡れが上限なら冷気を上限まで積む）" },
+  "chillBonus": 2
+}

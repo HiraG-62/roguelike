@@ -1,1 +1,12 @@
-{ "duration": 2, "takenMul": 0.8, "moveMul": 0.85, "iceArmorPerChill": 0.05 }
+{
+  "_fields": {
+    "duration": "硬化の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない",
+    "takenMul": "硬化中に受けるダメージの倍率〔1 = 等倍〕",
+    "moveMul": "硬化中の移動速度の倍率〔1 = 等倍〕",
+    "iceArmorPerChill": "氷鎧: 冷気 1 重ねごとに takenMul から引く量（受けるダメージがさらに減る）"
+  },
+  "duration": 2,
+  "takenMul": 0.8,
+  "moveMul": 0.85,
+  "iceArmorPerChill": 0.05
+}

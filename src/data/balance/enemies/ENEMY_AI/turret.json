@@ -1,1 +1,8 @@
-{ "bulletSpeed": 150, "bulletDamage": 8 }
+{
+  "_fields": {
+    "bulletSpeed": "砲台の弾の速さ。px/秒",
+    "bulletDamage": "弾のダメージ（深度で伸びる基準値）"
+  },
+  "bulletSpeed": 150,
+  "bulletDamage": 8
+}

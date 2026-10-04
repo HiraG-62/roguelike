@@ -1,1 +1,8 @@
-{ "enemyDuration": 3, "playerDuration": 1.5 }
+{
+  "_fields": {
+    "enemyDuration": "敵の沈黙の持続（秒）。付与側が持続を直接指定するため、現状この値は読まれない",
+    "playerDuration": "プレイヤーの沈黙の持続（秒）。付与側が持続を直接指定するため、現状この値は読まれない"
+  },
+  "enemyDuration": 3,
+  "playerDuration": 1.5
+}

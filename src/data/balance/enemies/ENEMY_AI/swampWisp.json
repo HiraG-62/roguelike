@@ -1,1 +1,6 @@
-{ "speedMul": 2 }
+{
+  "_fields": {
+    "speedMul": "現在どこからも読まれていない値（沼での速さは敵の定義 terrainSpeed が持つ）"
+  },
+  "speedMul": 2
+}

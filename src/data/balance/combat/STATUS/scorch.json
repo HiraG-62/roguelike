@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "duration": "灼熱の持続（秒）",
+    "dpsMul": "灼熱中の燃焼の毎秒ダメージの倍率〔1 = 等倍〕",
+    "spreadRadius": "灼熱が周囲の敵へ燃焼を広げる半径（px）",
+    "spreadInterval": "灼熱の延焼の周期（秒）",
+    "vaporizeMul": "灼熱中の蒸発ダメージの倍率〔1 = 等倍〕"
+  },
   "duration": 4,
   "dpsMul": 2,
   "spreadRadius": 40,

@@ -1,1 +1,8 @@
-{ "perStackSec": 3, "playerMul": 0.25 }
+{
+  "_fields": {
+    "perStackSec": "焼灼で出血を即時ダメージにする倍率。ダメージ = 重ね × max(1, 威力) × 出血の残り秒 × この値",
+    "playerMul": "自分に起きた焼灼のダメージの倍率〔1 = 等倍〕"
+  },
+  "perStackSec": 3,
+  "playerMul": 0.25
+}

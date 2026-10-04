@@ -1,1 +1,12 @@
-{ "duration": 5, "manaPerHit": 1, "silencedMul": 2, "manaPerSecOnKill": 2 }
+{
+  "_fields": {
+    "duration": "吸魔の持続（秒）。付与する側が持続を直接指定するため、現状この値は読まれない",
+    "manaPerHit": "吸魔の敵への命中 1 回で戻る気力",
+    "silencedMul": "沈黙中の敵への命中で戻る気力の倍率〔1 = 等倍〕",
+    "manaPerSecOnKill": "吸魔の敵を倒したとき、吸魔の残り秒 1 秒あたりに戻る気力"
+  },
+  "duration": 5,
+  "manaPerHit": 1,
+  "silencedMul": 2,
+  "manaPerSecOnKill": 2
+}

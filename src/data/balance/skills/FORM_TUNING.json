@@ -1,4 +1,7 @@
 {
   "_note": "変身の共通: 解けた後の反動（SkillRunState.formRecover）の間の移動倍率。反動の秒は変身ごとの recover",
+  "_fields": {
+    "recoverMoveMul": "変身が解けた後の反動の間の移動倍率（1 = 等倍）。反動の秒は変身ごとの recover"
+  },
   "recoverMoveMul": 0.7
 }

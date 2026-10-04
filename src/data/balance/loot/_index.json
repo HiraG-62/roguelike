@@ -2,7 +2,15 @@
   "_note": "装備系の数値。LOOT_DROP はドロップ確率・itemLevel、KEYSTONE/TRIGGER/SYNERGY/RESONANCE はルール文法の効果量、RELIC は名のある遺物の固有の数値、affixCurves は性質の期待値曲線（depth/min/max、%は表示単位）、bases はベースの minLevel（itemLevel）とmarginBonus（余白）",
   "_fields": {
     "bases": "ベースごとの数値。minLevel はドロップし始める itemLevel、marginBonus は余白の上乗せ（器の容量は超えない）",
-    "INNATE": "地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。項目は INNATE/_index.json の _fields"
+    "INNATE": "地金（装備に既定で宿るステータス・防御力・耐性）の予算と配り方。項目は INNATE/_index.json の _fields",
+    "STASH_CAPACITY": "倉庫（装備の stash）に入る装備の最大数。個。超えると拾っても入らない",
+    "ARMOR_K": "防御 / 魔防の軽減の逓減式 値 / (値 + K) の K。大きいほど軽減が伸びにくい。値と同じ単位。K と同じ値で軽減 50%",
+    "ARMOR_MAX_REDUCTION": "防御 / 魔防による被ダメージ軽減の上限。割合（0..1）",
+    "depth": "期待値曲線の点の深度（この深度で、その幅の中央が期待値。点の間は線形補間、最後の点より深ければ外挿）。深度",
+    "min": "その深度での性質の値の下限（表示単位。% など）",
+    "max": "その深度での性質の値の上限（表示単位）",
+    "min2": "2 つ目の値（value2）を持つ性質の、その深度での下限",
+    "max2": "2 つ目の値（value2）を持つ性質の、その深度での上限"
   },
   "STASH_CAPACITY": 400,
   "ARMOR_K": 50,

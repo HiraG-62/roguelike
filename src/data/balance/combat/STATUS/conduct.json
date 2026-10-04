@@ -1,1 +1,10 @@
-{ "radiusMul": 2, "extraTargets": 2, "damage": 4 }
+{
+  "_fields": {
+    "radiusMul": "拡散（濡れた敵への感電）の連鎖の半径の倍率（shockRadius に掛ける）",
+    "extraTargets": "拡散で連鎖の敵の数に足す数（shockMaxTargets に加算）",
+    "damage": "感電に威力が無いときの拡散のダメージ"
+  },
+  "radiusMul": 2,
+  "extraTargets": 2,
+  "damage": 4
+}

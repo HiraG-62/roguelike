@@ -1,1 +1,12 @@
-{ "maxStacks": 5, "duration": 6, "poisePerStack": 0.08, "playerTakenPerStack": 0.03 }
+{
+  "_fields": {
+    "maxStacks": "腐食の重ねの上限",
+    "duration": "腐食の標準の持続（秒）",
+    "poisePerStack": "敵が受ける怯み値の増え。1 重ねあたりの割合〔0.08 = +8%〕",
+    "playerTakenPerStack": "プレイヤーが受けるダメージの増え。1 重ねあたりの割合〔0.03 = +3%〕"
+  },
+  "maxStacks": 5,
+  "duration": 6,
+  "poisePerStack": 0.08,
+  "playerTakenPerStack": 0.03
+}

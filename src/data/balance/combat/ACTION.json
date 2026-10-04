@@ -1,6 +1,21 @@
 {
   "_fields": {
-    "counter": "出端の命中。damageMul = 威力の倍、poiseMul = 怯み値の倍（下絵に絞った報酬。連打でも出た頃の 1 から 1.5 へ）、color / particles = 命中点の粒"
+    "counter": "出端の命中。damageMul = 威力の倍、poiseMul = 怯み値の倍（下絵に絞った報酬。連打でも出た頃の 1 から 1.5 へ）、color / particles = 命中点の粒",
+    "slowmo": "ラストキルのスローの秒",
+    "flash": "ラストキルの画面のフラッシュの強さ〔0..1〕",
+    "color": "演出（粒・輪・浮き文字）の色",
+    "particles": "発動点に散らす粒の数",
+    "textScale": "浮き文字の大きさの倍率〔1 = 等倍〕",
+    "textLife": "浮き文字を出す秒",
+    "textOffsetY": "浮き文字を敵の上へずらす距離（px）",
+    "ringRadius": "広がる輪の半径（px）",
+    "ringLife": "輪を表示する秒",
+    "window": "被弾後に取り戻せる猶予（秒）。切れると取り戻せる分は消え、猶予中の追加被弾は分を足して猶予を延ばす",
+    "perHitRatio": "近接の命中 1 回で取り戻す量。被弾ダメージに対する割合〔0..1〕",
+    "poolRatio": "取り戻せる総量。被弾ダメージに対する割合〔0..1〕",
+    "damage": "壁叩きつけの追加ダメージ",
+    "poise": "壁叩きつけの怯み値（強靭を無視。怯み値の倍率が掛かる）",
+    "hitstop": "壁叩きつけのヒットストップのステップ数（1 ステップ = 1/60 秒）"
   },
   "_note": "アクション手触り（docs/ideas/action-feel.md「まず入れるべき5つ」+ 壁叩きつけ・ダッシュ攻撃）。dashAttack は src/data/balance/weapons.json の ACTION_DASH_ATTACK。表示文言（浮き文字の text）は src/data/actionText.ts に分離し、data/tuning.ts の ACTION が数値と合流する。counter は出端（敵の予告が下絵の間に振り始めた近接 / 撃った放出の弾。docs/ideas/reading-core-impl.md）。威力 damageMul・怯み値 poiseMul（下絵に絞ったので 1 → 1.5）・盾抜け・気力 ×2。頭上の文字は出さず、音・粒・白黒・墨の飛沫で見せる。止めは FEEL.hitstopCounter。lastKill はロック中の部屋で最後の敵を倒した瞬間のスローモーション。regain は被弾後しばらく近接ヒットでHPを取り戻す猶予（perHitRatio は0.15→0.1、poolRatioはC-1で0.6→0.5、memo 2026-09-24で0.5→0.3）。wallSplat は近接3段目などで吹き飛んだ敵が壁に激突（poise は強靭を無視する）。bulletCut は性質 bulletCut で敵弾を消したときの見た目のみ",
   "counter": { "damageMul": 1.5, "poiseMul": 1.5, "color": "#ff9040", "particles": 12 },

@@ -1,1 +1,8 @@
-{ "cooldown": 1.2, "radius": 10 }
+{
+  "_fields": {
+    "cooldown": "被弾したあと胞子（小さな地形）を出す間隔の下限。秒",
+    "radius": "胞子の地形の半径。px"
+  },
+  "cooldown": 1.2,
+  "radius": 10
+}

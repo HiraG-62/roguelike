@@ -1,1 +1,12 @@
-{ "tongueLength": 90, "tongueDamage": 16, "biteSpeedMul": 5, "color": "#e04848" }
+{
+  "_fields": {
+    "tongueLength": "舌（短い光線）の届く長さ。px",
+    "tongueDamage": "舌のダメージ（深度では伸びない固定値）",
+    "biteSpeedMul": "噛みつきの突進の速さ。歩く速さに対する倍率。写本の小悪魔の突進・石化の蜥蜴の噛みつきも同じ値を使う",
+    "color": "現在どこからも読まれていない値"
+  },
+  "tongueLength": 90,
+  "tongueDamage": 16,
+  "biteSpeedMul": 5,
+  "color": "#e04848"
+}

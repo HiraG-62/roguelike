@@ -1,1 +1,12 @@
-{ "distance": 10, "maxStacks": 3, "duration": 4, "poisonMul": 1.5 }
+{
+  "_fields": {
+    "distance": "出血がダメージを入れる移動距離の刻み（px。10px = 1m）。この距離を動くたびに 威力 × 重ね が入る",
+    "maxStacks": "出血の重ねの上限（腐食中は lacerate.extraStacks が足される）",
+    "duration": "出血の標準の持続（秒）",
+    "poisonMul": "毒が付いている間の出血ダメージの倍率〔1 = 等倍〕"
+  },
+  "distance": 10,
+  "maxStacks": 3,
+  "duration": 4,
+  "poisonMul": 1.5
+}

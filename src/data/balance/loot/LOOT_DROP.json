@@ -1,5 +1,19 @@
 {
   "_note": "装備ドロップ（system/loot.ts）。2026-10-02: 装備の持ち込みが右手 + 2 部位になり（CARRY）、残りの部位は空で始まるので、部屋の制圧の報酬の深度 1 を 0.24 → 0.28 に戻した（docs/ideas/run-arc.md 2-3）。「浅いほど出にくい」「通常敵は深度 1 が最も絞られ精鋭より低い」の約束（loot.test.ts）の内側で上げられるのはここまで。階の到着は既に 0.8。足りなければ QA の後に約束ごと決め直す",
+  "_fields": {
+    "depthChanceBonus": "撃破ドロップ確率の、深度 1 つごとの上乗せ（敵ごとの dropChance に足す）。割合（0..1）",
+    "mobDropMulByDepth": "通常敵の撃破ドロップ確率に掛ける倍率の列。添字 0 = 深度 1（表より深ければ最後の値）。倍率",
+    "roamingDropMul": "さまよう敵の撃破ドロップ確率の倍率（通常敵に重ねて掛かる）。倍率",
+    "eliteDropMul": "精鋭の撃破ドロップ確率の倍率（深度の表は掛けない。ボス・巣窟の主は絞らない）。倍率",
+    "roomClearChanceByDepth": "部屋の制圧の報酬が出る確率の列。添字 0 = 深度 1。割合（0..1）",
+    "depthArrivalChance": "階に降りたとき、プレイヤーの少し前に装備が 1 個出る確率。割合（0..1）",
+    "itemLevelSpread": "床の装備の itemLevel を、深度に足す幅（0 〜 これの整数をランダムに足す）。レベル",
+    "rarityBoostPerDepth": "深度ごとの揺らぎの増幅の伸び（現在コードから参照されていない）",
+    "roomClearRarityBoost": "部屋の制圧・特別な報酬の装備の揺らぎの増幅（大きいほど「荒い」遺物が出る）",
+    "depthArrivalRarityBoost": "階の到着ボーナスの装備の揺らぎの増幅",
+    "scatter": "落ちた装備・スキル石が元の位置から弾ける最大の距離。px",
+    "arrivalOffset": "階の到着ボーナスの装備が、プレイヤーの右にずれて出る距離。px"
+  },
   "depthChanceBonus": 0.005,
   "mobDropMulByDepth": [0.2, 0.24, 0.19, 0.24],
   "roamingDropMul": 0.5,

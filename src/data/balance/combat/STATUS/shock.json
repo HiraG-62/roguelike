@@ -1,1 +1,12 @@
-{ "interval": 0.6, "radius": 50, "maxStacks": 3, "duration": 2.5 }
+{
+  "_fields": {
+    "interval": "感電が周囲へ連鎖する周期（秒）",
+    "radius": "感電の連鎖が次の敵を探す半径（px。濡れていれば wet.shockRadiusMul 倍）",
+    "maxStacks": "感電の重ねの上限。ボス以外は上限まで重なると麻痺する",
+    "duration": "感電の持続（秒）"
+  },
+  "interval": 0.6,
+  "radius": 50,
+  "maxStacks": 3,
+  "duration": 2.5
+}

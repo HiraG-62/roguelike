@@ -1,5 +1,14 @@
 {
   "_note": "二度突きの猪(docs/ideas/enemies.md E6)。src/system/enemyBehaviors.ts が読む",
+  "_fields": {
+    "overshoot": "1 本目の突進が、プレイヤーの位置より先まで走る距離。px",
+    "leg1Min": "1 本目の突進の最短の長さ。px",
+    "leg1Max": "1 本目の突進の最長の長さ。px（壁があればその手前で曲がる）",
+    "leg2Len": "2 本目の突進の長さ。px（先の壁には激突する）",
+    "turnDeg": "2 本目へ曲がる角度（度）。左右どちらかは抽選",
+    "lineAlpha": "現在どこからも読まれていない値",
+    "secondAlpha": "現在どこからも読まれていない値"
+  },
   "overshoot": 24,
   "leg1Min": 60,
   "leg1Max": 170,

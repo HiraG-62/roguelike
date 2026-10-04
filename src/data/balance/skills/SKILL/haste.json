@@ -1,5 +1,13 @@
 {
   "_note": "buff は効果量の倍率の係数表（ステータス基礎値で 1。docs/COMBAT_DESIGN.md A-10）",
+  "_fields": {
+    "cooldown": "再使用時間（秒）",
+    "minInterval": "このスロットの連打下限（秒）",
+    "duration": "加速の持続（秒）。刻印符の持続倍率が掛かる",
+    "moveBonus": "移動速度の上乗せ（0.3 = +30%）。buff の効果量が掛かる。加速中はダッシュのチャージが常に満タン",
+    "exhaust": "加速が切れた後にダッシュできない秒（反動）",
+    "buff": "効果量の係数表（ステータスが基礎値で 1。moveBonus に掛かる）"
+  },
   "cooldown": 11,
   "minInterval": 0.3,
   "duration": 3,

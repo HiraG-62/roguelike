@@ -1,4 +1,20 @@
 {
+  "_fields": {
+    "slamRadius": "叩きつけの衝撃波の半径。px",
+    "slamDamage": "叩きつけのダメージ（深度で伸びる基準値）",
+    "slamCoreRatio": "真下の潰しの半径の割合（slamRadius に対して。0..1）。中心に立っていると衝撃波とは別に当たる",
+    "phase2Ratio": "第 2 段階（つらら）へ進む生命の割合（0..1）",
+    "phase3Ratio": "第 3 段階（氷の鎧）へ進む生命の割合（0..1）",
+    "icicleCount": "つららの数（1 つはプレイヤーの足元、残りはその周り）",
+    "icicleRadius": "つらら 1 つの半径。px（影の予告も同じ）",
+    "icicleDamage": "つらら 1 つのダメージ（深度で伸びる基準値）",
+    "icicleFall": "つららが影から落ちるまでの秒（そのまま予備動作になる。深度で縮む）",
+    "icicleSpread": "足元以外のつららが散らばる最大距離。px",
+    "pillarCount": "第 3 段階で立つ氷柱の数（すべて割ると鎧が砕けてダウン）",
+    "pillarDistance": "氷柱を置く巨人からの距離。px（壁に掛かるなら手前へ寄せる）",
+    "armorBreakDown": "鎧が砕けたときのダウンの秒",
+    "color": "つらら・鎧割れの粒・段階の浮き文字の色（#RRGGBB）"
+  },
   "slamRadius": 80,
   "slamDamage": 22,
   "slamCoreRatio": 0.35,

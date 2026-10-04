@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "radius": "プレイヤーの弾を吸い込む範囲。px",
+    "maxShots": "溜められる弾の数の上限",
+    "spreadDeg": "吐き返す扇の広がり（全体の角度。度）",
+    "bulletSpeed": "吐き返す弾の速さ。px/秒",
+    "bulletDamage": "弾 1 発のダメージ（深度で伸びる基準値）",
+    "color": "吸う線・吐き返す弾の色（#RRGGBB）"
+  },
   "radius": 44,
   "maxShots": 8,
   "spreadDeg": 70,

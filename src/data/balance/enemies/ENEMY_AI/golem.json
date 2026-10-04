@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "ringRadius": "衝撃波の輪が広がりきる半径。px",
+    "ringTime": "衝撃波が広がりきるまでの秒",
+    "ringThickness": "衝撃波の当たる縁の幅。px。縁だけに判定があるのでダッシュで抜けられる",
+    "damage": "衝撃波のダメージ（深度で伸びる基準値）",
+    "color": "衝撃波の輪・粒の色（#RRGGBB）"
+  },
   "ringRadius": 70,
   "ringTime": 0.55,
   "ringThickness": 8,

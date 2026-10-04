@@ -1,5 +1,15 @@
 {
   "_note": "地形「泥」「煙」（docs/ideas/enemies.md E2 / V10）",
+  "_fields": {
+    "mud.moveMul": "泥の上の歩きの速度の倍率〔1 = 等倍〕（ダッシュ中は掛からない）",
+    "mud.bakeParalyze": "火で固まった泥のセルに立っていた敵が麻痺する秒（プレイヤーは止まらない）",
+    "mud.bakeColor": "泥が固まったときの粒の色",
+    "mud.bakeParticles": "泥が固まったときに敵 1 体ごとに散らす粒の数",
+    "mud.genMinDepth": "泥が自然配置に出始める深度",
+    "mud.genWeight": "泥が自然配置で選ばれる重み（TERRAIN.gen.weight と同じ尺度）",
+    "smoke.puffColor": "弾が煙に入って消えるときの粒の色",
+    "smoke.puffParticles": "弾が煙に入って消えるときに散らす粒の数"
+  },
   "mud": {
     "moveMul": 0.6,
     "bakeParalyze": 0.6,

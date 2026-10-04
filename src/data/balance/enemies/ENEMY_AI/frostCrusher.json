@@ -1,1 +1,10 @@
-{ "ringRadius": 55, "damage": 30, "color": "#8fd0ff" }
+{
+  "_fields": {
+    "ringRadius": "砕きの衝撃波が広がる半径。px",
+    "damage": "砕きのダメージ（深度で伸びる基準値）",
+    "color": "衝撃波の粒の色（#RRGGBB）"
+  },
+  "ringRadius": 55,
+  "damage": 30,
+  "color": "#8fd0ff"
+}

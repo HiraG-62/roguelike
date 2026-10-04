@@ -1,4 +1,12 @@
 {
+  "_fields": {
+    "range": "睨みの扇の届く距離。px",
+    "arcDeg": "睨みの扇の広がり（全体の角度。度）",
+    "stillSpeed": "これ以下の速さを「止まっている」とみなす。px/秒",
+    "chillEvery": "睨みの中で、止まっているプレイヤーに冷気が付く間隔。秒",
+    "biteTime": "噛みつきの突進が続く秒",
+    "color": "冷気の粒の色（#RRGGBB）"
+  },
   "range": 130,
   "arcDeg": 60,
   "stillSpeed": 12,

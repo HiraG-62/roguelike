@@ -1,4 +1,17 @@
 {
+  "_fields": {
+    "lungeSpeedMul": "突進の速さ。歩く速さに対する倍率",
+    "arrowSpeed": "矢の速さ。px/秒",
+    "arrowDamage": "矢 1 本のダメージ（深度で伸びる基準値）",
+    "arrowCount": "矢の扇の本数（通常）",
+    "arrowSpreadDeg": "矢の扇の広がり（全体の角度。度。激昂中は 2 倍）",
+    "rageArrowCount": "激昂中の矢の扇の本数",
+    "keepAway": "弓の距離。プレイヤーとの距離をこの付近に保つ。px（突進の間は寄る）",
+    "bereavedWindupMul": "相方を失った方の予備動作の倍率（1 超で長い）",
+    "rageRatio": "相方を失ったあと、激昂へ進む生命の割合（0..1）",
+    "rageIntervalMul": "激昂中の攻撃間隔の倍率（1 未満で短い）",
+    "color": "矢・段階の浮き文字の色（#RRGGBB）"
+  },
   "lungeSpeedMul": 6,
   "arrowSpeed": 160,
   "arrowDamage": 10,

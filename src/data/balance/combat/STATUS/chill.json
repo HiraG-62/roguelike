@@ -1,4 +1,11 @@
 {
+  "_fields": {
+    "slowPerStack": "冷気 1 重ねあたりの遅さ。割合〔0..1。0.12 = 12% 遅い〕。maxSlow で頭打ち",
+    "maxStacks": "敵の冷気の重ねの上限。ボス以外は上限まで重なると凍結する",
+    "playerMaxStacks": "プレイヤーの冷気の重ねの上限",
+    "duration": "冷気の標準の持続（秒）。スキル・祝福・地形・反応が付ける冷気に使う",
+    "bossMaxSlow": "ボスの冷気による遅さの上限。割合〔0..1〕"
+  },
   "slowPerStack": 0.12,
   "maxStacks": 5,
   "playerMaxStacks": 3,
