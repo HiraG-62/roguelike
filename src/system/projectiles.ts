@@ -19,10 +19,8 @@ import { applyStatus, inflictOnPlayer } from "./statusEffects";
 import { placeTerrain, swallowedBySmoke } from "./terrain";
 
 const BULLET_KNOCKBACK = 60;
-const BULLET_HITSTOP = 1;
-/** 設置弾の炸裂のノックバックとヒットストップ */
+/** 設置弾の炸裂のノックバック（ヒットストップは FEEL.hitstopBlast） */
 const MINE_KNOCKBACK = 180;
-const MINE_HITSTOP = 2;
 const MINE_PARTICLES = 14;
 const MINE_FX_LIFE = 0.25;
 /** 床で止まったとみなす速さ（これ未満は 0 にする） */
@@ -331,7 +329,7 @@ function detonateMine(state: GameState, pr: Projectile, blastRadius: number): vo
     const out = rollOutgoing(state, e, pr.damage * mul, pr.kind, { attack: pr.attack });
     // 設置弾・曲射の炸裂は直撃（擲弾）扱いで bulletHitHeavy
     damageEnemy(state, e, out.amount, normalize(sub(e.body.pos, pr.pos)), MINE_KNOCKBACK * state.stats.knockbackMul * mul, {
-      hitstopSteps: MINE_HITSTOP,
+      hitstopSteps: FEEL.hitstopBlast,
       kind: pr.kind,
       crit: out.crit,
       poise: (pr.poise ?? 0) * mul,
@@ -404,7 +402,7 @@ function strikeEnemy(state: GameState, pr: Projectile, e: Enemy): number {
   // 食い込んで止まっている弾は速度を持たないので、敵を撃った向き（自分から敵へ）に押す
   const knockDir = length(pr.vel) > 0 ? normalize(pr.vel) : normalize(sub(e.body.pos, state.player.body.pos));
   damageEnemy(state, e, amount, knockDir, BULLET_KNOCKBACK * state.stats.knockbackMul, {
-    hitstopSteps: BULLET_HITSTOP,
+    hitstopSteps: leg?.hitstop ?? pr.hitstop ?? FEEL.hitstopBullet,
     kind: pr.kind,
     crit: out.crit,
     poise: (pr.poise ?? 0) * (leg?.poiseMul ?? 1) * (debana ? ACTION.counter.poiseMul : 1),

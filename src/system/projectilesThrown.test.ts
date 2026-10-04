@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Enemy, GameState, Projectile } from "../core/state";
 import { dist } from "../core/vec";
-import { PLAYER } from "../data/tuning";
+import { FEEL, PLAYER } from "../data/tuning";
 import { FORMS, type FormDef, type FormKey } from "../data/weaponForms";
 import type { ArcDef, ArcLegDef, BulletDef } from "../data/weapons";
 import { bulletDef } from "../loot/bullets";
@@ -191,6 +191,28 @@ describe("弧で飛ぶ 2 枚投げ", () => {
     expect(rings(state).length, "追いついて収まる").toBe(0);
     // 止まっていたときの弧のふくらみ（弦 50 の円弧）を大きく超えない
     expect(maxSide, "外へ広がらない").toBeLessThan(arcBulge(50) * 1.5);
+  });
+
+  it.each([
+    ["弾の hitstop", { hitstop: 0 }, undefined],
+    ["弧の行きの hitstop（弾の値より優先）", { hitstop: 1 }, 0],
+  ])("命中のヒットストップは%sで決まる", (_label, over, legStop) => {
+    const state = arena();
+    // まっすぐ飛ぶ弧にして、正面の敵へ行きで当てる
+    const out = leg({ angleDeg: 0, ...(legStop !== undefined ? { hitstop: legStop } : {}) });
+    const [ring] = throwAt(state, ringShot({ pair: undefined, arc: arcDef({ out, back: leg({ angleDeg: 0 }) }), ...over }), 40);
+    const foe = tough(placeEnemy(state, "boar", 20));
+    for (let t = 0; t < SAFETY_SEC && foe.hp === TOUGH_HP && ring; t += STEP) updateProjectiles(state, STEP);
+    expect(foe.hp, "当たった").toBeLessThan(TOUGH_HP);
+    expect(state.hitstop, "止まらない").toBe(0);
+  });
+
+  it("既定の弾の命中は FEEL.hitstopBullet ぶん止まる", () => {
+    const state = arena();
+    const [ring] = throwAt(state, ringShot({ pair: undefined, arc: arcDef({ out: leg({ angleDeg: 0 }), back: leg({ angleDeg: 0 }) }) }), 40);
+    const foe = tough(placeEnemy(state, "boar", 20));
+    for (let t = 0; t < SAFETY_SEC && foe.hp === TOUGH_HP && ring; t += STEP) updateProjectiles(state, STEP);
+    expect(state.hitstop).toBe(Math.min(FEEL.hitstopBullet, FEEL.hitstopNormalMax));
   });
 
   it("行きと帰りで速さと威力を別に決められる", () => {

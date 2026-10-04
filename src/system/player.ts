@@ -1997,6 +1997,7 @@ export function emitVolley(state: GameState, shot: BulletDef, level: number, aim
         // 放出の弾は撃った時刻を持つ（出端: 撃った時に敵が下絵だったか。system/readTiming.ts）
         ...(override.release ? { release: { ...override.release }, firedAt: state.time } : {}),
         ...(pointBlank ? { pointBlank: true } : {}),
+        ...(shot.hitstop !== undefined ? { hitstop: shot.hitstop } : {}),
       });
     }
   }

@@ -365,8 +365,20 @@
     "pierceBonus": 2,
     "arc": {
       "catchRadius": 6,
-      "out": { "angleDeg": 55, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
-      "back": { "angleDeg": 55, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+      "out": {
+        "angleDeg": 55,
+        "speedMul": 1,
+        "damageMul": 1,
+        "poiseMul": 1,
+        "hitstop": 1
+      },
+      "back": {
+        "angleDeg": 55,
+        "speedMul": 1,
+        "damageMul": 1,
+        "poiseMul": 1,
+        "hitstop": 1
+      }
     },
     "pair": { "offset": 5 }
   },
@@ -384,8 +396,20 @@
     "pierceBonus": 0,
     "arc": {
       "catchRadius": 6,
-      "out": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
-      "back": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+      "out": {
+        "angleDeg": 50,
+        "speedMul": 1,
+        "damageMul": 1,
+        "poiseMul": 1,
+        "hitstop": 1
+      },
+      "back": {
+        "angleDeg": 50,
+        "speedMul": 1,
+        "damageMul": 1,
+        "poiseMul": 1,
+        "hitstop": 1
+      }
     },
     "pair": { "offset": 5 },
     "grind": { "sec": 0.4, "hits": 4 }

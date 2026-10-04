@@ -422,6 +422,8 @@ export interface BulletDef {
   readonly radius: number;
   readonly poiseMul: number;
   readonly recoilMul: number;
+  /** 命中のヒットストップ（ステップ）。省略は FEEL.hitstopBullet。戦輪の弧の区間の hitstop があればそちらが優先 */
+  readonly hitstop?: number;
   /** projectileCount に足す弾数（散弾） */
   readonly pellets: number;
   /** 複数弾の扇の間隔（度） */
@@ -503,13 +505,15 @@ export interface ArcDef {
 
 /**
  * 弧の 1 区間（行き / 帰り）。angleDeg = 飛び出す向きと目標への向きのずれ（度。大きいほど大きな弧。0 は直線、上限は ARC_MAX_DEG）、
- * speedMul = 撃った速さに掛ける、damageMul / poiseMul = この区間の命中の威力 / 怯み値に掛ける
+ * speedMul = 撃った速さに掛ける、damageMul / poiseMul = この区間の命中の威力 / 怯み値に掛ける、
+ * hitstop = この区間の命中のヒットストップ（ステップ。省略は弾の hitstop → FEEL.hitstopBullet）
  */
 export interface ArcLegDef {
   readonly angleDeg: number;
   readonly speedMul: number;
   readonly damageMul: number;
   readonly poiseMul: number;
+  readonly hitstop?: number;
 }
 
 /** 2 枚投げ（BulletDef.pair）。offset = 口元から進む向きに直交する両側へずらす距離（px） */

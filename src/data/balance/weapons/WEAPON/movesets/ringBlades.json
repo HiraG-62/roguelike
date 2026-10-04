@@ -71,8 +71,20 @@
               "arc": {
                 "catchRadius": 6,
                 "range": 34,
-                "out": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
-                "back": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+                "out": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                },
+                "back": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                }
               },
               "look": { "color": "#e0f8ff" }
             },
@@ -139,8 +151,20 @@
               "arc": {
                 "catchRadius": 6,
                 "range": 64,
-                "out": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 },
-                "back": { "angleDeg": 50, "speedMul": 1, "damageMul": 1, "poiseMul": 1 }
+                "out": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                },
+                "back": {
+                  "angleDeg": 50,
+                  "speedMul": 1,
+                  "damageMul": 1,
+                  "poiseMul": 1,
+                  "hitstop": 1
+                }
               },
               "pair": { "offset": 6 },
               "look": { "color": "#ffffff", "trail": "#e0f8ff" }
