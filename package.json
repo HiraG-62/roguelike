@@ -18,6 +18,7 @@
     "audit:docs": "node scripts/audit-agent-docs.mjs",
     "balance:gen": "node scripts/balance-assemble.mjs",
     "balance:fmt": "node scripts/balance-format.mjs",
+    "balance:dict": "node scripts/balance-dict.mjs",
     "fx:gen": "node scripts/fx/gen.mjs",
     "sprite": "node scripts/sprite/cli.mjs",
     "actor:gen": "node scripts/actor/gen.mjs",

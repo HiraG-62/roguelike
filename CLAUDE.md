@@ -130,6 +130,7 @@ CLAUDE.md・`docs/CODE_MAP.md`・`docs/recipes/`・`.claude/agents/`・`.claude/
 | `docs/ARCHITECTURE.md` | データフロー・型の関係・決定性とリプレイ・永続化キー |
 | `docs/AI_WORKFLOW.md` | 設計 → 並列実装 → レビュー → QA → 統合の手順、Agent プロンプト雛形、モデルの使い分け |
 | `docs/BALANCE.md` | バランス数値（JSON）の置き場所と変え方 |
+| `docs/BALANCE_DICTIONARY.md` | バランス数値の全項目の辞書（`_fields` から `npm run balance:dict` で生成） |
 | `docs/STATS_AND_SCALING.md` | ステータスと係数の共通の決まり（武器・スキル・状態異常を足すときに必ず従う） |
 | `docs/DESIGN_PRINCIPLES.md` / `docs/COMBAT_DESIGN.md` / `docs/LOOT_DESIGN.md` | ゲームデザインの原則 / 戦闘設計（攻撃と怯み・ジャンル・属性・ジョブ・気力・回復）/ 装備システムの設計 |
 | `docs/GLOSSARY.md` | 用語と日本語表記の統一 |

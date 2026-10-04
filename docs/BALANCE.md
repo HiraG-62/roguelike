@@ -51,6 +51,8 @@ JSON のパスがそのまま数値の場所になる。`BALANCE.<ディレク�
 
 ## 項目の意味を読む / 書く
 
+**全項目の一覧は `docs/BALANCE_DICTIONARY.md`**（辞書。各 JSON の `_fields` / `_note` から `npm run balance:dict` で生成する。`_fields` を直したら生成し直す。古いと `dictionary.test.ts` が落ちる）。
+
 **読む**: 項目の意味は、同じブロックの先頭にある `_fields` に「項目名 → 説明（意味。単位。目安）」で書いてある。敵のように同じ形の行が並ぶ表では、表の先頭に 1 回だけ書き、行（`slime` など）はそれを引き継ぐ。行の中に `_fields` があれば、その行だけの説明が優先。`swarm.min` のようなドット表記は、行の中の `swarm` の中の `min` を指す。`resist` のようにオブジェクト名だけの説明は、その中の項目全部に効く。
 
 例: スライムの `windup`（`enemies/stats/slime.json` の `windup`）の意味は、`enemies/stats/_index.json` の `_fields.windup` にある。

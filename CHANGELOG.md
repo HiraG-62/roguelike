@@ -389,6 +389,7 @@
 - 銃口の粒を、胸の高さに構えた銃の描いた銃口から出す（閃光・弾と揃える）
 
 ### 整備
+- **バランス数値の辞書**: `docs/BALANCE_DICTIONARY.md` に JSON の全項目の意味を一覧にした。各 JSON の `_fields` から `npm run balance:dict` で生成し、古いとテストが落ちる
 - **バランス数値の JSON を手で調整しやすくする**: 配列の要素すべてに名札 `_id` を付けた（左の連撃は `primary4.heavySlash`、右は `secondary2.starFan2`、ほかに `bleed` / `level2` / `depth8` / `vanguard.elite` など。読み込み時に剥がすので挙動と数値の版は変わらない）。全 JSON を 1 項目 1 行の書式にそろえ、`npm run balance:fmt` で整形する。名札の付け忘れと整形のずれは `balance.test.ts` が落とす
 - **バランス数値の細分化**: `src/data/balance/*.json`（10 ファイル）を `src/data/balance/<分野>/<ブロック>/…` のディレクトリへ分けた（919 ファイル。剣の数値は `weapons/WEAPON/movesets/sword.json`、スライムは `enemies/stats/slime.json` など）。キー順は各ディレクトリの `_index.json` の `_order` で保ち、組み立ては `npm run balance:gen` が生成する `assembled.gen.ts`。数値の版（`BALANCE_HASH`）は分割前と同じ
 - **バランス調整ファイルに項目の説明欄 `_fields`**: 項目ごとに「意味・単位・目安」を書く欄を足し、敵（stats / combat / defense）・ジョブ・世界（部屋・洞窟・徘徊など）の数値を説明した。説明の無い数値の数はファイルごとの基準値で増やさない検査を追加。手引きは `docs/BALANCE.md`「項目の意味を読む / 書く」
