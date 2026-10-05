@@ -21,19 +21,34 @@ const FAST_EXCLUDE = process.env.VITEST_FAST === "1" ? ["src/qa/simulation.test.
 
 /**
  * `pnpm run test:perturb`（scripts/test-perturb.mjs が BALANCE_PERTURB=<倍率> を渡す）で、バランス JSON の小数をすべて倍率で動かして読む。
- * 数値を少し変えただけで落ちるテスト（数値の写し・指紋）を見つけるため（docs/TESTING.md）。整数は個数・フレーム数が多いので動かさない
+ * 数値を少し変えただけで落ちるテスト（数値の写し・指紋）を見つけるため（docs/TESTING.md）。整数は個数・フレーム数が多いので動かさない。
+ * BALANCE_PERTURB_JITTER=1 では項目ごとに 1 ±（倍率 − 1）の範囲でばらばらに動かす（一律だと速さと寿命のような比が保たれ、相対の前提を見逃す）
  */
 const PERTURB = Number(process.env.BALANCE_PERTURB ?? "");
+const JITTER = process.env.BALANCE_PERTURB_JITTER === "1";
 const BALANCE_JSON = /[\\/]src[\\/]data[\\/]balance[\\/].*\.json$/;
 const PERTURB_DIGITS = 6;
 
-function perturbValue(value: unknown, key: string): unknown {
+/** 文字列から [0, 1) の決定的な値（FNV-1a）。jitter の倍率を項目の場所で決め、回すたびに同じにする */
+function unitHash(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h / 0x100000000;
+}
+
+function multiplierAt(path: string): number {
+  if (!JITTER) return PERTURB;
+  const spread = Math.abs(PERTURB - 1);
+  return 1 + spread * (unitHash(path) * 2 - 1);
+}
+
+function perturbValue(value: unknown, key: string, path: string): unknown {
   if (key.startsWith("_")) return value;
-  if (Array.isArray(value)) return value.map((item) => perturbValue(item, ""));
+  if (Array.isArray(value)) return value.map((item, i) => perturbValue(item, "", `${path}[${i}]`));
   if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, perturbValue(v, k)]));
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, perturbValue(v, k, `${path}.${k}`)]));
   }
-  if (typeof value === "number" && !Number.isInteger(value)) return Number((value * PERTURB).toFixed(PERTURB_DIGITS));
+  if (typeof value === "number" && !Number.isInteger(value)) return Number((value * multiplierAt(path)).toFixed(PERTURB_DIGITS));
   return value;
 }
 
@@ -43,7 +58,7 @@ function balancePerturbPlugin(): Plugin {
     enforce: "pre",
     transform(code, id) {
       if (!BALANCE_JSON.test(id)) return null;
-      return { code: JSON.stringify(perturbValue(JSON.parse(code), "")), map: null };
+      return { code: JSON.stringify(perturbValue(JSON.parse(code), "", id.replace(/^.*[\\/]src[\\/]data[\\/]balance[\\/]/, ""))), map: null };
     },
   };
 }

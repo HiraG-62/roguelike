@@ -3,8 +3,9 @@
  * 数値の調整で落ちてよいのは「制約のテスト」だけ。数値の写し・指紋・数値を暗黙の前提にしたテストを見つけるための検査（docs/TESTING.md）。
  * JSON は書き換えない（vitest.config.ts が BALANCE_PERTURB を読み、読み込み時に小数を倍率で動かす）。重い QA シミュレーションは省く。
  *
- * 使い方: node scripts/test-perturb.mjs [--mul 1.1] [テストのファイルやパターン…]
+ * 使い方: node scripts/test-perturb.mjs [--mul 1.1] [--jitter] [テストのファイルやパターン…]
  *   --mul: 小数に掛ける倍率（既定 1.1。下げる向きも見るなら 0.9）
+ *   --jitter: 一律ではなく項目ごとに 1 ±（倍率 − 1）でばらばらに動かす（比を前提にしたテストを見つける。倍率は項目の場所で決まり毎回同じ）
  *   ファイルを渡すとそれだけ回す（並列レーンの担当分の確認）
  * 落ちたテストがあれば非 0 で終わる。
  */
@@ -26,11 +27,13 @@ const mul = mulIndex >= 0 ? argv[mulIndex + 1] ?? DEFAULT_MUL : DEFAULT_MUL;
 const mulValueIndex = mulIndex >= 0 ? mulIndex + 1 : -1;
 const filters = argv.filter((arg, i) => !arg.startsWith("--") && i !== mulValueIndex);
 
+const JITTER = argv.includes("--jitter");
+
 const outFile = path.join(mkdtempSync(path.join(tmpdir(), "perturb-")), "result.json");
 const result = spawnSync(process.execPath, [VITEST, "run", "--reporter=json", `--outputFile=${outFile}`, ...filters], {
   cwd: ROOT,
   stdio: ["ignore", "ignore", "inherit"],
-  env: { ...process.env, BALANCE_PERTURB: mul, VITEST_FAST: "1" },
+  env: { ...process.env, BALANCE_PERTURB: mul, BALANCE_PERTURB_JITTER: JITTER ? "1" : "", VITEST_FAST: "1" },
 });
 if (result.error) {
   console.error(`[perturb] vitest を起動できなかった: ${result.error.message}`);
@@ -48,7 +51,7 @@ for (const file of report.testResults) {
 }
 failedByFile.sort((a, b) => b.failed.length - a.failed.length);
 
-console.log(`倍率 ×${mul}: ${report.numFailedTests} 件 / ${failedByFile.length} ファイルが落ちた（全 ${report.numTotalTests} 件）`);
+console.log(`倍率 ${JITTER ? "1 ±" + Math.abs(Number(mul) - 1).toFixed(2) + "（項目ごと）" : "×" + mul}: ${report.numFailedTests} 件 / ${failedByFile.length} ファイルが落ちた（全 ${report.numTotalTests} 件）`);
 for (const { rel, failed, message } of failedByFile) {
   console.log(`  ${String(failed.length).padStart(4)}  ${rel}`);
   if (message) console.log(`        読み込みで失敗: ${message.split("\n")[0]}`);
