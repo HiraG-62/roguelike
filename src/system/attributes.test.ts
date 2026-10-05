@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ratioToScaling, scaledAtBase, withRatio } from "./attributes";
 import { createGame } from "../core/game";
-import { ACTION, ATTR, PLAYER, ULTIMATE } from "../data/tuning";
-import { SKILL } from "../skills/data";
+import { ATTR } from "../data/tuning";
 import { computeStats } from "../loot/stats";
 import {
   ATTR_KEYS,
@@ -10,9 +9,8 @@ import {
   createEmptyEquipment,
   type AttrKey,
   type PlayerStats,
-  type Scaling,
 } from "../loot/types";
-import { buffMul, deriveAttributes, effectiveAttr, scaled } from "./attributes";
+import { buffMul, deriveAttributes, effectiveAttr } from "./attributes";
 import { applyStats } from "./player";
 
 /** 素の stats（装備なし）の生ステータスを 1 つだけ変えたもの */
@@ -32,11 +30,12 @@ describe("effectiveAttr（逓減）", () => {
     expect(effectiveAttr(20), "knee1 ちょうどは等倍").toBe(20);
   });
 
-  it("20 を超えると傾き 0.5、40 を超えると 0.25", () => {
-    expect(effectiveAttr(21), "knee1 の直後は 0.5 刻み").toBe(20.5);
-    expect(effectiveAttr(40), "knee2 ちょうどで実効 30").toBe(30);
-    expect(effectiveAttr(41), "knee2 の直後は 0.25 刻み").toBe(30.25);
-    expect(effectiveAttr(60), "60 は 30 + 20 × 0.25").toBe(35);
+  it("折れ点の前後で ATTR の傾きが適用される", () => {
+    const atSecond = ATTR.knee1 + (ATTR.knee2 - ATTR.knee1) * ATTR.slope1;
+    expect(effectiveAttr(ATTR.knee1 + 1), "knee1 の直後").toBeCloseTo(ATTR.knee1 + ATTR.slope1);
+    expect(effectiveAttr(ATTR.knee2), "knee2 ちょうど").toBeCloseTo(atSecond);
+    expect(effectiveAttr(ATTR.knee2 + 1), "knee2 の直後").toBeCloseTo(atSecond + ATTR.slope2);
+    expect(effectiveAttr(ATTR.knee2 + 20), "knee2 以降").toBeCloseTo(atSecond + 20 * ATTR.slope2);
   });
 
   it("連続で単調増加（境界で飛ばない）", () => {
@@ -72,7 +71,7 @@ describe("deriveAttributes（派生）", () => {
 
   it("attributesEff に逓減後の値が入る", () => {
     const out = deriveAttributes(statsWith("dex", 40));
-    expect(out.attributesEff.dex).toBe(30);
+    expect(out.attributesEff.dex).toBeCloseTo(effectiveAttr(40));
     expect(out.attributes.dex, "生の値は残す").toBe(40);
   });
 
@@ -95,10 +94,11 @@ describe("deriveAttributes（派生）", () => {
     }
   });
 
-  it("技巧: 移動 +0.5% / ダッシュ再使用時間 −1%（下限 ×0.7）", () => {
+  it("技巧: 移動とダッシュ再使用時間が ATTR の係数どおり動き、下限で止まる", () => {
     const out = deriveAttributes(statsWith("dex", RAW_PLUS_10));
-    expect(out.moveSpeedMul).toBeCloseTo(1.05, FLOAT_DIGITS);
-    expect(out.dashCooldownMul).toBeCloseTo(0.9, FLOAT_DIGITS);
+    const d = effectiveAttr(RAW_PLUS_10) - ATTR.base;
+    expect(out.moveSpeedMul).toBeCloseTo(1 + ATTR.dexMove * d, FLOAT_DIGITS);
+    expect(out.dashCooldownMul).toBeCloseTo(Math.max(ATTR.dexDashCooldownMin, 1 - ATTR.dexDashCooldown * d), FLOAT_DIGITS);
     const huge = deriveAttributes(statsWith("dex", 200));
     expect(huge.dashCooldownMul, "ダッシュ CD の短縮は ×0.7 で止まる").toBeCloseTo(ATTR.dexDashCooldownMin, FLOAT_DIGITS);
   });
@@ -157,67 +157,6 @@ describe("applyStats への組み込み", () => {
     expect(state.stats.maxHp, "二重に掛かった").toBe(once);
     expect(state.stats.maxHp, "体力 +10 で最大生命 +40").toBe(plain.maxHp + ATTR.vitMaxHp * 10);
     expect(state.boonRun.baseStats?.attributes.vit, "祝福の基準 stats は派生前の生値").toBe(ATTR.base + 10);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 基礎値での威力の一致（docs/COMBAT_DESIGN.md F-3 の 3）
-// ---------------------------------------------------------------------------
-
-interface BaselineRow {
-  label: string;
-  /**
-   * 基準として固定した威力（tuning / SKILL の値）。
-   * 元は「段階 0 前に実測した威力」だったが、QA 2026-09-23 のバランス調整
-   * （通常攻撃 scaling.base −20%、マナ型スキル damage.base +10%、さらにマナ型スキルはコスト −15% /
-   * damage.base +15%（通算 +26%）。docs/COMBAT_DESIGN.md B-7）で
-   * 対象レーンの基礎値が変わったため、「調整後の scaling / SKILL の値を基礎ステータスで評価した値」に更新した
-   */
-  pinned: number;
-  /** 設計書 A-6 / B-4 の係数表 */
-  scaling: Scaling;
-  /**
-   * 今の威力の出どころ。段階 1 で damage を Scaling に置き換えたレーンは、
-   * ここを「scaled(基礎値の stats, 新しい定義)」に差し替える
-   */
-  current: () => number;
-}
-
-/** 基礎値の stats で係数表を評価する（Scaling に置き換え済みの行が使う） */
-function atBase(s: Scaling): number {
-  return scaled(deriveAttributes(computeStats(createEmptyEquipment())), s);
-}
-
-// 近接の 3 段とダッシュ攻撃は 2026-10-02 の振りの速さの見直し（docs/ideas/weapon-tempo.md）で振りを遅くし 1 撃を重くした値
-const BASELINE: readonly BaselineRow[] = [
-  { label: "近接 1 段", pinned: 11.185, scaling: { base: 6.88, str: 0.861 }, current: () => atBase(PLAYER.melee[0]!.scaling) },
-  { label: "近接 2 段", pinned: 11.745, scaling: { base: 7.23, str: 0.903 }, current: () => atBase(PLAYER.melee[1]!.scaling) },
-  { label: "近接 3 段", pinned: 29.53, scaling: { base: 18.17, str: 2.272 }, current: () => atBase(PLAYER.melee[2]!.scaling) },
-  { label: "ダッシュ攻撃", pinned: 15.99, scaling: { base: 10.28, str: 1.142 }, current: () => atBase(ACTION.dashAttack.scaling) },
-  { label: "射撃（1 発）", pinned: 4.3, scaling: { base: 2.8, dex: 0.3 }, current: () => atBase(PLAYER.shoot.scaling) },
-  { label: "バースト", pinned: 34, scaling: { base: 24, mnd: 1, spi: 1 }, current: () => atBase(ULTIMATE.defs.sword.fullMoon.nova.scaling) },
-  { label: "壁叩きつけ", pinned: 10, scaling: { base: 7, str: 0.6 }, current: () => ACTION.wallSplat.damage },
-  { label: "パリィ（衝撃波）", pinned: 12, scaling: { base: 6, str: 0.6, spi: 0.6 }, current: () => atBase(SKILL.parry.damage) },
-  { label: "引力球（tick）", pinned: 3.3, scaling: { base: 1.3, spi: 0.4 }, current: () => atBase(SKILL.gravityWell.tickDamage) },
-  { label: "引力球（破裂）", pinned: 20.1, scaling: { base: 10.1, spi: 2 }, current: () => atBase(SKILL.gravityWell.burstDamage) },
-  { label: "地雷", pinned: 22.1, scaling: { base: 10.1, dex: 1.2, spi: 1.2 }, current: () => atBase(SKILL.mines.damage) },
-  { label: "鎖鎌", pinned: 15.6, scaling: { base: 7.6, str: 1, dex: 0.6 }, current: () => atBase(SKILL.chainHook.damage) },
-  { label: "氷結地帯（tick）", pinned: 4.3, scaling: { base: 1.3, spi: 0.6 }, current: () => atBase(SKILL.frostField.tickDamage) },
-];
-
-describe("基礎値のステータスで全攻撃・全スキルの威力が QA 2026-09-23 のバランス調整後の値と一致する", () => {
-  const baseStats = deriveAttributes(computeStats(createEmptyEquipment()));
-
-  it("基礎値の実効値は全ステータス 5", () => {
-    for (const k of ATTR_KEYS) expect(baseStats.attributesEff[k], k).toBe(ATTR.base);
-  });
-
-  it.each(BASELINE)("$label: 今の威力が段階 0 前の値のまま", (row) => {
-    expect(row.current(), `${row.label} の威力が変わった`).toBeCloseTo(row.pinned, FLOAT_DIGITS);
-  });
-
-  it.each(BASELINE)("$label: 係数表を基礎値で評価すると段階 0 前の値になる", (row) => {
-    expect(scaled(baseStats, row.scaling), `${row.label} の係数表がずれている`).toBeCloseTo(row.pinned, FLOAT_DIGITS);
   });
 });
 

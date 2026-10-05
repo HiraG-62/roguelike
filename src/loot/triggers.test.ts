@@ -48,7 +48,7 @@ describe("トリガー文法", () => {
       for (const shape of TRIGGER_GRAMMAR) {
         const effect = rollTriggerEffect(rng, shape, veryHighLevel);
         const spec = EFFECT_SPECS[effect.effect];
-        if (spec.cap !== undefined) expect(effect.magnitude).toBeLessThanOrEqual(spec.cap);
+        if (spec.cap !== undefined) expect(effect.magnitude, `loot.TRIGGER.invulnMax または ${effect.effect} の cap を超えない`).toBeLessThanOrEqual(spec.cap);
       }
     }
   });
@@ -114,7 +114,7 @@ describe("トリガー文法", () => {
       const effect = generateTrigger(rng, 1 + (i % HIGH_LEVEL));
       const roll = triggerToRoll(effect);
       expect(roll.key.startsWith(`tr:${effect.trigger}:${effect.condition}:${effect.effect}`)).toBe(true);
-      expect(decodeTriggerRoll(roll)).toEqual(effect);
+      expect(decodeTriggerRoll(roll), `loot.TRIGGER.invulnMax と ${effect.effect} の表示桁で往復できる`).toEqual(effect);
     }
   });
 
@@ -162,7 +162,7 @@ describe("トリガー文法", () => {
       const shape = shapes[i % shapes.length];
       if (shape === undefined) continue;
       const effect = rollTriggerEffect(rng, shape, 1 + (i % HIGH_LEVEL));
-      expect(effect.magnitude).toBeLessThanOrEqual(TRIGGER.invulnMax);
+      expect(effect.magnitude, "loot.TRIGGER.invulnMax を超えない").toBeLessThanOrEqual(TRIGGER.invulnMax);
     }
   });
 
@@ -170,7 +170,7 @@ describe("トリガー文法", () => {
     const decoded = decodeTriggerRoll({ key: "tr:onHurt:always:invuln", value: 0.9, value2: 400 });
     expect(decoded?.magnitude).toBe(TRIGGER.invulnMax);
     expect(formatTrigger(decoded ?? { trigger: "onHurt", condition: "always", effect: "invuln", magnitude: 0, chance: 0 })).toBe(
-      `被弾時: 40% で${TRIGGER.invulnMax} 秒間無敵になる`,
+      `被弾時: 40% で${TRIGGER.invulnMax.toFixed(1)} 秒間無敵になる`,
     );
   });
 });

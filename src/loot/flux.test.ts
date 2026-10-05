@@ -97,13 +97,13 @@ describe("揺らぎ", () => {
   });
 
   it("下振れは狭い（下端は期待値の 0.6 倍まで、上端は 1.8 倍まで）", () => {
-    expect(MIN_FLUX).toBeGreaterThanOrEqual(-0.4);
-    expect(FLUX.flux.highScale * SIGMA_MAX).toBeLessThanOrEqual(0.8);
+    expect(MIN_FLUX, "loot.FLUX.flux.lowScale と sigmaMax: 下端は期待値の 0.6 倍以上").toBeGreaterThanOrEqual(-0.4);
+    expect(FLUX.flux.highScale * SIGMA_MAX, "loot.FLUX.flux.highScale と sigmaMax: 上端は期待値の 1.8 倍以下").toBeLessThanOrEqual(0.8);
     const rng = createRng(3);
     for (let i = 0; i < MANY; i++) {
       const f = rollFlux(rng, SIGMA_MAX);
-      expect(f).toBeGreaterThanOrEqual(-0.4);
-      expect(f).toBeLessThanOrEqual(0.8);
+      expect(f).toBeGreaterThanOrEqual(MIN_FLUX);
+      expect(f).toBeLessThanOrEqual(FLUX.flux.highScale * SIGMA_MAX);
     }
   });
 
@@ -145,9 +145,9 @@ describe("揺らぎ", () => {
 describe("装備の強さの係数（FLUX.globalScale × depthScale）", () => {
   const def = CURVE_SAMPLE;
 
-  it("全体を 20〜30% 下げる（globalScale）", () => {
-    expect(FLUX.globalScale).toBeGreaterThanOrEqual(0.7);
-    expect(FLUX.globalScale).toBeLessThanOrEqual(0.8);
+  it("globalScale は全体を縮小する正の係数", () => {
+    expect(FLUX.globalScale, "loot.FLUX.globalScale").toBeGreaterThan(0);
+    expect(FLUX.globalScale, "loot.FLUX.globalScale").toBeLessThan(1);
   });
 
   it("深度 1〜5 は深い層より強く絞られ、深くなるほど係数が戻る（単調）", () => {

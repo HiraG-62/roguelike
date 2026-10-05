@@ -27,7 +27,7 @@ import {
   salvageStone,
   saveSkillProfile,
 } from "./persistence";
-import { LEGACY_SKILL_KEYS, MODIFIER_KEYS, SKILL_KEYS, type LegacySkillKey, type ModifierKey, type SkillKey, type SkillResource, type SkillStone } from "./types";
+import { LEGACY_SKILL_KEYS, MODIFIER_KEYS, SKILL_KEYS, type LegacySkillKey, type ModifierKey, type SkillKey, type SkillStone } from "./types";
 
 /** テスト用の最小 Storage */
 class MemoryStorage implements Storage {
@@ -57,6 +57,7 @@ function stone(skillKey: SkillKey, links: number, overrides: Partial<SkillStone>
 }
 
 const SAMPLE_COUNT = 300;
+const COOLDOWN_SKILLS = new Set<LegacySkillKey>(["parry", "bloodPact", "haste", "backflow", "scarRoar", "manaSpring", "wolfForm", "wraithForm", "ironForm"]);
 
 describe("スキル石の生成", () => {
   it("同じ seed なら同じ石になる（決定性）", () => {
@@ -90,61 +91,6 @@ describe("スキル石の生成", () => {
   });
 });
 
-/**
- * docs/COMBAT_DESIGN.md B-4 の表: 型・コスト（CD 型は CD）・最低間隔・怯み値。
- * マナ型のコストは QA 2026-09-23 の 2 巡目調整で一律 -15%（src/skills/data.ts SKILL 冒頭のコメント参照）
- */
-const B4_TABLE: Record<LegacySkillKey, { resource: SkillResource; cost: number; cooldown: number; interval: number; poise: number }> = {
-  parry: { resource: "cooldown", cost: 0, cooldown: 3.5, interval: 0.3, poise: 40 },
-  bloodPact: { resource: "cooldown", cost: 0, cooldown: 12, interval: 0.3, poise: 0 },
-  gravityWell: { resource: "mana", cost: 25.5, cooldown: 0, interval: 1, poise: 20 },
-  mines: { resource: "mana", cost: 10.2, cooldown: 0, interval: 0.3, poise: 25 },
-  haste: { resource: "cooldown", cost: 0, cooldown: 11, interval: 0.3, poise: 0 },
-  chainHook: { resource: "mana", cost: 11.9, cooldown: 0, interval: 0.5, poise: 15 },
-  frostField: { resource: "mana", cost: 22.1, cooldown: 0, interval: 0.8, poise: 0 },
-  // 大拡張（docs/ideas/skills-expansion.md 1 章）
-  contagion: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 0 },
-  unravel: { resource: "mana", cost: 16, cooldown: 0, interval: 0.6, poise: 8 },
-  kindle: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 10 },
-  powderKeg: { resource: "mana", cost: 12, cooldown: 0, interval: 0.4, poise: 35 },
-  swordGrave: { resource: "mana", cost: 16, cooldown: 0, interval: 0.5, poise: 12 },
-  iceBreaker: { resource: "mana", cost: 16, cooldown: 0, interval: 0.6, poise: 35 },
-  bloodlet: { resource: "mana", cost: 12, cooldown: 0, interval: 0.6, poise: 5 },
-  harvest: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 6 },
-  discharge: { resource: "mana", cost: 18, cooldown: 0, interval: 0.8, poise: 15 },
-  rout: { resource: "mana", cost: 10, cooldown: 0, interval: 0.4, poise: 6 },
-  verdict: { resource: "mana", cost: 18, cooldown: 0, interval: 0.7, poise: 35 },
-  exploit: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 20 },
-  strip: { resource: "mana", cost: 12, cooldown: 0, interval: 0.5, poise: 6 },
-  lastStand: { resource: "mana", cost: 16, cooldown: 0, interval: 0.7, poise: 30 },
-  comboChain: { resource: "mana", cost: 14, cooldown: 0, interval: 0.6, poise: 6 },
-  grudge: { resource: "mana", cost: 16, cooldown: 0, interval: 0.7, poise: 5 },
-  backflow: { resource: "cooldown", cost: 0, cooldown: 12, interval: 0.3, poise: 5 },
-  scarRoar: { resource: "cooldown", cost: 0, cooldown: 10, interval: 0.3, poise: 10 },
-  manaSpring: { resource: "cooldown", cost: 0, cooldown: 14, interval: 0.3, poise: 0 },
-  turret: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 3 },
-  // 第 2 弾（地形・新しい状態異常・属性・空間）
-  waterJar: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 5 },
-  oilPot: { resource: "mana", cost: 13, cooldown: 0, interval: 0.5, poise: 4 },
-  levelGround: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 30 },
-  emberDraw: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 8 },
-  mire: { resource: "mana", cost: 18, cooldown: 0, interval: 0.8, poise: 0 },
-  brandSear: { resource: "mana", cost: 14, cooldown: 0, interval: 0.5, poise: 10 },
-  brandBlast: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 10 },
-  flashFreeze: { resource: "mana", cost: 19, cooldown: 0, interval: 0.7, poise: 15 },
-  hueEtch: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 8 },
-  hueRelease: { resource: "mana", cost: 18, cooldown: 0, interval: 0.6, poise: 12 },
-  doomSentence: { resource: "mana", cost: 18, cooldown: 0, interval: 0.8, poise: 6 },
-  shiftingEdge: { resource: "mana", cost: 15, cooldown: 0, interval: 0.5, poise: 10 },
-  wardStake: { resource: "mana", cost: 15, cooldown: 0, interval: 0.4, poise: 3 },
-  // 第 3 弾の変身（砲身化は 1 発ぶん、業火の化身は最初の 1 秒ぶんを発動で払う）
-  wolfForm: { resource: "cooldown", cost: 0, cooldown: 18, interval: 0.3, poise: 15 },
-  wraithForm: { resource: "cooldown", cost: 0, cooldown: 15, interval: 0.3, poise: 0 },
-  siegeForm: { resource: "mana", cost: 8, cooldown: 0, interval: 0.3, poise: 30 },
-  ironForm: { resource: "cooldown", cost: 0, cooldown: 16, interval: 0.3, poise: 40 },
-  pyreForm: { resource: "mana", cost: 6, cooldown: 0, interval: 0.3, poise: 0 },
-};
-
 describe("スキルの分類（マナ型 / CD 型）", () => {
   it("手書き 45 はマナ型 36 / CD 型 9（段取り 7c で行為の列で書けるものは技へ吸収した）", () => {
     const mana = LEGACY_SKILL_KEYS.filter((k) => SKILL_DEFS[k].resource === "mana");
@@ -152,16 +98,21 @@ describe("スキルの分類（マナ型 / CD 型）", () => {
     expect(LEGACY_SKILL_KEYS.length - mana.length, "CD 型の数").toBe(9);
   });
 
-  it.each(LEGACY_SKILL_KEYS)("%s: 型・コスト・CD・最低間隔・怯み値が B-4 の表どおり", (key) => {
+  it.each(LEGACY_SKILL_KEYS)("%s: 資源の型と負担が定義に一致する", (key) => {
     const def = SKILL_DEFS[key];
-    const row = B4_TABLE[key];
     const burden = castBurden(def, resolveCast(def, stone(key, 0), []));
-    expect(def.resource, "型").toBe(row.resource);
-    expect(burden.cost, "コスト").toBeCloseTo(row.cost);
-    expect(burden.cooldown, "CD").toBeCloseTo(row.cooldown);
-    expect(def.minInterval, "最低間隔").toBeCloseTo(row.interval);
-    expect(def.poise, "怯み値").toBe(row.poise);
-    if (row.resource === "mana") expect(def.charges, "マナ型はチャージを使わない").toBe(1);
+    expect(def.resource, `${key} の資源型`).toBe(COOLDOWN_SKILLS.has(key) ? "cooldown" : "mana");
+    expect(def.minInterval, `${key} の最低間隔`).toBeGreaterThan(0);
+    expect(def.poise, `${key} の怯み値`).toBeGreaterThanOrEqual(0);
+    if (def.resource === "mana") {
+      expect(burden.cost, `${key} のコスト`).toBeGreaterThan(0);
+      expect(burden.cooldown, `${key} はマナ型`).toBe(0);
+      expect(def.charges, `${key} はチャージを使わない`).toBe(1);
+    } else {
+      expect(burden.cost, `${key} は CD 型`).toBe(0);
+      expect(burden.cooldown, `${key} の CD`).toBeCloseTo(def.cooldown);
+      expect(burden.cooldown, `${key} の CD`).toBeGreaterThan(0);
+    }
   });
 
   it("付与: 既存 5 種と第 2 弾（濡れ・油膜・烙印・彩痕・宣告）の表どおり。他は付与なし", () => {

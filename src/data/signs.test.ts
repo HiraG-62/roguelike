@@ -97,7 +97,7 @@ describe("符号表: 予告の薄墨・濃墨・朱・胡粉", () => {
 
   it("世界の層で独占する予約色（濃墨・朱）に紛れる色は既知の例外だけ（増やさない。直したら例外から消す）", () => {
     const expected = KNOWN_EXCEPTIONS.map((x) => x.key).sort();
-    expect(clashing()).toEqual(expected);
+    expect(clashing(), "feel.SIGN_CHECK.oklabMinDist / lumaMinDelta と signs.KNOWN_EXCEPTIONS の不一致").toEqual(expected);
   });
 
   it("色替え済みの 2 つ（号令の気・血）は独占する予約色（濃墨・朱）から離れている", () => {

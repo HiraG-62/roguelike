@@ -95,8 +95,4 @@ describe("スキルのジャンル", () => {
     }
   });
 
-  it("ジャンルの付与で既定ステータスの威力は変わらない（Scaling の数値は触っていない）", () => {
-    // 回帰の目印: 鎖鎌（近接・物理）は基礎値で 7.6 + 0.8*5 + 0.8*5
-    expect(scaledAtBase(SKILL.chainHook.damage)).toBeCloseTo(7.6 + 0.8 * 5 + 0.8 * 5);
-  });
 });

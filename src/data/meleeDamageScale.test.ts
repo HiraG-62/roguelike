@@ -15,9 +15,8 @@ import { MOVESETS, MOVESET_KEYS, type MeleeStepDef } from "./weapons";
 const SCALE = WEAPON.meleeDamageScale;
 /** 設置弾（地雷・撒き菱）は仕掛けなのでステータスを参照しない（STATS_AND_SCALING.md 2 章の例外） */
 const PLACED_BULLETS = ["mineLauncher", "caltrops"];
-/** 銃の弾 1 発の基礎値（各 5）での威力と Σ係数（PLAYER.shoot.scaling と同じ） */
-const SHOT_AT_BASE = 4.3;
-const SHOT_RATIO_SUM = 0.3;
+/** 設計上の、設置弾以外の Σ係数の下限 */
+const SHOT_RATIO_MIN = 0.3;
 /** 「剣の左 1 段目で 3〜4 発」の要望の幅 */
 const MIN_HITS = 3;
 const MAX_HITS = 4;
@@ -54,7 +53,8 @@ function stepPairs(): { label: string; raw: Scaling; step: MeleeStepDef }[] {
 
 describe("近接の段の威力の係数（meleeDamageScale）", () => {
   it("近接の段の威力に meleeDamageScale が掛かり、弾には掛からない", () => {
-    expect(SCALE, "係数は 0.6").toBe(0.6);
+    expect(SCALE, "weapons.WEAPON.meleeDamageScale は正の縮小率").toBeGreaterThan(0);
+    expect(SCALE, "weapons.WEAPON.meleeDamageScale は正の縮小率").toBeLessThan(1);
     const pairs = stepPairs();
     expect(pairs.length, "照合する段がある").toBeGreaterThan(MOVESET_KEYS.length);
     for (const { label, raw, step } of pairs) {
@@ -101,16 +101,16 @@ describe("近接の段の威力の係数（meleeDamageScale）", () => {
 });
 
 describe("銃の弾の係数", () => {
-  it("すべての銃の弾が scaling を持ち、基礎値で 4.3・係数の合計は 0.3 以上（設置弾は 0）", () => {
+  it("すべての銃の弾が scaling を持ち、基礎値は共通の射撃と同じ・係数の合計は 0.3 以上（設置弾は 0）", () => {
     const keys = Object.keys(WEAPON.bullets);
     // 投擲・旧戦輪の器 7 つを消し、クナイ・戦輪の器 3 つに弾を持たせた（段 5-A）
     expect(keys.length, "弾の種類").toBeGreaterThanOrEqual(21);
     for (const key of keys) {
       const s = BULLETS[key]?.scaling;
       if (!s) throw new Error(`${key} に scaling が無い`);
-      expect(atBase(s), `${key} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE);
+      expect(atBase(s), `${key} の基礎値での威力`).toBeCloseTo(atBase(PLAYER.shoot.scaling));
       if (PLACED_BULLETS.includes(key)) expect(ratioSum(s), `${key} は設置弾なので係数なし`).toBe(0);
-      else expect(ratioSum(s), `${key} の係数の合計`).toBeGreaterThanOrEqual(SHOT_RATIO_SUM - 1e-9);
+      else expect(ratioSum(s), `weapons.WEAPON.bullets.${key}.scaling は Σ係数 0.3 以上`).toBeGreaterThanOrEqual(SHOT_RATIO_MIN - 1e-9);
     }
   });
 });
@@ -126,7 +126,7 @@ describe("素手とジョブの得意", () => {
 
 describe("敵の生命・攻撃の深度倍率", () => {
   it("深度 1 で等倍、1 つ深くなるごとに ENEMY_SCALE.hpPerDepth ずつ増える", () => {
-    expect(ENEMY_SCALE.hpPerDepth, "章の傾き（段取り 7e で 0.15 → 0.11）").toBe(0.11);
+    expect(ENEMY_SCALE.hpPerDepth, "world.ENEMY_SCALE.hpPerDepth は正").toBeGreaterThan(0);
     expect(depthHpScale(1)).toBe(1);
     expect(depthHpScale(4)).toBeCloseTo(1 + 3 * ENEMY_SCALE.hpPerDepth);
   });

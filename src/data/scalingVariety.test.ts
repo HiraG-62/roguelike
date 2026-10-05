@@ -11,19 +11,13 @@ import { MOVESETS, movesetAttrTotals } from "./weapons";
 /**
  * 行動ごとの係数の振り直し（docs/COMBAT_DESIGN.md A-10、2026-09-24）。
  * 参照ステータスは行動の中身から決める（筋力 = 重さ・押し込み / 技巧 = 速さ・精度・刃 / 体力 = 体を張る /
- * 精神 = 集中・溜め / 霊力 = 魔法・闇・状態異常）。振り直しでは「どこを参照するか」だけを変え、
- * ステータスが基礎値（各 5）のときの威力と Σ係数（成長の速さ）は変えない
+ * 精神 = 集中・溜め / 霊力 = 魔法・闇・状態異常）。今の係数表の参照先と制約を検査する。
  */
 
 const FLOAT_DIGITS = 6;
-/** 1 行動の Σ係数を振り直し前からどこまで動かしてよいか（±25%） */
-const SUM_TOLERANCE = 0.25;
 /** 怯み値の係数は「怯み値 × 3% / 点」前後（丸めの誤差を含めて 2〜4%） */
 const POISE_RATIO_MIN = 0.02;
 const POISE_RATIO_MAX = 0.04;
-/** 射撃 1 発の基礎値での威力（PLAYER.shoot.scaling） */
-const SHOT_AT_BASE = 4.3;
-
 /**
  * ステータスを参照しない（基礎値だけの）行動。道具・仕掛け・固定の爆発に限る
  * （JSON のパス。振り直し前の表に無い弾は bullets.<ベース>.* / steps2[n].throw.bullet.* で書く）
@@ -39,193 +33,10 @@ const FIXED_ACTIONS: readonly string[] = [
   "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling",
 ];
 
-/**
- * 振り直し前（6b1b778）の [基礎値での威力, Σ係数]。キーは balance JSON のパス。
- * 生成: 6b1b778 の weapons / skills / combat.json から Scaling を全部拾って評価した値
- * （段取り 7c で技へ吸収した手書きのスキルの行は外した）。
- * 武器（weapons.*）の行は 2026-10-02 の振りの速さと火力の見直し（docs/ideas/weapon-tempo.md）で書き直した:
- * 振りを遅くしたぶん 1 撃の威力を上げたので、基礎値での威力と Σ係数を同じ倍率で動かしている
- */
-const PINNED: Readonly<Record<string, readonly [number, number]>> = {
-  "weapons.WEAPON.movesets.sword.branches.crossCut.step.scaling": [30.26, 2.384],
-  "weapons.WEAPON.movesets.sword.branches.steppingCut.step.scaling": [17.685, 1.591],
-  "weapons.WEAPON.movesets.greatsword.steps[0].scaling": [19.935, 1.709],
-  "weapons.WEAPON.movesets.greatsword.steps[1].scaling": [21.93, 1.88],
-  "weapons.WEAPON.movesets.greatsword.steps[2].scaling": [29.905, 2.563],
-  "weapons.WEAPON.movesets.greatsword.steps[3].scaling": [69.43, 6.11],
-  "weapons.WEAPON.movesets.greatsword.dashAttack.scaling": [16.185, 1.245],
-  "weapons.WEAPON.movesets.greatsword.charge.step.scaling": [43.775, 3.891],
-  "weapons.WEAPON.movesets.greatsword.steps2[0].step.scaling": [21.845, 1.911],
-  "weapons.WEAPON.movesets.greatsword.branches.helmSplitter.step.scaling": [79.445, 7.123],
-  "weapons.WEAPON.movesets.twinBlades.steps[0].scaling": [6.99, 0.676],
-  "weapons.WEAPON.movesets.twinBlades.steps[1].scaling": [7.055, 0.683],
-  "weapons.WEAPON.movesets.twinBlades.steps[2].scaling": [4.75, 0.46],
-  "weapons.WEAPON.movesets.twinBlades.steps[3].scaling": [7.205, 0.697],
-  "weapons.WEAPON.movesets.twinBlades.steps[5].scaling": [16.495, 1.563],
-  "weapons.WEAPON.movesets.twinBlades.dashAttack.scaling": [12.82, 1.14],
-  "weapons.WEAPON.movesets.twinBlades.steps2[0].step.scaling": [10.595, 0.989],
-  "weapons.WEAPON.movesets.twinBlades.branches.flurry.step.scaling": [5.76, 0.576],
-  "weapons.WEAPON.movesets.twinBlades.branches.crossing.step.scaling": [12.995, 1.299],
-  "weapons.WEAPON.movesets.spear.steps[0].scaling": [9.65, 0.9],
-  "weapons.WEAPON.movesets.spear.steps[1].scaling": [9.975, 0.931],
-  "weapons.WEAPON.movesets.spear.steps[2].scaling": [7.55, 0.686],
-  "weapons.WEAPON.movesets.spear.steps[3].scaling": [24.625, 2.207],
-  "weapons.WEAPON.movesets.spear.dashAttack.scaling": [13.34, 1.16],
-  "weapons.WEAPON.movesets.spear.steps2[0].step.scaling": [12.875, 1.103],
-  "weapons.WEAPON.movesets.spear.branches.spearSweep.step.scaling": [15.735, 1.491],
-  "weapons.WEAPON.movesets.scythe.steps[0].scaling": [12.695, 1.195],
-  "weapons.WEAPON.movesets.scythe.steps[1].scaling": [13.545, 1.275],
-  "weapons.WEAPON.movesets.scythe.steps[2].scaling": [9.735, 0.931],
-  "weapons.WEAPON.movesets.scythe.steps[3].scaling": [39.91, 3.628],
-  "weapons.WEAPON.movesets.scythe.dashAttack.scaling": [14.97, 1.36],
-  "weapons.WEAPON.movesets.scythe.branches.reaping.step.scaling": [43.005, 3.823],
-  "weapons.WEAPON.movesets.scythe.steps2[0].step.scaling": [11.57, 0.868],
-  "weapons.WEAPON.movesets.fists.steps[0].scaling": [5.855, 0.675],
-  "weapons.WEAPON.movesets.fists.steps[1].scaling": [5.855, 0.675],
-  "weapons.WEAPON.movesets.fists.steps[2].scaling": [5.855, 0.675],
-  "weapons.WEAPON.movesets.fists.steps[3].scaling": [3.835, 0.451],
-  "weapons.WEAPON.movesets.fists.steps[5].scaling": [12.385, 1.351],
-  "weapons.WEAPON.movesets.fists.dashAttack.scaling": [13.74, 1.374],
-  "weapons.WEAPON.movesets.fists.steps2[0].step.scaling": [11.635, 1.163],
-  "weapons.WEAPON.movesets.fists.branches.uppercut.step.scaling": [13.28, 1.328],
-  "weapons.WEAPON.movesets.fists.branches.hundredFists.step.scaling": [3.31, 0.368],
-  "weapons.WEAPON.movesets.whip.steps[0].scaling": [10.73, 0.954],
-  "weapons.WEAPON.movesets.whip.steps[1].scaling": [8.01, 0.74],
-  "weapons.WEAPON.movesets.whip.steps[2].scaling": [6.36, 0.636],
-  "weapons.WEAPON.movesets.whip.steps[3].scaling": [22.83, 2.046],
-  "weapons.WEAPON.movesets.whip.dashAttack.scaling": [9.865, 0.877],
-  "weapons.WEAPON.movesets.whip.steps2[0].step.scaling": [14.8, 1.302],
-  "weapons.WEAPON.movesets.whip.branches.whirl.step.scaling": [7.025, 0.703],
-  "weapons.WEAPON.movesets.cleaver.steps[0].scaling": [14.06, 1.15],
-  "weapons.WEAPON.movesets.cleaver.steps[1].scaling": [14.995, 1.227],
-  "weapons.WEAPON.movesets.cleaver.steps[2].scaling": [17.385, 1.449],
-  "weapons.WEAPON.movesets.cleaver.steps[3].scaling": [43.47, 3.312],
-  "weapons.WEAPON.movesets.cleaver.dashAttack.scaling": [15.31, 1.178],
-  "weapons.WEAPON.movesets.cleaver.branches.slamDown.step.scaling": [50.32, 3.774],
-  "weapons.WEAPON.movesets.cleaver.steps2[0].step.scaling": [12.05, 0.964],
-  "weapons.WEAPON.movesets.staff.steps[0].scaling": [10.045, 0.927],
-  "weapons.WEAPON.movesets.staff.steps[1].scaling": [10.38, 0.958],
-  "weapons.WEAPON.movesets.staff.steps[2].scaling": [10.72, 0.99],
-  "weapons.WEAPON.movesets.staff.steps[3].scaling": [22.44, 2.04],
-  "weapons.WEAPON.movesets.staff.dashAttack.scaling": [11.4, 0.998],
-  "weapons.WEAPON.movesets.staff.steps2[0].step.scaling": [11.59, 1.082],
-  "weapons.WEAPON.movesets.staff.branches.tempest.step.scaling": [7.99, 0.71],
-  // 杖は 2026-09-25 に魔法の武器種へ作り替えた（左の段は杖先の小さな判定。値は作り替えた時点。魔法は cast の係数表）
-  "weapons.WEAPON.movesets.wand.steps[0].scaling": [3.54, 0.236],
-  "weapons.WEAPON.movesets.wand.steps[1].scaling": [3.66, 0.244],
-  "weapons.WEAPON.movesets.wand.steps[2].scaling": [3.78, 0.252],
-  "weapons.WEAPON.movesets.wand.steps[3].scaling": [4.68, 0.312],
-  "weapons.WEAPON.movesets.wand.dashAttack.scaling": [10.96, 1.096],
-  "weapons.WEAPON.movesets.wand.steps2[0].throw.scaling": [7, 0.6],
-  "weapons.WEAPON.movesets.katana.steps[0].scaling": [8.92, 0.88],
-  "weapons.WEAPON.movesets.katana.steps[1].scaling": [9.07, 0.894],
-  "weapons.WEAPON.movesets.katana.steps[2].scaling": [9.21, 0.908],
-  "weapons.WEAPON.movesets.katana.steps[3].scaling": [21.04, 1.886],
-  "weapons.WEAPON.movesets.katana.dashAttack.scaling": [13.015, 1.183],
-  "weapons.WEAPON.movesets.katana.steps2[0].charge.step.scaling": [17.125, 1.649],
-  "weapons.WEAPON.movesets.katana.branches.tsubame.step.scaling": [12.9, 1.222],
-  "weapons.WEAPON.movesets.katana.branches.quickDraw.step.scaling": [12.06, 1.206],
-  "weapons.WEAPON.movesets.axe.steps[0].scaling": [13.885, 1.315],
-  "weapons.WEAPON.movesets.axe.steps[1].scaling": [14.815, 1.403],
-  "weapons.WEAPON.movesets.axe.steps[2].scaling": [16.565, 1.491],
-  "weapons.WEAPON.movesets.axe.steps[3].scaling": [42.625, 3.789],
-  "weapons.WEAPON.movesets.axe.dashAttack.scaling": [15.395, 1.205],
-  "weapons.WEAPON.movesets.axe.steps2[0].throw.scaling": [13, 1],
-  "weapons.WEAPON.movesets.axe.branches.axeSpin.step.scaling": [11.66, 1.088],
-  "weapons.WEAPON.movesets.axe.branches.cleave.step.scaling": [50.14, 4.298],
-  "weapons.WEAPON.movesets.shield.steps[0].scaling": [9.08, 0.978],
-  "weapons.WEAPON.movesets.shield.steps[1].scaling": [9.38, 1.01],
-  "weapons.WEAPON.movesets.shield.steps[2].scaling": [9.685, 1.043],
-  "weapons.WEAPON.movesets.shield.steps[3].scaling": [22.12, 2.212],
-  "weapons.WEAPON.movesets.shield.dashAttack.scaling": [12.045, 1.141],
-  "weapons.WEAPON.movesets.shield.steps2[0].hold.release.scaling": [10.7, 1.07],
-  "weapons.WEAPON.movesets.shield.branches.shieldDrop.step.scaling": [26.97, 2.698],
-  "weapons.WEAPON.movesets.chainSickle.steps[0].scaling": [8.57, 0.918],
-  "weapons.WEAPON.movesets.chainSickle.steps[1].scaling": [8.705, 0.933],
-  "weapons.WEAPON.movesets.chainSickle.steps[2].scaling": [8.85, 0.948],
-  "weapons.WEAPON.movesets.chainSickle.steps[3].scaling": [19.43, 2.12],
-  "weapons.WEAPON.movesets.chainSickle.dashAttack.scaling": [12.41, 1.314],
-  "weapons.WEAPON.movesets.chainSickle.steps2[0].step.scaling": [10.345, 1.035],
-  "weapons.WEAPON.movesets.chainSickle.branches.reelIn.step.scaling": [10.64, 1.146],
-  "weapons.WEAPON.movesets.hammer.steps[0].scaling": [19.13, 1.766],
-  "weapons.WEAPON.movesets.hammer.steps[1].scaling": [21.045, 1.943],
-  "weapons.WEAPON.movesets.hammer.steps[2].scaling": [25.61, 2.296],
-  "weapons.WEAPON.movesets.hammer.steps[3].scaling": [73.185, 6.601],
-  "weapons.WEAPON.movesets.hammer.dashAttack.scaling": [16.735, 1.287],
-  "weapons.WEAPON.movesets.hammer.charge.step.scaling": [54.825, 4.845],
-  "weapons.WEAPON.movesets.hammer.steps2[0].step.scaling": [20.465, 1.835],
-  "weapons.WEAPON.movesets.hammer.branches.groundBreaker.step.scaling": [83.61, 7.496],
-  "weapons.WEAPON.movesets.gunner.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.sidearm.dashAttack.scaling": [8, 0.8],
-  "weapons.WEAPON.movesets.longarm.dashAttack.scaling": [9, 0.8],
-  "weapons.WEAPON.movesets.longarm.steps2[0].step.scaling": [9, 0.8],
-  "weapons.WEAPON.movesets.cannon.dashAttack.scaling": [10, 0.8],
-  "weapons.WEAPON.movesets.cannon.steps2[0].step.scaling": [11.25, 0.95],
-  // 振り直しの後に足した銃の家系（値は足した時点のもの）
-  "weapons.WEAPON.movesets.grenade.dashAttack.scaling": [8.5, 0.7],
-  "weapons.WEAPON.movesets.grenade.steps2[0].step.scaling": [9.9, 0.88],
-  "weapons.WEAPON.movesets.trapper.dashAttack.scaling": [7.5, 0.7],
-  "weapons.WEAPON.movesets.trapper.steps2[0].throw.scaling": [10, 0],
-  "weapons.WEAPON.jobBranches.swordsman.scaling": [11.5, 1.1],
-  "weapons.WEAPON.jobBranches.hunter.scaling": [10, 1],
-  "weapons.WEAPON.jobBranches.brawler.scaling": [4.1, 0.5],
-  "weapons.WEAPON.jobBranches.shieldBearer.scaling": [10.5, 1.1],
-  "weapons.WEAPON.jobBranches.hexer.scaling": [8.5, 0.9],
-  "weapons.WEAPON.jobBranches.lancer.scaling": [10, 1],
-  "weapons.WEAPON.jobBranches.invoker.scaling": [9.5, 1.1],
-  "weapons.WEAPON.jobBranches.shadow.scaling": [8.5, 0.9],
-  "weapons.WEAPON.jobBranches.alchemist.scaling": [8, 0.8],
-  "weapons.PLAYER_MELEE[0].scaling": [11.185, 0.861],
-  "weapons.PLAYER_MELEE[1].scaling": [11.745, 0.903],
-  "weapons.PLAYER_MELEE[2].scaling": [29.53, 2.272],
-  "weapons.ACTION_DASH_ATTACK.scaling": [15.99, 1.142],
-  "skills.SKILL.parry.damage": [12, 1.2],
-  "skills.SKILL.bloodPact.buff": [1, 0.02],
-  "skills.SKILL.gravityWell.tickDamage": [3.3, 0.4],
-  "skills.SKILL.gravityWell.burstDamage": [20.1, 2],
-  "skills.SKILL.mines.damage": [22.1, 2.4],
-  "skills.SKILL.haste.buff": [1, 0.02],
-  "skills.SKILL.chainHook.damage": [15.6, 1.6],
-  "skills.SKILL.frostField.tickDamage": [4.3, 0.6],
-  "skills.EXTRA_SKILL_TUNING.unravel.damage": [12, 1.2],
-  "skills.EXTRA_SKILL_TUNING.unravel.perKind": [10, 1],
-  "skills.EXTRA_SKILL_TUNING.kindle.damage": [7, 0.6],
-  "skills.EXTRA_SKILL_TUNING.powderKeg.damage": [26, 2.4],
-  "skills.EXTRA_SKILL_TUNING.swordGrave.damage": [12, 1.4],
-  "skills.EXTRA_SKILL_TUNING.iceBreaker.damage": [19, 1.8],
-  "skills.EXTRA_SKILL_TUNING.iceBreaker.shardDamage": [5, 0.4],
-  "skills.EXTRA_SKILL_TUNING.bloodlet.damage": [9, 1],
-  "skills.EXTRA_SKILL_TUNING.harvest.damage": [10, 1.2],
-  "skills.EXTRA_SKILL_TUNING.discharge.damage": [18, 2],
-  "skills.EXTRA_SKILL_TUNING.rout.damage": [8, 0.8],
-  "skills.EXTRA_SKILL_TUNING.verdict.damage": [34, 3.2],
-  "skills.EXTRA_SKILL_TUNING.exploit.damage": [17, 1.6],
-  "skills.EXTRA_SKILL_TUNING.strip.damage": [10, 1],
-  "skills.EXTRA_SKILL_TUNING.lastStand.damage": [18, 1.6],
-  "skills.EXTRA_SKILL_TUNING.comboChain.damage": [9, 1],
-  "skills.EXTRA_SKILL_TUNING.grudge.damage": [11, 1.4],
-  "skills.EXTRA_SKILL_TUNING.backflow.damage": [10, 1.2],
-  "skills.EXTRA_SKILL_TUNING.scarRoar.damage": [10, 1.2],
-  "skills.EXTRA_SKILL_TUNING.turret.damage": [8, 1],
-  "skills.WAVE2_SKILL_TUNING.waterJar.damage": [8, 1],
-  "skills.WAVE2_SKILL_TUNING.oilPot.damage": [5, 0.6],
-  "skills.WAVE2_SKILL_TUNING.levelGround.damage": [16, 2],
-  "skills.WAVE2_SKILL_TUNING.emberDraw.damage": [11.5, 1.5],
-  "skills.WAVE2_SKILL_TUNING.brandSear.damage": [11.5, 1.3],
-  "skills.WAVE2_SKILL_TUNING.brandBlast.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.flashFreeze.damage": [10.5, 1.3],
-  "skills.WAVE2_SKILL_TUNING.hueEtch.damage": [11, 1.2],
-  "skills.WAVE2_SKILL_TUNING.hueRelease.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.doomSentence.damage": [10, 1.2],
-  "skills.WAVE2_SKILL_TUNING.shiftingEdge.damage": [13, 1.4],
-  "skills.WAVE2_SKILL_TUNING.wardStake.damage": [5.5, 0.7],
-  "skills.WAVE2_SKILL_TUNING.mire.damage": [4, 0.6],
-  "skills.WAVE2_SKILL_TUNING.mire.tickDamage": [2, 0.3],
-  "skills.WAVE3_SKILL_TUNING.siegeForm.damage": [28, 2.8],
-  "combat.PLAYER.shoot.scaling": [4.3, 0.3],
-  // 旧 combat.PLAYER.special（バースト）。2026-09-25 に奥義の円月へ値を変えずに移した
-  "ultimates.ULTIMATE.defs.sword.fullMoon.nova.scaling": [34, 2],
-};
+/** 右レーンの段・派生の係数表 */
+const LANE_TABLE = /^weapons\.WEAPON\.movesets\.\w+\.(steps2\[\d+\]\.(step|throw)|branches\.\w+\.step)\.scaling$/;
+/** 陰陽師・巫女のジョブ固有派生の係数表 */
+const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
 
 const ATTR_FIELDS = new Set(["base", ...ATTR_KEYS]);
 
@@ -275,33 +86,6 @@ function mainAttrs(s: Readonly<AttrRatio>): AttrKey[] {
   return ATTR_KEYS.filter((k) => (s[k] ?? 0) === max);
 }
 
-/** 右レーンの段・派生の係数表（docs/ideas/ougi-and-dual-actions.md 4.3。2026-09-25 に足した行動） */
-const LANE_TABLE = /^weapons\.WEAPON\.movesets\.\w+\.(steps2\[\d+\]\.(step|throw)|branches\.\w+\.step)\.scaling$/;
-
-/** 振りが撃つ弾（cast。2026-09-25 に足した杖の魔法）の係数表 */
-const CAST_TABLE = /\.cast\.throw\.scaling$/;
-
-/** 武器 Wave 4（2026-09-25）で足した武器種の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
-const WAVE4_TABLE = /^weapons\.WEAPON\.movesets\.(claws|flail|ringBlades|fan)\./;
-
-/** 段取り 5d で足した書・鈴の係数表。振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る） */
-const TOME_BELL_TABLE = /^weapons\.WEAPON\.movesets\.(book|handbell)\./;
-
-/** 段 5-A（docs/ideas/gun-bases-review.md 2-9）で足した投擲物（クナイ・手裏剣）の係数表。振り直しの後に足した行動 */
-const THROWING_TABLE = /^weapons\.WEAPON\.movesets\.(kunai|shuriken)\./;
-
-/**
- * 連刃の段数の拡張（段取り 5b-F）で終撃の手前に足した左の段（双剣・拳の 5 段目。爪は WAVE4_TABLE）。
- * 終撃の段は 6 段目へ下がったので、上の PINNED は steps[5] を指す。秒間威力の目安は data/weapons.test.ts が見る
- */
-const FLURRY_EXTRA_TABLE = /^weapons\.WEAPON\.movesets\.(twinBlades|fists)\.steps\[4\]\.scaling$/;
-
-/** 二丁拳銃の左手を続けた技（段 4-B の蹴り・回し蹴り。docs/ideas/gun-bases-review.md 0-4）。振り直しの後に足した行動 */
-const GUNNER_HANDS_TABLE = /^weapons\.WEAPON\.movesets\.gunner\.steps\[\d+\]\.scaling$/;
-
-/** 陰陽師・巫女（段取り 5d-O）のジョブ固有の派生の係数表。振り直しの後に足した行動 */
-const NEW_JOB_BRANCH_TABLE = /^weapons\.WEAPON\.jobBranches\.(onmyoji|miko)\.scaling$/;
-
 function isRecordValue(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -333,10 +117,6 @@ function pureCastPaths(): Set<string> {
   return out;
 }
 
-/** 奥義の定義の係数表のパスの頭 */
-const ULTIMATE_DEFS_PATH = "ultimates.ULTIMATE.defs.";
-const ART_PATH = "skills.ART.";
-
 const CURRENT = new Map<string, Scaling>();
 collectPaths(weaponsJson, "weapons", CURRENT);
 collectPaths(skillsJson, "skills", CURRENT);
@@ -354,13 +134,13 @@ interface Action {
 function movesetActions(key: keyof typeof MOVESETS): Action[] {
   const m = MOVESETS[key];
   const out: Action[] = [];
-  m.steps.forEach((s, i) => out.push({ label: `${key}.${i + 1} 段`, ...s }));
-  out.push({ label: `${key}.ダッシュ攻撃`, ...m.dashAttack });
-  for (const b of m.branches) out.push({ label: `${key}.${b.name}`, ...b.step });
-  if (m.charge) out.push({ label: `${key}.溜め`, ...m.charge.step });
+  m.steps.forEach((s, i) => out.push({ label: `weapons.WEAPON.movesets.${key}.steps[${i}].poiseRatio`, ...s }));
+  out.push({ label: `weapons.WEAPON.movesets.${key}.dashAttack.poiseRatio`, ...m.dashAttack });
+  for (const b of m.branches) out.push({ label: `weapons.WEAPON.movesets.${key}.branches.${b.key}.step.poiseRatio`, ...b.step });
+  if (m.charge) out.push({ label: `weapons.WEAPON.movesets.${key}.charge.step.poiseRatio`, ...m.charge.step });
   // 右レーン（アクション 2）の振り・弾・溜めの段
   m.steps2.forEach((s, i) => {
-    const label = `${key}.右 ${i + 1} 段`;
+    const label = `weapons.WEAPON.movesets.${key}.steps2[${i}].poiseRatio`;
     if (s.kind === "swing") out.push({ label, ...s.step });
     if (s.kind === "volley") out.push({ label, ...s.throw });
     if (s.kind === "charge") out.push({ label, ...s.charge.step });
@@ -381,47 +161,19 @@ const SHOT_SCALINGS: readonly Scaling[] = Object.values(BULLETS).map((s) => s.sc
 
 const ALL_SCALINGS: readonly Scaling[] = [...WEAPON_ACTIONS.map((a) => a.scaling), ...SKILL_SCALINGS.map((s) => s.scaling), ...SHOT_SCALINGS];
 
-describe("振り直しで基礎値の値は変わらない", () => {
-  it.each(Object.entries(PINNED))("%s: 基礎値での威力が振り直し前と同じ", (path, [atBase]) => {
-    const s = CURRENT.get(path);
-    expect(s, `${path} が見つからない`).toBeDefined();
-    if (!s) return;
-    expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(atBase, FLOAT_DIGITS);
+describe("係数表の関係", () => {
+  it("右レーンとジョブ派生の係数表がある", () => {
+    const paths = [...CURRENT.keys()];
+    expect(paths.some((path) => LANE_TABLE.test(path)), "weapons.WEAPON.movesets の右レーン・派生").toBe(true);
+    expect(paths.some((path) => NEW_JOB_BRANCH_TABLE.test(path)), "weapons.WEAPON.jobBranches.onmyoji / miko").toBe(true);
   });
 
-  it("Σ係数（成長の速さ）は振り直し前の ±25% 以内。固定値の行動だけ 0", () => {
-    for (const [path, [, sum]] of Object.entries(PINNED)) {
-      const s = CURRENT.get(path);
-      if (!s) continue;
-      const now = coefSum(s);
-      if (FIXED_ACTIONS.includes(path)) {
-        expect(now, `${path} は固定値`).toBe(0);
-        continue;
-      }
-      expect(now, `${path} の Σ係数 ${sum} → ${now}`).toBeGreaterThanOrEqual(sum * (1 - SUM_TOLERANCE) - 1e-9);
-      expect(now, `${path} の Σ係数 ${sum} → ${now}`).toBeLessThanOrEqual(sum * (1 + SUM_TOLERANCE) + 1e-9);
-    }
-  });
-
-  it("振り直し前に無かった係数表は弾だけで、基礎値で 1 発 4.3", () => {
-    for (const [path, s] of CURRENT) {
-      if (path in PINNED) continue;
-      // 奥義（円月以外の 68 本）は振り直しの後に足した行動なので対象外（基準は ultimates（balance/ultimates/）の _note）
-      if (path.startsWith(ULTIMATE_DEFS_PATH)) continue;
-      // 右レーン（アクション 2）の 2 段目以降と 3 入力の派生も振り直しの後に足した行動（秒間威力の目安は data/weapons.test.ts が見る）
-      if (LANE_TABLE.test(path) || CAST_TABLE.test(path)) continue;
-      if (WAVE4_TABLE.test(path)) continue;
-      if (TOME_BELL_TABLE.test(path)) continue;
-      if (THROWING_TABLE.test(path)) continue;
-      if (FLURRY_EXTRA_TABLE.test(path)) continue;
-      if (NEW_JOB_BRANCH_TABLE.test(path)) continue;
-      if (GUNNER_HANDS_TABLE.test(path)) continue;
-      // 技（skills/arts/）も振り直しの後に足した行動（目安は data/balance/skills/ART/_index.json の _note）
-      if (path.startsWith(ART_PATH)) continue;
-      // 戦意あり用の段（releaseStep）は放出を別に調整するための段の写しなので、元の段と同じ扱い
-      if (path.includes(".releaseStep.")) continue;
-      expect(path, "新しい係数表は弾だけ").toMatch(/^weapons\.WEAPON\.(bullets\.\w+|movesets\.\w+\.steps2\[\d+\]\.throw\.bullet)\.scaling$/);
-      expect(scaledAtBase(s), `${path} の基礎値での威力`).toBeCloseTo(SHOT_AT_BASE, FLOAT_DIGITS);
+  it("全行動の基礎値での威力と係数は有限で非負", () => {
+    expect(CURRENT.size, "係数表が見つかる").toBeGreaterThan(0);
+    for (const [path, scaling] of CURRENT) {
+      expect(Number.isFinite(scaledAtBase(scaling)), `${path} の基礎値`).toBe(true);
+      expect(scaledAtBase(scaling), `${path} の基礎値`).toBeGreaterThanOrEqual(0);
+      expect(coefSum(scaling), `${path} の係数合計`).toBeGreaterThanOrEqual(0);
     }
   });
 

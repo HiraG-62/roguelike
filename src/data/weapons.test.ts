@@ -53,25 +53,19 @@ const MIN_BRANCH_INPUTS = 3;
 const FEW_BRANCHES: Readonly<Partial<Record<MovesetKey, number>>> = { kunai: 2, shuriken: 0, gunner: 0 };
 /** 左右の同じ段番号の秒間威力（基礎値）の比の許容（右は重い・広い寄りなので目安から ±40%） */
 const LANE_DPS_TOLERANCE = 0.4;
-/**
- * 基礎値（各 5）での現行の威力（docs/COMBAT_DESIGN.md A-6。2026-10-02 の振りの速さの見直し docs/ideas/weapon-tempo.md の値）。
- * 近接の段は復元時に WEAPON.meleeDamageScale が掛かるので、係数表の値に同じ倍率を掛けたもの
- */
-const SWORD_PINNED = [11.185, 11.745, 29.53].map((v) => v * WEAPON.meleeDamageScale);
-const DASH_PINNED = 15.99 * WEAPON.meleeDamageScale;
-
+/** 基礎値のステータスで係数表を評価する */
 const atBase = (s: Parameters<typeof scaled>[1]): number => scaled(DEFAULT_STATS, s);
 
 /**
- * 振りの速さの段（docs/ideas/weapon-tempo.md。2026-10-02）: 速い順。windup0 は 1 段目の予備動作の目安（秒）。
+ * 振りの速さの段（docs/ideas/weapon-tempo.md。2026-10-02）: 速い順。
  * 速い武器は当てやすいぶん 1 撃が軽く、遅い武器は 1 撃が重く終撃が跳ね上がる
  */
-const TEMPO_TIERS: readonly { name: string; windup0: number; keys: readonly MovesetKey[] }[] = [
-  { name: "最速", windup0: 0.06, keys: ["fists", "claws", "shuriken"] },
-  { name: "速", windup0: 0.08, keys: ["twinBlades", "chainSickle", "katana", "fan"] },
-  { name: "中", windup0: 0.12, keys: ["sword", "spear", "staff", "whip", "handbell", "book", "wand", "shield"] },
-  { name: "重", windup0: 0.2, keys: ["scythe", "axe", "cleaver", "flail"] },
-  { name: "最重", windup0: 0.36, keys: ["greatsword", "hammer"] },
+const TEMPO_TIERS: readonly { name: string; keys: readonly MovesetKey[] }[] = [
+  { name: "最速", keys: ["fists", "claws", "shuriken"] },
+  { name: "速", keys: ["twinBlades", "chainSickle", "katana", "fan"] },
+  { name: "中", keys: ["sword", "spear", "staff", "whip", "handbell", "book", "wand", "shield"] },
+  { name: "重", keys: ["scythe", "axe", "cleaver", "flail"] },
+  { name: "最重", keys: ["greatsword", "hammer"] },
 ];
 
 /** 右レーンの振りの段 */
@@ -265,13 +259,13 @@ describe("武器種の定義", () => {
     const sword = MOVESETS.sword;
     expect(sword.steps.length).toBe(PLAYER.melee.length);
     sword.steps.forEach((step, i) => {
-      expect(atBase(step.scaling), `${i + 1} 段目の威力`).toBeCloseTo(SWORD_PINNED[i] ?? 0);
+        expect(atBase(step.scaling), `${i + 1} 段目の威力`).toBeCloseTo(atBase(PLAYER.melee[i]!.scaling) * WEAPON.meleeDamageScale);
       expect(step.poise, `${i + 1} 段目の怯み値`).toBe(PLAYER.melee[i]?.poise);
       expect(step.reach, `${i + 1} 段目のリーチ`).toBe(PLAYER.melee[i]?.reach);
       expect(step.mana, `${i + 1} 段目のマナ`).toBe(MANA.onMelee[i] ?? 0);
       expect(step.shape.kind, "剣は箱の判定").toBe("box");
     });
-    expect(atBase(sword.dashAttack.scaling), "ダッシュ攻撃の威力").toBeCloseTo(DASH_PINNED);
+      expect(atBase(sword.dashAttack.scaling), "ダッシュ攻撃の威力").toBeCloseTo(atBase(ACTION.dashAttack.scaling) * WEAPON.meleeDamageScale);
     expect(sword.dashAttack.reach).toBe(ACTION.dashAttack.reach);
     expect(sword.dashAttack.mana).toBe(MANA.onDashAttack);
     expect(sword.attackMoveMul).toBe(PLAYER.attackMoveMul);
@@ -568,28 +562,27 @@ describe("右レーンの 1 段目（旧固有技。docs/ideas/weapon-redesign.m
     expect(usesProjectiles(MOVESETS.sidearm)).toBe(true);
   });
 
-  it("振りの速さの段（docs/ideas/weapon-tempo.md）: 1 段目の予備動作が段の目安どおりで、遅い段ほど 1 撃と終撃が重い", () => {
+  it("振りの速さの段（docs/ideas/weapon-tempo.md）: 遅い段ほど予備動作が長く、1 撃と終撃が重い", () => {
     const hit = (s: MeleeStepDef): number => atBase(s.scaling) * (s.hits ?? 1);
     const mean = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
-    let prev: { first: number; finisher: number } | undefined;
+    let prev: { windup: number; first: number; finisher: number } | undefined;
     for (const tier of TEMPO_TIERS) {
-      for (const key of tier.keys) {
-        expect(MOVESETS[key].steps[0]?.windup, `${key} の 1 段目の予備動作`).toBeCloseTo(tier.windup0, 2);
-      }
+      const windup = mean(tier.keys.map((key) => MOVESETS[key].steps[0]!.windup));
       // 詠唱で撃つ武器種（書・杖）は弾が威力を持つので、振りの重さの比べから外す
       const swung = tier.keys.filter((k) => !MOVESETS[k].steps.some((s) => s.cast !== undefined));
       const first = mean(swung.map((k) => hit(MOVESETS[k].steps[0]!)));
       const finisher = mean(swung.map((k) => hit(MOVESETS[k].steps[MOVESETS[k].steps.length - 1]!)));
       if (prev) {
+        expect(windup, `${tier.name} の予備動作は前の段より長い`).toBeGreaterThan(prev.windup);
         expect(first, `${tier.name} の 1 段目の 1 撃は前の段より重い`).toBeGreaterThan(prev.first);
         expect(finisher, `${tier.name} の終撃は前の段より重い`).toBeGreaterThan(prev.finisher);
       }
-      prev = { first, finisher };
+      prev = { windup, first, finisher };
     }
     for (const key of MOVESET_KEYS) {
       const def = MOVESETS[key];
       for (const s of [...def.steps, def.dashAttack, ...def.branches.map((b) => b.step), ...rightSwings(key)]) {
-        expect(s.windup, `${key} の windup は 2 ステップ以上`).toBeGreaterThanOrEqual(0.02);
+          expect(s.windup, `weapons.WEAPON.movesets.${key} の windup は 2 ステップ以上`).toBeGreaterThanOrEqual(0.02);
       }
     }
   });

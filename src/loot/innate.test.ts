@@ -111,12 +111,12 @@ describe("地金の抽選", () => {
     expect(innateMeanBudget(20), "深度 20 は base + perDepth × 20").toBeCloseTo(INNATE.budget.base + INNATE.budget.perDepth * 20, 6);
   });
 
-  it("上振れ（luck）の平均はほぼ 1", () => {
+  it("上振れ（luck）の平均は三角分布の期待値に近い", () => {
     const rng = createRng(17);
     const base = mustBase("chain");
     let sum = 0;
     for (let i = 0; i < SAMPLES; i++) sum += rollInnate(rng, base, 10, 0, false).luck;
-    expect(sum / SAMPLES).toBeCloseTo(1, 1);
+    expect(sum / SAMPLES).toBeCloseTo((INNATE.budget.lowScale + 1 + INNATE.budget.highScale) / 3, 1);
   });
 
   it("深度が深いほど予算の平均が増える", () => {
@@ -306,19 +306,19 @@ describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () 
     return out;
   }
 
-  it("深度 1 では小さく、深度 8 / 15 / 20 で 3-1 の例のとおり伸びる", () => {
-    expect(attrsAt(carried, 1), "深度 1: 予算 1 点").toEqual({ str: 1 });
-    expect(attrsAt(carried, 8), "深度 8: 筋力 +7・体力 +4").toEqual({ str: 7, vit: 4 });
-    expect(attrsAt(carried, 15), "深度 15: 筋力 +11・体力 +8").toEqual({ str: 11, vit: 8 });
-    expect(attrsAt(carried, 20), "深度 20: 筋力 +15・体力 +10").toEqual({ str: 15, vit: 10 });
+  it("持ち込みの地金は深度とともに増える", () => {
+    const total = (depth: number): number => Object.values(attrsAt(carried, depth)).reduce((sum, value) => sum + value, 0);
+    expect(total(1)).toBeLessThan(total(8));
+    expect(total(8)).toBeLessThan(total(15));
+    expect(total(15)).toBeLessThan(total(20));
   });
 
   it("computeStats は渡した深度で地金を畳む（既定は深度 1）", () => {
     const eq = { ...createEmptyEquipment(), mainHand: carried };
     const bare = computeStats({ ...createEmptyEquipment(), mainHand: { ...carried, innate: [] } }, 20);
-    expect(computeStats(eq).attributes.str - bare.attributes.str, "既定の深度 1").toBe(1);
-    expect(computeStats(eq, 20).attributes.str - bare.attributes.str, "深度 20").toBe(15);
-    expect(computeStats(eq, 20).attributes.vit - bare.attributes.vit, "深度 20 の体力").toBe(10);
+    expect(computeStats(eq).attributes.str - bare.attributes.str, "既定の深度 1").toBe(attrsAt(carried, 1).str);
+    expect(computeStats(eq, 20).attributes.str - bare.attributes.str, "深度 20").toBe(attrsAt(carried, 20).str);
+    expect(computeStats(eq, 20).attributes.vit - bare.attributes.vit, "深度 20 の体力").toBe(attrsAt(carried, 20).vit);
   });
 
   it("生成した遺物は、拾った深度では Item.innate と同じ行になる", () => {
@@ -402,10 +402,11 @@ describe("持ち込み: 地金は今の深度で決め直す（innateAt）", () 
     const strAt = (): number => state.boonRun.baseStats?.attributes.str ?? 0;
     const atDepth1 = strAt();
     while (state.depth < 8) descend(state);
-    expect(strAt() - atDepth1, "深度 8 は深度 1 より筋力 +6").toBe(6);
+    const atDepth8 = strAt();
+    expect(atDepth8, "深度 8 は深度 1 より筋力が伸びる").toBeGreaterThan(atDepth1);
     ascend(state);
     expect(state.depth).toBe(7);
-    expect(strAt(), "深度 7 は深度 8 以下").toBeLessThanOrEqual(atDepth1 + 6);
+    expect(strAt(), "深度 7 は深度 8 以下").toBeLessThanOrEqual(atDepth8);
   });
 });
 

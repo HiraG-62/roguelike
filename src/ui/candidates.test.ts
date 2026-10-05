@@ -17,6 +17,7 @@ import { SKILL_DEFS } from "../skills/data";
 import { stoneFromSeed } from "../skills/generator";
 import { addStone, equipStone, stoneInSlot } from "../skills/persistence";
 import { SKILL_KEYS } from "../skills/types";
+import { STONE_TUNING } from "../skills/tuning2";
 import { RESONANCE_EXCLUDED } from "../system/resonance";
 import { withInput } from "../system/testHelpers";
 import { CANDIDATE_PAGE, CANDIDATES_VIEW, MINI_PART, MINI_PARTS, candidateEntries, entryFocusId, filterAvailable, nextFilter, sortedIds, subjectId, subjectKeywords } from "./candidates";
@@ -314,7 +315,7 @@ describe("候補の頁", () => {
     for (let t = 0; t < MENU_HOLD_SECONDS + 0.1; t += DT) frame(state, ui, {}, true);
     frame(state, ui, {}, false);
     expect(profile.stones.some((st) => st.id === grown.id), "処分した").toBe(false);
-    expect(worn.wear.casts, "発動の半分が注がれる").toBe(150);
+    expect(worn.wear.casts, "発動の注ぎ率が適用される").toBe(Math.floor(grown.wear.casts * STONE_TUNING.pourShare));
     expect(ui.craft.echoes.umbra, "冥響を得る").toBe(1);
 
     ui.stack.pop();
@@ -325,7 +326,7 @@ describe("候補の頁", () => {
     for (let t = 0; t < MENU_HOLD_SECONDS + 0.1; t += DT) frame(state, top, {}, true);
     frame(state, top, {}, false);
     expect(profile.stones.map((st) => st.id).sort(), "付けている石と宿り符の石だけ残る").toEqual([worn.id, rare.id].sort());
-    expect(worn.wear.casts, "まとめて注いだ分も足される").toBe(200);
+    expect(worn.wear.casts, "まとめて注いだ分も足される").toBe(Math.floor(grown.wear.casts * STONE_TUNING.pourShare) + Math.floor(extra.wear.casts * STONE_TUNING.pourShare));
   });
 
   it("芽のある部位は先頭に芽吹きの札 2 枚が出て、決定で芽吹く", () => {

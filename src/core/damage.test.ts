@@ -40,10 +40,9 @@ describe("増（sumIncreased）", () => {
     expect(sumIncreased(inc, ctx(["fire"])), "タグに属性を置いても割合が無ければ足さない").toBe(0);
   });
 
-  it("下限は 1 + Σ増 = MIN_INCREASED_MUL（0.1）", () => {
+  it("下限は 1 + Σ増 = MIN_INCREASED_MUL", () => {
     const inc = { ...createIncreased(), melee: -3 };
     expect(1 + sumIncreased(inc, ctx(["melee"]))).toBeCloseTo(MIN_INCREASED_MUL);
-    expect(MIN_INCREASED_MUL).toBe(0.1);
     expect(increasedMul(inc, "melee"), "1 つのタグの倍率も同じ下限").toBeCloseTo(MIN_INCREASED_MUL);
   });
 });

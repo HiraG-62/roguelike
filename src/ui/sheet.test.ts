@@ -150,7 +150,7 @@ describe("書付", () => {
 
   it("内訳の頁の増と倍は今の右手の攻撃に掛かるものだけで、積んだ増と倍が出る", () => {
     const state = createGame(1);
-    expect(bodyModifierSection(state).rows.map((r) => chunksText(r)), "素手は素手の倍だけ").toEqual(["倍 素手 ×0.7"]);
+    expect(bodyModifierSection(state).rows.map((r) => chunksText(r)), "素手は素手の倍だけ").toEqual([`倍 素手 ×${state.stats.more.find((m) => m.source === "unarmed")?.mul}`]);
     state.stats = {
       ...state.stats,
       increased: { ...state.stats.increased, melee: 0.2, ranged: 0.5 },

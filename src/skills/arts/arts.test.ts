@@ -162,9 +162,9 @@ describe("技の発動", () => {
 
   it("照準地点に落ちる技はカーソルの位置に当たり、自分の周りには当たらない", () => {
     const state = artArena("commonThunderclap");
-    const near = tough(state, 16);
-    const far = tough(state, 110);
-    cast(state, ahead(state, 110));
+    const near = tough(state, -20);
+    const far = tough(state, 30);
+    cast(state, ahead(state, 30));
     expect(far.hp).toBeLessThan(BIG_HP);
     expect(near.hp).toBe(BIG_HP);
   });
@@ -217,7 +217,7 @@ describe("全技の発動（壊れの検出）", () => {
   it.each([...ART_SKILL_KEYS])("%s: 撃って 2 秒進めても例外・NaN が出ない", (key: ArtSkillKey) => {
     const state = artArena(key, "sword");
     const enemies = [tough(state, 24), tough(state, 50, 20), tough(state, 90, -10)];
-    cast(state, ahead(state, 60));
+    cast(state, ahead(state, key === "commonBackstab" ? 24 : 60));
     run(state, 2);
     const p = state.player;
     expect(Number.isFinite(p.body.pos.x) && Number.isFinite(p.body.pos.y), "自分の位置").toBe(true);

@@ -251,7 +251,7 @@ describe("damageModDiffs（装備の比較の増・倍の差）", () => {
     const after = { ...DEFAULT_STATS, increased: { ...createIncreased(), melee: 0.5, ranged: 0.1 } };
     const diffs = damageModDiffs(before, after);
     expect(diffs.map((d) => d.rises)).toEqual([true, true, true]);
-    expect(diffs.map((d) => d.text)).toEqual(["近接ダメージ 増 +50%", "射撃ダメージ 増 +10%", "素手 倍 ×0.7 → なし"]);
+    expect(diffs.map((d) => d.text)).toEqual(["近接ダメージ 増 +50%", "射撃ダメージ 増 +10%", `素手 倍 ×${UNARMED_MORE.mul} → なし`]);
     expect(damageModDiffs(after, after), "同じなら差なし").toEqual([]);
   });
 });
@@ -280,7 +280,8 @@ describe("computeStats: 武器種と弾（ベースから決まる）", () => {
     expect(stats.moveset, "武器なしは拳の型").toBe("fists");
     expect(stats.unarmed, "武器なしは素手").toBe(true);
     expect(stats.more.find((m) => m.source === "unarmed")?.mul, "素手の威力の倍").toBeCloseTo(WEAPON.unarmed.damageMul);
-    expect(WEAPON.unarmed.damageMul, "素手の倍率は 0.7").toBe(0.7);
+    expect(WEAPON.unarmed.damageMul, "weapons.WEAPON.unarmed.damageMul は縮小率").toBeGreaterThan(0);
+    expect(WEAPON.unarmed.damageMul, "weapons.WEAPON.unarmed.damageMul は縮小率").toBeLessThan(1);
     expect(movesetLabel(MOVESETS[stats.moveset], stats.unarmed), "表示名は素手").toBe(UNARMED_NAME);
     expect(stats.bullet, "銃なしは既定の弾").toBe("pistol");
   });

@@ -519,8 +519,8 @@ describe("型替え符", () => {
   it("照準起点: 旋風斬り（技）がカーソル地点で回る（自分の周りでは回らない）", () => {
     const state = skillArena([{ key: "commonWhirl", links: 2, modifiers: ["toTarget"] }]);
     const near = tough(state, 15);
-    const at = { x: state.player.body.pos.x + 80, y: state.player.body.pos.y };
-    const far = tough(state, 80);
+    const at = { x: state.player.body.pos.x - 70, y: state.player.body.pos.y };
+    const far = tough(state, -70);
     cast(state, at);
     run(state, 0.5);
     expect(lost(far)).toBeGreaterThan(0);
@@ -530,8 +530,8 @@ describe("型替え符", () => {
   it("照準起点 + 遅延: 遅れて発動する場所も照準地点（自分の周りでは回らない）", () => {
     const state = skillArena([{ key: "commonWhirl", links: 3, modifiers: ["toTarget", "delay"] }]);
     const near = tough(state, 15);
-    const at = { x: state.player.body.pos.x + 80, y: state.player.body.pos.y };
-    const far = tough(state, 80);
+    const at = { x: state.player.body.pos.x - 70, y: state.player.body.pos.y };
+    const far = tough(state, -70);
     cast(state, at);
     run(state, SKILL.modifier.delay.time + 0.5);
     expect(lost(far), "照準地点の敵に当たる").toBeGreaterThan(0);

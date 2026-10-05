@@ -257,7 +257,7 @@ describe("無敵の上限（energyReserve）", () => {
   it("揺らぎで上振れしても TRIGGER.invulnMax を超えない（適用と表示の両方）", () => {
     const s = statsWith([roll("energyReserve", 0.9)]);
     expect(s.triggers[0]?.magnitude).toBe(TRIGGER.invulnMax);
-    expect(formatAffix(roll("energyReserve", 0.9))).toContain(`${TRIGGER.invulnMax}秒間無敵`);
+    expect(formatAffix(roll("energyReserve", 0.9))).toContain(`${TRIGGER.invulnMax.toFixed(1)}秒間無敵`);
   });
 
   it("期待値曲線も上限以内", () => {

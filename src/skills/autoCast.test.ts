@@ -65,7 +65,7 @@ function step(state: GameState): void {
 describe("終撃連動", () => {
   it("終撃の命中で、その符を付けたスロットを照準 = 敵の位置で撃つ", () => {
     const state = skillArena([{ key: "gravityWell", modifiers: ["autoFinisher"] }]);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     const mana = state.player.mana;
     finisherHit(state, e);
     expect(state.skills.wells, "命中の処理の中では撃たない").toHaveLength(0);

@@ -155,9 +155,9 @@ describe("第 2 弾: 全スキルの発動", () => {
 describe("地形を作る・壊す・燃やす", () => {
   it("水瓶: 照準地点に水たまりができ、敵が濡れる。炎の床は水で消える", () => {
     const state = skillArena([{ key: "waterJar" }]);
-    const at = ahead(state, 60);
+    const at = ahead(state, 30);
     placeTerrain(state, at.x, at.y, "fire", 0, 5);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     cast(state, at);
     expect(terrainAt(state, at.x, at.y)).toBe("water");
     expect(stacks(e, "wet")).toBe(SKILL.waterJar.wetStacks);
@@ -165,7 +165,7 @@ describe("地形を作る・壊す・燃やす", () => {
 
   it("油流し: 油の床と油膜", () => {
     const state = skillArena([{ key: "oilPot" }]);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     cast(state, e.body.pos);
     expect(terrainAt(state, e.body.pos.x, e.body.pos.y)).toBe("oil");
     expect(has(e, "oiled")).toBe(true);
@@ -309,15 +309,15 @@ describe("属性", () => {
 describe("結界杭", () => {
   it("2 本で線ができ、線に触れた敵を削る。3 本の内側の敵は脆くなる", () => {
     const state = skillArena([{ key: "wardStake" }]);
-    const inside = tough(state, 55, -15);
-    const onLine = tough(state, 40, -30);
-    cast(state, ahead(state, 40, -60));
+    const inside = tough(state, -25, 5);
+    const onLine = tough(state, -40, 0);
+    cast(state, ahead(state, -40, -30));
     waitReady(state);
-    cast(state, ahead(state, 40, 0));
+    cast(state, ahead(state, -40, 30));
     waitReady(state);
     run(state, SKILL.wardStake.tickEvery + 0.05);
     expect(lost(onLine), "線の上").toBeGreaterThan(0);
-    cast(state, ahead(state, 90, 30));
+    cast(state, ahead(state, 0, 30));
     run(state, SKILL.wardStake.tickEvery + 0.05);
     expect(state.skills.stakes).toHaveLength(3);
     expect(has(inside, "vulnerable"), "囲みの内側").toBe(true);

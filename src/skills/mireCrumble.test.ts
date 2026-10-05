@@ -79,7 +79,7 @@ describe("泥沼（mire）", () => {
   it("気力型で、照準地点に泥を広げ、中の敵の足を遅くする", () => {
     expect(SKILL_DEFS.mire.resource).toBe("mana");
     const state = skillArena([{ key: "mire" }]);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     const mana = state.player.mana;
     cast(state, { ...e.body.pos });
     expect(state.player.mana, "気力を払う").toBeLessThan(mana);
@@ -90,7 +90,7 @@ describe("泥沼（mire）", () => {
 
   it("泥の上に立つ敵へ周期ごとに怯み値が溜まる", () => {
     const state = skillArena([{ key: "mire" }]);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     cast(state, { ...e.body.pos });
     expect(e.poise.damage, "置いた瞬間は怯み値なし（泥沼自体の怯み値は 0）").toBe(0);
     run(state, SKILL.mire.tickEvery * 2 + FIXED_DT);
@@ -99,7 +99,7 @@ describe("泥沼（mire）", () => {
 
   it("泥が燃えて固まると、その上の敵には怯み値が入らない", () => {
     const state = skillArena([{ key: "mire" }]);
-    const e = tough(state, 60);
+    const e = tough(state, 30);
     cast(state, { ...e.body.pos });
     igniteTerrainAt(state, e.body.pos.x, e.body.pos.y, SKILL.mire.terrainRadius * 2);
     expect(terrainAt(state, e.body.pos.x, e.body.pos.y), "固まって泥が消える").toBe("none");
