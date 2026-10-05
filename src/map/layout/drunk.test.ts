@@ -119,8 +119,8 @@ describe("掘り手の迷い道の地図（生成 → 後処理 → 検査）", 
       expect(validateLayout(map), `seed=${seed}`).toBeNull();
       expect(map.layout).toBe("drunk");
       const ratio = floorRatio(map);
-      expect(ratio, `seed=${seed} 床の割合`).toBeGreaterThan(0.38);
-      expect(ratio, `seed=${seed} 床の割合`).toBeLessThan(0.5);
+      expect(ratio, `world.MAP_LAYOUT.drunk: seed=${seed} 床の割合は 0.38 より多い`).toBeGreaterThan(0.38);
+      expect(ratio, `world.MAP_LAYOUT.drunk: seed=${seed} 床の割合は 0.5 未満`).toBeLessThan(0.5);
       expect(map.rooms.length, `seed=${seed} 部屋の数`).toBeGreaterThanOrEqual(8);
     }
   });

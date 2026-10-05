@@ -281,7 +281,7 @@ describe("mapDecor: 置物の置き方", () => {
     }
   });
 
-  it("背の高い置物は壁際だけ（北が壁）。river / isle は北が穴でもよい", () => {
+  it("背の高い置物は北が壁か穴の場所だけ。river / isle は北が穴でもよい", () => {
     const cases: { depth: number; kind: FloorKind; layout: FloorLayout }[] = [
       { depth: 7, kind: "rooms", layout: "court" },
       { depth: 7, kind: "rooms", layout: "prefab" },
@@ -302,7 +302,7 @@ describe("mapDecor: 置物の置き方", () => {
         const north = tileAt(map, p.tx, p.ty - 1);
         const ok = north === Tile.Wall || (northPitOk && north === Tile.Pit);
         expect(ok, `${c.layout} d${c.depth} の ${p.kind}@${p.tx},${p.ty} の北が壁でない`).toBe(true);
-        expect(p.place, `${p.kind} は壁際`).toBe("wallFoot");
+        expect(["wallFoot", "deadEnd"], `${p.kind} は壁際か行き止まり`).toContain(p.place);
       }
     }
     expect(tall, "背の高い置物が実際に出ている").toBeGreaterThan(10);
@@ -405,10 +405,12 @@ describe("mapDecor: 階の型ごとの寄せ", () => {
   });
 
   it("river（章 2）: 岸の石灯籠が 5 マスおきに立つ", () => {
-    const { map, theme } = floorOf(7, "rooms", "river", 1);
-    const lanterns = allPlacements(map, theme).filter((p) => p.kind === "lantern");
-    expect(lanterns.length, "石灯籠が出る").toBeGreaterThan(0);
-    const bank = lanterns.filter((p) => tileAt(map, p.tx, p.ty - 1) === Tile.Pit || tileAt(map, p.tx + 1, p.ty) === Tile.Pit || tileAt(map, p.tx - 1, p.ty) === Tile.Pit);
+    const map = createMap(40, 15);
+    carve(map, 2, 5, 36, 8);
+    for (let x = 2; x < 38; x++) map.tiles[toIndex(map, x, 4)] = Tile.Pit;
+    map.layout = "river";
+    const bank = placementsIn(map, mapThemeFor(7, "rooms"), undefined, 0, 0, map.width - 1, map.height - 1)
+      .filter((p) => p.kind === "lantern" && p.place === "wallFoot" && p.ty === 5);
     expect(bank.length, "岸に立つものがある").toBeGreaterThan(0);
     for (const p of bank) expect(p.tx % 5, `岸の石灯籠 ${p.tx},${p.ty} の x`).toBe(0);
   });

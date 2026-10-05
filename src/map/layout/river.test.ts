@@ -149,7 +149,7 @@ describe("river（谷・川筋）", () => {
       const lord = bankOf(rooms[rooms.length - 1]);
       expect(start, `seed=${seed} 開始の岸`).toBeGreaterThanOrEqual(0);
       expect(lord, `seed=${seed} 主の間の岸`).toBeGreaterThanOrEqual(0);
-      expect(start, `seed=${seed} 開始と主の間は別の岸`).not.toBe(lord);
+      expect(start, `world.MAP_LAYOUT.river: seed=${seed} 開始と主の間は別の岸`).not.toBe(lord);
       const perBank = new Map<number, number>();
       for (const tiles of rooms) {
         const bank = bankOf(tiles);

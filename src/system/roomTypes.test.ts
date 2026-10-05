@@ -218,7 +218,7 @@ describe("洞窟フロアの湧きとロック", () => {
         ] as const) {
           const tx = Math.floor((e.body.pos.x + dx) / TILE_SIZE);
           const ty = Math.floor((e.body.pos.y + dy) / TILE_SIZE);
-          expect(room.tiles.has(toIndex(state.map, tx, ty)), `seed=${seed} enemy=${e.id}`).toBe(true);
+          expect(room.tiles.has(toIndex(state.map, tx, ty)), `world.CAVE / enemies.JIN: seed=${seed} enemy=${e.id} の AABB が所属する塊の外`).toBe(true);
         }
       }
     }

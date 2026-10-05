@@ -91,7 +91,7 @@ describe("isle（島と桟道）", () => {
       if (!map) continue;
       for (const i of doorTiles(map)) {
         doors++;
-        expect(pitWithin(map, i, PLANK_NEAR_PIT), `seed=${seed} 扉 (${i % map.width},${Math.floor(i / map.width)}) の近くに穴がない`).toBe(true);
+        expect(pitWithin(map, i, PLANK_NEAR_PIT), `world.MAP_LAYOUT.isle: seed=${seed} 扉 (${i % map.width},${Math.floor(i / map.width)}) の近くに穴がない`).toBe(true);
       }
     }
     expect(doors, "扉（桟道の端）が 1 つもない").toBeGreaterThan(0);

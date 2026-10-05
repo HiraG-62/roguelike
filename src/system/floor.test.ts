@@ -7,7 +7,7 @@ import { generateSkillStone } from "../skills/generator";
 import { FIXED_DT } from "../core/loop";
 import { enemiesForDepth, enemyDef } from "../data/enemies";
 import type { Enemy, GameState, RoomState } from "../core/state";
-import { Tile, createMap, rectCenterPx, TILE_SIZE, toIndex } from "../map/grid";
+import { Tile, createMap, rectCenterPx, setTile, TILE_SIZE, toIndex } from "../map/grid";
 import { eliteChance, makeElite } from "./elites";
 import { createEnemy } from "./enemies";
 import { type AreaMulRange, ascend, buildFloor, descend, enemyCount, insideRoom, maxEnemiesFor, rollAreaMul, updateRooms, withBaseAreaMul } from "./floor";
@@ -15,7 +15,7 @@ import { dropItem } from "./loot";
 import { updateRunEvents } from "./runEvents";
 import { ARC, BOSS, DEEP, FLOOR_KIND, MAP_SIZE, ROAM, ROOM, ROOM_KIND } from "../data/tuning";
 import { ROAMING_ROOM, updateRoamers } from "./spawner";
-import { nextWaypoint } from "../map/pathing";
+import { invalidatePathing, nextWaypoint } from "../map/pathing";
 import { terrainCode } from "../core/terrain";
 import { FLOOR_KINDS, biomeEnemyWeight, floorKindCandidates, floorKindWeight, isInvertedDepth } from "./biomes";
 import { stairsTilesValid, updateSpecialRooms } from "./specialRooms";
@@ -189,14 +189,8 @@ function corridorRoomState(): { state: GameState; room: RoomState } {
 
 describe("扉タイル上の敵とロック", () => {
   it("扉タイルに AABB が掛かっている敵はロック時に部屋の中心方向へ押し込まれ、壁（ロック済み扉含む）に重ならない", () => {
-    let found: { state: GameState; room: RoomState; index: number } | null = null;
-    for (let seed = 0; seed < SEARCH_SEEDS && !found; seed++) {
-      const state = createGame(seed);
-      const hit = findLockableRoom(state);
-      if (hit) found = { state, ...hit };
-    }
-    if (!found) throw new Error("no lockable room found");
-    const { state, room, index } = found;
+    const { state, room } = corridorRoomState();
+    const index = 0;
 
     const doorTile = room.doorTiles[0]!;
     const tx = doorTile % state.map.width;
@@ -689,6 +683,14 @@ describe("開放型フロア: 徘徊", () => {
     state.player.body.pos = { x: -9999, y: -9999 };
     const roamer = state.enemies.find((e) => e.roomIndex === ROAMING_ROOM && e.ai?.roam);
     if (!roamer) throw new Error("徘徊がいない");
+    state.enemies = [roamer];
+    const tx = Math.floor(roamer.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(roamer.body.pos.y / TILE_SIZE);
+    for (let y = ty - 2; y <= ty + 2; y++) {
+      for (let x = tx - 2; x <= tx + 6; x++) setTile(state.map, x, y, Tile.Floor);
+    }
+    invalidatePathing(state.map);
+    roamer.ai!.roam = { x: roamer.body.pos.x + TILE_SIZE * 4, y: roamer.body.pos.y };
     const goal = { ...roamer.ai!.roam! };
     const before = Math.hypot(roamer.body.pos.x - goal.x, roamer.body.pos.y - goal.y);
     for (let i = 0; i < 60; i++) {

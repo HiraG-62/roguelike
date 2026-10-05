@@ -168,7 +168,7 @@ describe("鋒矢の攻撃間隔のずらし", () => {
     expect(arrowhead?.layout).toBe("line");
     expect(STAGGER).toBeGreaterThan(0);
     expect(arrowhead?.slots.every((s) => s.role === "charge"), "突撃 1.0").toBe(true);
-    expect(arrowhead?.slots.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1, 6);
+    expect(arrowhead?.slots.reduce((sum, s) => sum + s.share, 0), "enemies.FORMATION.arrowhead.slots[].share の合計は 1").toBeCloseTo(1, 6);
   });
 
   it("列の後ろのメンバーほど最初の攻撃間隔が cooldownStagger ずつ長い（基準は攻撃間隔）", () => {

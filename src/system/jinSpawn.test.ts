@@ -202,8 +202,8 @@ describe("陣ごとの生命の揺らぎ（hpSpread）", () => {
     const muls = new Set<number>();
     for (let seed = 1; seed <= SEEDS; seed++) {
       for (const j of floorAt(3, seed).jins) {
-        expect(j.hpMul, `seed ${seed} 陣 ${j.id}`).toBeGreaterThanOrEqual(spread.low);
-        expect(j.hpMul).toBeLessThanOrEqual(spread.high);
+        expect(j.hpMul, `enemies.JIN.hpSpread.low: seed ${seed} 陣 ${j.id}`).toBeGreaterThanOrEqual(spread.low);
+        expect(j.hpMul, `enemies.JIN.hpSpread.high: seed ${seed} 陣 ${j.id}`).toBeLessThanOrEqual(spread.high);
         muls.add(j.hpMul);
       }
     }
@@ -341,7 +341,7 @@ describe("偃月（大将のいる陣、3b）", () => {
       // 塞がった点は近くの空きへ寄るので、最前かどうかでなく「他の平均より前」で見る
       const others = membersOf(state, jin.id).filter((e) => e.id !== leader?.id);
       const mean = others.reduce((sum, e) => sum + alongFacing(jin, e), 0) / Math.max(1, others.length);
-      expect(alongFacing(jin, leader!), `大将が前（${jin.formation}）`).toBeGreaterThan(mean);
+      expect(alongFacing(jin, leader!), `enemies.FORMATION.crescent: 大将が他の平均より前（${jin.formation}）`).toBeGreaterThan(mean);
       const role = roleOf(enemyDef(leader!.defKey));
       expect(ROLE_ELITE_EXCLUDE[role], `${leader!.defKey} の ${leader!.elite}`).not.toContain(leader!.elite);
     }

@@ -230,7 +230,7 @@ describe.each(LAYOUT_KINDS)("階の型 %s", (kind) => {
 
     it("旧生成器に落ちる割合（失敗率）が 5% 以下", () => {
       const failures = maps().filter((m) => m === null).length;
-      expect(failures / SEEDS.length, `${SEEDS.length} seed 中 ${failures} 失敗`).toBeLessThanOrEqual(MAX_FAIL_RATE);
+      expect(failures / SEEDS.length, `world.MAP_LAYOUT.${kind}: ${SEEDS.length} seed 中 ${failures} 失敗、失敗率は ${MAX_FAIL_RATE} 以下`).toBeLessThanOrEqual(MAX_FAIL_RATE);
     });
   });
 });

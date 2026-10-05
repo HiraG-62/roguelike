@@ -46,7 +46,7 @@ describe("generateCave", () => {
   it("同じ seed なら同じ洞窟", () => {
     const a = generateCave(createRng(9));
     const b = generateCave(createRng(9));
-    expect(a).not.toBeNull();
+    expect(a, "world.CAVE: seed=9 の洞窟を生成できる").not.toBeNull();
     expect(Array.from(a?.tiles ?? [])).toEqual(Array.from(b?.tiles ?? []));
     expect(a?.roomTiles).toEqual(b?.roomTiles);
   });
@@ -182,7 +182,7 @@ describe("バイオームごとの洞窟の形（CAVE.biome）", () => {
       base += a ? Array.from(a.tiles).filter((t) => t !== Tile.Wall).length : 0;
       meadow += b ? Array.from(b.tiles).filter((t) => t !== Tile.Wall).length : 0;
     }
-    expect(meadow, "草原の床は既定より多い").toBeGreaterThan(base);
+    expect(meadow, "world.CAVE.biome.meadow: 草原の床は既定より多い").toBeGreaterThan(base);
   });
 });
 

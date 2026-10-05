@@ -167,10 +167,10 @@ describe("広いマップ（scaleGeneratorOptions）", () => {
     const roomTiles = (m: GameMap): number => (m.roomTiles ?? []).reduce((sum, list) => sum + list.length, 0);
     for (let seed = 0; seed < WIDE_SEEDS; seed++) {
       const map = generateMap("cave", createRng(seed), wide);
-      expect(map.roomTiles, `seed=${seed} 洞窟になる`).toBeDefined();
+      expect(map.roomTiles, `world.CAVE: seed=${seed} 洞窟になる`).toBeDefined();
       const base = generateMap("cave", createRng(seed), DEFAULT_GENERATOR_OPTIONS);
       expect(map.rooms.length, `seed=${seed} 部屋数`).toBeGreaterThan(base.rooms.length);
-      expect(roomTiles(map), `seed=${seed} 部屋の床`).toBeGreaterThanOrEqual(roomTiles(base) * CAVE_ROOM_TILES_RATIO);
+      expect(roomTiles(map), `world.CAVE: seed=${seed} 部屋の床は基準の ${CAVE_ROOM_TILES_RATIO} 倍以上`).toBeGreaterThanOrEqual(roomTiles(base) * CAVE_ROOM_TILES_RATIO);
       const tiles = map.roomTiles ?? [];
       const start = tiles[0]?.[0];
       if (start === undefined) throw new Error("開始部屋が無い");

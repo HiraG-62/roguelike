@@ -250,7 +250,7 @@ describe("スライム王の間（alcoves）", () => {
         // 窪みは中央から遠い隅だけ（広間の中ほどは届く）
         for (const i of inQuadrant) {
           expect(Math.abs(i % map.width - center.x), "安全な床が広間の中ほどにある").toBeGreaterThanOrEqual(7);
-          expect(Math.abs(Math.floor(i / map.width) - center.y), "安全な床が広間の中ほどにある").toBeGreaterThanOrEqual(4);
+          expect(Math.abs(Math.floor(i / map.width) - center.y), "enemies.BOSS.kingSlime.cornerSafeRatio: 安全な床は広間の隅にある").toBeGreaterThanOrEqual(4);
         }
       }
     }

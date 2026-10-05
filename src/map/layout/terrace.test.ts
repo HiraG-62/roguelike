@@ -157,7 +157,7 @@ describe("generateTerrace（縦穴・段々）", () => {
       const o = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, area);
       for (const seed of SEEDS) {
         const map = generateLayoutMap("terrace", createRng(seed), o.width, o.height);
-        expect(map, `面積 ${area} seed=${seed}`).not.toBeNull();
+        expect(map, `world.MAP_LAYOUT.terrace: 面積 ${area} seed=${seed} で生成できる`).not.toBeNull();
         if (!map) continue;
         expect(validateLayout(map), `面積 ${area} seed=${seed}`).toBeNull();
         expect(map.layout).toBe("terrace");
@@ -173,13 +173,13 @@ describe("generateTerrace（縦穴・段々）", () => {
       const map = draft ? finalizeLayout("terrace", draft, frame) : null;
       if (!map || validateLayout(map) !== null) fails++;
     }
-    expect(fails / SEEDS.length, "最初の試行の失敗率").toBeLessThan(0.3);
+    expect(fails / SEEDS.length, "world.MAP_LAYOUT.terrace: 最初の試行の失敗率は 0.3 未満").toBeLessThan(0.3);
   });
 
   it("面積 5 倍で 1 階の生成（形づくり + 後処理 + 検査）が平均 150ms 以下", () => {
     const o = scaleGeneratorOptions(DEFAULT_GENERATOR_OPTIONS, 5);
     const start = performance.now();
     for (const seed of SEEDS.slice(0, 10)) generateLayoutMap("terrace", createRng(seed), o.width, o.height);
-    expect((performance.now() - start) / 10, "1 階あたりの ms").toBeLessThan(MAX_AVG_MS);
+    expect((performance.now() - start) / 10, "world.MAP_LAYOUT.terrace: 1 階あたりの生成時間は 150ms 未満").toBeLessThan(MAX_AVG_MS);
   });
 });
