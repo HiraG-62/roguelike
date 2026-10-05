@@ -48,14 +48,13 @@ describe("戦意あり用の段（releaseStep）", () => {
     expect(released?.release, "放出の印").toBe(true);
   });
 
-  it("放出になる段はすべて戦意あり用の段を JSON に持つ（中身は最初は普段の段と同じ）", () => {
+  it("放出になる段はすべて戦意あり用の段を JSON に持つ", () => {
     const laneKeys = ["returnCut", "frenzy", "rend", "slam", "detonate", "pointBlank", "tubeBash", "freeCast", "toll"];
     let found = 0;
     for (const moveset of Object.values(MOVESETS)) {
       for (const s of moveset.steps2) {
         if (s.kind === "swing" && s.key !== undefined && laneKeys.includes(s.key)) {
           expect(s.step.releaseStep, `${moveset.key}.${s.key}`).toBeDefined();
-          expect(s.step.releaseStep?.windup, `${moveset.key}.${s.key} の溜め`).toBe(s.step.windup);
           found += 1;
         }
       }

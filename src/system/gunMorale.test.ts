@@ -278,7 +278,10 @@ describe("装薬（詰め）", () => {
     const step = playerMoveset(state).steps2[index];
     const now = currentMeleeStep(state);
     const plain = meleeStep(state.stats, index, false, 0, -1, playerMoveset(state), "secondary");
-    if (step?.kind === "swing" && now && plain) expect(now.damage / plain.damage, "振りの威力も段の表").toBeCloseTo(powderLevelOf(2)?.damageMul ?? 0);
+    const releaseBase = meleeStep(state.stats, index, false, 0, -1, playerMoveset(state), "secondary", {
+      damageMul: 1, poiseMul: 1, reachMul: 1, hitsAdd: 0, knockbackMul: 1, pierceAdd: 0,
+    });
+    if (step?.kind === "swing" && now && plain && releaseBase) expect(now.damage / releaseBase.damage, "振りの威力も段の表").toBeCloseTo(powderLevelOf(2)?.damageMul ?? 0);
   });
 
   it("詰めていなければ次の 1 発はただの 1 発", () => {
@@ -353,7 +356,11 @@ describe("擲弾（炸裂）", () => {
     const now = currentMeleeStep(state);
     const plain = meleeStep(state.stats, index, false, 0, -1, playerMoveset(state), "secondary");
     if (!now || !plain) throw new Error("筒払いの段が無い");
-    expect(now.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.shell.perUnit.damageMul * FORM.shell.max, 5);
+    const releaseBase = meleeStep(state.stats, index, false, 0, -1, playerMoveset(state), "secondary", {
+      damageMul: 1, poiseMul: 1, reachMul: 1, hitsAdd: 0, knockbackMul: 1, pierceAdd: 0,
+    });
+    if (!releaseBase) throw new Error("放出用の段が無い");
+    expect(now.damage / releaseBase.damage, "戦意による威力").toBeCloseTo(1 + FORM.shell.perUnit.damageMul * FORM.shell.max, 5);
     expect(state.player.morale.value + EPS, "使い切る").toBeLessThan(1);
   });
 });

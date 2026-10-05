@@ -58,7 +58,8 @@ describe("深みの曲線の表", () => {
 
   it("深みでは敵の生命が地力より速く伸びる（要る倍が 1 を超える）", () => {
     const deep = measureDeepCurve([21, 30], [1, 2, 3]);
-    expect(deep[1]?.needMul ?? 0, "深度 30 は深度 21 より厳しい").toBeGreaterThan(1);
+    expect(deep.map((r) => r.depth), "指定した深度の順").toEqual([21, 30]);
+    expect(deep[1]?.needMul ?? 0, "深度 30 は深度 21 より厳しい（深みの設計の決まり。world の深みの曲線を下げすぎると落ちる）").toBeGreaterThan(1);
   });
 
   it("既定の深度は 21 から 40 で、被弾の計測は指定したときだけ走る", () => {

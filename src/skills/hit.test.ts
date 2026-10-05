@@ -66,7 +66,7 @@ describe("skillHit が戦闘の口へ渡す値", () => {
   it("スキル由来として rollOutgoing に渡る（スキルの増が足される）", () => {
     const plain = damageDealt("mines");
     expect(plain, "前提: 当たっている").toBeGreaterThan(0);
-    expect(damageDealt("mines", { increased: increasedWith({ skill: 1 }) })).toBeCloseTo(plain * 2, 0);
+    expect(Math.abs(damageDealt("mines", { increased: increasedWith({ skill: 1 }) }) - plain * 2), "増の倍化は整数ダメージの丸め 1 以内").toBeLessThanOrEqual(1);
   });
 
   it("素性が null のスキル（伝染など）が当てても、敵の防御を素通ししない", () => {

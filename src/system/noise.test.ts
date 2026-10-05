@@ -5,7 +5,7 @@ import type { Enemy, GameState, Jin } from "../core/state";
 import type { Vec } from "../core/vec";
 import { enemyDef } from "../data/enemies";
 import { JIN } from "../data/tuning";
-import { TILE_SIZE } from "../map/grid";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { lineOfSight } from "../map/pathing";
 import { NOTICE_RANGE, updateEnemies } from "./enemies";
 import { damageEnemy } from "./combat";
@@ -158,19 +158,13 @@ describe("眠っている敵が聞きつける", () => {
   it("壁で遮られていれば聞こえない", () => {
     const state = arena();
     const e = sleeper(state, TEST_RADIUS - 20);
-    // 敵の周りで、半径の内側なのに視線が通らない点（壁の向こう）を探す
-    let blocked: Vec | null = null;
-    const reach = JIN.noise.hit - 20;
-    for (let dy = -reach; dy <= reach && !blocked; dy += 10) {
-      for (let dx = -reach; dx <= reach && !blocked; dx += 10) {
-        const p = { x: e.body.pos.x + dx, y: e.body.pos.y + dy };
-        const inMap = p.x > 0 && p.y > 0 && p.x < state.map.width * TILE_SIZE && p.y < state.map.height * TILE_SIZE;
-        if (inMap && Math.hypot(dx, dy) < reach && !lineOfSight(state.map, p, e.body.pos)) blocked = p;
-      }
-    }
-    expect(blocked, "視線の通らない音源の点").not.toBeNull();
-    if (!blocked) return;
-    ring(state, blocked, JIN.noise.hit);
+    const tx = Math.floor(e.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(e.body.pos.y / TILE_SIZE);
+    for (let x = tx; x <= tx + 4; x++) setTile(state.map, x, ty, Tile.Floor);
+    setTile(state.map, tx + 2, ty, Tile.Wall);
+    const blocked = { x: (tx + 4.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE };
+    expect(lineOfSight(state.map, blocked, e.body.pos), "壁が視線を遮る").toBe(false);
+    ring(state, blocked, Math.hypot(blocked.x - e.body.pos.x, blocked.y - e.body.pos.y) + 1);
     wakeByNoise(state);
     expect(e.phase).toBe("idle");
   });

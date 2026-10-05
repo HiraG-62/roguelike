@@ -155,7 +155,9 @@ describe("戦意: 連刃（熱）", () => {
     const plain = meleeStep(state.stats, last, false, 0, -1, playerMoveset(state), "secondary");
     const now = currentMeleeStep(state);
     if (!plain || !now) throw new Error("右の最終段が無い");
-    expect(now.damage / plain.damage, "威力の倍率").toBeCloseTo(1 + FORM.flurry.perUnit.damageMul * FORM.flurry.max);
+    const releaseBase = unboostedReleaseStep(state);
+    if (!releaseBase) throw new Error("放出用の段が無い");
+    expect(now.damage / releaseBase.damage, "戦意による威力の倍率").toBeCloseTo(1 + FORM.flurry.perUnit.damageMul * FORM.flurry.max);
     expect(state.player.morale.value).toBe(0);
   });
 });
@@ -343,7 +345,9 @@ describe("戦意: 仕掛け（置いた弾と一斉起爆）", () => {
     const plain = meleeStep(state.stats, DETONATE_STEP, false, 0, -1, playerMoveset(state), "secondary");
     const now = currentMeleeStep(state);
     if (!plain || !now) throw new Error("起爆の段が無い");
-    expect(now.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.artillery.perUnit.damageMul * placed);
+    const releaseBase = unboostedReleaseStep(state);
+    if (!releaseBase) throw new Error("放出用の段が無い");
+    expect(now.damage / releaseBase.damage, "戦意による威力").toBeCloseTo(1 + FORM.artillery.perUnit.damageMul * placed);
     const events = start.concat(settle(state));
     const release = kinds(events, "onRelease");
     expect(release, "起爆の段の振り始めで放出").toHaveLength(1);
@@ -395,6 +399,14 @@ function plainStepOf(state: GameState): ReturnType<typeof meleeStep> {
   return meleeStep(state.stats, a.step, false, 0, a.branch, playerMoveset(state), a.lane);
 }
 
+/** 放出用の段を使い、戦意による倍率だけを 1 にした値 */
+function unboostedReleaseStep(state: GameState): ReturnType<typeof meleeStep> {
+  const a = state.player.attack;
+  return meleeStep(state.stats, a.step, false, 0, a.branch, playerMoveset(state), a.lane, {
+    damageMul: 1, poiseMul: 1, reachMul: 1, hitsAdd: 0, knockbackMul: 1, pierceAdd: 0,
+  });
+}
+
 describe("戦意: 盾（受け溜め）", () => {
   const shield = { moveset: "shield" as const };
 
@@ -444,8 +456,10 @@ describe("戦意: 盾（受け溜め）", () => {
     const plain = plainStepOf(state);
     if (!now || !plain) throw new Error("盾押しの振りが無い");
     expect(now.release, "放出の振り").toBe(true);
-    expect(now.damage / plain.damage, "威力").toBeCloseTo(1 + FORM.bulwark.perUnit.damageMul * 50);
-    expect(now.poise / plain.poise, "怯み値").toBeCloseTo(1 + FORM.bulwark.perUnit.poiseMul * 50);
+    const releaseBase = unboostedReleaseStep(state);
+    if (!releaseBase) throw new Error("放出用の段が無い");
+    expect(now.damage / releaseBase.damage, "戦意による威力").toBeCloseTo(1 + FORM.bulwark.perUnit.damageMul * 50);
+    expect(now.poise / releaseBase.poise, "戦意による怯み値").toBeCloseTo(1 + FORM.bulwark.perUnit.poiseMul * 50);
   });
 
   it("受け溜めが放出の最低に届かなければ盾押しはただの振り", () => {

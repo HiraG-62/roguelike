@@ -8,7 +8,7 @@ import { interceptEnemyDamage, makeElite, updateElites } from "./elites";
 import { updateEnemies } from "./enemies";
 import { addPoise, applyStagger, attackCommitted, basePoiseMax, bossPoiseGrowth, isStaggered, settlePendingStagger, windupCommitted } from "./poise";
 import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
-import { arena, increasedWith, placeEnemy } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withTuning } from "./testHelpers";
 import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 const BIG_HP = 100000;
@@ -265,17 +265,19 @@ function applyTo(state: GameState, e: Enemy, kind: "broken" | "corrode" | "weake
 
 describe("処刑", () => {
   it("怯み中で HP が 25% 以下の敵に重い一撃（怯み値 20 以上）を当てると即死し、マナが戻り周囲に恐怖", () => {
-    const state = arena();
-    const e = placeEnemy(state, "golem", 30);
-    const near = placeEnemy(state, "slime", 30, 40);
-    applyStagger(state, e, 1);
-    e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
-    state.player.mana = 0;
-    poke(state, e, POISE.executeMinPoise);
-    expect(e.hp).toBe(0);
-    expect(state.player.mana).toBeGreaterThanOrEqual(POISE.executeMana);
-    expect(hasStatus(near.status, "fear")).toBe(true);
-    expect(state.texts.some((t) => t.text === "処刑")).toBe(true);
+    withTuning(POISE, { executeHpRatio: 0.25, executeHpRatioMax: 0.5 }, () => {
+      const state = arena();
+      const e = placeEnemy(state, "golem", 30);
+      const near = placeEnemy(state, "slime", 30, 40);
+      applyStagger(state, e, 1);
+      e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
+      state.player.mana = 0;
+      poke(state, e, POISE.executeMinPoise);
+      expect(e.hp).toBe(0);
+      expect(state.player.mana).toBeGreaterThanOrEqual(POISE.executeMana);
+      expect(hasStatus(near.status, "fear")).toBe(true);
+      expect(state.texts.some((t) => t.text === "処刑")).toBe(true);
+    });
   });
 
   it("軽い一撃・HP が多い・怯んでいない・ボスは処刑しない", () => {
@@ -313,17 +315,19 @@ describe("処刑", () => {
   });
 
   it("damageEnemy を通らない怯み値（伝播・祝福・スキル）では処刑しない（撃破の報酬を取りこぼさない）", () => {
-    const state = arena();
-    const e = placeEnemy(state, "golem", 30);
-    applyStagger(state, e, 1);
-    e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
-    const kills = state.kills;
-    addPoise(state, e, POISE.executeMinPoise * 3);
-    expect(e.hp, "HP は残る").toBeGreaterThan(0);
-    expect(state.kills, "撃破数は増えない（HP 0 のまま消える敵を作らない）").toBe(kills);
-    poke(state, e, POISE.executeMinPoise);
-    expect(e.hp, "命中なら処刑").toBe(0);
-    expect(state.kills, "処刑は撃破として数える").toBe(kills + 1);
+    withTuning(POISE, { executeHpRatio: 0.25, executeHpRatioMax: 0.5 }, () => {
+      const state = arena();
+      const e = placeEnemy(state, "golem", 30);
+      applyStagger(state, e, 1);
+      e.hp = Math.floor(e.maxHp * POISE.executeHpRatio);
+      const kills = state.kills;
+      addPoise(state, e, POISE.executeMinPoise * 3);
+      expect(e.hp, "HP は残る").toBeGreaterThan(0);
+      expect(state.kills, "撃破数は増えない（HP 0 のまま消える敵を作らない）").toBe(kills);
+      poke(state, e, POISE.executeMinPoise);
+      expect(e.hp, "命中なら処刑").toBe(0);
+      expect(state.kills, "処刑は撃破として数える").toBe(kills + 1);
+    });
   });
 });
 
@@ -567,7 +571,7 @@ describe("攻撃のコミット", () => {
 
 describe("処刑の上限", () => {
   it("処刑の閾値の上限は基準値以上（ビルドで伸ばしても上限で止まる口）", () => {
-    expect(POISE.executeHpRatioMax).toBeGreaterThanOrEqual(POISE.executeHpRatio);
+    expect(POISE.executeHpRatioMax, "POISE.executeHpRatioMax は POISE.executeHpRatio 以上").toBeGreaterThanOrEqual(POISE.executeHpRatio);
   });
 
   it("上限ちょうどの HP 割合までは処刑でき、それを超える HP は処刑しない", () => {

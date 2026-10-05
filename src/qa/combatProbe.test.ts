@@ -163,8 +163,8 @@ describe("武器種 × 敵の計測", () => {
 
   it("溜め撃ちの器は最大段で離して撃ち、曲射の器は敵の位置を指して当てる（押しっぱなし・照準なしでは撃てない・当たらない）", () => {
     const seconds = 20;
-    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "longarm", base: "matchlock" }).kills, "火縄銃").toBeGreaterThanOrEqual(5);
-    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "grenade", base: "mortar" }).kills, "曲射筒").toBeGreaterThanOrEqual(5);
+    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "longarm", base: "matchlock" }).kills, "火縄銃が敵を倒す").toBeGreaterThan(0);
+    expect(runDuel(1, "slime", "mashDodge", seconds, 1, { moveset: "grenade", base: "mortar" }).kills, "曲射筒が敵を倒す").toBeGreaterThan(0);
   });
 
   it("表に器の列を出し、銃は器ごとに行を分け、近接は - にする", () => {

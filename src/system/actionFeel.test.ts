@@ -354,7 +354,7 @@ describe("ダッシュ攻撃", () => {
     run(state, SWING_STEPS);
     expect(1000 - e.hp, "ダッシュ攻撃の威力").toBe(Math.round(slashDamage(state, 0, true)));
     expect(slashDamage(state, 0, true)).toBeGreaterThan(slashDamage(state, 0));
-    expect(ACTION.dashAttack.reach).toBeGreaterThan(PLAYER.melee[1]!.reach);
+    expect(ACTION.dashAttack.reach, "ACTION.dashAttack.reach は PLAYER.melee[1].reach より長い").toBeGreaterThan(PLAYER.melee[1]!.reach);
   });
 
   it("ダッシュしていなければ普通の 1 段目", () => {

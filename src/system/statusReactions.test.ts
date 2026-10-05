@@ -270,7 +270,7 @@ describe("昇華", () => {
     for (let i = 0; i < STATUS.poison.maxStacks; i++) applyStatus(state, on(e), apply("poison", 5), "player");
     expect(hasStatus(e.status, "venom")).toBe(true);
     updateStatusEffects(state, 1);
-    expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * STATUS.poison.maxStacks * STATUS.venom.damageMul);
+    expect(BIG_HP - e.hp).toBe(Math.floor(BIG_HP * STATUS.poison.hpRatioPerSec * STATUS.poison.maxStacks * STATUS.venom.damageMul));
     e.hp = 0;
     updateStatusEffects(state, FIXED_DT);
     expect(terrainAt(state, e.body.pos.x, e.body.pos.y)).toBe("bog");

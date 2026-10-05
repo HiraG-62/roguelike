@@ -4,7 +4,7 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import { ENEMIES, enemyDef } from "../data/enemies";
 import { BOSS, ELITE, ENEMY_TEMPO } from "../data/tuning";
-import { TILE_SIZE } from "../map/grid";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { KS_SWALLOW } from "./bossKingSlime";
 import { depthWindupMul, followUpOf, scaledWindup, updateEnemies } from "./enemies";
 import { isStaggered } from "./poise";
@@ -140,18 +140,19 @@ describe("連続攻撃", () => {
 
   it("猪（深度 6+）は壁に激突すると反転の予備動作に入り、2 回目の激突で怯む", () => {
     const state = tempoArena(6);
-    const room = state.rooms.find((r) => r.rect.x * TILE_SIZE < state.player.body.pos.x && state.player.body.pos.x < (r.rect.x + r.rect.w) * TILE_SIZE);
-    expect(room).toBeDefined();
-    const left = (room?.rect.x ?? 0) * TILE_SIZE;
     const boar = placeEnemy(state, "boar", 0, 0);
-    boar.body.pos = { x: left + boar.body.radius + 4, y: state.player.body.pos.y };
+    const tx = Math.floor(state.player.body.pos.x / TILE_SIZE);
+    const ty = Math.floor(state.player.body.pos.y / TILE_SIZE);
+    for (let x = tx - 1; x <= tx + 2; x++) setTile(state.map, x, ty, Tile.Floor);
+    setTile(state.map, tx - 1, ty, Tile.Wall);
+    boar.body.pos = { x: tx * TILE_SIZE + boar.body.radius + 1, y: (ty + 0.5) * TILE_SIZE };
     boar.phase = "strike";
     boar.phaseTimer = enemyDef("boar").strikeTime;
     boar.strikeDir = { x: -1, y: 0 };
     if (boar.ai) boar.ai.counter = followUpOf("boar", 6)?.count ?? 0;
     // プレイヤーを遠ざけて接触で止まらないようにする
     state.player.body.pos = { x: -9999, y: -9999 };
-    updateEnemies(state, FIXED_DT);
+    for (let i = 0; i < 10 && boar.phase === "strike"; i++) updateEnemies(state, FIXED_DT);
     expect(boar.phase, "1 回目の激突は反転の予備動作").toBe("windup");
     expect(isStaggered(boar), "1 回目は怯まない").toBe(false);
     expect(boar.phaseTimer).toBeGreaterThan(0);

@@ -317,7 +317,7 @@ describe("ドロップ率（深度別。通常敵は絞り、強敵は維持）"
       expect(expected, `深度 ${depth} は必ずではない`).toBeLessThan(1);
       expect(Math.abs(dropped / TRIALS - expected), `深度 ${depth} の実測`).toBeLessThan(TOLERANCE);
     }
-    expect(roomClearDropChance(1), "浅いほど出にくい").toBeLessThan(roomClearDropChance(6));
+    expect(roomClearDropChance(1), "浅いほど出にくい（部屋の制圧のドロップ率は深度で増える）").toBeLessThan(roomClearDropChance(6));
   });
 
   it("特別な報酬（dropBonusReward）は必ず 1 個落ちる", () => {

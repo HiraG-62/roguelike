@@ -14,7 +14,7 @@ import { addPoise, applyStagger } from "./poise";
 import { focusTarget, isAllied, minionCount, resolveRules, ruleConditionsMet } from "./rules";
 import { createSkillRunState, resolveSlot, updateSkills } from "./skills";
 import { applyStatus } from "./statusEffects";
-import { arena, placeEnemy, withInput } from "./testHelpers";
+import { arena, placeEnemy, withInput, withTuning } from "./testHelpers";
 
 /** 祝福の中身で足した効果・条件・効果量の基準・イベント（docs/ideas/boon-impl.md 2-6 末尾）の検査 */
 
@@ -284,16 +284,18 @@ describe("条件 targetWithin / counter", () => {
 
 describe("新しいイベントと既定値", () => {
   it("処刑で onExecute を積む（対象 = 処刑した敵）", () => {
-    const state = cleanArena();
-    const e = placeEnemy(state, "slime", NEAR);
-    e.maxHp = 100;
-    e.hp = Math.floor(100 * POISE.executeHpRatio);
-    applyStagger(state, e, 1);
-    addPoise(state, e, POISE.executeMinPoise, { canExecute: true });
-    expect(e.hp, "処刑される").toBe(0);
-    const ev = state.events.find((x) => x.kind === "onExecute");
-    expect(ev?.targetId, "対象の敵").toBe(e.id);
-    expect(ev?.targetStatus?.some((s) => s.kind === "stagger"), "倒れた瞬間の状態異常を写す").toBe(true);
+    withTuning(POISE, { executeHpRatio: 0.25, executeHpRatioMax: 0.5 }, () => {
+      const state = cleanArena();
+      const e = placeEnemy(state, "slime", NEAR);
+      e.maxHp = 100;
+      e.hp = Math.floor(100 * POISE.executeHpRatio);
+      applyStagger(state, e, 1);
+      addPoise(state, e, POISE.executeMinPoise, { canExecute: true });
+      expect(e.hp, "処刑される").toBe(0);
+      const ev = state.events.find((x) => x.kind === "onExecute");
+      expect(ev?.targetId, "対象の敵").toBe(e.id);
+      expect(ev?.targetStatus?.some((s) => s.kind === "stagger"), "倒れた瞬間の状態異常を写す").toBe(true);
+    });
   });
 
   it("壁叩きつけで onWallSlam を積む", () => {

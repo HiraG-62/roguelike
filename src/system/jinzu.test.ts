@@ -358,8 +358,14 @@ describe("陣図の作図（planStrokes）", () => {
           if (!jin) continue;
           jin.phase = "engaged";
           for (const e of state.enemies) if (e.jinId === jin.id) e.phase = "chase";
+          if (!pickHonjinLeader(state, jin, def.jinzu!.leaderSeat)) member(state, jin, "golem", center);
           expect(makeHonjin(state, jin), `${def.key} 本陣にできる`).toBe(true);
           const leader = state.enemies.find((e) => e.id === jin.leaderId)!;
+          // 作図の隊は予算による生成人数から切り離し、左右・前後・射手を明示する。
+          for (const dx of [-90, -30, 30, 90]) {
+            for (const dy of [-50, 50]) member(state, jin, "slime", { x: leader.body.pos.x + dx, y: leader.body.pos.y + dy });
+          }
+          for (const dy of [-30, 30]) member(state, jin, "eye", { x: leader.body.pos.x + 20, y: leader.body.pos.y + dy });
           const target = { x: leader.body.pos.x + Math.cos(a + 1) * dist3, y: leader.body.pos.y + Math.sin(a + 1) * dist3 };
           const planned = planStrokes(state, jin, leader, target);
           const where = `${def.key} 距離 ${dist3} 向き ${k}`;

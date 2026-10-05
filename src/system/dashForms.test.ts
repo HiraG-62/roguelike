@@ -12,7 +12,7 @@ import { stoneFromSeed } from "../skills/generator";
 import { placeMine, spawnWell } from "../skills/placed";
 import type { CastParams, SkillKey } from "../skills/types";
 import { dashFormOf, dashFormText, wardIncomingMul } from "./dashForms";
-import { isDashing } from "./player";
+import { dashTime, isDashing } from "./player";
 import { isBehind } from "./poise";
 import { hasStatus } from "./statusEffects";
 import { terrainAt } from "./terrain";
@@ -103,8 +103,10 @@ describe("ダッシュの形の定義", () => {
 
 describe("ダッシュの形の動き", () => {
   it("駆け（見習い）: 既定の距離を進む", () => {
-    const moved = dashOnce(jobArena("none"));
-    expect(moved.x / (PLAYER.dash.speed * PLAYER.dash.time), "既定の距離").toBeCloseTo(1, RATIO_DIGITS);
+    const state = jobArena("none");
+    const duration = dashTime(state.stats);
+    const moved = dashOnce(state);
+    expect(moved.x, "1 ステップ単位で進む既定の距離").toBeCloseTo(PLAYER.dash.speed * FIXED_DT * Math.ceil(duration / FIXED_DT), RATIO_DIGITS);
   });
 
   it("詰め足（剣士）: 短く、振りの持続の途中でも出せ、次の左で続きの段が出る", () => {

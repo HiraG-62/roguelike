@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createGame } from "../core/game";
 import { createRng } from "../core/rng";
 import type { GameState, RoomKind, WareKind } from "../core/state";
-import { ARC, ROOM_KIND } from "../data/tuning";
-import { withFixedLayout } from "../map/layout/select";
-import { CONTRACTOR_KEYS, type ContractorKey } from "./contractors";
+import { ARC, CONTRACT, ROOM_KIND } from "../data/tuning";
+import { CONTRACTOR_KEYS, placeContractor, type ContractorKey } from "./contractors";
 import { buildFloor, withBaseAreaMul } from "./floor";
 import { stockPlan } from "./merchants";
 import { RUN_EVENT_KEYS, rollFloorEventKey } from "./runEvents";
 import { assignExtraRoomKinds, planForkStairs } from "./specialRooms";
 import { tierPerks } from "../meta/tierRewards";
+import { withTuning } from "./testHelpers";
 
 /** 解放制の封じと位階の見返り（state.runMeta を読む側。docs/ideas/meta-impl.md 2-5・2-6） */
 
@@ -37,19 +37,21 @@ describe("解放制: 契約者の封じ", () => {
   });
 
   it("封じても契約者の抽選は乱数を 1 回だけ引く", () => {
-    // 旧生成の階に固定する。立つ契約者が変わると後の抽選（旅商人など）の出方も変わるので、引く回数が揃うのは seed と地図の形しだい
-    withFixedLayout("legacy", () => {
+    withTuning(CONTRACT, { minDepth: 1, appearChance: 1 }, () => {
       const base = game(3);
       base.depth = 6;
       const locked = game(3);
       locked.depth = 6;
       locked.runMeta.lockedContractors = ["notary", "bookie"];
+      // 立ち位置を無くし、抽選後の品決めから乱数の比較を切り離す。
+      base.rooms = [];
+      locked.rooms = [];
       const spyBase = vi.spyOn(base.rng, "next");
       const spyLocked = vi.spyOn(locked.rng, "next");
-      buildFloor(base, "rooms");
-      buildFloor(locked, "rooms");
-      // 階の生成全体で引く回数が同じ（封じは重みを外すだけで、引く回数を増減させない）
+      placeContractor(base);
+      placeContractor(locked);
       expect(spyLocked.mock.calls.length, "next の回数").toBe(spyBase.mock.calls.length);
+      expect(spyLocked.mock.calls.length, "契約者抽選は 1 回だけ引く").toBe(1);
     });
   });
 });

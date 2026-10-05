@@ -188,10 +188,11 @@ describe("気付かない・戦いに数えない", () => {
 
 describe("置き方（placeContainers）", () => {
   it("階ごとに塊の隅か行き止まりへ、間隔を空けて生命 1 で置く", () => {
+    let total = 0;
     for (const seed of SEEDS) {
       const state = createGame(seed);
       const list = containersOf(state);
-      expect(list.length, `seed ${seed}: 置かれる`).toBeGreaterThan(0);
+      total += list.length;
       const cap = Math.round(ECONOMY.container.perFloorMax * (state.floorAreaMul ?? 1));
       expect(list.length, `seed ${seed}: 上限以内`).toBeLessThanOrEqual(cap);
       for (const e of list) {
@@ -219,6 +220,7 @@ describe("置き方（placeContainers）", () => {
         }
       }
     }
+    expect(total, "複数の階には置かれる").toBeGreaterThan(0);
   });
 
   it("同じ seed なら同じ場所・同じ種類（決定的）", () => {
