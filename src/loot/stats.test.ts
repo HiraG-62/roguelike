@@ -3,7 +3,7 @@ import { createRng } from "../core/rng";
 import { STATUS, WEAPON } from "../data/tuning";
 import { DEFAULT_MOVESET, MOVESETS, UNARMED_NAME, movesetLabel } from "../data/weapons";
 import { generateItem } from "./generator";
-import { UNARMED_MORE, computeStats, damageModDiffs, softCap, statsSummary } from "./stats";
+import { UNARMED_MORE, computeStats, damageModDiffs, formatMore, softCap, statsSummary } from "./stats";
 import { createIncreased } from "../core/damage";
 import { DEFAULT_STATS, LOOT_SLOTS, createEmptyEquipment, type Item, type Slot } from "./types";
 
@@ -251,7 +251,7 @@ describe("damageModDiffs（装備の比較の増・倍の差）", () => {
     const after = { ...DEFAULT_STATS, increased: { ...createIncreased(), melee: 0.5, ranged: 0.1 } };
     const diffs = damageModDiffs(before, after);
     expect(diffs.map((d) => d.rises)).toEqual([true, true, true]);
-    expect(diffs.map((d) => d.text)).toEqual(["近接ダメージ 増 +50%", "射撃ダメージ 増 +10%", `素手 倍 ×${UNARMED_MORE.mul} → なし`]);
+    expect(diffs.map((d) => d.text)).toEqual(["近接ダメージ 増 +50%", "射撃ダメージ 増 +10%", `${formatMore(UNARMED_MORE)} → なし`]);
     expect(damageModDiffs(after, after), "同じなら差なし").toEqual([]);
   });
 });

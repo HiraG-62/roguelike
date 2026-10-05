@@ -108,13 +108,15 @@ describe("トリガー文法", () => {
     expect(noFamily.has("everyNthMeleeHit")).toBe(true);
   });
 
-  it("AffixRoll へのエンコード → デコードで元に戻る（可逆）", () => {
+  it("AffixRoll へのエンコード → デコードで元に戻り、上限付き効果は復元時に切り詰める", () => {
     const rng = createRng(13);
     for (let i = 0; i < MANY; i++) {
       const effect = generateTrigger(rng, 1 + (i % HIGH_LEVEL));
       const roll = triggerToRoll(effect);
       expect(roll.key.startsWith(`tr:${effect.trigger}:${effect.condition}:${effect.effect}`)).toBe(true);
-      expect(decodeTriggerRoll(roll), `loot.TRIGGER.invulnMax と ${effect.effect} の表示桁で往復できる`).toEqual(effect);
+      const cap = EFFECT_SPECS[effect.effect].cap;
+      const expected = { ...effect, magnitude: cap === undefined ? effect.magnitude : Math.min(cap, effect.magnitude) };
+      expect(decodeTriggerRoll(roll), `loot.TRIGGER.invulnMax と ${effect.effect} の表示桁で往復できる`).toEqual(expected);
     }
   });
 

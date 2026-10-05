@@ -189,7 +189,7 @@ describe("起点の適用", () => {
     const s = game({ origin: "chanter", modifiers: [] });
     expect(s.skills.hand, "手持ちに開始の符").toHaveLength(ORIGIN.chanterRunes);
     expect(s.skills.slots.every((slot) => slot.modifiers.length === 0), "スキルには付いていない").toBe(true);
-    expect(s.stats.maxHp).toBeCloseTo(base.stats.maxHp * ORIGIN.chanterHpMul);
+    expect(s.stats.maxHp).toBe(Math.round(base.stats.maxHp * ORIGIN.chanterHpMul));
   });
 
   it("賭博師: 誓約「賭博師」を背負う", () => {
@@ -219,7 +219,7 @@ describe("縛りの適用", () => {
   it("薄氷: 最大 HP が 3 割減る", () => {
     const plain = game({ origin: "wanderer", modifiers: [] });
     const glass = game({ origin: "wanderer", modifiers: ["glassBody"] });
-    expect(glass.stats.maxHp).toBeCloseTo(plain.stats.maxHp * RUN_MOD.glassBodyHpMul);
+    expect(glass.stats.maxHp).toBe(Math.round(plain.stats.maxHp * RUN_MOD.glassBodyHpMul));
   });
 
   it("常夜: どの階も暗い", () => {

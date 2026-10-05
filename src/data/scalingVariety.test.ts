@@ -179,7 +179,7 @@ describe("係数表の関係", () => {
 
   it("弾はどれも基礎値で 1 発の威力が共通の係数表と同じ", () => {
     for (const s of Object.values(BULLETS)) {
-      expect(scaledAtBase(s.scaling ?? PLAYER.shoot.scaling), s.key).toBeCloseTo(scaledAtBase(PLAYER.shoot.scaling), FLOAT_DIGITS);
+      expect(scaledAtBase(s.scaling ?? PLAYER.shoot.scaling), `weapons.WEAPON.bullets.${s.key}.scaling の基礎値での威力`).toBeCloseTo(scaledAtBase(PLAYER.shoot.scaling), FLOAT_DIGITS);
     }
   });
 });

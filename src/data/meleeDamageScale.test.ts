@@ -108,7 +108,7 @@ describe("銃の弾の係数", () => {
     for (const key of keys) {
       const s = BULLETS[key]?.scaling;
       if (!s) throw new Error(`${key} に scaling が無い`);
-      expect(atBase(s), `${key} の基礎値での威力`).toBeCloseTo(atBase(PLAYER.shoot.scaling));
+      expect(atBase(s), `weapons.WEAPON.bullets.${key}.scaling の基礎値での威力は combat.PLAYER.shoot.scaling と同じ（docs/STATS_AND_SCALING.md）`).toBeCloseTo(atBase(PLAYER.shoot.scaling));
       if (PLACED_BULLETS.includes(key)) expect(ratioSum(s), `${key} は設置弾なので係数なし`).toBe(0);
       else expect(ratioSum(s), `weapons.WEAPON.bullets.${key}.scaling は Σ係数 0.3 以上`).toBeGreaterThanOrEqual(SHOT_RATIO_MIN - 1e-9);
     }

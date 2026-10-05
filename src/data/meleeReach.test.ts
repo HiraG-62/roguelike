@@ -88,7 +88,7 @@ describe("近接の当たり判定の外縁", () => {
       .map(({ label, step }) => ({ label, edge: outerEdge(step), cap: tip + EDGE_SLACK + (CHAIN_REACH[key] ?? 0) + (step.shape.kind === "thrust" || ARM_STRIKE.includes(key) ? THRUST_SLACK : 0) }))
       .filter(({ edge, cap }) => edge > cap + 1e-6)
       .map(({ label, edge, cap }) => `${label}: 外縁 ${edge.toFixed(1)} > ${cap.toFixed(1)}`);
-    expect(over, `${key}（刃先 ${tip.toFixed(1)}px）`).toEqual([]);
+    expect(over, `weapons.WEAPON.movesets.${key} の判定外縁は刃先 ${tip.toFixed(1)}px 以内`).toEqual([]);
   });
 
   it("溜めで届く距離を伸ばさない", () => {

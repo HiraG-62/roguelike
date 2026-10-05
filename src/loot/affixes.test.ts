@@ -223,7 +223,7 @@ describe("アフィックス定義", () => {
     for (const def of [...AFFIXES, ...CONVERSION_AFFIXES]) {
       expect(def.curve.length, def.key).toBeGreaterThan(0);
       for (const point of def.curve) {
-        expect(point.min, def.key).toBeLessThanOrEqual(point.max);
+        expect(point.min, `loot.affixCurves.${def.key}.min は max 以下`).toBeLessThanOrEqual(point.max);
         if (point.min2 !== undefined || point.max2 !== undefined) {
           expect(point.min2, def.key).toBeDefined();
           expect(point.max2, def.key).toBeDefined();

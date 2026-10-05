@@ -429,7 +429,7 @@ describe("書（墨印）", () => {
       const cast = s.cast;
       if (!cast) throw new Error("左の段が字を撃たない");
       const melee = scaled(DEFAULT_STATS, s.scaling);
-      expect(scaled(DEFAULT_STATS, cast.throw.scaling), "段の基礎威力と字の基礎威力").toBeCloseTo(melee, 5);
+      expect(scaled(DEFAULT_STATS, cast.throw.scaling), "weapons.WEAPON.movesets.book.steps[].cast.throw.scaling と steps[].scaling の基礎威力").toBeCloseTo(melee, 5);
     }
   });
 

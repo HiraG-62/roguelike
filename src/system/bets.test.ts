@@ -113,8 +113,8 @@ describe("賭け: 数値", () => {
   it("運の型の期待値（倍率 × 確率）は 0.9〜1.0", () => {
     for (const kind of LUCK_BETS) {
       const ev = B[kind].mul * B[kind].chance;
-      expect(ev, `${kind} の期待値`).toBeGreaterThanOrEqual(0.9);
-      expect(ev, `${kind} の期待値`).toBeLessThanOrEqual(1.0 + 1e-9);
+      expect(ev, `economy.ECONOMY.bet.${kind}.mul × chance の期待値は 0.9 以上`).toBeGreaterThanOrEqual(0.9);
+      expect(ev, `economy.ECONOMY.bet.${kind}.mul × chance の期待値は 1.0 以下`).toBeLessThanOrEqual(1.0 + 1e-9);
     }
   });
 

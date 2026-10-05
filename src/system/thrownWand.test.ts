@@ -47,8 +47,8 @@ function throwOnce(state: GameState): Projectile[] {
 describe("クナイの通常の投げの弾速", () => {
   it("クナイの弾は素の銃弾より遅く、射程（弾速 × 寿命）は素の銃弾以上を保つ", () => {
     const shot = bulletDef("kunai");
-    expect(shot.speedMul, "弾速").toBeLessThan(THROWN_SPEED_CAP);
-    expect(shot.speedMul * shot.lifeMul, "射程").toBeGreaterThanOrEqual(1);
+    expect(shot.speedMul, "weapons.WEAPON.bullets.kunai.speedMul は銃弾より遅い").toBeLessThan(THROWN_SPEED_CAP);
+    expect(shot.speedMul * shot.lifeMul, "weapons.WEAPON.bullets.kunai.speedMul × lifeMul の射程は銃弾以上").toBeGreaterThanOrEqual(1);
   });
 
   it("クナイを左で投げた弾は設定どおりの遅さで飛ぶ", () => {

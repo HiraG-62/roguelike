@@ -213,7 +213,7 @@ describe("型の表示（transformLabel）", () => {
   });
 
   it("行に型の数値が載る（重打の範囲の倍率）", () => {
-    expect(transformLabel("crusher", "commonWhirl")).toContain(String(TRANSFORM_NUMBERS.crusher.areaMul));
+    expect(transformLabel("crusher", "commonWhirl")).toContain(String(Number((TRANSFORM_NUMBERS.crusher.areaMul ?? 1).toFixed(2))));
   });
 });
 

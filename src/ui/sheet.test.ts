@@ -5,6 +5,7 @@ import { ULTIMATES } from "../data/ultimates";
 import { MOVESETS, MOVESET_KEYS, isGun } from "../data/weapons";
 import { chunksText } from "./scalingText";
 import { formatAffix } from "../loot/affixes";
+import { formatMoreMul } from "../loot/stats";
 import { createCraftSave } from "../loot/craftingStore";
 import { describeTrait } from "../loot/describe";
 import { innateAt } from "../loot/innate";
@@ -150,7 +151,7 @@ describe("書付", () => {
 
   it("内訳の頁の増と倍は今の右手の攻撃に掛かるものだけで、積んだ増と倍が出る", () => {
     const state = createGame(1);
-    expect(bodyModifierSection(state).rows.map((r) => chunksText(r)), "素手は素手の倍だけ").toEqual([`倍 素手 ×${state.stats.more.find((m) => m.source === "unarmed")?.mul}`]);
+    expect(bodyModifierSection(state).rows.map((r) => chunksText(r)), "素手は素手の倍だけ").toEqual([`倍 素手 ×${formatMoreMul(state.stats.more.find((m) => m.source === "unarmed")?.mul ?? 1)}`]);
     state.stats = {
       ...state.stats,
       increased: { ...state.stats.increased, melee: 0.2, ranged: 0.5 },

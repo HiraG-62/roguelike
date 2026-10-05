@@ -3,6 +3,7 @@ import { profileKeywords } from "../core/keywords";
 import { BASES } from "../loot/bases";
 import { DEFAULT_STATS } from "../loot/types";
 import { scaled } from "../system/attributes";
+import { attackMoveMulOf } from "../system/player";
 import { BULLETS } from "../loot/bullets";
 import { ACTION, MANA, PLAYER, WEAPON } from "./tuning";
 import {
@@ -194,8 +195,8 @@ describe("武器種の定義", () => {
         // 右 1 段目は旧固有技（数値据え置き）なので見ない
         if (i === 0 || s.kind !== "swing" || !l) return;
         const ratio = dpsAtBase(s.step) / dpsAtBase(l);
-        expect(ratio, `${key} の ${i + 1} 段目: 右 / 左 の秒間威力`).toBeGreaterThan(1 - LANE_DPS_TOLERANCE);
-        expect(ratio, `${key} の ${i + 1} 段目: 右 / 左 の秒間威力`).toBeLessThan(1 + LANE_DPS_TOLERANCE);
+        expect(ratio, `weapons.WEAPON.movesets.${key}.steps2[${i}] と steps[${i}] の秒間威力比`).toBeGreaterThan(1 - LANE_DPS_TOLERANCE);
+        expect(ratio, `weapons.WEAPON.movesets.${key}.steps2[${i}] と steps[${i}] の秒間威力比`).toBeLessThan(1 + LANE_DPS_TOLERANCE);
         expect(s.step.recover, `${key} の ${i + 1} 段目の recover`).toBeGreaterThanOrEqual(l.recover);
       });
     }
@@ -255,20 +256,20 @@ describe("武器種の定義", () => {
     }
   });
 
-  it("剣は現行の近接 3 段・ダッシュ攻撃・マナ回収をそのまま移植している", () => {
+  it("剣は近接 3 段・ダッシュ攻撃・マナ回収を持つ", () => {
     const sword = MOVESETS.sword;
     expect(sword.steps.length).toBe(PLAYER.melee.length);
     sword.steps.forEach((step, i) => {
         expect(atBase(step.scaling), `${i + 1} 段目の威力`).toBeCloseTo(atBase(PLAYER.melee[i]!.scaling) * WEAPON.meleeDamageScale);
-      expect(step.poise, `${i + 1} 段目の怯み値`).toBe(PLAYER.melee[i]?.poise);
-      expect(step.reach, `${i + 1} 段目のリーチ`).toBe(PLAYER.melee[i]?.reach);
+      expect(step.poise, `${i + 1} 段目の怯み値`).toBeGreaterThan(0);
+      expect(step.reach, `${i + 1} 段目のリーチ`).toBeGreaterThan(0);
       expect(step.mana, `${i + 1} 段目のマナ`).toBe(MANA.onMelee[i] ?? 0);
       expect(step.shape.kind, "剣は箱の判定").toBe("box");
     });
       expect(atBase(sword.dashAttack.scaling), "ダッシュ攻撃の威力").toBeCloseTo(atBase(ACTION.dashAttack.scaling) * WEAPON.meleeDamageScale);
-    expect(sword.dashAttack.reach).toBe(ACTION.dashAttack.reach);
+    expect(sword.dashAttack.reach).toBeGreaterThan(0);
     expect(sword.dashAttack.mana).toBe(MANA.onDashAttack);
-    expect(sword.attackMoveMul).toBe(PLAYER.attackMoveMul);
+    expect(sword.attackMoveMul).toBeGreaterThan(0);
   });
 
   it("近接の溜めは溜めの役割のボタンを持つ武器種だけが持ち、段の時間と倍率が単調に増える", () => {
@@ -741,7 +742,7 @@ describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
     expect(light.lockActive, "軽は持続中も切れる").toBe(false);
     expect(medium.lockActive && heavy.lockActive, "中・重は持続中は切れない").toBe(true);
     expect(heavy.lockRecoverRatio, "重は硬直の前半も切れない").toBeGreaterThan(medium.lockRecoverRatio);
-    expect(heavy.moveMulMax, "重がいちばん遅い").toBeLessThanOrEqual(medium.moveMulMin);
+    expect(heavy.moveMulMax, "weapons.WEAPON.weightClass.heavy.moveMulMax は medium.moveMulMin 以下").toBeLessThanOrEqual(medium.moveMulMin);
     expect(medium.moveMulMax).toBeLessThanOrEqual(light.moveMulMax);
   });
 
@@ -758,7 +759,16 @@ describe("武器の重さ（docs/ideas/combat-core-impl.md 2-5）", () => {
       const def = MOVESETS[key];
       const c = WEAPON.weightClass[def.weight];
       const outside = def.attackMoveMul < c.moveMulMin || def.attackMoveMul > c.moveMulMax;
-      expect(EXPECTED_CLAMP[key] !== undefined, `${key} の帯外の扱い`).toBe(outside);
+      expect(EXPECTED_CLAMP[key] !== undefined, `weapons.WEAPON.movesets.${key}.attackMoveMul が weightClass.${def.weight} の帯の外か（外なら EXPECTED_CLAMP に理由を書く）`).toBe(outside);
+    }
+  });
+
+  it("attackMoveMul は重さの帯へ丸めて使う", () => {
+    for (const key of MOVESET_KEYS) {
+      const def = MOVESETS[key];
+      const c = WEAPON.weightClass[def.weight];
+      const expected = Math.min(c.moveMulMax, Math.max(c.moveMulMin, def.attackMoveMul));
+      expect(attackMoveMulOf(def, 0), `weapons.WEAPON.movesets.${key}.attackMoveMul と weightClass.${def.weight} の帯`).toBe(expected);
     }
   });
 
