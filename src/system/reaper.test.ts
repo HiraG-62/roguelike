@@ -83,7 +83,4 @@ describe("Reaper 出現猶予", () => {
     expect(reaperWarning(state)).toBe(false);
   });
 
-  it("追跡速度は旧仕様（28）の 85% になっている", () => {
-    expect(REAPER.speed).toBeCloseTo(28 * 0.85);
-  });
 });

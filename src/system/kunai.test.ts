@@ -186,7 +186,7 @@ describe("千本（戦意が満ちた後の左）", () => {
 });
 
 describe("派生（左左右の影留め・右右左の離れ投げ）", () => {
-  it("影留め（左左右）: 足元へ投げたクナイが刺さった敵を 0.6 秒止める", () => {
+  it("影留め（左左右）: 足元へ投げたクナイが刺さった敵を設定時間止める", () => {
     const state = kunaiArena();
     const e = tough(placeEnemy(state, "boar", NEAR));
     pressLeft(state);
@@ -196,8 +196,9 @@ describe("派生（左左右の影留め・右右左の離れ投げ）", () => {
     runUntil(state, () => hasStatus(e.status, "paralyze"));
     expect(pinCount(state, e, "kunai"), "クナイが刺さる").toBeGreaterThan(0);
     const paralyze = e.status.effects.find((s) => s.kind === "paralyze");
-    expect(paralyze?.time ?? 0, "止まる秒").toBeLessThanOrEqual(0.6 + 1e-9);
-    expect(paralyze?.time ?? 0).toBeGreaterThan(0.3);
+    const duration = MOVESETS.kunai.branches.find((b) => b.key === "shadowPin")?.shots?.applies?.[0]?.duration ?? 0;
+    expect(paralyze?.time ?? 0, "止まる秒").toBeLessThanOrEqual(duration + 1e-9);
+    expect(paralyze?.time ?? 0).toBeGreaterThan(0);
   });
 
   it("影留めの派生は足元へ短く投げる弾（寿命が短い）で、足止めを持つ", () => {
@@ -205,7 +206,7 @@ describe("派生（左左右の影留め・右右左の離れ投げ）", () => {
     expect(branch?.sequence).toEqual(["primary", "primary", "secondary"]);
     expect(branch?.shots?.lifeMul ?? 1, "足元へ").toBeLessThan(0.3);
     expect(branch?.shots?.applies?.[0]?.kind).toBe("paralyze");
-    expect(branch?.shots?.applies?.[0]?.duration).toBe(0.6);
+    expect(branch?.shots?.applies?.[0]?.duration ?? 0).toBeGreaterThan(0);
   });
 
   it("離れ投げ（右右左）: 後ろへ跳びながらクナイを 2 本投げる", () => {

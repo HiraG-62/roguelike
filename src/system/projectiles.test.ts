@@ -10,6 +10,7 @@ import { overlapsWall } from "./physics";
 import { emitVolley, shotChargeLevel, shotDamage } from "./player";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 /** 弾（src/loot/bullets.ts。銃のベースごと）の出方と飛び方 */
 
@@ -212,19 +213,21 @@ describe("弾の挙動: 設置弾", () => {
 });
 
 describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-design.md B-2）", () => {
-  /** 三点の弾の間隔（ステップ） */
-  const BURST_GAP_STEPS = 3;
-
   it("三点は 1 押しで 3 発が 3 ステップおきに出て、押しっぱなしでも次は再使用を待つ", () => {
     const state = shooter("burstRifle");
-    const counts: number[] = [];
+    const seen = new Set<number>();
+    const firedAt: number[] = [];
     for (let i = 0; i < 12; i++) {
       step(state, withInput({ attackHeld: true }), FIXED_DT);
-      counts.push(playerShots(state).length);
+      for (const shot of playerShots(state)) {
+        if (seen.has(shot.id)) continue;
+        seen.add(shot.id);
+        firedAt.push(i);
+      }
     }
-    const firedAt = counts.map((c, i) => (c > (counts[i - 1] ?? 0) ? i : -1)).filter((i) => i >= 0);
-    expect(firedAt, "0・3・6 ステップ目に 1 発ずつ").toEqual([0, BURST_GAP_STEPS, BURST_GAP_STEPS * 2]);
-    expect(counts[counts.length - 1], "4 発目は出ない").toBe(bulletDef("burstRifle").burst?.count);
+    const interval = bulletDef("burstRifle").burst?.interval ?? 0;
+    expect(firedAt, "設定の間隔で 1 発ずつ").toEqual([0, Math.ceil(interval / FIXED_DT), Math.ceil((interval * 2) / FIXED_DT)]);
+    expect(seen.size, "4 発目は出ない").toBe(bulletDef("burstRifle").burst?.count);
     expect(state.player.shootCooldown, "次の 3 発までは待つ").toBeGreaterThan(0);
   });
 
@@ -254,8 +257,14 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
 
   it("曲射は照準の距離で炸裂し、飛行中は敵に当たらない", () => {
     const state = shooter("mortar");
+    const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+    const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+    for (let ty = py - 1; ty <= py + 1; ty++) {
+      for (let tx = px; tx <= px + 8; tx++) setTile(state.map, tx, ty, Tile.Floor);
+    }
     const onPath = tough(placeEnemy(state, "boar", 30));
     const atTarget = tough(placeEnemy(state, "boar", 90));
+    const targetPos = { ...atTarget.body.pos };
     // 照準はプレイヤーから +x へ 90（世界座標 → 画面座標は screenToWorld の逆）
     const cam = state.camera;
     const ox = Math.round(VIEW_W / 2 - cam.pos.x + cam.offset.x);
@@ -269,6 +278,7 @@ describe("弾の挙動: 三点・回転刃・曲射（docs/ideas/combat-feel-des
       onPath.body.pos = { x: state.player.body.pos.x + 30, y: state.player.body.pos.y };
       onPath.knock = { x: 0, y: 0 };
       atTarget.knock = { x: 0, y: 0 };
+      atTarget.body.pos = { ...targetPos };
     }
     expect(onPath.hp, "通り道の敵には当たらない").toBe(TOUGH_HP);
     expect(atTarget.hp, "着弾点の敵に爆風が当たった").toBeLessThan(TOUGH_HP);

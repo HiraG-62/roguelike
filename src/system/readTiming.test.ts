@@ -13,6 +13,7 @@ import { ultimateOutgoingMul } from "./ultimates";
 import { isStaggered } from "./poise";
 import { NEVER_TIME, markWindupStart, noteCommit, yellowAt } from "./readTiming";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 /** 読み合いの時刻（出端の判定。docs/ideas/reading-core-impl.md 2-2・2-3・2-4） */
 
@@ -54,6 +55,9 @@ function phaseOf(e: Enemy): string {
 }
 
 function windupEnemy(state: GameState, dx = NEAR): Enemy {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let tx = px; tx <= px + Math.ceil(dx / TILE_SIZE) + 1; tx++) setTile(state.map, tx, py, Tile.Floor);
   const e = placeEnemy(state, "boar", dx);
   return startWindup(state, e);
 }

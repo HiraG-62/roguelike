@@ -282,8 +282,9 @@ describe("欲の皮・身代わり地蔵", () => {
     equip(state, "jizo");
     state.economy.coins = 100;
     const half = 10;
-    expect(relicPayWithCoins(state, half * 2), "半分を銭で受ける").toBe(half);
-    expect(state.economy.coins, "銭 1 で生命 hpPerCoin").toBe(100 - Math.ceil(half / RELIC.jizo.hpPerCoin));
+    const paid = Math.ceil((half * 2 * RELIC.jizo.share) / RELIC.jizo.hpPerCoin);
+    expect(relicPayWithCoins(state, half * 2), "設定の割合を銭で受ける").toBe(half * 2 - Math.min(half * 2, paid * RELIC.jizo.hpPerCoin));
+    expect(state.economy.coins, "銭 1 で生命 hpPerCoin").toBe(100 - paid);
     state.economy.coins = 1;
     expect(relicPayWithCoins(state, half * 2), "払えない分は生命").toBe(half * 2 - RELIC.jizo.hpPerCoin);
     expect(state.economy.coins).toBe(0);

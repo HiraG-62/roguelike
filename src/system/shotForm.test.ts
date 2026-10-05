@@ -10,6 +10,7 @@ import type { PlayerStats } from "../loot/types";
 import { BULLETS } from "../loot/bullets";
 import { playerMoveset, shotDamage } from "./player";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 /**
  * 弾の資源と射撃の形（docs/ideas/gun-bases-review.md 0-2・0-3）。
@@ -41,6 +42,11 @@ function press(state: GameState, input: Partial<FrameInput> = {}, n = 1): void {
 /** 自然回復を止め、気力と奥義ゲージを 0 にした稽古場（増えた分だけが命中の分） */
 function emptyArena(stats: Partial<PlayerStats>): GameState {
   const state = arena(5, { manaRegen: 0, ...stats });
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 7; ty <= py + 7; ty++) {
+    for (let tx = px - 12; tx <= px + 12; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
   state.player.mana = 0;
   state.player.energy = 0;
   return state;
@@ -56,6 +62,17 @@ function tough(state: GameState, dx: number, dy = 0): Enemy {
 
 function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0);
+}
+
+/** 飛行中に消える短命の弾も、発射された瞬間の状態で集める。 */
+function collectShots(state: GameState, seconds: number): Projectile[] {
+  const shots = new Map<number, Projectile>();
+  for (const shot of playerShots(state)) shots.set(shot.id, shot);
+  for (let i = 0; i < stepsFor(seconds); i++) {
+    press(state);
+    for (const shot of playerShots(state)) shots.set(shot.id, shot);
+  }
+  return [...shots.values()];
 }
 
 /** 自分の最初の弾の進む先（弧の輪は折り返す点）に的を置き、当たるまで進める（設置弾は近づいた的で炸裂する） */
@@ -161,8 +178,7 @@ describe("三点の続き（P4）", () => {
         state.player.morale.primed = true;
       }
       press(state, { attackPressed: true, attackHeld: true });
-      press(state, {}, stepsFor(0.3));
-      return playerShots(state);
+      return collectShots(state, 0.3);
     };
     const normal = fire(false);
     const released = fire(true);
@@ -185,8 +201,7 @@ describe("三点の続き（P4）", () => {
         state.player.energy = state.player.maxEnergy;
       }
       press(state, { attackPressed: true, attackHeld: true });
-      press(state, {}, stepsFor(0.3));
-      return playerShots(state);
+      return collectShots(state, 0.3);
     };
     const normal = fire(false);
     const focused = fire(true);
@@ -235,8 +250,7 @@ describe("派生の弾は普段の射撃を count 回撃つ（A 案）", () => {
     press(state, { shootHeld: true });
     const a = state.player.attack;
     expect(playerMoveset(state).branches[a.branch]?.key, "左左右の派生").toBe(expectKey);
-    press(state, {}, stepsFor(0.3));
-    return { state, shots: playerShots(state) };
+    return { state, shots: collectShots(state, 0.3) };
   }
 
   /** 弾を向き（度。小数 1 桁）ごとに数える */

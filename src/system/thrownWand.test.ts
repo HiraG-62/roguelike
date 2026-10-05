@@ -57,7 +57,7 @@ describe("クナイの通常の投げの弾速", () => {
     if (!pr) throw new Error("投げていない");
     const expected = PLAYER.shoot.speed * bulletDef("kunai").speedMul * state.stats.projectileSpeedMul;
     expect(length(pr.vel), "弾速").toBeCloseTo(expected, 0);
-    expect(length(pr.vel), "素の銃弾より遅い").toBeLessThan(PLAYER.shoot.speed * THROWN_SPEED_CAP);
+    expect(length(pr.vel), "素の銃弾より遅い").toBeLessThan(PLAYER.shoot.speed * state.stats.projectileSpeedMul);
   });
 });
 

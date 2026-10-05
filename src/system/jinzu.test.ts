@@ -26,7 +26,7 @@ import {
 import { canLeadHonjin, pickHonjinLeader } from "./jinzuSquads";
 import { applyStagger, poiseTakenMul } from "./poise";
 import { removeStatus, applyStatus } from "./statusEffects";
-import { arena, placeEnemy } from "./testHelpers";
+import { arena, placeEnemy, withTuning } from "./testHelpers";
 import { stirSleepingJin } from "./jin";
 
 /** 本陣と陣図（system/jinzu.ts・jinzuRun.ts・jinzuSquads.ts。docs/ideas/jinzu-impl.md） */
@@ -839,11 +839,15 @@ describe("旗倒れ", () => {
   });
 
   it("本陣の決着で鍵を必ず落とす（keyChance）", () => {
-    const f = field();
-    const keys0 = f.state.pickups.filter((p) => p.kind === "key").length;
-    f.leader.hp = 0;
-    noteJinDeath(f.state, f.leader);
-    expect(HONJIN.keyChance, "確率 1").toBe(1);
-    expect(f.state.pickups.filter((p) => p.kind === "key").length, "鍵が落ちる").toBe(keys0 + 1);
+    withTuning(HONJIN, { keyChance: 1 }, () => {
+      const f = field();
+      const keys0 = f.state.pickups.filter((p) => p.kind === "key").length;
+      const chance = vi.spyOn(f.state.rng, "chance").mockReturnValue(true);
+      f.leader.hp = 0;
+      noteJinDeath(f.state, f.leader);
+      expect(f.jin.phase, "本陣が決着する").toBe("settled");
+      expect(chance, "本陣の鍵の確率で抽選する").toHaveBeenCalledWith(1);
+      expect(f.state.pickups.filter((p) => p.kind === "key").length, "鍵が落ちる").toBe(keys0 + 1);
+    });
   });
 });

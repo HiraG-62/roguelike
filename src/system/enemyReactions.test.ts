@@ -9,6 +9,7 @@ import { damageEnemy } from "./combat";
 import { followUpOf, updateEnemies } from "./enemies";
 import { playerExposed, reactSlotTarget } from "./enemyReactions";
 import { arena, placeEnemy } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 const HUGE_HP = 1_000_000;
 /** 攻撃を始めない間隔（反応だけを見たいとき） */
@@ -19,6 +20,11 @@ const EPS = 1e-6;
 /** 反応の検証用: 被弾で死なず、攻撃も受けない */
 function reactionArena(depth = 1): GameState {
   const state = arena(5);
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 14; ty <= py + 14; ty++) {
+    for (let tx = px - 14; tx <= px + 14; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
   state.depth = depth;
   state.player.maxHp = HUGE_HP;
   state.player.hp = HUGE_HP;
@@ -258,11 +264,14 @@ describe("反応ルール: 囲む（slotTarget）", () => {
     const list = pack(state, "slime", 3);
     const player = state.player.body.pos;
     const engage = enemyDef("slime").engageRange;
+    const arrival = Math.max(REACTION.slotRadius, engage + REACTION.slotMargin) + 4;
     const arrivedAt = new Map<number, number>();
-    for (let i = 0; i < 400 && arrivedAt.size < list.length; i++) {
+    const route = 150 + 2 * Math.PI * Math.max(REACTION.slotRadius, engage);
+    const steps = Math.ceil((route / enemyDef("slime").speed) * 3 / FIXED_DT);
+    for (let i = 0; i < steps && arrivedAt.size < list.length; i++) {
       tick(state);
       for (const e of list) {
-        if (arrivedAt.has(e.id) || dist(e.body.pos, player) > engage + 4) continue;
+        if (arrivedAt.has(e.id) || dist(e.body.pos, player) > arrival) continue;
         arrivedAt.set(e.id, angle(sub(e.body.pos, player)));
       }
     }
@@ -403,7 +412,8 @@ describe("格「猛」の接触ダメージ（JIN.strong.damageMul）", () => {
     const normal = contactLoss(false);
     const strong = contactLoss(true);
     expect(normal, "前提: 並の接触は当たる").toBeGreaterThan(0);
-    expect(strong, "猛は並より重い").toBeGreaterThan(normal);
+    expect(JIN.strong.damageMul, "猛の倍率は並より大きい").toBeGreaterThan(1);
+    expect(strong, "丸めた後も並より軽くならない").toBeGreaterThanOrEqual(normal);
     // 並の接触（深度の曲線と全体の倍率を掛けた後、丸める前）に猛の倍率を掛けて丸める。並も丸めた値なので 1 の差は丸めの違い
     expect(Math.abs(strong - normal * JIN.strong.damageMul)).toBeLessThanOrEqual(1);
   });

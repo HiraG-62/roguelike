@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MoreMul } from "../core/damage";
+import { MIN_INCREASED_MUL } from "../core/damage";
 import { MOVESETS } from "../data/weapons";
 import { KEYSTONE } from "../data/tuning";
 import { computeStats } from "../loot/stats";
@@ -28,19 +29,13 @@ function sturdy(state: ReturnType<typeof arena>, key: string): ReturnType<typeof
 /** 見本の倍（出所の文字列は内訳の並びを見るためだけの名前） */
 const GLASS_HEART_MUL = 1.5;
 const GLASS_HEART: MoreMul = { source: "boon:coreGlassHeart", label: "硝子の心", mul: GLASS_HEART_MUL, tags: ["melee", "ranged", "skill"] };
-/**
- * 装備なし・会心なしの剣の 1 段目で深度 1 のスライムへ入る威力（段取り 4a の前の rollOutgoing で測った値。前後で同じ）。
- * 2026-10-02 の振りの速さの見直し（docs/ideas/weapon-tempo.md）で剣の 1 段目を遅く重くしたので 5 → 7
- */
-const SLIME_DEPTH1_SWORD_HIT = 7;
-
 describe("与ダメの増と倍（rollOutgoing の内訳）", () => {
-  it("装備なし深度 1 のスライムへの威力は今と同じ（剣の 1 段目で 5）", () => {
+  it("装備なし深度 1 のスライムには段の基礎威力がそのまま入る", () => {
     const state = arena();
     state.depth = 1;
     const e = sturdy(state, "slime");
     const out = rollOutgoing(state, e, swordFirstStep(state), "melee");
-    expect(out.amount, "威力").toBe(SLIME_DEPTH1_SWORD_HIT);
+    expect(out.amount, "威力").toBe(Math.round(swordFirstStep(state)));
     expect(out.breakdown.increased, "増なし").toBe(0);
     expect(out.breakdown.more, "倍なし").toEqual([]);
     expect(out.breakdown.enemyMul, "スライムは物理を等倍で受ける").toBe(1);
@@ -106,7 +101,7 @@ describe("与ダメの増と倍（rollOutgoing の内訳）", () => {
 
   it("増の合計は下限で止まる（代償を積んでも 0 にしない）", () => {
     const state = arena(5, { increased: increasedWith({ melee: -5 }) });
-    expect(rollOutgoing(state, null, 100, "melee").amount).toBe(10);
+    expect(rollOutgoing(state, null, 100, "melee").amount).toBe(Math.round(100 * MIN_INCREASED_MUL));
   });
 
   it("1 撃のタグ: 種類・スキル・怯み中（proc 以外）・ボス", () => {

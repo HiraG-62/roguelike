@@ -5,7 +5,7 @@ import { dist } from "../core/vec";
 import { ENEMIES, enemyDef } from "../data/enemies";
 import { enemyCombat } from "../data/enemyCombat";
 import { BOSS, ENEMY_AI } from "../data/tuning";
-import { TILE_SIZE } from "../map/grid";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { damageEnemy } from "./combat";
 import { enemyTelegraph, updateEnemies } from "./enemies";
 import { makeElite } from "./elites";
@@ -28,6 +28,14 @@ function tickEnemies(state: GameState, n = 1): void {
     updateProjectiles(state, FIXED_DT);
     updateHazards(state, FIXED_DT);
     state.player.invulnTimer = Math.max(0, state.player.invulnTimer - FIXED_DT);
+  }
+}
+
+function clearEncounter(state: GameState): void {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 6; ty <= py + 6; ty++) {
+    for (let tx = px - 2; tx <= px + 10; tx++) setTile(state.map, tx, ty, Tile.Floor);
   }
 }
 
@@ -141,6 +149,7 @@ describe("地形を作る敵（敵の地形は敵にも効く）", () => {
 
   it("油壺運びは走りながら予告の後に油を撒く", () => {
     const state = arena();
+    clearEncounter(state);
     readyEnemy(state, "oiler", 90);
     tickEnemies(state);
     const seed = state.terrainSeeds?.[0];
@@ -385,6 +394,7 @@ describe("プレイヤーの攻撃を読む敵", () => {
 
   it("虚ろは照準を向けられている間は固まり、背を向けると寄ってくる", () => {
     const state = arena();
+    clearEncounter(state);
     const h = placeEnemy(state, "hollow", 80);
     h.phase = "chase";
     h.attackCooldown = 99;
@@ -426,6 +436,7 @@ describe("線と扇の攻撃", () => {
 
   it("鎖の番人は鎖が当たると引き寄せ、続けて叩きつけの輪を予告する", () => {
     const state = arena();
+    clearEncounter(state);
     const c = readyEnemy(state, "chainWarden", 100);
     tickEnemies(state);
     expect(enemyTelegraph(c, enemyDef("chainWarden"))?.kind).toBe("laser");
@@ -471,6 +482,7 @@ describe("地雷撒きと地雷", () => {
 describe("部屋主（Wave 3）", () => {
   it("大蝦蟇は湧くと周りに浅瀬（水たまり）を作る", () => {
     const state = arena();
+    clearEncounter(state);
     const t = placeEnemy(state, "giantToad", 60);
     t.phase = "chase";
     t.attackCooldown = 99;

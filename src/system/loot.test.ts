@@ -78,7 +78,7 @@ describe("装備ドロップと拾得", () => {
     state.player.body.pos = { ...fi.pos };
     updateFloorItems(state, 1);
     step(state, withInput({}), FIXED_DT);
-    expect(state.floorItems, "触れただけでは床に残る").toHaveLength(1);
+    expect(state.floorItems.some((item) => item.id === fi.id), "触れただけでは床に残る").toBe(true);
   });
 
   it("カーソルを合わせてインタラクトすると stash に入る", () => {
@@ -192,7 +192,7 @@ describe("装備ドロップと拾得", () => {
     state.player.hp = 1;
     state.pickups.push({ id: 999, kind: "heart", pos: { ...state.player.body.pos }, radius: 6, bobTime: 0 });
     step(state, withInput({}), FIXED_DT);
-    expect(state.pickups, "触れただけで消える").toHaveLength(0);
+    expect(state.pickups.some((pickup) => pickup.id === 999), "触れただけで消える").toBe(false);
     expect(state.player.hp, "回復する").toBeGreaterThan(1);
   });
 

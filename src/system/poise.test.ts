@@ -9,6 +9,7 @@ import { updateEnemies } from "./enemies";
 import { addPoise, applyStagger, attackCommitted, basePoiseMax, bossPoiseGrowth, isStaggered, settlePendingStagger, windupCommitted } from "./poise";
 import { applyStatus, findStatus, hasStatus, updateStatusEffects } from "./statusEffects";
 import { arena, increasedWith, placeEnemy } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 const BIG_HP = 100000;
 /** 近接 1 / 2 / 3 段の基礎怯み値（docs/COMBAT_DESIGN.md D-2） */
@@ -103,6 +104,9 @@ describe("怯みの蓄積（D-1）", () => {
 describe("怯みと AI（D-4）", () => {
   it("怯むと予備動作は取り消され、怯み中は動かず攻撃間隔も進まない。解けたら追跡から出直す", () => {
     const state = arena();
+    const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+    const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+    for (let tx = px; tx <= px + 5; tx++) setTile(state.map, tx, py, Tile.Floor);
     const e = sturdy(state, "slime", 60);
     e.phase = "windup";
     e.phaseTimer = 10;

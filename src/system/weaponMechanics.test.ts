@@ -313,6 +313,7 @@ describe("武器 Wave 4: 溜め中の回し（spinning）", () => {
     const state = arena(5, { moveset: "greatsword" });
     // 真後ろの敵（振りの向きに関係なく周りを打つ）
     const e = tough(placeEnemy(state, "boar", -20));
+    const pin = { ...e.body.pos };
     let hits = 0;
     let hp = e.hp;
     step(state, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
@@ -320,6 +321,8 @@ describe("武器 Wave 4: 溜め中の回し（spinning）", () => {
       step(state, withInput({ attackHeld: true }), FIXED_DT);
       if (e.hp < hp) hits += 1;
       hp = e.hp;
+      e.body.pos = { ...pin };
+      e.body.vel = { x: 0, y: 0 };
     }
     expect(state.player.attack.phase, "溜めている間は振りに入らない").toBe("none");
     expect(state.player.attack.charging).toBe(true);

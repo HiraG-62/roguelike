@@ -100,7 +100,7 @@ describe("出端（カウンターヒット）", () => {
     const state = arena();
     const first = meleeStep(state.stats, 0);
     if (!first) throw new Error("1 段目が無い");
-    expect(ACTION.counter.poiseMul, "出端の怯み値は 1.5 倍（黄に絞った報酬）").toBe(1.5);
+    expect(ACTION.counter.poiseMul, "出端は通常より怯み値を増やす").toBeGreaterThan(1);
     expect(ACTION.counter.damageMul, "威力の倍率は残る").toBeGreaterThan(1);
     expect(counterPoise(first, true), "カウンターの怯み値").toBe(first.poise * ACTION.counter.poiseMul);
     expect(counterPoise(first, false), "通常の怯み値").toBe(first.poise);

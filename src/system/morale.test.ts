@@ -231,7 +231,8 @@ describe("戦意: 長銃（狙い）", () => {
     state.player.shootCooldown = 0;
     // 溜めでない器の放出はリロード後の 1 発目だけ（関門は system/gunMorale.test.ts）。込め直しながら狙いを満たす
     startReload(state, 0);
-    run(state, {}, stepsFor(FORM.rifle.max / FORM.rifle.gain.still) + 1);
+    const readySec = Math.max(FORM.rifle.max / FORM.rifle.gain.still, currentShot(state.stats).magazine?.reloadSec ?? 0);
+    for (let i = 0; i < stepsFor(readySec * 2) && (!state.player.magazine.fresh || !state.player.morale.primed); i++) run(state, {});
     expect(state.player.magazine.fresh, "込め直した").toBe(true);
     expect(state.player.morale.primed).toBe(true);
     const events = run(state, { attackHeld: true });
@@ -657,7 +658,9 @@ describe("戦意: 刃斧（傷）", () => {
     const rend = rendOn(FORM.hewer.max);
     expect(plain.release, "傷が無ければ放出しない").toBeUndefined();
     expect(rend.release, "放出の量は近くの傷の最大スタック").toBe(FORM.hewer.max);
-    expect(rend.taken / plain.taken, "傷 1 つあたりの上乗せ").toBeCloseTo(1 + FORM.hewer.rend.damageMulPerStack * FORM.hewer.max, 1);
+    const mul = 1 + FORM.hewer.rend.damageMulPerStack * FORM.hewer.max;
+    expect(rend.taken, "傷 1 つあたりの上乗せの下限").toBeGreaterThanOrEqual(Math.round((plain.taken - 0.5) * mul));
+    expect(rend.taken, "傷 1 つあたりの上乗せの上限").toBeLessThanOrEqual(Math.round((plain.taken + 0.5) * mul));
     expect(rend.left, "裂いた傷は消える").toBe(0);
   });
 });

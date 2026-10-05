@@ -18,6 +18,7 @@ import { arena, placeEnemy, withInput } from "./testHelpers";
 import { actionCooldownLeft, onBranchStart } from "./weaponArts";
 import { BULLETS, bulletDef } from "../loot/bullets";
 import { startReload, tickMagazine } from "./magazine";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 /**
  * 右クリック = アクション 2（右レーン。docs/ideas/ougi-and-dual-actions.md 4 章 / system/weaponArts.ts）と銃の家系。
@@ -473,9 +474,13 @@ describe("銃の家系", () => {
 
   it("弾はベースのまま（短銃の三連銃は三点）", () => {
     const state = arena(5, { moveset: "sidearm", bullet: "burstRifle" });
-    play(state, Array.from({ length: 12 }, () => ({ attackHeld: true })));
-    expect(playerShots(state), "三点").toHaveLength(bulletDef("burstRifle").burst?.count ?? 0);
-    expect(playerShots(state)[0]?.damage).toBeCloseTo(shotDamage(state.stats) * bulletDef("burstRifle").damageMul);
+    const seen = new Map<number, Projectile>();
+    for (let i = 0; i < 12; i++) {
+      play(state, [{ attackHeld: true }]);
+      for (const shot of playerShots(state)) seen.set(shot.id, shot);
+    }
+    expect(seen.size, "三点").toBe(bulletDef("burstRifle").burst?.count ?? 0);
+    expect([...seen.values()][0]?.damage).toBeCloseTo(shotDamage(state.stats) * bulletDef("burstRifle").damageMul);
   });
 
   it("長銃の銃剣突きは近接として当たる", () => {
@@ -588,6 +593,11 @@ function driveRight(state: GameState, key: string): boolean {
 describe("QA bot と右レーン", () => {
   function botArena(moveset: "sidearm" | "greatsword" | "sword", dx: number): GameState {
     const state = arena(5, { moveset });
+    const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+    const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+    for (let ty = py - 1; ty <= py + 1; ty++) {
+      for (let tx = px; tx <= px + Math.ceil(dx / TILE_SIZE) + 1; tx++) setTile(state.map, tx, ty, Tile.Floor);
+    }
     state.skills = createSkillRunState({ version: 1, loadout: [], stones: [] });
     // 攻撃間隔の長い敵（先読みの回避を評価しない）
     const e = tough(placeEnemy(state, "golem", dx));

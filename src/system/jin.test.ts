@@ -7,7 +7,7 @@ import { dist } from "../core/vec";
 import { JIN_TEXT } from "../data/actionText";
 import { enemyDef } from "../data/enemies";
 import { JIN } from "../data/tuning";
-import { rectCenterPx } from "../map/grid";
+import { TILE_SIZE, Tile, rectCenterPx, setTile } from "../map/grid";
 import { emptyJinSettle, recordJinSettle } from "../qa/jinMetrics";
 import { updateEnemies } from "./enemies";
 import {
@@ -37,6 +37,11 @@ const ROOM_B = 2;
 /** 陣の無い開始部屋に立った状態。部屋 1・2 を「封鎖しない・未交戦・未制圧」にしておく */
 function jinArena(): GameState {
   const state = arena();
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 12; ty <= py + 12; ty++) {
+    for (let tx = px - 12; tx <= px + 12; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
   state.jins = [];
   for (const i of [ROOM_A, ROOM_B]) {
     const room = state.rooms[i];

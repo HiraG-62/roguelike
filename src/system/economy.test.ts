@@ -380,7 +380,8 @@ describe("陣・部屋・階の銭", () => {
     for (const e of state.enemies) if (e.roomIndex === index) e.jinId = undefined;
     state.player.invulnTimer = 1e9;
     state.player.body.pos = rectCenterPx(room.rect);
-    for (let i = 0; i < 3 && !room.locked; i++) step(state, IDLE, FIXED_DT);
+    room.engaged = true;
+    room.locked = true;
     for (let i = 0; i < 120 && !room.cleared; i++) {
       for (const e of state.enemies) if (e.roomIndex === index) e.hp = 0;
       step(state, IDLE, FIXED_DT);

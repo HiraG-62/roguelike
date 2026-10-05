@@ -8,7 +8,7 @@ import { ringsInFlight } from "../system/projectiles";
 import { resolveSlot } from "../system/skills";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { magazineView } from "../system/magazine";
-import { isDashing } from "../system/player";
+import { currentShot, isDashing } from "../system/player";
 import type { BoonGrade } from "../system/boonGrade";
 import { BOONS, BOON_KEYS, type BoonChoice, type BoonKey } from "../system/boons";
 import {
@@ -25,7 +25,7 @@ import {
   shouldPressUltimate,
   worldToScreen,
 } from "./bot";
-import { TILE_SIZE, Tile, toIndex } from "../map/grid";
+import { TILE_SIZE, Tile, setTile, toIndex } from "../map/grid";
 import { invalidatePathing } from "../map/pathing";
 import { isZero } from "../core/vec";
 import { buildFloor } from "../system/floor";
@@ -89,6 +89,13 @@ const ENDLESS_HP = 1e9;
 /** 開始部屋で追ってくる敵 1 体と向き合う（互いに倒れない。待機中の敵は bot が交戦相手に選ばないので追跡にする） */
 function facingEnemy(dx: number): GameState {
   const state = arena(3);
+  // 地図生成の数値が変わっても、敵との間合いを試す道筋は同じ床にする。
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 2; ty <= py + 2; ty++) {
+    for (let tx = px - 13; tx <= px + 13; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
+  invalidatePathing(state.map);
   const e = placeEnemy(state, "slime", dx);
   e.phase = "chase";
   e.hp = ENDLESS_HP;
@@ -209,7 +216,7 @@ describe("bot の戦輪（投げた輪が戻るまで待つ）", () => {
     return state;
   }
 
-  it("輪が飛んでいる間は左も右も押さず、戻ったら連撃を出す", () => {
+  it("輪が飛んでいる間は左も右も押さず、戻ったら攻撃を押す", () => {
     const state = ringFacing();
     const bot = createBotState(6);
     let thrown = false;
@@ -220,18 +227,20 @@ describe("bot の戦輪（投げた輪が戻るまで待つ）", () => {
     for (let i = 0; i < FRAMES && !swung; i++) {
       const flying = ringsInFlight(state);
       const input = botInput(state, bot, DT);
+      const pressed = input.attackHeld || input.shootHeld;
       if (flying && state.player.attack.phase === "none") {
         thrown = true;
         waited += 1;
         // 受け流し・回避の入力を除いて、攻撃の入力は出さない
-        if (!input.dashPressed && !input.parryPressed) expect(input.attackHeld || input.shootHeld, `${i} フレーム目: 戻るまで押さない`).toBe(false);
+        if (!input.dashPressed && !input.parryPressed) expect(pressed, `${i} フレーム目: 戻るまで押さない`).toBe(false);
       }
+      // 戻った後の入力で見る（押した step で次の輪が出るので、step の後の「飛んでいない」は投げの速さ次第で捕まえられない）
+      if (thrown && !flying && pressed) swung = true;
       step(state, input, DT);
-      if (thrown && !ringsInFlight(state) && state.player.attack.phase !== "none") swung = true;
     }
     expect(thrown, "輪を投げた").toBe(true);
     expect(waited, "戻りを待った").toBeGreaterThan(0);
-    expect(swung, "戻ってから振った").toBe(true);
+    expect(swung, "戻ってから攻撃を押した").toBe(true);
   });
 });
 
@@ -644,8 +653,10 @@ describe("bot の銃の込めと射程（弾倉・早込め・詰め。gun-bases
     const early = nextInput(state, bot);
     expect(magazineView(state).quickWindow, "窓が見える").not.toBeNull();
     expect(early.reloadPressed, "進み 10% は窓の前").toBeFalsy();
-    h.reloadLeft = 0.4;
-    expect(nextInput(state, bot).reloadPressed, "進み 60% は窓の中").toBe(true);
+    const quick = magazineView(state).quickWindow;
+    if (!quick) throw new Error("早込めの窓が無い");
+    h.reloadLeft = h.reloadTotal * (1 - (quick.from + quick.to) / 2);
+    expect(nextInput(state, bot).reloadPressed, "窓の中だけ押す").toBe(true);
     step(state, { ...nextInput(state, bot), reloadPressed: true }, DT);
     expect(state.player.morale.value, "早込めで戦意が溜まった").toBeGreaterThan(0);
   });
@@ -695,8 +706,11 @@ describe("bot の銃の込めと射程（弾倉・早込め・詰め。gun-bases
     expect(nextInput(state, bot).attackHeld, "戦意が満ちていなければ 0.75 秒で離す").toBe(false);
     p.morale.primed = true;
     expect(nextInput(state, bot).attackHeld, "満ちていれば 0.8 秒ではまだ溜める").toBe(true);
-    p.shotChargeTime = 1.2;
-    expect(nextInput(state, bot).attackHeld, "最大段（1.1 秒）に届いたら離す").toBe(false);
+    const levels = currentShot(state.stats).charge?.levels;
+    const top = levels?.[levels.length - 1]?.time;
+    if (top === undefined) throw new Error("最大段の時刻が無い");
+    p.shotChargeTime = top + 0.1;
+    expect(nextInput(state, bot).attackHeld, "最大段に届いたら離す").toBe(false);
   });
 });
 

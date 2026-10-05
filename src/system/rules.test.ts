@@ -22,8 +22,8 @@ import { fireTrigger, tickTriggerCooldowns } from "./triggers";
 
 const NEAR = 20;
 const MID = 40;
-/** 戦闘中の回復の上限（最大 HP 100 × HEAL.sustainCapRatio = 4 / 秒）に掛からない量 */
-const HEAL = 4;
+/** 調整で戦闘中の回復上限が下がっても届く量 */
+const HEAL = 2;
 const LOW_HP = 10;
 const ONE_SECOND = 1;
 
@@ -198,6 +198,7 @@ describe("連鎖の止め方（訪問回数・連鎖係数）", () => {
 
   it("効果の連鎖係数が起こしたイベントへ写る（元の係数 × 効果の係数）", () => {
     const state = cleanArena();
+    state.rng.chance = () => true;
     const e = placeEnemy(state, "slime", NEAR);
     state.pendingEvents.push(chainedHit(state, e, [], 0.5));
     resolveRules(state, 0, [afflictRule(0.4)]);

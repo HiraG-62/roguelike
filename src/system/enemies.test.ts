@@ -23,6 +23,14 @@ import { add, scale, sub, normalize } from "../core/vec";
 import { placeTerrain } from "./terrain";
 
 const STEPS = 500;
+
+function clearEncounter(state: GameState): void {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 12; ty <= py + 12; ty++) {
+    for (let tx = px - 12; tx <= px + 12; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
+}
 const HUGE_HP = 1_000_000;
 
 describe("追加敵の behavior", () => {
@@ -174,6 +182,7 @@ describe("wisp", () => {
 describe("laserEye", () => {
   it("チャージ中は動かず、照射でプレイヤーに当たる", () => {
     const state = arena();
+    clearEncounter(state);
     const l = placeEnemy(state, "laserEye", 80);
     Object.assign(l, { phase: "chase", attackCooldown: 0 });
     updateEnemies(state, FIXED_DT);
@@ -397,7 +406,7 @@ describe("マナ喰い", () => {
     kill(state, e);
     // 撃破の通常のマナ回収（MANA.onKill）に、奪われた量の returnMul 倍が上乗せされる
     const returned = ENEMY_AI.manaLeech.steal * ENEMY_AI.manaLeech.returnMul;
-    expect(state.player.mana - before, "取り返したマナ").toBeGreaterThanOrEqual(returned);
+    expect(state.player.mana - before, "取り返したマナ").toBeGreaterThanOrEqual(Math.min(returned, state.stats.maxMana - before));
   });
 });
 
@@ -413,6 +422,7 @@ describe("死骸と骨拾い・墓守の鐘", () => {
 
   it("骨拾いは死骸へ向かって食べ、HP と体が大きくなる", () => {
     const state = arena();
+    clearEncounter(state);
     const s = placeEnemy(state, "scavenger", 60);
     kill(state, placeEnemy(state, "slime", 85));
     s.phase = "chase";
@@ -569,6 +579,7 @@ describe("再配色種と性質", () => {
     ];
     for (const [key, count] of cases) {
       const state = arena();
+      clearEncounter(state);
       const e = readyEnemy(state, key, 100);
       tickEnemies(state);
       runWindup(state, e);
@@ -785,6 +796,7 @@ describe("二度突きの猪", () => {
 
   it("予備動作で折れ線が決まり予告中は無害、1 本目の横へ逃げても 2 本目が当たる", () => {
     const state = arena();
+    clearEncounter(state);
     state.depth = 5;
     const b = readyEnemy(state, "boarDouble", 60);
     b.hp = HUGE_HP;
@@ -825,6 +837,12 @@ describe("二度突きの猪", () => {
     // プレイヤーは遠くへ。猪はプレイヤーの位置から出発し、少し下で右へ曲がって壁へ
     state.player.body.pos = { x: state.player.body.pos.x - 2000, y: state.player.body.pos.y - 2000 };
     const start = { ...b.body.pos };
+    const wallX = Math.floor(start.x / TILE_SIZE) + 3;
+    const wallY = Math.floor(start.y / TILE_SIZE);
+    for (let tx = wallX - 3; tx < wallX; tx++) {
+      for (let ty = wallY - 1; ty <= wallY + 1; ty++) setTile(state.map, tx, ty, Tile.Floor);
+    }
+    for (let ty = wallY - 1; ty <= wallY + 1; ty++) setTile(state.map, wallX, ty, Tile.Wall);
     b.phase = "strike";
     b.phaseTimer = enemyDef("boarDouble").strikeTime;
     b.strikeDir = { x: 0, y: 1 };

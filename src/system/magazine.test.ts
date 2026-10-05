@@ -35,6 +35,16 @@ function playerShots(state: GameState): Projectile[] {
   return state.projectiles.filter((pr) => pr.owner === "player" && pr.life > 0);
 }
 
+/** 飛び去って消えた弾も数える */
+function shotsThrough(state: GameState, seconds: number): number {
+  const ids = new Set(playerShots(state).map((pr) => pr.id));
+  for (let i = 0; i < stepsFor(seconds); i++) {
+    press(state);
+    for (const shot of playerShots(state)) ids.add(shot.id);
+  }
+  return ids.size;
+}
+
 /** 弾倉を作り直させた稽古場（arena は stats を直接書くので、1 回進めて器の弾倉にする） */
 function gunArena(stats: Partial<PlayerStats>): GameState {
   const state = arena(5, stats);
@@ -70,17 +80,16 @@ describe("弾倉の数え方", () => {
       const moveset = bullet === "shotgun" ? "cannon" : "sidearm";
       const state = gunArena({ moveset, bullet });
       fire(state);
-      press(state, {}, stepsFor(0.3));
+      const shots = shotsThrough(state, 0.3);
       expect(hand0(state).rounds, `${bullet}: 引き金 1 回で 1 減る`).toBe(capacityOf(bullet) - 1);
-      expect(playerShots(state).length, `${bullet}: 弾は 1 発以上`).toBeGreaterThanOrEqual(1);
+      expect(shots, `${bullet}: 弾は 1 発以上`).toBeGreaterThanOrEqual(1);
     }
     const spread = gunArena({ moveset: "cannon", bullet: "shotgun" });
     fire(spread);
     expect(playerShots(spread).length, "散弾は粒の数だけ").toBe(1 + (BULLETS.shotgun?.pellets ?? 0));
     const burst = gunArena({ moveset: "sidearm", bullet: "burstRifle" });
     fire(burst);
-    press(burst, {}, stepsFor(0.3));
-    expect(playerShots(burst).length, "三点は 3 本").toBe(BULLETS.burstRifle?.burst?.count);
+    expect(shotsThrough(burst, 0.3), "三点は 3 本").toBe(BULLETS.burstRifle?.burst?.count);
   });
 
   it("銃でない武器種は弾倉が働かない（HUD も出さない）", () => {

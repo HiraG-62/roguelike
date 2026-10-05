@@ -28,7 +28,16 @@ import {
 import { ultimateDamage } from "./ultimates";
 import { collectRules } from "./rules";
 import { hasStatus } from "./statusEffects";
-import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
+import { arena, increasedWith, placeEnemy, withInput, withTuning } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
+
+function clearDashLane(state: GameState): void {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 1; ty <= py + 1; ty++) {
+    for (let tx = px; tx <= px + 15; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
+}
 
 /**
  * 無効化手段の整理と手触り（docs/COMBAT_DESIGN.md C 章・段階 1 の L4）。
@@ -120,23 +129,29 @@ describe("ダッシュの無敵（前半だけ）", () => {
   });
 
   it("無敵は invulnTime で切れ、ダッシュ中でも無敵が切れた後は被弾する", () => {
-    const state = arena();
-    step(state, withInput({ dashPressed: true }), FIXED_DT);
-    expect(state.player.invulnTimer, "無敵はダッシュ全長ではなく invulnTime").toBeCloseTo(PLAYER.dash.invulnTime);
-    while (state.player.invulnTimer > 0) step(state, withInput({}), FIXED_DT);
-    expect(state.player.dashTimer, "まだダッシュの後半").toBeGreaterThan(0);
-    const hp = state.player.hp;
-    expect(damagePlayer(state, 10, { x: 0, y: 0 }), "後半は被弾する").toBe("hit");
-    expect(state.player.hp).toBeLessThan(hp);
+    withTuning(PLAYER, { dash: { time: 0.3, invulnTime: 0.1 } }, () => {
+      const state = arena();
+      clearDashLane(state);
+      step(state, withInput({ dashPressed: true }), FIXED_DT);
+      expect(state.player.invulnTimer, "無敵はダッシュ全長ではなく invulnTime").toBeCloseTo(PLAYER.dash.invulnTime);
+      while (state.player.invulnTimer > 0) step(state, withInput({}), FIXED_DT);
+      expect(state.player.dashTimer, "まだダッシュの後半").toBeGreaterThan(0);
+      const hp = state.player.hp;
+      expect(damagePlayer(state, 10, { x: 0, y: 0 }), "後半は被弾する").toBe("hit");
+      expect(state.player.hp).toBeLessThan(hp);
+    });
   });
 
   it("ダッシュ後の猶予無敵は無く、再使用は PLAYER.dash.cooldown（基礎 1 回ぶん）", () => {
-    const state = arena();
-    expect(dashCooldownTime(state.stats), "基礎のダッシュ CD").toBeCloseTo(PLAYER.dash.cooldown);
-    expect(PLAYER.dash.cooldown, "無敵を連打で繋げない長さ（invulnTime より十分長い）").toBeGreaterThan(PLAYER.dash.invulnTime * 5);
-    step(state, withInput({ dashPressed: true }), FIXED_DT);
-    while (state.player.dashTimer > 0) step(state, withInput({}), FIXED_DT);
-    expect(state.player.invulnTimer, "終了直後に無敵が残らない").toBe(0);
+    withTuning(PLAYER, { dash: { time: 0.3, invulnTime: 0.1 } }, () => {
+      const state = arena();
+      clearDashLane(state);
+      expect(dashCooldownTime(state.stats), "基礎のダッシュ CD").toBeCloseTo(PLAYER.dash.cooldown);
+      expect(PLAYER.dash.cooldown, "無敵を連打で繋げない長さ（invulnTime より十分長い）").toBeGreaterThan(PLAYER.dash.invulnTime * 5);
+      step(state, withInput({ dashPressed: true }), FIXED_DT);
+      while (state.player.dashTimer > 0) step(state, withInput({}), FIXED_DT);
+      expect(state.player.invulnTimer, "終了直後に無敵が残らない").toBe(0);
+    });
   });
 });
 
@@ -893,10 +908,11 @@ describe("武器種の文法拡張（docs/ideas/combat-feel-design.md B-0）", (
     const left = arena(5, { moveset: "gunner" });
     step(left, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);
     expect(playerShotCount(left), "左で撃った").toBe(1);
+    const firedUntil = left.nextId;
     expect(left.player.attack.phase, "近接は振らない").toBe("none");
     const cooldownSteps = Math.ceil(PLAYER.shoot.cooldown / FIXED_DT) + 1;
     for (let i = 0; i <= cooldownSteps; i++) step(left, withInput({ attackHeld: true }), FIXED_DT);
-    expect(playerShotCount(left), "押しっぱなしでは撃ち続けない").toBe(1);
+    expect(left.nextId, "押しっぱなしでは新しい弾を作らない").toBe(firedUntil);
 
     const both = arena(5, { moveset: "gunner" });
     step(both, withInput({ attackPressed: true, attackHeld: true }), FIXED_DT);

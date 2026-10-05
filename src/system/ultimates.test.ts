@@ -14,6 +14,7 @@ import { type Rule, SCOPE_ANY, ruleId } from "../core/rules";
 import { collectRules, resolveRules, ruleConditionsMet } from "./rules";
 import { createSkillRunState, updateSkills } from "./skills";
 import { arena, increasedWith, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import {
   chosenUltimate,
   endUltimate,
@@ -51,6 +52,11 @@ function def(key: string): UltimateDef {
 function ready(key: string, stats: Partial<PlayerStats> = {}): GameState {
   const d = def(key);
   const state = arena(5, { moveset: d.moveset, ...stats });
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 12; ty <= py + 12; ty++) {
+    for (let tx = px - 12; tx <= px + 12; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
   state.profile.ultimates = { [d.moveset]: key };
   state.player.energy = ULTIMATE.common.cost;
   return state;

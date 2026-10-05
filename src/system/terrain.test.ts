@@ -254,6 +254,12 @@ describe("上に立つ者への効果（プレイヤーと敵の両方）", () =
     if (!room) throw new Error("no room");
     const body = state.player.body;
     body.pos = { x: room.x * TILE_SIZE + body.radius + 0.5, y: (room.y + room.h / 2) * TILE_SIZE };
+    const wallY = Math.floor(body.pos.y / TILE_SIZE);
+    for (let ty = wallY - 1; ty <= wallY + 1; ty++) {
+      setTile(state.map, room.x - 1, ty, Tile.Wall);
+      setTile(state.map, room.x, ty, Tile.Floor);
+      setTile(state.map, room.x + 1, ty, Tile.Floor);
+    }
     placeTerrain(state, body.pos.x, body.pos.y, "ice", TILE_SIZE, 0);
     for (let i = 0; i < 30; i++) updatePlayer(state, withInput({ move: { x: -1, y: 0 } }), 1 / 60);
     expect(body.vel.x, "壁の向きの速度は 0").toBe(0);
@@ -415,6 +421,9 @@ describe("煙", () => {
     const state = arena();
     cleanLayer(state);
     const p = playerPos(state);
+    const tx = Math.floor(p.x / TILE_SIZE);
+    const ty = Math.floor(p.y / TILE_SIZE);
+    for (let x = tx; x <= tx + 4; x++) setTile(state.map, x, ty, Tile.Floor);
     const far = { x: p.x + 64, y: p.y };
     expect(lineOfSight(state.map, p, far), "煙の無い床は見通せる").toBe(true);
     placeTerrain(state, p.x + 32, p.y, "smoke", 0, 2);
@@ -427,6 +436,9 @@ describe("煙", () => {
     const state = arena();
     cleanLayer(state);
     const p = playerPos(state);
+    const tx = Math.floor(p.x / TILE_SIZE);
+    const ty = Math.floor(p.y / TILE_SIZE);
+    for (let x = tx; x <= tx + 4; x++) setTile(state.map, x, ty, Tile.Floor);
     const e = placeEnemy(state, "slime", 64);
     e.phase = "idle";
     placeTerrain(state, p.x + 32, p.y, "smoke", 0, 0);

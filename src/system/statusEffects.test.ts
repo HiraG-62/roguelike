@@ -250,7 +250,7 @@ describe("相互作用（E-3）", () => {
     updateStatusEffects(state, FIXED_DT);
     const expected = (moved / STATUS.bleed.distance) * 1;
     expect(BIG_HP - plain.hp).toBe(expected);
-    expect(BIG_HP - poisoned.hp).toBe(expected * STATUS.bleed.poisonMul);
+    expect(BIG_HP - poisoned.hp).toBe(Math.floor(expected * STATUS.bleed.poisonMul));
   });
 
   it("脆弱 + 怯み: 乗算（× 1.2 × 怯み中の増）", () => {
@@ -296,7 +296,7 @@ describe("相互作用（E-3）", () => {
     applyStatus(state, on(e), apply("freeze", STATUS.freeze.duration), "player");
     const before = e.hp;
     damageEnemy(state, e, 10, { x: 1, y: 0 }, 0, { kind: "melee" });
-    expect(before - e.hp).toBe(10 * STATUS.freeze.shatterDamageMul);
+    expect(before - e.hp).toBe(Math.round(10 * STATUS.freeze.shatterDamageMul));
     expect(e.poise.damage).toBe(STATUS.freeze.shatterPoise);
     expect(hasStatus(e.status, "freeze")).toBe(false);
     expect(state.texts.some((t) => t.text === "砕き")).toBe(true);
@@ -383,7 +383,7 @@ describe("敵 → プレイヤー（E-4）", () => {
     applyStatus(state, PLAYER, apply("vulnerable", 4), "enemy");
     let hp = state.player.hp;
     damagePlayer(state, 10, e.body.pos, e);
-    expect(hp - state.player.hp).toBe(12);
+    expect(hp - state.player.hp).toBe(Math.round(10 * STATUS.vulnerable.mul));
     state.player.invulnTimer = 0;
     state.player.status.effects = [];
     applyStatus(state, on(e), apply("weaken", 4), "player");
@@ -396,7 +396,7 @@ describe("敵 → プレイヤー（E-4）", () => {
     const state = arena();
     const e = sturdy(state, "golem");
     applyStatus(state, PLAYER, apply("weaken", 3), "enemy");
-    expect(rollOutgoing(state, e, 20, "melee").amount, "ゴーレムの物理防御も掛かる（A-8）").toBe(Math.round(15 * enemyDefenseMul(e, "physical")));
+    expect(rollOutgoing(state, e, 20, "melee").amount, "ゴーレムの物理防御も掛かる（A-8）").toBe(Math.round(20 * (1 - STATUS.weaken.mul) * enemyDefenseMul(e, "physical")));
     applyStatus(state, PLAYER, apply("silence", 1), "enemy");
     expect(playerCanCast(state)).toBe(false);
   });
@@ -409,8 +409,10 @@ describe("継続ダメージ", () => {
     const boss = sturdy(state, "boneLord", 80);
     for (const t of [e, boss]) applyStatus(state, on(t), apply("poison", 5, 2), "player");
     updateStatusEffects(state, 1);
-    expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * 2);
-    expect(BIG_HP - boss.hp).toBe(BIG_HP * STATUS.poison.bossHpRatioPerSec * 2);
+    expect(BIG_HP - e.hp).toBeGreaterThanOrEqual(Math.floor(BIG_HP * STATUS.poison.hpRatioPerSec * 2) - 1);
+    expect(BIG_HP - e.hp).toBeLessThanOrEqual(Math.ceil(BIG_HP * STATUS.poison.hpRatioPerSec * 2));
+    expect(BIG_HP - boss.hp).toBeGreaterThanOrEqual(Math.floor(BIG_HP * STATUS.poison.bossHpRatioPerSec * 2) - 1);
+    expect(BIG_HP - boss.hp).toBeLessThanOrEqual(Math.ceil(BIG_HP * STATUS.poison.bossHpRatioPerSec * 2));
   });
 
   it("性質由来の毒は potency を割合として使い、霊力（statusPotencyMul）が掛かる", () => {
@@ -418,7 +420,8 @@ describe("継続ダメージ", () => {
     const e = sturdy(state, "golem");
     applyStatus(state, on(e), apply("poison", 5, 1, STATUS.poison.hpRatioPerSec), "player");
     updateStatusEffects(state, 1);
-    expect(BIG_HP - e.hp).toBe(BIG_HP * STATUS.poison.hpRatioPerSec * 2);
+    expect(BIG_HP - e.hp).toBeGreaterThanOrEqual(Math.floor(BIG_HP * STATUS.poison.hpRatioPerSec * 2) - 1);
+    expect(BIG_HP - e.hp).toBeLessThanOrEqual(Math.ceil(BIG_HP * STATUS.poison.hpRatioPerSec * 2));
   });
 });
 

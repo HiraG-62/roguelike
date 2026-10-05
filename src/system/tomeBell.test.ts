@@ -6,7 +6,8 @@ import { FIXED_DT } from "../core/loop";
 import type { Enemy, GameState } from "../core/state";
 import type { StatusApply } from "../core/status";
 import type { Vec } from "../core/vec";
-import { FORM, STATUS, WEAPON } from "../data/tuning";
+import { FORM, PLAYER, STATUS, WEAPON } from "../data/tuning";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 import { MOVESETS } from "../data/weapons";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { skillHit } from "../skills/hit";
@@ -33,6 +34,14 @@ import { minionDamageMul } from "./tomeBell";
 const TOUGH_HP = 99999;
 const NO_ATTACK_COOLDOWN = 99;
 const EPS = 1e-6;
+
+function clearGlyphLane(state: GameState): void {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 2; ty <= py + 2; ty++) {
+    for (let tx = px; tx <= px + 12; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
+}
 /** 打ち鳴らしの半径の外に置く距離（px） */
 const FAR = FORM.bell.toll.radius + 80;
 const NEAR = 24;
@@ -460,8 +469,9 @@ describe("書（墨印）", () => {
     expect(state.player.energy, "字の命中の奥義ゲージ").toBe(0);
   });
 
-  it("左の字は約 10m（100px）で消える", () => {
+  it("左の字は設定の弾速と寿命で決まる射程で消える", () => {
     const state = arena(5, { moveset: "book" });
+    clearGlyphLane(state);
     tick(state, { attackPressed: true });
     let far = 0;
     const origin = { ...state.player.body.pos };
@@ -471,12 +481,17 @@ describe("書（墨印）", () => {
       }
       tick(state);
     }
-    expect(far, "100px の手前では消えない").toBeGreaterThan(90);
-    expect(far, "100px を大きく超えて飛ばない").toBeLessThan(115);
+    const bullet = MOVESETS.book.steps[0]?.cast?.throw.bullet;
+    if (!bullet) throw new Error("字の弾が無い");
+    const speed = PLAYER.shoot.speed * bullet.speedMul * state.stats.projectileSpeedMul;
+    const range = speed * PLAYER.shoot.life * bullet.lifeMul;
+    expect(far, "寿命で決まる射程まで飛ぶ").toBeGreaterThan(range - speed * FIXED_DT * 2);
+    expect(far, "寿命を超えて飛ばない").toBeLessThan(range + speed * FIXED_DT * 2);
   });
 
   it("派生「頁飛ばし」（左右左）の頁の命中で読まれる", () => {
     const state = arena(5, { moveset: "book" });
+    clearGlyphLane(state);
     const e = near(state, 60);
     ink(state, e, STATUS.inkMark.maxStacks);
     tick(state, { attackPressed: true });

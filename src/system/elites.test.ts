@@ -33,7 +33,7 @@ import { createEnemy, updateEnemies } from "./enemies";
 import { updateProjectiles } from "./projectiles";
 import { arena, placeEnemy } from "./testHelpers";
 import { overlapsWall } from "./physics";
-import { TILE_SIZE, Tile, createMap } from "../map/grid";
+import { TILE_SIZE, Tile, createMap, setTile } from "../map/grid";
 // floor は他の system を束ねるので最後に読む（先に読むと循環 import の初期化順が崩れる）
 import { descend } from "./floor";
 
@@ -310,6 +310,11 @@ describe("寄生の / 群長の", () => {
     const w = placeEnemy(state, "wisp", 0);
     // 部屋の左の壁の中（1.5 マス奥）
     w.body.pos = { x: room.x * TILE_SIZE - TILE_SIZE * 1.5, y: (room.y + room.h / 2) * TILE_SIZE };
+    const wallY = Math.floor(w.body.pos.y / TILE_SIZE);
+    for (let ty = wallY - 3; ty <= wallY + 3; ty++) {
+      for (let tx = room.x - 3; tx < room.x; tx++) setTile(state.map, tx, ty, Tile.Wall);
+      for (let tx = room.x; tx <= room.x + 5; tx++) setTile(state.map, tx, ty, Tile.Floor);
+    }
     expect(overlapsWall(state, w.body.pos.x, w.body.pos.y, w.body.radius), "親は壁の中").toBe(true);
     makeElite(w, "parasitic");
     damageEnemy(state, w, 9999, { x: 1, y: 0 }, 0);
@@ -455,6 +460,11 @@ describe("強欲の", () => {
   it("床の遺物へ向かって拾い、抱えたらプレイヤーから逃げる", () => {
     const state = arena();
     const p = state.player.body.pos;
+    const px = Math.floor(p.x / TILE_SIZE);
+    const py = Math.floor(p.y / TILE_SIZE);
+    for (let ty = py - 3; ty <= py + 3; ty++) {
+      for (let tx = px - 2; tx <= px + 10; tx++) setTile(state.map, tx, ty, Tile.Floor);
+    }
     const e = greedyAt(state, 50);
     const fi = floorItemAt(state, { x: p.x + 80, y: p.y }, 101);
     for (let i = 0; i < 300 && carriedCount(e) === 0; i++) tick(state, 1);

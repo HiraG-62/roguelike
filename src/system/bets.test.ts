@@ -118,11 +118,11 @@ describe("賭け: 数値", () => {
     }
   });
 
-  it("丁半は持ち金の 20%（最低 10）、一か八かは全額", () => {
-    expect(stakeFor("chohan", 100), "100 の 20%").toBe(20);
+  it("丁半は持ち金に割合を掛け最低額を守り、一か八かは全額", () => {
+    expect(stakeFor("chohan", 100), "持ち金に設定の割合を掛ける").toBe(Math.floor(100 * B.chohan.stakeRatio));
     expect(stakeFor("chohan", 20), "最低額").toBe(B.chohan.stakeMin);
     expect(stakeFor("allIn", 57), "全額").toBe(57);
-    expect(stakeFor("longshot", 100), "大穴は 10%").toBe(10);
+    expect(stakeFor("longshot", 100), "大穴も設定の割合を使う").toBe(Math.max(B.longshot.stakeMin, Math.floor(100 * B.longshot.stakeRatio)));
   });
 });
 

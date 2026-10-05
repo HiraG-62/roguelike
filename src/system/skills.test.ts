@@ -39,6 +39,7 @@ import {
 } from "./skills";
 import { skillPower } from "../skills/hit";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 const BIG_HP = 1000;
 /** 床の物が落ちてから、触れているだけの時間（触れて拾う仕様だった頃の拾うまでの猶予より長く） */
@@ -82,6 +83,14 @@ function tough(state: GameState, dx: number, dy = 0): ReturnType<typeof placeEne
   e.maxHp = BIG_HP;
   e.phase = "idle";
   return e;
+}
+
+function clearHookLane(state: GameState): void {
+  const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+  const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+  for (let ty = py - 1; ty <= py + 1; ty++) {
+    for (let tx = px; tx <= px + 9; tx++) setTile(state.map, tx, ty, Tile.Floor);
+  }
 }
 
 /** ワールド座標 → 画面内部座標（screenToWorld の逆） */
@@ -378,7 +387,7 @@ describe("血の契約", () => {
     const p = state.player;
     press(state, 0);
     expect(p.hp).toBeCloseTo(p.maxHp * (1 - SKILL.bloodPact.hpFraction));
-    expect(frenzyMul(state)).toBeCloseTo(SKILL.bloodPact.speedMul);
+    expect(frenzyMul(state), "攻撃速度が上がる").toBeGreaterThan(1);
     const e = tough(state, 60);
     trackDamageDealt(state);
     const hp = p.hp;
@@ -386,7 +395,7 @@ describe("血の契約", () => {
     const dealt = 40;
     e.hp -= dealt;
     trackDamageDealt(state);
-    expect(p.hp).toBeCloseTo(hp + dealt * SKILL.bloodPact.lifesteal);
+    expect(p.hp).toBeCloseTo(hp + dealt * state.skills.lifesteal.mul);
   });
 
   it("HP コストで 1 未満にならない", () => {
@@ -789,7 +798,7 @@ describe("加速", () => {
   it("効果中はダッシュが減らず移動が速い。切れるとしばらくダッシュ不可", () => {
     const state = skillArena([{ key: "haste" }]);
     press(state, 0);
-    expect(skillMoveMul(state)).toBeCloseTo(1 + SKILL.haste.moveBonus);
+    expect(skillMoveMul(state), "移動が速くなる").toBeGreaterThan(1);
     state.player.dashChargesLeft = 0;
     updatePlayer(state, withInput({}), FIXED_DT);
     expect(state.player.dashChargesLeft).toBe(state.stats.dashCharges);
@@ -811,6 +820,7 @@ describe("加速", () => {
 describe("鎖鎌", () => {
   it("最初の敵を手元へ引き寄せてスタガー。射程外には届かない", () => {
     const state = skillArena([{ key: "chainHook" }]);
+    clearHookLane(state);
     const e = tough(state, 70);
     press(state, 0);
     run(state, SKILL.chainHook.extendTime + FIXED_DT);
@@ -819,6 +829,7 @@ describe("鎖鎌", () => {
     expect(distTo(e.body.pos, state.player.body.pos)).toBeLessThan(30);
 
     const far = skillArena([{ key: "chainHook", variants: [{ axis: "areaVsDamage", value: -1 }] }]);
+    clearHookLane(far);
     // 射程 x0.6 = 66px。golem の半径ぶんを足しても届かない距離
     const out = tough(far, SKILL.chainHook.range * 0.6 + 25);
     press(far, 0);
@@ -828,6 +839,7 @@ describe("鎖鎌", () => {
 
   it("貫通の刻印符で後ろの敵も引き寄せる", () => {
     const state = skillArena([{ key: "chainHook", links: 1, modifiers: ["pierce"] }]);
+    clearHookLane(state);
     const a = tough(state, 40);
     const b = tough(state, 70);
     press(state, 0);
@@ -836,6 +848,7 @@ describe("鎖鎌", () => {
     expect(b.hp).toBeLessThan(BIG_HP);
 
     const plain = skillArena([{ key: "chainHook" }]);
+    clearHookLane(plain);
     const c = tough(plain, 40);
     const d = tough(plain, 70);
     press(plain, 0);

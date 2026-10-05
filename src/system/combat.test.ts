@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { step } from "../core/game";
 import { FIXED_DT } from "../core/loop";
-import { ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
+import { ARMOR_K, ARMOR_MAX_REDUCTION, ENERGY, FEEL, HEAL, MANA, PLAYER, STATUS } from "../data/tuning";
 import { MOVESETS, type MovesetKey } from "../data/weapons";
 import { DEFAULT_TRAIT_STATS, type TriggeredEffect } from "../loot/types";
 import { armorReduction, damageEnemy, damagePlayer, healSustained, hpRegenAllowed, inCombat, meleeHitEnergy, rollOutgoing, tickHpRegen } from "./combat";
@@ -338,13 +338,13 @@ describe("生存 stats", () => {
     expect(hp - state.player.hp).toBe(1);
   });
 
-  it("armorReduction は逓減式で、armor 20 で約 29%、armor 150 で上限 75%", () => {
+  it("armorReduction は逓減式で、防御の上限を守る", () => {
     expect(armorReduction(0)).toBe(0);
-    expect(armorReduction(20)).toBeCloseTo(20 / 70, 3);
-    expect(armorReduction(20)).toBeCloseTo(0.2857, 3);
-    expect(armorReduction(150)).toBeCloseTo(0.75, 5);
+    expect(armorReduction(20)).toBeCloseTo(Math.min(ARMOR_MAX_REDUCTION, 20 / (20 + ARMOR_K)), 3);
+    expect(armorReduction(20)).toBeLessThan(armorReduction(150));
+    expect(armorReduction(150)).toBeCloseTo(Math.min(ARMOR_MAX_REDUCTION, 150 / (150 + ARMOR_K)), 5);
     // さらに積んでも上限を超えない
-    expect(armorReduction(10000)).toBe(0.75);
+    expect(armorReduction(10000)).toBe(ARMOR_MAX_REDUCTION);
   });
 
   it("ダッシュはチャージ制で、回数ぶん連続で出せる", () => {

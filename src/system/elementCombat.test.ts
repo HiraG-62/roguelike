@@ -4,7 +4,7 @@ import { FIXED_DT } from "../core/loop";
 import type { GameState } from "../core/state";
 import { enemyGuard } from "../data/enemyCombat";
 import { enemyResistTable, enemyWeaknesses } from "../data/enemyDefense";
-import { ELEMENT } from "../data/tuning";
+import { ARMOR_K, ELEMENT, GENRE } from "../data/tuning";
 import { DEFAULT_STATS, type PlayerStats } from "../loot/types";
 import { mitigate, rollOutgoing } from "./combat";
 import {
@@ -73,7 +73,7 @@ describe("与ダメ: 敵の防御・魔防", () => {
     expect(g.warding, "ゴーレムは魔法に弱い").toBeLessThan(0);
     expect(enemyDefenseMul(e, "physical")).toBeCloseTo(1 - g.defense / 100);
     expect(enemyDefenseMul(e, "arcane")).toBeCloseTo(1 - g.warding / 100);
-    expect(enemyDefenseMul(e, "hybrid")).toBeCloseTo(1 - (g.defense + g.warding) / 2 / 100);
+    expect(enemyDefenseMul(e, "hybrid")).toBeCloseTo(1 - (g.defense * (1 - GENRE.hybridMix) + g.warding * GENRE.hybridMix) / 100);
     const phys = rollOutgoing(state, e, 100, "melee", { attack: attack("melee", "physical") }).amount;
     const arc = rollOutgoing(state, e, 100, "melee", { attack: attack("melee", "arcane") }).amount;
     expect(arc, "鎧には魔法がよく通る").toBeGreaterThan(phys);
@@ -200,13 +200,14 @@ describe("被ダメ: 防御・魔防・耐性", () => {
   it("魔法は魔防で受け、防御は効かない。混成は平均", () => {
     const stats: PlayerStats = { ...DEFAULT_STATS, armor: 50, warding: 0 };
     expect(playerMitigationMul(stats, attack("ranged", "arcane"))).toBeCloseTo(1);
-    expect(playerMitigationMul({ ...stats, warding: 50 }, attack("ranged", "arcane"))).toBeCloseTo(0.5);
-    expect(playerMitigationMul(stats, attack("melee", "hybrid"))).toBeCloseTo(0.75);
+    const physicalMul = ARMOR_K / (50 + ARMOR_K);
+    expect(playerMitigationMul({ ...stats, warding: 50 }, attack("ranged", "arcane"))).toBeCloseTo(physicalMul);
+    expect(playerMitigationMul(stats, attack("melee", "hybrid"))).toBeCloseTo(physicalMul * (1 - GENRE.hybridMix) + GENRE.hybridMix);
   });
 
   it("耐性はソフトキャップ（50 を超えた分は半分、上限 75、下限 −100）", () => {
     expect(effectiveResist(40)).toBe(40);
-    expect(effectiveResist(60)).toBe(55);
+    expect(effectiveResist(60)).toBe(ELEMENT.resistKnee + (60 - ELEMENT.resistKnee) * ELEMENT.resistSlope);
     expect(effectiveResist(200)).toBe(ELEMENT.resistMax);
     expect(effectiveResist(-300)).toBe(ELEMENT.resistMin);
   });

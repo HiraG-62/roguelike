@@ -103,15 +103,18 @@ describe("左は 3 連射、右は扇の 3 本", () => {
     const burst = STAR.steps[0]?.cast?.throw.bullet.burst;
     expect(burst?.count, "3 連射").toBe(3);
     const seen: Projectile[] = [...first];
+    const firedAt = [0];
     for (let i = 0; i < 60 && seen.length < 3; i++) {
       step(state, withInput({}), FIXED_DT);
-      for (const p of playerShots(state)) if (!seen.includes(p)) seen.push(p);
+      for (const p of playerShots(state)) if (!seen.includes(p)) {
+        seen.push(p);
+        firedAt.push(i + 1);
+      }
     }
     expect(seen, "続けて 3 本").toHaveLength(3);
     const dirs = new Set(seen.map((p) => Math.atan2(p.vel.y, p.vel.x).toFixed(4)));
     expect(dirs.size, "全部同じ向き").toBe(1);
-    const xs = seen.map((p) => p.pos.x);
-    expect(xs[0]! > xs[1]! && xs[1]! > xs[2]!, "先に投げた物ほど先を飛ぶ（1 本ずつ投げた）").toBe(true);
+    expect(firedAt[0]! < firedAt[1]! && firedAt[1]! < firedAt[2]!, "1 本ずつ間を置いて投げた").toBe(true);
   });
 
   it("右は向きの違う 3 本が扇に広がる", () => {

@@ -12,6 +12,7 @@ import { emitVolley } from "./player";
 import { pinCount, stickPin } from "./pins";
 import { ringsInFlight } from "./projectiles";
 import { arena, placeEnemy, withInput } from "./testHelpers";
+import { TILE_SIZE, Tile, setTile } from "../map/grid";
 
 /** 投げ物の武器種の動き（system/player.ts）: 戻るまで投げられない・交互の連撃・抜け斬り・叩き込み・連ね投げ */
 
@@ -199,6 +200,11 @@ describe("抜け斬り（passThrough・manaPerTarget）", () => {
         const state = arena();
         state.player.mana = 0;
         state.stats = { ...state.stats, maxMana: 1000 };
+        const px = Math.floor(state.player.body.pos.x / TILE_SIZE);
+        const py = Math.floor(state.player.body.pos.y / TILE_SIZE);
+        for (let ty = py - 1; ty <= py + 1; ty++) {
+          for (let tx = px; tx <= px + Math.ceil(LUNGE / TILE_SIZE) + 2; tx++) setTile(state.map, tx, ty, Tile.Floor);
+        }
         const enemies = Array.from({ length: count }, (_, i) => tough(placeEnemy(state, "boar", 20 + i * 15, 0)));
         // ダッシュの後の攻撃（ダッシュ攻撃）を直に出す（ダッシュの移動を挟まない）
         state.player.dashAttackQueued = true;
