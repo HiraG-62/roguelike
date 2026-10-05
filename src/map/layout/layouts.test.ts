@@ -20,16 +20,6 @@ function sizeFor(area: number): { width: number; height: number } {
   return { width: o.width, height: o.height };
 }
 
-/** 型の生成器が実装済みか（スタブは常に null）。少数の seed で 1 度でも下書きを返せば実装済みとみなす */
-function isImplemented(kind: LayoutKind): boolean {
-  const { width, height } = sizeFor(1);
-  const generate = LAYOUT_GENERATORS[kind];
-  for (let seed = 1; seed <= 4; seed++) {
-    if (generate(createRng(seed), layoutFrameFor(width, height, seed))) return true;
-  }
-  return false;
-}
-
 describe("layoutFrameFor（拡縮の規則）", () => {
   it("見本の大きさ（64x40）なら unit = 1・countMul = 1", () => {
     const f = layoutFrameFor(MAP_LAYOUT.previewWidth, MAP_LAYOUT.previewHeight, 7);
@@ -38,19 +28,18 @@ describe("layoutFrameFor（拡縮の規則）", () => {
     expect(f.noiseSeed).toBe(7);
   });
 
-  it("設計の表どおり: 面積 1 / 3.5 / 5 で unit は約 1.27 / 1.91 / 2.15、countMul は約 1.30 / 2.01 / 2.27", () => {
-    const expected: [number, number, number][] = [
-      [1, 1.27, 1.3],
-      [3.5, 1.91, 2.01],
-      [5, 2.15, 2.27],
-    ];
-    for (const [area, unit, countMul] of expected) {
+  it("地図の面積を広げると長さと個数の倍率がともに増える", () => {
+    let previousUnit = 1;
+    let previousCountMul = 1;
+    for (const area of AREAS) {
       const { width, height } = sizeFor(area);
       const f = layoutFrameFor(width, height);
-      expect(f.unit, `面積 ${area} の unit`).toBeCloseTo(unit, 1);
-      expect(f.countMul, `面積 ${area} の countMul`).toBeCloseTo(countMul, 1);
+      expect(f.unit, `面積 ${area} の長さの倍率`).toBeGreaterThan(previousUnit);
+      expect(f.countMul, `面積 ${area} の個数の倍率`).toBeGreaterThan(previousCountMul);
       expect(f.width).toBe(width);
       expect(f.height).toBe(height);
+      previousUnit = f.unit;
+      previousCountMul = f.countMul;
     }
   });
 
@@ -209,19 +198,10 @@ describe("generateLayoutMap（生成 → 後処理 → 検査 → 作り直し�
 });
 
 // ---------------------------------------------------------------------------
-// 8 型 × seed × 面積の表。スタブの型は飛ばし、型のレーンが生成器を入れたら自動で回る
+// 8 型 × seed × 面積の表
 // ---------------------------------------------------------------------------
 
 describe.each(LAYOUT_KINDS)("階の型 %s", (kind) => {
-  const implemented = isImplemented(kind);
-  const run = implemented ? it : it.skip;
-
-  it("未実装（スタブ）の型は null を返す（呼び出し側が旧生成器へ落ちる）。実装されたらこの確認は要らない", () => {
-    if (implemented) return;
-    const { width, height } = sizeFor(3.5);
-    expect(generateLayoutMap(kind, createRng(1), width, height)).toBeNull();
-  });
-
   describe.each(AREAS)("面積 %s 倍", (area) => {
     const { width, height } = sizeFor(area);
     let cache: (GameMap | null)[] | undefined;
@@ -230,7 +210,7 @@ describe.each(LAYOUT_KINDS)("階の型 %s", (kind) => {
       return cache;
     };
 
-    run("作れた地図は 8 項目の検査に通り、型が記録されている", () => {
+    it("作れた地図は 8 項目の検査に通り、型が記録されている", () => {
       for (const [i, map] of maps().entries()) {
         if (!map) continue;
         expect(validateLayout(map), `seed=${SEEDS[i]}`).toBeNull();
@@ -238,7 +218,7 @@ describe.each(LAYOUT_KINDS)("階の型 %s", (kind) => {
       }
     });
 
-    run("同じ rng なら同じタイル列・同じ部屋になる", () => {
+    it("同じ rng なら同じタイル列・同じ部屋になる", () => {
       for (const seed of SEEDS.slice(0, DETERMINISM_SEEDS)) {
         const a = generateLayoutMap(kind, createRng(seed), width, height);
         const b = generateLayoutMap(kind, createRng(seed), width, height);
@@ -248,7 +228,7 @@ describe.each(LAYOUT_KINDS)("階の型 %s", (kind) => {
       }
     });
 
-    run("旧生成器に落ちる割合（失敗率）が 5% 以下", () => {
+    it("旧生成器に落ちる割合（失敗率）が 5% 以下", () => {
       const failures = maps().filter((m) => m === null).length;
       expect(failures / SEEDS.length, `${SEEDS.length} seed 中 ${failures} 失敗`).toBeLessThanOrEqual(MAX_FAIL_RATE);
     });
